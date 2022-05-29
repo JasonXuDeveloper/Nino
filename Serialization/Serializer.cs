@@ -33,9 +33,9 @@ namespace Nino.Serialization
 		private static Dictionary<Type, bool> validTypes = new Dictionary<Type, bool>();
 
 		private static bool CheckValidType(Type type)
-        {
+		{
 			if (!validTypes.ContainsKey(type))
-            {
+			{
 				NinoSerializeAttribute[] ns = (NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
 				if (ns?.Length == 0)
 				{
@@ -122,18 +122,18 @@ namespace Nino.Serialization
 
 			//start serialize
 			using (MemoryStream ms = new MemoryStream())
-            {
+			{
 				using (BinaryWriter bw = new BinaryWriter(ms))
-                {
-                    for (; min <= max; min++)
-                    {
+				{
+					for (; min <= max; min++)
+					{
 						m = members[min];
 						type = m is FieldInfo f ? f.FieldType : ((PropertyInfo)m).PropertyType;
 						val = GetVal(m, value);
-						if(val == null)
-                        {
+						if (val == null)
+						{
 							throw new NullReferenceException($"{type.FullName}.{m.Name} is null, cannot serialize");
-                        }
+						}
 						//consider to compress (only for whole num and string)
 						if (WholeNumToCompressType.Contains(type))
 						{
@@ -145,29 +145,29 @@ namespace Nino.Serialization
 						{
 							WritePrimitiveVal(bw, type, val, encoding);
 						}
-                        //string
-                        else
-                        {
+						//string
+						else
+						{
 							WriteStringVal(bw, (string)val, encoding);
-                        }
+						}
 					}
 					return ms.ToArray();
-                }
-            }
+				}
+			}
 		}
 
 		/// <summary>
-        /// Write string
-        /// </summary>
-        /// <param name="bw"></param>
-        /// <param name="val"></param>
-        /// <param name="encoding"></param>
+		/// Write string
+		/// </summary>
+		/// <param name="bw"></param>
+		/// <param name="val"></param>
+		/// <param name="encoding"></param>
 		private static void WriteStringVal(BinaryWriter bw, string val, Encoding encoding)
-        {
+		{
 			var bs = encoding.GetBytes(val);
 			var len = bs.Length;
-			if(len <= byte.MaxValue)
-            {
+			if (len <= byte.MaxValue)
+			{
 				bw.Write((byte)CompressType.ByteString);
 				bw.Write((byte)len);
 			}
@@ -185,18 +185,18 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-        /// Write primitive value to binary writer
-        /// </summary>
-        /// <param name="bw"></param>
-        /// <param name="type"></param>
-        /// <param name="val"></param>
-        /// <exception cref="InvalidDataException"></exception>
+		/// Write primitive value to binary writer
+		/// </summary>
+		/// <param name="bw"></param>
+		/// <param name="type"></param>
+		/// <param name="val"></param>
+		/// <exception cref="InvalidDataException"></exception>
 		private static void WritePrimitiveVal(BinaryWriter bw, Type type, object val, Encoding encoding)
-        {
+		{
 			//array/ list -> recursive
 			Type elemType;
 			if (type.IsArray)
-            {
+			{
 				elemType = type.GetElementType();
 				var arr = (Array)val;
 				foreach (var c in arr)
@@ -216,9 +216,9 @@ namespace Nino.Serialization
 				return;
 			}
 
-            //typeof(double), typeof(decimal), typeof(float), typeof(bool)
-            if (PrimitiveType.Contains(type))
-            {
+			//typeof(double), typeof(decimal), typeof(float), typeof(bool)
+			if (PrimitiveType.Contains(type))
+			{
 				if (val is bool b)
 				{
 					bw.Write(b);
@@ -240,38 +240,38 @@ namespace Nino.Serialization
 					bw.Write(c);
 				}
 			}
-            else
-            {
+			else
+			{
 				//check recursive
 				if (!CheckValidType(type))
 				{
 					throw new InvalidDataException($"Cannot serialize type: {type.FullName}");
 				}
-                else
-                {
+				else
+				{
 					bw.Write(Serialize(type, val, encoding));
-                }
-            }
+				}
+			}
 		}
 
 		/// <summary>
-        /// Compress whole number and write
-        /// </summary>
-        /// <param name="num"></param>
+		/// Compress whole number and write
+		/// </summary>
+		/// <param name="num"></param>
 		private static void CompressAndWriteMinNum(BinaryWriter bw, object num)
-        {
+		{
 			CompressType type = CompressType.Byte;
 			// >=0 case
-			if(num is ulong || num is uint || num is ushort || num is byte)
-            {
+			if (num is ulong || num is uint || num is ushort || num is byte)
+			{
 				var n = Convert.ToUInt64(num);
 				GetCompressType(ref type, n);
-                //write
-                WriteMinNum(bw, type, n);
+				//write
+				WriteMinNum(bw, type, n);
 			}
-            // <0 case
-            else
-            {
+			// <0 case
+			else
+			{
 				var n = Convert.ToInt64(num);
 				GetCompressType(ref type, n);
 				//write
@@ -360,10 +360,10 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-        /// Get compress type
-        /// </summary>
-        /// <param name="type"></param>
-        /// <param name="num"></param>
+		/// Get compress type
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="num"></param>
 		private static void GetCompressType(ref CompressType type, long num)
 		{
 			type = CompressType.Int64;
@@ -385,11 +385,11 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-        /// Get value from memberinfo
-        /// </summary>
-        /// <param name="info"></param>
-        /// <param name="instance"></param>
-        /// <returns></returns>
+		/// Get value from memberinfo
+		/// </summary>
+		/// <param name="info"></param>
+		/// <param name="instance"></param>
+		/// <returns></returns>
 		private static object GetVal(MemberInfo info, object instance)
 		{
 			if (info is FieldInfo fo) return fo.GetValue(instance);
