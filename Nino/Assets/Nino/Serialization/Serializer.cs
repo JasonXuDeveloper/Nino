@@ -1,21 +1,23 @@
 ﻿using System;
-using System.Collections.Specialized;
-using System.Text;
-using System.Linq;
-using System.Reflection;
-using System.Collections.Generic;
 using System.IO;
+using System.Text;
+using System.Reflection;
 using System.Collections;
-using System.Runtime.CompilerServices;
+using System.Collections.Generic;
 
 namespace Nino.Serialization
 {
+	// ReSharper disable UnusedParameter.Local
 	public static class Serializer
 	{
 		/// <summary>
 		/// Default Encoding
 		/// </summary>
+		// ReSharper disable MemberCanBePrivate.Global
+		// ReSharper disable FieldCanBeMadeReadOnly.Global
 		public static Encoding DefaultEncoding = Encoding.UTF8;
+		// ReSharper restore FieldCanBeMadeReadOnly.Global
+		// ReSharper restore MemberCanBePrivate.Global
 
 		/// <summary>
 		/// Null value
@@ -86,7 +88,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
-		public static byte[] Serialize(Type type, object value, Encoding encoding)
+		private static byte[] Serialize(Type type, object value, Encoding encoding)
 		{
 			//Get Attribute that indicates a class/struct to be serialized
 			if (!TryGetModel(type, out var model))
@@ -220,7 +222,7 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-		/// Get value from memberinfo
+		/// Get value from MemberInfo
 		/// </summary>
 		/// <param name="info"></param>
 		/// <param name="instance"></param>
@@ -308,13 +310,20 @@ namespace Nino.Serialization
 				//byte[] -> write directly
 				if (type == typeof(byte[]))
 				{
-					bw.Write((byte[])val);
+					var dt = (byte[])val;
+					//write len
+					CompressAndWrite(bw, ms, dt.Length);
+					//write item
+					bw.Write(dt);
 					return;
 				}
 
 				//other type
 				var elemType = type.GetElementType();
 				var arr = (Array)val;
+				//write len
+				CompressAndWrite(bw, ms, arr.Length);
+				//write item
 				foreach (var c in arr)
 				{
 					WriteCommonVal(bw, ms, elemType, c, encoding);
@@ -328,13 +337,20 @@ namespace Nino.Serialization
 				//List<byte> -> write directly
 				if (type == typeof(List<byte>))
 				{
-					bw.Write(((List<byte>)val).ToArray());
+					var dt = (byte[])val;
+					//write len
+					CompressAndWrite(bw, ms, dt.Length);
+					//write item
+					bw.Write(dt);
 					return;
 				}
 
 				//other
 				var elemType = type.GenericTypeArguments[0];
 				var arr = (ICollection)val;
+				//write len
+				CompressAndWrite(bw, ms, arr.Count);
+				//write item
 				foreach (var c in arr)
 				{
 					WriteCommonVal(bw, ms, elemType, c, encoding);
@@ -506,7 +522,6 @@ namespace Nino.Serialization
 			bw.Write((byte)CompressType.UInt16);
 			WriteUShort(bw, ms, num);
 		}
-
 		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, byte num)
 		{
 			bw.Write((byte)CompressType.Byte);
@@ -583,6 +598,8 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteInt(BinaryWriter bw, MemoryStream ms, int num)
 		{
+			bw.Write(num);
+			return;
 			if (ms.Length - ms.Position < SizeOfInt)
 			{
 				ms.SetLength(ms.Length + SizeOfInt);
@@ -602,6 +619,8 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteUInt(BinaryWriter bw, MemoryStream ms, uint num)
 		{
+			bw.Write(num);
+			return;
 			if (ms.Length - ms.Position < SizeOfUInt)
 			{
 				ms.SetLength(ms.Length + SizeOfUInt);
@@ -621,6 +640,8 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteShort(BinaryWriter bw, MemoryStream ms, short num)
 		{
+			bw.Write(num);
+			return;
 			if (ms.Length - ms.Position < SizeOfShort)
 			{
 				ms.SetLength(ms.Length + SizeOfShort);
@@ -640,6 +661,8 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteUShort(BinaryWriter bw, MemoryStream ms, ushort num)
 		{
+			bw.Write(num);
+			return;
 			if (ms.Length - ms.Position < SizeOfUShort)
 			{
 				ms.SetLength(ms.Length + SizeOfUShort);
@@ -659,6 +682,8 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteLong(BinaryWriter bw, MemoryStream ms, long num)
 		{
+			bw.Write(num);
+			return;
 			if (ms.Length - ms.Position < SizeOfLong)
 			{
 				ms.SetLength(ms.Length + SizeOfLong);
@@ -678,6 +703,8 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteULong(BinaryWriter bw, MemoryStream ms, ulong num)
 		{
+			bw.Write(num);
+			return;
 			if (ms.Length - ms.Position < SizeOfULong)
 			{
 				ms.SetLength(ms.Length + SizeOfULong);
@@ -691,4 +718,5 @@ namespace Nino.Serialization
 
 		#endregion
 	}
+	// ReSharper restore UnusedParameter.Local
 }

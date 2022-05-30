@@ -1,0 +1,15 @@
+{
+    "name": "Nino.Serialization",
+    "references": [
+        "GUID:c947f54a00421464b84387bc8aaceaf4"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}
