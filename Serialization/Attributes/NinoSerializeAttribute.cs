@@ -1,5 +1,5 @@
 ﻿using System;
-namespace Nino.Serialization.Attributes
+namespace Nino.Serialization
 {
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false)]
 	public class NinoSerializeAttribute : Attribute
