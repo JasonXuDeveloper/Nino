@@ -53,26 +53,16 @@ namespace Nino.Serialization
 
 		private static bool TryGetModel(Type type, out TypeModel model)
 		{
-			if (!TypeModels.ContainsKey(type))
+			if (TypeModels.TryGetValue(type, out model)) return true;
+			NinoSerializeAttribute[] ns =
+				(NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
+			if (ns.Length != 0) return true;
+			model = new TypeModel()
 			{
-				NinoSerializeAttribute[] ns =
-					(NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-				if (ns.Length == 0)
-				{
-					model = new TypeModel()
-					{
-						valid = false
-					};
-					TypeModels.Add(type, model);
-					return false;
-				}
-
-				model = null;
-				return true;
-			}
-
-			model = TypeModels[type];
-			return true;
+				valid = false
+			};
+			TypeModels.Add(type, model);
+			return false;
 		}
 
 		/// <summary>
@@ -116,25 +106,24 @@ namespace Nino.Serialization
 			//generate model
 			if (model == null)
 			{
-				model = new TypeModel()
+				model = new TypeModel
 				{
 					min = ushort.MaxValue,
 					max = ushort.MinValue,
-					valid = true
+					valid = true,
+					//fetch members
+					members = new Dictionary<ushort, MemberInfo>(),
+					//fetch types
+					types = new Dictionary<ushort, Type>()
 				};
-
-				//fetch members
-				model.members = new Dictionary<ushort, MemberInfo>();
-				//fetch types
-				model.types = new Dictionary<ushort, Type>();
 
 				//store temp attr
 				SerializePropertyAttribute sp;
 				//flag
-				var flags = BindingFlags.Default | BindingFlags.DeclaredOnly | BindingFlags.Public |
-							BindingFlags.NonPublic | BindingFlags.Instance;
+				const BindingFlags flags = BindingFlags.Default | BindingFlags.DeclaredOnly | BindingFlags.Public |
+				                           BindingFlags.NonPublic | BindingFlags.Instance;
 
-				//fetch fields (only public and private fields that declaed in the type)
+				//fetch fields (only public and private fields that declared in the type)
 				FieldInfo[] fs = type.GetFields(flags);
 				//iterate fields
 				foreach (var f in fs)
@@ -157,7 +146,7 @@ namespace Nino.Serialization
 					}
 				}
 
-				//fetch properties (only public and private properties that declaed in the type)
+				//fetch properties (only public and private properties that declared in the type)
 				PropertyInfo[] ps = type.GetProperties(flags);
 				//iterate properties
 				foreach (var p in ps)
@@ -198,24 +187,19 @@ namespace Nino.Serialization
 			//min, max index
 			ushort min = model.min, max = model.max;
 
-			//temp member
-			MemberInfo m;
-			//temp val
-			object val;
-
 			//start serialize
-			using (MemoryStream ms = new MemoryStream())
+			using (var ms = new MemoryStream())
 			{
-				using (BinaryWriter bw = new BinaryWriter(ms, encoding))
+				using (var bw = new BinaryWriter(ms, encoding))
 				{
 					for (; min <= max; min++)
 					{
-						m = model.members[min];
 						type = model.types[min];
-						val = GetVal(m, value);
+						var val = GetVal(model.members[min], value);
 						if (val == null)
 						{
-							throw new NullReferenceException($"{type.FullName}.{m.Name} is null, cannot serialize");
+							throw new NullReferenceException(
+								$"{type.FullName}.{model.members[min].Name} is null, cannot serialize");
 						}
 
 						//common
@@ -241,12 +225,17 @@ namespace Nino.Serialization
 		/// <param name="info"></param>
 		/// <param name="instance"></param>
 		/// <returns></returns>
-
 		private static object GetVal(MemberInfo info, object instance)
 		{
-			if (info is FieldInfo fo) return fo.GetValue(instance);
-			if (info is PropertyInfo po) return po.GetValue(instance);
-			return null;
+			switch (info)
+			{
+				case FieldInfo fo:
+					return fo.GetValue(instance);
+				case PropertyInfo po:
+					return po.GetValue(instance);
+				default:
+					return null;
+			}
 		}
 
 		/// <summary>
@@ -256,7 +245,6 @@ namespace Nino.Serialization
 		/// <param name="ms"></param>
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
-
 		private static void WriteStringVal(BinaryWriter bw, MemoryStream ms, string val, Encoding encoding)
 		{
 			var len = encoding.GetByteCount(val);
@@ -288,7 +276,6 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
 		/// <exception cref="InvalidDataException"></exception>
-
 		private static void WriteCommonVal(BinaryWriter bw, MemoryStream ms, Type type, object val, Encoding encoding)
 		{
 			//consider to compress (only for whole num and string)
@@ -316,7 +303,6 @@ namespace Nino.Serialization
 			}
 
 			//array/ list -> recursive
-			Type elemType;
 			if (type.IsArray)
 			{
 				//byte[] -> write directly
@@ -327,7 +313,7 @@ namespace Nino.Serialization
 				}
 
 				//other type
-				elemType = type.GetElementType();
+				var elemType = type.GetElementType();
 				var arr = (Array)val;
 				foreach (var c in arr)
 				{
@@ -347,7 +333,7 @@ namespace Nino.Serialization
 				}
 
 				//other
-				elemType = type.GenericTypeArguments[0];
+				var elemType = type.GenericTypeArguments[0];
 				var arr = (ICollection)val;
 				foreach (var c in arr)
 				{
@@ -357,15 +343,11 @@ namespace Nino.Serialization
 				return;
 			}
 
-			//check recursive
-			if (!TryGetModel(type, out _))
-			{
-				throw new InvalidDataException($"Cannot serialize type: {type.FullName}");
-			}
-			else
-			{
-				bw.Write(Serialize(type, val, encoding));
-			}
+			//TODO custom exporter
+
+			//no chance to serialize -> see if this type can be serialized in other ways
+			//try recursive
+			bw.Write(Serialize(type, val, encoding));
 		}
 
 
@@ -374,28 +356,25 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="bw"></param>
 		/// <param name="val"></param>
-
 		private static void WritePrimitive(BinaryWriter bw, object val)
 		{
-			if (val is bool b)
+			switch (val)
 			{
-				bw.Write(b);
-			}
-			else if (val is double db)
-			{
-				bw.Write(db);
-			}
-			else if (val is decimal dc)
-			{
-				bw.Write(dc);
-			}
-			else if (val is float fl)
-			{
-				bw.Write(fl);
-			}
-			else if (val is char c)
-			{
-				bw.Write(c);
+				case bool b:
+					bw.Write(b);
+					break;
+				case double db:
+					bw.Write(db);
+					break;
+				case decimal dc:
+					bw.Write(dc);
+					break;
+				case float fl:
+					bw.Write(fl);
+					break;
+				case char c:
+					bw.Write(c);
+					break;
 			}
 		}
 
@@ -405,43 +384,36 @@ namespace Nino.Serialization
 		/// <param name="bw"></param>
 		/// <param name="ms"></param>
 		/// <param name="num"></param>
-
 		private static void CompressAndWriteMinNum(BinaryWriter bw, MemoryStream ms, object num)
 		{
-			//without sign
-			if (num is ulong ul)
+			switch (num)
 			{
-				CompressAndWrite(bw, ms, ul);
-			}
-			else if (num is uint ui)
-			{
-				CompressAndWrite(bw, ms, ui);
-			}
-			else if (num is ushort us)
-			{
-				CompressAndWrite(bw, ms, us);
-			}
-			else if (num is byte b)
-			{
-				CompressAndWrite(bw, ms, b);
-			}
-
-			// with sign
-			if (num is long l)
-			{
-				CompressAndWrite(bw, ms, l);
-			}
-			else if (num is int i)
-			{
-				CompressAndWrite(bw, ms, i);
-			}
-			else if (num is short s)
-			{
-				CompressAndWrite(bw, ms, s);
-			}
-			else if (num is sbyte sb)
-			{
-				CompressAndWrite(bw, ms, sb);
+				//without sign
+				case ulong ul:
+					CompressAndWrite(bw, ms, ul);
+					break;
+				case uint ui:
+					CompressAndWrite(bw, ms, ui);
+					break;
+				case ushort us:
+					CompressAndWrite(bw, ms, us);
+					break;
+				case byte b:
+					CompressAndWrite(bw, ms, b);
+					break;
+				// with sign
+				case long l:
+					CompressAndWrite(bw, ms, l);
+					break;
+				case int i:
+					CompressAndWrite(bw, ms, i);
+					break;
+				case short s:
+					CompressAndWrite(bw, ms, s);
+					break;
+				case sbyte sb:
+					CompressAndWrite(bw, ms, sb);
+					break;
 			}
 		}
 
@@ -498,48 +470,26 @@ namespace Nino.Serialization
 
 		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, ulong num)
 		{
-			//parse to byte
-			if (num <= byte.MaxValue)
-			{
-				CompressAndWrite(bw, ms, (byte)num);
-				return;
-			}
-
-			if (num <= ushort.MaxValue)
-			{
-				CompressAndWrite(bw, ms, (ushort)num);
-				return;
-			}
-
 			if (num <= uint.MaxValue)
 			{
 				CompressAndWrite(bw, ms, (uint)num);
 				return;
 			}
 
-			CompressType type = CompressType.UInt64;
-			bw.Write((byte)type);
+			bw.Write((byte)CompressType.UInt64);
 			WriteULong(bw, ms, num);
 		}
 
 
 		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, uint num)
 		{
-			//parse to byte
-			if (num <= byte.MaxValue)
-			{
-				CompressAndWrite(bw, ms, (byte)num);
-				return;
-			}
-
 			if (num <= ushort.MaxValue)
 			{
 				CompressAndWrite(bw, ms, (ushort)num);
 				return;
 			}
 
-			CompressType type = CompressType.UInt32;
-			bw.Write((byte)type);
+			bw.Write((byte)CompressType.UInt32);
 			WriteUInt(bw, ms, num);
 		}
 
@@ -553,16 +503,13 @@ namespace Nino.Serialization
 				return;
 			}
 
-			CompressType type = CompressType.UInt16;
-			bw.Write((byte)type);
+			bw.Write((byte)CompressType.UInt16);
 			WriteUShort(bw, ms, num);
 		}
 
-
 		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, byte num)
 		{
-			CompressType type = CompressType.Byte;
-			bw.Write((byte)type);
+			bw.Write((byte)CompressType.Byte);
 			bw.Write(num);
 		}
 
@@ -572,48 +519,26 @@ namespace Nino.Serialization
 
 		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, long num)
 		{
-			//parse to byte
-			if (num <= sbyte.MaxValue)
-			{
-				CompressAndWrite(bw, ms, (sbyte)num);
-				return;
-			}
-
-			if (num <= short.MaxValue)
-			{
-				CompressAndWrite(bw, ms, (short)num);
-				return;
-			}
-
 			if (num <= int.MaxValue)
 			{
 				CompressAndWrite(bw, ms, (int)num);
 				return;
 			}
 
-			CompressType type = CompressType.Int64;
-			bw.Write((byte)type);
+			bw.Write((byte)CompressType.Int64);
 			WriteLong(bw, ms, num);
 		}
 
 
 		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, int num)
 		{
-			//parse to byte
-			if (num <= sbyte.MaxValue)
-			{
-				CompressAndWrite(bw, ms, (sbyte)num);
-				return;
-			}
-
 			if (num <= short.MaxValue)
 			{
 				CompressAndWrite(bw, ms, (short)num);
 				return;
 			}
 
-			CompressType type = CompressType.Int32;
-			bw.Write((byte)type);
+			bw.Write((byte)CompressType.Int32);
 			WriteInt(bw, ms, num);
 		}
 
@@ -627,20 +552,28 @@ namespace Nino.Serialization
 				return;
 			}
 
-			CompressType type = CompressType.Int16;
-			bw.Write((byte)type);
+			bw.Write((byte)CompressType.Int16);
 			WriteShort(bw, ms, num);
 		}
 
 
-		private static void CompressAndWrite(BinaryWriter bw, sbyte num)
+		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, sbyte num)
 		{
-			CompressType type = CompressType.SByte;
-			bw.Write((byte)type);
+			bw.Write((byte)CompressType.SByte);
 			bw.Write(num);
 		}
 
 		#endregion
+
+
+		#region write whole num
+
+		private const byte SizeOfUInt = sizeof(uint);
+		private const byte SizeOfInt = sizeof(int);
+		private const byte SizeOfUShort = sizeof(ushort);
+		private const byte SizeOfShort = sizeof(short);
+		private const byte SizeOfULong = sizeof(ulong);
+		private const byte SizeOfLong = sizeof(long);
 
 		/// <summary>
 		/// Write int val to binary writer
@@ -650,10 +583,9 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteInt(BinaryWriter bw, MemoryStream ms, int num)
 		{
-			byte size = sizeof(int);
-			if (ms.Length - ms.Position < size)
+			if (ms.Length - ms.Position < SizeOfInt)
 			{
-				ms.SetLength(ms.Length + size);
+				ms.SetLength(ms.Length + SizeOfInt);
 			}
 
 			fixed (byte* p = &ms.GetBuffer()[ms.Position])
@@ -668,13 +600,11 @@ namespace Nino.Serialization
 		/// <param name="bw"></param>
 		/// <param name="ms"></param>
 		/// <param name="num"></param>
-
 		private static unsafe void WriteUInt(BinaryWriter bw, MemoryStream ms, uint num)
 		{
-			byte size = sizeof(uint);
-			if (ms.Length - ms.Position < size)
+			if (ms.Length - ms.Position < SizeOfUInt)
 			{
-				ms.SetLength(ms.Length + size);
+				ms.SetLength(ms.Length + SizeOfUInt);
 			}
 
 			fixed (byte* p = &ms.GetBuffer()[ms.Position])
@@ -691,10 +621,9 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteShort(BinaryWriter bw, MemoryStream ms, short num)
 		{
-			byte size = sizeof(short);
-			if (ms.Length - ms.Position < size)
+			if (ms.Length - ms.Position < SizeOfShort)
 			{
-				ms.SetLength(ms.Length + size);
+				ms.SetLength(ms.Length + SizeOfShort);
 			}
 
 			fixed (byte* p = &ms.GetBuffer()[ms.Position])
@@ -711,10 +640,9 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		private static unsafe void WriteUShort(BinaryWriter bw, MemoryStream ms, ushort num)
 		{
-			byte size = sizeof(ushort);
-			if (ms.Length - ms.Position < size)
+			if (ms.Length - ms.Position < SizeOfUShort)
 			{
-				ms.SetLength(ms.Length + size);
+				ms.SetLength(ms.Length + SizeOfUShort);
 			}
 
 			fixed (byte* p = &ms.GetBuffer()[ms.Position])
@@ -729,13 +657,11 @@ namespace Nino.Serialization
 		/// <param name="bw"></param>
 		/// <param name="ms"></param>
 		/// <param name="num"></param>
-
 		private static unsafe void WriteLong(BinaryWriter bw, MemoryStream ms, long num)
 		{
-			byte size = sizeof(long);
-			if (ms.Length - ms.Position < size)
+			if (ms.Length - ms.Position < SizeOfLong)
 			{
-				ms.SetLength(ms.Length + size);
+				ms.SetLength(ms.Length + SizeOfLong);
 			}
 
 			fixed (byte* p = &ms.GetBuffer()[ms.Position])
@@ -750,13 +676,11 @@ namespace Nino.Serialization
 		/// <param name="bw"></param>
 		/// <param name="ms"></param>
 		/// <param name="num"></param>
-
 		private static unsafe void WriteULong(BinaryWriter bw, MemoryStream ms, ulong num)
 		{
-			byte size = sizeof(ulong);
-			if (ms.Length - ms.Position < size)
+			if (ms.Length - ms.Position < SizeOfULong)
 			{
-				ms.SetLength(ms.Length + size);
+				ms.SetLength(ms.Length + SizeOfULong);
 			}
 
 			fixed (byte* p = &ms.GetBuffer()[ms.Position])
@@ -764,5 +688,7 @@ namespace Nino.Serialization
 				*(ulong*)p = num;
 			}
 		}
+
+		#endregion
 	}
 }
