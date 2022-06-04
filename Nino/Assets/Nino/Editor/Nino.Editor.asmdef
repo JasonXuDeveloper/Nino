@@ -1,9 +1,7 @@
 {
-    "name": "Nino.Editor.Serialization.Test",
+    "name": "Nino.Editor",
     "references": [
-        "GUID:c947f54a00421464b84387bc8aaceaf4",
-        "GUID:79792d810a9824b3f8aba6b0173053ac",
-        "GUID:b4ba1c6530914478f9c4dc9b75d56ac4"
+        "Nino.Serialization"
     ],
     "includePlatforms": [
         "Editor"

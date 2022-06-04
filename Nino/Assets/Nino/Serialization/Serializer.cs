@@ -4,6 +4,8 @@ using System.Text;
 using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO.Compression;
+// ReSharper disable UnusedMember.Local
 
 namespace Nino.Serialization
 {
@@ -24,6 +26,11 @@ namespace Nino.Serialization
 		/// </summary>
 		private static readonly byte[] Null = Array.Empty<byte>();
 
+		/// <summary>
+		/// Empty param
+		/// </summary>
+		private static readonly object[] EmptyParam = Array.Empty<object>();
+
 		#region basic types
 		private static readonly Type ByteType = typeof(byte);
 		private static readonly Type SbyteType = typeof(sbyte);
@@ -35,23 +42,6 @@ namespace Nino.Serialization
 		private static readonly Type UlongType = typeof(ulong);
 		private static readonly Type StringType = typeof(string);
 		#endregion
-
-		/// <summary>
-		/// Whole numbers that can consider compress
-		/// </summary>
-		private static readonly HashSet<Type> WholeNumToCompressType = new HashSet<Type>()
-		{
-			ByteType, SbyteType, ShortType, UshortType,
-			INTType, UintType, LongType, UlongType
-		};
-
-		/// <summary>
-		/// Other system types to serialize
-		/// </summary>
-		private static readonly HashSet<Type> PrimitiveType = new HashSet<Type>()
-		{
-			typeof(double), typeof(decimal), typeof(float), typeof(bool), typeof(char)
-		};
 
 		/// <summary>
 		/// Cached Models
@@ -97,10 +87,11 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="value"></param>
 		/// <param name="encoding"></param>
+		/// <param name="writer"></param>
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
-		private static byte[] Serialize(Type type, object value, Encoding encoding)
+		private static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
 		{
 			//Get Attribute that indicates a class/struct to be serialized
 			if (!TryGetModel(type, out var model))
@@ -132,7 +123,7 @@ namespace Nino.Serialization
 				};
 
 				//store temp attr
-				SerializePropertyAttribute sp;
+				NinoMemberAttribute sp;
 				//flag
 				const BindingFlags flags = BindingFlags.Default | BindingFlags.DeclaredOnly | BindingFlags.Public |
 				                           BindingFlags.NonPublic | BindingFlags.Instance;
@@ -142,7 +133,7 @@ namespace Nino.Serialization
 				//iterate fields
 				foreach (var f in fs)
 				{
-					sp = f.GetCustomAttribute(typeof(SerializePropertyAttribute), false) as SerializePropertyAttribute;
+					sp = f.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
 					//not fetch all and no attribute => skip this member
 					if (sp == null) continue;
 					//record field
@@ -172,7 +163,7 @@ namespace Nino.Serialization
 							$"Cannot read or write property {p.Name} in {type.FullName}, cannot serialize this property");
 					}
 
-					sp = p.GetCustomAttribute(typeof(SerializePropertyAttribute), false) as SerializePropertyAttribute;
+					sp = p.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
 					//not fetch all and no attribute => skip this member
 					if (sp == null) continue;
 					//record property
@@ -194,6 +185,10 @@ namespace Nino.Serialization
 				{
 					model.valid = false;
 				}
+				else
+				{
+					model.ninoGetMembers = type.GetMethod("NinoGetMembers", flags);
+				}
 
 				TypeModels.Add(type, model);
 			}
@@ -201,13 +196,22 @@ namespace Nino.Serialization
 			//min, max index
 			ushort min = model.min, max = model.max;
 
-			//start serialize
-			using (var writer = new Writer(encoding))
+			void Write()
 			{
+				int index = 0;
+				object[] objs = null;
+				if (model.ninoGetMembers != null)
+				{
+					objs = (object[])model.ninoGetMembers.Invoke(value, EmptyParam);
+				}
 				for (; min <= max; min++)
 				{
+					//prevent index not exist
+					if (!model.types.ContainsKey(min)) continue;
+					//get type of that member
 					type = model.types[min];
-					var val = GetVal(model.members[min], value);
+					//try code gen, if no code gen then reflection
+					object val = objs != null ? objs[index] : GetVal(model.members[min], value);
 					if (val == null)
 					{
 						throw new NullReferenceException(
@@ -224,9 +228,57 @@ namespace Nino.Serialization
 					{
 						writer.Write((string)val);
 					}
-				}
 
-				return writer.ToBytes();
+					//add the index, so it will fetch the next member (when code gen exists)
+					index++;
+				}
+			}
+			
+			//share a writer
+			if (writer != null)
+			{
+				Write();
+				return Null;
+			}
+			
+			//start serialize
+			using (writer = new Writer(encoding))
+			{
+				Write();
+				//compress it
+				return Compress(writer.ToBytes());
+			}
+		}
+		
+		/// <summary>
+		/// Compress the given bytes
+		/// </summary>
+		/// <param name="data"></param>
+		/// <returns></returns>
+		private static byte[] Compress(byte[] data)
+		{
+			using (var compressedStream = new MemoryStream())
+			using (var zipStream = new GZipStream(compressedStream, CompressionMode.Compress))
+			{
+				zipStream.Write(data, 0, data.Length);
+				zipStream.Close();
+				return compressedStream.ToArray();
+			}
+		}
+
+		/// <summary>
+		/// Decompress thr given bytes
+		/// </summary>
+		/// <param name="data"></param>
+		/// <returns></returns>
+		private static byte[] Decompress(byte[] data)
+		{
+			using (var compressedStream = new MemoryStream(data))
+			using (var zipStream = new GZipStream(compressedStream, CompressionMode.Decompress))
+			using (var resultStream = new MemoryStream())
+			{
+				zipStream.CopyTo(resultStream);
+				return resultStream.ToArray();
 			}
 		}
 
@@ -371,7 +423,7 @@ namespace Nino.Serialization
 
 			//no chance to serialize -> see if this type can be serialized in other ways
 			//try recursive
-			writer.Write(Serialize(type, val, encoding));
+			Serialize(type, val, encoding, writer);
 		}
 
 		/// <summary>
@@ -417,6 +469,7 @@ namespace Nino.Serialization
 			}
 			else if (type == UlongType)
 			{
+				WriteCommonVal(writer, type, (ulong)val, encoding);
 			}
 		}
 
@@ -434,7 +487,6 @@ namespace Nino.Serialization
 			writer.Write(num);
 		}
 
-
 		private static void CompressAndWrite(Writer writer, uint num)
 		{
 			if (num <= ushort.MaxValue)
@@ -446,8 +498,7 @@ namespace Nino.Serialization
 			writer.Write((byte)CompressType.UInt32);
 			writer.Write(num);
 		}
-
-
+		
 		private static void CompressAndWrite(Writer writer, ushort num)
 		{
 			//parse to byte
@@ -482,7 +533,6 @@ namespace Nino.Serialization
 			writer.Write(num);
 		}
 
-
 		private static void CompressAndWrite(Writer writer, int num)
 		{
 			if (num <= short.MaxValue)
@@ -494,7 +544,6 @@ namespace Nino.Serialization
 			writer.Write((byte)CompressType.Int32);
 			writer.Write(num);
 		}
-
 
 		private static void CompressAndWrite(Writer writer, short num)
 		{
@@ -508,8 +557,7 @@ namespace Nino.Serialization
 			writer.Write((byte)CompressType.Int16);
 			writer.Write(num);
 		}
-
-
+		
 		private static void CompressAndWrite(Writer writer, sbyte num)
 		{
 			writer.Write((byte)CompressType.SByte);

@@ -14,6 +14,7 @@ namespace Nino.Serialization
 		public ushort min;
 		public ushort max;
 		public bool valid;
+		public MethodInfo ninoGetMembers;
 	}
 }
 

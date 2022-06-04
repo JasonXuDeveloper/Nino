@@ -1,10 +1,7 @@
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
-using Nino.Serialization;
 using Nino.Shared;
-using ProtoBuf;
 using UnityEditor;
 using UnityEngine.Profiling;
 
@@ -14,69 +11,32 @@ namespace Nino.Test.Editor.Serialization
     {
         private const string SerializationTest1 = "Nino/Test/Serialization/Test1 (Nino vs Protobuf-net) #S";
 
-        [ProtoContract]
-        [NinoSerialize]
-        private struct Data
-        {
-            [ProtoMember(1)] [SerializeProperty(1)]
-            public int x;
-
-            [ProtoMember(2)] [SerializeProperty(2)]
-            public short y;
-
-            [ProtoMember(3)] [SerializeProperty(3)]
-            public long z;
-
-            [ProtoMember(4)] [SerializeProperty(4)]
-            public float f;
-
-            [ProtoMember(5)] [SerializeProperty(5)]
-            public decimal d;
-
-            [ProtoMember(6)] [SerializeProperty(6)]
-            public double db;
-
-            [ProtoMember(7)] [SerializeProperty(7)]
-            public bool bo;
-
-            [ProtoMember(8)] [SerializeProperty(8)]
-            public TestEnum en;
-
-            [ProtoMember(9)] [SerializeProperty(9)]
-            public string name;
-        }
-
-        [ProtoContract]
-        private enum TestEnum : byte
-        {
-            A = 1,
-            B = 2
-        }
-
-        [ProtoContract]
-        [NinoSerialize]
-        private struct NestedData
-        {
-            [ProtoMember(1)] [SerializeProperty(1)]
-            public string name;
-
-            [ProtoMember(2)] [SerializeProperty(2)]
-            public Data[] ps;
-        }
-
         private static string GetString(int len)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append('a', len);
             return sb.ToString();
         }
-
+        
         [MenuItem(SerializationTest1)]
-        public static void Main()
+        public static void Test()
+        {
+            Logger.W("1/5");
+            Main(10);
+            Logger.W("2/5");
+            Main(100);
+            Logger.W("3/5");
+            Main(1000);
+            Logger.W("4/5");
+            Main(10000);
+            Logger.W("5/5");
+            Main(100000);
+        }
+
+        private static void Main(int max = 100)
         {
             #region Test data
 
-            int max = 10000;
             Data[] ps = new Data[max];
             for (int i = 0, cnt = max; i < cnt; i++)
             {
@@ -84,7 +44,7 @@ namespace Nino.Test.Editor.Serialization
                 {
                     x = short.MaxValue,
                     y = byte.MaxValue,
-                    z = int.MaxValue,
+                    z = short.MaxValue,
                     f = 1234.56789f,
                     d = 66.66666666m,
                     db = 999.999999999999,
@@ -104,9 +64,11 @@ namespace Nino.Test.Editor.Serialization
 
             #region Test
 
-            Logger.D("Serialization Test", $"testing {max} objs");
+            Logger.D("Serialization Test", $"<color=cyan>testing {max} objs</color>");
             var sizeOfNestedData = Encoding.Default.GetByteCount(points.name) +
-                                   Marshal.SizeOf(points.ps[0]) * points.ps.Length;
+                                   (sizeof(int) + sizeof(short) + sizeof(long) + sizeof(float) + sizeof(double) +
+                                    sizeof(decimal) + sizeof(bool) + sizeof(byte) +
+                                    Encoding.Default.GetByteCount(points.ps[0].name)) * points.ps.Length;
             Logger.D("Serialization Test", $"marshal.sizeof struct: {sizeOfNestedData} bytes");
             Logger.D("Serialization Test", "======================================");
 
@@ -123,13 +85,18 @@ namespace Nino.Test.Editor.Serialization
             //Logger.D("Serialization Test",string.Join(",", bs));
 
             //Protobuf-net
-            var ms = new MemoryStream();
             sw.Restart();
             Profiler.BeginSample("PB-net");
-            ProtoBuf.Serializer.Serialize(ms, points);
+            //we want byte[], pbnet returns stream
+            //to be able to make it fair, we need to convert stream to byte[]
+            using (var ms = new MemoryStream())
+            {
+                ProtoBuf.Serializer.Serialize(ms, points);
+                bs = ms.ToArray();
+            }
+
             Profiler.EndSample();
             sw.Stop();
-            bs = ms.ToArray();
             Logger.D("Serialization Test", $"Protobuf-net: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
             //Logger.D("Serialization Test",string.Join(",", bs));
 
