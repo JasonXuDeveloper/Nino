@@ -24,13 +24,25 @@ namespace Nino.Serialization
 		/// </summary>
 		private static readonly byte[] Null = Array.Empty<byte>();
 
+		#region basic types
+		private static readonly Type ByteType = typeof(byte);
+		private static readonly Type SbyteType = typeof(sbyte);
+		private static readonly Type ShortType = typeof(short);
+		private static readonly Type UshortType = typeof(ushort);
+		private static readonly Type INTType = typeof(int);
+		private static readonly Type UintType = typeof(uint);
+		private static readonly Type LongType = typeof(long);
+		private static readonly Type UlongType = typeof(ulong);
+		private static readonly Type StringType = typeof(string);
+		#endregion
+
 		/// <summary>
 		/// Whole numbers that can consider compress
 		/// </summary>
 		private static readonly HashSet<Type> WholeNumToCompressType = new HashSet<Type>()
 		{
-			typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
-			typeof(int), typeof(uint), typeof(long), typeof(ulong)
+			ByteType, SbyteType, ShortType, UshortType,
+			INTType, UintType, LongType, UlongType
 		};
 
 		/// <summary>
@@ -190,34 +202,31 @@ namespace Nino.Serialization
 			ushort min = model.min, max = model.max;
 
 			//start serialize
-			using (var ms = new MemoryStream())
+			using (var writer = new Writer(encoding))
 			{
-				using (var bw = new BinaryWriter(ms, encoding))
+				for (; min <= max; min++)
 				{
-					for (; min <= max; min++)
+					type = model.types[min];
+					var val = GetVal(model.members[min], value);
+					if (val == null)
 					{
-						type = model.types[min];
-						var val = GetVal(model.members[min], value);
-						if (val == null)
-						{
-							throw new NullReferenceException(
-								$"{type.FullName}.{model.members[min].Name} is null, cannot serialize");
-						}
-
-						//common
-						if (type != typeof(string))
-						{
-							WriteCommonVal(bw, ms, type, val, encoding);
-						}
-						//string
-						else
-						{
-							WriteStringVal(bw, ms, (string)val, encoding);
-						}
+						throw new NullReferenceException(
+							$"{type.FullName}.{model.members[min].Name} is null, cannot serialize");
 					}
 
-					return ms.ToArray();
+					//common
+					if (type != StringType)
+					{
+						WriteCommonVal(writer, type, val, encoding);
+					}
+					//string
+					else
+					{
+						writer.Write((string)val);
+					}
 				}
+
+				return writer.ToBytes();
 			}
 		}
 
@@ -241,66 +250,65 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-		/// Write string
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
-		/// <param name="val"></param>
-		/// <param name="encoding"></param>
-		private static void WriteStringVal(BinaryWriter bw, MemoryStream ms, string val, Encoding encoding)
-		{
-			var len = encoding.GetByteCount(val);
-			if (len <= byte.MaxValue)
-			{
-				bw.Write((byte)CompressType.ByteString);
-				bw.Write((byte)len);
-			}
-			else if (len <= ushort.MaxValue)
-			{
-				bw.Write((byte)CompressType.UInt16String);
-				WriteUShort(bw, ms, (ushort)len);
-			}
-			else
-			{
-				throw new InvalidDataException($"string is too long, len:{len}");
-			}
-
-			//write directly
-			bw.Write(encoding.GetBytes(val));
-		}
-
-		/// <summary>
 		/// Write primitive value to binary writer
 		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
+		/// <param name="writer"></param>
 		/// <param name="type"></param>
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
 		/// <exception cref="InvalidDataException"></exception>
-		private static void WriteCommonVal(BinaryWriter bw, MemoryStream ms, Type type, object val, Encoding encoding)
+		private static void WriteCommonVal(Writer writer, Type type, object val, Encoding encoding)
 		{
 			//consider to compress (only for whole num and string)
-			if (WholeNumToCompressType.Contains(type))
+			switch (val)
 			{
-				//try compress
-				CompressAndWriteMinNum(bw, ms, val);
-				return;
+				//without sign
+				case ulong ul:
+					CompressAndWrite(writer, ul);
+					return;
+				case uint ui:
+					CompressAndWrite(writer, ui);
+					return;
+				case ushort us:
+					CompressAndWrite(writer, us);
+					return;
+				case byte b:
+					CompressAndWrite(writer, b);
+					return;
+				// with sign
+				case long l:
+					CompressAndWrite(writer, l);
+					return;
+				case int i:
+					CompressAndWrite(writer, i);
+					return;
+				case short s:
+					CompressAndWrite(writer, s);
+					return;
+				case sbyte sb:
+					CompressAndWrite(writer, sb);
+					return;
+				case bool b:
+					writer.Write(b);
+					return;
+				case double db:
+					writer.Write(db);
+					return;
+				case decimal dc:
+					writer.Write(dc);
+					return;
+				case float fl:
+					writer.Write(fl);
+					return;
+				case char c:
+					writer.Write(c);
+					return;
 			}
-
 			//enum
 			if (type.IsEnum)
 			{
 				//try compress and write
-				CompressAndWriteEnum(bw, ms, type, val, encoding);
-				return;
-			}
-
-			//typeof(double), typeof(decimal), typeof(float), typeof(bool), typeof(char)
-			if (PrimitiveType.Contains(type))
-			{
-				//try write primitive
-				WritePrimitive(bw, val);
+				CompressAndWriteEnum(writer, type, val, encoding);
 				return;
 			}
 
@@ -312,9 +320,9 @@ namespace Nino.Serialization
 				{
 					var dt = (byte[])val;
 					//write len
-					CompressAndWrite(bw, ms, dt.Length);
+					CompressAndWrite(writer, dt.Length);
 					//write item
-					bw.Write(dt);
+					writer.Write(dt);
 					return;
 				}
 
@@ -322,11 +330,11 @@ namespace Nino.Serialization
 				var elemType = type.GetElementType();
 				var arr = (Array)val;
 				//write len
-				CompressAndWrite(bw, ms, arr.Length);
+				CompressAndWrite(writer, arr.Length);
 				//write item
 				foreach (var c in arr)
 				{
-					WriteCommonVal(bw, ms, elemType, c, encoding);
+					WriteCommonVal(writer, elemType, c, encoding);
 				}
 
 				return;
@@ -339,9 +347,9 @@ namespace Nino.Serialization
 				{
 					var dt = (byte[])val;
 					//write len
-					CompressAndWrite(bw, ms, dt.Length);
+					CompressAndWrite(writer, dt.Length);
 					//write item
-					bw.Write(dt);
+					writer.Write(dt);
 					return;
 				}
 
@@ -349,11 +357,11 @@ namespace Nino.Serialization
 				var elemType = type.GenericTypeArguments[0];
 				var arr = (ICollection)val;
 				//write len
-				CompressAndWrite(bw, ms, arr.Count);
+				CompressAndWrite(writer, arr.Count);
 				//write item
 				foreach (var c in arr)
 				{
-					WriteCommonVal(bw, ms, elemType, c, encoding);
+					WriteCommonVal(writer, elemType, c, encoding);
 				}
 
 				return;
@@ -363,357 +371,149 @@ namespace Nino.Serialization
 
 			//no chance to serialize -> see if this type can be serialized in other ways
 			//try recursive
-			bw.Write(Serialize(type, val, encoding));
-		}
-
-
-		/// <summary>
-		/// Write primitive
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="val"></param>
-		private static void WritePrimitive(BinaryWriter bw, object val)
-		{
-			switch (val)
-			{
-				case bool b:
-					bw.Write(b);
-					break;
-				case double db:
-					bw.Write(db);
-					break;
-				case decimal dc:
-					bw.Write(dc);
-					break;
-				case float fl:
-					bw.Write(fl);
-					break;
-				case char c:
-					bw.Write(c);
-					break;
-			}
-		}
-
-		/// <summary>
-		/// Compress whole number and write
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
-		/// <param name="num"></param>
-		private static void CompressAndWriteMinNum(BinaryWriter bw, MemoryStream ms, object num)
-		{
-			switch (num)
-			{
-				//without sign
-				case ulong ul:
-					CompressAndWrite(bw, ms, ul);
-					break;
-				case uint ui:
-					CompressAndWrite(bw, ms, ui);
-					break;
-				case ushort us:
-					CompressAndWrite(bw, ms, us);
-					break;
-				case byte b:
-					CompressAndWrite(bw, ms, b);
-					break;
-				// with sign
-				case long l:
-					CompressAndWrite(bw, ms, l);
-					break;
-				case int i:
-					CompressAndWrite(bw, ms, i);
-					break;
-				case short s:
-					CompressAndWrite(bw, ms, s);
-					break;
-				case sbyte sb:
-					CompressAndWrite(bw, ms, sb);
-					break;
-			}
+			writer.Write(Serialize(type, val, encoding));
 		}
 
 		/// <summary>
 		/// Compress and write enum
 		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
+		/// <param name="writer"></param>
 		/// <param name="type"></param>
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
-
-		private static void CompressAndWriteEnum(BinaryWriter bw, MemoryStream ms, Type type, object val,
+		private static void CompressAndWriteEnum(Writer writer, Type type, object val,
 			Encoding encoding)
 		{
 			type = Enum.GetUnderlyingType(type);
 			//typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
 			//typeof(int), typeof(uint), typeof(long), typeof(ulong)
-			if (type == typeof(byte))
+			if (type == ByteType)
 			{
-				WriteCommonVal(bw, ms, type, (byte)val, encoding);
+				WriteCommonVal(writer, type, (byte)val, encoding);
 			}
-			else if (type == typeof(sbyte))
+			else if (type == SbyteType)
 			{
-				WriteCommonVal(bw, ms, type, (sbyte)val, encoding);
+				WriteCommonVal(writer, type, (sbyte)val, encoding);
 			}
-			else if (type == typeof(short))
+			else if (type == ShortType)
 			{
-				WriteCommonVal(bw, ms, type, (short)val, encoding);
+				WriteCommonVal(writer, type, (short)val, encoding);
 			}
-			else if (type == typeof(ushort))
+			else if (type == UshortType)
 			{
-				WriteCommonVal(bw, ms, type, (ushort)val, encoding);
+				WriteCommonVal(writer, type, (ushort)val, encoding);
 			}
-			else if (type == typeof(int))
+			else if (type == INTType)
 			{
-				WriteCommonVal(bw, ms, type, (int)val, encoding);
+				WriteCommonVal(writer, type, (int)val, encoding);
 			}
-			else if (type == typeof(uint))
+			else if (type == UintType)
 			{
-				WriteCommonVal(bw, ms, type, (uint)val, encoding);
+				WriteCommonVal(writer, type, (uint)val, encoding);
 			}
-			else if (type == typeof(long))
+			else if (type == LongType)
 			{
-				WriteCommonVal(bw, ms, type, (long)val, encoding);
+				WriteCommonVal(writer, type, (long)val, encoding);
 			}
-			else if (type == typeof(ulong))
+			else if (type == UlongType)
 			{
-				WriteCommonVal(bw, ms, type, (ulong)val, encoding);
 			}
 		}
 
 		#region write whole number without sign
 
-		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, ulong num)
+		private static void CompressAndWrite(Writer writer, ulong num)
 		{
 			if (num <= uint.MaxValue)
 			{
-				CompressAndWrite(bw, ms, (uint)num);
+				CompressAndWrite(writer, (uint)num);
 				return;
 			}
 
-			bw.Write((byte)CompressType.UInt64);
-			WriteULong(bw, ms, num);
+			writer.Write((byte)(CompressType.UInt64));
+			writer.Write(num);
 		}
 
 
-		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, uint num)
+		private static void CompressAndWrite(Writer writer, uint num)
 		{
 			if (num <= ushort.MaxValue)
 			{
-				CompressAndWrite(bw, ms, (ushort)num);
+				CompressAndWrite(writer, (ushort)num);
 				return;
 			}
 
-			bw.Write((byte)CompressType.UInt32);
-			WriteUInt(bw, ms, num);
+			writer.Write((byte)CompressType.UInt32);
+			writer.Write(num);
 		}
 
 
-		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, ushort num)
+		private static void CompressAndWrite(Writer writer, ushort num)
 		{
 			//parse to byte
 			if (num <= byte.MaxValue)
 			{
-				CompressAndWrite(bw, ms, (byte)num);
+				CompressAndWrite(writer, (byte)num);
 				return;
 			}
 
-			bw.Write((byte)CompressType.UInt16);
-			WriteUShort(bw, ms, num);
+			writer.Write((byte)CompressType.UInt16);
+			writer.Write(num);
 		}
-		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, byte num)
+		private static void CompressAndWrite(Writer writer, byte num)
 		{
-			bw.Write((byte)CompressType.Byte);
-			bw.Write(num);
+			writer.Write((byte)CompressType.Byte);
+			writer.Write(num);
 		}
 
 		#endregion
 
 		#region write whole number with sign
 
-		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, long num)
+		private static void CompressAndWrite(Writer writer, long num)
 		{
 			if (num <= int.MaxValue)
 			{
-				CompressAndWrite(bw, ms, (int)num);
+				CompressAndWrite(writer, (int)num);
 				return;
 			}
 
-			bw.Write((byte)CompressType.Int64);
-			WriteLong(bw, ms, num);
+			writer.Write((byte)CompressType.Int64);
+			writer.Write(num);
 		}
 
 
-		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, int num)
+		private static void CompressAndWrite(Writer writer, int num)
 		{
 			if (num <= short.MaxValue)
 			{
-				CompressAndWrite(bw, ms, (short)num);
+				CompressAndWrite(writer, (short)num);
 				return;
 			}
 
-			bw.Write((byte)CompressType.Int32);
-			WriteInt(bw, ms, num);
+			writer.Write((byte)CompressType.Int32);
+			writer.Write(num);
 		}
 
 
-		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, short num)
+		private static void CompressAndWrite(Writer writer, short num)
 		{
 			//parse to byte
 			if (num <= sbyte.MaxValue)
 			{
-				CompressAndWrite(bw, ms, (sbyte)num);
+				CompressAndWrite(writer, (sbyte)num);
 				return;
 			}
 
-			bw.Write((byte)CompressType.Int16);
-			WriteShort(bw, ms, num);
+			writer.Write((byte)CompressType.Int16);
+			writer.Write(num);
 		}
 
 
-		private static void CompressAndWrite(BinaryWriter bw, MemoryStream ms, sbyte num)
+		private static void CompressAndWrite(Writer writer, sbyte num)
 		{
-			bw.Write((byte)CompressType.SByte);
-			bw.Write(num);
-		}
-
-		#endregion
-
-
-		#region write whole num
-
-		private const byte SizeOfUInt = sizeof(uint);
-		private const byte SizeOfInt = sizeof(int);
-		private const byte SizeOfUShort = sizeof(ushort);
-		private const byte SizeOfShort = sizeof(short);
-		private const byte SizeOfULong = sizeof(ulong);
-		private const byte SizeOfLong = sizeof(long);
-
-		/// <summary>
-		/// Write int val to binary writer
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
-		/// <param name="num"></param>
-		private static unsafe void WriteInt(BinaryWriter bw, MemoryStream ms, int num)
-		{
-			bw.Write(num);
-			return;
-			if (ms.Length - ms.Position < SizeOfInt)
-			{
-				ms.SetLength(ms.Length + SizeOfInt);
-			}
-
-			fixed (byte* p = &ms.GetBuffer()[ms.Position])
-			{
-				*(int*)p = num;
-			}
-		}
-
-		/// <summary>
-		/// Write uint val to binary writer
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
-		/// <param name="num"></param>
-		private static unsafe void WriteUInt(BinaryWriter bw, MemoryStream ms, uint num)
-		{
-			bw.Write(num);
-			return;
-			if (ms.Length - ms.Position < SizeOfUInt)
-			{
-				ms.SetLength(ms.Length + SizeOfUInt);
-			}
-
-			fixed (byte* p = &ms.GetBuffer()[ms.Position])
-			{
-				*(uint*)p = num;
-			}
-		}
-
-		/// <summary>
-		/// Write short val to binary writer
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
-		/// <param name="num"></param>
-		private static unsafe void WriteShort(BinaryWriter bw, MemoryStream ms, short num)
-		{
-			bw.Write(num);
-			return;
-			if (ms.Length - ms.Position < SizeOfShort)
-			{
-				ms.SetLength(ms.Length + SizeOfShort);
-			}
-
-			fixed (byte* p = &ms.GetBuffer()[ms.Position])
-			{
-				*(short*)p = num;
-			}
-		}
-
-		/// <summary>
-		/// Write ushort val to binary writer
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
-		/// <param name="num"></param>
-		private static unsafe void WriteUShort(BinaryWriter bw, MemoryStream ms, ushort num)
-		{
-			bw.Write(num);
-			return;
-			if (ms.Length - ms.Position < SizeOfUShort)
-			{
-				ms.SetLength(ms.Length + SizeOfUShort);
-			}
-
-			fixed (byte* p = &ms.GetBuffer()[ms.Position])
-			{
-				*(ushort*)p = num;
-			}
-		}
-
-		/// <summary>
-		/// Write long val to binary writer
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
-		/// <param name="num"></param>
-		private static unsafe void WriteLong(BinaryWriter bw, MemoryStream ms, long num)
-		{
-			bw.Write(num);
-			return;
-			if (ms.Length - ms.Position < SizeOfLong)
-			{
-				ms.SetLength(ms.Length + SizeOfLong);
-			}
-
-			fixed (byte* p = &ms.GetBuffer()[ms.Position])
-			{
-				*(long*)p = num;
-			}
-		}
-
-		/// <summary>
-		/// Write ulong val to binary writer
-		/// </summary>
-		/// <param name="bw"></param>
-		/// <param name="ms"></param>
-		/// <param name="num"></param>
-		private static unsafe void WriteULong(BinaryWriter bw, MemoryStream ms, ulong num)
-		{
-			bw.Write(num);
-			return;
-			if (ms.Length - ms.Position < SizeOfULong)
-			{
-				ms.SetLength(ms.Length + SizeOfULong);
-			}
-
-			fixed (byte* p = &ms.GetBuffer()[ms.Position])
-			{
-				*(ulong*)p = num;
-			}
+			writer.Write((byte)CompressType.SByte);
+			writer.Write(num);
 		}
 
 		#endregion

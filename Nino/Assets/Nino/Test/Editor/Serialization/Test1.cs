@@ -6,6 +6,7 @@ using Nino.Serialization;
 using Nino.Shared;
 using ProtoBuf;
 using UnityEditor;
+using UnityEngine.Profiling;
 
 namespace Nino.Test.Editor.Serialization
 {
@@ -112,7 +113,9 @@ namespace Nino.Test.Editor.Serialization
             //Nino
             var sw = new Stopwatch();
             sw.Restart();
+            Profiler.BeginSample("Nino");
             var bs = Nino.Serialization.Serializer.Serialize(points);
+            Profiler.EndSample();
             sw.Stop();
             Logger.D("Serialization Test", $"Nino: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
             long len = bs.Length;
@@ -122,7 +125,9 @@ namespace Nino.Test.Editor.Serialization
             //Protobuf-net
             var ms = new MemoryStream();
             sw.Restart();
+            Profiler.BeginSample("PB-net");
             ProtoBuf.Serializer.Serialize(ms, points);
+            Profiler.EndSample();
             sw.Stop();
             bs = ms.ToArray();
             Logger.D("Serialization Test", $"Protobuf-net: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
