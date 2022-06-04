@@ -1,10 +1,11 @@
 ﻿using System;
+
 namespace Nino.Serialization
 {
 	[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false)]
 	public class NinoMemberAttribute : Attribute
 	{
-		public ushort Index;
+		public readonly ushort Index;
 
 		/// <summary>
 		/// Indicate a member that can be serialized and deserialized

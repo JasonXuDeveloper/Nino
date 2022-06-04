@@ -1,19 +1,20 @@
 using System;
 using System.IO;
 using System.Text;
+using Nino.Shared;
 
 namespace Nino.Serialization
 {
 	/// <summary>
 	/// A writer that writes serialization Data
 	/// </summary>
-	internal class Writer: IDisposable
+	public class Writer : IDisposable
 	{
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
 		private byte[] buffer;
-		
+
 		/// <summary>
 		/// encoding for string
 		/// </summary>
@@ -80,7 +81,8 @@ namespace Nino.Serialization
 			// Check for overflow
 			if (value < 0)
 				throw new IOException("Stream too long");
-			if (value > capacity) {
+			if (value > capacity)
+			{
 				int newCapacity = value;
 				if (newCapacity < 128)
 					newCapacity = 128;
@@ -97,7 +99,7 @@ namespace Nino.Serialization
 				buffer = temp;
 			}
 		}
-		
+
 		/// <summary>
 		/// Write byte[]
 		/// </summary>
@@ -125,7 +127,7 @@ namespace Nino.Serialization
 		/// <param name="value"></param>
 		public unsafe void Write(float value)
 		{
-			Write(*(uint *)&value);
+			Write(*(uint*)&value);
 		}
 
 		/// <summary>
@@ -143,7 +145,7 @@ namespace Nino.Serialization
 			else if (len <= ushort.MaxValue)
 			{
 				Write((byte)CompressType.UInt16String);
-				Write( (ushort)len);
+				Write((ushort)len);
 			}
 			else
 			{
@@ -164,10 +166,10 @@ namespace Nino.Serialization
 			//4 * 32bit return of get bits
 			foreach (var num in decimal.GetBits(d))
 			{
-				buffer[Position++] = (byte) num; 
-				buffer[Position++] = (byte) (num >> 8);
-				buffer[Position++] = (byte) (num >> 16);
-				buffer[Position++] = (byte) (num >> 24);
+				buffer[Position++] = (byte)num;
+				buffer[Position++] = (byte)(num >> 8);
+				buffer[Position++] = (byte)(num >> 16);
+				buffer[Position++] = (byte)(num >> 24);
 			}
 
 			Length += 4 * 4;
@@ -178,8 +180,9 @@ namespace Nino.Serialization
 		/// with the value 0 representing false or the value 1 representing true.
 		/// </summary>
 		/// <param name="value"></param>
-		public void Write(bool value) {
-			Write((byte) (value ? 1 : 0));
+		public void Write(bool value)
+		{
+			Write((byte)(value ? 1 : 0));
 		}
 
 		public void Write(char ch)
@@ -188,13 +191,6 @@ namespace Nino.Serialization
 		}
 
 		#region write whole num
-
-		private const byte SizeOfUInt = sizeof(uint);
-		private const byte SizeOfInt = sizeof(int);
-		private const byte SizeOfUShort = sizeof(ushort);
-		private const byte SizeOfShort = sizeof(short);
-		private const byte SizeOfULong = sizeof(ulong);
-		private const byte SizeOfLong = sizeof(long);
 
 		/// <summary>
 		/// Write byte val to binary writer
@@ -219,14 +215,14 @@ namespace Nino.Serialization
 			Position += 1;
 			Length += 1;
 		}
-		
+
 		/// <summary>
 		/// Write int val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
 		public void Write(int num)
 		{
-			EnsureCapacity(SizeOfInt);
+			EnsureCapacity(ConstMgr.SizeOfInt);
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -235,13 +231,13 @@ namespace Nino.Serialization
 			//
 			// Position += SizeOfInt;
 			// Length += SizeOfInt;
-			
-			buffer[Position++] = (byte) num; 
-			buffer[Position++] = (byte) (num >> 8);
-			buffer[Position++] = (byte) (num >> 16);
-			buffer[Position++] = (byte) (num >> 24);
 
-			Length += SizeOfInt;
+			buffer[Position++] = (byte)num;
+			buffer[Position++] = (byte)(num >> 8);
+			buffer[Position++] = (byte)(num >> 16);
+			buffer[Position++] = (byte)(num >> 24);
+
+			Length += ConstMgr.SizeOfInt;
 		}
 
 		/// <summary>
@@ -250,7 +246,7 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		public void Write(uint num)
 		{
-			EnsureCapacity(SizeOfUInt);
+			EnsureCapacity(ConstMgr.SizeOfUInt);
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -259,13 +255,13 @@ namespace Nino.Serialization
 			//
 			// Position += SizeOfUInt;
 			// Length += SizeOfUInt;
-			
-			buffer[Position++] = (byte) num; 
-			buffer[Position++] = (byte) (num >> 8);
-			buffer[Position++] = (byte) (num >> 16);
-			buffer[Position++] = (byte) (num >> 24);
 
-			Length += SizeOfUInt;
+			buffer[Position++] = (byte)num;
+			buffer[Position++] = (byte)(num >> 8);
+			buffer[Position++] = (byte)(num >> 16);
+			buffer[Position++] = (byte)(num >> 24);
+
+			Length += ConstMgr.SizeOfUInt;
 		}
 
 		/// <summary>
@@ -274,7 +270,7 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		public void Write(short num)
 		{
-			EnsureCapacity(SizeOfShort);
+			EnsureCapacity(ConstMgr.SizeOfShort);
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -284,10 +280,10 @@ namespace Nino.Serialization
 			// Position += SizeOfShort;
 			// Length += SizeOfShort;
 
-			buffer[Position++] = (byte) num; 
-			buffer[Position++] = (byte) (num >> 8);
-			
-			Length += SizeOfShort;
+			buffer[Position++] = (byte)num;
+			buffer[Position++] = (byte)(num >> 8);
+
+			Length += ConstMgr.SizeOfShort;
 		}
 
 		/// <summary>
@@ -296,7 +292,7 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		public void Write(ushort num)
 		{
-			EnsureCapacity(SizeOfUShort);
+			EnsureCapacity(ConstMgr.SizeOfUShort);
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -305,11 +301,11 @@ namespace Nino.Serialization
 			//
 			// Position += SizeOfUShort;
 			// Length += SizeOfUShort;
-			
-			buffer[Position++] = (byte) num; 
-			buffer[Position++] = (byte) (num >> 8);
-			
-			Length += SizeOfUShort;
+
+			buffer[Position++] = (byte)num;
+			buffer[Position++] = (byte)(num >> 8);
+
+			Length += ConstMgr.SizeOfUShort;
 		}
 
 		/// <summary>
@@ -318,7 +314,7 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		public void Write(long num)
 		{
-			EnsureCapacity(SizeOfLong);
+			EnsureCapacity(ConstMgr.SizeOfLong);
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -327,17 +323,17 @@ namespace Nino.Serialization
 			//
 			// Position += SizeOfLong;
 			// Length += SizeOfLong;
-			
-			buffer[Position++] = (byte) num; 
-			buffer[Position++] = (byte) (num >> 8);
-			buffer[Position++] = (byte) (num >> 16);
-			buffer[Position++] = (byte) (num >> 24);
-			buffer[Position++] = (byte) (num >> 32);
-			buffer[Position++] = (byte) (num >> 40);
-			buffer[Position++] = (byte) (num >> 48);
-			buffer[Position++] = (byte) (num >> 56);
 
-			Length += SizeOfLong;
+			buffer[Position++] = (byte)num;
+			buffer[Position++] = (byte)(num >> 8);
+			buffer[Position++] = (byte)(num >> 16);
+			buffer[Position++] = (byte)(num >> 24);
+			buffer[Position++] = (byte)(num >> 32);
+			buffer[Position++] = (byte)(num >> 40);
+			buffer[Position++] = (byte)(num >> 48);
+			buffer[Position++] = (byte)(num >> 56);
+
+			Length += ConstMgr.SizeOfLong;
 		}
 
 		/// <summary>
@@ -346,7 +342,7 @@ namespace Nino.Serialization
 		/// <param name="num"></param>
 		public void Write(ulong num)
 		{
-			EnsureCapacity(SizeOfLong);
+			EnsureCapacity(ConstMgr.SizeOfULong);
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -355,19 +351,19 @@ namespace Nino.Serialization
 			//
 			// Position += SizeOfULong;
 			// Length += SizeOfULong;
-			
-			buffer[Position++] = (byte) num; 
-			buffer[Position++] = (byte) (num >> 8);
-			buffer[Position++] = (byte) (num >> 16);
-			buffer[Position++] = (byte) (num >> 24);
-			buffer[Position++] = (byte) (num >> 32);
-			buffer[Position++] = (byte) (num >> 40);
-			buffer[Position++] = (byte) (num >> 48);
-			buffer[Position++] = (byte) (num >> 56);
 
-			Length += SizeOfULong;
+			buffer[Position++] = (byte)num;
+			buffer[Position++] = (byte)(num >> 8);
+			buffer[Position++] = (byte)(num >> 16);
+			buffer[Position++] = (byte)(num >> 24);
+			buffer[Position++] = (byte)(num >> 32);
+			buffer[Position++] = (byte)(num >> 40);
+			buffer[Position++] = (byte)(num >> 48);
+			buffer[Position++] = (byte)(num >> 56);
+
+			Length += ConstMgr.SizeOfULong;
 		}
-		
+
 		#endregion
 	}
 }

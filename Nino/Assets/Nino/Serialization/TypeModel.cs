@@ -5,8 +5,8 @@ using System.Reflection;
 namespace Nino.Serialization
 {
 	/// <summary>
-    /// A model of a serialized type
-    /// </summary>
+	/// A model of a serialized type
+	/// </summary>
 	public class TypeModel
 	{
 		public Dictionary<ushort, MemberInfo> members;

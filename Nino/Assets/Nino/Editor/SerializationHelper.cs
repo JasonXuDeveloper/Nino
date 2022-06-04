@@ -1,4 +1,5 @@
-﻿using Nino.Serialization;
+﻿#if UNITY_2017_1_OR_NEWER
+using Nino.Serialization;
 using UnityEditor;
 
 namespace Nino.Editor
@@ -12,3 +13,4 @@ namespace Nino.Editor
         }
     }
 }
+#endif

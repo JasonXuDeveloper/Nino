@@ -41,5 +41,4 @@ namespace Nino.Test
 
         [ProtoMember(2)] [NinoMember(2)] public Data[] ps;
     }
-
 }

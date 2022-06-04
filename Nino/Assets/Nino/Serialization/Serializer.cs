@@ -5,6 +5,8 @@ using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO.Compression;
+using Nino.Shared;
+
 // ReSharper disable UnusedMember.Local
 
 namespace Nino.Serialization
@@ -20,28 +22,6 @@ namespace Nino.Serialization
 		public static Encoding DefaultEncoding = Encoding.UTF8;
 		// ReSharper restore FieldCanBeMadeReadOnly.Global
 		// ReSharper restore MemberCanBePrivate.Global
-
-		/// <summary>
-		/// Null value
-		/// </summary>
-		private static readonly byte[] Null = Array.Empty<byte>();
-
-		/// <summary>
-		/// Empty param
-		/// </summary>
-		private static readonly object[] EmptyParam = Array.Empty<object>();
-
-		#region basic types
-		private static readonly Type ByteType = typeof(byte);
-		private static readonly Type SbyteType = typeof(sbyte);
-		private static readonly Type ShortType = typeof(short);
-		private static readonly Type UshortType = typeof(ushort);
-		private static readonly Type INTType = typeof(int);
-		private static readonly Type UintType = typeof(uint);
-		private static readonly Type LongType = typeof(long);
-		private static readonly Type UlongType = typeof(ulong);
-		private static readonly Type StringType = typeof(string);
-		#endregion
 
 		/// <summary>
 		/// Cached Models
@@ -96,7 +76,7 @@ namespace Nino.Serialization
 			//Get Attribute that indicates a class/struct to be serialized
 			if (!TryGetModel(type, out var model))
 			{
-				return Null;
+				return ConstMgr.Null;
 			}
 
 			//invalid model
@@ -104,7 +84,7 @@ namespace Nino.Serialization
 			{
 				if (!model.valid)
 				{
-					return Null;
+					return ConstMgr.Null;
 				}
 			}
 
@@ -202,8 +182,9 @@ namespace Nino.Serialization
 				object[] objs = null;
 				if (model.ninoGetMembers != null)
 				{
-					objs = (object[])model.ninoGetMembers.Invoke(value, EmptyParam);
+					objs = (object[])model.ninoGetMembers.Invoke(value, ConstMgr.EmptyParam);
 				}
+
 				for (; min <= max; min++)
 				{
 					//prevent index not exist
@@ -219,7 +200,7 @@ namespace Nino.Serialization
 					}
 
 					//common
-					if (type != StringType)
+					if (type != ConstMgr.StringType)
 					{
 						WriteCommonVal(writer, type, val, encoding);
 					}
@@ -233,14 +214,14 @@ namespace Nino.Serialization
 					index++;
 				}
 			}
-			
+
 			//share a writer
 			if (writer != null)
 			{
 				Write();
-				return Null;
+				return ConstMgr.Null;
 			}
-			
+
 			//start serialize
 			using (writer = new Writer(encoding))
 			{
@@ -249,7 +230,7 @@ namespace Nino.Serialization
 				return Compress(writer.ToBytes());
 			}
 		}
-		
+
 		/// <summary>
 		/// Compress the given bytes
 		/// </summary>
@@ -356,6 +337,7 @@ namespace Nino.Serialization
 					writer.Write(c);
 					return;
 			}
+
 			//enum
 			if (type.IsEnum)
 			{
@@ -397,11 +379,11 @@ namespace Nino.Serialization
 				//List<byte> -> write directly
 				if (type == typeof(List<byte>))
 				{
-					var dt = (byte[])val;
+					var dt = (List<byte>)val;
 					//write len
-					CompressAndWrite(writer, dt.Length);
+					CompressAndWrite(writer, dt.Count);
 					//write item
-					writer.Write(dt);
+					writer.Write(dt.ToArray());
 					return;
 				}
 
@@ -439,35 +421,35 @@ namespace Nino.Serialization
 			type = Enum.GetUnderlyingType(type);
 			//typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
 			//typeof(int), typeof(uint), typeof(long), typeof(ulong)
-			if (type == ByteType)
+			if (type == ConstMgr.ByteType)
 			{
 				WriteCommonVal(writer, type, (byte)val, encoding);
 			}
-			else if (type == SbyteType)
+			else if (type == ConstMgr.SByteType)
 			{
 				WriteCommonVal(writer, type, (sbyte)val, encoding);
 			}
-			else if (type == ShortType)
+			else if (type == ConstMgr.ShortType)
 			{
 				WriteCommonVal(writer, type, (short)val, encoding);
 			}
-			else if (type == UshortType)
+			else if (type == ConstMgr.UShortType)
 			{
 				WriteCommonVal(writer, type, (ushort)val, encoding);
 			}
-			else if (type == INTType)
+			else if (type == ConstMgr.IntType)
 			{
 				WriteCommonVal(writer, type, (int)val, encoding);
 			}
-			else if (type == UintType)
+			else if (type == ConstMgr.UIntType)
 			{
 				WriteCommonVal(writer, type, (uint)val, encoding);
 			}
-			else if (type == LongType)
+			else if (type == ConstMgr.LongType)
 			{
 				WriteCommonVal(writer, type, (long)val, encoding);
 			}
-			else if (type == UlongType)
+			else if (type == ConstMgr.ULongType)
 			{
 				WriteCommonVal(writer, type, (ulong)val, encoding);
 			}
@@ -498,7 +480,7 @@ namespace Nino.Serialization
 			writer.Write((byte)CompressType.UInt32);
 			writer.Write(num);
 		}
-		
+
 		private static void CompressAndWrite(Writer writer, ushort num)
 		{
 			//parse to byte
@@ -511,6 +493,7 @@ namespace Nino.Serialization
 			writer.Write((byte)CompressType.UInt16);
 			writer.Write(num);
 		}
+
 		private static void CompressAndWrite(Writer writer, byte num)
 		{
 			writer.Write((byte)CompressType.Byte);
@@ -557,7 +540,7 @@ namespace Nino.Serialization
 			writer.Write((byte)CompressType.Int16);
 			writer.Write(num);
 		}
-		
+
 		private static void CompressAndWrite(Writer writer, sbyte num)
 		{
 			writer.Write((byte)CompressType.SByte);

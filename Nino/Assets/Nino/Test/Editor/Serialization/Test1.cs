@@ -2,14 +2,13 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Nino.Shared;
-using UnityEditor;
-using UnityEngine.Profiling;
+// ReSharper disable RedundantJumpStatement
 
 namespace Nino.Test.Editor.Serialization
 {
     public class Test1
     {
-        private const string SerializationTest1 = "Nino/Test/Serialization/Test1 (Nino vs Protobuf-net) #S";
+        private const string SerializationTest1 = "Nino/Test/Serialization/Test1 - Serialize (Nino vs Protobuf-net)";
 
         private static string GetString(int len)
         {
@@ -17,23 +16,44 @@ namespace Nino.Test.Editor.Serialization
             sb.Append('a', len);
             return sb.ToString();
         }
-        
-        [MenuItem(SerializationTest1)]
-        public static void Test()
+
+#if UNITY_2017_1_OR_NEWER
+        [UnityEditor.MenuItem(SerializationTest1)]
+#endif
+        public static void Main()
         {
             Logger.W("1/5");
-            Main(10);
+            DoTest(10);
             Logger.W("2/5");
-            Main(100);
+            DoTest(100);
             Logger.W("3/5");
-            Main(1000);
+            DoTest(1000);
             Logger.W("4/5");
-            Main(10000);
+            DoTest(10000);
             Logger.W("5/5");
-            Main(100000);
+            DoTest(100000);
         }
 
-        private static void Main(int max = 100)
+        private static void BeginSample(string name)
+        {
+#if UNITY_2017_1_OR_NEWER
+            UnityEngine.Profiling.Profiler.BeginSample(name);
+#endif
+            return;
+        }
+
+
+        private static void EndSample()
+        {
+#if UNITY_2017_1_OR_NEWER
+            UnityEngine.Profiling.Profiler.EndSample();
+#endif
+            return;
+        }
+
+
+
+        private static void DoTest(int max)
         {
             #region Test data
 
@@ -75,9 +95,9 @@ namespace Nino.Test.Editor.Serialization
             //Nino
             var sw = new Stopwatch();
             sw.Restart();
-            Profiler.BeginSample("Nino");
+            BeginSample("Nino");
             var bs = Nino.Serialization.Serializer.Serialize(points);
-            Profiler.EndSample();
+            EndSample();
             sw.Stop();
             Logger.D("Serialization Test", $"Nino: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
             long len = bs.Length;
@@ -86,7 +106,7 @@ namespace Nino.Test.Editor.Serialization
 
             //Protobuf-net
             sw.Restart();
-            Profiler.BeginSample("PB-net");
+            BeginSample("PB-net");
             //we want byte[], pbnet returns stream
             //to be able to make it fair, we need to convert stream to byte[]
             using (var ms = new MemoryStream())
@@ -95,7 +115,7 @@ namespace Nino.Test.Editor.Serialization
                 bs = ms.ToArray();
             }
 
-            Profiler.EndSample();
+            EndSample();
             sw.Stop();
             Logger.D("Serialization Test", $"Protobuf-net: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
             //Logger.D("Serialization Test",string.Join(",", bs));
