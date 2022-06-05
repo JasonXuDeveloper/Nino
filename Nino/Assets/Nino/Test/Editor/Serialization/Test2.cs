@@ -1,14 +1,15 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using Nino.Shared;
 // ReSharper disable RedundantJumpStatement
 
 namespace Nino.Test.Editor.Serialization
 {
-    public class Test1
+    public class Test2
     {
-        private const string SerializationTest1 = "Nino/Test/Serialization/Test1 - Serialize (Nino vs Protobuf-net)";
+        private const string SerializationTest1 = "Nino/Test/Serialization/Test2 - Serialize (Nino vs BinaryFormatter)";
 
         private static string GetString(int len)
         {
@@ -41,7 +42,7 @@ namespace Nino.Test.Editor.Serialization
 #endif
             return;
         }
-        
+
         private static void EndSample()
         {
 #if UNITY_2017_1_OR_NEWER
@@ -49,7 +50,7 @@ namespace Nino.Test.Editor.Serialization
 #endif
             return;
         }
-
+        
         private static void DoTest(int max)
         {
             #region Test data
@@ -101,31 +102,32 @@ namespace Nino.Test.Editor.Serialization
             var tm = sw.ElapsedMilliseconds;
             //Logger.D("Serialization Test",string.Join(",", bs));
 
-            //Protobuf-net
-            BeginSample("PB-net");
+            //BinaryFormatter
+            BeginSample("BinaryFormatter");
             sw.Restart();
-            //we want byte[], pbnet returns stream
+            //we want byte[], BinaryFormatter returns stream
             //to be able to make it fair, we need to convert stream to byte[]
             using (var ms = new MemoryStream())
             {
-                ProtoBuf.Serializer.Serialize(ms, points);
+                BinaryFormatter bFormatter = new BinaryFormatter();
+                bFormatter.Serialize(ms, points);
                 bs = ms.ToArray();
             }
             sw.Stop();
             EndSample();
 
-            Logger.D("Serialization Test", $"Protobuf-net: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
+            Logger.D("Serialization Test", $"BinaryFormatter: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
             //Logger.D("Serialization Test",string.Join(",", bs));
 
             Logger.D("Serialization Test", "======================================");
-            Logger.D("Serialization Test", $"size diff (nino - protobuf): {len - bs.Length} bytes");
+            Logger.D("Serialization Test", $"size diff (nino - BinaryFormatter): {len - bs.Length} bytes");
             Logger.D("Serialization Test",
-                $"size diff pct => diff/protobuf : {((len - bs.Length) * 100f / bs.Length):F2}%");
+                $"size diff pct => diff/BinaryFormatter : {((len - bs.Length) * 100f / bs.Length):F2}%");
 
             Logger.D("Serialization Test", "======================================");
-            Logger.D("Serialization Test", $"time diff (nino - protobuf): {tm - sw.ElapsedMilliseconds} ms");
+            Logger.D("Serialization Test", $"time diff (nino - BinaryFormatter): {tm - sw.ElapsedMilliseconds} ms");
             Logger.D("Serialization Test",
-                $"time diff pct => time/protobuf : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+                $"time diff pct => time/BinaryFormatter : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
 
             #endregion
         }

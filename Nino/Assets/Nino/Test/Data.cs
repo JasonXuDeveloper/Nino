@@ -1,8 +1,10 @@
-using Nino.Serialization;
+using System;
 using ProtoBuf;
+using Nino.Serialization;
 
 namespace Nino.Test
 {
+    [Serializable]
     [ProtoContract]
     [NinoSerialize]
     public partial struct Data
@@ -26,6 +28,7 @@ namespace Nino.Test
         [ProtoMember(9)] [NinoMember(9)] public string name;
     }
 
+    [Serializable]
     [ProtoContract]
     public enum TestEnum : byte
     {
@@ -33,6 +36,7 @@ namespace Nino.Test
         B = 2
     }
 
+    [Serializable]
     [ProtoContract]
     [NinoSerialize]
     public partial class NestedData

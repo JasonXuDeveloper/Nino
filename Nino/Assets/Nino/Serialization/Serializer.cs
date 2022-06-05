@@ -71,6 +71,7 @@ namespace Nino.Serialization
 			//Get Attribute that indicates a class/struct to be serialized
 			if (!TryGetModel(type, out var model))
 			{
+				Logger.E("Serialization",$"The type {type.FullName} does not have NinoSerialize attribute");
 				return ConstMgr.Null;
 			}
 
