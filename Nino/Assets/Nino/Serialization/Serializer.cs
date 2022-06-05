@@ -1,11 +1,11 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using Nino.Shared;
 using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO.Compression;
-using Nino.Shared;
 
 // ReSharper disable UnusedMember.Local
 
@@ -17,11 +17,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Default Encoding
 		/// </summary>
-		// ReSharper disable MemberCanBePrivate.Global
-		// ReSharper disable FieldCanBeMadeReadOnly.Global
-		public static Encoding DefaultEncoding = Encoding.UTF8;
-		// ReSharper restore FieldCanBeMadeReadOnly.Global
-		// ReSharper restore MemberCanBePrivate.Global
+		private static readonly Encoding DefaultEncoding = Encoding.UTF8;
 
 		/// <summary>
 		/// Cached Models
@@ -34,7 +30,6 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="model"></param>
 		/// <returns></returns>
-
 		private static bool TryGetModel(Type type, out TypeModel model)
 		{
 			if (TypeModels.TryGetValue(type, out model)) return true;
@@ -136,7 +131,7 @@ namespace Nino.Serialization
 				//iterate properties
 				foreach (var p in ps)
 				{
-					//has to have reader and setter
+					//has to have getter and setter
 					if (!(p.CanRead && p.CanWrite))
 					{
 						throw new InvalidOperationException(
@@ -167,6 +162,7 @@ namespace Nino.Serialization
 				}
 				else
 				{
+					//try code gen
 					model.ninoGetMembers = type.GetMethod("NinoGetMembers", flags);
 				}
 
@@ -302,11 +298,11 @@ namespace Nino.Serialization
 				case uint ui:
 					CompressAndWrite(writer, ui);
 					return;
-				case ushort us:
-					CompressAndWrite(writer, us);
+				case ushort us://unnecessary to compress
+					writer.Write(us);
 					return;
-				case byte b:
-					CompressAndWrite(writer, b);
+				case byte b://unnecessary to compress
+					writer.Write(b);
 					return;
 				// with sign
 				case long l:
@@ -315,11 +311,11 @@ namespace Nino.Serialization
 				case int i:
 					CompressAndWrite(writer, i);
 					return;
-				case short s:
-					CompressAndWrite(writer, s);
+				case short s://unnecessary to compress
+					writer.Write(s);
 					return;
-				case sbyte sb:
-					CompressAndWrite(writer, sb);
+				case sbyte sb://unnecessary to compress
+					writer.Write(sb);
 					return;
 				case bool b:
 					writer.Write(b);

@@ -84,12 +84,60 @@ namespace Nino.Serialization
             //replace full name
             template = template.Replace("{type}", classFullName);
 
-            //find members
-            //store temp attr
-            NinoMemberAttribute sp;
             //flag
             const BindingFlags flags = BindingFlags.Default | BindingFlags.DeclaredOnly | BindingFlags.Public |
                                        BindingFlags.NonPublic | BindingFlags.Instance;
+            //find members
+            Dictionary<ushort, string> members = GetMembers(type, flags);
+
+            //build params
+            StringBuilder sb = new StringBuilder();
+            var keys = members.Keys.OrderBy(k => k);
+            foreach (var key in keys)
+            {
+                sb.Append(members[key]).Append(",");
+            }
+
+            //remove comma at the end
+            sb.Remove(sb.Length - 1, 1);
+
+            //replace template members
+            template = template.Replace("{members}", sb.ToString());
+
+            //save path
+            var output = Path.Combine(ConstMgr.AssetPath, outputPath);
+            if (!Directory.Exists(output))
+            {
+                Directory.CreateDirectory(output);
+            }
+
+            //save file path
+            output = Path.Combine(output,
+                $"{type.Namespace}{(!string.IsNullOrEmpty(type.Namespace) ? "." : "")}{type.GetFriendlyName()}"
+                    .Replace(".", "_").Replace(",", "_")
+                    .Replace("<", "_").Replace(">", "_") +
+                "_Serialize.cs");
+            if (File.Exists(output))
+            {
+                File.Delete(output);
+            }
+
+            //save
+            File.WriteAllText(output, template);
+
+            Logger.D("Code Gen", $"saved {output}");
+        }
+
+        /// <summary>
+        /// Get nino members of a type
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="flags"></param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        private static Dictionary<ushort, string> GetMembers(Type type, BindingFlags flags)
+        {
+            NinoMemberAttribute sp;
             Dictionary<ushort, string> members = new Dictionary<ushort, string>();
             //fetch fields (only public and private fields that declared in the type)
             FieldInfo[] fs = type.GetFields(flags);
@@ -122,42 +170,7 @@ namespace Nino.Serialization
                 members.Add(sp.Index, p.Name);
             }
 
-            //build params
-            StringBuilder sb = new StringBuilder();
-            var keys = members.Keys.OrderBy(k => k);
-            foreach (var key in keys)
-            {
-                sb.Append(members[key]).Append(",");
-            }
-
-            //remove comma at the end
-            sb.Remove(sb.Length - 1, 1);
-
-            //replace template members
-            template = template.Replace("{members}", sb.ToString());
-
-            //save path
-            var output = Path.Combine(ConstMgr.AssetPath, outputPath);
-            if (!Directory.Exists(output))
-            {
-                Directory.CreateDirectory(output);
-            }
-
-            //save file path
-            output = Path.Combine(output,
-                $"{type.Namespace}{(!string.IsNullOrEmpty(type.Namespace) ? "." : "")}{type.GetFriendlyName()}"
-                    .Replace(".", "_").Replace(",", "_")
-                    .Replace("<", "_").Replace(">", "_") +
-                ".cs");
-            if (File.Exists(output))
-            {
-                File.Delete(output);
-            }
-
-            //save
-            File.WriteAllText(output, template);
-
-            Logger.D("Code Gen", $"saved {output}");
+            return members;
         }
 
         /// <summary>

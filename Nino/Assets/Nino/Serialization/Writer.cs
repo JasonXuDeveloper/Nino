@@ -18,7 +18,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// encoding for string
 		/// </summary>
-		private Encoding encoding;
+		private readonly Encoding encoding;
 
 		/// <summary>
 		/// Convert writer to byte
@@ -76,28 +76,22 @@ namespace Nino.Serialization
 		/// <param name="addition"></param>
 		private void EnsureCapacity(int addition)
 		{
-			var value = addition + Position;
-			var capacity = buffer.Length;
 			// Check for overflow
-			if (value < 0)
+			if (addition + Position < 0)
 				throw new IOException("Stream too long");
-			if (value > capacity)
+			if (addition + Position <= buffer.Length) return;
+			int newCapacity = addition + Position;
+			if (newCapacity < 128)
+				newCapacity = 128;
+			if (newCapacity < buffer.Length * 16)
+				newCapacity = buffer.Length * 16;
+			var temp = new byte[newCapacity];
+			if (buffer.Length > 0)
 			{
-				int newCapacity = value;
-				if (newCapacity < 128)
-					newCapacity = 128;
-				// We are ok with this overflowing since the next statement will deal
-				// with the cases where _capacity*2 overflows.
-				if (newCapacity < capacity * 16)
-					newCapacity = capacity * 16;
-				var temp = new byte[newCapacity];
-				if (capacity > 0)
-				{
-					Buffer.BlockCopy(buffer, 0, temp, 0, capacity);
-				}
-
-				buffer = temp;
+				Buffer.BlockCopy(buffer, 0, temp, 0, buffer.Length);
 			}
+
+			buffer = temp;
 		}
 
 		/// <summary>
