@@ -9,7 +9,7 @@ namespace Nino.Test.Editor.Serialization
 {
     public class Test2
     {
-        private const string SerializationTest1 = "Nino/Test/Serialization/Test2 - Serialize (Nino vs BinaryFormatter)";
+        private const string SerializationTest2 = "Nino/Test/Serialization/Test2 - Serialize (Nino vs BinaryFormatter)";
 
         private static string GetString(int len)
         {
@@ -19,7 +19,7 @@ namespace Nino.Test.Editor.Serialization
         }
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest1)]
+        [UnityEditor.MenuItem(SerializationTest2)]
 #endif
         public static void Main()
         {
