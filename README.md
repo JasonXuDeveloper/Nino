@@ -8,6 +8,21 @@ Useful Unity Modules | 实用的Unity模块
   > Protobuf-net平替方案，目标是更小体积，更高性能
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行反序列化，无法跨平台使用
+  >
+  > **建议给需要Nino序列化的类或结构加上partial修饰符，否则无法生成代码（生成代码能使性能翻倍）**
+  >
+  > 支持类型（底层自带支持）：
+  >
+  > - byte, sbyte, short, ushort, int, uint, long, ulong, double, float, decimal, char, string, bool, enum
+  > - List<上述类型>，上述类型[]，List<可Nino序列化类型>，可Nino序列化类型[]
+  >
+  > 不支持类型（可以通过注册自定义委托实现）：
+  >
+  > - Nullable
+  > - Dictionary
+  > - 任何非上述类型（DateTime，Vector3等）
+  >
+  > **针对某个类型注册自定义序列化委托后，记得注册该类型的自定义反序列化委托，不然会导致反序列化出错**
   - 序列化【2022.05.30完成】
     - 优化GC【2022.06.04完成】
     
@@ -19,7 +34,7 @@ Useful Unity Modules | 实用的Unity模块
     
     - 性能对比
     
-      测试数据
+      **测试数据**
     
       ```csharp
       using System;
