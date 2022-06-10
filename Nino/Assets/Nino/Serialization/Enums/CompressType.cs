@@ -6,7 +6,7 @@ namespace Nino.Serialization
     /// Compress type when serializing and deserializing
     /// 序列化或反序列化时的压缩类型
     /// </summary>
-    internal enum CompressType : byte
+    public enum CompressType : byte
     {
         /// <summary>
         /// A string has a length of 0 to 255 (byte) 8 bit

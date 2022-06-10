@@ -11,12 +11,13 @@ Useful Unity Modules | 实用的Unity模块
   >
   > **建议给需要Nino序列化的类或结构加上partial修饰符，否则无法生成代码（生成代码能使性能翻倍）**
   >
-  > 支持类型（底层自带支持）：
+  > 支持序列化的成员类型（底层自带支持）：
   >
   > - byte, sbyte, short, ushort, int, uint, long, ulong, double, float, decimal, char, string, bool, enum
   > - List<上述类型>，上述类型[]，List<可Nino序列化类型>，可Nino序列化类型[]
+  > - 可Nino序列化类型（代表可以嵌套）
   >
-  > 不支持类型（可以通过注册自定义委托实现）：
+  > 不支持序列化的成员类型（可以通过注册自定义委托实现）：
   >
   > - Nullable
   > - Dictionary
@@ -147,6 +148,9 @@ Useful Unity Modules | 实用的Unity模块
       | Reflection     | BinaryFormatter | √    | 10000        | 171      | 89                | 275                 | -37.82%                    | -67.64%                  | 1844     | 840325              | -99.78%        |
       | Reflection     | BinaryFormatter | √    | 100000       | 1756     | 850               | 3117                | -43.66%                    | -72.73%                  | 17556    | 8400325             | -99.79%        |
     
-  - 反序列化【预计2022年6月完成】
+  - 反序列化【2022.06.10完成】
   
-
+    - 优化GC【2022.06.10完成】
+    - 代码生成【预计2022年6月完成】
+    - 自定义反序列化委托注册【预计2022年6月完成】
+  

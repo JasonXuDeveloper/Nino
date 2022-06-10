@@ -26,6 +26,11 @@ namespace Nino.Test
         [ProtoMember(8)] [NinoMember(8)] public TestEnum en;
 
         [ProtoMember(9)] [NinoMember(9)] public string name;
+
+        public override string ToString()
+        {
+            return $"{x},{y},{z},{f},{d},{db},{bo},{en},{name}";
+        }
     }
 
     [Serializable]
@@ -44,5 +49,10 @@ namespace Nino.Test
         [ProtoMember(1)] [NinoMember(1)] public string name;
 
         [ProtoMember(2)] [NinoMember(2)] public Data[] ps;
+
+        public override string ToString()
+        {
+            return $"{name},{ps[0]}";
+        }
     }
 }

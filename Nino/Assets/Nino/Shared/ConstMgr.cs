@@ -40,6 +40,11 @@ namespace Nino.Shared
         public static readonly Type LongType = typeof(long);
         public static readonly Type ULongType = typeof(ulong);
         public static readonly Type StringType = typeof(string);
+        public static readonly Type BoolType = typeof(bool);
+        public static readonly Type DecimalType = typeof(decimal);
+        public static readonly Type DoubleType = typeof(double);
+        public static readonly Type FloatType = typeof(float);
+        public static readonly Type CharType = typeof(char);
 
         #endregion
 

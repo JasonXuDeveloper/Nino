@@ -20,31 +20,6 @@ namespace Nino.Serialization
 		private static readonly Encoding DefaultEncoding = Encoding.UTF8;
 
 		/// <summary>
-		/// Cached Models
-		/// </summary>
-		private static readonly Dictionary<Type, TypeModel> TypeModels = new Dictionary<Type, TypeModel>();
-
-		/// <summary>
-		/// Try get cached model
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="model"></param>
-		/// <returns></returns>
-		private static bool TryGetModel(Type type, out TypeModel model)
-		{
-			if (TypeModels.TryGetValue(type, out model)) return true;
-			NinoSerializeAttribute[] ns =
-				(NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-			if (ns.Length != 0) return true;
-			model = new TypeModel()
-			{
-				valid = false
-			};
-			TypeModels.Add(type, model);
-			return false;
-		}
-
-		/// <summary>
 		/// Serialize a NinoSerialize object
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
@@ -69,7 +44,7 @@ namespace Nino.Serialization
 		private static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
 		{
 			//Get Attribute that indicates a class/struct to be serialized
-			if (!TryGetModel(type, out var model))
+			if (!TypeModel.TryGetModel(type, out var model))
 			{
 				Logger.E("Serialization",$"The type {type.FullName} does not have NinoSerialize attribute");
 				return ConstMgr.Null;
@@ -87,87 +62,7 @@ namespace Nino.Serialization
 			//generate model
 			if (model == null)
 			{
-				model = new TypeModel
-				{
-					min = ushort.MaxValue,
-					max = ushort.MinValue,
-					valid = true,
-					//fetch members
-					members = new Dictionary<ushort, MemberInfo>(),
-					//fetch types
-					types = new Dictionary<ushort, Type>()
-				};
-
-				//store temp attr
-				NinoMemberAttribute sp;
-				//flag
-				const BindingFlags flags = BindingFlags.Default | BindingFlags.DeclaredOnly | BindingFlags.Public |
-				                           BindingFlags.NonPublic | BindingFlags.Instance;
-
-				//fetch fields (only public and private fields that declared in the type)
-				FieldInfo[] fs = type.GetFields(flags);
-				//iterate fields
-				foreach (var f in fs)
-				{
-					sp = f.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
-					//not fetch all and no attribute => skip this member
-					if (sp == null) continue;
-					//record field
-					model.members.Add(sp.Index, f);
-					model.types.Add(sp.Index, f.FieldType);
-					//record min/max
-					if (sp.Index < model.min)
-					{
-						model.min = sp.Index;
-					}
-
-					if (sp.Index > model.max)
-					{
-						model.max = sp.Index;
-					}
-				}
-
-				//fetch properties (only public and private properties that declared in the type)
-				PropertyInfo[] ps = type.GetProperties(flags);
-				//iterate properties
-				foreach (var p in ps)
-				{
-					//has to have getter and setter
-					if (!(p.CanRead && p.CanWrite))
-					{
-						throw new InvalidOperationException(
-							$"Cannot read or write property {p.Name} in {type.FullName}, cannot serialize this property");
-					}
-
-					sp = p.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
-					//not fetch all and no attribute => skip this member
-					if (sp == null) continue;
-					//record property
-					model.members.Add(sp.Index, p);
-					model.types.Add(sp.Index, p.PropertyType);
-					//record min/max
-					if (sp.Index < model.min)
-					{
-						model.min = sp.Index;
-					}
-
-					if (sp.Index > model.max)
-					{
-						model.max = sp.Index;
-					}
-				}
-
-				if (model.members.Count == 0)
-				{
-					model.valid = false;
-				}
-				else
-				{
-					//try code gen
-					model.ninoGetMembers = type.GetMethod("NinoGetMembers", flags);
-				}
-
-				TypeModels.Add(type, model);
+				model = TypeModel.CreateModel(type);
 			}
 
 			//min, max index
@@ -224,39 +119,7 @@ namespace Nino.Serialization
 			{
 				Write();
 				//compress it
-				return Compress(writer.ToBytes());
-			}
-		}
-
-		/// <summary>
-		/// Compress the given bytes
-		/// </summary>
-		/// <param name="data"></param>
-		/// <returns></returns>
-		private static byte[] Compress(byte[] data)
-		{
-			using (var compressedStream = new MemoryStream())
-			using (var zipStream = new GZipStream(compressedStream, CompressionMode.Compress))
-			{
-				zipStream.Write(data, 0, data.Length);
-				zipStream.Close();
-				return compressedStream.ToArray();
-			}
-		}
-
-		/// <summary>
-		/// Decompress thr given bytes
-		/// </summary>
-		/// <param name="data"></param>
-		/// <returns></returns>
-		private static byte[] Decompress(byte[] data)
-		{
-			using (var compressedStream = new MemoryStream(data))
-			using (var zipStream = new GZipStream(compressedStream, CompressionMode.Decompress))
-			using (var resultStream = new MemoryStream())
-			{
-				zipStream.CopyTo(resultStream);
-				return resultStream.ToArray();
+				return CompressMgr.Compress(writer.ToBytes());
 			}
 		}
 
