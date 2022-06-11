@@ -1,7 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using Nino.Serialization;
 using Nino.Shared;
 // ReSharper disable RedundantJumpStatement
 
@@ -72,10 +73,11 @@ namespace Nino.Test.Editor.Serialization
                 };
             }
 
-            NestedData points = new NestedData()
+            NestedData2 points = new NestedData2()
             {
                 name = "测试",
-                ps = ps
+                ps = ps,
+                vs = new List<int>(){1,65535,65536,1234567,int.MaxValue}
             };
 
             #endregion
@@ -86,7 +88,8 @@ namespace Nino.Test.Editor.Serialization
             var sizeOfNestedData = Encoding.Default.GetByteCount(points.name) +
                                    (sizeof(int) + sizeof(short) + sizeof(long) + sizeof(float) + sizeof(double) +
                                     sizeof(decimal) + sizeof(bool) + sizeof(byte) +
-                                    Encoding.Default.GetByteCount(points.ps[0].name)) * points.ps.Length;
+                                    Encoding.Default.GetByteCount(points.ps[0].name)) * points.ps.Length+
+                                   5 * sizeof(int);
             Logger.D("Deserialization Test", $"marshal.sizeof struct: {sizeOfNestedData} bytes");
             Logger.D("Deserialization Test", "======================================");
 

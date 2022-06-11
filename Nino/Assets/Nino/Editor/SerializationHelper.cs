@@ -18,7 +18,7 @@ namespace Nino.Editor
         public static void GenerateSerializationCode()
         {
             // ReSharper disable RedundantArgumentDefaultValue
-            CodeGenerator.GenerateSerializeCodeForAllTypePossible(ExportPath);
+            CodeGenerator.GenerateSerializationCodeForAllTypePossible(ExportPath);
             // ReSharper restore RedundantArgumentDefaultValue
         }
     }

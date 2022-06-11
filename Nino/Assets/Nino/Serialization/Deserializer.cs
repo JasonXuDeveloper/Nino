@@ -312,7 +312,12 @@ namespace Nino.Serialization
 				//read item
 				for (int i = 0; i < len; i++)
 				{
-					arr.SetValue(ReadCommonVal(reader, elemType, encoding), i);
+					var obj = ReadCommonVal(reader, elemType, encoding);
+					if (obj.GetType() != elemType)
+					{
+						obj = Convert.ChangeType(obj, elemType);
+					}
+					arr.SetValue(obj, i);
 				}
 
 				return arr;
@@ -337,7 +342,12 @@ namespace Nino.Serialization
 				//read item
 				for (int i = 0; i < len; i++)
 				{
-					arr?.Add(ReadCommonVal(reader, elemType, encoding));
+					var obj = ReadCommonVal(reader, elemType, encoding);
+					if (obj.GetType() != elemType)
+					{
+						obj = Convert.ChangeType(obj, elemType);
+					}
+					arr?.Add(obj);
 				}
 
 				return arr;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ProtoBuf;
 using Nino.Serialization;
 
@@ -49,10 +50,27 @@ namespace Nino.Test
         [ProtoMember(1)] [NinoMember(1)] public string name;
 
         [ProtoMember(2)] [NinoMember(2)] public Data[] ps;
-
+        
         public override string ToString()
         {
             return $"{name},{ps[0]}";
+        }
+    }
+
+    [Serializable]
+    [ProtoContract]
+    [NinoSerialize]
+    public partial class NestedData2
+    {
+        [ProtoMember(1)] [NinoMember(1)] public string name;
+
+        [ProtoMember(2)] [NinoMember(2)] public Data[] ps;
+        
+        [ProtoMember(3)] [NinoMember(3)] public List<int> vs;
+
+        public override string ToString()
+        {
+            return $"{name},{string.Join(",",vs)},{ps[0]}";
         }
     }
 }

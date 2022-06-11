@@ -14,11 +14,11 @@ namespace Nino.Serialization
     public static class CodeGenerator
     {
         /// <summary>
-        /// Generate serialize code file at Assets/ouputPath
+        /// Generate serialization code file at Assets/ouputPath
         /// editor only method
         /// </summary>
         /// <param name="outputPath"></param>
-        public static void GenerateSerializeCodeForAllTypePossible(string outputPath = "Nino/Generated")
+        public static void GenerateSerializationCodeForAllTypePossible(string outputPath = "Nino/Generated")
         {
             //find all types
             var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).ToList().FindAll(t =>
@@ -33,17 +33,17 @@ namespace Nino.Serialization
             foreach (var type in types)
             {
                 //gen
-                GenerateSerializeCode(type, outputPath);
+                GenerateSerializationCode(type, outputPath);
             }
         }
 
         /// <summary>
-        /// Generate serialize code file at Assets/ouputPath
+        /// Generate serialization code file at Assets/ouputPath
         /// editor only method
         /// </summary>
         /// <param name="type"></param>
         /// <param name="outputPath"></param>
-        public static void GenerateSerializeCode(Type type, string outputPath = "Nino/Generated")
+        public static void GenerateSerializationCode(Type type, string outputPath = "Nino/Generated")
         {
             //find NinoSerializeAttribute
             NinoSerializeAttribute[] ns =
@@ -61,6 +61,12 @@ namespace Nino.Serialization
         private object[] NinoGetMembers()
         {
             return new object[] { {members} };
+        }
+
+
+        private void NinoSetMembers(object[] data)
+        {
+{fields}
         }
         #endregion
     }
@@ -84,18 +90,33 @@ namespace Nino.Serialization
             //replace full name
             template = template.Replace("{type}", classFullName);
 
-            //flag
-            const BindingFlags flags = BindingFlags.Default | BindingFlags.DeclaredOnly | BindingFlags.Public |
-                                       BindingFlags.NonPublic | BindingFlags.Instance;
             //find members
-            Dictionary<ushort, string> members = GetMembers(type, flags);
+            TypeModel.TryGetModel(type, out var model);
+            //invalid model
+            if (model != null)
+            {
+                if (!model.valid)
+                {
+                    throw new InvalidOperationException("invalid model");
+                }
+            }
+
+            //generate model
+            if (model == null)
+            {
+                model = TypeModel.CreateModel(type);
+            }
+
+            Dictionary<ushort, MemberInfo> members = model.members;
+
+            #region serialize
 
             //build params
             StringBuilder sb = new StringBuilder();
             var keys = members.Keys.OrderBy(k => k);
             foreach (var key in keys)
             {
-                sb.Append(members[key]).Append(",");
+                sb.Append(members[key].Name).Append(",");
             }
 
             //remove comma at the end
@@ -103,6 +124,50 @@ namespace Nino.Serialization
 
             //replace template members
             template = template.Replace("{members}", sb.ToString());
+
+            #endregion
+
+            #region deserialize
+
+            sb.Clear();
+            int index = 0;
+            keys = members.Keys.OrderBy(k => k);
+            foreach (var key in keys)
+            {
+                var mt = members[key] is FieldInfo fi ? fi.FieldType : ((PropertyInfo)members[key]).PropertyType;
+                //int, long, uint, ulong需要考虑压缩
+                if (mt == ConstMgr.IntType)
+                {
+                    sb.Append($"            this.{members[key].Name} = System.Convert.ToInt32(data[{index}]);\n");
+                }
+                else if (mt == ConstMgr.UIntType)
+                {
+                    sb.Append($"            this.{members[key].Name} = System.Convert.ToUInt32(data[{index}]);\n");
+                }
+                else if (mt == ConstMgr.LongType)
+                {
+                    sb.Append($"            this.{members[key].Name} = System.Convert.ToInt64(data[{index}]);\n");
+                }
+                else if (mt == ConstMgr.ULongType)
+                {
+                    sb.Append($"            this.{members[key].Name} = System.Convert.ToUInt64(data[{index}]);\n");
+                }
+                else
+                {
+                    sb.Append(
+                        $"            this.{members[key].Name} = ({mt.Namespace}{(!string.IsNullOrEmpty(mt.Namespace) ? "." : "")}{mt.GetFriendlyName()})data[{index}];\n");
+                }
+
+                index++;
+            }
+
+            //remove comma at the end
+            sb.Remove(sb.Length - 1, 1);
+
+            //replace template fiedls
+            template = template.Replace("{fields}", sb.ToString());
+
+            #endregion
 
             //save path
             var output = Path.Combine(ConstMgr.AssetPath, outputPath);
@@ -129,51 +194,6 @@ namespace Nino.Serialization
         }
 
         /// <summary>
-        /// Get nino members of a type
-        /// </summary>
-        /// <param name="type"></param>
-        /// <param name="flags"></param>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        private static Dictionary<ushort, string> GetMembers(Type type, BindingFlags flags)
-        {
-            NinoMemberAttribute sp;
-            Dictionary<ushort, string> members = new Dictionary<ushort, string>();
-            //fetch fields (only public and private fields that declared in the type)
-            FieldInfo[] fs = type.GetFields(flags);
-            //iterate fields
-            foreach (var f in fs)
-            {
-                sp = f.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
-                //not fetch all and no attribute => skip this member
-                if (sp == null) continue;
-                //record field
-                members.Add(sp.Index, f.Name);
-            }
-
-            //fetch properties (only public and private properties that declared in the type)
-            PropertyInfo[] ps = type.GetProperties(flags);
-            //iterate properties
-            foreach (var p in ps)
-            {
-                //has to have reader and setter
-                if (!(p.CanRead && p.CanWrite))
-                {
-                    throw new InvalidOperationException(
-                        $"Cannot read or write property {p.Name} in {type.FullName}, cannot serialize this property");
-                }
-
-                sp = p.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
-                //not fetch all and no attribute => skip this member
-                if (sp == null) continue;
-                //record property
-                members.Add(sp.Index, p.Name);
-            }
-
-            return members;
-        }
-
-        /// <summary>
         /// 获取类型名字
         /// </summary>
         /// <param name="type"></param>
@@ -193,7 +213,8 @@ namespace Nino.Serialization
                 Type[] typeParameters = type.GetGenericArguments();
                 for (int i = 0; i < typeParameters.Length; ++i)
                 {
-                    string typeParamName = GetFriendlyName(typeParameters[i]);
+                    string typeParamName =
+                        $"{typeParameters[i].Namespace}{(!string.IsNullOrEmpty(typeParameters[i].Namespace) ? "." : "")}{GetFriendlyName(typeParameters[i])}";
                     friendlyName += (i == 0 ? typeParamName : "," + typeParamName);
                 }
 
