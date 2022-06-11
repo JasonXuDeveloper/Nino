@@ -382,7 +382,7 @@ namespace Nino.Serialization
 				{
 					temp = _reflectionGenericTypePool.Dequeue();
 					temp[0] = keyType;
-					temp[0] = valueType;
+					temp[1] = valueType;
 				}
 				else
 				{
