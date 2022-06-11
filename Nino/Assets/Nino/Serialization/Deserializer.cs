@@ -295,7 +295,7 @@ namespace Nino.Serialization
 				int len = GETLen();
 
 				//byte[] -> write directly
-				if (type == typeof(byte[]))
+				if (type == ConstMgr.ByteArrType)
 				{
 					//read item
 					return reader.ReadBytes(len);
@@ -323,21 +323,20 @@ namespace Nino.Serialization
 				return arr;
 			}
 
-			if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+			if (type.IsGenericType && type.GetGenericTypeDefinition() == ConstMgr.ListDefType)
 			{
 				//read len
 				int len = GETLen();
 
 				//List<byte> -> write directly
-				if (type == typeof(List<byte>))
+				if (type == ConstMgr.ByteListType)
 				{
 					return reader.ReadBytes(len).ToList();
 				}
 
 				//other
 				var elemType = type.GenericTypeArguments[0];
-				Type listType = typeof(List<>);
-				Type newType = listType.MakeGenericType(elemType);
+				Type newType = ConstMgr.ListDefType.MakeGenericType(elemType);
 				var arr = Activator.CreateInstance(newType, ConstMgr.EmptyParam) as IList;
 				//read item
 				for (int i = 0; i < len; i++)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 #if UNITY_2017_1_OR_NEWER
 using UnityEngine;
 #endif
@@ -45,7 +46,10 @@ namespace Nino.Shared
         public static readonly Type DoubleType = typeof(double);
         public static readonly Type FloatType = typeof(float);
         public static readonly Type CharType = typeof(char);
-
+        public static readonly Type ByteArrType = typeof(byte[]);
+        public static readonly Type ByteListType = typeof(List<byte>);
+        public static readonly Type ListDefType = typeof(List<>);
+        
         #endregion
 
         public static readonly byte SizeOfUInt = sizeof(uint);

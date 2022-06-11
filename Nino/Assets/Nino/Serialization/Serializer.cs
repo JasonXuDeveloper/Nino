@@ -210,7 +210,7 @@ namespace Nino.Serialization
 			if (type.IsArray)
 			{
 				//byte[] -> write directly
-				if (type == typeof(byte[]))
+				if (type == ConstMgr.ByteArrType)
 				{
 					var dt = (byte[])val;
 					//write len
@@ -234,10 +234,10 @@ namespace Nino.Serialization
 				return;
 			}
 
-			if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+			if (type.IsGenericType && type.GetGenericTypeDefinition() == ConstMgr.ListDefType)
 			{
 				//List<byte> -> write directly
-				if (type == typeof(List<byte>))
+				if (type == ConstMgr.ByteListType)
 				{
 					var dt = (List<byte>)val;
 					//write len
