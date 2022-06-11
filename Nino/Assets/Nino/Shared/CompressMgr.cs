@@ -3,7 +3,7 @@ using System.IO.Compression;
 
 namespace Nino.Shared
 {
-    public class CompressMgr
+    public static class CompressMgr
     {
         /// <summary>
         /// Compress the given bytes

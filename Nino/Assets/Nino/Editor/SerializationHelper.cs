@@ -1,6 +1,6 @@
 ﻿#if UNITY_2017_1_OR_NEWER
-using Nino.Serialization;
 using UnityEditor;
+using Nino.Serialization;
 
 namespace Nino.Editor
 {
@@ -19,6 +19,7 @@ namespace Nino.Editor
         {
             // ReSharper disable RedundantArgumentDefaultValue
             CodeGenerator.GenerateSerializationCodeForAllTypePossible(ExportPath);
+            AssetDatabase.Refresh();
             // ReSharper restore RedundantArgumentDefaultValue
         }
     }

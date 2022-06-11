@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Nino.Shared;
+using System.Diagnostics;
 // ReSharper disable RedundantJumpStatement
 
 namespace Nino.Test.Editor.Serialization

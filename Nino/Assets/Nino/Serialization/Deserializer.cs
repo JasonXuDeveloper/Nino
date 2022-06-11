@@ -22,7 +22,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// 缓存反射的参数数组
 		/// </summary>
-		private static readonly Queue<object[]> ReflectionParamPool = new Queue<object[]>();
+		private static volatile Queue<object[]> _reflectionParamPool = new Queue<object[]>();
 
 		/// <summary>
 		/// Deserialize a NinoSerialize object
@@ -118,9 +118,9 @@ namespace Nino.Serialization
 				if (hasSet)
 				{
 					object[] p;
-					if (ReflectionParamPool.Count > 0)
+					if (_reflectionParamPool.Count > 0)
 					{
-						p = ReflectionParamPool.Dequeue();
+						p = _reflectionParamPool.Dequeue();
 						p[0] = objs;
 					}
 					else
@@ -129,7 +129,7 @@ namespace Nino.Serialization
 					}
 
 					model.ninoSetMembers.Invoke(val, p);
-					ReflectionParamPool.Enqueue(p);
+					_reflectionParamPool.Enqueue(p);
 				}
 			}
 

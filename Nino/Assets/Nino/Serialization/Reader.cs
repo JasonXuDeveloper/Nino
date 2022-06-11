@@ -1,8 +1,7 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using Nino.Shared;
+using System.Collections.Generic;
 
 namespace Nino.Serialization
 {
@@ -28,7 +27,7 @@ namespace Nino.Serialization
 		{
 			buffer = null;
 		}
-
+		
 		/// <summary>
 		/// Create a nino read
 		/// </summary>
@@ -138,7 +137,7 @@ namespace Nino.Serialization
 		public int ReadInt32()
 		{
 			EnsureLength(ConstMgr.SizeOfInt);
-			return (int)(buffer[Position++] | buffer[Position++] << 8 | buffer[Position++] << 16 |
+			return (buffer[Position++] | buffer[Position++] << 8 | buffer[Position++] << 16 |
 			             buffer[Position++] << 24);
 		}
 
@@ -165,7 +164,7 @@ namespace Nino.Serialization
 			                 buffer[Position++] << 16 | buffer[Position++] << 24);
 			uint hi = (uint)(buffer[Position++] | buffer[Position++] << 8 |
 			                 buffer[Position++] << 16 | buffer[Position++] << 24);
-			return (long)((ulong)hi) << 32 | lo;
+			return (long)(hi) << 32 | lo;
 		}
 
 		/// <summary>
@@ -238,23 +237,23 @@ namespace Nino.Serialization
 		/// <summary>
 		/// 缓存decimal的参数数组
 		/// </summary>
-		private static readonly Queue<int[]> ReadDecimalPool = new Queue<int[]>();
-		
+		private static volatile Queue<int[]> _readDecimalPool = new Queue<int[]>();
+
 		/// <summary>
 		/// Read decimal
 		/// </summary>
 		public decimal ReadDecimal()
 		{
 			//4 * 32bit return of get bits
-			if (ReadDecimalPool.Count > 0)
+			if (_readDecimalPool.Count > 0)
 			{
-				var arr = ReadDecimalPool.Dequeue();
+				var arr = _readDecimalPool.Dequeue();
 				arr[0] = ReadInt32();
 				arr[1] = ReadInt32();
 				arr[2] = ReadInt32();
 				arr[3] = ReadInt32();
 				var ret = new decimal(arr);
-				ReadDecimalPool.Enqueue(arr);
+				_readDecimalPool.Enqueue(arr);
 				return ret;
 			}
 			else
@@ -265,8 +264,8 @@ namespace Nino.Serialization
 				arr[2] = ReadInt32();
 				arr[3] = ReadInt32();
 				var ret = new decimal(arr);
-				ReadDecimalPool.Enqueue(arr);
-				return ret;	
+				_readDecimalPool.Enqueue(arr);
+				return ret;
 			}
 		}
 

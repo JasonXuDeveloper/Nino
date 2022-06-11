@@ -3,13 +3,14 @@ using System.Text;
 using Nino.Shared;
 using System.Diagnostics;
 using System.Collections.Generic;
+using System.Runtime.Serialization.Formatters.Binary;
 // ReSharper disable RedundantJumpStatement
 
 namespace Nino.Test.Editor.Serialization
 {
-    public class Test3
+    public class Test4
     {
-        private const string SerializationTest3 = "Nino/Test/Serialization/Test3 - Deserialize (Nino vs Protobuf-net)";
+        private const string SerializationTest4 = "Nino/Test/Serialization/Test4 - Deserialize (Nino vs BinaryFormatter)";
 
         private static string GetString(int len)
         {
@@ -19,7 +20,7 @@ namespace Nino.Test.Editor.Serialization
         }
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest3)]
+        [UnityEditor.MenuItem(SerializationTest4)]
 #endif
         public static void Main()
         {
@@ -107,28 +108,31 @@ namespace Nino.Test.Editor.Serialization
                 $"Nino: extracted {bs.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
             var tm = sw.ElapsedMilliseconds;
 
-            //Protobuf-net
-            //we want byte[], pbnet returns stream
-            //to be able to make it fair, we need to convert stream to byte[]
+            //BinaryFormatter
             using (var ms = new MemoryStream())
             {
-                ProtoBuf.Serializer.Serialize(ms, points);
+                BinaryFormatter bFormatter = new BinaryFormatter();
+                bFormatter.Serialize(ms, points);
                 bs = ms.ToArray();
             }
 
-            BeginSample("PB-net");
+            BeginSample("BinaryFormatter");
             sw.Restart();
-            d = ProtoBuf.Serializer.Deserialize<NestedData2>(new MemoryStream(bs));
+            using (var ms = new MemoryStream(bs))
+            {
+                BinaryFormatter bFormatter = new BinaryFormatter();
+                d = (NestedData2)bFormatter.Deserialize(ms);
+            }
             sw.Stop();
             EndSample();
             Logger.D("Deserialization Test", d);
             Logger.D("Deserialization Test",
-                $"Protobuf-net: extracted {bs.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+                $"BinaryFormatter: extracted {bs.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
 
             Logger.D("Deserialization Test", "======================================");
-            Logger.D("Deserialization Test", $"time diff (nino - protobuf): {tm - sw.ElapsedMilliseconds} ms");
+            Logger.D("Deserialization Test", $"time diff (nino - BinaryFormatter): {tm - sw.ElapsedMilliseconds} ms");
             Logger.D("Deserialization Test",
-                $"time diff pct => time/protobuf : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+                $"time diff pct => time/BinaryFormatter : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
 
             #endregion
         }
