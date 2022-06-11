@@ -46,6 +46,7 @@ namespace Nino.Shared
         public static readonly Type ByteArrType = typeof(byte[]);
         public static readonly Type ByteListType = typeof(List<byte>);
         public static readonly Type ListDefType = typeof(List<>);
+        public static readonly Type NullableDefType = typeof(Nullable<>);
 
         #endregion
 

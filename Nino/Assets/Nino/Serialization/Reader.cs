@@ -123,7 +123,6 @@ namespace Nino.Serialization
 		/// Read ushort
 		/// </summary>
 		/// <returns></returns>
-		[CLSCompliant(false)]
 		public ushort ReadUInt16()
 		{
 			EnsureLength(ConstMgr.SizeOfUShort);
@@ -145,7 +144,6 @@ namespace Nino.Serialization
 		/// Read uint
 		/// </summary>
 		/// <returns></returns>
-		[CLSCompliant(false)]
 		public uint ReadUInt32()
 		{
 			EnsureLength(ConstMgr.SizeOfUInt);
@@ -171,7 +169,6 @@ namespace Nino.Serialization
 		/// Read ulong
 		/// </summary>
 		/// <returns></returns>
-		[CLSCompliant(false)]
 		public ulong ReadUInt64()
 		{
 			EnsureLength(ConstMgr.SizeOfULong);
@@ -193,6 +190,16 @@ namespace Nino.Serialization
 			uint tmpBuffer = (uint)(buffer[Position++] | buffer[Position++] << 8 | buffer[Position++] << 16 |
 			                        buffer[Position++] << 24);
 			return *((float*)&tmpBuffer);
+		}
+
+		/// <summary>
+		/// Read float
+		/// </summary>
+		/// <returns></returns>
+		[System.Security.SecuritySafeCritical]
+		public float ReadFloat()
+		{
+			return ReadSingle();
 		}
 
 		/// <summary>

@@ -19,6 +19,29 @@ namespace Nino.Serialization
 		private static readonly Encoding DefaultEncoding = Encoding.UTF8;
 
 		/// <summary>
+		/// Custom importer
+		/// </summary>
+		private static readonly Dictionary<Type, ImporterDelegate> CustomImporter = new Dictionary<Type, ImporterDelegate>();
+
+		/// <summary>
+		/// Custom importer delegate that writes object to writer
+		/// </summary>
+		private delegate void ImporterDelegate(object val, Writer writer);
+		
+		/// <summary>
+		/// Add custom importer of all type T objects
+		/// </summary>
+		/// <param name="action"></param>
+		/// <typeparam name="T"></typeparam>
+		public static void AddCustomImporter<T>(Action<T, Writer> action)
+		{
+			CustomImporter.Add(typeof(T), (val, writer) =>
+			{
+				action.Invoke((T)val, writer);
+			});
+		}
+		
+		/// <summary>
 		/// Serialize a NinoSerialize object
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
@@ -43,11 +66,7 @@ namespace Nino.Serialization
 		private static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
 		{
 			//Get Attribute that indicates a class/struct to be serialized
-			if (!TypeModel.TryGetModel(type, out var model))
-			{
-				Logger.E("Serialization",$"The type {type.FullName} does not have NinoSerialize attribute");
-				return ConstMgr.Null;
-			}
+			TypeModel.TryGetModel(type, out var model);
 
 			//invalid model
 			if (model != null)
@@ -84,7 +103,7 @@ namespace Nino.Serialization
 					type = model.types[min];
 					//try code gen, if no code gen then reflection
 					object val = objs != null ? objs[index] : GetVal(model.members[min], value);
-					if (val == null)
+					if (val == null && type.GetGenericTypeDefinition() != ConstMgr.NullableDefType)
 					{
 						throw new NullReferenceException(
 							$"{type.FullName}.{model.members[min].Name} is null, cannot serialize");
@@ -254,11 +273,17 @@ namespace Nino.Serialization
 				return;
 			}
 
-			//TODO custom exporter
-
-			//no chance to serialize -> see if this type can be serialized in other ways
-			//try recursive
-			Serialize(type, val, encoding, writer);
+			//custom importer
+			if (CustomImporter.TryGetValue(type, out var importerDelegate))
+			{
+				importerDelegate.Invoke(val,writer);
+			}
+			else
+			{
+				//no chance to serialize -> see if this type can be serialized in other ways
+				//try recursive
+				Serialize(type, val, encoding, writer);
+			}
 		}
 
 		/// <summary>

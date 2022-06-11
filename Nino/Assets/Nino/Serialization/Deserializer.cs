@@ -23,6 +23,26 @@ namespace Nino.Serialization
 		/// 缓存反射的参数数组
 		/// </summary>
 		private static volatile Queue<object[]> _reflectionParamPool = new Queue<object[]>();
+		
+		/// <summary>
+		/// Custom exporter
+		/// </summary>
+		private static readonly Dictionary<Type, ExporterDelegate> CustomExporter = new Dictionary<Type, ExporterDelegate>();
+
+		/// <summary>
+		/// Custom Exporter delegate that reads bytes to object
+		/// </summary>
+		private delegate object ExporterDelegate(Reader reader);
+		
+		/// <summary>
+		/// Add custom Exporter of all type T objects
+		/// </summary>
+		/// <param name="func"></param>
+		/// <typeparam name="T"></typeparam>
+		public static void AddCustomExporter<T>(Func<Reader, T> func)
+		{
+			CustomExporter.Add(typeof(T), (reader) => func.Invoke(reader));
+		}
 
 		/// <summary>
 		/// Deserialize a NinoSerialize object
@@ -51,11 +71,7 @@ namespace Nino.Serialization
 		private static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader = null)
 		{
 			//Get Attribute that indicates a class/struct to be serialized
-			if (!TypeModel.TryGetModel(type, out var model))
-			{
-				Logger.E("Serialization", $"The type {type.FullName} does not have NinoSerialize attribute");
-				return ConstMgr.Null;
-			}
+			TypeModel.TryGetModel(type, out var model);
 
 			//invalid model
 			if (model != null)
@@ -348,11 +364,17 @@ namespace Nino.Serialization
 				return arr;
 			}
 
-			//TODO custom exporter
-
-			//no chance to Deserialize -> see if this type can be serialized in other ways
-			//try recursive
-			return Deserialize(type, ConstMgr.Null, ConstMgr.Null, encoding, reader);
+			//custom exporter
+			if (CustomExporter.TryGetValue(type, out var exporterDelegate))
+			{
+				return exporterDelegate.Invoke(reader);
+			}
+			else
+			{
+				//no chance to Deserialize -> see if this type can be serialized in other ways
+				//try recursive
+				return Deserialize(type, ConstMgr.Null, ConstMgr.Null, encoding, reader);
+			}
 		}
 
 		/// <summary>

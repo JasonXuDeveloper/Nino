@@ -1,7 +1,8 @@
 using System;
-using System.Collections.Generic;
 using ProtoBuf;
+using UnityEngine;
 using Nino.Serialization;
+using System.Collections.Generic;
 
 namespace Nino.Test
 {
@@ -71,6 +72,24 @@ namespace Nino.Test
         public override string ToString()
         {
             return $"{name},{string.Join(",",vs)},{ps[0]}";
+        }
+    }
+
+    [NinoSerialize]
+    public partial class CustomTypeTest
+    {
+        [NinoMember(1)]
+        public Vector3 v3;
+
+        [NinoMember(2)]
+        public DateTime dt;
+
+        [NinoMember(3)]
+        public int? ni;
+
+        public override string ToString()
+        {
+            return $"{v3}, {dt}, {ni}";
         }
     }
 }

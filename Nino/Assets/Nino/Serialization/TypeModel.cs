@@ -20,7 +20,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Cached Models
 		/// </summary>
-		public static readonly Dictionary<Type, TypeModel> TypeModels = new Dictionary<Type, TypeModel>();
+		private static readonly Dictionary<Type, TypeModel> TypeModels = new Dictionary<Type, TypeModel>();
 
 		/// <summary>
 		/// Try get cached model
@@ -28,18 +28,19 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="model"></param>
 		/// <returns></returns>
-		public static bool TryGetModel(Type type, out TypeModel model)
+		public static void TryGetModel(Type type, out TypeModel model)
 		{
-			if (TypeModels.TryGetValue(type, out model)) return true;
+			if (TypeModels.TryGetValue(type, out model)) return;
 			NinoSerializeAttribute[] ns =
 				(NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-			if (ns.Length != 0) return true;
+			if (ns.Length != 0) return;
 			model = new TypeModel()
 			{
 				valid = false
 			};
 			TypeModels.Add(type, model);
-			return false;
+			throw new InvalidOperationException(
+				$"The type {type.FullName} does not have NinoSerialize attribute or custom importer/exporter");
 		}
 
 		/// <summary>
