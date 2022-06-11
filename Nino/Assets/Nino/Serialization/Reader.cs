@@ -94,7 +94,6 @@ namespace Nino.Serialization
 		/// Read sbyte
 		/// </summary>
 		/// <returns></returns>
-		[CLSCompliant(false)]
 		public sbyte ReadSByte()
 		{
 			EnsureLength(1);
