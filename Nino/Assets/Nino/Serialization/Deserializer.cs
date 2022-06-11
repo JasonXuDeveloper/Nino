@@ -23,17 +23,23 @@ namespace Nino.Serialization
 		/// 缓存反射的参数数组
 		/// </summary>
 		private static volatile Queue<object[]> _reflectionParamPool = new Queue<object[]>();
-		
+
+		/// <summary>
+		/// 缓存反射创建dict的参数数组
+		/// </summary>
+		private static volatile Queue<Type[]> _reflectionGenericTypePool = new Queue<Type[]>();
+
 		/// <summary>
 		/// Custom exporter
 		/// </summary>
-		private static readonly Dictionary<Type, ExporterDelegate> CustomExporter = new Dictionary<Type, ExporterDelegate>();
+		private static readonly Dictionary<Type, ExporterDelegate> CustomExporter =
+			new Dictionary<Type, ExporterDelegate>();
 
 		/// <summary>
 		/// Custom Exporter delegate that reads bytes to object
 		/// </summary>
 		private delegate object ExporterDelegate(Reader reader);
-		
+
 		/// <summary>
 		/// Add custom Exporter of all type T objects
 		/// </summary>
@@ -362,6 +368,58 @@ namespace Nino.Serialization
 				}
 
 				return arr;
+			}
+
+			//dict
+			if (type.IsGenericType && type.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+			{
+				//parse dict type
+				var args = type.GetGenericArguments();
+				Type keyType = args[0];
+				Type valueType = args[1];
+				Type[] temp;
+				if (_reflectionGenericTypePool.Count > 0)
+				{
+					temp = _reflectionGenericTypePool.Dequeue();
+					temp[0] = keyType;
+					temp[0] = valueType;
+				}
+				else
+				{
+					// ReSharper disable RedundantExplicitArrayCreation
+					temp = new Type[] { keyType, valueType };
+					// ReSharper restore RedundantExplicitArrayCreation
+				}
+
+				Type dictType = ConstMgr.DictDefType.MakeGenericType(temp);
+				_reflectionGenericTypePool.Enqueue(temp);
+				var dict = Activator.CreateInstance(dictType) as IDictionary;
+
+				//read len
+				int len = GETLen();
+
+				//read item
+				for (int i = 0; i < len; i++)
+				{
+					//read key
+					var key = ReadCommonVal(reader, keyType, encoding);
+					if (key.GetType() != keyType)
+					{
+						key = Convert.ChangeType(key, keyType);
+					}
+
+					//read value
+					var val = ReadCommonVal(reader, valueType, encoding);
+					if (val.GetType() != valueType)
+					{
+						val = Convert.ChangeType(val, valueType);
+					}
+
+					//add
+					dict?.Add(key, val);
+				}
+
+				return dict;
 			}
 
 			//custom exporter

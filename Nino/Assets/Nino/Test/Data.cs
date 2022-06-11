@@ -93,9 +93,13 @@ namespace Nino.Test
         [NinoMember(5)]
         public Matrix4x4 m;
 
+        [NinoMember(6)] public Dictionary<string, int> dict;
+
         public override string ToString()
         {
-            return $"{v3}, {dt}, {ni}, {String.Join(",",qs)}, {m.ToString()}";
+            return
+                $"{v3}, {dt}, {ni}, {String.Join(",", qs)}, {m.ToString()}\n" +
+                $"dict.keys: {string.Join(",", dict.Keys)},\ndict.values:{string.Join(",", dict.Values)}";
         }
     }
 }

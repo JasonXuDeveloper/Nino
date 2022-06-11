@@ -27,6 +27,13 @@ namespace Nino.Test.Editor.Serialization
                     new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f),
                     new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f),
                     new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f)
+                },
+                dict = new Dictionary<string, int>()
+                {
+                    { "test1", 1 },
+                    { "test2", 2 },
+                    { "test3", 3 },
+                    { "test4", 4 },
                 }
             };
 
@@ -100,10 +107,10 @@ namespace Nino.Test.Editor.Serialization
                 //result
                 var ret = new UnityEngine.Matrix4x4();
                 //read 4 rows
-                ret.SetRow(0,ReadV4());
-                ret.SetRow(1,ReadV4());
-                ret.SetRow(2,ReadV4());
-                ret.SetRow(3,ReadV4());
+                ret.SetRow(0, ReadV4());
+                ret.SetRow(1, ReadV4());
+                ret.SetRow(2, ReadV4());
+                ret.SetRow(3, ReadV4());
                 return ret;
             });
 

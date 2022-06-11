@@ -21,13 +21,14 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Custom importer
 		/// </summary>
-		private static readonly Dictionary<Type, ImporterDelegate> CustomImporter = new Dictionary<Type, ImporterDelegate>();
+		private static readonly Dictionary<Type, ImporterDelegate> CustomImporter =
+			new Dictionary<Type, ImporterDelegate>();
 
 		/// <summary>
 		/// Custom importer delegate that writes object to writer
 		/// </summary>
 		private delegate void ImporterDelegate(object val, Writer writer);
-		
+
 		/// <summary>
 		/// Add custom importer of all type T objects
 		/// </summary>
@@ -35,12 +36,9 @@ namespace Nino.Serialization
 		/// <typeparam name="T"></typeparam>
 		public static void AddCustomImporter<T>(Action<T, Writer> action)
 		{
-			CustomImporter.Add(typeof(T), (val, writer) =>
-			{
-				action.Invoke((T)val, writer);
-			});
+			CustomImporter.Add(typeof(T), (val, writer) => { action.Invoke((T)val, writer); });
 		}
-		
+
 		/// <summary>
 		/// Serialize a NinoSerialize object
 		/// </summary>
@@ -273,10 +271,33 @@ namespace Nino.Serialization
 				return;
 			}
 
+			//dict
+			if (type.IsGenericType && type.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+			{
+				var args = type.GetGenericArguments();
+				Type keyType = args[0];
+				Type valueType = args[1];
+				var dictionary = (IDictionary)val;
+				//write len
+				CompressAndWrite(writer, dictionary.Count);
+				//record keys
+				var keys = dictionary.Keys;
+				//write items
+				foreach (var c in keys)
+				{
+					//write key
+					WriteCommonVal(writer, keyType, c, encoding);
+					//write val
+					WriteCommonVal(writer, valueType, dictionary[c], encoding);
+				}
+
+				return;
+			}
+
 			//custom importer
 			if (CustomImporter.TryGetValue(type, out var importerDelegate))
 			{
-				importerDelegate.Invoke(val,writer);
+				importerDelegate.Invoke(val, writer);
 			}
 			else
 			{
