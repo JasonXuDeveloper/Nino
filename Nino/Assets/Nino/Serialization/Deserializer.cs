@@ -340,86 +340,92 @@ namespace Nino.Serialization
 				return arr;
 			}
 
-			if (type.IsGenericType && type.GetGenericTypeDefinition() == ConstMgr.ListDefType)
+			if (type.IsGenericType)
 			{
-				//read len
-				int len = GETLen();
+				var genericDefType = type.GetGenericTypeDefinition();
 
-				//List<byte> -> write directly
-				if (type == ConstMgr.ByteListType)
+				//list
+				if (genericDefType == ConstMgr.ListDefType)
 				{
-					return reader.ReadBytes(len).ToList();
-				}
+					//read len
+					int len = GETLen();
 
-				//other
-				var elemType = type.GenericTypeArguments[0];
-				Type newType = ConstMgr.ListDefType.MakeGenericType(elemType);
-				var arr = Activator.CreateInstance(newType, ConstMgr.EmptyParam) as IList;
-				//read item
-				for (int i = 0; i < len; i++)
-				{
-					var obj = ReadCommonVal(reader, elemType, encoding);
-					if (obj.GetType() != elemType)
+					//List<byte> -> write directly
+					if (type == ConstMgr.ByteListType)
 					{
-						obj = Convert.ChangeType(obj, elemType);
+						return reader.ReadBytes(len).ToList();
 					}
 
-					arr?.Add(obj);
-				}
-
-				return arr;
-			}
-
-			//dict
-			if (type.IsGenericType && type.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-			{
-				//parse dict type
-				var args = type.GetGenericArguments();
-				Type keyType = args[0];
-				Type valueType = args[1];
-				Type[] temp;
-				if (_reflectionGenericTypePool.Count > 0)
-				{
-					temp = _reflectionGenericTypePool.Dequeue();
-					temp[0] = keyType;
-					temp[1] = valueType;
-				}
-				else
-				{
-					// ReSharper disable RedundantExplicitArrayCreation
-					temp = new Type[] { keyType, valueType };
-					// ReSharper restore RedundantExplicitArrayCreation
-				}
-
-				Type dictType = ConstMgr.DictDefType.MakeGenericType(temp);
-				_reflectionGenericTypePool.Enqueue(temp);
-				var dict = Activator.CreateInstance(dictType) as IDictionary;
-
-				//read len
-				int len = GETLen();
-
-				//read item
-				for (int i = 0; i < len; i++)
-				{
-					//read key
-					var key = ReadCommonVal(reader, keyType, encoding);
-					if (key.GetType() != keyType)
+					//other
+					var elemType = type.GenericTypeArguments[0];
+					Type newType = ConstMgr.ListDefType.MakeGenericType(elemType);
+					var arr = Activator.CreateInstance(newType, ConstMgr.EmptyParam) as IList;
+					//read item
+					for (int i = 0; i < len; i++)
 					{
-						key = Convert.ChangeType(key, keyType);
+						var obj = ReadCommonVal(reader, elemType, encoding);
+						if (obj.GetType() != elemType)
+						{
+							obj = Convert.ChangeType(obj, elemType);
+						}
+
+						arr?.Add(obj);
 					}
 
-					//read value
-					var val = ReadCommonVal(reader, valueType, encoding);
-					if (val.GetType() != valueType)
-					{
-						val = Convert.ChangeType(val, valueType);
-					}
-
-					//add
-					dict?.Add(key, val);
+					return arr;
 				}
 
-				return dict;
+				//dict
+				if (genericDefType == ConstMgr.DictDefType)
+				{
+					//parse dict type
+					var args = type.GetGenericArguments();
+					Type keyType = args[0];
+					Type valueType = args[1];
+					Type[] temp;
+					if (_reflectionGenericTypePool.Count > 0)
+					{
+						temp = _reflectionGenericTypePool.Dequeue();
+						temp[0] = keyType;
+						temp[1] = valueType;
+					}
+					else
+					{
+						// ReSharper disable RedundantExplicitArrayCreation
+						temp = new Type[] { keyType, valueType };
+						// ReSharper restore RedundantExplicitArrayCreation
+					}
+
+					Type dictType = ConstMgr.DictDefType.MakeGenericType(temp);
+					_reflectionGenericTypePool.Enqueue(temp);
+					var dict = Activator.CreateInstance(dictType) as IDictionary;
+
+					//read len
+					int len = GETLen();
+
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						//read key
+						var key = ReadCommonVal(reader, keyType, encoding);
+						if (key.GetType() != keyType)
+						{
+							key = Convert.ChangeType(key, keyType);
+						}
+
+						//read value
+						var val = ReadCommonVal(reader, valueType, encoding);
+						if (val.GetType() != valueType)
+						{
+							val = Convert.ChangeType(val, valueType);
+						}
+
+						//add
+						dict?.Add(key, val);
+					}
+
+					return dict;
+				}
 			}
 
 			//custom exporter

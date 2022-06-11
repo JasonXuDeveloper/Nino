@@ -244,54 +244,60 @@ namespace Nino.Serialization
 				return;
 			}
 
-			if (type.IsGenericType && type.GetGenericTypeDefinition() == ConstMgr.ListDefType)
+			if (type.IsGenericType)
 			{
-				//List<byte> -> write directly
-				if (type == ConstMgr.ByteListType)
+				var genericDefType = type.GetGenericTypeDefinition();
+
+				//list
+				if (genericDefType == ConstMgr.ListDefType)
 				{
-					var dt = (List<byte>)val;
+					//List<byte> -> write directly
+					if (type == ConstMgr.ByteListType)
+					{
+						var dt = (List<byte>)val;
+						//write len
+						CompressAndWrite(writer, dt.Count);
+						//write item
+						writer.Write(dt.ToArray());
+						return;
+					}
+
+					//other
+					var elemType = type.GenericTypeArguments[0];
+					var arr = (ICollection)val;
 					//write len
-					CompressAndWrite(writer, dt.Count);
+					CompressAndWrite(writer, arr.Count);
 					//write item
-					writer.Write(dt.ToArray());
+					foreach (var c in arr)
+					{
+						WriteCommonVal(writer, elemType, c, encoding);
+					}
+
 					return;
 				}
 
-				//other
-				var elemType = type.GenericTypeArguments[0];
-				var arr = (ICollection)val;
-				//write len
-				CompressAndWrite(writer, arr.Count);
-				//write item
-				foreach (var c in arr)
+				//dict
+				if (genericDefType == ConstMgr.DictDefType)
 				{
-					WriteCommonVal(writer, elemType, c, encoding);
+					var args = type.GetGenericArguments();
+					Type keyType = args[0];
+					Type valueType = args[1];
+					var dictionary = (IDictionary)val;
+					//write len
+					CompressAndWrite(writer, dictionary.Count);
+					//record keys
+					var keys = dictionary.Keys;
+					//write items
+					foreach (var c in keys)
+					{
+						//write key
+						WriteCommonVal(writer, keyType, c, encoding);
+						//write val
+						WriteCommonVal(writer, valueType, dictionary[c], encoding);
+					}
+
+					return;
 				}
-
-				return;
-			}
-
-			//dict
-			if (type.IsGenericType && type.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-			{
-				var args = type.GetGenericArguments();
-				Type keyType = args[0];
-				Type valueType = args[1];
-				var dictionary = (IDictionary)val;
-				//write len
-				CompressAndWrite(writer, dictionary.Count);
-				//record keys
-				var keys = dictionary.Keys;
-				//write items
-				foreach (var c in keys)
-				{
-					//write key
-					WriteCommonVal(writer, keyType, c, encoding);
-					//write val
-					WriteCommonVal(writer, valueType, dictionary[c], encoding);
-				}
-
-				return;
 			}
 
 			//custom importer
