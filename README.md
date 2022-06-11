@@ -30,11 +30,16 @@ Useful Unity Modules | 实用的Unity模块
     - 优化GC【2022.06.04完成】
     - 优化体积【2022.06.04已完成】
     - 代码生成【2022.06.04已完成】
-    - 自定义序列化委托注册【预计2022年6月完成】
-  
+    - 自定义序列化委托注册【2022.06.11完成】
   - 反序列化【2022.06.10完成】
   
     - 优化GC【2022.06.10完成】
     - 代码生成【2022.06.11完成】
-    - 自定义反序列化委托注册【预计2022年6月完成】
+    - 自定义反序列化委托注册【2022.06.11完成】
+  - 测试案例
+    - [Test1](Nino/Assets/Nino/Test/Editor/Serialization/Test1.cs) Nino VS Protobuf-net 序列化
+    - [Test2](Nino/Assets/Nino/Test/Editor/Serialization/Test2.cs) Nino VS BinaryFormatter 序列化
+    - [Test3](Nino/Assets/Nino/Test/Editor/Serialization/Test3.cs) Nino VS Protobuf-net 反序列化
+    - [Test4](Nino/Assets/Nino/Test/Editor/Serialization/Test4.cs) Nino VS BinaryFormatter 反序列化
+    - [Test5](Nino/Assets/Nino/Test/Editor/Serialization/Test5.cs) 自定义Nino序列化反序列化委托
   - [性能报告](Performance/Serialization.md)
