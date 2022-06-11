@@ -87,9 +87,15 @@ namespace Nino.Test
         [NinoMember(3)]
         public int? ni;
 
+        [NinoMember(4)]
+        public List<Quaternion> qs;
+
+        [NinoMember(5)]
+        public Matrix4x4 m;
+
         public override string ToString()
         {
-            return $"{v3}, {dt}, {ni}";
+            return $"{v3}, {dt}, {ni}, {String.Join(",",qs)}, {m.ToString()}";
         }
     }
 }

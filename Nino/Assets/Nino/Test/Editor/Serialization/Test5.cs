@@ -1,6 +1,7 @@
 using System;
-using Nino.Shared;
 using Nino.Serialization;
+using System.Collections.Generic;
+using Logger = Nino.Shared.Logger;
 
 // ReSharper disable RedundantTypeArgumentsOfMethod
 namespace Nino.Test.Editor.Serialization
@@ -19,7 +20,14 @@ namespace Nino.Test.Editor.Serialization
             {
                 dt = DateTime.Now,
                 ni = null,
-                v3 = UnityEngine.Vector3.one
+                v3 = UnityEngine.Vector3.one,
+                m = UnityEngine.Matrix4x4.zero,
+                qs = new List<UnityEngine.Quaternion>()
+                {
+                    new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f),
+                    new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f),
+                    new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f)
+                }
             };
 
             //register importer (custom way to write those objects)
@@ -40,6 +48,30 @@ namespace Nino.Test.Editor.Serialization
                 writer.Write(val.y);
                 writer.Write(val.z);
             });
+            Serializer.AddCustomImporter<UnityEngine.Quaternion>((val, writer) =>
+            {
+                //write 4 float
+                writer.Write(val.x);
+                writer.Write(val.y);
+                writer.Write(val.z);
+                writer.Write(val.w);
+            });
+            Serializer.AddCustomImporter<UnityEngine.Matrix4x4>((val, writer) =>
+            {
+                void WriteV4(UnityEngine.Vector4 v)
+                {
+                    writer.Write(v.x);
+                    writer.Write(v.y);
+                    writer.Write(v.z);
+                    writer.Write(v.w);
+                }
+
+                //write 4 rows
+                WriteV4(val.GetRow(0));
+                WriteV4(val.GetRow(1));
+                WriteV4(val.GetRow(2));
+                WriteV4(val.GetRow(3));
+            });
             Logger.D($"will serialize c: {c}");
             var bs = Serializer.Serialize(c);
             Logger.D($"serialized to {bs.Length}bytes: {string.Join(",", bs)}");
@@ -52,6 +84,28 @@ namespace Nino.Test.Editor.Serialization
             //as we wrote 3 floats with vector3, now we read 3 floats and parse to vector
             Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
                 new UnityEngine.Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()));
+            //read 4 floats and parse to Quaternion
+            Deserializer.AddCustomExporter<UnityEngine.Quaternion>(reader =>
+                new UnityEngine.Quaternion(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
+                    reader.ReadFloat()));
+            //read 4 rows and parse to matrix 4x4
+            Deserializer.AddCustomExporter<UnityEngine.Matrix4x4>(reader =>
+            {
+                UnityEngine.Vector4 ReadV4()
+                {
+                    return new UnityEngine.Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
+                        reader.ReadFloat());
+                }
+
+                //result
+                var ret = new UnityEngine.Matrix4x4();
+                //read 4 rows
+                ret.SetRow(0,ReadV4());
+                ret.SetRow(1,ReadV4());
+                ret.SetRow(2,ReadV4());
+                ret.SetRow(3,ReadV4());
+                return ret;
+            });
 
             Logger.D("will deserialize");
             var cc = Deserializer.Deserialize<CustomTypeTest>(bs);
