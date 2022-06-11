@@ -9,7 +9,6 @@ namespace Nino.Test
             return new object[] { x,y,z,f,d,db,bo,en,name };
         }
 
-
         private void NinoSetMembers(object[] data)
         {
             this.x = System.Convert.ToInt32(data[0]);

@@ -63,7 +63,6 @@ namespace Nino.Serialization
             return new object[] { {members} };
         }
 
-
         private void NinoSetMembers(object[] data)
         {
 {fields}

@@ -91,16 +91,7 @@ namespace Nino.Serialization
 							$"{type.FullName}.{model.members[min].Name} is null, cannot serialize");
 					}
 
-					//common
-					if (type != ConstMgr.StringType)
-					{
-						WriteCommonVal(writer, type, val, encoding);
-					}
-					//string
-					else
-					{
-						writer.Write((string)val);
-					}
+					WriteCommonVal(writer, type, val, encoding);
 
 					//add the index, so it will fetch the next member (when code gen exists)
 					index++;
@@ -152,7 +143,7 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidDataException"></exception>
 		private static void WriteCommonVal(Writer writer, Type type, object val, Encoding encoding)
 		{
-			//consider to compress (only for whole num and string)
+			//write basic values
 			switch (val)
 			{
 				//without sign
@@ -162,10 +153,10 @@ namespace Nino.Serialization
 				case uint ui:
 					CompressAndWrite(writer, ui);
 					return;
-				case ushort us://unnecessary to compress
+				case ushort us: //unnecessary to compress
 					writer.Write(us);
 					return;
-				case byte b://unnecessary to compress
+				case byte b: //unnecessary to compress
 					writer.Write(b);
 					return;
 				// with sign
@@ -175,10 +166,10 @@ namespace Nino.Serialization
 				case int i:
 					CompressAndWrite(writer, i);
 					return;
-				case short s://unnecessary to compress
+				case short s: //unnecessary to compress
 					writer.Write(s);
 					return;
-				case sbyte sb://unnecessary to compress
+				case sbyte sb: //unnecessary to compress
 					writer.Write(sb);
 					return;
 				case bool b:
@@ -195,6 +186,9 @@ namespace Nino.Serialization
 					return;
 				case char c:
 					writer.Write(c);
+					return;
+				case string s:
+					writer.Write(s);
 					return;
 			}
 

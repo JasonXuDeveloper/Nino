@@ -9,7 +9,6 @@ namespace Nino.Test
             return new object[] { name,ps };
         }
 
-
         private void NinoSetMembers(object[] data)
         {
             this.name = (System.String)data[0];

@@ -23,7 +23,7 @@ namespace Nino.Serialization
 		/// 缓存反射的参数数组
 		/// </summary>
 		private static readonly Queue<object[]> ReflectionParamPool = new Queue<object[]>();
-		
+
 		/// <summary>
 		/// Deserialize a NinoSerialize object
 		/// </summary>
@@ -31,7 +31,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="encoding"></param>
 		/// <returns></returns>
-		public static T Deserialize<T>(byte[] data, Encoding encoding = null) where T: new()
+		public static T Deserialize<T>(byte[] data, Encoding encoding = null) where T : new()
 		{
 			T val = new T();
 			return (T)Deserialize(typeof(T), val, data, encoding ?? DefaultEncoding);
@@ -99,37 +99,21 @@ namespace Nino.Serialization
 					type = model.types[min];
 					//try code gen, if no code gen then reflection
 
-					//common
-					if (type != ConstMgr.StringType)
+					//read basic values
+					var ret = ReadCommonVal(reader, type, encoding);
+					if (hasSet)
 					{
-						var ret = ReadCommonVal(reader, type, encoding);
-						if (hasSet)
-						{
-							objs[index] = ret;
-						}
-						else
-						{
-							SetMember(model.members[min], val, ret);
-						}
+						objs[index] = ret;
 					}
-					//string
 					else
 					{
-						var ret = reader.ReadString();
-						if (hasSet)
-						{
-							objs[index] = ret;
-						}
-						else
-						{
-							SetMember(model.members[min], val, ret);
-						}
+						SetMember(model.members[min], val, ret);
 					}
 
 					//add the index, so it will fetch the next member (when code gen exists)
 					index++;
 				}
-				
+
 				//invoke code gen
 				if (hasSet)
 				{
@@ -143,6 +127,7 @@ namespace Nino.Serialization
 					{
 						p = new object[] { objs };
 					}
+
 					model.ninoSetMembers.Invoke(val, p);
 					ReflectionParamPool.Enqueue(p);
 				}
@@ -194,9 +179,6 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidDataException"></exception>
 		private static object ReadCommonVal(Reader reader, Type type, Encoding encoding)
 		{
-			//consider to compress (only for whole num and string)
-			//typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
-			//typeof(int), typeof(uint), typeof(long), typeof(ulong)
 			if (type == ConstMgr.ByteType)
 			{
 				return reader.ReadByte();
@@ -215,6 +197,11 @@ namespace Nino.Serialization
 			if (type == ConstMgr.UShortType)
 			{
 				return reader.ReadUInt16();
+			}
+
+			if (type == ConstMgr.StringType)
+			{
+				return reader.ReadString();
 			}
 
 			//consider decompress
@@ -239,25 +226,32 @@ namespace Nino.Serialization
 						return reader.ReadInt64();
 					case CompressType.UInt64:
 						return reader.ReadUInt64();
+					default:
+						throw new InvalidOperationException("invalid compress type");
 				}
 			}
-			else if (type == ConstMgr.BoolType)
+
+			if (type == ConstMgr.BoolType)
 			{
 				return reader.ReadBool();
 			}
-			else if (type == ConstMgr.DoubleType)
+
+			if (type == ConstMgr.DoubleType)
 			{
 				return reader.ReadDouble();
 			}
-			else if (type == ConstMgr.DecimalType)
+
+			if (type == ConstMgr.DecimalType)
 			{
 				return reader.ReadDecimal();
 			}
-			else if (type == ConstMgr.FloatType)
+
+			if (type == ConstMgr.FloatType)
 			{
 				return reader.ReadSingle();
 			}
-			else if (type == ConstMgr.CharType)
+
+			if (type == ConstMgr.CharType)
 			{
 				return reader.ReadChar();
 			}
@@ -317,6 +311,7 @@ namespace Nino.Serialization
 					{
 						obj = Convert.ChangeType(obj, elemType);
 					}
+
 					arr.SetValue(obj, i);
 				}
 
@@ -346,6 +341,7 @@ namespace Nino.Serialization
 					{
 						obj = Convert.ChangeType(obj, elemType);
 					}
+
 					arr?.Add(obj);
 				}
 
