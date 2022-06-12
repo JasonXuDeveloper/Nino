@@ -45,7 +45,7 @@ namespace Nino.Serialization
 			var type = typeof(T);
 			if (CustomExporter.ContainsKey(type))
 			{
-				Logger.E($"already added custom exporter for: {type}");
+				Logger.W($"already added custom exporter for: {type}");
 				return;
 			}
 			CustomExporter.Add(typeof(T), (reader) => func.Invoke(reader));
@@ -169,14 +169,12 @@ namespace Nino.Serialization
 					}
 
 					//invoke code gen
-					if (hasSet)
-					{
-						object[] p = ExtensibleObjectPool.RequestObjArr(1);
-						p[0] = objs;
-						model.ninoSetMembers.Invoke(val, p);
-						ExtensibleObjectPool.ReturnObjArr(index + 1, objs);
-						ExtensibleObjectPool.ReturnObjArr(1, p);
-					}	
+					if (!hasSet) return;
+					object[] p = ExtensibleObjectPool.RequestObjArr(1);
+					p[0] = objs;
+					model.ninoSetMembers.Invoke(val, p);
+					ExtensibleObjectPool.ReturnObjArr(index, objs);
+					ExtensibleObjectPool.ReturnObjArr(1, p);
 				}
 			}
 

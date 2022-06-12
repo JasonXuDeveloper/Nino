@@ -39,7 +39,7 @@ namespace Nino.Serialization
 			var type = typeof(T);
 			if (CustomImporter.ContainsKey(type))
 			{
-				Logger.E($"already added custom importer for: {type}");
+				Logger.W($"already added custom importer for: {type}");
 				return;
 			}
 			CustomImporter.Add(typeof(T), (val, writer) => { action.Invoke((T)val, writer); });
