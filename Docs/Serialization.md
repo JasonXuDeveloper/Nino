@@ -132,6 +132,8 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 
 ## 代码生成
 
+不生成代码也不会影响使用，但是生成后性能可以翻倍
+
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
 
