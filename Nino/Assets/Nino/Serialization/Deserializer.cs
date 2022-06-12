@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 // ReSharper disable UnusedMember.Local
 
@@ -200,6 +201,7 @@ namespace Nino.Serialization
 		/// <param name="instance"></param>
 		/// <param name="val"></param>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static void SetMember(MemberInfo info, object instance, object val)
 		{
 			switch (info)
@@ -220,6 +222,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="reader"></param>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static int GetLength(Reader reader)
 		{
 			switch (reader.GetCompressType())
@@ -246,6 +249,7 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="encoding"></param>
 		/// <exception cref="InvalidDataException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static object ReadCommonVal(Reader reader, Type type, Encoding encoding)
 		{
 			switch (Type.GetTypeCode(type))
@@ -451,6 +455,7 @@ namespace Nino.Serialization
 		/// <param name="reader"></param>
 		/// <param name="type"></param>
 		/// <param name="encoding"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static object DecompressAndReadEnum(Reader reader, Type type,
 			Encoding encoding)
 		{

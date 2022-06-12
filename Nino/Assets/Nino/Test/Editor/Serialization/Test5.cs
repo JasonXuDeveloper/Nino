@@ -1,123 +1,172 @@
-using System;
-using Nino.Serialization;
-using System.Collections.Generic;
-using Logger = Nino.Shared.Logger;
+using System.IO;
+using System.Text;
+using Nino.Shared;
+using MongoDB.Bson.IO;
+using System.Diagnostics;
+using MongoDB.Bson.Serialization;
 
-// ReSharper disable RedundantTypeArgumentsOfMethod
+// ReSharper disable RedundantJumpStatement
+
 namespace Nino.Test.Editor.Serialization
 {
     public class Test5
     {
-        private const string SerializationTest5 = "Nino/Test/Serialization/Test5 - Custom Type Importer Exporter";
+        private const string SerializationTest5 = "Nino/Test/Serialization/Test5 - Serialize and Deserialize (Nino vs MongoDB.Bson)";
+
+        private static string GetString(int len)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append('a', len);
+            return sb.ToString();
+        }
 
 #if UNITY_2017_1_OR_NEWER
         [UnityEditor.MenuItem(SerializationTest5)]
 #endif
         public static void Main()
         {
-            //custom type
-            CustomTypeTest c = new CustomTypeTest()
+            //reg
+            BsonClassMap.RegisterClassMap<Data>();
+            BsonClassMap.RegisterClassMap<NestedData>();
+            BsonClassMap.RegisterClassMap<TestEnum>();
+            Logger.W("1/5");
+            DoTest(10);
+            Logger.W("2/5");
+            DoTest(100);
+            Logger.W("3/5");
+            DoTest(1000);
+            Logger.W("4/5");
+            DoTest(10000);
+            Logger.W("5/5");
+            DoTest(100000);
+        }
+
+        private static void BeginSample(string name)
+        {
+#if UNITY_2017_1_OR_NEWER
+            UnityEngine.Profiling.Profiler.BeginSample(name);
+#endif
+            return;
+        }
+
+        private static void EndSample()
+        {
+#if UNITY_2017_1_OR_NEWER
+            UnityEngine.Profiling.Profiler.EndSample();
+#endif
+            return;
+        }
+        
+        private static void DoTest(int max)
+        {
+            #region Test data
+
+            Data[] ps = new Data[max];
+            for (int i = 0, cnt = max; i < cnt; i++)
             {
-                dt = DateTime.Now,
-                ni = null,
-                v3 = UnityEngine.Vector3.one,
-                m = UnityEngine.Matrix4x4.zero,
-                qs = new List<UnityEngine.Quaternion>()
+                ps[i] = new Data()
                 {
-                    new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f),
-                    new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f),
-                    new UnityEngine.Quaternion(100.99f, 299.31f, 45.99f, 0.5f)
-                },
-                dict = new Dictionary<string, int>()
-                {
-                    { "test1", 1 },
-                    { "test2", 2 },
-                    { "test3", 3 },
-                    { "test4", 4 },
-                }
+                    x = short.MaxValue,
+                    y = byte.MaxValue,
+                    z = short.MaxValue,
+                    f = 1234.56789f,
+                    d = 66.66666666m,
+                    db = 999.999999999999,
+                    bo = true,
+                    en = TestEnum.A,
+                    name = GetString(20)
+                };
+            }
+
+            NestedData points = new NestedData()
+            {
+                name = "测试",
+                ps = ps
             };
 
-            //register importer (custom way to write those objects)
-            Serializer.AddCustomImporter<DateTime>((datetime, writer) =>
+            #endregion
+
+            #region Test
+
+            Logger.D("Serialization Test", $"<color=cyan>testing {max} objs</color>");
+            var sizeOfNestedData = Encoding.Default.GetByteCount(points.name) +
+                                   (sizeof(int) + sizeof(short) + sizeof(long) + sizeof(float) + sizeof(double) +
+                                    sizeof(decimal) + sizeof(bool) + sizeof(byte) +
+                                    Encoding.Default.GetByteCount(points.ps[0].name)) * points.ps.Length;
+            Logger.D("Serialization Test", $"marshal.sizeof struct: {sizeOfNestedData} bytes");
+            Logger.D("Serialization Test", "======================================");
+
+            //Nino
+            var sw = new Stopwatch();
+            BeginSample("Nino - Serialize");
+            sw.Restart();
+            var bs = Nino.Serialization.Serializer.Serialize(points);
+            sw.Stop();
+            EndSample();
+            Logger.D("Serialization Test", $"Nino: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
+            long len = bs.Length;
+            var tm = sw.ElapsedMilliseconds;
+            //Logger.D("Serialization Test",string.Join(",", bs));
+
+            //MongoDB.Bson
+            BeginSample("MongoDB.Bson - Serialize");
+            byte[] bs2;
+            sw.Restart();
+            //we want byte[], MongoDB.Bson returns stream
+            //to be able to make it fair, we need to convert stream to byte[]
+            using (MemoryStream ms = new MemoryStream())
             {
-                //write long
-                writer.Write(datetime.ToBinary());
-            });
-            Serializer.AddCustomImporter<int?>((val, writer) =>
-            {
-                //write int
-                writer.Write(val.GetValueOrDefault());
-            });
-            Serializer.AddCustomImporter<UnityEngine.Vector3>((val, writer) =>
-            {
-                //write 3 float
-                writer.Write(val.x);
-                writer.Write(val.y);
-                writer.Write(val.z);
-            });
-            Serializer.AddCustomImporter<UnityEngine.Quaternion>((val, writer) =>
-            {
-                //write 4 float
-                writer.Write(val.x);
-                writer.Write(val.y);
-                writer.Write(val.z);
-                writer.Write(val.w);
-            });
-            Serializer.AddCustomImporter<UnityEngine.Matrix4x4>((val, writer) =>
-            {
-                void WriteV4(UnityEngine.Vector4 v)
+                using (BsonBinaryWriter bsonWriter = new BsonBinaryWriter(ms, BsonBinaryWriterSettings.Defaults))
                 {
-                    writer.Write(v.x);
-                    writer.Write(v.y);
-                    writer.Write(v.z);
-                    writer.Write(v.w);
+                    BsonSerializationContext context = BsonSerializationContext.CreateRoot(bsonWriter);
+                    BsonSerializationArgs args = default;
+                    args.NominalType = typeof (object);
+                    IBsonSerializer serializer = BsonSerializer.LookupSerializer(args.NominalType);
+                    serializer.Serialize(context, args, points);
+                    bs2 = ms.ToArray();
                 }
+            }
+            sw.Stop();
+            EndSample();
 
-                //write 4 rows
-                WriteV4(val.GetRow(0));
-                WriteV4(val.GetRow(1));
-                WriteV4(val.GetRow(2));
-                WriteV4(val.GetRow(3));
-            });
-            Logger.D($"will serialize c: {c}");
-            var bs = Serializer.Serialize(c);
-            Logger.D($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
+            Logger.D("Serialization Test", $"MongoDB.Bson: {bs2.Length} bytes in {sw.ElapsedMilliseconds}ms");
+            //Logger.D("Serialization Test",string.Join(",", bs));
 
-            //register exporter (custom way to export bytes to object)
-            //as when writing datetime, we wrote long, here we read long and parse back to datetime
-            Deserializer.AddCustomExporter<DateTime>(reader => DateTime.FromBinary(reader.ReadInt64()));
-            //as when writing nullable<int>, we wrote int, here we read int
-            Deserializer.AddCustomExporter<int?>(reader => reader.ReadInt32());
-            //as we wrote 3 floats with vector3, now we read 3 floats and parse to vector
-            Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
-                new UnityEngine.Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()));
-            //read 4 floats and parse to Quaternion
-            Deserializer.AddCustomExporter<UnityEngine.Quaternion>(reader =>
-                new UnityEngine.Quaternion(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
-                    reader.ReadFloat()));
-            //read 4 rows and parse to matrix 4x4
-            Deserializer.AddCustomExporter<UnityEngine.Matrix4x4>(reader =>
-            {
-                UnityEngine.Vector4 ReadV4()
-                {
-                    return new UnityEngine.Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
-                        reader.ReadFloat());
-                }
+            Logger.D("Serialization Test", "======================================");
+            Logger.D("Serialization Test", $"size diff (nino - MongoDB.Bson): {len - bs2.Length} bytes");
+            Logger.D("Serialization Test",
+                $"size diff pct => diff/MongoDB.Bson : {((len - bs2.Length) * 100f / bs2.Length):F2}%");
 
-                //result
-                var ret = new UnityEngine.Matrix4x4();
-                //read 4 rows
-                ret.SetRow(0, ReadV4());
-                ret.SetRow(1, ReadV4());
-                ret.SetRow(2, ReadV4());
-                ret.SetRow(3, ReadV4());
-                return ret;
-            });
+            Logger.D("Serialization Test", "======================================");
+            Logger.D("Serialization Test", $"time diff (nino - MongoDB.Bson): {tm - sw.ElapsedMilliseconds} ms");
+            Logger.D("Serialization Test",
+                $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
 
-            Logger.D("will deserialize");
-            var cc = Deserializer.Deserialize<CustomTypeTest>(bs);
-            Logger.D($"deserialized as cc: {cc}");
+            BeginSample("Nino - Deserialize");
+            sw.Restart();
+            var d = Nino.Serialization.Deserializer.Deserialize<NestedData>(bs);
+            sw.Stop();
+            EndSample();
+            Logger.D("Deserialization Test", d);
+            Logger.D("Deserialization Test",
+                $"Nino: extracted {bs.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+            tm = sw.ElapsedMilliseconds;
+
+            //MongoDB.Bson
+            BeginSample("MongoDB.Bson - Deserialize");
+            sw.Restart();
+            d = (NestedData)BsonSerializer.Deserialize(bs2, typeof(NestedData));
+            sw.Stop();
+            EndSample();
+            Logger.D("Deserialization Test", d);
+            Logger.D("Deserialization Test",
+                $"MongoDB.Bson: extracted {bs2.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+
+            Logger.D("Deserialization Test", "======================================");
+            Logger.D("Deserialization Test", $"time diff (nino - MongoDB.Bson): {tm - sw.ElapsedMilliseconds} ms");
+            Logger.D("Deserialization Test",
+                $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+            #endregion
         }
     }
 }
-// ReSharper restore RedundantTypeArgumentsOfMethod

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 using Nino.Shared;
+using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
 {
@@ -80,6 +81,7 @@ namespace Nino.Serialization
 		/// Check the capacity
 		/// </summary>
 		/// <param name="addition"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private void EnsureCapacity(int addition)
 		{
 			if (disposed)
@@ -102,6 +104,7 @@ namespace Nino.Serialization
 		/// Write byte[]
 		/// </summary>
 		/// <param name="data"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte[] data)
 		{
 			EnsureCapacity(data.Length);
@@ -114,6 +117,7 @@ namespace Nino.Serialization
 		/// Write a double
 		/// </summary>
 		/// <param name="value"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe void Write(double value)
 		{
 			Write(*(ulong*)&value);
@@ -123,6 +127,7 @@ namespace Nino.Serialization
 		/// Write a float
 		/// </summary>
 		/// <param name="value"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe void Write(float value)
 		{
 			Write(*(uint*)&value);
@@ -132,6 +137,7 @@ namespace Nino.Serialization
 		/// Write string
 		/// </summary>
 		/// <param name="val"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(string val)
 		{
 			var len = encoding.GetByteCount(val);
@@ -161,6 +167,7 @@ namespace Nino.Serialization
 		/// Write decimal
 		/// </summary>
 		/// <param name="d"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(decimal d)
 		{
 			EnsureCapacity(4 * 4);
@@ -181,11 +188,13 @@ namespace Nino.Serialization
 		/// with the value 0 representing false or the value 1 representing true.
 		/// </summary>
 		/// <param name="value"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(bool value)
 		{
 			Write((byte)(value ? 1 : 0));
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(char ch)
 		{
 			Write(BitConverter.GetBytes(ch));
@@ -197,6 +206,7 @@ namespace Nino.Serialization
 		/// Write byte val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte num)
 		{
 			EnsureCapacity(1);
@@ -209,6 +219,7 @@ namespace Nino.Serialization
 		/// Write byte val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(sbyte num)
 		{
 			EnsureCapacity(1);
@@ -221,6 +232,7 @@ namespace Nino.Serialization
 		/// Write int val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(int num)
 		{
 			EnsureCapacity(ConstMgr.SizeOfInt);
@@ -245,6 +257,7 @@ namespace Nino.Serialization
 		/// Write uint val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(uint num)
 		{
 			EnsureCapacity(ConstMgr.SizeOfUInt);
@@ -269,6 +282,7 @@ namespace Nino.Serialization
 		/// Write short val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(short num)
 		{
 			EnsureCapacity(ConstMgr.SizeOfShort);
@@ -291,6 +305,7 @@ namespace Nino.Serialization
 		/// Write ushort val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ushort num)
 		{
 			EnsureCapacity(ConstMgr.SizeOfUShort);
@@ -313,6 +328,7 @@ namespace Nino.Serialization
 		/// Write long val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(long num)
 		{
 			EnsureCapacity(ConstMgr.SizeOfLong);
@@ -341,6 +357,7 @@ namespace Nino.Serialization
 		/// Write ulong val to binary writer
 		/// </summary>
 		/// <param name="num"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ulong num)
 		{
 			EnsureCapacity(ConstMgr.SizeOfULong);

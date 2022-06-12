@@ -1,33 +1,45 @@
 using System;
 using ProtoBuf;
 using UnityEngine;
+using MessagePack;
 using Nino.Serialization;
 using System.Collections.Generic;
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace Nino.Test
 {
     [Serializable]
     [ProtoContract]
     [NinoSerialize]
-    public partial struct Data
+    [MessagePackObject]
+    public partial class Data
     {
-        [ProtoMember(1)] [NinoMember(1)] public int x;
+        [ProtoMember(1)] [NinoMember(1)] [BsonElement] [Key(1)]
+        public int x;
 
-        [ProtoMember(2)] [NinoMember(2)] public short y;
+        [ProtoMember(2)] [NinoMember(2)] [BsonElement] [Key(2)]
+        public short y;
 
-        [ProtoMember(3)] [NinoMember(3)] public long z;
+        [ProtoMember(3)] [NinoMember(3)] [BsonElement] [Key(3)]
+        public long z;
 
-        [ProtoMember(4)] [NinoMember(4)] public float f;
+        [ProtoMember(4)] [NinoMember(4)] [BsonElement] [Key(4)]
+        public float f;
 
-        [ProtoMember(5)] [NinoMember(5)] public decimal d;
+        [ProtoMember(5)] [NinoMember(5)] [BsonElement] [Key(5)]
+        public decimal d;
 
-        [ProtoMember(6)] [NinoMember(6)] public double db;
+        [ProtoMember(6)] [NinoMember(6)] [BsonElement] [Key(6)]
+        public double db;
 
-        [ProtoMember(7)] [NinoMember(7)] public bool bo;
+        [ProtoMember(7)] [NinoMember(7)] [BsonElement] [Key(7)]
+        public bool bo;
 
-        [ProtoMember(8)] [NinoMember(8)] public TestEnum en;
+        [ProtoMember(8)] [NinoMember(8)] [BsonElement] [Key(8)]
+        public TestEnum en;
 
-        [ProtoMember(9)] [NinoMember(9)] public string name;
+        [ProtoMember(9)] [NinoMember(9)] [BsonElement] [Key(9)]
+        public string name;
 
         public override string ToString()
         {
@@ -46,12 +58,15 @@ namespace Nino.Test
     [Serializable]
     [ProtoContract]
     [NinoSerialize]
+    [MessagePackObject]
     public partial class NestedData
     {
-        [ProtoMember(1)] [NinoMember(1)] public string name;
+        [ProtoMember(1)] [NinoMember(1)] [BsonElement] [Key(1)]
+        public string name;
 
-        [ProtoMember(2)] [NinoMember(2)] public Data[] ps;
-        
+        [ProtoMember(2)] [NinoMember(2)] [BsonElement] [Key(2)]
+        public Data[] ps;
+
         public override string ToString()
         {
             return $"{name},{ps[0]}";
@@ -66,32 +81,27 @@ namespace Nino.Test
         [ProtoMember(1)] [NinoMember(1)] public string name;
 
         [ProtoMember(2)] [NinoMember(2)] public Data[] ps;
-        
+
         [ProtoMember(3)] [NinoMember(3)] public List<int> vs;
 
         public override string ToString()
         {
-            return $"{name},{string.Join(",",vs)},{ps[0]}";
+            return $"{name},{string.Join(",", vs)},{ps[0]}";
         }
     }
 
     [NinoSerialize]
     public partial class CustomTypeTest
     {
-        [NinoMember(1)]
-        public Vector3 v3;
+        [NinoMember(1)] public Vector3 v3;
 
-        [NinoMember(2)]
-        public DateTime dt;
+        [NinoMember(2)] public DateTime dt;
 
-        [NinoMember(3)]
-        public int? ni;
+        [NinoMember(3)] public int? ni;
 
-        [NinoMember(4)]
-        public List<Quaternion> qs;
+        [NinoMember(4)] public List<Quaternion> qs;
 
-        [NinoMember(5)]
-        public Matrix4x4 m;
+        [NinoMember(5)] public Matrix4x4 m;
 
         [NinoMember(6)] public Dictionary<string, int> dict;
 
@@ -120,14 +130,10 @@ namespace Nino.Test
     [NinoSerialize()]
     public partial class NotIncludeAllClass
     {
-        [NinoMember(1)]
-        public int a;
-        [NinoMember(2)]
-        public long b;
-        [NinoMember(3)]
-        public float c;
-        [NinoMember(4)]
-        public double d;
+        [NinoMember(1)] public int a;
+        [NinoMember(2)] public long b;
+        [NinoMember(3)] public float c;
+        [NinoMember(4)] public double d;
 
         public override string ToString()
         {

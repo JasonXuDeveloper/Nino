@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using Nino.Shared;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
 {
@@ -55,6 +56,7 @@ namespace Nino.Serialization
 		/// Check the capacity
 		/// </summary>
 		/// <param name="addition"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private void EnsureLength(int addition)
 		{
 			if (disposed)
@@ -73,6 +75,7 @@ namespace Nino.Serialization
 		/// Get CompressType
 		/// </summary>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public CompressType GetCompressType()
 		{
 			return (CompressType)ReadByte();
@@ -81,6 +84,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Read a byte
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public byte ReadByte()
 		{
 			EnsureLength(1);
@@ -91,6 +95,7 @@ namespace Nino.Serialization
 		/// Read byte[]
 		/// </summary>
 		/// <param name="len"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public byte[] ReadBytes(int len)
 		{
 			EnsureLength(len);
@@ -104,6 +109,7 @@ namespace Nino.Serialization
 		/// Read sbyte
 		/// </summary>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public sbyte ReadSByte()
 		{
 			EnsureLength(1);
@@ -113,6 +119,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Read char
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public char ReadChar()
 		{
 			return (char)ReadInt16();
@@ -122,6 +129,7 @@ namespace Nino.Serialization
 		/// Read short
 		/// </summary>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public short ReadInt16()
 		{
 			EnsureLength(ConstMgr.SizeOfShort);
@@ -132,6 +140,7 @@ namespace Nino.Serialization
 		/// Read ushort
 		/// </summary>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public ushort ReadUInt16()
 		{
 			return (ushort)(ReadInt16());
@@ -141,6 +150,7 @@ namespace Nino.Serialization
 		/// Read int
 		/// </summary>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public int ReadInt32()
 		{
 			EnsureLength(ConstMgr.SizeOfInt);
@@ -152,6 +162,7 @@ namespace Nino.Serialization
 		/// Read uint
 		/// </summary>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public uint ReadUInt32()
 		{
 			EnsureLength(ConstMgr.SizeOfUInt);
@@ -162,6 +173,7 @@ namespace Nino.Serialization
 		/// Read long
 		/// </summary>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public long ReadInt64()
 		{
 			EnsureLength(ConstMgr.SizeOfLong);
@@ -174,6 +186,7 @@ namespace Nino.Serialization
 		/// Read ulong
 		/// </summary>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public ulong ReadUInt64()
 		{
 			uint lo = ReadUInt32();
@@ -186,6 +199,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <returns></returns>
 		[System.Security.SecuritySafeCritical]
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe float ReadSingle()
 		{
 			uint tmpBuffer = ReadUInt32();
@@ -197,6 +211,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <returns></returns>
 		[System.Security.SecuritySafeCritical]
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public float ReadFloat()
 		{
 			return ReadSingle();
@@ -207,6 +222,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <returns></returns>
 		[System.Security.SecuritySafeCritical]
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe double ReadDouble()
 		{
 			ulong tmpBuffer = ReadUInt64();
@@ -216,6 +232,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Read string
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public string ReadString()
 		{
 			var type = GetCompressType();
@@ -246,6 +263,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Read decimal
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public decimal ReadDecimal()
 		{
 			//4 * 32bit return of get bits
@@ -276,6 +294,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Read bool
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public bool ReadBool()
 		{
 			return ReadByte() != 0;

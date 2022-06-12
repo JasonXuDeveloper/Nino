@@ -23,6 +23,8 @@ Useful Unity Modules | 实用的Unity模块
     - [Test2](Nino/Assets/Nino/Test/Editor/Serialization/Test2.cs) Nino VS BinaryFormatter 序列化
     - [Test3](Nino/Assets/Nino/Test/Editor/Serialization/Test3.cs) Nino VS Protobuf-net 反序列化
     - [Test4](Nino/Assets/Nino/Test/Editor/Serialization/Test4.cs) Nino VS BinaryFormatter 反序列化
-    - [Test5](Nino/Assets/Nino/Test/Editor/Serialization/Test5.cs) 自定义Nino序列化反序列化委托
-    - [Test6](Nino/Assets/Nino/Test/Editor/Serialization/Test6.cs) 自动收集全部字段进行序列化/反序列化（无需给单个字段或属性打标签）
+    - [Test5](Nino/Assets/Nino/Test/Editor/Serialization/Test5.cs) Nino VS MongoDB.Bson 序列化以及反序列化
+    - [Test6](Nino/Assets/Nino/Test/Editor/Serialization/Test6.cs) Nino VS MsgPack 序列化以及反序列化
+    - [Test7](Nino/Assets/Nino/Test/Editor/Serialization/Test7.cs) 自定义Nino序列化反序列化委托
+    - [Test8](Nino/Assets/Nino/Test/Editor/Serialization/Test8.cs) 自动收集全部字段进行序列化/反序列化（无需给单个字段或属性打标签）
   - [性能报告](Performance/Serialization.md)

@@ -5,6 +5,7 @@ using Nino.Shared;
 using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 // ReSharper disable UnusedMember.Local
 
@@ -165,6 +166,7 @@ namespace Nino.Serialization
 		/// <param name="info"></param>
 		/// <param name="instance"></param>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static object GetVal(MemberInfo info, object instance)
 		{
 			switch (info)
@@ -186,6 +188,7 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
 		/// <exception cref="InvalidDataException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static void WriteCommonVal(Writer writer, Type type, object val, Encoding encoding)
 		{
 			//write basic values
@@ -349,6 +352,7 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static void CompressAndWriteEnum(Writer writer, Type type, object val,
 			Encoding encoding)
 		{
@@ -433,6 +437,7 @@ namespace Nino.Serialization
 
 		#region write whole number with sign
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static void CompressAndWrite(Writer writer, long num)
 		{
 			if (num <= int.MaxValue)
@@ -445,6 +450,7 @@ namespace Nino.Serialization
 			writer.Write(num);
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static void CompressAndWrite(Writer writer, int num)
 		{
 			if (num <= short.MaxValue)
@@ -457,6 +463,7 @@ namespace Nino.Serialization
 			writer.Write(num);
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static void CompressAndWrite(Writer writer, short num)
 		{
 			//parse to byte
@@ -470,6 +477,7 @@ namespace Nino.Serialization
 			writer.Write(num);
 		}
 
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static void CompressAndWrite(Writer writer, sbyte num)
 		{
 			writer.Write((byte)CompressType.SByte);
