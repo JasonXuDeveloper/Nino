@@ -36,6 +36,12 @@ namespace Nino.Serialization
 		/// <typeparam name="T"></typeparam>
 		public static void AddCustomImporter<T>(Action<T, Writer> action)
 		{
+			var type = typeof(T);
+			if (CustomImporter.ContainsKey(type))
+			{
+				Logger.E($"already added custom importer for: {type}");
+				return;
+			}
 			CustomImporter.Add(typeof(T), (val, writer) => { action.Invoke((T)val, writer); });
 		}
 

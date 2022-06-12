@@ -134,8 +134,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public ushort ReadUInt16()
 		{
-			EnsureLength(ConstMgr.SizeOfUShort);
-			return (ushort)(buffer[Position++] | buffer[Position++] << 8);
+			return (ushort)(ReadInt16());
 		}
 
 		/// <summary>
@@ -156,8 +155,7 @@ namespace Nino.Serialization
 		public uint ReadUInt32()
 		{
 			EnsureLength(ConstMgr.SizeOfUInt);
-			return (uint)(buffer[Position++] | buffer[Position++] << 8 | buffer[Position++] << 16 |
-			              buffer[Position++] << 24);
+			return (uint)(ReadInt32());
 		}
 
 		/// <summary>
@@ -167,10 +165,8 @@ namespace Nino.Serialization
 		public long ReadInt64()
 		{
 			EnsureLength(ConstMgr.SizeOfLong);
-			uint lo = (uint)(buffer[Position++] | buffer[Position++] << 8 |
-			                 buffer[Position++] << 16 | buffer[Position++] << 24);
-			uint hi = (uint)(buffer[Position++] | buffer[Position++] << 8 |
-			                 buffer[Position++] << 16 | buffer[Position++] << 24);
+			uint lo = ReadUInt32();
+			uint hi = ReadUInt32();
 			return (long)(hi) << 32 | lo;
 		}
 
@@ -180,11 +176,8 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public ulong ReadUInt64()
 		{
-			EnsureLength(ConstMgr.SizeOfULong);
-			uint lo = (uint)(buffer[Position++] | buffer[Position++] << 8 |
-			                 buffer[Position++] << 16 | buffer[Position++] << 24);
-			uint hi = (uint)(buffer[Position++] | buffer[Position++] << 8 |
-			                 buffer[Position++] << 16 | buffer[Position++] << 24);
+			uint lo = ReadUInt32();
+			uint hi = ReadUInt32();
 			return ((ulong)hi) << 32 | lo;
 		}
 
@@ -195,9 +188,7 @@ namespace Nino.Serialization
 		[System.Security.SecuritySafeCritical]
 		public unsafe float ReadSingle()
 		{
-			EnsureLength(ConstMgr.SizeOfUInt);
-			uint tmpBuffer = (uint)(buffer[Position++] | buffer[Position++] << 8 | buffer[Position++] << 16 |
-			                        buffer[Position++] << 24);
+			uint tmpBuffer = ReadUInt32();
 			return *((float*)&tmpBuffer);
 		}
 
@@ -218,12 +209,7 @@ namespace Nino.Serialization
 		[System.Security.SecuritySafeCritical]
 		public unsafe double ReadDouble()
 		{
-			EnsureLength(ConstMgr.SizeOfULong);
-			uint lo = (uint)(buffer[Position++] | buffer[Position++] << 8 |
-			                 buffer[Position++] << 16 | buffer[Position++] << 24);
-			uint hi = (uint)(buffer[Position++] | buffer[Position++] << 8 |
-			                 buffer[Position++] << 16 | buffer[Position++] << 24);
-			ulong tmpBuffer = ((ulong)hi) << 32 | lo;
+			ulong tmpBuffer = ReadUInt64();
 			return *((double*)&tmpBuffer);
 		}
 

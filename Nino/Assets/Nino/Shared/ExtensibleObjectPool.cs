@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Nino.Shared
@@ -34,7 +35,13 @@ namespace Nino.Shared
             //get from queue
             if (queue.Count > 0)
             {
-                return queue.Dequeue();
+                var ret = queue.Dequeue();
+                //double check
+                if (ret.Length != size)
+                {
+                    Array.Resize(ref ret, size);
+                }
+                return ret;
             }
             //return new obj[]
             return new object[size];

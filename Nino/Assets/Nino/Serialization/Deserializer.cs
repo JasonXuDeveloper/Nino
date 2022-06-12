@@ -42,6 +42,12 @@ namespace Nino.Serialization
 		/// <typeparam name="T"></typeparam>
 		public static void AddCustomExporter<T>(Func<Reader, T> func)
 		{
+			var type = typeof(T);
+			if (CustomExporter.ContainsKey(type))
+			{
+				Logger.E($"already added custom exporter for: {type}");
+				return;
+			}
 			CustomExporter.Add(typeof(T), (reader) => func.Invoke(reader));
 		}
 
@@ -281,8 +287,6 @@ namespace Nino.Serialization
 						case CompressType.UInt64:
 							return reader.ReadUInt64();
 						default:
-							Logger.E(i);
-							Logger.E(type);
 							throw new InvalidOperationException("invalid compress type");
 					}
 				case TypeCode.String:
