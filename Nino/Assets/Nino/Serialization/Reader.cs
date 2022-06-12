@@ -247,7 +247,9 @@ namespace Nino.Serialization
 			}
 
 			//Read directly
-			return encoding.GetString(ReadBytes(len));
+			var ret = encoding.GetString(buffer, Position, len);
+			Position += len;
+			return ret;
 		}
 
 		/// <summary>

@@ -91,17 +91,11 @@ namespace Nino.Serialization
 				throw new IOException("Stream too long");
 			if (addition + Position <= buffer.Length) return;
 			int newCapacity = addition + Position;
-			if (newCapacity < 128)
-				newCapacity = 128;
-			if (newCapacity < buffer.Length * 16)
-				newCapacity = buffer.Length * 16;
-			var temp = new byte[newCapacity];
-			if (buffer.Length > 0)
-			{
-				Buffer.BlockCopy(buffer, 0, temp, 0, buffer.Length);
-			}
-
-			buffer = temp;
+			if (newCapacity < 256)
+				newCapacity = 256;
+			if (newCapacity < buffer.Length * 8)
+				newCapacity = buffer.Length * 8;
+			buffer = BufferPool.RequestBuffer(newCapacity, buffer);
 		}
 
 		/// <summary>
@@ -157,7 +151,10 @@ namespace Nino.Serialization
 			}
 
 			//write directly
-			Write(encoding.GetBytes(val));
+			EnsureCapacity(len);
+			encoding.GetBytes(val, 0, val.Length, buffer, Position);
+			Position += len;
+			Length += len;
 		}
 
 		/// <summary>

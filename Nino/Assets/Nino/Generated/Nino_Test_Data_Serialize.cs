@@ -6,7 +6,17 @@ namespace Nino.Test
         #region NINO_CODEGEN
         private object[] NinoGetMembers()
         {
-            return new object[] { x,y,z,f,d,db,bo,en,name };
+            var ret = Nino.Shared.ExtensibleObjectPool.RequestObjArr(9);
+            ret[0] = this.x;
+            ret[1] = this.y;
+            ret[2] = this.z;
+            ret[3] = this.f;
+            ret[4] = this.d;
+            ret[5] = this.db;
+            ret[6] = this.bo;
+            ret[7] = this.en;
+            ret[8] = this.name;
+            return ret;
         }
 
         private void NinoSetMembers(object[] data)

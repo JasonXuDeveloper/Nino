@@ -8,7 +8,7 @@ namespace Nino.Shared
         /// <summary>
         /// A shared buffer queue
         /// </summary>
-        private static readonly Queue<byte[]> Buffers = new Queue<byte[]>();
+        private static volatile Queue<byte[]> _buffers = new Queue<byte[]>();
 
         /// <summary>
         /// Request a buffer
@@ -18,9 +18,9 @@ namespace Nino.Shared
         public static byte[] RequestBuffer(int size = 0)
         {
             byte[] ret;
-            if (Buffers.Count > 0)
+            if (_buffers.Count > 0)
             {
-                ret = Buffers.Dequeue();
+                ret = _buffers.Dequeue();
                 if (ret.Length < size)
                 {
                     Array.Resize(ref ret, size);
@@ -45,6 +45,19 @@ namespace Nino.Shared
             Buffer.BlockCopy(original,0,ret,0,original.Length);
             return ret;
         }
+        
+        /// <summary>
+        /// Request a buffer from a source
+        /// </summary>
+        /// <param name="len"></param>
+        /// <param name="original"></param>
+        /// <returns></returns>
+        public static byte[] RequestBuffer(int len, byte[] original)
+        {
+            byte[] ret = RequestBuffer(len);
+            Buffer.BlockCopy(original,0,ret,0,original.Length);
+            return ret;
+        }
 
         /// <summary>
         /// Return buffer to the pool
@@ -52,7 +65,7 @@ namespace Nino.Shared
         /// <param name="buffer"></param>
         public static void ReturnBuffer(byte[] buffer)
         {
-            Buffers.Enqueue(buffer);
+            _buffers.Enqueue(buffer);
         }
     }
 }

@@ -20,11 +20,6 @@ namespace Nino.Serialization
 		private static readonly Encoding DefaultEncoding = Encoding.UTF8;
 
 		/// <summary>
-		/// 缓存反射的参数数组
-		/// </summary>
-		private static volatile Queue<object[]> _reflectionParamPool = new Queue<object[]>();
-
-		/// <summary>
 		/// 缓存反射创建dict的参数数组
 		/// </summary>
 		private static volatile Queue<Type[]> _reflectionGenericTypePool = new Queue<Type[]>();
@@ -106,19 +101,18 @@ namespace Nino.Serialization
 			void Read()
 			{
 				int index = 0;
-				int len = 0;
 				bool hasSet = model.ninoSetMembers != null;
 				object[] objs = ConstMgr.EmptyParam;
 				if (hasSet)
 				{
-					objs = new object[model.members.Count];
+					objs = ExtensibleObjectPool.RequestObjArr(model.members.Count);
 				}
 
 				//only include all model need this
 				if (model.includeAll)
 				{
 					//read len
-					len = GetLength(reader);
+					var len = GetLength(reader);
 					Dictionary<string, object> values = new Dictionary<string, object>();
 					//read elements key by key
 					for (int i = 0; i < len; i++)
@@ -171,19 +165,11 @@ namespace Nino.Serialization
 					//invoke code gen
 					if (hasSet)
 					{
-						object[] p;
-						if (_reflectionParamPool.Count > 0)
-						{
-							p = _reflectionParamPool.Dequeue();
-							p[0] = objs;
-						}
-						else
-						{
-							p = new object[] { objs };
-						}
-
+						object[] p = ExtensibleObjectPool.RequestObjArr(1);
+						p[0] = objs;
 						model.ninoSetMembers.Invoke(val, p);
-						_reflectionParamPool.Enqueue(p);
+						ExtensibleObjectPool.ReturnObjArr(index + 1, objs);
+						ExtensibleObjectPool.ReturnObjArr(1, p);
 					}	
 				}
 			}
@@ -258,81 +244,59 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidDataException"></exception>
 		private static object ReadCommonVal(Reader reader, Type type, Encoding encoding)
 		{
-			if (type == ConstMgr.ByteType)
+			switch (Type.GetTypeCode(type))
 			{
-				return reader.ReadByte();
-			}
+				case TypeCode.Byte:
+					return reader.ReadByte();
 
-			if (type == ConstMgr.SByteType)
-			{
-				return reader.ReadSByte();
-			}
+				case TypeCode.SByte:
+					return reader.ReadSByte();
 
-			if (type == ConstMgr.ShortType)
-			{
-				return reader.ReadInt16();
-			}
+				case TypeCode.Int16:
+					return reader.ReadInt16();
 
-			if (type == ConstMgr.UShortType)
-			{
-				return reader.ReadUInt16();
-			}
-
-			if (type == ConstMgr.StringType)
-			{
-				return reader.ReadString();
-			}
-
-			//consider decompress
-			if (type == ConstMgr.IntType || type == ConstMgr.UIntType || type == ConstMgr.LongType ||
-			    type == ConstMgr.ULongType)
-			{
-				switch (reader.GetCompressType())
-				{
-					case CompressType.Byte:
-						return reader.ReadByte();
-					case CompressType.SByte:
-						return reader.ReadSByte();
-					case CompressType.Int16:
-						return reader.ReadInt16();
-					case CompressType.UInt16:
-						return reader.ReadUInt16();
-					case CompressType.Int32:
-						return reader.ReadInt32();
-					case CompressType.UInt32:
-						return reader.ReadUInt32();
-					case CompressType.Int64:
-						return reader.ReadInt64();
-					case CompressType.UInt64:
-						return reader.ReadUInt64();
-					default:
-						throw new InvalidOperationException("invalid compress type");
-				}
-			}
-
-			if (type == ConstMgr.BoolType)
-			{
-				return reader.ReadBool();
-			}
-
-			if (type == ConstMgr.DoubleType)
-			{
-				return reader.ReadDouble();
-			}
-
-			if (type == ConstMgr.DecimalType)
-			{
-				return reader.ReadDecimal();
-			}
-
-			if (type == ConstMgr.FloatType)
-			{
-				return reader.ReadSingle();
-			}
-
-			if (type == ConstMgr.CharType)
-			{
-				return reader.ReadChar();
+				case TypeCode.UInt16:
+					return reader.ReadUInt16();
+				case TypeCode.Int32:
+				case TypeCode.UInt32:
+				case TypeCode.Int64:
+				case TypeCode.UInt64:
+					var i = reader.GetCompressType();
+					switch (i)
+					{
+						case CompressType.Byte:
+							return reader.ReadByte();
+						case CompressType.SByte:
+							return reader.ReadSByte();
+						case CompressType.Int16:
+							return reader.ReadInt16();
+						case CompressType.UInt16:
+							return reader.ReadUInt16();
+						case CompressType.Int32:
+							return reader.ReadInt32();
+						case CompressType.UInt32:
+							return reader.ReadUInt32();
+						case CompressType.Int64:
+							return reader.ReadInt64();
+						case CompressType.UInt64:
+							return reader.ReadUInt64();
+						default:
+							Logger.E(i);
+							Logger.E(type);
+							throw new InvalidOperationException("invalid compress type");
+					}
+				case TypeCode.String:
+					return reader.ReadString();
+				case TypeCode.Boolean:
+					return reader.ReadBool();
+				case TypeCode.Double:
+					return reader.ReadDouble();
+				case TypeCode.Single:
+					return reader.ReadSingle();
+				case TypeCode.Decimal:
+					return reader.ReadDecimal();
+				case TypeCode.Char:
+					return reader.ReadChar();
 			}
 
 			//enum
@@ -341,7 +305,6 @@ namespace Nino.Serialization
 				//try decompress and read
 				return DecompressAndReadEnum(reader, type, encoding);
 			}
-
 
 			//array/ list -> recursive
 			if (type.IsArray)

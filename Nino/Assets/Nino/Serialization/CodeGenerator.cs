@@ -61,7 +61,7 @@ namespace Nino.Serialization
         #region NINO_CODEGEN
         private object[] NinoGetMembers()
         {
-            return new object[] { {members} };
+{members}
         }
 
         private void NinoSetMembers(object[] data)
@@ -113,12 +113,15 @@ namespace Nino.Serialization
 
             //build params
             StringBuilder sb = new StringBuilder();
-            var keys = members.Keys.OrderBy(k => k);
+            var keys = members.Keys.OrderBy(k => k).ToList();
+            sb.Append($"            var ret = Nino.Shared.ExtensibleObjectPool.RequestObjArr({keys.Count()});\n");
+            int i = 0;
             foreach (var key in keys)
             {
-                sb.Append(members[key].Name).Append(",");
+                sb.Append($"            ret[{i}] = this.{members[key].Name};\n");
+                i++;
             }
-
+            sb.Append($"            return ret;\n");
             //remove comma at the end
             sb.Remove(sb.Length - 1, 1);
 
@@ -131,7 +134,7 @@ namespace Nino.Serialization
 
             sb.Clear();
             int index = 0;
-            keys = members.Keys.OrderBy(k => k);
+            keys = members.Keys.OrderBy(k => k).ToList();
             foreach (var key in keys)
             {
                 var mt = members[key] is FieldInfo fi ? fi.FieldType : ((PropertyInfo)members[key]).PropertyType;

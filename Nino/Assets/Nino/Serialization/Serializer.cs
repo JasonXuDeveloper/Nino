@@ -129,6 +129,12 @@ namespace Nino.Serialization
 					//add the index, so it will fetch the next member (when code gen exists)
 					index++;
 				}
+				
+				//return to pool
+				if (objs != null)
+				{
+					ExtensibleObjectPool.ReturnObjArr(objs);
+				}
 			}
 
 			//share a writer
@@ -343,37 +349,32 @@ namespace Nino.Serialization
 			type = Enum.GetUnderlyingType(type);
 			//typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
 			//typeof(int), typeof(uint), typeof(long), typeof(ulong)
-			if (type == ConstMgr.ByteType)
+			switch (Type.GetTypeCode(type))
 			{
-				WriteCommonVal(writer, type, (byte)val, encoding);
-			}
-			else if (type == ConstMgr.SByteType)
-			{
-				WriteCommonVal(writer, type, (sbyte)val, encoding);
-			}
-			else if (type == ConstMgr.ShortType)
-			{
-				WriteCommonVal(writer, type, (short)val, encoding);
-			}
-			else if (type == ConstMgr.UShortType)
-			{
-				WriteCommonVal(writer, type, (ushort)val, encoding);
-			}
-			else if (type == ConstMgr.IntType)
-			{
-				WriteCommonVal(writer, type, (int)val, encoding);
-			}
-			else if (type == ConstMgr.UIntType)
-			{
-				WriteCommonVal(writer, type, (uint)val, encoding);
-			}
-			else if (type == ConstMgr.LongType)
-			{
-				WriteCommonVal(writer, type, (long)val, encoding);
-			}
-			else if (type == ConstMgr.ULongType)
-			{
-				WriteCommonVal(writer, type, (ulong)val, encoding);
+				case TypeCode.Byte:
+					WriteCommonVal(writer, type, (byte)val, encoding);
+					return;
+				case TypeCode.SByte:
+					WriteCommonVal(writer, type, (sbyte)val, encoding);
+					return;
+				case TypeCode.Int16:
+					WriteCommonVal(writer, type, (short)val, encoding);
+					return;
+				case TypeCode.UInt16:
+					WriteCommonVal(writer, type, (ushort)val, encoding);
+					return;
+				case TypeCode.Int32:
+					WriteCommonVal(writer, type, (int)val, encoding);
+					return;
+				case TypeCode.UInt32:
+					WriteCommonVal(writer, type, (uint)val, encoding);
+					return;
+				case TypeCode.Int64:
+					WriteCommonVal(writer, type, (long)val, encoding);
+					return;
+				case TypeCode.UInt64:
+					WriteCommonVal(writer, type, (ulong)val, encoding);
+					return;
 			}
 		}
 
