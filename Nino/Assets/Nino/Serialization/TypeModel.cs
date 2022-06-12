@@ -81,6 +81,8 @@ namespace Nino.Serialization
 			{
 				if (model.includeAll)
 				{
+					//skip nino ignore
+					if (f.GetCustomAttribute(typeof(NinoIgnoreAttribute), false) != null) continue;
 					index = (ushort)model.members.Count;
 				}
 				else
@@ -119,6 +121,8 @@ namespace Nino.Serialization
 				
 				if (model.includeAll)
 				{
+					//skip nino ignore
+					if (p.GetCustomAttribute(typeof(NinoIgnoreAttribute), false) != null) continue;
 					index = (ushort)model.members.Count;
 				}
 				else
