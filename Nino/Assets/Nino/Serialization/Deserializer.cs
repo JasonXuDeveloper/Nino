@@ -106,6 +106,7 @@ namespace Nino.Serialization
 			void Read()
 			{
 				int index = 0;
+				int len = 0;
 				bool hasSet = model.ninoSetMembers != null;
 				object[] objs = ConstMgr.EmptyParam;
 				if (hasSet)
@@ -113,45 +114,77 @@ namespace Nino.Serialization
 					objs = new object[model.members.Count];
 				}
 
-				for (; min <= max; min++)
+				//only include all model need this
+				if (model.includeAll)
 				{
-					//prevent index not exist
-					if (!model.types.ContainsKey(min)) continue;
-					//get type of that member
-					type = model.types[min];
-					//try code gen, if no code gen then reflection
+					//read len
+					len = GetLength(reader);
+					Dictionary<string, object> values = new Dictionary<string, object>();
+					//read elements key by key
+					for (int i = 0; i < len; i++)
+					{
+						var key = (string)ReadCommonVal(reader, ConstMgr.StringType, encoding);
+						var typeFullName = (string)ReadCommonVal(reader, ConstMgr.StringType, encoding);
+						var value = ReadCommonVal(reader, Type.GetType(typeFullName), encoding);
+						values.Add(key,value);
+					}
+					
+					//set elements
+					for (; min <= max; min++)
+					{
+						//prevent index not exist
+						if (!model.types.ContainsKey(min)) continue;
+						//get the member
+						var member = model.members[min];
+						//try get same member and set it
+						if (values.TryGetValue(member.Name, out var ret))
+						{
+							SetMember(model.members[min], val, ret);
+						}
+					}
+				}
+				else
+				{
+					for (; min <= max; min++)
+					{
+						//prevent index not exist
+						if (!model.types.ContainsKey(min)) continue;
+						//get type of that member
+						type = model.types[min];
+						//try code gen, if no code gen then reflection
 
-					//read basic values
-					var ret = ReadCommonVal(reader, type, encoding);
+						//read basic values
+						var ret = ReadCommonVal(reader, type, encoding);
+						if (hasSet)
+						{
+							objs[index] = ret;
+						}
+						else
+						{
+							SetMember(model.members[min], val, ret);
+						}
+
+						//add the index, so it will fetch the next member (when code gen exists)
+						index++;
+					}
+
+					//invoke code gen
 					if (hasSet)
 					{
-						objs[index] = ret;
-					}
-					else
-					{
-						SetMember(model.members[min], val, ret);
-					}
+						object[] p;
+						if (_reflectionParamPool.Count > 0)
+						{
+							p = _reflectionParamPool.Dequeue();
+							p[0] = objs;
+						}
+						else
+						{
+							p = new object[] { objs };
+						}
 
-					//add the index, so it will fetch the next member (when code gen exists)
-					index++;
-				}
-
-				//invoke code gen
-				if (hasSet)
-				{
-					object[] p;
-					if (_reflectionParamPool.Count > 0)
-					{
-						p = _reflectionParamPool.Dequeue();
-						p[0] = objs;
-					}
-					else
-					{
-						p = new object[] { objs };
-					}
-
-					model.ninoSetMembers.Invoke(val, p);
-					_reflectionParamPool.Enqueue(p);
+						model.ninoSetMembers.Invoke(val, p);
+						_reflectionParamPool.Enqueue(p);
+					}	
 				}
 			}
 
@@ -190,6 +223,30 @@ namespace Nino.Serialization
 				default:
 					return;
 			}
+		}
+		
+		/// <summary>
+		/// Get Length
+		/// </summary>
+		/// <param name="reader"></param>
+		/// <returns></returns>
+		private static int GetLength(Reader reader)
+		{
+			switch (reader.GetCompressType())
+			{
+				case CompressType.Byte:
+					return reader.ReadByte();
+				case CompressType.SByte:
+					return reader.ReadSByte();
+				case CompressType.Int16:
+					return reader.ReadInt16();
+				case CompressType.UInt16:
+					return reader.ReadUInt16();
+				case CompressType.Int32:
+					return reader.ReadInt32();
+			}
+
+			return 0;
 		}
 
 		/// <summary>
@@ -285,30 +342,12 @@ namespace Nino.Serialization
 				return DecompressAndReadEnum(reader, type, encoding);
 			}
 
-			int GETLen()
-			{
-				switch (reader.GetCompressType())
-				{
-					case CompressType.Byte:
-						return reader.ReadByte();
-					case CompressType.SByte:
-						return reader.ReadSByte();
-					case CompressType.Int16:
-						return reader.ReadInt16();
-					case CompressType.UInt16:
-						return reader.ReadUInt16();
-					case CompressType.Int32:
-						return reader.ReadInt32();
-				}
-
-				return 0;
-			}
 
 			//array/ list -> recursive
 			if (type.IsArray)
 			{
 				//read len
-				int len = GETLen();
+				int len = GetLength(reader);
 
 				//byte[] -> write directly
 				if (type == ConstMgr.ByteArrType)
@@ -348,7 +387,7 @@ namespace Nino.Serialization
 				if (genericDefType == ConstMgr.ListDefType)
 				{
 					//read len
-					int len = GETLen();
+					int len = GetLength(reader);
 
 					//List<byte> -> write directly
 					if (type == ConstMgr.ByteListType)
@@ -401,7 +440,7 @@ namespace Nino.Serialization
 					var dict = Activator.CreateInstance(dictType) as IDictionary;
 
 					//read len
-					int len = GETLen();
+					int len = GetLength(reader);
 
 					//read item
 					for (int i = 0; i < len; i++)

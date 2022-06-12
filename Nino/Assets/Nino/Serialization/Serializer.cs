@@ -92,7 +92,16 @@ namespace Nino.Serialization
 				{
 					objs = (object[])model.ninoGetMembers.Invoke(value, ConstMgr.EmptyParam);
 				}
-
+				
+				//only include all model need this
+				if (model.includeAll)
+				{
+					//write len
+					CompressAndWrite(writer, model.members.Count);
+					//disable code gen
+					objs = null;
+				}
+				
 				for (; min <= max; min++)
 				{
 					//prevent index not exist
@@ -107,6 +116,14 @@ namespace Nino.Serialization
 							$"{type.FullName}.{model.members[min].Name} is null, cannot serialize");
 					}
 
+					//only include all model need this
+					if (model.includeAll)
+					{
+						var needToStore = model.members[min];
+						WriteCommonVal(writer, ConstMgr.StringType, needToStore.Name, encoding);
+						WriteCommonVal(writer, ConstMgr.StringType, type.FullName, encoding);
+					}
+					
 					WriteCommonVal(writer, type, val, encoding);
 
 					//add the index, so it will fetch the next member (when code gen exists)

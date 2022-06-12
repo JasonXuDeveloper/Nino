@@ -16,6 +16,7 @@ namespace Nino.Serialization
 		public bool valid;
 		public MethodInfo ninoGetMembers;
 		public MethodInfo ninoSetMembers;
+		public bool includeAll;
 
 		/// <summary>
 		/// Cached Models
@@ -60,33 +61,47 @@ namespace Nino.Serialization
 				//fetch types
 				types = new Dictionary<ushort, Type>()
 			};
+			
+			//include all or not
+			NinoSerializeAttribute[] ns =
+				(NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
+			model.includeAll = ns[0].IncludeAll;
 
 			//store temp attr
 			NinoMemberAttribute sp;
 			//flag
 			const BindingFlags flags = BindingFlags.Default | BindingFlags.DeclaredOnly | BindingFlags.Public |
 			                           BindingFlags.NonPublic | BindingFlags.Instance;
+			ushort index;
 
 			//fetch fields (only public and private fields that declared in the type)
 			FieldInfo[] fs = type.GetFields(flags);
 			//iterate fields
 			foreach (var f in fs)
 			{
-				sp = f.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
-				//not fetch all and no attribute => skip this member
-				if (sp == null) continue;
-				//record field
-				model.members.Add(sp.Index, f);
-				model.types.Add(sp.Index, f.FieldType);
-				//record min/max
-				if (sp.Index < model.min)
+				if (model.includeAll)
 				{
-					model.min = sp.Index;
+					index = (ushort)model.members.Count;
+				}
+				else
+				{
+					sp = f.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
+					//not fetch all and no attribute => skip this member
+					if (sp == null) continue;
+					index = sp.Index;
+				}
+				//record field
+				model.members.Add(index, f);
+				model.types.Add(index, f.FieldType);
+				//record min/max
+				if (index < model.min)
+				{
+					model.min = index;
 				}
 
-				if (sp.Index > model.max)
+				if (index > model.max)
 				{
-					model.max = sp.Index;
+					model.max = index;
 				}
 			}
 
@@ -101,25 +116,33 @@ namespace Nino.Serialization
 					throw new InvalidOperationException(
 						$"Cannot read or write property {p.Name} in {type.FullName}, cannot Deserialize this property");
 				}
-
-				sp = p.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
-				//not fetch all and no attribute => skip this member
-				if (sp == null) continue;
-				//record property
-				model.members.Add(sp.Index, p);
-				model.types.Add(sp.Index, p.PropertyType);
-				//record min/max
-				if (sp.Index < model.min)
+				
+				if (model.includeAll)
 				{
-					model.min = sp.Index;
+					index = (ushort)model.members.Count;
+				}
+				else
+				{
+					sp = p.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
+					//not fetch all and no attribute => skip this member
+					if (sp == null) continue;
+					index = sp.Index;
+				}
+				//record property
+				model.members.Add(index, p);
+				model.types.Add(index, p.PropertyType);
+				//record min/max
+				if (index < model.min)
+				{
+					model.min = index;
 				}
 
-				if (sp.Index > model.max)
+				if (index > model.max)
 				{
-					model.max = sp.Index;
+					model.max = index;
 				}
 			}
-
+			
 			if (model.members.Count == 0)
 			{
 				model.valid = false;
@@ -131,7 +154,7 @@ namespace Nino.Serialization
 				model.ninoSetMembers = type.GetMethod("NinoSetMembers", flags);
 			}
 
-			TypeModel.TypeModels.Add(type, model);
+			TypeModels.Add(type, model);
 			return model;
 		}
 	}

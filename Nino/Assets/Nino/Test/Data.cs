@@ -102,4 +102,36 @@ namespace Nino.Test
                 $"dict.keys: {string.Join(",", dict.Keys)},\ndict.values:{string.Join(",", dict.Values)}";
         }
     }
+
+    [NinoSerialize(true)]
+    public partial class IncludeAllClass
+    {
+        public int a;
+        public long b;
+        public float c;
+        public double d;
+
+        public override string ToString()
+        {
+            return $"{a}, {b}, {c}, {d}";
+        }
+    }
+
+    [NinoSerialize()]
+    public partial class NotIncludeAllClass
+    {
+        [NinoMember(1)]
+        public int a;
+        [NinoMember(2)]
+        public long b;
+        [NinoMember(3)]
+        public float c;
+        [NinoMember(4)]
+        public double d;
+
+        public override string ToString()
+        {
+            return $"{a}, {b}, {c}, {d}";
+        }
+    }
 }

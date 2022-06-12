@@ -16,6 +16,11 @@ namespace Nino.Serialization
 		private byte[] buffer;
 
 		/// <summary>
+		/// has been disposed or not
+		/// </summary>
+		private bool disposed;
+
+		/// <summary>
 		/// encoding for string
 		/// </summary>
 		private readonly Encoding encoding;
@@ -36,7 +41,8 @@ namespace Nino.Serialization
 		/// </summary>
 		public void Dispose()
 		{
-			buffer = null;
+			BufferPool.ReturnBuffer(buffer);
+			disposed = true;
 		}
 
 		/// <summary>
@@ -52,9 +58,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="length"></param>
 		/// <param name="encoding"></param>
-		public Writer(int length, Encoding encoding)
+		private Writer(int length, Encoding encoding)
 		{
-			buffer = new byte[length];
+			buffer = BufferPool.RequestBuffer(length);
 			this.encoding = encoding;
 			Length = 0;
 			Position = 0;
@@ -63,12 +69,12 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Length of the buffer
 		/// </summary>
-		public int Length { get; private set; }
+		private int Length { get; set; }
 
 		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
-		public int Position { get; private set; }
+		private int Position { get; set; }
 
 		/// <summary>
 		/// Check the capacity
@@ -76,6 +82,10 @@ namespace Nino.Serialization
 		/// <param name="addition"></param>
 		private void EnsureCapacity(int addition)
 		{
+			if (disposed)
+			{
+				throw new ObjectDisposedException("can not access a disposed writer");
+			}
 			// Check for overflow
 			if (addition + Position < 0)
 				throw new IOException("Stream too long");

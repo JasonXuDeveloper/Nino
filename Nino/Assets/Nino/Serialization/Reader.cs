@@ -13,7 +13,12 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
-		private byte[] buffer;
+		private readonly byte[] buffer;
+
+		/// <summary>
+		/// has been disposed or not
+		/// </summary>
+		private bool disposed;
 
 		/// <summary>
 		/// encoding for string
@@ -25,7 +30,8 @@ namespace Nino.Serialization
 		/// </summary>
 		public void Dispose()
 		{
-			buffer = null;
+			BufferPool.ReturnBuffer(buffer);
+			disposed = true;
 		}
 		
 		/// <summary>
@@ -35,7 +41,7 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public Reader(byte[] data, Encoding encoding)
 		{
-			buffer = data;
+			buffer = BufferPool.RequestBuffer(data);
 			this.encoding = encoding;
 			Position = 0;
 		}
@@ -43,7 +49,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
-		public int Position { get; private set; }
+		private int Position { get; set; }
 
 		/// <summary>
 		/// Check the capacity
@@ -51,6 +57,10 @@ namespace Nino.Serialization
 		/// <param name="addition"></param>
 		private void EnsureLength(int addition)
 		{
+			if (disposed)
+			{
+				throw new ObjectDisposedException("can not access a disposed reader");
+			}
 			// Check for overflow
 			if (Position + addition > buffer.Length)
 			{
@@ -206,7 +216,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <returns></returns>
 		[System.Security.SecuritySafeCritical]
-		public virtual unsafe double ReadDouble()
+		public unsafe double ReadDouble()
 		{
 			EnsureLength(ConstMgr.SizeOfULong);
 			uint lo = (uint)(buffer[Position++] | buffer[Position++] << 8 |

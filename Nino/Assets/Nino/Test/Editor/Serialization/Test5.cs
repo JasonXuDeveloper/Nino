@@ -81,7 +81,7 @@ namespace Nino.Test.Editor.Serialization
             });
             Logger.D($"will serialize c: {c}");
             var bs = Serializer.Serialize(c);
-            Logger.D($"serialized to {bs.Length}bytes: {string.Join(",", bs)}");
+            Logger.D($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
 
             //register exporter (custom way to export bytes to object)
             //as when writing datetime, we wrote long, here we read long and parse back to datetime

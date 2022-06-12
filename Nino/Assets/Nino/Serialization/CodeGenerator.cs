@@ -49,6 +49,7 @@ namespace Nino.Serialization
             NinoSerializeAttribute[] ns =
                 (NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
             if (ns.Length == 0) return;
+            if (ns[0].IncludeAll) return;
 
             //code template
             string template =
