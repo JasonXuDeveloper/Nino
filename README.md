@@ -28,3 +28,6 @@ Useful Unity Modules | 实用的Unity模块
     - [Test7](Nino/Assets/Nino/Test/Editor/Serialization/Test7.cs) 自定义Nino序列化反序列化委托
     - [Test8](Nino/Assets/Nino/Test/Editor/Serialization/Test8.cs) 自动收集全部字段进行序列化/反序列化（无需给单个字段或属性打标签）
   - [性能报告](Performance/Serialization.md)
+  - 可删除目录：
+    - Nino/Nino/Assets/Nino/Test，测试代码
+    - Nino/Nino/Asset/ThirdParty，测试用的第三方库
