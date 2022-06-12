@@ -14,9 +14,17 @@
 
 ### 易用性
 
-Nino、Protobuf-net、BinaryFormatter、MongoDB.Bson可以轻松用于Unity或其他C#平台（Mono以及IL2CPP平台）
+Nino、Protobuf-net、BinaryFormatter、MongoDB.Bson可以轻松用于Unity或其他C#平台（Mono以及IL2CPP平台），无需针对不同平台进行任何额外操作
 
-MsgPack需要在IL2CPP平台（Unity和Xamarin）进行额外处理（防止AOT问题，需要预生成代码，不然会导致无法使用）
+MsgPack需要在IL2CPP平台（Unity和Xamarin）进行额外处理（防止AOT问题，需要预生成代码，不然会导致无法使用），该操作十分繁琐，且有概率在真机无法运行
+
+### 备注
+
+- 这里测试用的是MsgPack LZ4压缩，如果不开压缩的话，MsgPack的速度会快10%，但是体积则会变大很多（大概是Protobuf-net的体积的60%，即Nino的数倍）
+- MsgPack只所以比较快是因为它用到了Emit，以及生成了动态类型进行序列化（高效且低GC），但是在IL2CPP平台下，会遇到限制，所以上面才会提到MsgPack在IL2CPP平台使用起来很繁琐，因为需要预生成这些东西，这也就意味着MsgPack无法搭配现有热更新技术进行热更新数据类型并序列化（如Lua，PuerTs，ILRuntime，Huatuo）
+- Odin序列化也会针对编辑器/PC Mono平台使用Emit优化性能，以及动态生成序列化方法，在IL2CPP下有和MsgPack一样的限制，故而这里就不做与Odin序列化的性能对比了
+  - Odin序列化的性能，比Protobuf-net略快（出自Odin序列化官方），故而该库性能比MsgPack慢，在使用了Emit以及动态代码的情况下，略快于Nino，在其他情况下，比Nino慢比Protobuf-net快
+  - Odin序列化的体积，与Protobuf-net相差无几，比Nino大三倍
 
 ### 体积（bytes）
 

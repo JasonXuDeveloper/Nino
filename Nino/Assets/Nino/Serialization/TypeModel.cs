@@ -57,9 +57,9 @@ namespace Nino.Serialization
 				max = ushort.MinValue,
 				valid = true,
 				//fetch members
-				members = new Dictionary<ushort, MemberInfo>(),
+				members = new Dictionary<ushort, MemberInfo>(10),
 				//fetch types
-				types = new Dictionary<ushort, Type>()
+				types = new Dictionary<ushort, Type>(10)
 			};
 			
 			//include all or not
