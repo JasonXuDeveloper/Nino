@@ -4,22 +4,20 @@ namespace Nino.Test
     public partial class Data
     {
         #region NINO_CODEGEN
-        private object[] NinoGetMembers()
+        public void NinoWriteMembers(Nino.Serialization.Writer writer)
         {
-            var ret = Nino.Shared.ExtensibleObjectPool.RequestObjArr(9);
-            ret[0] = this.x;
-            ret[1] = this.y;
-            ret[2] = this.z;
-            ret[3] = this.f;
-            ret[4] = this.d;
-            ret[5] = this.db;
-            ret[6] = this.bo;
-            ret[7] = this.en;
-            ret[8] = this.name;
-            return ret;
+            writer.CompressAndWrite(this.x);
+            writer.Write(this.y);
+            writer.CompressAndWrite(this.z);
+            writer.Write(this.f);
+            writer.Write(this.d);
+            writer.Write(this.db);
+            writer.Write(this.bo);
+            writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) this.en);
+            writer.Write(this.name);
         }
 
-        private void NinoSetMembers(object[] data)
+        public void NinoSetMembers(object[] data)
         {
             this.x = System.Convert.ToInt32(data[0]);
             this.y = (System.Int16)data[1];

@@ -1,9 +1,7 @@
 ﻿using System;
-using System.IO;
 using System.Text;
 using Nino.Shared;
 using System.Reflection;
-using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
@@ -22,13 +20,13 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Custom importer
 		/// </summary>
-		private static readonly Dictionary<Type, ImporterDelegate> CustomImporter =
+		internal static Dictionary<Type, ImporterDelegate> CustomImporter =
 			new Dictionary<Type, ImporterDelegate>();
 
 		/// <summary>
 		/// Custom importer delegate that writes object to writer
 		/// </summary>
-		private delegate void ImporterDelegate(object val, Writer writer);
+		internal delegate void ImporterDelegate(object val, Writer writer);
 
 		/// <summary>
 		/// Add custom importer of all type T objects
@@ -52,10 +50,11 @@ namespace Nino.Serialization
 		/// <typeparam name="T"></typeparam>
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
+		/// <param name="writer"></param>
 		/// <returns></returns>
-		public static byte[] Serialize<T>(T val, Encoding encoding = null)
+		public static byte[] Serialize<T>(T val, Encoding encoding = null, Writer writer = null)
 		{
-			return Serialize(typeof(T), val, encoding ?? DefaultEncoding);
+			return Serialize(typeof(T), val, encoding ?? DefaultEncoding, writer);
 		}
 
 		/// <summary>
@@ -68,7 +67,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
-		private static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
+		public static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
 		{
 			//Get Attribute that indicates a class/struct to be serialized
 			TypeModel.TryGetModel(type, out var model);
@@ -93,20 +92,20 @@ namespace Nino.Serialization
 
 			void Write()
 			{
-				int index = 0;
-				object[] objs = null;
-				if (model.ninoGetMembers != null)
+				if (model.NinoWriteMembers != null)
 				{
-					objs = (object[])model.ninoGetMembers.Invoke(value, ConstMgr.EmptyParam);
+					var p = ExtensibleObjectPool.RequestObjArr(1);
+					p[0] = writer;
+					model.NinoWriteMembers.Invoke(value, p);
+					ExtensibleObjectPool.ReturnObjArr(p);
+					return;
 				}
 				
 				//only include all model need this
 				if (model.includeAll)
 				{
 					//write len
-					CompressAndWrite(writer, model.members.Count);
-					//disable code gen
-					objs = null;
+					writer.CompressAndWrite(model.members.Count);
 				}
 				
 				for (; min <= max; min++)
@@ -116,7 +115,7 @@ namespace Nino.Serialization
 					//get type of that member
 					type = model.types[min];
 					//try code gen, if no code gen then reflection
-					object val = objs != null ? objs[index] : GetVal(model.members[min], value);
+					object val = GetVal(model.members[min], value);
 					if (val == null && type.GetGenericTypeDefinition() != ConstMgr.NullableDefType)
 					{
 						throw new NullReferenceException(
@@ -127,20 +126,11 @@ namespace Nino.Serialization
 					if (model.includeAll)
 					{
 						var needToStore = model.members[min];
-						WriteCommonVal(writer, ConstMgr.StringType, needToStore.Name, encoding);
-						WriteCommonVal(writer, ConstMgr.StringType, type.FullName, encoding);
+						writer.WriteCommonVal(ConstMgr.StringType, needToStore.Name);
+						writer.WriteCommonVal(ConstMgr.StringType, type.FullName);
 					}
-					
-					WriteCommonVal(writer, type, val, encoding);
 
-					//add the index, so it will fetch the next member (when code gen exists)
-					index++;
-				}
-				
-				//return to pool
-				if (objs != null)
-				{
-					ExtensibleObjectPool.ReturnObjArr(objs);
+					writer.WriteCommonVal(type, val);
 				}
 			}
 
@@ -179,312 +169,6 @@ namespace Nino.Serialization
 					return null;
 			}
 		}
-
-		/// <summary>
-		/// Write primitive value to binary writer
-		/// </summary>
-		/// <param name="writer"></param>
-		/// <param name="type"></param>
-		/// <param name="val"></param>
-		/// <param name="encoding"></param>
-		/// <exception cref="InvalidDataException"></exception>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static void WriteCommonVal(Writer writer, Type type, object val, Encoding encoding)
-		{
-			//write basic values
-			switch (val)
-			{
-				//without sign
-				case ulong ul:
-					CompressAndWrite(writer, ul);
-					return;
-				case uint ui:
-					CompressAndWrite(writer, ui);
-					return;
-				case ushort us: //unnecessary to compress
-					writer.Write(us);
-					return;
-				case byte b: //unnecessary to compress
-					writer.Write(b);
-					return;
-				// with sign
-				case long l:
-					CompressAndWrite(writer, l);
-					return;
-				case int i:
-					CompressAndWrite(writer, i);
-					return;
-				case short s: //unnecessary to compress
-					writer.Write(s);
-					return;
-				case sbyte sb: //unnecessary to compress
-					writer.Write(sb);
-					return;
-				case bool b:
-					writer.Write(b);
-					return;
-				case double db:
-					writer.Write(db);
-					return;
-				case decimal dc:
-					writer.Write(dc);
-					return;
-				case float fl:
-					writer.Write(fl);
-					return;
-				case char c:
-					writer.Write(c);
-					return;
-				case string s:
-					writer.Write(s);
-					return;
-			}
-
-			//enum
-			if (type.IsEnum)
-			{
-				//try compress and write
-				CompressAndWriteEnum(writer, type, val, encoding);
-				return;
-			}
-
-			//array/ list -> recursive
-			if (type.IsArray)
-			{
-				//byte[] -> write directly
-				if (type == ConstMgr.ByteArrType)
-				{
-					var dt = (byte[])val;
-					//write len
-					CompressAndWrite(writer, dt.Length);
-					//write item
-					writer.Write(dt);
-					return;
-				}
-
-				//other type
-				var elemType = type.GetElementType();
-				var arr = (Array)val;
-				//write len
-				CompressAndWrite(writer, arr.Length);
-				//write item
-				foreach (var c in arr)
-				{
-					WriteCommonVal(writer, elemType, c, encoding);
-				}
-
-				return;
-			}
-
-			if (type.IsGenericType)
-			{
-				var genericDefType = type.GetGenericTypeDefinition();
-
-				//list
-				if (genericDefType == ConstMgr.ListDefType)
-				{
-					//List<byte> -> write directly
-					if (type == ConstMgr.ByteListType)
-					{
-						var dt = (List<byte>)val;
-						//write len
-						CompressAndWrite(writer, dt.Count);
-						//write item
-						writer.Write(dt.ToArray());
-						return;
-					}
-
-					//other
-					var elemType = type.GenericTypeArguments[0];
-					var arr = (ICollection)val;
-					//write len
-					CompressAndWrite(writer, arr.Count);
-					//write item
-					foreach (var c in arr)
-					{
-						WriteCommonVal(writer, elemType, c, encoding);
-					}
-
-					return;
-				}
-
-				//dict
-				if (genericDefType == ConstMgr.DictDefType)
-				{
-					var args = type.GetGenericArguments();
-					Type keyType = args[0];
-					Type valueType = args[1];
-					var dictionary = (IDictionary)val;
-					//write len
-					CompressAndWrite(writer, dictionary.Count);
-					//record keys
-					var keys = dictionary.Keys;
-					//write items
-					foreach (var c in keys)
-					{
-						//write key
-						WriteCommonVal(writer, keyType, c, encoding);
-						//write val
-						WriteCommonVal(writer, valueType, dictionary[c], encoding);
-					}
-
-					return;
-				}
-			}
-
-			//custom importer
-			if (CustomImporter.TryGetValue(type, out var importerDelegate))
-			{
-				importerDelegate.Invoke(val, writer);
-			}
-			else
-			{
-				//no chance to serialize -> see if this type can be serialized in other ways
-				//try recursive
-				Serialize(type, val, encoding, writer);
-			}
-		}
-
-		/// <summary>
-		/// Compress and write enum
-		/// </summary>
-		/// <param name="writer"></param>
-		/// <param name="type"></param>
-		/// <param name="val"></param>
-		/// <param name="encoding"></param>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static void CompressAndWriteEnum(Writer writer, Type type, object val,
-			Encoding encoding)
-		{
-			type = Enum.GetUnderlyingType(type);
-			//typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
-			//typeof(int), typeof(uint), typeof(long), typeof(ulong)
-			switch (Type.GetTypeCode(type))
-			{
-				case TypeCode.Byte:
-					WriteCommonVal(writer, type, (byte)val, encoding);
-					return;
-				case TypeCode.SByte:
-					WriteCommonVal(writer, type, (sbyte)val, encoding);
-					return;
-				case TypeCode.Int16:
-					WriteCommonVal(writer, type, (short)val, encoding);
-					return;
-				case TypeCode.UInt16:
-					WriteCommonVal(writer, type, (ushort)val, encoding);
-					return;
-				case TypeCode.Int32:
-					WriteCommonVal(writer, type, (int)val, encoding);
-					return;
-				case TypeCode.UInt32:
-					WriteCommonVal(writer, type, (uint)val, encoding);
-					return;
-				case TypeCode.Int64:
-					WriteCommonVal(writer, type, (long)val, encoding);
-					return;
-				case TypeCode.UInt64:
-					WriteCommonVal(writer, type, (ulong)val, encoding);
-					return;
-			}
-		}
-
-		#region write whole number without sign
-
-		private static void CompressAndWrite(Writer writer, ulong num)
-		{
-			if (num <= uint.MaxValue)
-			{
-				CompressAndWrite(writer, (uint)num);
-				return;
-			}
-
-			writer.Write((byte)(CompressType.UInt64));
-			writer.Write(num);
-		}
-
-		private static void CompressAndWrite(Writer writer, uint num)
-		{
-			if (num <= ushort.MaxValue)
-			{
-				CompressAndWrite(writer, (ushort)num);
-				return;
-			}
-
-			writer.Write((byte)CompressType.UInt32);
-			writer.Write(num);
-		}
-
-		private static void CompressAndWrite(Writer writer, ushort num)
-		{
-			//parse to byte
-			if (num <= byte.MaxValue)
-			{
-				CompressAndWrite(writer, (byte)num);
-				return;
-			}
-
-			writer.Write((byte)CompressType.UInt16);
-			writer.Write(num);
-		}
-
-		private static void CompressAndWrite(Writer writer, byte num)
-		{
-			writer.Write((byte)CompressType.Byte);
-			writer.Write(num);
-		}
-
-		#endregion
-
-		#region write whole number with sign
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static void CompressAndWrite(Writer writer, long num)
-		{
-			if (num <= int.MaxValue)
-			{
-				CompressAndWrite(writer, (int)num);
-				return;
-			}
-
-			writer.Write((byte)CompressType.Int64);
-			writer.Write(num);
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static void CompressAndWrite(Writer writer, int num)
-		{
-			if (num <= short.MaxValue)
-			{
-				CompressAndWrite(writer, (short)num);
-				return;
-			}
-
-			writer.Write((byte)CompressType.Int32);
-			writer.Write(num);
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static void CompressAndWrite(Writer writer, short num)
-		{
-			//parse to byte
-			if (num <= sbyte.MaxValue)
-			{
-				CompressAndWrite(writer, (sbyte)num);
-				return;
-			}
-
-			writer.Write((byte)CompressType.Int16);
-			writer.Write(num);
-		}
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private static void CompressAndWrite(Writer writer, sbyte num)
-		{
-			writer.Write((byte)CompressType.SByte);
-			writer.Write(num);
-		}
-
-		#endregion
 	}
 	// ReSharper restore UnusedParameter.Local
 }

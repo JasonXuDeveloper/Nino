@@ -4,17 +4,15 @@ namespace Nino.Test
     public partial class NotIncludeAllClass
     {
         #region NINO_CODEGEN
-        private object[] NinoGetMembers()
+        public void NinoWriteMembers(Nino.Serialization.Writer writer)
         {
-            var ret = Nino.Shared.ExtensibleObjectPool.RequestObjArr(4);
-            ret[0] = this.a;
-            ret[1] = this.b;
-            ret[2] = this.c;
-            ret[3] = this.d;
-            return ret;
+            writer.CompressAndWrite(this.a);
+            writer.CompressAndWrite(this.b);
+            writer.Write(this.c);
+            writer.Write(this.d);
         }
 
-        private void NinoSetMembers(object[] data)
+        public void NinoSetMembers(object[] data)
         {
             this.a = System.Convert.ToInt32(data[0]);
             this.b = System.Convert.ToInt64(data[1]);

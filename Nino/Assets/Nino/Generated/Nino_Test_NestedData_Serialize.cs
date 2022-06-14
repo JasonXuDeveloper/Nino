@@ -4,15 +4,17 @@ namespace Nino.Test
     public partial class NestedData
     {
         #region NINO_CODEGEN
-        private object[] NinoGetMembers()
+        public void NinoWriteMembers(Nino.Serialization.Writer writer)
         {
-            var ret = Nino.Shared.ExtensibleObjectPool.RequestObjArr(2);
-            ret[0] = this.name;
-            ret[1] = this.ps;
-            return ret;
+            writer.Write(this.name);
+            writer.CompressAndWrite(this.ps.Length);
+            foreach (var entry in this.ps)
+            {
+                entry.NinoWriteMembers(writer);
+            }
         }
 
-        private void NinoSetMembers(object[] data)
+        public void NinoSetMembers(object[] data)
         {
             this.name = (System.String)data[0];
             this.ps = (Nino.Test.Data[])data[1];

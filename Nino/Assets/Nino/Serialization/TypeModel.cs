@@ -14,7 +14,7 @@ namespace Nino.Serialization
 		public ushort min;
 		public ushort max;
 		public bool valid;
-		public MethodInfo ninoGetMembers;
+		public MethodInfo NinoWriteMembers;
 		public MethodInfo ninoSetMembers;
 		public bool includeAll;
 
@@ -154,7 +154,7 @@ namespace Nino.Serialization
 			else
 			{
 				//try code gen
-				model.ninoGetMembers = type.GetMethod("NinoGetMembers", flags);
+				model.NinoWriteMembers = type.GetMethod("NinoWriteMembers", flags);
 				model.ninoSetMembers = type.GetMethod("NinoSetMembers", flags);
 			}
 

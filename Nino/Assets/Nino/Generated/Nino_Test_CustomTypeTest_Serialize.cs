@@ -4,19 +4,23 @@ namespace Nino.Test
     public partial class CustomTypeTest
     {
         #region NINO_CODEGEN
-        private object[] NinoGetMembers()
+        public void NinoWriteMembers(Nino.Serialization.Writer writer)
         {
-            var ret = Nino.Shared.ExtensibleObjectPool.RequestObjArr(6);
-            ret[0] = this.v3;
-            ret[1] = this.dt;
-            ret[2] = this.ni;
-            ret[3] = this.qs;
-            ret[4] = this.m;
-            ret[5] = this.dict;
-            return ret;
+            writer.WriteCommonVal(typeof(UnityEngine.Vector3), this.v3);
+            writer.WriteCommonVal(typeof(System.DateTime), this.dt);
+            writer.WriteCommonVal(typeof(System.Nullable<System.Int32>), this.ni);
+            writer.Write(this.qs);
+            writer.WriteCommonVal(typeof(UnityEngine.Matrix4x4), this.m);
+            writer.Write(this.dict);
+            writer.CompressAndWrite(this.dict2.Count);
+            foreach (var entry in this.dict2)
+            {
+                writer.WriteCommonVal(typeof(System.String), entry.Key);
+                entry.Value.NinoWriteMembers(writer);
+            }
         }
 
-        private void NinoSetMembers(object[] data)
+        public void NinoSetMembers(object[] data)
         {
             this.v3 = (UnityEngine.Vector3)data[0];
             this.dt = (System.DateTime)data[1];
@@ -24,6 +28,7 @@ namespace Nino.Test
             this.qs = (System.Collections.Generic.List<UnityEngine.Quaternion>)data[3];
             this.m = (UnityEngine.Matrix4x4)data[4];
             this.dict = (System.Collections.Generic.Dictionary<System.String,System.Int32>)data[5];
+            this.dict2 = (System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>)data[6];
         }
         #endregion
     }

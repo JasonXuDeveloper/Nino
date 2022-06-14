@@ -23,7 +23,9 @@ namespace Nino.Shared
                 ret = _buffers.Dequeue();
                 if (ret.Length < size)
                 {
-                    Array.Resize(ref ret, size);
+                    byte[] buffer = new byte[size];
+                    ReturnBuffer(ret);
+                    return buffer;
                 }
             }
             else

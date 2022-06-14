@@ -39,7 +39,7 @@ namespace Nino.Test
         public TestEnum en;
 
         [ProtoMember(9)] [NinoMember(9)] [BsonElement] [Key(9)]
-        public string name;
+        public string name = "";
 
         public override string ToString()
         {
@@ -104,12 +104,15 @@ namespace Nino.Test
         [NinoMember(5)] public Matrix4x4 m;
 
         [NinoMember(6)] public Dictionary<string, int> dict;
+        
+        [NinoMember(7)] public Dictionary<string, Data> dict2;
 
         public override string ToString()
         {
             return
                 $"{v3}, {dt}, {ni}, {String.Join(",", qs)}, {m.ToString()}\n" +
-                $"dict.keys: {string.Join(",", dict.Keys)},\ndict.values:{string.Join(",", dict.Values)}";
+                $"dict.keys: {string.Join(",", dict.Keys)},\ndict.values:{string.Join(",", dict.Values)}\n" +
+                $"dict2.keys: {string.Join(",", dict2.Keys)},\ndict2.values:{string.Join(",", dict2.Values)}\n";
         }
     }
 

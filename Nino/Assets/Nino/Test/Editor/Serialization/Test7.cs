@@ -34,6 +34,12 @@ namespace Nino.Test.Editor.Serialization
                     { "test2", 2 },
                     { "test3", 3 },
                     { "test4", 4 },
+                },
+                dict2 = new Dictionary<string, Data>()
+                {
+                    { "dict2.entry1", new Data() },
+                    { "dict2.entry2", new Data() },
+                    { "dict2.entry3", new Data() },
                 }
             };
 

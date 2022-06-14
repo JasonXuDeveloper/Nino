@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Text;
 using Nino.Shared;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
@@ -97,6 +99,7 @@ namespace Nino.Serialization
 			{
 				throw new ObjectDisposedException("can not access a disposed writer");
 			}
+
 			// Check for overflow
 			if (addition + Position < 0)
 				throw new IOException("Stream too long");
@@ -389,5 +392,357 @@ namespace Nino.Serialization
 		}
 
 		#endregion
+
+		#region write whole number without sign
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWrite(ulong num)
+		{
+			if (num <= uint.MaxValue)
+			{
+				CompressAndWrite((uint)num);
+				return;
+			}
+
+			Write((byte)(CompressType.UInt64));
+			Write(num);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWrite(uint num)
+		{
+			if (num <= ushort.MaxValue)
+			{
+				CompressAndWrite((ushort)num);
+				return;
+			}
+
+			Write((byte)CompressType.UInt32);
+			Write(num);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWrite(ushort num)
+		{
+			//parse to byte
+			if (num <= byte.MaxValue)
+			{
+				CompressAndWrite((byte)num);
+				return;
+			}
+
+			Write((byte)CompressType.UInt16);
+			Write(num);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWrite(byte num)
+		{
+			Write((byte)CompressType.Byte);
+			Write(num);
+		}
+
+		#endregion
+
+		#region write whole number with sign
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWrite(long num)
+		{
+			if (num <= int.MaxValue)
+			{
+				CompressAndWrite((int)num);
+				return;
+			}
+
+			Write((byte)CompressType.Int64);
+			Write(num);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWrite(int num)
+		{
+			if (num <= short.MaxValue)
+			{
+				CompressAndWrite((short)num);
+				return;
+			}
+
+			Write((byte)CompressType.Int32);
+			Write(num);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWrite(short num)
+		{
+			//parse to byte
+			if (num <= sbyte.MaxValue)
+			{
+				CompressAndWrite((sbyte)num);
+				return;
+			}
+
+			Write((byte)CompressType.Int16);
+			Write(num);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWrite(sbyte num)
+		{
+			Write((byte)CompressType.SByte);
+			Write(num);
+		}
+
+		#endregion
+
+		/// <summary>
+		/// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="val"></param>
+		/// <exception cref="InvalidDataException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void WriteCommonVal(Type type, object val)
+		{
+			//write basic values
+			switch (val)
+			{
+				//without sign
+				case ulong ul:
+					CompressAndWrite(ul);
+					return;
+				case uint ui:
+					CompressAndWrite(ui);
+					return;
+				case ushort us: //unnecessary to compress
+					Write(us);
+					return;
+				case byte b: //unnecessary to compress
+					Write(b);
+					return;
+				// with sign
+				case long l:
+					CompressAndWrite(l);
+					return;
+				case int i:
+					CompressAndWrite(i);
+					return;
+				case short s: //unnecessary to compress
+					Write(s);
+					return;
+				case sbyte sb: //unnecessary to compress
+					Write(sb);
+					return;
+				case bool b:
+					Write(b);
+					return;
+				case double db:
+					Write(db);
+					return;
+				case decimal dc:
+					Write(dc);
+					return;
+				case float fl:
+					Write(fl);
+					return;
+				case char c:
+					Write(c);
+					return;
+				case string s:
+					Write(s);
+					return;
+			}
+
+			//enum
+			if (type.IsEnum)
+			{
+				//try compress and write
+				CompressAndWriteEnum(type, val);
+				return;
+			}
+
+			//array/ list -> recursive
+			if (type.IsArray)
+			{
+				Write((Array)val);
+				return;
+			}
+
+			if (type.IsGenericType)
+			{
+				var genericDefType = type.GetGenericTypeDefinition();
+
+				//list
+				if (genericDefType == ConstMgr.ListDefType)
+				{
+					Write((ICollection)val);
+					return;
+				}
+
+				//dict
+				if (genericDefType == ConstMgr.DictDefType)
+				{
+					Write((IDictionary)val);
+					return;
+				}
+			}
+
+			//custom importer
+			if (Serializer.CustomImporter.TryGetValue(type, out var importerDelegate))
+			{
+				importerDelegate.Invoke(val, this);
+			}
+			else
+			{
+				Serializer.Serialize(type, val, encoding, this);
+			}
+		}
+
+		/// <summary>
+		/// Compress and write enum
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="val"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private void CompressAndWriteEnum(Type type, object val)
+		{
+			type = Enum.GetUnderlyingType(type);
+			//typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
+			//typeof(int), typeof(uint), typeof(long), typeof(ulong)
+			switch (Type.GetTypeCode(type))
+			{
+				case TypeCode.Byte:
+					WriteCommonVal(type, (byte)val);
+					return;
+				case TypeCode.SByte:
+					WriteCommonVal(type, (sbyte)val);
+					return;
+				case TypeCode.Int16:
+					WriteCommonVal(type, (short)val);
+					return;
+				case TypeCode.UInt16:
+					WriteCommonVal(type, (ushort)val);
+					return;
+				case TypeCode.Int32:
+					WriteCommonVal(type, (int)val);
+					return;
+				case TypeCode.UInt32:
+					WriteCommonVal(type, (uint)val);
+					return;
+				case TypeCode.Int64:
+					WriteCommonVal(type, (long)val);
+					return;
+				case TypeCode.UInt64:
+					WriteCommonVal(type, (ulong)val);
+					return;
+			}
+		}
+		
+		/// <summary>
+		/// Compress and write enum
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="val"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void CompressAndWriteEnum(Type type, ulong val)
+		{
+			switch (Type.GetTypeCode(type))
+			{
+				case TypeCode.Byte:
+					Write((byte)val);
+					return;
+				case TypeCode.SByte:
+					Write((sbyte)val);
+					return;
+				case TypeCode.Int16:
+					Write((short)val);
+					return;
+				case TypeCode.UInt16:
+					Write((ushort)val);
+					return;
+				case TypeCode.Int32:
+					CompressAndWrite((int)val);
+					return;
+				case TypeCode.UInt32:
+					CompressAndWrite((uint)val);
+					return;
+				case TypeCode.Int64:
+					CompressAndWrite((long)val);
+					return;
+				case TypeCode.UInt64:
+					CompressAndWrite(val);
+					return;
+			}
+		}
+
+		public void Write(Array arr)
+		{
+			var type = arr.GetType();
+			//byte[] -> write directly
+			if (type == ConstMgr.ByteArrType)
+			{
+				var dt = (byte[])arr;
+				//write len
+				CompressAndWrite(dt.Length);
+				//write item
+				Write(dt);
+				return;
+			}
+
+			//other type
+			var elemType = type.GetElementType();
+			//write len
+			CompressAndWrite(arr.Length);
+			//write item
+			foreach (var c in arr)
+			{
+				WriteCommonVal(elemType, c);
+			}
+		}
+
+		public void Write(ICollection arr)
+		{
+			var type = arr.GetType();
+			//List<byte> -> write directly
+			if (type == ConstMgr.ByteListType)
+			{
+				var dt = (List<byte>)arr;
+				//write len
+				CompressAndWrite(dt.Count);
+				//write item
+				Write(dt.ToArray());
+				return;
+			}
+
+			//other
+			var elemType = type.GenericTypeArguments[0];
+			//write len
+			CompressAndWrite(arr.Count);
+			//write item
+			foreach (var c in arr)
+			{
+				WriteCommonVal(elemType, c);
+			}
+		}
+
+		public void Write(IDictionary dictionary)
+		{
+			var type = dictionary.GetType();
+			var args = type.GetGenericArguments();
+			Type keyType = args[0];
+			Type valueType = args[1];
+			//write len
+			CompressAndWrite(dictionary.Count);
+			//record keys
+			var keys = dictionary.Keys;
+			//write items
+			foreach (var c in keys)
+			{
+				//write key
+				WriteCommonVal(keyType, c);
+				//write val
+				WriteCommonVal(valueType, dictionary[c]);
+			}
+		}
 	}
 }
