@@ -45,12 +45,18 @@ namespace Nino.Serialization
 			buffer = BufferPool.RequestBuffer(data);
 			this.encoding = encoding;
 			Position = 0;
+			Length = data.Length; // in case buffer pool gives a longer buffer
 		}
 
 		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
 		private int Position { get; set; }
+
+		/// <summary>
+		/// Position of the current buffer
+		/// </summary>
+		private int Length { get; set; }
 
 		/// <summary>
 		/// Check the capacity
@@ -64,10 +70,10 @@ namespace Nino.Serialization
 				throw new ObjectDisposedException("can not access a disposed reader");
 			}
 			// Check for overflow
-			if (Position + addition > buffer.Length)
+			if (Position + addition > Length)
 			{
 				throw new IndexOutOfRangeException(
-					$"Can not read beyond the buffer: {Position}+{addition} : {buffer.Length}");
+					$"Can not read beyond the buffer: {Position}+{addition} : {Length}");
 			}
 		}
 
@@ -256,39 +262,17 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-		/// 缓存decimal的参数数组
-		/// </summary>
-		private static volatile Queue<int[]> _readDecimalPool = new Queue<int[]>();
-
-		/// <summary>
 		/// Read decimal
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public decimal ReadDecimal()
+		public unsafe decimal ReadDecimal()
 		{
-			//4 * 32bit return of get bits
-			if (_readDecimalPool.Count > 0)
-			{
-				var arr = _readDecimalPool.Dequeue();
-				arr[0] = ReadInt32();
-				arr[1] = ReadInt32();
-				arr[2] = ReadInt32();
-				arr[3] = ReadInt32();
-				var ret = new decimal(arr);
-				_readDecimalPool.Enqueue(arr);
-				return ret;
-			}
-			else
-			{
-				var arr = new int[4];
-				arr[0] = ReadInt32();
-				arr[1] = ReadInt32();
-				arr[2] = ReadInt32();
-				arr[3] = ReadInt32();
-				var ret = new decimal(arr);
-				_readDecimalPool.Enqueue(arr);
-				return ret;
-			}
+			EnsureLength(ConstMgr.SizeOfDecimal);
+			decimal result;
+			var resultSpan = new Span<byte>(&result, ConstMgr.SizeOfDecimal);
+			buffer.AsSpan(Position, ConstMgr.SizeOfDecimal).CopyTo(resultSpan);
+			Position += ConstMgr.SizeOfDecimal;
+			return result;
 		}
 
 		/// <summary>

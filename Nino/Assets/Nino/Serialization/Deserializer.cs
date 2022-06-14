@@ -120,7 +120,7 @@ namespace Nino.Serialization
 				{
 					//read len
 					var len = GetLength(reader);
-					Dictionary<string, object> values = new Dictionary<string, object>();
+					Dictionary<string, object> values = new Dictionary<string, object>(len);
 					//read elements key by key
 					for (int i = 0; i < len; i++)
 					{

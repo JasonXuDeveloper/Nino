@@ -57,5 +57,6 @@ namespace Nino.Shared
         public static readonly byte SizeOfShort = sizeof(short);
         public static readonly byte SizeOfULong = sizeof(ulong);
         public static readonly byte SizeOfLong = sizeof(long);
+        public static readonly byte SizeOfDecimal = sizeof(decimal);
     }
 }

@@ -38,6 +38,15 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
+		/// Convert writer to compressed byte
+		/// </summary>
+		/// <returns></returns>
+		public byte[] ToCompressedBytes()
+		{
+			return CompressMgr.Compress(buffer, Length);
+		}
+
+		/// <summary>
 		/// Dispose the writer
 		/// </summary>
 		public void Dispose()
@@ -95,8 +104,11 @@ namespace Nino.Serialization
 			int newCapacity = addition + Position;
 			if (newCapacity < 256)
 				newCapacity = 256;
-			if (newCapacity < buffer.Length * 8)
-				newCapacity = buffer.Length * 8;
+			if (newCapacity < buffer.Length * 4)
+				newCapacity = buffer.Length * 4;
+			//return buffer
+			BufferPool.ReturnBuffer(buffer);
+			//request buffer
 			buffer = BufferPool.RequestBuffer(newCapacity, buffer);
 		}
 
@@ -168,19 +180,13 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="d"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(decimal d)
+		public unsafe void Write(decimal d)
 		{
-			EnsureCapacity(4 * 4);
-			//4 * 32bit return of get bits
-			foreach (var num in decimal.GetBits(d))
-			{
-				buffer[Position++] = (byte)num;
-				buffer[Position++] = (byte)(num >> 8);
-				buffer[Position++] = (byte)(num >> 16);
-				buffer[Position++] = (byte)(num >> 24);
-			}
-
-			Length += 4 * 4;
+			var valueSpan = new ReadOnlySpan<byte>(&d, ConstMgr.SizeOfDecimal);
+			EnsureCapacity(valueSpan.Length);
+			valueSpan.CopyTo(buffer.AsSpan(Position));
+			Position += valueSpan.Length;
+			Length += valueSpan.Length;
 		}
 
 		/// <summary>

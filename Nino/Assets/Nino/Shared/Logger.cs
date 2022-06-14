@@ -35,10 +35,19 @@ namespace Nino.Shared
 #endif
         }
 
-        public static void A(object msg)
+        public static void LA(object msg)
         {
 #if UNITY_2017_1_OR_NEWER
             Debug.LogAssertion(msg);
+#else
+            Console.WriteLine(msg);
+#endif
+        }
+
+        public static void Assert(bool cond)
+        {
+#if UNITY_2017_1_OR_NEWER
+            Debug.Assert(cond);
 #else
             Console.WriteLine(msg);
 #endif
@@ -59,9 +68,9 @@ namespace Nino.Shared
             E($"[{tag}] {msg}");
         }
 
-        public static void A(string tag, object msg)
+        public static void LA(string tag, object msg)
         {
-            A($"[{tag}] {msg}");
+            LA($"[{tag}] {msg}");
         }
     }
 }

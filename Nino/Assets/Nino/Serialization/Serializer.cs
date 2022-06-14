@@ -156,7 +156,7 @@ namespace Nino.Serialization
 			{
 				Write();
 				//compress it
-				return CompressMgr.Compress(writer.ToBytes());
+				return writer.ToCompressedBytes();
 			}
 		}
 
