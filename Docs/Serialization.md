@@ -137,6 +137,8 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
 
+> 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上
+
 ## 序列化
 
 ```csharp

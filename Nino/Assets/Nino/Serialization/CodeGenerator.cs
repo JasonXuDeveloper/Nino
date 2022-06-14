@@ -38,6 +38,25 @@ namespace Nino.Serialization
         }
 
         /// <summary>
+        /// Get a valid nino serialize calss
+        /// </summary>
+        /// <param name="type"></param>
+        /// <returns></returns>
+        private static bool GetValidNinoClass(Type type)
+        {
+            //find NinoSerializeAttribute
+            NinoSerializeAttribute[] ns =
+                (NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
+            if (ns.Length == 0) return false;
+            if (ns[0].IncludeAll) return false;
+
+            CodeGenIgnoreAttribute[] ci =
+                (CodeGenIgnoreAttribute[])type.GetCustomAttributes(typeof(CodeGenIgnoreAttribute), false);
+            if (ci.Length != 0) return false;
+            return true;
+        }
+
+        /// <summary>
         /// Generate serialization code file at Assets/ouputPath
         /// editor only method
         /// </summary>
@@ -45,11 +64,8 @@ namespace Nino.Serialization
         /// <param name="outputPath"></param>
         public static void GenerateSerializationCode(Type type, string outputPath = "Nino/Generated")
         {
-            //find NinoSerializeAttribute
-            NinoSerializeAttribute[] ns =
-                (NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-            if (ns.Length == 0) return;
-            if (ns[0].IncludeAll) return;
+            //nino class only
+            if (!GetValidNinoClass(type)) return;
 
             //code template
             string template =
@@ -117,130 +133,85 @@ namespace Nino.Serialization
             foreach (var key in keys)
             {
                 var mt = members[key] is FieldInfo fi ? fi.FieldType : ((PropertyInfo)members[key]).PropertyType;
-                //not basic type
-                if (!mt.IsEnum && !mt.IsPrimitive && mt != ConstMgr.BoolType && mt != ConstMgr.DecimalType && mt != ConstMgr.StringType)
+                //enum
+                if (mt.IsEnum)
                 {
-                    //not array
-                    if (!mt.IsArray)
+                    sb.Append($"            writer.CompressAndWriteEnum(typeof({(Enum.GetUnderlyingType(mt).FullName)}), (ulong) this.{members[key].Name});\n");
+                }
+                //array/list
+                else if (mt.IsArray || (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                {
+                    Type elemType = mt.IsGenericType ? mt.GenericTypeArguments[0] : mt.GetElementType();
+                    //if nino serialize class => loop call method
+                    if (GetValidNinoClass(elemType))
                     {
-                        //not generic
-                        if (!mt.IsGenericType)
-                        {
-                            sb.Append($"            writer.WriteCommonVal(typeof({BeautifulLongTypeName(mt)}), this.{members[key].Name});\n");
-                        }
-                        //not dict/list
-                        else if (mt.GetGenericTypeDefinition() != ConstMgr.DictDefType &&
-                                 mt.GetGenericTypeDefinition() != ConstMgr.ListDefType)
-                        {
-                            sb.Append($"            writer.WriteCommonVal(typeof({BeautifulLongTypeName(mt)}), this.{members[key].Name});\n");
-                        }
-                        //list/dict
-                        else
-                        {
-                            //lst
-                            if (mt.GetGenericTypeDefinition() == ConstMgr.ListDefType)
-                            {
-                                var elemType = mt.GenericTypeArguments[0];
-                                //if nino serialize class => loop call method
-                                ns = (NinoSerializeAttribute[])elemType.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-                                var nino = ns.Length != 0 && !ns[0].IncludeAll;
-                                if (nino)
-                                {
-                                    //write len
-                                    sb.Append($"            writer.CompressAndWrite(this.{members[key].Name}.Count);\n");
-                                    //write item
-                                    sb.Append($"            foreach (var entry in this.{members[key].Name})\n");
-                                    sb.Append("            {\n");
-                                    sb.Append("                entry.NinoWriteMembers(writer);\n");
-                                    sb.Append("            }\n");
-                                }
-                                else
-                                {
-                                    sb.Append($"            writer.Write(this.{members[key].Name});\n");
-                                }
-                            }
-                            //dict
-                            else
-                            {
-                                var args = mt.GetGenericArguments();
-                                Type keyType = args[0];
-                                Type valueType = args[1];
-                                //if nino serialize class => loop call method
-                                ns = (NinoSerializeAttribute[])keyType.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-                                var isKeyNino = ns.Length != 0 && !ns[0].IncludeAll;
-                                ns = (NinoSerializeAttribute[])valueType.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-                                var isValNino = ns.Length != 0 && !ns[0].IncludeAll;
-                                if (isKeyNino || isValNino)
-                                {
-                                    //write len
-                                    sb.Append($"            writer.CompressAndWrite(this.{members[key].Name}.Count);\n");
-                                    //write item
-                                    sb.Append($"            foreach (var entry in this.{members[key].Name})\n");
-                                    sb.Append("            {\n");
-                                    //write key
-                                    sb.Append(isKeyNino
-                                        ? "                entry.Key.NinoWriteMembers(writer);\n"
-                                        : $"                writer.WriteCommonVal(typeof({BeautifulLongTypeName(keyType)}), entry.Key);\n");
-                                    //write value
-                                    sb.Append(isValNino
-                                        ? "                entry.Value.NinoWriteMembers(writer);\n"
-                                        : $"                writer.WriteCommonVal(typeof({BeautifulLongTypeName(valueType)}), entry.Value);\n");
-                                    sb.Append("            }\n");
-                                }
-                                else
-                                {
-                                    sb.Append($"            writer.Write(this.{members[key].Name});\n");
-                                }
-                            }
-                        }
+                        //write len
+                        sb.Append(
+                            $"            writer.CompressAndWrite(this.{members[key].Name}.{(mt.IsArray ? "Length" : "Count")});\n");
+                        //write item
+                        sb.Append($"            foreach (var entry in this.{members[key].Name})\n");
+                        sb.Append("            {\n");
+                        sb.Append("                entry.NinoWriteMembers(writer);\n");
+                        sb.Append("            }\n");
                     }
-                    //array
                     else
                     {
-                        var elemType = mt.GetElementType();
-                        //if nino serialize class => loop call method
-                        ns = (NinoSerializeAttribute[])elemType.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-                        var nino = ns.Length != 0 && !ns[0].IncludeAll;
-                        if (nino)
-                        {
-                            //write len
-                            sb.Append($"            writer.CompressAndWrite(this.{members[key].Name}.Length);\n");
-                            //write item
-                            sb.Append($"            foreach (var entry in this.{members[key].Name})\n");
-                            sb.Append("            {\n");
-                            sb.Append("                entry.NinoWriteMembers(writer);\n");
-                            sb.Append("            }\n");
-                        }
-                        else
-                        {
-                            sb.Append($"            writer.Write(this.{members[key].Name});\n");
-                        }
+                        sb.Append($"            writer.Write(this.{members[key].Name});\n");
                     }
                 }
-                else
+                //dict
+                else if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                 {
-                    //not enum -> basic type
-                    if (!mt.IsEnum)
+                    var args = mt.GetGenericArguments();
+                    Type keyType = args[0];
+                    Type valueType = args[1];
+                    //if nino serialize class => loop call method
+                    var isKeyNino = GetValidNinoClass(keyType);
+                    var isValNino = GetValidNinoClass(valueType);
+                    if (isKeyNino || isValNino)
                     {
-                        switch (Type.GetTypeCode(mt))
-                        {
-                            case TypeCode.Int32:
-                            case TypeCode.UInt32:
-                            case TypeCode.Int64:
-                            case TypeCode.UInt64:
-                                //compress
-                                sb.Append($"            writer.CompressAndWrite(this.{members[key].Name});\n");
-                                break;
-                            default:
-                                //write
-                                sb.Append($"            writer.Write(this.{members[key].Name});\n");
-                                break;
-                        }
+                        //write len
+                        sb.Append($"            writer.CompressAndWrite(this.{members[key].Name}.Count);\n");
+                        //write item
+                        sb.Append($"            foreach (var entry in this.{members[key].Name})\n");
+                        sb.Append("            {\n");
+                        //write key
+                        sb.Append(isKeyNino
+                            ? "                entry.Key.NinoWriteMembers(writer);\n"
+                            : $"                writer.WriteCommonVal(typeof({BeautifulLongTypeName(keyType)}), entry.Key);\n");
+                        //write value
+                        sb.Append(isValNino
+                            ? "                entry.Value.NinoWriteMembers(writer);\n"
+                            : $"                writer.WriteCommonVal(typeof({BeautifulLongTypeName(valueType)}), entry.Value);\n");
+                        sb.Append("            }\n");
                     }
-                    //enum -> special method
                     else
                     {
-                        sb.Append($"            writer.CompressAndWriteEnum(typeof({(Enum.GetUnderlyingType(mt).FullName)}), (ulong) this.{members[key].Name});\n");
+                        sb.Append($"            writer.Write(this.{members[key].Name});\n");
+                    }
+                }
+                //not basic type
+                else if (!mt.IsPrimitive && mt != ConstMgr.BoolType && mt != ConstMgr.DecimalType &&
+                         mt != ConstMgr.StringType)
+                {
+                    sb.Append($"            writer.WriteCommonVal(typeof({BeautifulLongTypeName(mt)}), this.{members[key].Name});\n");
+                }
+                //not enum -> basic type
+                else
+                {
+                    switch (Type.GetTypeCode(mt))
+                    {
+                        case TypeCode.Int32:
+                        case TypeCode.UInt32:
+                        case TypeCode.Int64:
+                        case TypeCode.UInt64:
+                            //compress
+                            sb.Append($"            writer.CompressAndWrite(this.{members[key].Name});\n");
+                            break;
+                        default:
+                            //write
+                            sb.Append($"            writer.Write(this.{members[key].Name});\n");
+                            break;
                     }
                 }
             }

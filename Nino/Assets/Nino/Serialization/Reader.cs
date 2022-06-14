@@ -59,6 +59,11 @@ namespace Nino.Serialization
 		private int Length { get; set; }
 
 		/// <summary>
+		/// End of Reader
+		/// </summary>
+		public bool EndOfReader => Position == Length;
+
+		/// <summary>
 		/// Check the capacity
 		/// </summary>
 		/// <param name="addition"></param>
