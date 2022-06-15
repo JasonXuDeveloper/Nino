@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Text;
-using Nino.Shared;
+using Nino.Shared.IO;
+using Nino.Shared.Mgr;
+using Nino.Shared.Util;
 using System.Reflection;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;

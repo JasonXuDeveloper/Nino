@@ -1,7 +1,8 @@
 using System;
 using System.IO;
+using Nino.Shared.Util;
 
-namespace Nino.Shared
+namespace Nino.Shared.IO
 {
     /// <summary>
     /// Can change the buffer in anytime, however this stream is not writable

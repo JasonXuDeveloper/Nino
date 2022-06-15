@@ -1,6 +1,6 @@
 using System.IO;
 using System.Text;
-using Nino.Shared;
+using Nino.Shared.Util;
 using System.Diagnostics;
 // ReSharper disable RedundantJumpStatement
 

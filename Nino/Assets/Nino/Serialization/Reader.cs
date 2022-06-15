@@ -1,7 +1,7 @@
 using System;
 using System.Text;
-using Nino.Shared;
-using System.Collections.Generic;
+using Nino.Shared.IO;
+using Nino.Shared.Mgr;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization

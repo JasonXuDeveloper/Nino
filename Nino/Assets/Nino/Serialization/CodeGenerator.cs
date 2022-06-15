@@ -2,7 +2,8 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Nino.Shared;
+using Nino.Shared.Mgr;
+using Nino.Shared.Util;
 using System.Reflection;
 using System.Collections.Generic;
 

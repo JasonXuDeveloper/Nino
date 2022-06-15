@@ -1,7 +1,7 @@
 using System;
+using Nino.Shared.Util;
 using Nino.Serialization;
 using System.Collections.Generic;
-using Logger = Nino.Shared.Logger;
 
 // ReSharper disable RedundantTypeArgumentsOfMethod
 namespace Nino.Test.Editor.Serialization

@@ -1,14 +1,15 @@
 using System;
 using System.IO;
-using UnityEngine;
-using UnityEngine.UI;
-using System.Diagnostics;
-using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
+using MessagePack;
+using UnityEngine.UI;
+using MongoDB.Bson.IO;
+using System.Diagnostics;
+using MessagePack.Resolvers;
+using System.Collections.Generic;
 using MongoDB.Bson.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
-using MessagePack;
-using MongoDB.Bson.IO;
 
 namespace Nino.Test
 {
@@ -153,6 +154,17 @@ namespace Nino.Test
             BsonClassMap.RegisterClassMap<NotIncludeAllClass>();
             BsonClassMap.RegisterClassMap<BuildTestDataNoCodeGen>();
             BsonClassMap.RegisterClassMap<BuildTestDataCodeGen>();
+            StaticCompositeResolver.Instance.Register(
+                GeneratedResolver.Instance,
+                BuiltinResolver.Instance,
+                AttributeFormatterResolver.Instance,
+                MessagePack.Unity.UnityResolver.Instance,
+                PrimitiveObjectResolver.Instance,
+                MessagePack.Unity.Extension.UnityBlitWithPrimitiveArrayResolver.Instance,
+                StandardResolver.Instance
+            );
+            var option = MessagePackSerializerOptions.Standard.WithResolver(StaticCompositeResolver.Instance);
+            MessagePackSerializer.DefaultOptions = option;
         }
 
         /// <summary>

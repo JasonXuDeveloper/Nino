@@ -4,7 +4,7 @@ using UnityEngine;
 using System;
 #endif
 
-namespace Nino.Shared
+namespace Nino.Shared.Util
 {
     public static class Logger
     {

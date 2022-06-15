@@ -5,7 +5,7 @@ using System.Threading;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
 
-namespace Nino.Shared
+namespace Nino.Shared.IO
 {
 	public class DeflateStream : Stream
 	{
@@ -340,6 +340,7 @@ namespace Nino.Shared
 			}
 			// ReSharper restore UnusedMember.Local
 
+			[MonoPInvokeCallback]
 			protected override bool ReleaseHandle()
 			{
 				try
@@ -375,6 +376,7 @@ namespace Nino.Shared
 		{
 		}
 
+		[MonoPInvokeCallback]
 		public static DeflateStreamNative Create(Stream compressedStream, CompressionMode mode, bool gzip)
 		{
 			DeflateStreamNative deflateStreamNative = new DeflateStreamNative();
@@ -390,6 +392,7 @@ namespace Nino.Shared
 			return deflateStreamNative;
 		}
 
+		[MonoPInvokeCallback]
 		public void DisposeZStream()
 		{
 			if (zStream != null && !zStream.IsInvalid)
@@ -398,6 +401,7 @@ namespace Nino.Shared
 			}
 		}
 
+		[MonoPInvokeCallback]
 		public void ResetZStream(CompressionMode mode, bool gzip)
 		{
 			zStream = CreateZStream(mode, gzip, this.feeder, GCHandle.ToIntPtr(this.data));
@@ -408,6 +412,7 @@ namespace Nino.Shared
 			Dispose(false);
 		}
 
+		[MonoPInvokeCallback]
 		public void Dispose(bool disposing)
 		{
 			if (disposing && !disposed)
@@ -431,12 +436,14 @@ namespace Nino.Shared
 			}
 		}
 
+		[MonoPInvokeCallback]
 		public void Flush()
 		{
 			int result = Flush(zStream);
 			CheckResult(result, "Flush");
 		}
 
+		[MonoPInvokeCallback]
 		public int ReadZStream(IntPtr buffer, int length)
 		{
 			int result = ReadZStream(zStream, buffer, length);
@@ -444,12 +451,14 @@ namespace Nino.Shared
 			return result;
 		}
 
+		[MonoPInvokeCallback]
 		public void WriteZStream(IntPtr buffer, int length)
 		{
 			int result = WriteZStream(zStream, buffer, length);
 			CheckResult(result, "WriteInternal");
 		}
 
+		[MonoPInvokeCallback]
 		private static int UnmanagedRead(IntPtr buffer, int length, IntPtr data)
 		{
 			if (!(GCHandle.FromIntPtr(data).Target is DeflateStreamNative deflateStreamNative))
@@ -459,6 +468,7 @@ namespace Nino.Shared
 			return deflateStreamNative.UnmanagedRead(buffer, length);
 		}
 
+		[MonoPInvokeCallback]
 		private int UnmanagedRead(IntPtr buffer, int length)
 		{
 			if (ioBuffer == null)
@@ -482,6 +492,7 @@ namespace Nino.Shared
 			return num;
 		}
 
+		[MonoPInvokeCallback]
 		private static int UnmanagedWrite(IntPtr buffer, int length, IntPtr data)
 		{
 			if (!(GCHandle.FromIntPtr(data).Target is DeflateStreamNative deflateStreamNative))
@@ -491,6 +502,7 @@ namespace Nino.Shared
 			return deflateStreamNative.UnmanagedWrite(buffer, length);
 		}
 
+		[MonoPInvokeCallback]
 		private unsafe int UnmanagedWrite(IntPtr buffer, int length)
 		{
 			int num = 0;

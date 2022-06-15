@@ -1,7 +1,8 @@
 using System;
 using System.Buffers;
+using Nino.Shared.Util;
 
-namespace Nino.Shared
+namespace Nino.Shared.IO
 {
     public sealed class ArrayBufferWriter<T> : IBufferWriter<T>
     {

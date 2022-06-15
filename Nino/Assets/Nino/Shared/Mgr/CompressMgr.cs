@@ -1,9 +1,10 @@
-using System.Collections.Generic;
 using System.IO;
+using Nino.Shared.IO;
 using System.IO.Compression;
-using DeflateStream = Nino.Shared.DeflateStream;
+using System.Collections.Generic;
+using DeflateStream = Nino.Shared.IO.DeflateStream;
 
-namespace Nino.Shared
+namespace Nino.Shared.Mgr
 {
     public static class CompressMgr
     {

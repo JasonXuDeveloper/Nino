@@ -2,7 +2,7 @@
 
 ## 定义可序列化类型
 
-- 给需要Nino序列化/反序列化的类或结构体，打上```[NinoSerialize()]```标签，如果**需要自动收集全部字段和属性，则该标签内部加入个true参数**，如```[NinoSerialize(true)]```
+- 给需要Nino序列化/反序列化的类或结构体，打上```[NinoSerialize]```标签，如果**需要自动收集全部字段和属性，则该标签内部加入个true参数**，如```[NinoSerialize(true)]```
 - 如果**没有自动收集全部字段和属性**，则需要给想序列化/反序列化的字段或属性，打上```[NinoMember()]```标签，标签内部需要传入一个数字参数，即序列化和反序列化时该成员的位置，如```[NinoMember(1)]```
 - 如果**开启了自动收集全部字段和属性**，且**需要略过某些字段或属性**，请将其打上```[NinoIgnore]```标签，需要注意的是，如果没开启自动收集，该标签会无效
 
@@ -60,7 +60,7 @@ public partial class NotIncludeAllClass
 - List<注册委托类型>，注册委托类型[]
 - Dictionary<Nino支持类型,Nino支持类型>
 - Dictionary<注册委托类型,注册委托类型>
-- 可Nino序列化类型（代表可以嵌套）
+- 可Nino序列化类型
 
 不支持序列化的成员类型（可以通过注册自定义委托实现）：
 
@@ -137,9 +137,9 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
 
-> 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上
+> 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上，可以在性能对比的时候用这个（例如[这个真机测试](../Nino/Assets/Nino/Test/BuildTest.cs)
 
-## 序列化
+序列化
 
 ```csharp
 byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);

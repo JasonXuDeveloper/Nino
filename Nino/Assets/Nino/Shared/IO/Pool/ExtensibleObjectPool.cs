@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Nino.Shared
+namespace Nino.Shared.IO
 {
     public static class ExtensibleObjectPool
     {
