@@ -48,3 +48,25 @@ Useful Unity Modules | 实用的Unity模块
 - 可删除目录：
   - Nino/Nino/Assets/Nino/Test，测试代码
   - Nino/Nino/Asset/ThirdParty，测试用的第三方库
+
+
+
+## 在Unity内使用
+
+有两种方法：
+
+- 直接下载本工程，并用Unity打开Nino目录进行开发
+
+- 将```Nino/Nino/Assets/Nino```复制到自己的Unity项目即可，如果不需要测试案例的话，可以不包含```Nino/Nino/Assets/Nino/Test```
+
+  > 如果需要运行测试案例，记得也需要复制```Nino/Nino/Asset/ThirdParty```到Unity项目
+
+
+
+## 在非Unity平台使用
+
+- 将```Nino/Nino/Assets/Nino```内除了Editor的代码全复制到自己C#工程即可
+
+  > 如果需要运行测试案例，记得也需要复制```Nino/Nino/Asset/ThirdParty```到C#工程
+  >
+  > ```Nino/Nino/Assets/Nino/Test```内部分文件需要修改，例如BuildTest无法在非Unity环境运行

@@ -70,6 +70,14 @@ public partial class NotIncludeAllClass
 
 
 
+## 注意事项
+
+**非Unity平台**，需要自行解决该模块对C++ 库，"MonoPosixHelper"的依赖，以确保能```[DllImport("MonoPosixHelper", CallingConvention = CallingConvention.Cdecl)]```能正常工作
+
+Unity平台可以忽略，该问题在Unity下，无论是Mono还是IL2CPP下都不存在
+
+
+
 ## 注册序列化委托
 
 给指定类型注册该委托后，全局序列化的时候遇到该类型会直接使用委托方法写入二进制数据
@@ -137,9 +145,31 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
 
-> 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上，可以在性能对比的时候用这个（例如[这个真机测试](../Nino/Assets/Nino/Test/BuildTest.cs)
+> 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上，可以在性能对比的时候用这个（例如[这个真机测试](../Nino/Assets/Nino/Test/BuildTest.cs)）
 
-序列化
+## 序列化
+
+```csharp
+Nino.Serialization.Serializer.Serialize<T>(T val);
+```
+
+```csharp
+Nino.Serialization.Serializer.Serialize<T>(T val, Encoding encoding);
+```
+
+```csharp
+Nino.Serialization.Serializer.Serialize(Type valType, object val);
+```
+
+```csharp
+Nino.Serialization.Serializer.Serialize(Type valType, object val, Encoding encoding);
+```
+
+> 推荐使用泛型方法，同时如果没有指定的编码的话，会使用UTF8
+>
+> 需要注意的是，涉及到字符串时，请确保序列化和反序列化的时候用的是同样的编码
+
+示范：
 
 ```csharp
 byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);
@@ -148,6 +178,16 @@ byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);
 传入需要序列化的类型作为泛型参数，以及该类型的实例，会返回二进制数组
 
 ## 反序列化
+
+```csharp
+Nino.Serialization.Deserializer.Deserialize<T>(byte[] data);
+```
+
+```csharp
+Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding);
+```
+
+> 需要注意编码问题，并且反序列化的对象需要能够通过new()创建（即包含无参数构造函数）
 
 ```csharp
 var obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(byteArr);

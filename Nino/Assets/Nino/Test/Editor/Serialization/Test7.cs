@@ -18,7 +18,6 @@ namespace Nino.Test.Editor.Serialization
             //custom type
             CustomTypeTest c = new CustomTypeTest()
             {
-                dt = DateTime.Now,
                 ni = null,
                 v3 = UnityEngine.Vector3.one,
                 m = UnityEngine.Matrix4x4.zero,

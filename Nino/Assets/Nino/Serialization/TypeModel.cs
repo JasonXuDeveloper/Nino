@@ -116,7 +116,7 @@ namespace Nino.Serialization
 				if (!(p.CanRead && p.CanWrite))
 				{
 					throw new InvalidOperationException(
-						$"Cannot read or write property {p.Name} in {type.FullName}, cannot Deserialize this property");
+						$"Cannot read or write property {p.Name} in {type.FullName}, cannot Serialize or Deserialize this property");
 				}
 				
 				if (model.includeAll)

@@ -128,8 +128,8 @@ namespace Nino.Serialization
 					if (model.includeAll)
 					{
 						var needToStore = model.members[min];
-						writer.WriteCommonVal(ConstMgr.StringType, needToStore.Name);
-						writer.WriteCommonVal(ConstMgr.StringType, type.FullName);
+						writer.Write(needToStore.Name);
+						writer.Write(type.FullName);
 					}
 
 					writer.WriteCommonVal(type, val);

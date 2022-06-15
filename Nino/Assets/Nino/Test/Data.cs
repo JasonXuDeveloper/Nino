@@ -97,9 +97,9 @@ namespace Nino.Test
     {
         [NinoMember(1)] public Vector3 v3;
 
-        [NinoMember(2)] public DateTime dt;
+        [NinoMember(2)] private DateTime dt = DateTime.Now;
 
-        [NinoMember(3)] public int? ni;
+        [NinoMember(3)] public int? ni { get; set; }
 
         [NinoMember(4)] public List<Quaternion> qs;
 
