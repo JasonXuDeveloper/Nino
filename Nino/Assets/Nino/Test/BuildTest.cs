@@ -91,10 +91,10 @@ namespace Nino.Test
                 {
                     { "usd", 7 }
                 },
-                // v = new Dictionary<NotIncludeAllClass, NotIncludeAllClass>()
-                // {
-                //     { new NotIncludeAllClass() { a = 30, b = 20, c = 12938, d = 19283 }, new NotIncludeAllClass() { a = 30, b = 20, c = 12938, d = 19283 } }
-                // }
+                v = new Dictionary<NotIncludeAllClass, NotIncludeAllClass>()
+                {
+                    { new NotIncludeAllClass() { a = 30, b = 20, c = 12938, d = 19283 }, new NotIncludeAllClass() { a = 30, b = 20, c = 12938, d = 19283 } }
+                }
             };
             d1 = new BuildTestDataNoCodeGen()
             {
