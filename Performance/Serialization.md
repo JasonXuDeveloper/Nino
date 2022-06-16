@@ -1,6 +1,6 @@
 # Serilization 性能报告
 
-#### [**测试数据**](Nino/Assets/Nino/Test/Data.cs)
+#### [**测试数据**](/Nino/Assets/Nino/Test/Data.cs)
 
 *第一次序列化的时候，Nino会对类型进行缓存，达到预热效果，使得同一类型的第二次开始的序列化速度大幅度提升，其他库亦是如此*
 
