@@ -78,18 +78,17 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
+		// ReSharper disable CognitiveComplexity
 		private static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader = null)
+			// ReSharper restore CognitiveComplexity
 		{
 			//Get Attribute that indicates a class/struct to be serialized
 			TypeModel.TryGetModel(type, out var model);
 
 			//invalid model
-			if (model != null)
+			if (model != null && !model.valid)
 			{
-				if (!model.valid)
-				{
-					return ConstMgr.Null;
-				}
+				return ConstMgr.Null;
 			}
 
 			//generate model
@@ -114,7 +113,7 @@ namespace Nino.Serialization
 				object[] objs = ConstMgr.EmptyParam;
 				if (hasSet)
 				{
-					objs = ExtensibleObjectPool.RequestObjArr(model.members.Count);
+					objs = ArrayPool<object>.Request(model.members.Count);
 				}
 
 				//only include all model need this
@@ -177,11 +176,11 @@ namespace Nino.Serialization
 
 					//invoke code gen
 					if (!hasSet) return;
-					object[] p = ExtensibleObjectPool.RequestObjArr(1);
+					object[] p = ArrayPool<object>.Request(1);
 					p[0] = objs;
 					model.ninoSetMembers.Invoke(val, p);
-					ExtensibleObjectPool.ReturnObjArr(index, objs);
-					ExtensibleObjectPool.ReturnObjArr(1, p);
+					ArrayPool<object>.Return(index, objs);
+					ArrayPool<object>.Return(1, p);
 				}
 			}
 

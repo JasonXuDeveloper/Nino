@@ -8,7 +8,7 @@ namespace Nino.Shared.IO
         /// <summary>
         /// A shared buffer queue
         /// </summary>
-        private static volatile Queue<byte[]> _buffers = new Queue<byte[]>();
+        private static volatile Stack<byte[]> _buffers = new Stack<byte[]>(3);
 
         /// <summary>
         /// Request a buffer
@@ -20,7 +20,7 @@ namespace Nino.Shared.IO
             byte[] ret;
             if (_buffers.Count > 0)
             {
-                ret = _buffers.Dequeue();
+                ret = _buffers.Pop();
                 if (ret.Length < size)
                 {
                     byte[] buffer = new byte[size];
@@ -34,6 +34,16 @@ namespace Nino.Shared.IO
             }
 
             return ret;
+        }
+
+        /// <summary>
+        /// Preview next cache buffer's length
+        /// </summary>
+        /// <returns></returns>
+        public static int PreviewNextCacheBufferLength()
+        {
+            if (_buffers.Count == 0) return 0;
+            return _buffers.Peek().Length;
         }
         
         /// <summary>
@@ -67,7 +77,7 @@ namespace Nino.Shared.IO
         /// <param name="buffer"></param>
         public static void ReturnBuffer(byte[] buffer)
         {
-            _buffers.Enqueue(buffer);
+            _buffers.Push(buffer);
         }
     }
 }

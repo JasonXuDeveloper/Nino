@@ -3,12 +3,12 @@ using System.Collections.Generic;
 
 namespace Nino.Shared.IO
 {
-    public static class ExtensibleObjectPool
+    public static class ArrayPool<T>
     {
         /// <summary>
         /// Shared pool
         /// </summary>
-        private static volatile Dictionary<int, Queue<object[]>> _pool = new Dictionary<int, Queue<object[]>>();
+        private static volatile Dictionary<int, Stack<T[]>> _pool = new Dictionary<int, Stack<T[]>>(3);
 
         /// <summary>
         /// Check pool size
@@ -19,23 +19,23 @@ namespace Nino.Shared.IO
             if (!_pool.TryGetValue(size, out _))
             {
                 //new queue
-                _pool.Add(size, new Queue<object[]>());
+                _pool.Add(size, new Stack<T[]>());
             }
         }
         
         /// <summary>
-        /// Request a object arr with internal length of size
+        /// Request a T arr with internal length of size
         /// </summary>
         /// <param name="size"></param>
         /// <returns></returns>
-        public static object[] RequestObjArr(int size)
+        public static T[] Request(int size)
         {
             CheckPool(size);
             var queue = _pool[size];
             //get from queue
             if (queue.Count > 0)
             {
-                var ret = queue.Dequeue();
+                var ret = queue.Pop();
                 //double check
                 if (ret.Length != size)
                 {
@@ -44,7 +44,7 @@ namespace Nino.Shared.IO
                 return ret;
             }
             //return new obj[]
-            return new object[size];
+            return new T[size];
         }
 
         /// <summary>
@@ -52,19 +52,19 @@ namespace Nino.Shared.IO
         /// </summary>
         /// <param name="size"></param>
         /// <param name="arr"></param>
-        public static void ReturnObjArr(int size, object[] arr)
+        public static void Return(int size, T[] arr)
         {
             CheckPool(size);
-            _pool[size].Enqueue(arr);
+            _pool[size].Push(arr);
         }
 
         /// <summary>
         /// Return arr to pool
         /// </summary>
         /// <param name="arr"></param>
-        public static void ReturnObjArr(object[] arr)
+        public static void Return(T[] arr)
         {
-            ReturnObjArr(arr.Length, arr);
+            Return(arr.Length, arr);
         }
     }
 }

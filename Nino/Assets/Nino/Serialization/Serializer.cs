@@ -69,18 +69,17 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
+		// ReSharper disable CognitiveComplexity
 		public static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
+			// ReSharper restore CognitiveComplexity
 		{
 			//Get Attribute that indicates a class/struct to be serialized
 			TypeModel.TryGetModel(type, out var model);
 
 			//invalid model
-			if (model != null)
+			if (model != null && !model.valid)
 			{
-				if (!model.valid)
-				{
-					return ConstMgr.Null;
-				}
+				return ConstMgr.Null;
 			}
 
 			//generate model
@@ -96,10 +95,10 @@ namespace Nino.Serialization
 			{
 				if (model.NinoWriteMembers != null)
 				{
-					var p = ExtensibleObjectPool.RequestObjArr(1);
+					var p = ArrayPool<object>.Request(1);
 					p[0] = writer;
 					model.NinoWriteMembers.Invoke(value, p);
-					ExtensibleObjectPool.ReturnObjArr(p);
+					ArrayPool<object>.Return(p);
 					return;
 				}
 				

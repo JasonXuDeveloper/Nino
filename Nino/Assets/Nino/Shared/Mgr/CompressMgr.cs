@@ -20,17 +20,14 @@ namespace Nino.Shared.Mgr
         {
             return Compress(data, data.Length);
         }
-        
+
         /// <summary>
-        /// Compress the given bytes
+        /// Get relevant data
         /// </summary>
-        /// <param name="data"></param>
-        /// <param name="length"></param>
-        /// <returns></returns>
-        public static byte[] Compress(byte[] data, int length)
+        /// <param name="zipStream"></param>
+        /// <param name="compressedStream"></param>
+        private static void GetCompressData(out DeflateStream zipStream, out MemoryStream compressedStream)
         {
-            DeflateStream zipStream;
-            MemoryStream compressedStream;
             //try get stream
             if (_compressStreams.Count > 0)
             {
@@ -44,8 +41,34 @@ namespace Nino.Shared.Mgr
                 compressedStream = new MemoryStream();
                 zipStream = new DeflateStream(compressedStream, CompressionMode.Compress, true);
             }
+        }
 
+        /// <summary>
+        /// Compress the given bytes
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="length"></param>
+        /// <returns></returns>
+        public static byte[] Compress(byte[] data, int length)
+        {
+            GetCompressData(out var zipStream, out var compressedStream);
             zipStream.Write(data, 0, length);
+            zipStream.Finish();
+            //push
+            _compressStreams.Push(zipStream);
+            return compressedStream.ToArray();
+        }
+
+        /// <summary>
+        /// Compress the given bytes
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="length"></param>
+        /// <returns></returns>
+        public static byte[] Compress(ExtensibleByteBuffer data, int length)
+        {
+            GetCompressData(out var zipStream, out var compressedStream);
+            data.WriteToStream(zipStream, length);
             zipStream.Finish();
             //push
             _compressStreams.Push(zipStream);

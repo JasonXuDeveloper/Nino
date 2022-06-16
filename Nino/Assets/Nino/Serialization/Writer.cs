@@ -5,6 +5,7 @@ using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
 using System.Collections.Generic;
+using Nino.Shared.IO.Nino.Shared.IO;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
@@ -17,7 +18,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
-		private byte[] buffer;
+		private ExtensibleByteBuffer buffer;
 
 		/// <summary>
 		/// has been disposed or not
@@ -35,9 +36,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToBytes()
 		{
-			var ret = new byte[Length];
-			Buffer.BlockCopy(buffer, 0, ret, 0, Length);
-			return ret;
+			return buffer.ToArray(0, Length);
 		}
 
 		/// <summary>
@@ -54,26 +53,17 @@ namespace Nino.Serialization
 		/// </summary>
 		public void Dispose()
 		{
-			BufferPool.ReturnBuffer(buffer);
+			ObjectPool<ExtensibleByteBuffer>.Return(buffer);
 			disposed = true;
 		}
 
 		/// <summary>
 		/// Create a nino writer
 		/// </summary>
-		public Writer(Encoding encoding) : this(0, encoding)
-		{
-
-		}
-
-		/// <summary>
-		/// Create a nino writer
-		/// </summary>
-		/// <param name="length"></param>
 		/// <param name="encoding"></param>
-		private Writer(int length, Encoding encoding)
+		public Writer(Encoding encoding)
 		{
-			buffer = BufferPool.RequestBuffer(length);
+			buffer = ObjectPool<ExtensibleByteBuffer>.Request();
 			this.encoding = encoding;
 			Length = 0;
 			Position = 0;
@@ -92,28 +82,13 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Check the capacity
 		/// </summary>
-		/// <param name="addition"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void EnsureCapacity(int addition)
+		private void CheckDispose()
 		{
 			if (disposed)
 			{
 				throw new ObjectDisposedException("can not access a disposed writer");
 			}
-
-			// Check for overflow
-			if (addition + Position < 0)
-				throw new IOException("Stream too long");
-			if (addition + Position <= buffer.Length) return;
-			int newCapacity = addition + Position;
-			if (newCapacity < 256)
-				newCapacity = 256;
-			if (newCapacity < buffer.Length * 4)
-				newCapacity = buffer.Length * 4;
-			//return buffer
-			BufferPool.ReturnBuffer(buffer);
-			//request buffer
-			buffer = BufferPool.RequestBuffer(newCapacity, buffer);
 		}
 
 		/// <summary>
@@ -123,10 +98,21 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte[] data)
 		{
-			EnsureCapacity(data.Length);
-			Buffer.BlockCopy(data, 0, buffer, Position, data.Length);
-			Position += data.Length;
-			Length += data.Length;
+			Write(data, data.Length);
+		}
+
+		/// <summary>
+		/// Write byte[]
+		/// </summary>
+		/// <param name="data"></param>
+		/// <param name="length"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Write(byte[] data, int length)
+		{
+			CheckDispose();
+			buffer.CopyFrom(data, 0, Position, length);
+			Position += length;
+			Length += length;
 		}
 
 		/// <summary>
@@ -173,10 +159,11 @@ namespace Nino.Serialization
 			}
 
 			//write directly
-			EnsureCapacity(len);
-			encoding.GetBytes(val, 0, val.Length, buffer, Position);
-			Position += len;
-			Length += len;
+			CheckDispose();
+			var b = BufferPool.RequestBuffer(len);
+			len = encoding.GetBytes(val, 0, val.Length, b, 0);
+			Write(b, len);
+			BufferPool.ReturnBuffer(b);
 		}
 
 		/// <summary>
@@ -187,10 +174,11 @@ namespace Nino.Serialization
 		public unsafe void Write(decimal d)
 		{
 			var valueSpan = new ReadOnlySpan<byte>(&d, ConstMgr.SizeOfDecimal);
-			EnsureCapacity(valueSpan.Length);
-			valueSpan.CopyTo(buffer.AsSpan(Position));
-			Position += valueSpan.Length;
-			Length += valueSpan.Length;
+			CheckDispose();
+			for (int i = 0, cnt = valueSpan.Length; i < cnt; i++)
+			{
+				Write(valueSpan[i]);
+			}
 		}
 
 		/// <summary>
@@ -219,7 +207,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte num)
 		{
-			EnsureCapacity(1);
+			CheckDispose();
 			buffer[Position] = num;
 			Position += 1;
 			Length += 1;
@@ -232,7 +220,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(sbyte num)
 		{
-			EnsureCapacity(1);
+			CheckDispose();
 			buffer[Position] = (byte)num;
 			Position += 1;
 			Length += 1;
@@ -245,7 +233,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(int num)
 		{
-			EnsureCapacity(ConstMgr.SizeOfInt);
+			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -270,7 +258,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(uint num)
 		{
-			EnsureCapacity(ConstMgr.SizeOfUInt);
+			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -295,7 +283,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(short num)
 		{
-			EnsureCapacity(ConstMgr.SizeOfShort);
+			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -318,7 +306,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ushort num)
 		{
-			EnsureCapacity(ConstMgr.SizeOfUShort);
+			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -341,7 +329,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(long num)
 		{
-			EnsureCapacity(ConstMgr.SizeOfLong);
+			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -370,7 +358,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ulong num)
 		{
-			EnsureCapacity(ConstMgr.SizeOfULong);
+			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -480,6 +468,12 @@ namespace Nino.Serialization
 			if (num <= sbyte.MaxValue)
 			{
 				CompressAndWrite((sbyte)num);
+				return;
+			}
+
+			if (num <= byte.MaxValue)
+			{
+				CompressAndWrite((byte)num);
 				return;
 			}
 
@@ -638,7 +632,7 @@ namespace Nino.Serialization
 					return;
 			}
 		}
-		
+
 		/// <summary>
 		/// Compress and write enum
 		/// </summary>

@@ -4,7 +4,22 @@ Useful Unity Modules | 实用的Unity模块
 
 ## 功能列表
 
+- 共享模块
+  
+  - IO
+    - 数组对象池
+    - 基础对象池
+    - 二进制流对象池
+    - 高性能数据压缩流
+    - 可动态修改Buffer的只读流
+    - 高性能数组写入（.net core 6.0的ArrayBufferWriter）
+    - 高性能动态扩容Buffer（易用、低GC、高效，完胜Resize）
+  - Mgr
+    - 压缩解压助手
+    - 常量定义助手
+  
 - 序列化模块，[使用教程](Docs/Serialization.md)
+
   > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，目标是更小体积，更高性能
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行序列化和反序列化，无法跨语言使用
