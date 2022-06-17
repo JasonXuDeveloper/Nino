@@ -14,7 +14,7 @@ namespace Nino.Shared
         /// direct calling is way faster in debug mode, when in release mode, calling indexer has same performance as direct call
         /// https://stackoverflow.com/questions/17105773/poor-c-sharp-optimizer-performance
         /// </summary>
-        public T[] items;
+        internal T[] items;
         private int size;
         private int version;
         [NonSerialized] private Object syncRoot;

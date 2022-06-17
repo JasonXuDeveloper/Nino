@@ -2,6 +2,7 @@ using MessagePack;
 using System.Text;
 using Nino.Shared.Util;
 using System.Diagnostics;
+using MessagePack.Resolvers;
 
 // ReSharper disable RedundantJumpStatement
 
@@ -23,6 +24,18 @@ namespace Nino.Test.Editor.Serialization
 #endif
         public static void Main()
         {
+            StaticCompositeResolver.Instance.Register(
+                GeneratedResolver.Instance,
+                BuiltinResolver.Instance,
+                AttributeFormatterResolver.Instance,
+                MessagePack.Unity.UnityResolver.Instance,
+                PrimitiveObjectResolver.Instance,
+                MessagePack.Unity.Extension.UnityBlitWithPrimitiveArrayResolver.Instance,
+                StandardResolver.Instance
+            );
+            var option = MessagePackSerializerOptions.Standard.WithResolver(StaticCompositeResolver.Instance);
+            MessagePackSerializer.DefaultOptions = option;
+            
             Logger.W("1/5");
             DoTest(10);
             Logger.W("2/5");
