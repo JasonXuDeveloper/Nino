@@ -5,7 +5,6 @@ using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
 using System.Collections.Generic;
-using Nino.Shared.IO.Nino.Shared.IO;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
@@ -18,7 +17,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
-		private ExtensibleByteBuffer buffer;
+		private ExtensibleBuffer<byte> buffer;
 
 		/// <summary>
 		/// has been disposed or not
@@ -36,7 +35,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToBytes()
 		{
-			return buffer.ToArray(0, Length);
+			return buffer.ToArray(0, length);
 		}
 
 		/// <summary>
@@ -45,7 +44,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToCompressedBytes()
 		{
-			return CompressMgr.Compress(buffer, Length);
+			return CompressMgr.Compress(buffer, length);
 		}
 
 		/// <summary>
@@ -53,7 +52,7 @@ namespace Nino.Serialization
 		/// </summary>
 		public void Dispose()
 		{
-			ObjectPool<ExtensibleByteBuffer>.Return(buffer);
+			ObjectPool<ExtensibleBuffer<byte>>.Return(buffer);
 			disposed = true;
 		}
 
@@ -63,21 +62,21 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public Writer(Encoding encoding)
 		{
-			buffer = ObjectPool<ExtensibleByteBuffer>.Request();
+			buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
 			this.encoding = encoding;
-			Length = 0;
-			Position = 0;
+			length = 0;
+			position = 0;
 		}
 
 		/// <summary>
 		/// Length of the buffer
 		/// </summary>
-		private int Length { get; set; }
+		private int length;
 
 		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
-		private int Position { get; set; }
+		private int position;
 
 		/// <summary>
 		/// Check the capacity
@@ -110,9 +109,9 @@ namespace Nino.Serialization
 		public void Write(byte[] data, int length)
 		{
 			CheckDispose();
-			buffer.CopyFrom(data, 0, Position, length);
-			Position += length;
-			Length += length;
+			buffer.CopyFrom(data, 0, position, length);
+			position += length;
+			this.length += length;
 		}
 
 		/// <summary>
@@ -161,8 +160,14 @@ namespace Nino.Serialization
 			//write directly
 			CheckDispose();
 			var b = BufferPool.RequestBuffer(len);
-			len = encoding.GetBytes(val, 0, val.Length, b, 0);
-			Write(b, len);
+			if (len == encoding.GetBytes(val, 0, val.Length, b, 0))
+			{
+				Write(b, len);
+			}
+			else
+			{
+				throw new InvalidDataException("invalid string to write, can not determine length");
+			}
 			BufferPool.ReturnBuffer(b);
 		}
 
@@ -208,9 +213,9 @@ namespace Nino.Serialization
 		public void Write(byte num)
 		{
 			CheckDispose();
-			buffer[Position] = num;
-			Position += 1;
-			Length += 1;
+			buffer[position] = num;
+			position += 1;
+			length += 1;
 		}
 
 		/// <summary>
@@ -221,9 +226,9 @@ namespace Nino.Serialization
 		public void Write(sbyte num)
 		{
 			CheckDispose();
-			buffer[Position] = (byte)num;
-			Position += 1;
-			Length += 1;
+			buffer[position] = (byte)num;
+			position += 1;
+			length += 1;
 		}
 
 		/// <summary>
@@ -243,12 +248,12 @@ namespace Nino.Serialization
 			// Position += SizeOfInt;
 			// Length += SizeOfInt;
 
-			buffer[Position++] = (byte)num;
-			buffer[Position++] = (byte)(num >> 8);
-			buffer[Position++] = (byte)(num >> 16);
-			buffer[Position++] = (byte)(num >> 24);
+			buffer[position++] = (byte)num;
+			buffer[position++] = (byte)(num >> 8);
+			buffer[position++] = (byte)(num >> 16);
+			buffer[position++] = (byte)(num >> 24);
 
-			Length += ConstMgr.SizeOfInt;
+			length += ConstMgr.SizeOfInt;
 		}
 
 		/// <summary>
@@ -268,12 +273,12 @@ namespace Nino.Serialization
 			// Position += SizeOfUInt;
 			// Length += SizeOfUInt;
 
-			buffer[Position++] = (byte)num;
-			buffer[Position++] = (byte)(num >> 8);
-			buffer[Position++] = (byte)(num >> 16);
-			buffer[Position++] = (byte)(num >> 24);
+			buffer[position++] = (byte)num;
+			buffer[position++] = (byte)(num >> 8);
+			buffer[position++] = (byte)(num >> 16);
+			buffer[position++] = (byte)(num >> 24);
 
-			Length += ConstMgr.SizeOfUInt;
+			length += ConstMgr.SizeOfUInt;
 		}
 
 		/// <summary>
@@ -293,10 +298,10 @@ namespace Nino.Serialization
 			// Position += SizeOfShort;
 			// Length += SizeOfShort;
 
-			buffer[Position++] = (byte)num;
-			buffer[Position++] = (byte)(num >> 8);
+			buffer[position++] = (byte)num;
+			buffer[position++] = (byte)(num >> 8);
 
-			Length += ConstMgr.SizeOfShort;
+			length += ConstMgr.SizeOfShort;
 		}
 
 		/// <summary>
@@ -316,10 +321,10 @@ namespace Nino.Serialization
 			// Position += SizeOfUShort;
 			// Length += SizeOfUShort;
 
-			buffer[Position++] = (byte)num;
-			buffer[Position++] = (byte)(num >> 8);
+			buffer[position++] = (byte)num;
+			buffer[position++] = (byte)(num >> 8);
 
-			Length += ConstMgr.SizeOfUShort;
+			length += ConstMgr.SizeOfUShort;
 		}
 
 		/// <summary>
@@ -339,16 +344,16 @@ namespace Nino.Serialization
 			// Position += SizeOfLong;
 			// Length += SizeOfLong;
 
-			buffer[Position++] = (byte)num;
-			buffer[Position++] = (byte)(num >> 8);
-			buffer[Position++] = (byte)(num >> 16);
-			buffer[Position++] = (byte)(num >> 24);
-			buffer[Position++] = (byte)(num >> 32);
-			buffer[Position++] = (byte)(num >> 40);
-			buffer[Position++] = (byte)(num >> 48);
-			buffer[Position++] = (byte)(num >> 56);
+			buffer[position++] = (byte)num;
+			buffer[position++] = (byte)(num >> 8);
+			buffer[position++] = (byte)(num >> 16);
+			buffer[position++] = (byte)(num >> 24);
+			buffer[position++] = (byte)(num >> 32);
+			buffer[position++] = (byte)(num >> 40);
+			buffer[position++] = (byte)(num >> 48);
+			buffer[position++] = (byte)(num >> 56);
 
-			Length += ConstMgr.SizeOfLong;
+			length += ConstMgr.SizeOfLong;
 		}
 
 		/// <summary>
@@ -368,16 +373,16 @@ namespace Nino.Serialization
 			// Position += SizeOfULong;
 			// Length += SizeOfULong;
 
-			buffer[Position++] = (byte)num;
-			buffer[Position++] = (byte)(num >> 8);
-			buffer[Position++] = (byte)(num >> 16);
-			buffer[Position++] = (byte)(num >> 24);
-			buffer[Position++] = (byte)(num >> 32);
-			buffer[Position++] = (byte)(num >> 40);
-			buffer[Position++] = (byte)(num >> 48);
-			buffer[Position++] = (byte)(num >> 56);
+			buffer[position++] = (byte)num;
+			buffer[position++] = (byte)(num >> 8);
+			buffer[position++] = (byte)(num >> 16);
+			buffer[position++] = (byte)(num >> 24);
+			buffer[position++] = (byte)(num >> 32);
+			buffer[position++] = (byte)(num >> 40);
+			buffer[position++] = (byte)(num >> 48);
+			buffer[position++] = (byte)(num >> 56);
 
-			Length += ConstMgr.SizeOfULong;
+			length += ConstMgr.SizeOfULong;
 		}
 
 		#endregion

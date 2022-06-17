@@ -8,7 +8,7 @@ namespace Nino.Shared.IO
         /// <summary>
         /// A shared buffer queue
         /// </summary>
-        private static volatile Stack<byte[]> _buffers = new Stack<byte[]>(3);
+        private static volatile UncheckedStack<byte[]> _buffers = new UncheckedStack<byte[]>(3);
 
         /// <summary>
         /// Request a buffer

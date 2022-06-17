@@ -49,7 +49,7 @@ namespace Nino.Shared.Util
 #if UNITY_2017_1_OR_NEWER
             Debug.Assert(cond);
 #else
-            Console.WriteLine(msg);
+            Console.WriteLine(cond);
 #endif
         }
 

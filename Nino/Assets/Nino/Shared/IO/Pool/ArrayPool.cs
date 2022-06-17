@@ -8,7 +8,7 @@ namespace Nino.Shared.IO
         /// <summary>
         /// Shared pool
         /// </summary>
-        private static volatile Dictionary<int, Stack<T[]>> _pool = new Dictionary<int, Stack<T[]>>(3);
+        private static volatile Dictionary<int, UncheckedStack<T[]>> _pool = new Dictionary<int, UncheckedStack<T[]>>(3);
 
         /// <summary>
         /// Check pool size
@@ -19,7 +19,7 @@ namespace Nino.Shared.IO
             if (!_pool.TryGetValue(size, out _))
             {
                 //new queue
-                _pool.Add(size, new Stack<T[]>());
+                _pool.Add(size, new UncheckedStack<T[]>());
             }
         }
         

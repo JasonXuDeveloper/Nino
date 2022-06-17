@@ -32,6 +32,11 @@ namespace Nino.Shared.IO
             origin = 0;
             length = data.Length;
         }
+        
+        public FlexibleReadStream()
+        {
+            
+        }
 
         public FlexibleReadStream(byte[] internalBuffer)
         {

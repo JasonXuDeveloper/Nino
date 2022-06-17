@@ -63,7 +63,9 @@ namespace Nino.Serialization
         /// </summary>
         /// <param name="type"></param>
         /// <param name="outputPath"></param>
+        // ReSharper disable CognitiveComplexity
         public static void GenerateSerializationCode(Type type, string outputPath = "Nino/Generated")
+            // ReSharper restore CognitiveComplexity
         {
             //nino class only
             if (!GetValidNinoClass(type)) return;
@@ -137,7 +139,8 @@ namespace Nino.Serialization
                 //enum
                 if (mt.IsEnum)
                 {
-                    sb.Append($"            writer.CompressAndWriteEnum(typeof({(Enum.GetUnderlyingType(mt).FullName)}), (ulong) this.{members[key].Name});\n");
+                    sb.Append(
+                        $"            writer.CompressAndWriteEnum(typeof({(Enum.GetUnderlyingType(mt).FullName)}), (ulong) this.{members[key].Name});\n");
                 }
                 //array/list
                 else if (mt.IsArray || (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
@@ -195,7 +198,8 @@ namespace Nino.Serialization
                 else if (!mt.IsPrimitive && mt != ConstMgr.BoolType && mt != ConstMgr.DecimalType &&
                          mt != ConstMgr.StringType)
                 {
-                    sb.Append($"            writer.WriteCommonVal(typeof({BeautifulLongTypeName(mt)}), this.{members[key].Name});\n");
+                    sb.Append(
+                        $"            writer.WriteCommonVal(typeof({BeautifulLongTypeName(mt)}), this.{members[key].Name});\n");
                 }
                 //not enum -> basic type
                 else
@@ -216,6 +220,7 @@ namespace Nino.Serialization
                     }
                 }
             }
+
             //remove comma at the end
             sb.Remove(sb.Length - 1, 1);
 
@@ -287,7 +292,11 @@ namespace Nino.Serialization
             //save
             File.WriteAllText(output, template);
 
+#if UNITY_2017_1_OR_NEWER
             Logger.D("Code Gen", $"saved {output}");
+#else
+            Logger.D("Code Gen", $"saved {output}, please move this file to your project");
+#endif
         }
 
         private static string BeautifulLongTypeName(this Type mt)
