@@ -217,42 +217,42 @@ namespace Nino.Test
         [ProtoMember(17)] [BsonElement] [Key(17)] [NinoMember(17)]
         public NotIncludeAllClass[] r = Array.Empty<NotIncludeAllClass>();
 
-        [ProtoMember(18)]
-        [BsonElement]
         [Key(18)]
         [NinoMember(18)]
 
 #if !IL2CPP
+        [ProtoMember(18)]
+        [BsonElement]
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfArrays)]
 #endif
         public Dictionary<string, NotIncludeAllClass> s = new Dictionary<string, NotIncludeAllClass>();
 
-        [ProtoMember(19)]
-        [BsonElement]
         [Key(19)]
         [NinoMember(19)]
 
 #if !IL2CPP
+        [ProtoMember(19)]
+        [BsonElement]
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfArrays)]
 #endif
         public Dictionary<NotIncludeAllClass, int> t = new Dictionary<NotIncludeAllClass, int>();
 
-        [ProtoMember(20)]
-        [BsonElement]
         [Key(20)]
         [NinoMember(20)]
 
 #if !IL2CPP
+        [ProtoMember(20)]
+        [BsonElement]
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfArrays)]
 #endif
         public Dictionary<string, int> u = new Dictionary<string, int>();
 
-        [ProtoMember(21)]
-        [BsonElement]
         [Key(21)]
         [NinoMember(21)]
 
 #if !IL2CPP
+        [ProtoMember(21)]
+        [BsonElement]
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfArrays)]
 #endif
         public Dictionary<NotIncludeAllClass, NotIncludeAllClass> v =
@@ -329,41 +329,41 @@ namespace Nino.Test
         [ProtoMember(17)] [BsonElement] [Key(17)] [NinoMember(17)]
         public NotIncludeAllClass[] r = Array.Empty<NotIncludeAllClass>();
 
-        [ProtoMember(18)]
-        [BsonElement]
         [Key(18)]
         [NinoMember(18)]
 #if !IL2CPP
+        [ProtoMember(18)]
+        [BsonElement]
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfArrays)]
 #endif
         public Dictionary<string, NotIncludeAllClass> s = new Dictionary<string, NotIncludeAllClass>();
 
-        [ProtoMember(19)]
-        [BsonElement]
         [Key(19)]
         [NinoMember(19)]
 
 #if !IL2CPP
+        [ProtoMember(19)]
+        [BsonElement]
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfArrays)]
 #endif
         public Dictionary<NotIncludeAllClass, int> t = new Dictionary<NotIncludeAllClass, int>();
 
-        [ProtoMember(20)]
-        [BsonElement]
         [Key(20)]
         [NinoMember(20)]
 
 #if !IL2CPP
+        [ProtoMember(20)]
+        [BsonElement]
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfArrays)]
 #endif
         public Dictionary<string, int> u = new Dictionary<string, int>();
 
-        [ProtoMember(21)]
-        [BsonElement]
         [Key(21)]
         [NinoMember(21)]
 
 #if !IL2CPP
+        [ProtoMember(21)]
+        [BsonElement]
         [BsonDictionaryOptions(DictionaryRepresentation.ArrayOfArrays)]
 #endif
         public Dictionary<NotIncludeAllClass, NotIncludeAllClass> v =

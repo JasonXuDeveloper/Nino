@@ -1,6 +1,6 @@
 namespace Nino.Shared.IO
 {
-    public static class ObjectPool<T> where T: new()
+    public static class ObjectPool<T> where T: class, new()
     {
         /// <summary>
         /// A shared buffer queue
@@ -25,6 +25,20 @@ namespace Nino.Shared.IO
             }
 
             return ret;
+        }
+        
+        /// <summary>
+        /// Preview the next object from stack, wont take
+        /// </summary>
+        /// <returns></returns>
+        public static T Peak()
+        {
+            if (_pool.Count > 0)
+            {
+                return _pool.Peek();
+            }
+
+            return null;
         }
 
         /// <summary>

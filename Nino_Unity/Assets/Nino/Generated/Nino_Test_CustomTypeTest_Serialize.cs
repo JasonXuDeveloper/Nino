@@ -17,7 +17,7 @@ namespace Nino.Test
                 writer.CompressAndWrite(this.dict2.Count);
                 foreach (var entry in this.dict2)
                 {
-                    writer.WriteCommonVal(typeof(System.String), entry.Key);
+                     writer.WriteCommonVal(typeof(System.String), entry.Key);
                      entry.Value.NinoWriteMembers(writer);
                 }
             }

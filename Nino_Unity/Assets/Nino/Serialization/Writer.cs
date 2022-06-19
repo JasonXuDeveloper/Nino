@@ -15,14 +15,14 @@ namespace Nino.Serialization
 	public class Writer : IDisposable
 	{
 		/// <summary>
+		/// block size when creating buffer
+		/// </summary>
+		private const int BufferBlockSize = 1024 * 2;
+		
+		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
 		private ExtensibleBuffer<byte> buffer;
-
-		/// <summary>
-		/// has been disposed or not
-		/// </summary>
-		private bool disposed;
 
 		/// <summary>
 		/// encoding for string
@@ -53,7 +53,7 @@ namespace Nino.Serialization
 		public void Dispose()
 		{
 			ObjectPool<ExtensibleBuffer<byte>>.Return(buffer);
-			disposed = true;
+			buffer = null;
 		}
 
 		/// <summary>
@@ -62,7 +62,15 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public Writer(Encoding encoding)
 		{
-			buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+			var peak = ObjectPool<ExtensibleBuffer<byte>>.Peak();
+			if (peak != null && peak.ExpandSize == BufferBlockSize)
+			{
+				buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+			}
+			else
+			{
+				buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
+			}
 			this.encoding = encoding;
 			length = 0;
 			position = 0;
@@ -77,18 +85,6 @@ namespace Nino.Serialization
 		/// Position of the current buffer
 		/// </summary>
 		private int position;
-
-		/// <summary>
-		/// Check the capacity
-		/// </summary>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void CheckDispose()
-		{
-			if (disposed)
-			{
-				throw new ObjectDisposedException("can not access a disposed writer");
-			}
-		}
 
 		/// <summary>
 		/// Write byte[]
@@ -108,7 +104,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte[] data, int len)
 		{
-			CheckDispose();
 			buffer.CopyFrom(data, 0, position, len);
 			position += len;
 			length += len;
@@ -164,7 +159,6 @@ namespace Nino.Serialization
 			}
 
 			//write directly
-			CheckDispose();
 			var b = BufferPool.RequestBuffer(len);
 			if (len == encoding.GetBytes(val, 0, val.Length, b, 0))
 			{
@@ -184,7 +178,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe void Write(decimal d)
 		{
-			CheckDispose();
 			var valueSpan = new ReadOnlySpan<byte>(&d, ConstMgr.SizeOfDecimal);
 			//16 bytes can consider write manually
 			buffer[position++] = valueSpan[0];
@@ -232,7 +225,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte num)
 		{
-			CheckDispose();
 			buffer[position] = num;
 			position += 1;
 			length += 1;
@@ -245,7 +237,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(sbyte num)
 		{
-			CheckDispose();
 			buffer[position] = (byte)num;
 			position += 1;
 			length += 1;
@@ -258,7 +249,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(int num)
 		{
-			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -283,7 +273,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(uint num)
 		{
-			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -308,7 +297,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(short num)
 		{
-			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -331,7 +319,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ushort num)
 		{
-			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -354,7 +341,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(long num)
 		{
-			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {
@@ -383,7 +369,6 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ulong num)
 		{
-			CheckDispose();
 
 			// fixed (byte* p = &buffer[Position])
 			// {

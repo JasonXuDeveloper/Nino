@@ -37,15 +37,25 @@ namespace Nino.Test.Editor.Serialization
             MessagePackSerializer.DefaultOptions = option;
             
             Logger.W("1/5");
+            BeginSample("Array len of 10");
             DoTest(10);
+            EndSample();
             Logger.W("2/5");
+            BeginSample("Array len of 100");
             DoTest(100);
+            EndSample();
             Logger.W("3/5");
+            BeginSample("Array len of 1000");
             DoTest(1000);
+            EndSample();
             Logger.W("4/5");
+            BeginSample("Array len of 10000");
             DoTest(10000);
+            EndSample();
             Logger.W("5/5");
+            BeginSample("Array len of 100000");
             DoTest(100000);
+            EndSample();
         }
 
         private static void BeginSample(string name)

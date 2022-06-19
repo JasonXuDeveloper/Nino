@@ -45,6 +45,12 @@ namespace Nino.Serialization
         /// <returns></returns>
         private static bool GetValidNinoClass(Type type)
         {
+            //nested
+            if (type.IsNested)
+            {
+                Logger.E("Code Gen",$"Can not generate code for type: {type} due to it is a nested class");
+                return false;
+            }
             //find NinoSerializeAttribute
             NinoSerializeAttribute[] ns =
                 (NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
@@ -194,11 +200,11 @@ namespace Nino.Serialization
                         //write key
                         sb.Append(isKeyNino
                             ? "                     entry.Key.NinoWriteMembers(writer);\n"
-                            : $"                    writer.WriteCommonVal(typeof({BeautifulLongTypeName(keyType)}), entry.Key);\n");
+                            : $"                     writer.WriteCommonVal(typeof({BeautifulLongTypeName(keyType)}), entry.Key);\n");
                         //write value
                         sb.Append(isValNino
                             ? "                     entry.Value.NinoWriteMembers(writer);\n"
-                            : $"                    writer.WriteCommonVal(typeof({BeautifulLongTypeName(valueType)}), entry.Value);\n");
+                            : $"                     writer.WriteCommonVal(typeof({BeautifulLongTypeName(valueType)}), entry.Value);\n");
                         sb.Append("                }\n");
                         sb.Append("            }\n");
                         //if null then write 0 len

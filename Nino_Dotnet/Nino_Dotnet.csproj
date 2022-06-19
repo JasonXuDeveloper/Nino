@@ -285,6 +285,9 @@
     <Compile Include="..\Nino_Unity\Assets\Nino\Serialization\Attributes\NinoMemberAttribute.cs">
       <Link>Serialization\Attributes\NinoMemberAttribute.cs</Link>
     </Compile>
+    <Compile Include="..\Nino_Unity\Assets\Nino\Shared\Util\PowOf2.cs">
+      <Link>Shared\PowOf2.cs</Link>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="OdinSerializer">

@@ -70,11 +70,12 @@ public partial class NotIncludeAllClass
 
 
 
-## 注意事项
+## 限制
 
-**非Unity平台**，需要自行解决该模块对C++ 库，"MonoPosixHelper"的依赖，以确保能```[DllImport("MonoPosixHelper", CallingConvention = CallingConvention.Cdecl)]```能正常工作
+- 不支持给Nested类型生成代码
+- 不支持在继承的情况下，序列化父类的可序列化成员
 
-Unity平台可以忽略，该问题在Unity下，无论是Mono还是IL2CPP下都不存在
+
 
 
 

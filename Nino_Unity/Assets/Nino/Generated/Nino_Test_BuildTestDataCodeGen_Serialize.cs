@@ -51,7 +51,7 @@ namespace Nino.Test
                 writer.CompressAndWrite(this.s.Count);
                 foreach (var entry in this.s)
                 {
-                    writer.WriteCommonVal(typeof(System.String), entry.Key);
+                     writer.WriteCommonVal(typeof(System.String), entry.Key);
                      entry.Value.NinoWriteMembers(writer);
                 }
             }
@@ -65,7 +65,7 @@ namespace Nino.Test
                 foreach (var entry in this.t)
                 {
                      entry.Key.NinoWriteMembers(writer);
-                    writer.WriteCommonVal(typeof(System.Int32), entry.Value);
+                     writer.WriteCommonVal(typeof(System.Int32), entry.Value);
                 }
             }
             else
