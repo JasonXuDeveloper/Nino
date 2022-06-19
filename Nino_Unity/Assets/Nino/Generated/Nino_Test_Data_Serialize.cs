@@ -17,17 +17,18 @@ namespace Nino.Test
             writer.Write(this.name);
         }
 
-        public void NinoSetMembers(object[] data)
+        public Data NinoReadMembers(Nino.Serialization.Reader reader)
         {
-            this.x = System.Convert.ToInt32(data[0]);
-            this.y = (System.Int16)data[1];
-            this.z = System.Convert.ToInt64(data[2]);
-            this.f = (System.Single)data[3];
-            this.d = (System.Decimal)data[4];
-            this.db = (System.Double)data[5];
-            this.bo = (System.Boolean)data[6];
-            this.en = (Nino.Test.TestEnum)data[7];
-            this.name = (System.String)data[8];
+            this.x = (System.Int32)reader.DecompressAndReadNumber();
+            this.y = reader.ReadInt16();
+            this.z = (System.Int64)reader.DecompressAndReadNumber();
+            this.f = reader.ReadSingle();
+            this.d = reader.ReadDecimal();
+            this.db = reader.ReadDouble();
+            this.bo = reader.ReadBool();
+            this.en = (Nino.Test.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
+            this.name = reader.ReadString();
+            return this;
         }
         #endregion
     }

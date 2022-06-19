@@ -562,7 +562,9 @@ namespace Nino.Serialization
 			if (type.IsEnum)
 			{
 				//try compress and write
+				// ReSharper disable PossibleInvalidCastException
 				CompressAndWriteEnum(type, val);
+				// ReSharper restore PossibleInvalidCastException
 				return;
 			}
 

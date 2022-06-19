@@ -48,9 +48,10 @@ namespace Nino.Serialization
             //nested
             if (type.IsNested)
             {
-                Logger.E("Code Gen",$"Can not generate code for type: {type} due to it is a nested class");
+                Logger.E("Code Gen", $"Can not generate code for type: {type} due to it is a nested class");
                 return false;
             }
+
             //find NinoSerializeAttribute
             NinoSerializeAttribute[] ns =
                 (NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
@@ -89,7 +90,7 @@ namespace Nino.Serialization
 {members}
         }
 
-        public void NinoSetMembers(object[] data)
+        public {type} NinoReadMembers(Nino.Serialization.Reader reader)
         {
 {fields}
         }
@@ -159,7 +160,8 @@ namespace Nino.Serialization
                         sb.Append($"            if(this.{members[key].Name} != null)\n");
                         sb.Append("            {\n");
                         //write len
-                        sb.Append($"                writer.CompressAndWrite(this.{members[key].Name}.{(mt.IsArray ? "Length" : "Count")});\n");
+                        sb.Append(
+                            $"                writer.CompressAndWrite(this.{members[key].Name}.{(mt.IsArray ? "Length" : "Count")});\n");
                         //write item
                         sb.Append($"                foreach (var entry in this.{members[key].Name})\n");
                         sb.Append("                {\n");
@@ -262,32 +264,164 @@ namespace Nino.Serialization
             foreach (var key in keys)
             {
                 var mt = members[key] is FieldInfo fi ? fi.FieldType : ((PropertyInfo)members[key]).PropertyType;
-                //int, long, uint, ulong需要考虑压缩
-                if (mt == ConstMgr.IntType)
+                //enum
+                if (mt.IsEnum)
                 {
-                    sb.Append($"            this.{members[key].Name} = System.Convert.ToInt32(data[{index}]);\n");
+                    var t = BeautifulLongTypeName(Enum.GetUnderlyingType(mt));
+                    sb.Append(
+                        $"            this.{members[key].Name} = ({BeautifulLongTypeName(mt)})reader.DecompressAndReadEnum(typeof({t}));\n");
                 }
-                else if (mt == ConstMgr.UIntType)
+                //array/list
+                else if (mt.IsArray || (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
                 {
-                    sb.Append($"            this.{members[key].Name} = System.Convert.ToUInt32(data[{index}]);\n");
+                    Type elemType = mt.IsGenericType ? mt.GenericTypeArguments[0] : mt.GetElementType();
+                    
+                    //if nino serialize class => loop call method
+                    if (GetValidNinoClass(elemType))
+                    {
+                        //create field
+                        sb.Append(
+                            $"            this.{members[key].Name} = new {(mt.IsArray ? BeautifulLongTypeName(elemType) : BeautifulLongTypeName(mt))}{(mt.IsArray ? "[reader.ReadLength()]" : "(reader.ReadLength())")};\n");
+                        //write items
+                        sb.Append($"            for(int i = 0, cnt = this.{members[key].Name}.{(mt.IsArray ? "Length" : "Capacity")}; i < cnt; i++)\n");
+                        sb.Append("            {\n");
+                        if (mt.IsArray)
+                        {
+                            sb.Append(
+                                $"                this.{members[key].Name}[i] = (new {BeautifulLongTypeName(elemType)}()).NinoReadMembers(reader);\n");
+                        }
+                        else
+                        {
+                            sb.Append(
+                                $"                this.{members[key].Name}.Add((new {BeautifulLongTypeName(elemType)}()).NinoReadMembers(reader));\n");
+                        }
+                        sb.Append("            }\n");
+                    }
+                    else
+                    {
+                        sb.Append(
+                            $"            this.{members[key].Name} = ({BeautifulLongTypeName(mt)})reader.Read{(mt.IsArray ? "Array" : "List")}(typeof({BeautifulLongTypeName(mt)}));\n");
+                    }
                 }
-                else if (mt == ConstMgr.LongType)
+                //dict
+                else if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                 {
-                    sb.Append($"            this.{members[key].Name} = System.Convert.ToInt64(data[{index}]);\n");
+                    var args = mt.GetGenericArguments();
+                    Type keyType = args[0];
+                    Type valueType = args[1];
+                    //if nino serialize class => loop call method
+                    var isKeyNino = GetValidNinoClass(keyType);
+                    var isValNino = GetValidNinoClass(valueType);
+                    if (isKeyNino || isValNino)
+                    {
+                        //create field
+                        sb.Append($"            this.{members[key].Name} = new {BeautifulLongTypeName(mt)}();\n");
+                        //write items
+                        sb.Append("            for(int i = 0, cnt = reader.ReadLength(); i < cnt; i++)\n");
+                        sb.Append("            {\n");
+                        
+                        //read key
+                        switch (Type.GetTypeCode(keyType))
+                        {
+                            case TypeCode.Int32:
+                            case TypeCode.UInt32:
+                            case TypeCode.Int64:
+                            case TypeCode.UInt64:
+                                //compress
+                                sb.Append( $"                this.{members[key].Name}[({BeautifulLongTypeName(keyType)})reader.DecompressAndReadNumber()] = ");
+                                break;
+                            default:
+                                sb.Append(isKeyNino
+                                    ? $"                this.{members[key].Name}[(new {BeautifulLongTypeName(keyType)}()).NinoReadMembers(reader)] = "
+                                    : $"                this.{members[key].Name}[({BeautifulLongTypeName(keyType)})reader.ReadCommonVal(typeof({BeautifulLongTypeName(keyType)}))] = ");
+                                break;
+                        }
+                        //read value
+                        switch (Type.GetTypeCode(valueType))
+                        {
+                            case TypeCode.Int32:
+                            case TypeCode.UInt32:
+                            case TypeCode.Int64:
+                            case TypeCode.UInt64:
+                                //compress
+                                sb.Append( $"({BeautifulLongTypeName(valueType)})reader.DecompressAndReadNumber();\n");
+                                break;
+                            default:
+                                sb.Append(isValNino
+                                    ? $"(new {BeautifulLongTypeName(valueType)}()).NinoReadMembers(reader);\n"
+                                    : $"({BeautifulLongTypeName(valueType)})reader.ReadCommonVal(typeof({BeautifulLongTypeName(valueType)}));\n");
+                                break;
+                        }
+                        sb.Append("            }\n");
+                    }
+                    else
+                    {
+                        sb.Append(
+                            $"            this.{members[key].Name} = ({BeautifulLongTypeName(mt)})reader.ReadDictionary(typeof({BeautifulLongTypeName(mt)}));\n");
+                    }
                 }
-                else if (mt == ConstMgr.ULongType)
-                {
-                    sb.Append($"            this.{members[key].Name} = System.Convert.ToUInt64(data[{index}]);\n");
-                }
-                else
+                //not basic type
+                else if (!mt.IsPrimitive && mt != ConstMgr.BoolType && mt != ConstMgr.DecimalType &&
+                         mt != ConstMgr.StringType)
                 {
                     sb.Append(
-                        $"            this.{members[key].Name} = ({BeautifulLongTypeName(mt)})data[{index}];\n");
+                        $"            this.{members[key].Name} = ({BeautifulLongTypeName(mt)})reader.ReadCommonVal(typeof({BeautifulLongTypeName(mt)}));\n");
+                }
+                //not enum -> basic type
+                else
+                {
+                    switch (Type.GetTypeCode(mt))
+                    {
+                        case TypeCode.Int32:
+                        case TypeCode.UInt32:
+                        case TypeCode.Int64:
+                        case TypeCode.UInt64:
+                            //decompress
+                            sb.Append(
+                                $"            this.{members[key].Name} = ({BeautifulLongTypeName(mt)})reader.DecompressAndReadNumber();\n");
+                            break;
+                        case TypeCode.Byte:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadByte();\n");
+                            break;
+                        case TypeCode.SByte:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadSByte();\n");
+                            break;
+                        case TypeCode.Int16:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadInt16();\n");
+                            break;
+                        case TypeCode.UInt16:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadUInt16();\n");
+                            break;
+                        case TypeCode.String:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadString();\n");
+                            break;
+                        case TypeCode.Boolean:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadBool();\n");
+                            break;
+                        case TypeCode.Double:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadDouble();\n");
+                            break;
+                        case TypeCode.Single:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadSingle();\n");
+                            break;
+                        case TypeCode.Decimal:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadDecimal();\n");
+                            break;
+                        case TypeCode.Char:
+                            sb.Append($"            this.{members[key].Name} = reader.ReadChar();\n");
+                            break;
+                        default:
+                            //write
+                            sb.Append(
+                                $"            this.{members[key].Name} = ({BeautifulLongTypeName(mt)})reader.ReadCommonVal(typeof({BeautifulLongTypeName(mt)}));\n");
+                            break;
+                    }
                 }
 
                 index++;
             }
 
+            sb.Append("            return this;\n");
             //remove comma at the end
             sb.Remove(sb.Length - 1, 1);
 

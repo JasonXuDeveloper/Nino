@@ -22,11 +22,16 @@ namespace Nino.Test
             writer.Write(this.vs);
         }
 
-        public void NinoSetMembers(object[] data)
+        public NestedData2 NinoReadMembers(Nino.Serialization.Reader reader)
         {
-            this.name = (System.String)data[0];
-            this.ps = (Nino.Test.Data[])data[1];
-            this.vs = (System.Collections.Generic.List<System.Int32>)data[2];
+            this.name = reader.ReadString();
+            this.ps = new Nino.Test.Data[reader.ReadLength()];
+            for(int i = 0, cnt = this.ps.Length; i < cnt; i++)
+            {
+                this.ps[i] = (new Nino.Test.Data()).NinoReadMembers(reader);
+            }
+            this.vs = (System.Collections.Generic.List<System.Int32>)reader.ReadList(typeof(System.Collections.Generic.List<System.Int32>));
+            return this;
         }
         #endregion
     }

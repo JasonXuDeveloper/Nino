@@ -10,6 +10,7 @@ using MessagePack.Resolvers;
 using System.Collections.Generic;
 using MongoDB.Bson.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using Logger = Nino.Shared.Util.Logger;
 
 namespace Nino.Test
 {
@@ -220,6 +221,7 @@ namespace Nino.Test
                 catch (Exception ex)
                 {
                     ninoResultText.text = ex.ToString();
+                    Logger.D(ex);
                 }
             });
             pbNetBtn.onClick.AddListener(() =>
@@ -283,13 +285,14 @@ namespace Nino.Test
                         var m2 = sw.ElapsedTicks;
                         pbNetResultText.text =
                             $"Serialized BuildTestDataNoCodeGen as {pbNetBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
-                            $"Serialized BuildTestDataCodeGen as {pbNetBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", pbNetBuffer)}";
+                            $"Serialized BuildTestDataCodeGen as {pbNetBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", pbNetBuffer.Take(300))}";
                         pbNetBtn.GetComponentInChildren<Text>().text = "PbNetDeserialize";
                     }
                 }
                 catch(Exception ex)
                 {
                     pbNetResultText.text = ex.ToString();
+                    Logger.D(ex);
                 }
             });
             binaryFormatterBtn.onClick.AddListener(() =>
@@ -364,6 +367,7 @@ namespace Nino.Test
                 catch (Exception ex)
                 {
                     binaryFormatterResultText.text = ex.ToString();
+                    Logger.D(ex);
                 }
             });
             bsonBtn.onClick.AddListener(() =>
@@ -445,6 +449,7 @@ namespace Nino.Test
                 catch(Exception ex)
                 {
                     bsonResultText.text = ex.ToString();
+                    Logger.D(ex);
                 }
             });
             msgPackBtn.onClick.AddListener(() =>
@@ -500,6 +505,7 @@ namespace Nino.Test
                 catch (Exception ex)
                 {
                     msgPackResultText.text = ex.ToString();
+                    Logger.D(ex);
                 }
             });
         }

@@ -4,7 +4,7 @@
 
 *第一次序列化的时候，Nino会对类型进行缓存，达到预热效果，使得同一类型的第二次开始的序列化速度大幅度提升，其他库亦是如此*
 
-> Nino 反序列化还未优化，预计优化后Nino Reflection 反序列化性能提高20%，Nino Code Gen 反序列化性能提高50%
+> Nino 反序列化还在优化中，反序列化性能的对比图还没更新，目前Nino Reflection反序列化比Protobuf快10%，Nino Code Gen反序列化比MsgPack快60%
 
 ## Unity平台性能测试
 
@@ -14,9 +14,11 @@
 
 序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection基本与Protobuf-net一致，其他库不尽人意
 
-反序列化速度方面，MsgPack最快，Nino Code Gen略慢于MsgPack（还未优化Nino Code Gen反序列化），Nino Reflection基本与Protobuf-net一致，略微逊色于MongoDB.Bson，BinaryFormatter最糟糕
+反序列化速度方面，Nino Code Gen最快，MsgPack比Nino慢60%，Nino Reflection略跨于Protobuf-net一致，略微逊色于MongoDB.Bson，BinaryFormatter最糟糕
 
-GC方面，Nino碾压全部其他库，第一次序列化数据时产生的GC是其他序列化库的几分之一，甚至几十分之一！第二次开始序列化的时候会复用对象池内的数据，使得产生的GC仅仅只是其他序列化库的几百甚至几千分之一！
+GC方面，Nino Code Gen和MsgPack碾压全部其他库，一览众山小，第一次序列化数据时产生的GC是其他序列化库的几分之一，甚至几十分之一！第二次开始序列化的时候会复用对象池内的数据，使得产生的GC仅仅只是其他序列化库的几百甚至几千分之一！
+
+> Nino Code Gen和MsgPack的GC基本只有写入二进制数据是创建的二进制Buffer所造成的GC，无任何额外GC
 
 ### 易用性
 
@@ -28,11 +30,11 @@ Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典会无法使用，因�
 
 ### 备注
 
-- 测试的时候[MsgPack生成过代码](/Nino/Assets/Nino/Test/MessagePackGenerated.cs)，所以不要说Nino生成代码后和其他库对比不公平
+- 测试的时候[MsgPack有生成代码](/Nino/Assets/Nino/Test/MessagePackGenerated.cs)，所以不要说Nino生成代码后和其他库对比不公平
 - 这里测试用的是MsgPack LZ4压缩，如果不开压缩的话，MsgPack的速度会快10%，但是体积则会变大很多（大概是Protobuf-net的体积的60%，即Nino的数倍）
 - MsgPack之所以比较快是因为它用到了Emit以及生成了动态类型进行序列化（高效且低GC），但是在IL2CPP平台下，会遇到限制，所以上面才会提到MsgPack在IL2CPP平台使用起来很繁琐，Nino Code Gen这边是静态生成进行序列化（高效且低GC），即便不生成代码也不影响IL2CPP下使用，并且Nino生成的代码可以搭配ILRuntime或Huatuo技术实时热更
 - Odin序列化也会针对编辑器/PC Mono平台使用Emit优化性能，以及动态生成序列化方法，在IL2CPP下有和MsgPack一样的限制，故而这里就不做与Odin序列化的性能对比了
-  - Odin序列化的性能，比Protobuf-net略快（测试结果出自Odin序列化官方），故而该库性能比MsgPack慢，在使用了Emit以及动态代码的情况下，略慢于Nino，在其他情况下，比Nino慢不少比Protobuf-net快
+  - Odin序列化的性能，比Protobuf-net略快（测试结果出自Odin序列化官方），故而该库性能比MsgPack慢，故而不如Nino性能好
   - Odin序列化的体积，与Protobuf-net相差无几，比Nino大三倍
 
 ### 为什么Nino又小又快、还能易用且低GC

@@ -12,12 +12,13 @@ namespace Nino.Test
             writer.Write(this.d);
         }
 
-        public void NinoSetMembers(object[] data)
+        public NotIncludeAllClass NinoReadMembers(Nino.Serialization.Reader reader)
         {
-            this.a = System.Convert.ToInt32(data[0]);
-            this.b = System.Convert.ToInt64(data[1]);
-            this.c = (System.Single)data[2];
-            this.d = (System.Double)data[3];
+            this.a = (System.Int32)reader.DecompressAndReadNumber();
+            this.b = (System.Int64)reader.DecompressAndReadNumber();
+            this.c = reader.ReadSingle();
+            this.d = reader.ReadDouble();
+            return this;
         }
         #endregion
     }

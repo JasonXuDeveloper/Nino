@@ -21,10 +21,15 @@ namespace Nino.Test
             }
         }
 
-        public void NinoSetMembers(object[] data)
+        public NestedData NinoReadMembers(Nino.Serialization.Reader reader)
         {
-            this.name = (System.String)data[0];
-            this.ps = (Nino.Test.Data[])data[1];
+            this.name = reader.ReadString();
+            this.ps = new Nino.Test.Data[reader.ReadLength()];
+            for(int i = 0, cnt = this.ps.Length; i < cnt; i++)
+            {
+                this.ps[i] = (new Nino.Test.Data()).NinoReadMembers(reader);
+            }
+            return this;
         }
         #endregion
     }

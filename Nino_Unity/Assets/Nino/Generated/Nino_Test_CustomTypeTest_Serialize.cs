@@ -27,15 +27,20 @@ namespace Nino.Test
             }
         }
 
-        public void NinoSetMembers(object[] data)
+        public CustomTypeTest NinoReadMembers(Nino.Serialization.Reader reader)
         {
-            this.v3 = (UnityEngine.Vector3)data[0];
-            this.dt = (System.DateTime)data[1];
-            this.ni = (System.Nullable<System.Int32>)data[2];
-            this.qs = (System.Collections.Generic.List<UnityEngine.Quaternion>)data[3];
-            this.m = (UnityEngine.Matrix4x4)data[4];
-            this.dict = (System.Collections.Generic.Dictionary<System.String,System.Int32>)data[5];
-            this.dict2 = (System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>)data[6];
+            this.v3 = (UnityEngine.Vector3)reader.ReadCommonVal(typeof(UnityEngine.Vector3));
+            this.dt = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+            this.ni = (System.Nullable<System.Int32>)reader.ReadCommonVal(typeof(System.Nullable<System.Int32>));
+            this.qs = (System.Collections.Generic.List<UnityEngine.Quaternion>)reader.ReadList(typeof(System.Collections.Generic.List<UnityEngine.Quaternion>));
+            this.m = (UnityEngine.Matrix4x4)reader.ReadCommonVal(typeof(UnityEngine.Matrix4x4));
+            this.dict = (System.Collections.Generic.Dictionary<System.String,System.Int32>)reader.ReadDictionary(typeof(System.Collections.Generic.Dictionary<System.String,System.Int32>));
+            this.dict2 = new System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>();
+            for(int i = 0, cnt = reader.ReadLength(); i < cnt; i++)
+            {
+                this.dict2[(System.String)reader.ReadCommonVal(typeof(System.String))] = (new Nino.Test.Data()).NinoReadMembers(reader);
+            }
+            return this;
         }
         #endregion
     }
