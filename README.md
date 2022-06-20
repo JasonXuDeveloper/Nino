@@ -12,11 +12,9 @@ Useful Unity Modules | 实用的Unity模块
     - 二进制流对象池
     - 高性能数据压缩流
     - 可动态修改Buffer的只读流
-    - 高性能数组写入（.net core 6.0的ArrayBufferWriter）
-    - 高性能动态扩容Buffer（易用、低GC、高效，完胜Resize）
+    - 高性能动态扩容Buffer（易用、高效，低GC）
   - Mgr
     - 压缩解压助手
-    - 常量定义助手
   
 - 序列化模块，[使用教程](Docs/Serialization.md)
 
