@@ -8,8 +8,8 @@ namespace Nino.Shared.IO
     /// <typeparam name="T"></typeparam>
     public sealed class ExtensibleBuffer<T> where T : unmanaged
     {
-        internal const int DefaultBufferSize = 128;
-        internal const int DefaultBufferCount = 10;
+        private const int DefaultBufferSize = 128;
+        private const int DefaultBufferCount = 10;
         internal readonly UncheckedList<T[]> Data;
         
         /// <summary>

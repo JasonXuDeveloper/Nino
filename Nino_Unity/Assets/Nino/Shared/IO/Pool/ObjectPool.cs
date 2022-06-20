@@ -1,30 +1,44 @@
 namespace Nino.Shared.IO
 {
+    /// <summary>
+    /// Thread safe object pool
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public static class ObjectPool<T> where T: class, new()
     {
         /// <summary>
         /// A shared buffer queue
         /// </summary>
-        private static volatile UncheckedStack<T> _pool = new UncheckedStack<T>(3);
+        private static readonly UncheckedStack<T> Pool = new UncheckedStack<T>(3);
 
+        /// <summary>
+        /// lock obj
+        /// </summary>
+        // ReSharper disable StaticMemberInGenericType
+        private static readonly object Lock = new object();
+        // ReSharper restore StaticMemberInGenericType
+        
         /// <summary>
         /// Request an obj
         /// </summary>
         /// <returns></returns>
         public static T Request()
         {
-            T ret;
-            if (_pool.Count > 0)
+            lock (Lock)
             {
-                ret = _pool.Pop();
+                T ret;
+                if (Pool.Count > 0)
+                {
+                    ret = Pool.Pop();
+                    return ret;
+                }
+                else
+                {
+                    ret = new T();
+                }
+
                 return ret;
             }
-            else
-            {
-                ret = new T();
-            }
-
-            return ret;
         }
         
         /// <summary>
@@ -33,12 +47,15 @@ namespace Nino.Shared.IO
         /// <returns></returns>
         public static T Peak()
         {
-            if (_pool.Count > 0)
+            lock (Lock)
             {
-                return _pool.Peek();
-            }
+                if (Pool.Count > 0)
+                {
+                    return Pool.Peek();
+                }
 
-            return null;
+                return null;
+            }
         }
 
         /// <summary>
@@ -47,7 +64,10 @@ namespace Nino.Shared.IO
         /// <param name="obj"></param>
         public static void Return(T obj)
         {
-            _pool.Push(obj);
+            lock (Lock)
+            {
+                Pool.Push(obj);
+            }
         }
     }
 }

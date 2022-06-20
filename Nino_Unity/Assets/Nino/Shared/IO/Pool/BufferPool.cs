@@ -2,12 +2,20 @@ using System;
 
 namespace Nino.Shared.IO
 {
+    /// <summary>
+    /// Thread safe byte array (buffer) pool
+    /// </summary>
     public static class BufferPool
     {
         /// <summary>
         /// A shared buffer queue
         /// </summary>
-        private static volatile UncheckedStack<byte[]> _buffers = new UncheckedStack<byte[]>(3);
+        private static readonly UncheckedStack<byte[]> Buffers = new UncheckedStack<byte[]>(3);
+
+        /// <summary>
+        /// lock obj
+        /// </summary>
+        private static readonly object Lock = new object();
 
         /// <summary>
         /// Request a buffer
@@ -16,23 +24,26 @@ namespace Nino.Shared.IO
         /// <returns></returns>
         public static byte[] RequestBuffer(int size = 0)
         {
-            byte[] ret;
-            if (_buffers.Count > 0)
+            lock (Lock)
             {
-                ret = _buffers.Pop();
-                if (ret.Length < size)
+                byte[] ret;
+                if (Buffers.Count > 0)
                 {
-                    byte[] buffer = new byte[size];
-                    ReturnBuffer(ret);
-                    return buffer;
+                    ret = Buffers.Pop();
+                    if (ret.Length < size)
+                    {
+                        byte[] buffer = new byte[size];
+                        ReturnBuffer(ret);
+                        return buffer;
+                    }
                 }
-            }
-            else
-            {
-                ret = new byte[size];
-            }
+                else
+                {
+                    ret = new byte[size];
+                }
 
-            return ret;
+                return ret;
+            }
         }
 
         /// <summary>
@@ -41,8 +52,11 @@ namespace Nino.Shared.IO
         /// <returns></returns>
         public static int PreviewNextCacheBufferLength()
         {
-            if (_buffers.Count == 0) return 0;
-            return _buffers.Peek().Length;
+            lock (Lock)
+            {
+                if (Buffers.Count == 0) return 0;
+                return Buffers.Peek().Length;
+            }
         }
         
         /// <summary>
@@ -76,7 +90,10 @@ namespace Nino.Shared.IO
         /// <param name="buffer"></param>
         public static void ReturnBuffer(byte[] buffer)
         {
-            _buffers.Push(buffer);
+            lock (Lock)
+            {
+                Buffers.Push(buffer);
+            }
         }
     }
 }

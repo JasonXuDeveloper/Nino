@@ -8,8 +8,26 @@ namespace Nino.Shared.Mgr
 {
     public static class CompressMgr
     {
-        private static volatile UncheckedStack<DeflateStream> _compressStreams = new UncheckedStack<DeflateStream>();
-        private static volatile UncheckedStack<DeflateStream> _decompressStreams = new UncheckedStack<DeflateStream>();
+        /// <summary>
+        /// compress stream pool (deflateStream + memoryStream)
+        /// </summary>
+        private static readonly UncheckedStack<DeflateStream> CompressStreams = new UncheckedStack<DeflateStream>();
+        
+        /// <summary>
+        /// decompress stream pool (deflateStream + flexibleReadStream)
+        /// </summary>
+        private static readonly UncheckedStack<DeflateStream> DecompressStreams = new UncheckedStack<DeflateStream>();
+        
+        /// <summary>
+        /// lock compressed streams
+        /// </summary>
+        private static readonly object CompressedLock = new object();
+        
+
+        /// <summary>
+        /// lock decompressed streams
+        /// </summary>
+        private static readonly object DecompressedLock = new object();
 
         /// <summary>
         /// Compress the given bytes
@@ -61,10 +79,13 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         private static byte[] GetCompressBytes(DeflateStream zipStream, MemoryStream compressedStream)
         {
-            zipStream.Finish();
-            //push
-            _compressStreams.Push(zipStream);
-            return compressedStream.ToArray();
+            lock (CompressedLock)
+            {
+                zipStream.Finish();
+                //push
+                CompressStreams.Push(zipStream);
+                return compressedStream.ToArray();
+            }
         }
 
         /// <summary>
@@ -74,18 +95,21 @@ namespace Nino.Shared.Mgr
         /// <param name="compressedStream"></param>
         private static void GetCompressInformation(out DeflateStream zipStream, out MemoryStream compressedStream)
         {
-            //try get stream
-            if (_compressStreams.Count > 0)
+            lock (CompressedLock)
             {
-                zipStream = _compressStreams.Pop();
-                zipStream.Reset();
-                compressedStream = (MemoryStream)zipStream.BaseStream;
-            }
-            else
-            {
-                //create
-                compressedStream = new MemoryStream();
-                zipStream = new DeflateStream(compressedStream, CompressionMode.Compress, true);
+                //try get stream
+                if (CompressStreams.Count > 0)
+                {
+                    zipStream = CompressStreams.Pop();
+                    zipStream.Reset();
+                    compressedStream = (MemoryStream)zipStream.BaseStream;
+                }
+                else
+                {
+                    //create
+                    compressedStream = new MemoryStream();
+                    zipStream = new DeflateStream(compressedStream, CompressionMode.Compress, true);
+                }
             }
         }
 
@@ -104,27 +128,14 @@ namespace Nino.Shared.Mgr
             outputLength = dt.Length;
             return buffer;
 #endif
-            DeflateStream zipStream;
-            FlexibleReadStream dataStream;
-            //try get stream
-            if (_decompressStreams.Count > 0)
+            lock (DecompressedLock)
             {
-                zipStream = _decompressStreams.Pop();
-                zipStream.Reset();
-                dataStream = (FlexibleReadStream)zipStream.BaseStream;
-                dataStream.ChangeBuffer(data);
+                GetDecompressInformation(out var zipStream, ref data);
+                var ret = zipStream.GetDecompressedBytes(out outputLength);
+                //push
+                DecompressStreams.Push(zipStream);
+                return ret;
             }
-            else
-            {
-                //create
-                dataStream = new FlexibleReadStream(data);
-                zipStream = new DeflateStream(dataStream, CompressionMode.Decompress, true);
-            }
-
-            var ret = zipStream.GetDecompressedBytes(out outputLength);
-            //push
-            _decompressStreams.Push(zipStream);
-            return ret;
         }
 
         /// <summary>
@@ -137,27 +148,41 @@ namespace Nino.Shared.Mgr
 #if !UNITY_2017_1_OR_NEWER
             return DecompressOnNative(data);
 #endif
-            DeflateStream zipStream;
-            FlexibleReadStream dataStream;
-            //try get stream
-            if (_decompressStreams.Count > 0)
+            lock (DecompressedLock)
             {
-                zipStream = _decompressStreams.Pop();
-                zipStream.Reset();
-                dataStream = (FlexibleReadStream)zipStream.BaseStream;
-                dataStream.ChangeBuffer(data);
+                GetDecompressInformation(out var zipStream, ref data);
+                var ret = zipStream.GetDecompressedBytes(out var len);
+                //push
+                DecompressStreams.Push(zipStream);
+                return ret.ToArray(0,len);
             }
-            else
-            {
-                //create
-                dataStream = new FlexibleReadStream(data);
-                zipStream = new DeflateStream(dataStream, CompressionMode.Decompress, true);
-            }
+        }
 
-            var ret = zipStream.GetDecompressedBytes(out var len);
-            //push
-            _decompressStreams.Push(zipStream);
-            return ret.ToArray(0,len);
+
+        /// <summary>
+        /// Get relevant data
+        /// </summary>
+        /// <param name="zipStream"></param>
+        /// <param name="data"></param>
+        private static void GetDecompressInformation(out DeflateStream zipStream, ref byte[] data)
+        {
+            lock (DecompressedLock)
+            {
+                //try get stream
+                if (DecompressStreams.Count > 0)
+                {
+                    zipStream = DecompressStreams.Pop();
+                    zipStream.Reset();
+                    var dataStream = (FlexibleReadStream)zipStream.BaseStream;
+                    dataStream.ChangeBuffer(data);
+                }
+                else
+                {
+                    //create
+                    var dataStream = new FlexibleReadStream(data);
+                    zipStream = new DeflateStream(dataStream, CompressionMode.Decompress, true);
+                }
+            }
         }
 
         #region NON_UNITY

@@ -318,9 +318,10 @@ namespace Nino.Serialization
                     if (isKeyNino || isValNino)
                     {
                         //create field
-                        sb.Append($"            this.{members[key].Name} = new {BeautifulLongTypeName(mt)}();\n");
+                        sb.Append($"            var this_{members[key].Name}_len = reader.ReadLength();\n");
+                        sb.Append($"            this.{members[key].Name} = new {BeautifulLongTypeName(mt)}(this_{members[key].Name}_len);\n");
                         //write items
-                        sb.Append("            for(int i = 0, cnt = reader.ReadLength(); i < cnt; i++)\n");
+                        sb.Append($"            for(int i = 0; i < this_{members[key].Name}_len; i++)\n");
                         sb.Append("            {\n");
                         
                         //read key

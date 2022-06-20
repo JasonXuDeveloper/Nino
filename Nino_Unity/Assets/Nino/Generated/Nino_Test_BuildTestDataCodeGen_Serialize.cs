@@ -116,19 +116,22 @@ namespace Nino.Test
             {
                 this.r[i] = (new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader);
             }
-            this.s = new System.Collections.Generic.Dictionary<System.String,Nino.Test.NotIncludeAllClass>();
-            for(int i = 0, cnt = reader.ReadLength(); i < cnt; i++)
+            var this_s_len = reader.ReadLength();
+            this.s = new System.Collections.Generic.Dictionary<System.String,Nino.Test.NotIncludeAllClass>(this_s_len);
+            for(int i = 0; i < this_s_len; i++)
             {
                 this.s[(System.String)reader.ReadCommonVal(typeof(System.String))] = (new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader);
             }
-            this.t = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,System.Int32>();
-            for(int i = 0, cnt = reader.ReadLength(); i < cnt; i++)
+            var this_t_len = reader.ReadLength();
+            this.t = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,System.Int32>(this_t_len);
+            for(int i = 0; i < this_t_len; i++)
             {
                 this.t[(new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader)] = (System.Int32)reader.DecompressAndReadNumber();
             }
             this.u = (System.Collections.Generic.Dictionary<System.String,System.Int32>)reader.ReadDictionary(typeof(System.Collections.Generic.Dictionary<System.String,System.Int32>));
-            this.v = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,Nino.Test.NotIncludeAllClass>();
-            for(int i = 0, cnt = reader.ReadLength(); i < cnt; i++)
+            var this_v_len = reader.ReadLength();
+            this.v = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,Nino.Test.NotIncludeAllClass>(this_v_len);
+            for(int i = 0; i < this_v_len; i++)
             {
                 this.v[(new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader)] = (new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader);
             }

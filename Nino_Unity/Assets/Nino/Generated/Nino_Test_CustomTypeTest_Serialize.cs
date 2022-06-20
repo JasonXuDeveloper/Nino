@@ -35,8 +35,9 @@ namespace Nino.Test
             this.qs = (System.Collections.Generic.List<UnityEngine.Quaternion>)reader.ReadList(typeof(System.Collections.Generic.List<UnityEngine.Quaternion>));
             this.m = (UnityEngine.Matrix4x4)reader.ReadCommonVal(typeof(UnityEngine.Matrix4x4));
             this.dict = (System.Collections.Generic.Dictionary<System.String,System.Int32>)reader.ReadDictionary(typeof(System.Collections.Generic.Dictionary<System.String,System.Int32>));
-            this.dict2 = new System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>();
-            for(int i = 0, cnt = reader.ReadLength(); i < cnt; i++)
+            var this_dict2_len = reader.ReadLength();
+            this.dict2 = new System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>(this_dict2_len);
+            for(int i = 0; i < this_dict2_len; i++)
             {
                 this.dict2[(System.String)reader.ReadCommonVal(typeof(System.String))] = (new Nino.Test.Data()).NinoReadMembers(reader);
             }

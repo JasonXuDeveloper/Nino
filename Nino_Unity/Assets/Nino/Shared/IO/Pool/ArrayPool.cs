@@ -3,23 +3,37 @@ using System.Collections.Generic;
 
 namespace Nino.Shared.IO
 {
+    /// <summary>
+    /// Thread safe array pool
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     public static class ArrayPool<T>
     {
         /// <summary>
         /// Shared pool
         /// </summary>
-        private static volatile Dictionary<int, UncheckedStack<T[]>> _pool = new Dictionary<int, UncheckedStack<T[]>>(3);
+        private static readonly Dictionary<int, UncheckedStack<T[]>> Pool = new Dictionary<int, UncheckedStack<T[]>>(3);
 
+        /// <summary>
+        /// lock obj
+        /// </summary>
+        // ReSharper disable StaticMemberInGenericType
+        private static readonly object Lock = new object();
+        // ReSharper restore StaticMemberInGenericType
+        
         /// <summary>
         /// Check pool size
         /// </summary>
         /// <param name="size"></param>
         private static void CheckPool(int size)
         {
-            if (!_pool.TryGetValue(size, out _))
+            lock (Lock)
             {
-                //new queue
-                _pool.Add(size, new UncheckedStack<T[]>());
+                if (!Pool.TryGetValue(size, out _))
+                {
+                    //new queue
+                    Pool.Add(size, new UncheckedStack<T[]>());
+                }
             }
         }
         
@@ -31,20 +45,23 @@ namespace Nino.Shared.IO
         public static T[] Request(int size)
         {
             CheckPool(size);
-            var queue = _pool[size];
-            //get from queue
-            if (queue.Count > 0)
+            lock (Lock)
             {
-                var ret = queue.Pop();
-                //double check
-                if (ret.Length != size)
+                var queue = Pool[size];
+                //get from queue
+                if (queue.Count > 0)
                 {
-                    Array.Resize(ref ret, size);
+                    var ret = queue.Pop();
+                    //double check
+                    if (ret.Length != size)
+                    {
+                        Array.Resize(ref ret, size);
+                    }
+                    return ret;
                 }
-                return ret;
+                //return new obj[]
+                return new T[size];
             }
-            //return new obj[]
-            return new T[size];
         }
 
         /// <summary>
@@ -55,7 +72,10 @@ namespace Nino.Shared.IO
         public static void Return(int size, T[] arr)
         {
             CheckPool(size);
-            _pool[size].Push(arr);
+            lock (Lock)
+            {
+                Pool[size].Push(arr);
+            }
         }
 
         /// <summary>
