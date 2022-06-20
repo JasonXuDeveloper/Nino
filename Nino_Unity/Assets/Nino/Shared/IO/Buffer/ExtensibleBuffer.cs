@@ -203,8 +203,8 @@ namespace Nino.Shared.IO
                 EnsureCapacity(dstIndex >> powerOf2);
                 Buffer.BlockCopy(src, srcIndex, Data.items[dstIndex >> powerOf2], GetCurBlockIndex(dstIndex), length);
             }
-
             //separate blocks
+            else
             {
                 //suppose from index 1000 copy 50 bytes => copy 24 bytes to _Data.items[0], then copy 26 bytes to _data[1], srcIndex = 0
                 int index = dstIndex >> powerOf2; //index = 1000/1024 => 0
@@ -229,6 +229,63 @@ namespace Nino.Shared.IO
                 //suppose srcIndex = 24, index = 1, dstIndex=0, length = 26
                 //will copy from src[24] to _Data.items[1][0], length of 26
                 Buffer.BlockCopy(src, srcIndex, Data.items[index], dstIndex, length);
+            }
+        }
+
+        /// <summary>
+        /// Copy data from buffer to dst from dst[0]
+        /// </summary>
+        /// <param name="dst"></param>
+        /// <param name="srcIndex"></param>
+        /// <param name="length"></param>
+        /// <exception cref="OverflowException"></exception>
+        public void CopyTo(ref T[] dst, int srcIndex, int length)
+        {
+            if (dst.Length < length)
+            {
+                throw new OverflowException("dst is not long enough");
+            }
+            //same block
+            if (srcIndex >> powerOf2 == (srcIndex + length) >> powerOf2)
+            {
+                EnsureCapacity(srcIndex >> powerOf2);
+                Buffer.BlockCopy(Data.items[srcIndex >> powerOf2], GetCurBlockIndex(srcIndex), dst,0, length);
+            }
+            //separate blocks
+            else
+            {
+                int index = srcIndex >> powerOf2;
+                int dstIndex = 0;
+                srcIndex = GetCurBlockIndex(srcIndex);
+                while (
+                    srcIndex + length >
+                    ExpandSize)
+                {
+                    EnsureCapacity(index * ExpandSize);
+                    Buffer.BlockCopy(Data.items[index], srcIndex, dst, dstIndex,
+                        ExpandSize - srcIndex);
+                    index++;
+                    dstIndex += ExpandSize - srcIndex;
+                    length -= ExpandSize - srcIndex;
+                    srcIndex = 0;
+                }
+
+                EnsureCapacity(index * ExpandSize);
+                Buffer.BlockCopy(Data.items[index], srcIndex, dst, dstIndex, length);
+            }
+        }
+
+        /// <summary>
+        /// override an entire block
+        /// </summary>
+        /// <param name="blockIndex"></param>
+        /// <param name="data"></param>
+        public unsafe void OverrideBlock(int blockIndex, T* data)
+        {
+            EnsureCapacity(blockIndex * ExpandSize);
+            fixed (T* ptr = Data.items[blockIndex])
+            {
+                *ptr = *data;
             }
         }
     }

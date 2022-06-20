@@ -109,28 +109,24 @@ namespace Nino.Shared.IO
 		}
 
 		/// <summary>
-		/// Min buffer size
-		/// </summary>
-		private const int MinBufferSize = 256;
-		
-		/// <summary>
 		/// Get decompressed bytes
 		/// </summary>
+		/// <param name="length"></param>
 		/// <returns></returns>
-		public byte[] GetDecompressedBytes()
+		public unsafe ExtensibleBuffer<byte> GetDecompressedBytes(out int length)
 		{
 			int read;
-			ArrayBufferWriter<byte> w = new ArrayBufferWriter<byte>(MinBufferSize);
-			//借一个
-			var readBuffer = BufferPool.RequestBuffer(MinBufferSize);//至少MinBufferSize字节吧
+			length = 0;
+			int block = 0;
+			ExtensibleBuffer<byte> buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+			var readBuffer = stackalloc byte[buffer.ExpandSize];
 			//开始写
-			while ((read = Read(readBuffer, 0, readBuffer.Length)) != 0)
+			while ((read = Read(readBuffer, 0, buffer.ExpandSize)) != 0)
 			{
-				w.Write(readBuffer.AsSpan().Slice(0, read));
+				buffer.OverrideBlock(block++, readBuffer);
+				length += read;
 			}
-			//还回去
-			BufferPool.ReturnBuffer(readBuffer);
-			return w.WrittenSpan.ToArray();
+			return buffer;
 		}
 
 		protected override void Dispose(bool disposing)
@@ -163,6 +159,37 @@ namespace Nino.Shared.IO
 				IntPtr buffer = new IntPtr(ptr + offset);
 				return native.ReadZStream(buffer, count);
 			}
+		}
+
+		private unsafe int ReadInternal(byte* ptr, int offset, int count)
+		{
+			if (count == 0)
+			{
+				return 0;
+			}
+			IntPtr buffer = new IntPtr(ptr + offset);
+			return native.ReadZStream(buffer, count);
+		}
+		
+		public unsafe int Read(byte* array, int offset, int count)
+		{
+			if (disposed)
+			{
+				throw new ObjectDisposedException(GetType().FullName);
+			}
+			if (array == null)
+			{
+				throw new ArgumentNullException(nameof(array));
+			}
+			if (!CanRead)
+			{
+				throw new InvalidOperationException("Stream does not support reading.");
+			}
+			if (offset < 0 || count < 0)
+			{
+				throw new ArgumentException("Dest or count is negative.");
+			}
+			return ReadInternal(array, offset, count);
 		}
 
 		public override int Read(byte[] array, int offset, int count)

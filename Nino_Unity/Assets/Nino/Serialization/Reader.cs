@@ -18,7 +18,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
-		private readonly byte[] buffer;
+		private readonly ExtensibleBuffer<byte> buffer;
 
 		/// <summary>
 		/// 缓存反射创建dict的参数数组
@@ -40,7 +40,7 @@ namespace Nino.Serialization
 		/// </summary>
 		public void Dispose()
 		{
-			BufferPool.ReturnBuffer(buffer);
+			ObjectPool<ExtensibleBuffer<byte>>.Return(buffer);
 			disposed = true;
 		}
 
@@ -48,13 +48,14 @@ namespace Nino.Serialization
 		/// Create a nino read
 		/// </summary>
 		/// <param name="data"></param>
+		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
-		public Reader(byte[] data, Encoding encoding)
+		public Reader(ExtensibleBuffer<byte> data, int outputLength, Encoding encoding)
 		{
-			buffer = BufferPool.RequestBuffer(data);
+			buffer = data;
 			this.encoding = encoding;
 			Position = 0;
-			Length = data.Length; // in case buffer pool gives a longer buffer
+			Length = outputLength;
 		}
 
 		/// <summary>
@@ -288,7 +289,7 @@ namespace Nino.Serialization
 		{
 			EnsureLength(len);
 			byte[] ret = new byte[len];
-			Buffer.BlockCopy(buffer, Position, ret, 0, len);
+			buffer.CopyTo(ref ret, Position, len);
 			Position += len;
 			return ret;
 		}
@@ -444,7 +445,10 @@ namespace Nino.Serialization
 			}
 
 			//Read directly
-			var ret = encoding.GetString(buffer, Position, len);
+			var buf = BufferPool.RequestBuffer(len);
+			buffer.CopyTo(ref buf, Position, len);
+			var ret = encoding.GetString(buf, 0, len);
+			BufferPool.ReturnBuffer(buf);
 			Position += len;
 			return ret;
 		}
@@ -458,8 +462,11 @@ namespace Nino.Serialization
 			EnsureLength(ConstMgr.SizeOfDecimal);
 			decimal result;
 			var resultSpan = new Span<byte>(&result, ConstMgr.SizeOfDecimal);
-			buffer.AsSpan(Position, ConstMgr.SizeOfDecimal).CopyTo(resultSpan);
+			var buf = BufferPool.RequestBuffer(ConstMgr.SizeOfDecimal);
+			buffer.CopyTo(ref buf, Position, ConstMgr.SizeOfDecimal);
+			buf.AsSpan(0,ConstMgr.SizeOfDecimal).CopyTo(resultSpan);
 			Position += ConstMgr.SizeOfDecimal;
+			BufferPool.ReturnBuffer(buf);
 			return result;
 		}
 

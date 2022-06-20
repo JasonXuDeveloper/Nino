@@ -180,7 +180,7 @@ namespace Nino.Serialization
 			}
 
 			//start Deserialize
-			using (reader = new Reader(CompressMgr.Decompress(data), encoding))
+			using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
 			{
 				Read();
 				return val;

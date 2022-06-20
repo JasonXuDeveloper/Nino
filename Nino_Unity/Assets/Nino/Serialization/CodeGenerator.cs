@@ -19,17 +19,20 @@ namespace Nino.Serialization
         /// editor only method
         /// </summary>
         /// <param name="outputPath"></param>
-        public static void GenerateSerializationCodeForAllTypePossible(string outputPath = "Nino/Generated")
+        /// <param name="assemblies"></param>
+        public static void GenerateSerializationCodeForAllTypePossible(string outputPath = "Nino/Generated",
+            Assembly[] assemblies = null)
         {
             //find all types
-            var types = AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetTypes()).ToList().FindAll(t =>
-            {
-                //find NinoSerializeAttribute
-                NinoSerializeAttribute[] ns =
-                    (NinoSerializeAttribute[])t.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-                if (ns.Length == 0) return false;
-                return true;
-            }).ToList();
+            var types = (assemblies ?? AppDomain.CurrentDomain.GetAssemblies()).SelectMany(a => a.GetTypes()).ToList()
+                .FindAll(t =>
+                {
+                    //find NinoSerializeAttribute
+                    NinoSerializeAttribute[] ns =
+                        (NinoSerializeAttribute[])t.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
+                    if (ns.Length == 0) return false;
+                    return true;
+                }).ToList();
             //iterate
             foreach (var type in types)
             {
@@ -39,7 +42,7 @@ namespace Nino.Serialization
         }
 
         /// <summary>
-        /// Get a valid nino serialize calss
+        /// Get a valid nino serialize class
         /// </summary>
         /// <param name="type"></param>
         /// <returns></returns>

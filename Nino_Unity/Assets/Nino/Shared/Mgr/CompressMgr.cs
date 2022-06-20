@@ -93,6 +93,44 @@ namespace Nino.Shared.Mgr
         /// Decompress thr given bytes
         /// </summary>
         /// <param name="data"></param>
+        /// <param name="outputLength"></param>
+        /// <returns></returns>
+        public static ExtensibleBuffer<byte> Decompress(byte[] data, out int outputLength)
+        {
+#if !UNITY_2017_1_OR_NEWER
+            ExtensibleBuffer<byte> buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+            var dt = DecompressOnNative(data);
+            buffer.CopyFrom(dt, 0, 0, dt.Length);
+            outputLength = dt.Length;
+            return buffer;
+#endif
+            DeflateStream zipStream;
+            FlexibleReadStream dataStream;
+            //try get stream
+            if (_decompressStreams.Count > 0)
+            {
+                zipStream = _decompressStreams.Pop();
+                zipStream.Reset();
+                dataStream = (FlexibleReadStream)zipStream.BaseStream;
+                dataStream.ChangeBuffer(data);
+            }
+            else
+            {
+                //create
+                dataStream = new FlexibleReadStream(data);
+                zipStream = new DeflateStream(dataStream, CompressionMode.Decompress, true);
+            }
+
+            var ret = zipStream.GetDecompressedBytes(out outputLength);
+            //push
+            _decompressStreams.Push(zipStream);
+            return ret;
+        }
+
+        /// <summary>
+        /// Decompress thr given bytes
+        /// </summary>
+        /// <param name="data"></param>
         /// <returns></returns>
         public static byte[] Decompress(byte[] data)
         {
@@ -116,10 +154,10 @@ namespace Nino.Shared.Mgr
                 zipStream = new DeflateStream(dataStream, CompressionMode.Decompress, true);
             }
 
-            var ret = zipStream.GetDecompressedBytes();
+            var ret = zipStream.GetDecompressedBytes(out var len);
             //push
             _decompressStreams.Push(zipStream);
-            return ret;
+            return ret.ToArray(0,len);
         }
 
         #region NON_UNITY
