@@ -14,7 +14,7 @@
 
 序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection基本与Protobuf-net一致，其他库不尽人意
 
-反序列化速度方面，Nino Code Gen最快，MsgPack比Nino慢60%，Nino Reflection略跨于Protobuf-net一致，略微逊色于MongoDB.Bson，BinaryFormatter最糟糕
+反序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection略跨于Protobuf-net一致，略微逊色于MongoDB.Bson，BinaryFormatter最糟糕
 
 GC方面，Nino Code Gen和MsgPack碾压全部其他库，一览众山小，第一次序列化数据时产生的GC是其他序列化库的几分之一，甚至几十分之一！第二次开始序列化的时候会复用对象池内的数据，使得产生的GC仅仅只是其他序列化库的几百甚至几千分之一！
 
@@ -44,7 +44,7 @@ Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典会无法使用，因�
   - Nino底层用了对象池，实现了包括但不限于数据流、缓冲区等内容的复用，杜绝重复创建造成的开销
   - Nino在生成代码后，通过生成的代码，避免了装箱拆箱、反射字段造成的大额GC
   - Nino在序列化和反序列化的时候，会调用不造成高额GC的方法写入数据（例如不用Decimal.GetBits去取Decimall的二进制，这个每次请求会产生一个int数组的GC）
-  - Nino改造了很多原生代码，实现了低GC（如Unity平台下DeflateStream的底层被彻底改造了，只剩下调用C++方法造成的GC了）
+  - Nino改造了很多原生代码，实现了低GC（如Unity平台下DeflateStream的底层被彻底改造了，只剩下调用C++方法/Write时扩容/ToArray所造成的GC了，读和写的时候不需要申请io_buffer去读写导致gc，还可以直接无gc转Nino的动态扩容Buffer）
 - 速度优化
   - Nino缓存了类型模型
   - Nino生成代码后直接调用了底层API，**大幅度**优化性能（速度快一倍以上）

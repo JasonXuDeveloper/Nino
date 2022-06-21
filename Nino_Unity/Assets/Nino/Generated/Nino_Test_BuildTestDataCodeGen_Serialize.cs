@@ -94,23 +94,27 @@ namespace Nino.Test
             this.b = reader.ReadSByte();
             this.c = reader.ReadInt16();
             this.d = reader.ReadUInt16();
-            this.e = (System.Int32)reader.DecompressAndReadNumber();
-            this.f = (System.UInt32)reader.DecompressAndReadNumber();
-            this.g = (System.Int64)reader.DecompressAndReadNumber();
-            this.h = (System.UInt64)reader.DecompressAndReadNumber();
+            this.e =  (System.Int32)reader.DecompressAndReadNumber();
+            this.f =  (System.UInt32)reader.DecompressAndReadNumber();
+            this.g =  (System.Int64)reader.DecompressAndReadNumber();
+            this.h =  (System.UInt64)reader.DecompressAndReadNumber();
             this.i = reader.ReadSingle();
             this.j = reader.ReadDouble();
             this.k = reader.ReadDecimal();
             this.l = reader.ReadBool();
             this.m = reader.ReadChar();
             this.n = reader.ReadString();
-            this.o = (System.Collections.Generic.List<System.Int32>)reader.ReadList(typeof(System.Collections.Generic.List<System.Int32>));
+            this.o = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
+            for(int i = 0, cnt = this.o.Capacity; i < cnt; i++)
+            {
+                this.o.Add( (System.Int32)reader.DecompressAndReadNumber());
+            }
             this.p = new System.Collections.Generic.List<Nino.Test.NotIncludeAllClass>(reader.ReadLength());
             for(int i = 0, cnt = this.p.Capacity; i < cnt; i++)
             {
                 this.p.Add((new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader));
             }
-            this.q = (System.Byte[])reader.ReadArray(typeof(System.Byte[]));
+            this.q = reader.ReadBytes(reader.ReadLength());
             this.r = new Nino.Test.NotIncludeAllClass[reader.ReadLength()];
             for(int i = 0, cnt = this.r.Length; i < cnt; i++)
             {
@@ -120,15 +124,20 @@ namespace Nino.Test
             this.s = new System.Collections.Generic.Dictionary<System.String,Nino.Test.NotIncludeAllClass>(this_s_len);
             for(int i = 0; i < this_s_len; i++)
             {
-                this.s[(System.String)reader.ReadCommonVal(typeof(System.String))] = (new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader);
+                this.s[reader.ReadString()] = (new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader);
             }
             var this_t_len = reader.ReadLength();
             this.t = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,System.Int32>(this_t_len);
             for(int i = 0; i < this_t_len; i++)
             {
-                this.t[(new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader)] = (System.Int32)reader.DecompressAndReadNumber();
+                this.t[(new Nino.Test.NotIncludeAllClass()).NinoReadMembers(reader)] =  (System.Int32)reader.DecompressAndReadNumber();
             }
-            this.u = (System.Collections.Generic.Dictionary<System.String,System.Int32>)reader.ReadDictionary(typeof(System.Collections.Generic.Dictionary<System.String,System.Int32>));
+            var this_u_len = reader.ReadLength();
+            this.u = new System.Collections.Generic.Dictionary<System.String,System.Int32>(this_u_len);
+            for(int i = 0; i < this_u_len; i++)
+            {
+                this.u[reader.ReadString()] =  (System.Int32)reader.DecompressAndReadNumber();
+            }
             var this_v_len = reader.ReadLength();
             this.v = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,Nino.Test.NotIncludeAllClass>(this_v_len);
             for(int i = 0; i < this_v_len; i++)

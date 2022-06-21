@@ -28,6 +28,11 @@ namespace Nino.Shared.IO
         private int blockLength;
 
         /// <summary>
+        /// whether or not this is readonly, if so, ensureCapacity will return
+        /// </summary>
+        public bool ReadOnly;
+
+        /// <summary>
         /// Init buffer
         /// </summary>
         public ExtensibleBuffer() : this(DefaultBufferCount, DefaultBufferSize)
@@ -96,11 +101,14 @@ namespace Nino.Shared.IO
         {
             get
             {
-                EnsureCapacity(index);
+                if (!ReadOnly)
+                    EnsureCapacity(index);
                 return Data.items[index >> powerOf2][GetCurBlockIndex(index)];
             }
             set
             {
+                if (ReadOnly)
+                    throw new InvalidOperationException("this extensible buffer is readonly");   
                 EnsureCapacity(index);
                 Data.items[index >> powerOf2][GetCurBlockIndex(index)] = value;
             }
@@ -272,6 +280,53 @@ namespace Nino.Shared.IO
 
                 EnsureCapacity(index * ExpandSize);
                 Buffer.BlockCopy(Data.items[index], srcIndex, dst, dstIndex, length);
+            }
+        }
+
+        /// <summary>
+        /// Copy data from buffer to dst from dst[0]
+        /// </summary>
+        /// <param name="dst"></param>
+        /// <param name="srcIndex"></param>
+        /// <param name="length"></param>
+        /// <exception cref="OverflowException"></exception>
+        public unsafe void CopyTo(T* dst, int srcIndex, int length)
+        {
+            //same block
+            if (srcIndex >> powerOf2 == (srcIndex + length) >> powerOf2)
+            {
+                EnsureCapacity(srcIndex >> powerOf2);
+                fixed (T* ptr = Data.items[srcIndex >> powerOf2])
+                {
+                    Buffer.MemoryCopy(ptr + GetCurBlockIndex(srcIndex), dst + 0, length,length);
+                }
+            }
+            //separate blocks
+            else
+            {
+                int index = srcIndex >> powerOf2;
+                int dstIndex = 0;
+                srcIndex = GetCurBlockIndex(srcIndex);
+                while (
+                    srcIndex + length >
+                    ExpandSize)
+                {
+                    EnsureCapacity(index * ExpandSize);
+                    fixed (T* ptr = Data.items[index])
+                    {
+                        Buffer.MemoryCopy(ptr + srcIndex, dst + dstIndex, ExpandSize - srcIndex, ExpandSize - srcIndex);
+                    }
+                    index++;
+                    dstIndex += ExpandSize - srcIndex;
+                    length -= ExpandSize - srcIndex;
+                    srcIndex = 0;
+                }
+
+                EnsureCapacity(index * ExpandSize);
+                fixed (T* ptr = Data.items[index])
+                {
+                    Buffer.MemoryCopy(ptr + srcIndex, dst + dstIndex, length,length);
+                }
             }
         }
 

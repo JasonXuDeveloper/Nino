@@ -30,7 +30,11 @@ namespace Nino.Test
             {
                 this.ps[i] = (new Nino.Test.Data()).NinoReadMembers(reader);
             }
-            this.vs = (System.Collections.Generic.List<System.Int32>)reader.ReadList(typeof(System.Collections.Generic.List<System.Int32>));
+            this.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
+            for(int i = 0, cnt = this.vs.Capacity; i < cnt; i++)
+            {
+                this.vs.Add( (System.Int32)reader.DecompressAndReadNumber());
+            }
             return this;
         }
         #endregion

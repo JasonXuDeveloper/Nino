@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.IO;
 using System.Threading;
 using System.IO.Compression;
@@ -13,9 +12,9 @@ namespace Nino.Shared.IO
 
 		private delegate void WriteMethod(byte[] array, int offset, int count);
 
-		private Stream baseStream;
+		private FlexibleStream baseStream;
 
-		private readonly CompressionMode mode;
+		private CompressionMode mode;
 
 		private readonly bool leaveOpen;
 
@@ -23,7 +22,7 @@ namespace Nino.Shared.IO
 
 		private readonly DeflateStreamNative native;
 
-		public Stream BaseStream => baseStream;
+		public FlexibleStream BaseStream => baseStream;
 
 		public override bool CanRead
 		{
@@ -59,17 +58,17 @@ namespace Nino.Shared.IO
 			set => throw new NotSupportedException();
 		}
 
-		public DeflateStream(Stream stream, CompressionMode mode)
+		public DeflateStream(FlexibleStream stream, CompressionMode mode)
 			: this(stream, mode, false, false)
 		{
 		}
 
-		public DeflateStream(Stream stream, CompressionMode mode, bool leaveOpen)
+		public DeflateStream(FlexibleStream stream, CompressionMode mode, bool leaveOpen)
 			: this(stream, mode, leaveOpen, false)
 		{
 		}
 
-		private DeflateStream(Stream compressedStream, CompressionMode mode, bool leaveOpen, bool gzip)
+		private DeflateStream(FlexibleStream compressedStream, CompressionMode mode, bool leaveOpen, bool gzip)
 		{
 			if (mode != CompressionMode.Compress && mode != 0)
 			{
@@ -387,16 +386,14 @@ namespace Nino.Shared.IO
 
 		private UnmanagedReadOrWrite feeder;
 
-		private Stream baseStream;
+		private FlexibleStream baseStream;
 
 		private SafeDeflateStreamHandle zStream;
 
 		private GCHandle data;
 
 		private bool disposed;
-
-		private byte[] ioBuffer;
-
+		
 		private Exception lastError;
 
 		private DeflateStreamNative()
@@ -404,7 +401,7 @@ namespace Nino.Shared.IO
 		}
 
 		[MonoPInvokeCallback]
-		public static DeflateStreamNative Create(Stream compressedStream, CompressionMode mode, bool gzip)
+		public static DeflateStreamNative Create(FlexibleStream compressedStream, CompressionMode mode, bool gzip)
 		{
 			DeflateStreamNative deflateStreamNative = new DeflateStreamNative();
 			deflateStreamNative.data = GCHandle.Alloc(deflateStreamNative);
@@ -449,9 +446,8 @@ namespace Nino.Shared.IO
 			}
 			else
 			{
-				baseStream = Stream.Null;
+				baseStream = (FlexibleStream)Stream.Null;
 			}
-			BufferPool.ReturnBuffer(ioBuffer);
 			if (zStream != null && !zStream.IsInvalid)
 			{
 				zStream.Dispose();
@@ -496,17 +492,14 @@ namespace Nino.Shared.IO
 		}
 
 		[MonoPInvokeCallback]
-		private int UnmanagedRead(IntPtr buffer, int length)
+		private unsafe int UnmanagedRead(IntPtr buffer, int length)
 		{
-			if (ioBuffer == null)
-			{
-				ioBuffer = BufferPool.RequestBuffer(BufferSize);
-			}
-			int count = Math.Min(length, ioBuffer.Length);
+			int count = Math.Min(length, BufferSize);
+			byte* buf = stackalloc byte[count];
 			int num;
 			try
 			{
-				num = baseStream.Read(ioBuffer, 0, count);
+				num = baseStream.Read(buf, 0, count);
 			}
 			catch
 			{
@@ -514,7 +507,7 @@ namespace Nino.Shared.IO
 			}
 			if (num > 0)
 			{
-				Marshal.Copy(ioBuffer, 0, buffer, num);
+				Buffer.MemoryCopy(buf, buffer.ToPointer(), num, num);
 			}
 			return num;
 		}
@@ -532,28 +525,8 @@ namespace Nino.Shared.IO
 		[MonoPInvokeCallback]
 		private unsafe int UnmanagedWrite(IntPtr buffer, int length)
 		{
-			int num = 0;
-			while (length > 0)
-			{
-				if (ioBuffer == null)
-				{
-					ioBuffer = BufferPool.RequestBuffer(BufferSize);
-				}
-				int num2 = Math.Min(length, ioBuffer.Length);
-				Marshal.Copy(buffer, ioBuffer, 0, num2);
-				try
-				{
-					baseStream.Write(ioBuffer, 0, num2);
-				}
-				catch
-				{
-					return -12;
-				}
-				buffer = new IntPtr((byte*)buffer.ToPointer() + num2);
-				length -= num2;
-				num += num2;
-			}
-			return num;
+			baseStream.Write((byte*)buffer.ToPointer(), 0, length);
+			return length;
 		}
 
 		private void CheckResult(int result, string where)

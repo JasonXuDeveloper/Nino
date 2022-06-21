@@ -1,13 +1,15 @@
 using System;
 using System.IO;
+using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 
 namespace Nino.Shared.IO
 {
     /// <summary>
-    /// Can change the buffer in anytime, however this stream is not writable
+    /// Can change the buffer in anytime
+    /// This stream provides no GC write and read method, require to use it with stackalloc
     /// </summary>
-    public sealed class FlexibleReadStream : Stream
+    public sealed class FlexibleStream : Stream
     {
         private byte[] internalBuffer; // Either allocated internally or externally.
         private int origin; // For user-provided arrays, start at this origin
@@ -22,7 +24,6 @@ namespace Nino.Shared.IO
         private bool isOpen; // Is this stream open or closed?
 
         private readonly uint maxLength = 2147483648;
-
         private const int MemStreamMaxLength = Int32.MaxValue;
 
         public void ChangeBuffer(byte[] data)
@@ -33,49 +34,26 @@ namespace Nino.Shared.IO
             length = data.Length;
         }
         
-        public FlexibleReadStream()
+        public FlexibleStream(): this(ConstMgr.Null)
         {
-            
+            //for object pool to be able to call
         }
 
-        public FlexibleReadStream(byte[] internalBuffer)
+        public FlexibleStream(byte[] internalBuffer)
         {
             this.internalBuffer = internalBuffer ?? throw new ArgumentNullException(nameof(internalBuffer), "buffer == null");
             length = capacity = internalBuffer.Length;
-            exposable = false;
+            exposable = true;
+            expandable = true;
+            isOpen = true;
             origin = 0;
-            isOpen = true;
         }
-
-        public FlexibleReadStream(byte[] internalBuffer,int index, int count)
-            : this(internalBuffer, index, count, false)
-        {
-        }
-
-        public FlexibleReadStream(byte[] internalBuffer, int index, int count, bool publiclyVisible)
-        {
-            if (internalBuffer == null)
-                throw new ArgumentNullException(nameof(internalBuffer), "buffer == null");
-            if (index < 0)
-                throw new ArgumentOutOfRangeException(nameof(index), "index < 0");
-            if (count < 0)
-                throw new ArgumentOutOfRangeException(nameof(count), "count < 0");
-            if (internalBuffer.Length - index < count)
-                throw new ArgumentException("invalid length of buffer");
-
-            this.internalBuffer = internalBuffer;
-            origin = position = index;
-            length = capacity = index + count;
-            exposable = publiclyVisible; // Can TryGetBuffer/GetBuffer return the array?
-            expandable = false;
-            isOpen = true;
-        }
-
+        
         public override bool CanRead => isOpen;
 
         public override bool CanSeek => isOpen;
 
-        public override bool CanWrite => false;
+        public override bool CanWrite => isOpen;
 
         protected override void Dispose(bool disposing)
         {
@@ -126,7 +104,11 @@ namespace Nino.Shared.IO
         {
         }
 
-
+        /// <summary>
+        /// Get original buffer
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="UnauthorizedAccessException"></exception>
         public byte[] GetBuffer()
         {
             if (!exposable)
@@ -134,6 +116,11 @@ namespace Nino.Shared.IO
             return internalBuffer;
         }
 
+        /// <summary>
+        /// Try get original buffer
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <returns></returns>
         public bool TryGetBuffer(out ArraySegment<byte> buffer)
         {
             if (!exposable)
@@ -165,9 +152,9 @@ namespace Nino.Shared.IO
                     throw new ArgumentOutOfRangeException(nameof(value), "value < capcacity is invalid");
 
                 if (!isOpen) Logger.E("stream is closed");
-                if (!expandable && (value != Capacity)) Logger.E("RewritableStream is not expandable");
+                if (!expandable && (value != Capacity)) Logger.E("FlexibleStream is not expandable");
 
-                // RewritableStream has this invariant: _origin > 0 => !expandable (see ctors)
+                // FlexibleStream has this invariant: _origin > 0 => !expandable (see ctors)
                 if (expandable && value != capacity)
                 {
                     if (value > 0)
@@ -186,6 +173,9 @@ namespace Nino.Shared.IO
             }
         }
 
+        /// <summary>
+        /// Length of written buffer or the buffer provided
+        /// </summary>
         public override long Length
         {
             get
@@ -195,6 +185,10 @@ namespace Nino.Shared.IO
             }
         }
 
+        /// <summary>
+        /// Position of the current stream
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
         public override long Position
         {
             get
@@ -214,6 +208,29 @@ namespace Nino.Shared.IO
             }
         }
 
+        /// <summary>
+        /// Read a byte from current position
+        /// </summary>
+        /// <returns></returns>
+        public override int ReadByte()
+        {
+            if (!isOpen) Logger.E("stream is closed");
+
+            if (position >= length) return -1;
+
+            return internalBuffer[position++];
+        }
+
+        /// <summary>
+        /// Read and copy some bytes to the provided buffer - has gc if buffer is a new byte[count] or byte[moreThanCount]
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        /// <exception cref="ArgumentException"></exception>
         public override int Read(byte[] buffer, int offset, int count)
         {
             if (buffer == null)
@@ -246,15 +263,164 @@ namespace Nino.Shared.IO
             return n;
         }
 
-        public override int ReadByte()
+        /// <summary>
+        /// Read and copy some bytes to a byte array pointer - has no gc when buffer is stackalloc byte[count]
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
+        /// <returns></returns>
+        public unsafe int Read(byte* buffer, int offset, int count)
         {
             if (!isOpen) Logger.E("stream is closed");
 
-            if (position >= length) return -1;
+            int n = length - position;
+            if (n > count) n = count;
+            if (n <= 0)
+                return 0;
 
-            return internalBuffer[position++];
+            fixed (byte* internalPtr = internalBuffer)
+            {
+               Buffer.MemoryCopy(internalPtr + position, buffer + offset, count,n);
+            }
+            position += n;
+
+            return n;
+        }
+        
+        /// <summary>
+        /// Write a byte to the stream
+        /// </summary>
+        /// <param name="value"></param>
+        /// <exception cref="InvalidOperationException"></exception>
+        public override void WriteByte(byte value) {
+            if (!isOpen)
+                throw new InvalidOperationException("this stream is closed");
+            
+            if (position >= length) {
+                int newLength = position + 1;
+                bool mustZero = position > length;
+                if (newLength >= capacity) {
+                    bool allocatedNewArray = EnsureCapacity(newLength);
+                    if (allocatedNewArray)
+                        mustZero = false;
+                }
+                if (mustZero)
+                    Array.Clear(internalBuffer, length, position - length);
+                length = newLength;
+            }
+            internalBuffer[position++] = value;
+        }
+        
+        /// <summary>
+        /// Write some bytes to the stream from a byte[count] or byte[moreThanCount]
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        /// <exception cref="ArgumentException"></exception>
+        /// <exception cref="InvalidOperationException"></exception>
+        /// <exception cref="IOException"></exception>
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            if (buffer==null)
+                throw new ArgumentNullException(nameof(buffer),"null");
+            if (offset < 0)
+                throw new ArgumentOutOfRangeException(nameof(offset), "cannot be negative");
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count),"cannot be negative");
+            if (buffer.Length - offset < count)
+                throw new ArgumentException("invalid length");
+
+            if (!isOpen)
+                throw new InvalidOperationException("this stream is closed");
+ 
+            int i = position + count;
+            // Check for overflow
+            if (i < 0)
+                throw new IOException("Stream Too Long");
+ 
+            if (i > length) {
+                bool mustZero = position > length;
+                if (i > capacity) {
+                    bool allocatedNewArray = EnsureCapacity(i);
+                    if (allocatedNewArray)
+                        mustZero = false;
+                }
+                if (mustZero)
+                    Array.Clear(internalBuffer, length, i - length);
+                length = i;
+            }
+            if ((count <= 8) && (buffer != internalBuffer))
+            {
+                int byteCount = count;
+                while (--byteCount >= 0)
+                    internalBuffer[position + byteCount] = buffer[offset + byteCount];
+            }
+            else
+                Buffer.BlockCopy(buffer, offset, internalBuffer, position, count);
+            position = i;
+        }
+        
+        /// <summary>
+        /// Write some bytes to the stream from a stackalloc byte[count]
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="offset"></param>
+        /// <param name="count"></param>
+        /// <exception cref="ArgumentNullException"></exception>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        /// <exception cref="ArgumentException"></exception>
+        /// <exception cref="InvalidOperationException"></exception>
+        /// <exception cref="IOException"></exception>
+        public unsafe void Write(byte* buffer, int offset, int count)
+        {
+            if (buffer==null)
+                throw new ArgumentNullException(nameof(buffer),"null");
+            if (offset < 0)
+                throw new ArgumentOutOfRangeException(nameof(offset), "cannot be negative");
+            if (count < 0)
+                throw new ArgumentOutOfRangeException(nameof(count),"cannot be negative");
+
+            if (!isOpen)
+                throw new InvalidOperationException("this stream is closed");
+ 
+            int i = position + count;
+            // Check for overflow
+            if (i < 0)
+                throw new IOException("Stream Too Long");
+ 
+            if (i > length) {
+                bool mustZero = position > length;
+                if (i > capacity) {
+                    bool allocatedNewArray = EnsureCapacity(i);
+                    if (allocatedNewArray)
+                        mustZero = false;
+                }
+                if (mustZero)
+                    Array.Clear(internalBuffer, length, i - length);
+                length = i;
+            }
+            
+            fixed (byte* internalPtr = internalBuffer)
+            {
+                Buffer.MemoryCopy(buffer + offset, internalPtr + position, count, count);
+            }
+            
+            position = i;
         }
 
+        /// <summary>
+        /// Seek the stream
+        /// </summary>
+        /// <param name="offset"></param>
+        /// <param name="loc"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentOutOfRangeException"></exception>
+        /// <exception cref="IOException"></exception>
+        /// <exception cref="ArgumentException"></exception>
         public override long Seek(long offset, SeekOrigin loc)
         {
             if (!isOpen) Logger.E("stream is closed");
@@ -297,9 +463,9 @@ namespace Nino.Shared.IO
         // Sets the length of the stream to a given value.  The new
         // value must be nonnegative and less than the space remaining in
         // the array, Int32.MaxValue - origin
-        // Origin is 0 in all cases other than a RewritableStream created on
+        // Origin is 0 in all cases other than a FlexibleStream created on
         // top of an existing array and a specific starting offset was passed 
-        // into the RewritableStream constructor.  The upper bounds prevents any 
+        // into the FlexibleStream constructor.  The upper bounds prevents any 
         // situations where a stream may be created on top of an array then 
         // the stream is made longer than the maximum possible length of the 
         // array (Int32.MaxValue).
@@ -326,16 +492,15 @@ namespace Nino.Shared.IO
 
         }
 
+        /// <summary>
+        /// Get written bytes to array - will cause GC
+        /// </summary>
+        /// <returns></returns>
         public byte[] ToArray()
         {
             byte[] copy = new byte[length - origin];
             Buffer.BlockCopy(internalBuffer, origin, copy, 0, length - origin);
             return copy;
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            throw new NotSupportedException("RewritableStream does not support write method!");
         }
     }
 }

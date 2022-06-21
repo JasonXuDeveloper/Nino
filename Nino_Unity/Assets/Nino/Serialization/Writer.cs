@@ -71,6 +71,7 @@ namespace Nino.Serialization
 			{
 				buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
 			}
+			buffer.ReadOnly = false;
 			this.encoding = encoding;
 			length = 0;
 			position = 0;
@@ -93,6 +94,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte[] data)
 		{
+			CompressAndWrite(data.Length);
 			Write(data, data.Length);
 		}
 
@@ -102,7 +104,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(byte[] data, int len)
+		private void Write(byte[] data, int len)
 		{
 			buffer.CopyFrom(data, 0, position, len);
 			position += len;
@@ -213,7 +215,12 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(char ch)
 		{
-			Write(BitConverter.GetBytes(ch));
+			var bytes = BitConverter.GetBytes(ch);
+			//faster
+			for (int i = 0; i < bytes.Length; i++)
+			{
+				Write(bytes[i]);
+			}
 		}
 
 		#region write whole num
@@ -697,8 +704,6 @@ namespace Nino.Serialization
 			if (type == ConstMgr.ByteArrType)
 			{
 				var dt = (byte[])arr;
-				//write len
-				CompressAndWrite(dt.Length);
 				//write item
 				Write(dt);
 				return;
@@ -730,8 +735,6 @@ namespace Nino.Serialization
 			if (type == ConstMgr.ByteListType)
 			{
 				var dt = (List<byte>)arr;
-				//write len
-				CompressAndWrite(dt.Count);
 				//write item
 				Write(dt.ToArray());
 				return;

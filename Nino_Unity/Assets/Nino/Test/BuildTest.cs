@@ -209,7 +209,7 @@ namespace Nino.Test
                         sw.Reset();
                         sw.Start();
                         //as everything are same, buffer has same length
-                        // ninoBuffer = Nino.Serialization.Serializer.Serialize<BuildTestDataCodeGen>(d2);
+                        ninoBuffer = Nino.Serialization.Serializer.Serialize<BuildTestDataCodeGen>(d2);
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         ninoResultText.text =

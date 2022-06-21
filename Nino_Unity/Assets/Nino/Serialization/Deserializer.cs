@@ -128,12 +128,12 @@ namespace Nino.Serialization
 					//set elements
 					for (; min <= max; min++)
 					{
-						//if end, skip
-						if (reader.EndOfReader) continue;
 						//prevent index not exist
 						if (!model.types.ContainsKey(min)) continue;
 						//get the member
 						var member = model.members[min];
+						//member type
+						type = model.types[min];
 						//try get same member and set it
 						if (values.TryGetValue(member.Name, out var ret))
 						{

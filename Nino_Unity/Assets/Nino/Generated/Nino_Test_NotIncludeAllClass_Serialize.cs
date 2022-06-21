@@ -14,8 +14,8 @@ namespace Nino.Test
 
         public NotIncludeAllClass NinoReadMembers(Nino.Serialization.Reader reader)
         {
-            this.a = (System.Int32)reader.DecompressAndReadNumber();
-            this.b = (System.Int64)reader.DecompressAndReadNumber();
+            this.a =  (System.Int32)reader.DecompressAndReadNumber();
+            this.b =  (System.Int64)reader.DecompressAndReadNumber();
             this.c = reader.ReadSingle();
             this.d = reader.ReadDouble();
             return this;

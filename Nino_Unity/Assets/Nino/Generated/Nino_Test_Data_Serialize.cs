@@ -19,9 +19,9 @@ namespace Nino.Test
 
         public Data NinoReadMembers(Nino.Serialization.Reader reader)
         {
-            this.x = (System.Int32)reader.DecompressAndReadNumber();
+            this.x =  (System.Int32)reader.DecompressAndReadNumber();
             this.y = reader.ReadInt16();
-            this.z = (System.Int64)reader.DecompressAndReadNumber();
+            this.z =  (System.Int64)reader.DecompressAndReadNumber();
             this.f = reader.ReadSingle();
             this.d = reader.ReadDecimal();
             this.db = reader.ReadDouble();

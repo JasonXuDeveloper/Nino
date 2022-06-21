@@ -32,14 +32,23 @@ namespace Nino.Test
             this.v3 = (UnityEngine.Vector3)reader.ReadCommonVal(typeof(UnityEngine.Vector3));
             this.dt = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
             this.ni = (System.Nullable<System.Int32>)reader.ReadCommonVal(typeof(System.Nullable<System.Int32>));
-            this.qs = (System.Collections.Generic.List<UnityEngine.Quaternion>)reader.ReadList(typeof(System.Collections.Generic.List<UnityEngine.Quaternion>));
+            this.qs = new System.Collections.Generic.List<UnityEngine.Quaternion>(reader.ReadLength());
+            for(int i = 0, cnt = this.qs.Capacity; i < cnt; i++)
+            {
+                this.qs.Add((UnityEngine.Quaternion)reader.ReadCommonVal(typeof(UnityEngine.Quaternion)));
+            }
             this.m = (UnityEngine.Matrix4x4)reader.ReadCommonVal(typeof(UnityEngine.Matrix4x4));
-            this.dict = (System.Collections.Generic.Dictionary<System.String,System.Int32>)reader.ReadDictionary(typeof(System.Collections.Generic.Dictionary<System.String,System.Int32>));
+            var this_dict_len = reader.ReadLength();
+            this.dict = new System.Collections.Generic.Dictionary<System.String,System.Int32>(this_dict_len);
+            for(int i = 0; i < this_dict_len; i++)
+            {
+                this.dict[reader.ReadString()] =  (System.Int32)reader.DecompressAndReadNumber();
+            }
             var this_dict2_len = reader.ReadLength();
             this.dict2 = new System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>(this_dict2_len);
             for(int i = 0; i < this_dict2_len; i++)
             {
-                this.dict2[(System.String)reader.ReadCommonVal(typeof(System.String))] = (new Nino.Test.Data()).NinoReadMembers(reader);
+                this.dict2[reader.ReadString()] = (new Nino.Test.Data()).NinoReadMembers(reader);
             }
             return this;
         }
