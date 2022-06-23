@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Text;
-using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 using System.Reflection;
@@ -56,6 +55,22 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public static T Deserialize<T>(byte[] data, Encoding encoding = null) where T : new()
 		{
+			Type t = typeof(T);
+			if (TypeModel.TryGetHelper(t, out var helperObj))
+			{
+				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
+				if (helper != null)
+				{
+					//record
+					TypeModel.AddDeserializeAction(t, reader => helper.NinoReadMembers(reader));
+					//start Deserialize
+					using (var reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding))
+					{
+						return helper.NinoReadMembers(reader);
+					}
+				}
+			}
+			
 			T val = new T();
 			return (T)Deserialize(typeof(T), val, data, encoding ?? DefaultEncoding);
 		}
@@ -72,9 +87,25 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
 		// ReSharper disable CognitiveComplexity
-		public static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader = null)
+		internal static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader = null)
 			// ReSharper restore CognitiveComplexity
 		{
+			//try code gen
+			if (TypeModel.TryGetDeserializeAction(type, out var func))
+			{
+				//share a reader
+				if (reader != null)
+				{
+					return func(reader);
+				}
+
+				//start Deserialize
+				using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
+				{
+					return func(reader);
+				}
+			}
+			
 			//Get Attribute that indicates a class/struct to be serialized
 			TypeModel.TryGetModel(type, out var model);
 
@@ -101,15 +132,6 @@ namespace Nino.Serialization
 
 			void Read()
 			{
-				if (model.NinoReadMembers != null)
-				{
-					var p = ArrayPool<object>.Request(1);
-					p[0] = reader;
-					model.NinoReadMembers.Invoke(val, p);
-					ArrayPool<object>.Return(p);
-					return;
-				}
-
 				//only include all model need this
 				if (model.includeAll)
 				{

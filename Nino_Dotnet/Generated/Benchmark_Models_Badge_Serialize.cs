@@ -3,28 +3,34 @@ namespace Benchmark.Models
 {
     public partial class Badge
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static Badge.SerializationHelper NinoSerializationHelper = new Badge.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Badge>
         {
-            writer.CompressAndWrite(this.badge_id);
-            writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) this.rank);
-            writer.Write(this.name);
-            writer.Write(this.description);
-            writer.CompressAndWrite(this.award_count);
-            writer.CompressAndWriteEnum(typeof(System.Int32), (ulong) this.badge_type);
-            writer.Write(this.link);
-        }
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(Badge value, Nino.Serialization.Writer writer)
+            {
+                writer.CompressAndWrite(value.badge_id);
+                writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) value.rank);
+                writer.Write(value.name);
+                writer.Write(value.description);
+                writer.CompressAndWrite(value.award_count);
+                writer.CompressAndWriteEnum(typeof(System.Int32), (ulong) value.badge_type);
+                writer.Write(value.link);
+            }
 
-        public void NinoSetMembers(object[] data)
-        {
-            this.badge_id = System.Convert.ToInt32(data[0]);
-            this.rank = (Benchmark.Models.BadgeRank)data[1];
-            this.name = (System.String)data[2];
-            this.description = (System.String)data[3];
-            this.award_count = System.Convert.ToInt32(data[4]);
-            this.badge_type = (Benchmark.Models.BadgeType)data[5];
-            this.link = (System.String)data[6];
+            public Badge NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+                Badge value = new Badge();
+                value.badge_id =  (System.Int32)reader.DecompressAndReadNumber();
+                value.rank = (Benchmark.Models.BadgeRank)reader.DecompressAndReadEnum(typeof(System.Byte));
+                value.name = reader.ReadString();
+                value.description = reader.ReadString();
+                value.award_count =  (System.Int32)reader.DecompressAndReadNumber();
+                value.badge_type = (Benchmark.Models.BadgeType)reader.DecompressAndReadEnum(typeof(System.Int32));
+                value.link = reader.ReadString();
+                return value;
+            }
+            #endregion
         }
-        #endregion
     }
 }

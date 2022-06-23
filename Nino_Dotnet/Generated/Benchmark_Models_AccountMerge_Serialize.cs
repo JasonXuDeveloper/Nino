@@ -3,20 +3,26 @@ namespace Benchmark.Models
 {
     public partial class AccountMerge
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static AccountMerge.SerializationHelper NinoSerializationHelper = new AccountMerge.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<AccountMerge>
         {
-            writer.CompressAndWrite(this.old_account_id);
-            writer.CompressAndWrite(this.new_account_id);
-            writer.WriteCommonVal(typeof(System.DateTime), this.merge_date);
-        }
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(AccountMerge value, Nino.Serialization.Writer writer)
+            {
+                writer.CompressAndWrite(value.old_account_id);
+                writer.CompressAndWrite(value.new_account_id);
+                writer.WriteCommonVal(typeof(System.DateTime), value.merge_date);
+            }
 
-        public void NinoSetMembers(object[] data)
-        {
-            this.old_account_id = System.Convert.ToInt32(data[0]);
-            this.new_account_id = System.Convert.ToInt32(data[1]);
-            this.merge_date = (System.DateTime)data[2];
+            public AccountMerge NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+                AccountMerge value = new AccountMerge();
+                value.old_account_id =  (System.Int32)reader.DecompressAndReadNumber();
+                value.new_account_id =  (System.Int32)reader.DecompressAndReadNumber();
+                value.merge_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                return value;
+            }
+            #endregion
         }
-        #endregion
     }
 }

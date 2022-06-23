@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Text;
-using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 using System.Reflection;
@@ -52,11 +51,31 @@ namespace Nino.Serialization
 		/// <typeparam name="T"></typeparam>
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
-		/// <param name="writer"></param>
 		/// <returns></returns>
-		public static byte[] Serialize<T>(T val, Encoding encoding = null, Writer writer = null)
+		public static byte[] Serialize<T>(T val, Encoding encoding = null)
 		{
-			return Serialize(typeof(T), val, encoding ?? DefaultEncoding, writer);
+			Type t = typeof(T);
+			if (TypeModel.TryGetHelper(t, out var helperObj))
+			{
+				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
+				if (helper != null)
+				{
+					//record
+					TypeModel.AddSerializeAction(t, (obj, writer) =>
+					{
+						helper.NinoWriteMembers((T)obj, writer);
+					});
+					//start serialize
+					using (var writer = new Writer(encoding ?? DefaultEncoding))
+					{
+						helper.NinoWriteMembers(val, writer);
+						//compress it
+						return writer.ToCompressedBytes();
+					}
+				}
+			}
+			
+			return Serialize(typeof(T), val, encoding ?? DefaultEncoding);
 		}
 
 		/// <summary>
@@ -70,9 +89,27 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
 		// ReSharper disable CognitiveComplexity
-		public static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
+		internal static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
 			// ReSharper restore CognitiveComplexity
 		{
+			//try code gen
+			if (TypeModel.TryGetSerializeAction(type, out var action))
+			{
+				//share a writer
+				if (writer != null)
+				{
+					action(value, writer);
+					return ConstMgr.Null;
+				}
+
+				//start serialize
+				using (writer = new Writer(encoding))
+				{
+					action(value, writer);
+					//compress it
+					return writer.ToCompressedBytes();
+				}
+			}
 			//Get Attribute that indicates a class/struct to be serialized
 			TypeModel.TryGetModel(type, out var model);
 
@@ -93,15 +130,6 @@ namespace Nino.Serialization
 
 			void Write()
 			{
-				if (model.NinoWriteMembers != null)
-				{
-					var p = ArrayPool<object>.Request(1);
-					p[0] = writer;
-					model.NinoWriteMembers.Invoke(value, p);
-					ArrayPool<object>.Return(p);
-					return;
-				}
-				
 				//only include all model need this
 				if (model.includeAll)
 				{

@@ -40,6 +40,11 @@
     <PackageReference Include="Microsoft.NETCore.Runtime.CoreCLR" Version="2.0.8" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="OdinSerializer">
+      <HintPath>Benchmark\OdinSerializer.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
     <None Include="..\Nino_Unity\Assets\Nino\Shared\Attributes.meta">
       <Link>Shared\Attributes.meta</Link>
     </None>
@@ -67,8 +72,8 @@
     <None Include="..\Nino_Unity\Assets\Nino\Shared\Util\Logger.cs.meta">
       <Link>Shared\Util\Logger.cs.meta</Link>
     </None>
-    <None Include="..\Nino_Unity\Assets\Nino\Shared\IO\ArrayBufferWriter.cs.meta">
-      <Link>Shared\IO\ArrayBufferWriter.cs.meta</Link>
+    <None Include="..\Nino_Unity\Assets\Nino\Shared\Util\PowOf2.cs.meta">
+      <Link>Shared\Util\PowOf2.cs.meta</Link>
     </None>
     <None Include="..\Nino_Unity\Assets\Nino\Shared\IO\Pool.meta">
       <Link>Shared\IO\Pool.meta</Link>
@@ -79,11 +84,11 @@
     <None Include="..\Nino_Unity\Assets\Nino\Shared\IO\Buffer.meta">
       <Link>Shared\IO\Buffer.meta</Link>
     </None>
-    <None Include="..\Nino_Unity\Assets\Nino\Shared\IO\Stream\FlexibleReadStream.cs.meta">
-      <Link>Shared\IO\Stream\FlexibleReadStream.cs.meta</Link>
-    </None>
     <None Include="..\Nino_Unity\Assets\Nino\Shared\IO\Stream\DeflateStream.cs.meta">
       <Link>Shared\IO\Stream\DeflateStream.cs.meta</Link>
+    </None>
+    <None Include="..\Nino_Unity\Assets\Nino\Shared\IO\Stream\FlexibleStream.cs.meta">
+      <Link>Shared\IO\Stream\FlexibleStream.cs.meta</Link>
     </None>
     <None Include="..\Nino_Unity\Assets\Nino\Shared\IO\Pool\ArrayPool.cs.meta">
       <Link>Shared\IO\Pool\ArrayPool.cs.meta</Link>
@@ -166,6 +171,9 @@
     <None Include="..\Nino_Unity\Assets\Nino\Serialization\Attributes.meta">
       <Link>Serialization\Attributes.meta</Link>
     </None>
+    <None Include="..\Nino_Unity\Assets\Nino\Serialization\ISerializationHelper.cs.meta">
+      <Link>Serialization\ISerializationHelper.cs.meta</Link>
+    </None>
     <None Include="..\Nino_Unity\Assets\Nino\Serialization\TypeModel.cs.meta">
       <Link>Serialization\TypeModel.cs.meta</Link>
     </None>
@@ -210,11 +218,11 @@
     <Compile Include="..\Nino_Unity\Assets\Nino\Shared\Util\Logger.cs">
       <Link>Shared\Util\Logger.cs</Link>
     </Compile>
-    <Compile Include="..\Nino_Unity\Assets\Nino\Shared\IO\ArrayBufferWriter.cs">
-      <Link>Shared\IO\ArrayBufferWriter.cs</Link>
+    <Compile Include="..\Nino_Unity\Assets\Nino\Shared\Util\PowOf2.cs">
+      <Link>Shared\Util\PowOf2.cs</Link>
     </Compile>
-    <Compile Include="..\Nino_Unity\Assets\Nino\Shared\IO\Stream\FlexibleReadStream.cs">
-      <Link>Shared\IO\Stream\FlexibleReadStream.cs</Link>
+    <Compile Include="..\Nino_Unity\Assets\Nino\Shared\IO\Stream\FlexibleStream.cs">
+      <Link>Shared\IO\Stream\FlexibleStream.cs</Link>
     </Compile>
     <Compile Include="..\Nino_Unity\Assets\Nino\Shared\IO\Stream\DeflateStream.cs">
       <Link>Shared\IO\Stream\DeflateStream.cs</Link>
@@ -255,6 +263,9 @@
     <Compile Include="..\Nino_Unity\Assets\Nino\Serialization\CodeGenerator.cs">
       <Link>Serialization\CodeGenerator.cs</Link>
     </Compile>
+    <Compile Include="..\Nino_Unity\Assets\Nino\Serialization\ISerializationHelper.cs">
+      <Link>Serialization\ISerializationHelper.cs</Link>
+    </Compile>
     <Compile Include="..\Nino_Unity\Assets\Nino\Serialization\Deserializer.cs">
       <Link>Serialization\Deserializer.cs</Link>
     </Compile>
@@ -285,13 +296,5 @@
     <Compile Include="..\Nino_Unity\Assets\Nino\Serialization\Attributes\NinoMemberAttribute.cs">
       <Link>Serialization\Attributes\NinoMemberAttribute.cs</Link>
     </Compile>
-    <Compile Include="..\Nino_Unity\Assets\Nino\Shared\Util\PowOf2.cs">
-      <Link>Shared\PowOf2.cs</Link>
-    </Compile>
-  </ItemGroup>
-  <ItemGroup>
-    <Reference Include="OdinSerializer">
-      <HintPath>Benchmark\OdinSerializer.dll</HintPath>
-    </Reference>
   </ItemGroup>
 </Project>

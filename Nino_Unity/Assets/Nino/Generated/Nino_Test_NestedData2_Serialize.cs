@@ -3,40 +3,56 @@ namespace Nino.Test
 {
     public partial class NestedData2
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static NestedData2.SerializationHelper NinoSerializationHelper = new NestedData2.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<NestedData2>
         {
-            writer.Write(this.name);
-            if(this.ps != null)
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(NestedData2 value, Nino.Serialization.Writer writer)
             {
-                writer.CompressAndWrite(this.ps.Length);
-                foreach (var entry in this.ps)
+                writer.Write(value.name);
+                if(value.ps != null)
                 {
-                     entry.NinoWriteMembers(writer);
+                    writer.CompressAndWrite(value.ps.Length);
+                    foreach (var entry in value.ps)
+                    {
+                        Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry, writer);
+                    }
+                }
+                else
+                {
+                    writer.CompressAndWrite(0);
+                }
+                if(value.vs != null)
+                {
+                    writer.CompressAndWrite(value.vs.Count);
+                    foreach (var entry in value.vs)
+                    {
+                        writer.CompressAndWrite(entry);
+                    }
+                }
+                else
+                {
+                    writer.CompressAndWrite(0);
                 }
             }
-            else
-            {
-                writer.CompressAndWrite(0);
-            }
-            writer.Write(this.vs);
-        }
 
-        public NestedData2 NinoReadMembers(Nino.Serialization.Reader reader)
-        {
-            this.name = reader.ReadString();
-            this.ps = new Nino.Test.Data[reader.ReadLength()];
-            for(int i = 0, cnt = this.ps.Length; i < cnt; i++)
+            public NestedData2 NinoReadMembers(Nino.Serialization.Reader reader)
             {
-                this.ps[i] = (new Nino.Test.Data()).NinoReadMembers(reader);
+                NestedData2 value = new NestedData2();
+                value.name = reader.ReadString();
+                value.ps = new Nino.Test.Data[reader.ReadLength()];
+                for(int i = 0, cnt = value.ps.Length; i < cnt; i++)
+                {
+                    value.ps[i] = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                }
+                value.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
+                for(int i = 0, cnt = value.vs.Capacity; i < cnt; i++)
+                {
+                    value.vs.Add( (System.Int32)reader.DecompressAndReadNumber());
+                }
+                return value;
             }
-            this.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
-            for(int i = 0, cnt = this.vs.Capacity; i < cnt; i++)
-            {
-                this.vs.Add( (System.Int32)reader.DecompressAndReadNumber());
-            }
-            return this;
+            #endregion
         }
-        #endregion
     }
 }

@@ -3,34 +3,40 @@ namespace Benchmark.Models
 {
     public partial class Comment
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static Comment.SerializationHelper NinoSerializationHelper = new Comment.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Comment>
         {
-            writer.CompressAndWrite(this.comment_id);
-            writer.CompressAndWrite(this.post_id);
-            writer.WriteCommonVal(typeof(System.DateTime), this.creation_date);
-            writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) this.post_type);
-            writer.CompressAndWrite(this.score);
-            writer.Write(this.edited);
-            writer.Write(this.body);
-            writer.Write(this.link);
-            writer.Write(this.body_markdown);
-            writer.Write(this.upvoted);
-        }
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(Comment value, Nino.Serialization.Writer writer)
+            {
+                writer.CompressAndWrite(value.comment_id);
+                writer.CompressAndWrite(value.post_id);
+                writer.WriteCommonVal(typeof(System.DateTime), value.creation_date);
+                writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) value.post_type);
+                writer.CompressAndWrite(value.score);
+                writer.Write(value.edited);
+                writer.Write(value.body);
+                writer.Write(value.link);
+                writer.Write(value.body_markdown);
+                writer.Write(value.upvoted);
+            }
 
-        public void NinoSetMembers(object[] data)
-        {
-            this.comment_id = System.Convert.ToInt32(data[0]);
-            this.post_id = System.Convert.ToInt32(data[1]);
-            this.creation_date = (System.DateTime)data[2];
-            this.post_type = (Benchmark.Models.PostType)data[3];
-            this.score = System.Convert.ToInt32(data[4]);
-            this.edited = (System.Boolean)data[5];
-            this.body = (System.String)data[6];
-            this.link = (System.String)data[7];
-            this.body_markdown = (System.String)data[8];
-            this.upvoted = (System.Boolean)data[9];
+            public Comment NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+                Comment value = new Comment();
+                value.comment_id =  (System.Int32)reader.DecompressAndReadNumber();
+                value.post_id =  (System.Int32)reader.DecompressAndReadNumber();
+                value.creation_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.post_type = (Benchmark.Models.PostType)reader.DecompressAndReadEnum(typeof(System.Byte));
+                value.score =  (System.Int32)reader.DecompressAndReadNumber();
+                value.edited = reader.ReadBool();
+                value.body = reader.ReadString();
+                value.link = reader.ReadString();
+                value.body_markdown = reader.ReadString();
+                value.upvoted = reader.ReadBool();
+                return value;
+            }
+            #endregion
         }
-        #endregion
     }
 }

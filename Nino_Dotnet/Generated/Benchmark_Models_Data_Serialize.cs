@@ -3,32 +3,38 @@ namespace Benchmark.Models
 {
     public partial class Data
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static Data.SerializationHelper NinoSerializationHelper = new Data.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Data>
         {
-            writer.CompressAndWrite(this.x);
-            writer.Write(this.y);
-            writer.CompressAndWrite(this.z);
-            writer.Write(this.f);
-            writer.Write(this.d);
-            writer.Write(this.db);
-            writer.Write(this.bo);
-            writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) this.en);
-            writer.Write(this.name);
-        }
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(Data value, Nino.Serialization.Writer writer)
+            {
+                writer.CompressAndWrite(value.x);
+                writer.Write(value.y);
+                writer.CompressAndWrite(value.z);
+                writer.Write(value.f);
+                writer.Write(value.d);
+                writer.Write(value.db);
+                writer.Write(value.bo);
+                writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) value.en);
+                writer.Write(value.name);
+            }
 
-        public void NinoSetMembers(object[] data)
-        {
-            this.x = System.Convert.ToInt32(data[0]);
-            this.y = (System.Int16)data[1];
-            this.z = System.Convert.ToInt64(data[2]);
-            this.f = (System.Single)data[3];
-            this.d = (System.Decimal)data[4];
-            this.db = (System.Double)data[5];
-            this.bo = (System.Boolean)data[6];
-            this.en = (Benchmark.Models.TestEnum)data[7];
-            this.name = (System.String)data[8];
+            public Data NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+                Data value = new Data();
+                value.x =  (System.Int32)reader.DecompressAndReadNumber();
+                value.y = reader.ReadInt16();
+                value.z =  (System.Int64)reader.DecompressAndReadNumber();
+                value.f = reader.ReadSingle();
+                value.d = reader.ReadDecimal();
+                value.db = reader.ReadDouble();
+                value.bo = reader.ReadBool();
+                value.en = (Benchmark.Models.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
+                value.name = reader.ReadString();
+                return value;
+            }
+            #endregion
         }
-        #endregion
     }
 }

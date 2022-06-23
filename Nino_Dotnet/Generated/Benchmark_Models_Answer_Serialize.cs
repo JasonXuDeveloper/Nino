@@ -3,69 +3,94 @@ namespace Benchmark.Models
 {
     public partial class Answer
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static Answer.SerializationHelper NinoSerializationHelper = new Answer.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Answer>
         {
-            writer.CompressAndWrite(this.question_id);
-            writer.CompressAndWrite(this.answer_id);
-            writer.WriteCommonVal(typeof(System.DateTime), this.locked_date);
-            writer.WriteCommonVal(typeof(System.DateTime), this.creation_date);
-            writer.WriteCommonVal(typeof(System.DateTime), this.last_edit_date);
-            writer.WriteCommonVal(typeof(System.DateTime), this.last_activity_date);
-            writer.CompressAndWrite(this.score);
-            writer.WriteCommonVal(typeof(System.DateTime), this.community_owned_date);
-            writer.Write(this.is_accepted);
-            writer.Write(this.body);
-            writer.Write(this.title);
-            writer.CompressAndWrite(this.up_vote_count);
-            writer.CompressAndWrite(this.down_vote_count);
-            if(this.comments != null)
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(Answer value, Nino.Serialization.Writer writer)
             {
-                writer.CompressAndWrite(this.comments.Count);
-                foreach (var entry in this.comments)
-                 {
-                     entry.NinoWriteMembers(writer);
-                 }
+                writer.CompressAndWrite(value.question_id);
+                writer.CompressAndWrite(value.answer_id);
+                writer.WriteCommonVal(typeof(System.DateTime), value.locked_date);
+                writer.WriteCommonVal(typeof(System.DateTime), value.creation_date);
+                writer.WriteCommonVal(typeof(System.DateTime), value.last_edit_date);
+                writer.WriteCommonVal(typeof(System.DateTime), value.last_activity_date);
+                writer.CompressAndWrite(value.score);
+                writer.WriteCommonVal(typeof(System.DateTime), value.community_owned_date);
+                writer.Write(value.is_accepted);
+                writer.Write(value.body);
+                writer.Write(value.title);
+                writer.CompressAndWrite(value.up_vote_count);
+                writer.CompressAndWrite(value.down_vote_count);
+                if(value.comments != null)
+                {
+                    writer.CompressAndWrite(value.comments.Count);
+                    foreach (var entry in value.comments)
+                    {
+                        Benchmark.Models.Comment.NinoSerializationHelper.NinoWriteMembers(entry, writer);
+                    }
+                }
+                else
+                {
+                    writer.CompressAndWrite(0);
+                }
+                writer.Write(value.link);
+                if(value.tags != null)
+                {
+                    writer.CompressAndWrite(value.tags.Count);
+                    foreach (var entry in value.tags)
+                    {
+                        writer.Write(entry);
+                    }
+                }
+                else
+                {
+                    writer.CompressAndWrite(0);
+                }
+                writer.Write(value.upvoted);
+                writer.Write(value.downvoted);
+                writer.Write(value.accepted);
+                writer.CompressAndWrite(value.comment_count);
+                writer.Write(value.body_markdown);
+                writer.Write(value.share_link);
             }
-            else
-            {
-                writer.CompressAndWrite(0);
-            }
-            writer.Write(this.link);
-            writer.Write(this.tags);
-            writer.Write(this.upvoted);
-            writer.Write(this.downvoted);
-            writer.Write(this.accepted);
-            writer.CompressAndWrite(this.comment_count);
-            writer.Write(this.body_markdown);
-            writer.Write(this.share_link);
-        }
 
-        public void NinoSetMembers(object[] data)
-        {
-            this.question_id = System.Convert.ToInt32(data[0]);
-            this.answer_id = System.Convert.ToInt32(data[1]);
-            this.locked_date = (System.DateTime)data[2];
-            this.creation_date = (System.DateTime)data[3];
-            this.last_edit_date = (System.DateTime)data[4];
-            this.last_activity_date = (System.DateTime)data[5];
-            this.score = System.Convert.ToInt32(data[6]);
-            this.community_owned_date = (System.DateTime)data[7];
-            this.is_accepted = (System.Boolean)data[8];
-            this.body = (System.String)data[9];
-            this.title = (System.String)data[10];
-            this.up_vote_count = System.Convert.ToInt32(data[11]);
-            this.down_vote_count = System.Convert.ToInt32(data[12]);
-            this.comments = (System.Collections.Generic.List<Benchmark.Models.Comment>)data[13];
-            this.link = (System.String)data[14];
-            this.tags = (System.Collections.Generic.List<System.String>)data[15];
-            this.upvoted = (System.Boolean)data[16];
-            this.downvoted = (System.Boolean)data[17];
-            this.accepted = (System.Boolean)data[18];
-            this.comment_count = System.Convert.ToInt32(data[19]);
-            this.body_markdown = (System.String)data[20];
-            this.share_link = (System.String)data[21];
+            public Answer NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+                Answer value = new Answer();
+                value.question_id =  (System.Int32)reader.DecompressAndReadNumber();
+                value.answer_id =  (System.Int32)reader.DecompressAndReadNumber();
+                value.locked_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.creation_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.last_edit_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.last_activity_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.score =  (System.Int32)reader.DecompressAndReadNumber();
+                value.community_owned_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.is_accepted = reader.ReadBool();
+                value.body = reader.ReadString();
+                value.title = reader.ReadString();
+                value.up_vote_count =  (System.Int32)reader.DecompressAndReadNumber();
+                value.down_vote_count =  (System.Int32)reader.DecompressAndReadNumber();
+                value.comments = new System.Collections.Generic.List<Benchmark.Models.Comment>(reader.ReadLength());
+                for(int i = 0, cnt = value.comments.Capacity; i < cnt; i++)
+                {
+                    value.comments.Add(Benchmark.Models.Comment.NinoSerializationHelper.NinoReadMembers(reader));
+                }
+                value.link = reader.ReadString();
+                value.tags = new System.Collections.Generic.List<System.String>(reader.ReadLength());
+                for(int i = 0, cnt = value.tags.Capacity; i < cnt; i++)
+                {
+                    value.tags.Add(reader.ReadString());
+                }
+                value.upvoted = reader.ReadBool();
+                value.downvoted = reader.ReadBool();
+                value.accepted = reader.ReadBool();
+                value.comment_count =  (System.Int32)reader.DecompressAndReadNumber();
+                value.body_markdown = reader.ReadString();
+                value.share_link = reader.ReadString();
+                return value;
+            }
+            #endregion
         }
-        #endregion
     }
 }

@@ -3,22 +3,43 @@ namespace Benchmark.Models
 {
     public partial class AccessToken
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static AccessToken.SerializationHelper NinoSerializationHelper = new AccessToken.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<AccessToken>
         {
-            writer.Write(this.access_token);
-            writer.WriteCommonVal(typeof(System.DateTime), this.expires_on_date);
-            writer.CompressAndWrite(this.account_id);
-            writer.Write(this.scope);
-        }
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(AccessToken value, Nino.Serialization.Writer writer)
+            {
+                writer.Write(value.access_token);
+                writer.WriteCommonVal(typeof(System.DateTime), value.expires_on_date);
+                writer.CompressAndWrite(value.account_id);
+                if(value.scope != null)
+                {
+                    writer.CompressAndWrite(value.scope.Count);
+                    foreach (var entry in value.scope)
+                    {
+                        writer.Write(entry);
+                    }
+                }
+                else
+                {
+                    writer.CompressAndWrite(0);
+                }
+            }
 
-        public void NinoSetMembers(object[] data)
-        {
-            this.access_token = (System.String)data[0];
-            this.expires_on_date = (System.DateTime)data[1];
-            this.account_id = System.Convert.ToInt32(data[2]);
-            this.scope = (System.Collections.Generic.List<System.String>)data[3];
+            public AccessToken NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+                AccessToken value = new AccessToken();
+                value.access_token = reader.ReadString();
+                value.expires_on_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.account_id =  (System.Int32)reader.DecompressAndReadNumber();
+                value.scope = new System.Collections.Generic.List<System.String>(reader.ReadLength());
+                for(int i = 0, cnt = value.scope.Capacity; i < cnt; i++)
+                {
+                    value.scope.Add(reader.ReadString());
+                }
+                return value;
+            }
+            #endregion
         }
-        #endregion
     }
 }

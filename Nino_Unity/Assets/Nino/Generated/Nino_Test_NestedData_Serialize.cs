@@ -3,34 +3,39 @@ namespace Nino.Test
 {
     public partial class NestedData
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static NestedData.SerializationHelper NinoSerializationHelper = new NestedData.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<NestedData>
         {
-            writer.Write(this.name);
-            if(this.ps != null)
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(NestedData value, Nino.Serialization.Writer writer)
             {
-                writer.CompressAndWrite(this.ps.Length);
-                foreach (var entry in this.ps)
+                writer.Write(value.name);
+                if(value.ps != null)
                 {
-                     entry.NinoWriteMembers(writer);
+                    writer.CompressAndWrite(value.ps.Length);
+                    foreach (var entry in value.ps)
+                    {
+                        Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry, writer);
+                    }
+                }
+                else
+                {
+                    writer.CompressAndWrite(0);
                 }
             }
-            else
-            {
-                writer.CompressAndWrite(0);
-            }
-        }
 
-        public NestedData NinoReadMembers(Nino.Serialization.Reader reader)
-        {
-            this.name = reader.ReadString();
-            this.ps = new Nino.Test.Data[reader.ReadLength()];
-            for(int i = 0, cnt = this.ps.Length; i < cnt; i++)
+            public NestedData NinoReadMembers(Nino.Serialization.Reader reader)
             {
-                this.ps[i] = (new Nino.Test.Data()).NinoReadMembers(reader);
+                NestedData value = new NestedData();
+                value.name = reader.ReadString();
+                value.ps = new Nino.Test.Data[reader.ReadLength()];
+                for(int i = 0, cnt = value.ps.Length; i < cnt; i++)
+                {
+                    value.ps[i] = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                }
+                return value;
             }
-            return this;
+            #endregion
         }
-        #endregion
     }
 }

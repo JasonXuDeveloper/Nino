@@ -9,6 +9,18 @@ namespace Nino.Shared.Mgr
     public static class CompressMgr
     {
         /// <summary>
+        /// static ctor
+        /// </summary>
+        static CompressMgr()
+        {
+#if UNITY_2017_1_OR_NEWER
+            GetCompressInformation(out _, out _);
+            var empty = System.Array.Empty<byte>();
+            GetDecompressInformation(out _, ref empty);
+#endif
+        }
+        
+        /// <summary>
         /// compress stream pool (deflateStream compress + flexibleStream)
         /// </summary>
         private static readonly UncheckedStack<DeflateStream> CompressStreams = new UncheckedStack<DeflateStream>();

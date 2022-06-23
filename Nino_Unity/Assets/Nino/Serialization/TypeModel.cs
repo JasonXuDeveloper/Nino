@@ -9,19 +9,94 @@ namespace Nino.Serialization
 	/// </summary>
 	internal class TypeModel
 	{
+		private const string HelperName = "NinoSerializationHelper";
+		
 		public Dictionary<ushort, MemberInfo> members;
 		public Dictionary<ushort, Type> types;
 		public ushort min;
 		public ushort max;
 		public bool valid;
-		public MethodInfo NinoWriteMembers;
-		public MethodInfo NinoReadMembers;
 		public bool includeAll;
 
 		/// <summary>
 		/// Cached Models
 		/// </summary>
 		private static readonly Dictionary<Type, TypeModel> TypeModels = new Dictionary<Type, TypeModel>(10);
+		
+		/// <summary>
+		/// Generated helpers
+		/// </summary>
+		private static readonly Dictionary<Type, object> GeneratedSerializationHelper = new Dictionary<Type, object>(10);
+		
+		/// <summary>
+		/// Generated helpers
+		/// </summary>
+		private static readonly Dictionary<Type, Action<object, Writer>> SerializeActions = new Dictionary<Type, Action<object, Writer>>(10);
+
+		/// <summary>
+		/// Add a code gen serialize action
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="action"></param>
+		internal static void AddSerializeAction(Type type, Action<object, Writer> action)
+		{
+			if (SerializeActions.ContainsKey(type)) return;
+			SerializeActions[type] = action;
+		}
+
+		/// <summary>
+		/// try get a code gen serialize action
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="action"></param>
+		/// <returns></returns>
+		internal static bool TryGetSerializeAction(Type type, out Action<object, Writer> action)
+		{
+			return SerializeActions.TryGetValue(type, out action);
+		}
+		
+		/// <summary>
+		/// Generated helpers
+		/// </summary>
+		private static readonly Dictionary<Type, Func<Reader, object>> DeserializeActions = new Dictionary<Type, Func<Reader, object>>(10);
+
+		/// <summary>
+		/// Add a code gen deserialize action
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="func"></param>
+		internal static void AddDeserializeAction(Type type, Func<Reader, object> func)
+		{
+			if (DeserializeActions.ContainsKey(type)) return;
+			DeserializeActions[type] = func;
+		}
+
+		/// <summary>
+		/// try get a code gen serialize action
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="func"></param>
+		/// <returns></returns>
+		internal static bool TryGetDeserializeAction(Type type, out Func<Reader, object> func)
+		{
+			return DeserializeActions.TryGetValue(type, out func);
+		}
+		
+		/// <summary>
+		/// Get whether or not a type is a code gen type
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="helper"></param>
+		/// <returns></returns>
+		internal static bool TryGetHelper(Type type, out object helper)
+		{
+			if (GeneratedSerializationHelper.TryGetValue(type, out helper)) return helper != null;
+			
+			var field = type.GetField(HelperName, BindingFlags.Public | BindingFlags.Static);
+			helper = field?.GetValue(null);
+			GeneratedSerializationHelper[type] = helper;
+			return GeneratedSerializationHelper[type] != null;
+		}
 
 		/// <summary>
 		/// Try get cached model
@@ -29,7 +104,7 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="model"></param>
 		/// <returns></returns>
-		public static void TryGetModel(Type type, out TypeModel model)
+		internal static void TryGetModel(Type type, out TypeModel model)
 		{
 			if (TypeModels.TryGetValue(type, out model)) return;
 			NinoSerializeAttribute[] ns =
@@ -50,7 +125,7 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <exception cref="InvalidOperationException"></exception>
 		// ReSharper disable CognitiveComplexity
-		public static TypeModel CreateModel(Type type)
+		internal static TypeModel CreateModel(Type type)
 			// ReSharper restore CognitiveComplexity
 		{
 			var model = new TypeModel
@@ -152,12 +227,6 @@ namespace Nino.Serialization
 			if (model.members.Count == 0)
 			{
 				model.valid = false;
-			}
-			else
-			{
-				//try code gen
-				model.NinoWriteMembers = type.GetMethod("NinoWriteMembers", flags);
-				model.NinoReadMembers = type.GetMethod("NinoReadMembers", flags);
 			}
 
 			TypeModels.Add(type, model);

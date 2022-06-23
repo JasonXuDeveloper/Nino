@@ -48,6 +48,10 @@ namespace Nino.Benchmark
 
         protected static NestedData NestedDataInput = new NestedData() { };
 
+        protected static byte[] nino;
+        protected static byte[] pbnet;
+        protected static byte[] msgpack;
+
         [GlobalSetup]
         public void Setup()
         {
@@ -79,6 +83,10 @@ namespace Nino.Benchmark
                 name = "测试",
                 ps = dt
             };
+
+            nino = (byte[])NinoSerialize();
+            pbnet = (byte[])ProtobufSerialize();
+            msgpack = (byte[])MsgPackSerialize();
         }
 
         private static string GetString(int len)
@@ -106,10 +114,34 @@ namespace Nino.Benchmark
         [Benchmark]
         public object ProtobufSerialize()
         {
-            using(var ms = new MemoryStream())
+            using (var ms = new MemoryStream())
             {
                 ProtoBuf.Serializer.Serialize(ms, NestedDataInput);
                 return ms.ToArray();
+            }
+        }
+
+        // Deserialize
+
+        [Benchmark]
+        public object NinoDeserialize()
+        {
+            return Nino.Serialization.Deserializer.Deserialize<NestedData>(nino);
+        }
+
+        [Benchmark]
+        public object MsgPackDeserialize()
+        {
+            var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
+            return MessagePackSerializer.Deserialize<NestedData>(msgpack, lz4Options);
+        }
+
+        [Benchmark]
+        public object ProtobufDeserialize()
+        {
+            using (var ms = new MemoryStream(pbnet))
+            {
+                return ProtoBuf.Serializer.Deserialize<NestedData>(ms);
             }
         }
 

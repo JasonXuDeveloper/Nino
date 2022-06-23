@@ -404,3 +404,5 @@ ASALocalRun/
 # Local History for Visual Studio
 .localhistory/
 Performance.xlsx
+Nino_Unity/.vsconfig
+Nino_Unity/.config/dotnet-tools.json

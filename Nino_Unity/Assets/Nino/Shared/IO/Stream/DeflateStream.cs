@@ -446,7 +446,7 @@ namespace Nino.Shared.IO
 			}
 			else
 			{
-				baseStream = (FlexibleStream)Stream.Null;
+				baseStream = Stream.Null as FlexibleStream;
 			}
 			if (zStream != null && !zStream.IsInvalid)
 			{

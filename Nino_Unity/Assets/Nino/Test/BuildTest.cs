@@ -9,6 +9,7 @@ using System.Diagnostics;
 using MessagePack.Resolvers;
 using System.Collections.Generic;
 using MongoDB.Bson.Serialization;
+using UnityEngine.SceneManagement;
 using System.Runtime.Serialization.Formatters.Binary;
 using Logger = Nino.Shared.Util.Logger;
 
@@ -37,6 +38,14 @@ namespace Nino.Test
         private byte[] msgPackBuffer = Array.Empty<byte>();
         private BuildTestDataNoCodeGen d1;
         private BuildTestDataCodeGen d2;
+
+        private void OnGUI()
+        {
+            if (GUI.Button(new Rect(Screen.width - 300, Screen.height - 100, 200, 50), "Large Object Test"))
+            {
+                SceneManager.LoadScene(1);
+            }
+        }
 
         /// <summary>
         /// Prepare data
@@ -152,20 +161,27 @@ namespace Nino.Test
                 }
             };
             //reg
-            BsonClassMap.RegisterClassMap<NotIncludeAllClass>();
-            BsonClassMap.RegisterClassMap<BuildTestDataNoCodeGen>();
-            BsonClassMap.RegisterClassMap<BuildTestDataCodeGen>();
-            StaticCompositeResolver.Instance.Register(
-                GeneratedResolver.Instance,
-                BuiltinResolver.Instance,
-                AttributeFormatterResolver.Instance,
-                MessagePack.Unity.UnityResolver.Instance,
-                PrimitiveObjectResolver.Instance,
-                MessagePack.Unity.Extension.UnityBlitWithPrimitiveArrayResolver.Instance,
-                StandardResolver.Instance
-            );
-            var option = MessagePackSerializerOptions.Standard.WithResolver(StaticCompositeResolver.Instance);
-            MessagePackSerializer.DefaultOptions = option;
+            try
+            {
+                BsonClassMap.RegisterClassMap<NotIncludeAllClass>();
+                BsonClassMap.RegisterClassMap<BuildTestDataNoCodeGen>();
+                BsonClassMap.RegisterClassMap<BuildTestDataCodeGen>();
+                StaticCompositeResolver.Instance.Register(
+                    GeneratedResolver.Instance,
+                    BuiltinResolver.Instance,
+                    AttributeFormatterResolver.Instance,
+                    MessagePack.Unity.UnityResolver.Instance,
+                    PrimitiveObjectResolver.Instance,
+                    MessagePack.Unity.Extension.UnityBlitWithPrimitiveArrayResolver.Instance,
+                    StandardResolver.Instance
+                );
+                var option = MessagePackSerializerOptions.Standard.WithResolver(StaticCompositeResolver.Instance);
+                MessagePackSerializer.DefaultOptions = option;
+            }
+            catch
+            {
+                //ignore
+            }
         }
 
         /// <summary>
@@ -183,19 +199,19 @@ namespace Nino.Test
                     {
                         sw.Reset();
                         sw.Start();
-                        var dd1 = Nino.Serialization.Deserializer.Deserialize<BuildTestDataNoCodeGen>(ninoBuffer);
+                        var dd1 = Nino.Serialization.Deserializer.Deserialize<BuildTestDataCodeGen>(ninoBuffer);
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;
                         sw.Reset();
                         sw.Start();
                         //as everything are same, buffer can be shared across two classes
-                        var dd2 = Nino.Serialization.Deserializer.Deserialize<BuildTestDataCodeGen>(ninoBuffer);
+                        var dd2 = Nino.Serialization.Deserializer.Deserialize<BuildTestDataNoCodeGen>(ninoBuffer);
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         ninoBuffer = Array.Empty<byte>();
                         ninoResultText.text =
-                            $"Deserialized BuildTestDataNoCodeGen in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd1}\n" +
-                            $"Deserialized BuildTestDataCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd2}";
+                            $"Deserialized BuildTestDataCodeGen in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd1}\n" +
+                            $"Deserialized BuildTestDataNoCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd2}";
                         ninoBtn.GetComponentInChildren<Text>().text = "NinoSerialize";
                     }
                     //serialize
@@ -203,18 +219,18 @@ namespace Nino.Test
                     {
                         sw.Reset();
                         sw.Start();
-                        ninoBuffer = Nino.Serialization.Serializer.Serialize<BuildTestDataNoCodeGen>(d1);
+                        ninoBuffer = Nino.Serialization.Serializer.Serialize<BuildTestDataCodeGen>(d2);
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;
                         sw.Reset();
                         sw.Start();
                         //as everything are same, buffer has same length
-                        ninoBuffer = Nino.Serialization.Serializer.Serialize<BuildTestDataCodeGen>(d2);
+                        ninoBuffer = Nino.Serialization.Serializer.Serialize<BuildTestDataNoCodeGen>(d1);
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         ninoResultText.text =
-                            $"Serialized BuildTestDataNoCodeGen as {ninoBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
-                            $"Serialized BuildTestDataCodeGen as {ninoBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", ninoBuffer)}";
+                            $"Serialized BuildTestDataCodeGen as {ninoBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
+                            $"Serialized BuildTestDataNoCodeGen as {ninoBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", ninoBuffer)}";
                         ninoBtn.GetComponentInChildren<Text>().text = "NinoDeserialize";
                     }
                 }
@@ -237,7 +253,7 @@ namespace Nino.Test
                         sw.Start();
                         using (MemoryStream ms = new MemoryStream(pbNetBuffer))
                         {
-                            dd1 = ProtoBuf.Serializer.Deserialize<BuildTestDataNoCodeGen>(ms);
+                            dd2 = ProtoBuf.Serializer.Deserialize<BuildTestDataCodeGen>(ms);
                         }
 
                         sw.Stop();
@@ -247,7 +263,7 @@ namespace Nino.Test
                         //as everything are same, buffer can be shared across two classes
                         using (MemoryStream ms = new MemoryStream(pbNetBuffer))
                         {
-                            dd2 = ProtoBuf.Serializer.Deserialize<BuildTestDataCodeGen>(ms);
+                            dd1 = ProtoBuf.Serializer.Deserialize<BuildTestDataNoCodeGen>(ms);
                         }
 
                         sw.Stop();
@@ -255,8 +271,8 @@ namespace Nino.Test
                         var m2 = sw.ElapsedTicks;
                         pbNetBuffer = Array.Empty<byte>();
                         pbNetResultText.text =
-                            $"Deserialized BuildTestDataNoCodeGen in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd1}\n" +
-                            $"Deserialized BuildTestDataCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd2}";
+                            $"Deserialized BuildTestDataCodeGen (no code gen for this class for pbnet) in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd2}\n" +
+                            $"Deserialized BuildTestDataNoCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd1}";
                         pbNetBtn.GetComponentInChildren<Text>().text = "PbNetSerialize";
                     }
                     //serialize
@@ -266,7 +282,7 @@ namespace Nino.Test
                         sw.Start();
                         using (MemoryStream ms = new MemoryStream())
                         {
-                            ProtoBuf.Serializer.Serialize<BuildTestDataNoCodeGen>(ms, d1);
+                            ProtoBuf.Serializer.Serialize<BuildTestDataCodeGen>(ms, d2);
                             pbNetBuffer = ms.ToArray();
                         }
 
@@ -277,15 +293,15 @@ namespace Nino.Test
                         //as everything are same, buffer has same length
                         using (MemoryStream ms = new MemoryStream())
                         {
-                            ProtoBuf.Serializer.Serialize<BuildTestDataCodeGen>(ms, d2);
+                            ProtoBuf.Serializer.Serialize<BuildTestDataNoCodeGen>(ms, d1);
                             pbNetBuffer = ms.ToArray();
                         }
 
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         pbNetResultText.text =
-                            $"Serialized BuildTestDataNoCodeGen as {pbNetBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
-                            $"Serialized BuildTestDataCodeGen as {pbNetBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", pbNetBuffer.Take(300))}";
+                            $"Serialized BuildTestDataCodeGen (no code gen for this class for pbnet) as {pbNetBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
+                            $"Serialized BuildTestDataNoCodeGen as {pbNetBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", pbNetBuffer.Take(300))}";
                         pbNetBtn.GetComponentInChildren<Text>().text = "PbNetDeserialize";
                     }
                 }
@@ -309,7 +325,7 @@ namespace Nino.Test
                         using (var ms = new MemoryStream(binaryFormatterBuffer1))
                         {
                             BinaryFormatter bFormatter = new BinaryFormatter();
-                            dd1 = (BuildTestDataNoCodeGen)bFormatter.Deserialize(ms);
+                            dd2 = (BuildTestDataCodeGen)bFormatter.Deserialize(ms);
                         }
 
                         sw.Stop();
@@ -320,7 +336,7 @@ namespace Nino.Test
                         using (var ms = new MemoryStream(binaryFormatterBuffer2))
                         {
                             BinaryFormatter bFormatter = new BinaryFormatter();
-                            dd2 = (BuildTestDataCodeGen)bFormatter.Deserialize(ms);
+                            dd1 = (BuildTestDataNoCodeGen)bFormatter.Deserialize(ms);
                         }
 
                         sw.Stop();
@@ -328,8 +344,8 @@ namespace Nino.Test
                         binaryFormatterBuffer1 = Array.Empty<byte>();
                         binaryFormatterBuffer2 = Array.Empty<byte>();
                         binaryFormatterResultText.text =
-                            $"Deserialized BuildTestDataNoCodeGen in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd1}\n" +
-                            $"Deserialized BuildTestDataCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd2}";
+                            $"Deserialized BuildTestDataCodeGen in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd2}\n" +
+                            $"Deserialized BuildTestDataNoCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd1}";
                         binaryFormatterBtn.GetComponentInChildren<Text>().text = "BinaryFormatterSerialize";
                     }
                     //serialize
@@ -340,7 +356,7 @@ namespace Nino.Test
                         using (var ms = new MemoryStream())
                         {
                             BinaryFormatter bFormatter = new BinaryFormatter();
-                            bFormatter.Serialize(ms, d1);
+                            bFormatter.Serialize(ms, d2);
                             binaryFormatterBuffer1 = ms.ToArray();
                         }
 
@@ -351,15 +367,15 @@ namespace Nino.Test
                         using (var ms = new MemoryStream())
                         {
                             BinaryFormatter bFormatter = new BinaryFormatter();
-                            bFormatter.Serialize(ms, d2);
+                            bFormatter.Serialize(ms, d1);
                             binaryFormatterBuffer2 = ms.ToArray();
                         }
 
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         binaryFormatterResultText.text =
-                            $"Serialized BuildTestDataNoCodeGen as {binaryFormatterBuffer1.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
-                            $"Serialized BuildTestDataCodeGen as {binaryFormatterBuffer2.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n" +
+                            $"Serialized BuildTestDataCodeGen (no code gen for this class for bf) as {binaryFormatterBuffer1.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
+                            $"Serialized BuildTestDataNoCodeGen as {binaryFormatterBuffer2.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n" +
                             $"{string.Join(",", binaryFormatterBuffer1.Length > 300 ? binaryFormatterBuffer1.Take(300) : binaryFormatterBuffer1)}";
                         binaryFormatterBtn.GetComponentInChildren<Text>().text = "BinaryFormatterDeserialize";
                     }
@@ -381,23 +397,23 @@ namespace Nino.Test
                         BuildTestDataCodeGen dd2;
                         sw.Reset();
                         sw.Start();
-                        dd1 = (BuildTestDataNoCodeGen)BsonSerializer.Deserialize(bsonBuffer,
-                            typeof(BuildTestDataNoCodeGen));
+                        dd2 = (BuildTestDataCodeGen)BsonSerializer.Deserialize(bsonBuffer,
+                            typeof(BuildTestDataCodeGen));
 
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;
                         sw.Reset();
                         sw.Start();
                         //as everything are same, buffer can be shared across two classes
-                        dd2 = (BuildTestDataCodeGen)BsonSerializer.Deserialize(bsonBuffer,
-                            typeof(BuildTestDataCodeGen));
+                        dd1 = (BuildTestDataNoCodeGen)BsonSerializer.Deserialize(bsonBuffer,
+                            typeof(BuildTestDataNoCodeGen));
 
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         bsonBuffer = Array.Empty<byte>();
                         bsonResultText.text =
-                            $"Deserialized BuildTestDataNoCodeGen in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd1}\n" +
-                            $"Deserialized BuildTestDataCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd2}";
+                            $"Deserialized BuildTestDataCodeGen (no code gen for this class for bson) in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd1}\n" +
+                            $"Deserialized BuildTestDataNoCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd2}";
                         bsonBtn.GetComponentInChildren<Text>().text = "BsonSerialize";
                     }
                     //serialize
@@ -414,7 +430,7 @@ namespace Nino.Test
                                 BsonSerializationArgs args = default;
                                 args.NominalType = typeof(object);
                                 IBsonSerializer serializer = BsonSerializer.LookupSerializer(args.NominalType);
-                                serializer.Serialize(context, args, d1);
+                                serializer.Serialize(context, args, d2);
                                 bsonBuffer = ms.ToArray();
                             }
                         }
@@ -433,7 +449,7 @@ namespace Nino.Test
                                 BsonSerializationArgs args = default;
                                 args.NominalType = typeof(object);
                                 IBsonSerializer serializer = BsonSerializer.LookupSerializer(args.NominalType);
-                                serializer.Serialize(context, args, d2);
+                                serializer.Serialize(context, args, d1);
                                 bsonBuffer = ms.ToArray();
                             }
                         }
@@ -441,8 +457,8 @@ namespace Nino.Test
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         bsonResultText.text =
-                            $"Serialized BuildTestDataNoCodeGen as {bsonBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
-                            $"Serialized BuildTestDataCodeGen as {bsonBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", bsonBuffer)}";
+                            $"Serialized BuildTestDataCodeGen (no code gen for this class for bson) as {bsonBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
+                            $"Serialized BuildTestDataNoCodeGen as {bsonBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", bsonBuffer)}";
                         bsonBtn.GetComponentInChildren<Text>().text = "BsonDeserialize";
                     }
                 }
@@ -463,21 +479,21 @@ namespace Nino.Test
                         BuildTestDataCodeGen dd2;
                         sw.Reset();
                         sw.Start();
-                        dd1 = MessagePackSerializer.Deserialize<BuildTestDataNoCodeGen>(msgPackBuffer);
+                        dd2 = MessagePackSerializer.Deserialize<BuildTestDataCodeGen>(msgPackBuffer);
 
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;
                         sw.Reset();
                         sw.Start();
                         //as everything are same, buffer can be shared across two classes
-                        dd2 = MessagePackSerializer.Deserialize<BuildTestDataCodeGen>(msgPackBuffer);
+                        dd1 = MessagePackSerializer.Deserialize<BuildTestDataNoCodeGen>(msgPackBuffer);
 
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         msgPackBuffer = Array.Empty<byte>();
                         msgPackResultText.text =
-                            $"Deserialized BuildTestDataNoCodeGen in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd1}\n" +
-                            $"Deserialized BuildTestDataCodeGen in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd2}";
+                            $"Deserialized BuildTestDataCodeGen in {((float)m1 / Stopwatch.Frequency) * 1000} ms: \n{dd1}\n" +
+                            $"Deserialized BuildTestDataNoCodeGen (THIS CLASS HAS CODE GEN OTHERWISE WONT WORK IN IL2CPP) in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{dd2}";
                         msgPackBtn.GetComponentInChildren<Text>().text = "MsgPackSerialize";
                     }
                     //serialize
@@ -485,20 +501,20 @@ namespace Nino.Test
                     {
                         sw.Reset();
                         sw.Start();
-                        msgPackBuffer = MessagePackSerializer.Serialize(d1);
+                        msgPackBuffer = MessagePackSerializer.Serialize(d2);
 
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;
                         sw.Reset();
                         sw.Start();
                         //as everything are same, buffer has same length
-                        msgPackBuffer = MessagePackSerializer.Serialize(d2);
+                        msgPackBuffer = MessagePackSerializer.Serialize(d1);
 
                         sw.Stop();
                         var m2 = sw.ElapsedTicks;
                         msgPackResultText.text =
-                            $"Serialized BuildTestDataNoCodeGen as {msgPackBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
-                            $"Serialized BuildTestDataCodeGen as {msgPackBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", msgPackBuffer)}";
+                            $"Serialized BuildTestDataCodeGen as {msgPackBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
+                            $"Serialized BuildTestDataCodeGen (THIS CLASS HAS CODE GEN OTHERWISE WONT WORK IN IL2CPP) as {msgPackBuffer.Length} bytes in {((float)m2 / Stopwatch.Frequency) * 1000} ms:\n{string.Join(",", msgPackBuffer)}";
                         msgPackBtn.GetComponentInChildren<Text>().text = "MsgPackDeserialize";
                     }
                 }

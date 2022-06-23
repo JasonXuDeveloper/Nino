@@ -3,23 +3,28 @@ namespace Nino.Test
 {
     public partial class NotIncludeAllClass
     {
-        #region NINO_CODEGEN
-        public void NinoWriteMembers(Nino.Serialization.Writer writer)
+        public static NotIncludeAllClass.SerializationHelper NinoSerializationHelper = new NotIncludeAllClass.SerializationHelper();
+        public class SerializationHelper: Nino.Serialization.ISerializationHelper<NotIncludeAllClass>
         {
-            writer.CompressAndWrite(this.a);
-            writer.CompressAndWrite(this.b);
-            writer.Write(this.c);
-            writer.Write(this.d);
-        }
+            #region NINO_CODEGEN
+            public void NinoWriteMembers(NotIncludeAllClass value, Nino.Serialization.Writer writer)
+            {
+                writer.CompressAndWrite(value.a);
+                writer.CompressAndWrite(value.b);
+                writer.Write(value.c);
+                writer.Write(value.d);
+            }
 
-        public NotIncludeAllClass NinoReadMembers(Nino.Serialization.Reader reader)
-        {
-            this.a =  (System.Int32)reader.DecompressAndReadNumber();
-            this.b =  (System.Int64)reader.DecompressAndReadNumber();
-            this.c = reader.ReadSingle();
-            this.d = reader.ReadDouble();
-            return this;
+            public NotIncludeAllClass NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+                NotIncludeAllClass value = new NotIncludeAllClass();
+                value.a =  (System.Int32)reader.DecompressAndReadNumber();
+                value.b =  (System.Int64)reader.DecompressAndReadNumber();
+                value.c = reader.ReadSingle();
+                value.d = reader.ReadDouble();
+                return value;
+            }
+            #endregion
         }
-        #endregion
     }
 }
