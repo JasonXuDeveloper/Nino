@@ -22,23 +22,23 @@ Useful Unity Modules | 实用的Unity模块
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行序列化和反序列化，无法跨语言使用
   - 测试案例
-    - [Test1](Nino/Assets/Nino/Test/Editor/Serialization/Test1.cs) Nino VS Protobuf-net 序列化
+    - [Test1](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test1.cs) Nino VS Protobuf-net 序列化
   
-    - [Test2](Nino/Assets/Nino/Test/Editor/Serialization/Test2.cs) Nino VS BinaryFormatter 序列化
+    - [Test2](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test2.cs) Nino VS BinaryFormatter 序列化
   
-    - [Test3](Nino/Assets/Nino/Test/Editor/Serialization/Test3.cs) Nino VS Protobuf-net 反序列化
+    - [Test3](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test3.cs) Nino VS Protobuf-net 反序列化
   
-    - [Test4](Nino/Assets/Nino/Test/Editor/Serialization/Test4.cs) Nino VS BinaryFormatter 反序列化
+    - [Test4](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test4.cs) Nino VS BinaryFormatter 反序列化
   
-    - [Test5](Nino/Assets/Nino/Test/Editor/Serialization/Test5.cs) Nino VS MongoDB.Bson 序列化以及反序列化
+    - [Test5](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test5.cs) Nino VS MongoDB.Bson 序列化以及反序列化
   
-    - [Test6](Nino/Assets/Nino/Test/Editor/Serialization/Test6.cs) Nino VS MsgPack 序列化以及反序列化
+    - [Test6](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test6.cs) Nino VS MsgPack 序列化以及反序列化
   
-    - [Test7](Nino/Assets/Nino/Test/Editor/Serialization/Test7.cs) 自定义Nino序列化反序列化委托
+    - [Test7](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test7.cs) 自定义Nino序列化反序列化委托
   
-    - [Test8](Nino/Assets/Nino/Test/Editor/Serialization/Test8.cs) 自动收集全部字段进行序列化/反序列化（无需给单个字段或属性打标签）
+    - [Test8](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test8.cs) 自动收集全部字段进行序列化/反序列化（无需给单个字段或属性打标签）
   
-    - [真机测试](/Nino/Assets/Nino/Test/BuildTest.cs) 可以打IL2CPP或Mono包进行测试（对比了Nino Reflection/Code Gen与Protobuf-net/BinaryFormatter/Bson/MsgPack Code Gen的序列化性能、序列化体积、反序列化性能）
+    - [真机测试](Nino_Unity/Assets/Nino/Test/BuildTest.cs) 可以打IL2CPP或Mono包进行测试（对比了Nino Reflection/Code Gen与Protobuf-net/BinaryFormatter/Bson/MsgPack Code Gen的序列化性能、序列化体积、反序列化性能）
   
       > Protobuf-net与Bson在IL2CPP下暂不支持字典序列化
       >
