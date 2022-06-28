@@ -59,7 +59,6 @@ namespace Nino.Serialization
             NinoSerializeAttribute[] ns =
                 (NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
             if (ns.Length == 0) return false;
-            if (ns[0].IncludeAll) return false;
 
             CodeGenIgnoreAttribute[] ci =
                 (CodeGenIgnoreAttribute[])type.GetCustomAttributes(typeof(CodeGenIgnoreAttribute), false);

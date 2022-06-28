@@ -119,7 +119,22 @@ namespace Nino.Test
     }
 
     [NinoSerialize(true)]
+    [CodeGenIgnore]
     public partial class IncludeAllClass
+    {
+        public int a;
+        public long b;
+        public float c;
+        public double d;
+
+        public override string ToString()
+        {
+            return $"{a}, {b}, {c}, {d}";
+        }
+    }
+
+    [NinoSerialize(true)]
+    public partial class IncludeAllClassCodeGen
     {
         public int a;
         public long b;

@@ -23,7 +23,7 @@ public partial class IncludeAllClass
   }
 }
 
-[NinoSerialize()]
+[NinoSerialize]
 public partial class NotIncludeAllClass
 {
   [NinoMember(1)]
@@ -46,7 +46,9 @@ public partial class NotIncludeAllClass
 >
 > 推荐```NotIncludeAllClass```的写法，给每个字段或属性单独打```NinoMember```标签，这样性能最好，体积最小
 >
-> **不推荐```IncludeAllClass```的写法（自动收集），因为会导致生成出来的体积较大，序列化反序列化速度慢，并且无法生成代码优化性能**
+> **```IncludeAllClass```的写法（自动收集），会导致生成出来的体积较大，序列化反序列化速度慢，但是可以通过生成代码优化**
+>
+> **自动收集的类型或结构体，强烈建议通过生成代码来提高性能，以及优化体积，但是需要注意，每次更新字段或属性后需要重新生成代码来更新**
 
 
 
@@ -64,7 +66,7 @@ public partial class NotIncludeAllClass
 
 不支持序列化的成员类型（可以通过注册自定义委托实现）：
 
-- 任何非上述类型（Nullable, DateTime，Vector3等）
+- 任何非上述类型（HashSet, Nullable, DateTime, Vector3等）
 
 **针对某个类型注册自定义序列化委托后，记得注册该类型的自定义反序列化委托，不然会导致反序列化出错**
 
@@ -72,7 +74,7 @@ public partial class NotIncludeAllClass
 
 ## 限制
 
-- 不支持给Nested类型生成代码
+- 不支持给非partial或Nested类型和结构体生成代码
 - 不支持在继承的情况下，序列化父类的可序列化成员
 
 
@@ -158,15 +160,7 @@ Nino.Serialization.Serializer.Serialize<T>(T val);
 Nino.Serialization.Serializer.Serialize<T>(T val, Encoding encoding);
 ```
 
-```csharp
-Nino.Serialization.Serializer.Serialize(Type valType, object val);
-```
-
-```csharp
-Nino.Serialization.Serializer.Serialize(Type valType, object val, Encoding encoding);
-```
-
-> 推荐使用泛型方法，同时如果没有指定的编码的话，会使用UTF8
+> 同时如果没有指定的编码的话，会使用UTF8
 >
 > 需要注意的是，涉及到字符串时，请确保序列化和反序列化的时候用的是同样的编码
 
@@ -182,10 +176,6 @@ byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);
 
 ```csharp
 Nino.Serialization.Deserializer.Deserialize<T>(byte[] data);
-```
-
-```csharp
-Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding);
 ```
 
 > 需要注意编码问题，并且反序列化的对象需要能够通过new()创建（即包含无参数构造函数）
