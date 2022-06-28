@@ -340,7 +340,7 @@ namespace Nino.Shared.IO
             EnsureCapacity(blockIndex * ExpandSize);
             fixed (T* ptr = Data.items[blockIndex])
             {
-                *ptr = *data;
+                Buffer.MemoryCopy(data,ptr,ExpandSize,ExpandSize);
             }
         }
     }
