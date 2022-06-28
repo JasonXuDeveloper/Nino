@@ -116,6 +116,12 @@ namespace Nino.Serialization
                 template = template.Replace("{start}", "{");
                 template = template.Replace("{end}", "}");
             }
+            else
+            {
+                template = template.Replace("{namespace}", string.Empty);
+                template = template.Replace("{start}", string.Empty);
+                template = template.Replace("{end}", string.Empty);
+            }
 
             //class full name
             var classFullName =
@@ -318,8 +324,27 @@ namespace Nino.Serialization
                     }
                     
                     //create field
+                    string arr = String.Empty;
+                    if (mt.IsArray)
+                    {
+                        //multidimensional array
+                        if (mt.GetArrayRank() > 1)
+                        {
+                            throw new NotSupportedException("can not serialize multidimensional array, use jagged array instead");
+                        }
+                        //jagged
+                        if (BeautifulLongTypeName(elemType).Contains("[]"))
+                        {
+                            var et = BeautifulLongTypeName(elemType);
+                            arr = $"{et.Replace(et.Substring(et.IndexOf('[') - 1, 2), $"{et[et.IndexOf('[') - 1]}[reader.ReadLength()")}[]";
+                        }
+                        else
+                        {
+                            arr = $"{BeautifulLongTypeName(elemType)}[reader.ReadLength()]";
+                        }
+                    }
                     sb.Append(
-                        $"                value.{members[key].Name} = new {(mt.IsArray ? BeautifulLongTypeName(elemType) : BeautifulLongTypeName(mt))}{(mt.IsArray ? "[reader.ReadLength()]" : "(reader.ReadLength())")};\n");
+                        $"                value.{members[key].Name} = new {(mt.IsArray ? arr : $"{BeautifulLongTypeName(mt)}(reader.ReadLength())")};\n");
                     //write items
                     sb.Append($"                for(int i = 0, cnt = value.{members[key].Name}.{(mt.IsArray ? "Length" : "Capacity")}; i < cnt; i++)\n");
                     sb.Append("                {\n");

@@ -176,6 +176,10 @@ namespace Nino.Serialization
 			//array/ list -> recursive
 			if (type.IsArray)
 			{
+				if (type.GetArrayRank() > 1)
+				{
+					throw new NotSupportedException("can not serialize multidimensional array, use jagged array instead");
+				}
 				return ReadArray(type);
 			}
 
