@@ -15,8 +15,14 @@ namespace Nino.Shared.Mgr
         {
 #if UNITY_2017_1_OR_NEWER
             GetCompressInformation(out _, out _);
+            var compressedStream = new FlexibleStream(ArrayPool<byte>.Request(1024));
+            var zipStream = new DeflateStream(compressedStream, CompressionMode.Compress, true);
+            CompressStreams.Push(zipStream);
             var empty = System.Array.Empty<byte>();
             GetDecompressInformation(out _, ref empty);
+            compressedStream = new FlexibleStream(ArrayPool<byte>.Request(1024));
+            zipStream = new DeflateStream(compressedStream, CompressionMode.Decompress, true);
+            DecompressStreams.Push(zipStream);
 #endif
         }
         

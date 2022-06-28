@@ -46,6 +46,66 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
+		/// Write basic type to writer
+		/// </summary>
+		/// <param name="val"></param>
+		/// <param name="writer"></param>
+		/// <typeparam name="T"></typeparam>
+		private static void WriteBasicType<T>(T val, Writer writer)
+		{
+			switch (val)
+			{
+				//without sign
+				case ulong ul:
+					writer.CompressAndWrite(ul);
+					return;
+				case uint ui:
+					writer.CompressAndWrite(ui);
+					return;
+				case ushort us: //unnecessary to compress
+					writer.Write(us);
+					return;
+				case byte b: //unnecessary to compress
+					writer.Write(b);
+					return;
+				// with sign
+				case long l:
+					writer.CompressAndWrite(l);
+					return;
+				case int i:
+					writer.CompressAndWrite(i);
+					return;
+				case short s: //unnecessary to compress
+					writer.Write(s);
+					return;
+				case sbyte sb: //unnecessary to compress
+					writer.Write(sb);
+					return;
+				case bool b:
+					writer.Write(b);
+					return;
+				case double db:
+					writer.Write(db);
+					return;
+				case decimal dc:
+					writer.Write(dc);
+					return;
+				case float fl:
+					writer.Write(fl);
+					return;
+				case char c:
+					writer.Write(c);
+					return;
+				case string s:
+					writer.Write(s);
+					return;
+				default:
+					writer.WriteCommonVal(typeof(T), val);
+					return;
+			}
+		}
+		
+		/// <summary>
 		/// Serialize a NinoSerialize object
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
@@ -55,6 +115,18 @@ namespace Nino.Serialization
 		public static byte[] Serialize<T>(T val, Encoding encoding = null)
 		{
 			Type t = typeof(T);
+			//basic type
+			if (TypeModel.IsBasicType(t))
+			{
+				//start serialize
+				using (var writer = new Writer(encoding ?? DefaultEncoding))
+				{
+					WriteBasicType(val, writer);
+					//compress it
+					return writer.ToCompressedBytes();
+				}
+			}
+			//code generated type
 			if (TypeModel.TryGetHelper(t, out var helperObj))
 			{
 				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
@@ -74,7 +146,7 @@ namespace Nino.Serialization
 					}
 				}
 			}
-			
+			//reflection type
 			return Serialize(typeof(T), val, encoding ?? DefaultEncoding);
 		}
 

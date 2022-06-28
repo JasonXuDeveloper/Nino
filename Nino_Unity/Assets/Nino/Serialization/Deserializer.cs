@@ -46,6 +46,49 @@ namespace Nino.Serialization
 			CustomExporter.Add(typeof(T), (reader) => func.Invoke(reader));
 		}
 
+
+		/// <summary>
+		/// Read basic type from reader
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="reader"></param>
+		private static object ReadBasicType(Type type, Reader reader)
+		{
+			switch (Type.GetTypeCode(type))
+			{
+				case TypeCode.Byte:
+					return reader.ReadByte();
+				case TypeCode.SByte:
+					return reader.ReadSByte();
+				case TypeCode.Int16:
+					return reader.ReadInt16();
+				case TypeCode.UInt16:
+					return reader.ReadUInt16();
+				case TypeCode.Int32:
+					return (int)reader.DecompressAndReadNumber();
+				case TypeCode.UInt32:
+					return (uint)reader.DecompressAndReadNumber();
+				case TypeCode.Int64:
+					return (long)reader.DecompressAndReadNumber();
+				case TypeCode.UInt64:
+					return (ulong)reader.DecompressAndReadNumber();
+				case TypeCode.String:
+					return reader.ReadString();
+				case TypeCode.Boolean:
+					return reader.ReadBool();
+				case TypeCode.Double:
+					return reader.ReadDouble();
+				case TypeCode.Single:
+					return reader.ReadSingle();
+				case TypeCode.Decimal:
+					return reader.ReadDecimal();
+				case TypeCode.Char:
+					return reader.ReadChar();
+				default:
+					return reader.ReadCommonVal(type);
+			}
+		}
+
 		/// <summary>
 		/// Deserialize a NinoSerialize object
 		/// </summary>
@@ -53,9 +96,19 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="encoding"></param>
 		/// <returns></returns>
-		public static T Deserialize<T>(byte[] data, Encoding encoding = null) where T : new()
+		public static T Deserialize<T>(byte[] data, Encoding encoding = null)
 		{
 			Type t = typeof(T);
+			//basic type
+			if (TypeModel.IsBasicType(t))
+			{
+				//start Deserialize
+				using (var reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding))
+				{
+					return (T)ReadBasicType(t, reader);
+				}
+			}
+			//code generated type
 			if (TypeModel.TryGetHelper(t, out var helperObj))
 			{
 				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
@@ -70,8 +123,8 @@ namespace Nino.Serialization
 					}
 				}
 			}
-			
-			T val = new T();
+
+			T val = Activator.CreateInstance<T>();
 			return (T)Deserialize(typeof(T), val, data, encoding ?? DefaultEncoding);
 		}
 

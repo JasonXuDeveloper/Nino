@@ -145,10 +145,13 @@ namespace Nino.Serialization
 				case TypeCode.UInt16:
 					return ReadUInt16();
 				case TypeCode.Int32:
+					return (int)DecompressAndReadNumber();
 				case TypeCode.UInt32:
+					return (uint)DecompressAndReadNumber();
 				case TypeCode.Int64:
+					return (long)DecompressAndReadNumber();
 				case TypeCode.UInt64:
-					return DecompressAndReadNumber();
+					return (ulong)DecompressAndReadNumber();
 				case TypeCode.String:
 					return ReadString();
 				case TypeCode.Boolean:
