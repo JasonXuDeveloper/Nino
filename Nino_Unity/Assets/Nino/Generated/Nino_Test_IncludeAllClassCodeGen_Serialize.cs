@@ -12,6 +12,7 @@ namespace Nino.Test
                 writer.CompressAndWrite(value.a);
                 writer.CompressAndWrite(value.b);
                 writer.Write(value.c);
+                writer.Write(value.d);
             }
 
             public IncludeAllClassCodeGen NinoReadMembers(Nino.Serialization.Reader reader)
@@ -20,6 +21,7 @@ namespace Nino.Test
                 value.a =  (System.Int32)reader.DecompressAndReadNumber();
                 value.b =  (System.Int64)reader.DecompressAndReadNumber();
                 value.c = reader.ReadSingle();
+                value.d = reader.ReadDouble();
                 return value;
             }
             #endregion
