@@ -6,7 +6,6 @@ using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
 using System.Runtime.CompilerServices;
-using Nino.Shared.Util;
 
 namespace Nino.Serialization
 {
@@ -20,12 +19,7 @@ namespace Nino.Serialization
 		/// Buffer that stores data
 		/// </summary>
 		private ExtensibleBuffer<byte> buffer;
-
-		/// <summary>
-		/// 缓存反射创建dict的参数数组
-		/// </summary>
-		private static volatile Nino.Shared.UncheckedStack<Type[]> _reflectionGenericTypePool = new Nino.Shared.UncheckedStack<Type[]>(3);
-
+		
 		/// <summary>
 		/// encoding for string
 		/// </summary>

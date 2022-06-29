@@ -176,6 +176,25 @@ namespace Nino.Serialization
 			}
 #endif
 
+			//basic type
+			if (TypeModel.IsBasicType(type))
+			{
+				//share a writer
+				if (writer != null)
+				{
+					WriteBasicType(value, writer);
+					return ConstMgr.Null;
+				}
+
+				//start serialize
+				using (writer = new Writer(encoding))
+				{
+					WriteBasicType(value, writer);
+					//compress it
+					return writer.ToCompressedBytes();
+				}
+			}
+			
 			//try code gen
 			if (TypeModel.TryGetSerializeAction(type, out var action))
 			{

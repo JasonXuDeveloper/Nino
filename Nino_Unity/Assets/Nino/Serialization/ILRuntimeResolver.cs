@@ -1,7 +1,10 @@
 using System;
 using System.Text;
+using System.Linq;
+using Nino.Shared.Mgr;
 using System.Reflection;
 using System.Collections.Generic;
+
 // ReSharper disable CognitiveComplexity
 // ReSharper disable RedundantNameQualifier
 // ReSharper disable RedundantExplicitArrayCreation
@@ -57,6 +60,14 @@ namespace Nino.Serialization
         public static unsafe void RegisterILRuntimeClrRedirection(ILRuntime.Runtime.Enviorment.AppDomain domain)
         {
             _appDomain = domain;
+            //cache types
+            IlRuntimeTypes.Clear();
+            var allTypes = domain.LoadedTypes.Values.Select(x => x.ReflectionType).ToArray();
+            foreach (var t in allTypes)
+            {
+                if (t.FullName != null) IlRuntimeTypes[t.FullName] = t;
+            }
+            
             _appDomain.RegisterCrossBindingAdaptor(new SerializationHelper1ILTypeInstanceAdapter());
             //reg redirections
             MethodBase method;
@@ -110,13 +121,14 @@ namespace Nino.Serialization
                 }
             }
 
+            //Deserialize<HotUpdateType>
             args = new Type[] { typeof(ILRuntime.Runtime.Intepreter.ILTypeInstance) };
             if (genericMethods.TryGetValue("Deserialize", out lst))
             {
                 foreach (var m in lst)
                 {
                     if (ILRuntime.Runtime.Extensions.MatchGenericParameters(m, args,
-                        typeof(ILRuntime.Runtime.Intepreter.ILTypeInstance),
+                        args[0],
                         typeof(System.Byte[]), typeof(System.Text.Encoding)))
                     {
                         method = m.MakeGenericMethod(args);
@@ -126,6 +138,108 @@ namespace Nino.Serialization
                     }
                 }
             }
+            
+            //Deserialize<HotUpdateType[]>
+            args = new Type[] { typeof(ILRuntime.Runtime.Intepreter.ILTypeInstance[]) };
+            if (genericMethods.TryGetValue("Deserialize", out lst))
+            {
+                foreach (var m in lst)
+                {
+                    if (ILRuntime.Runtime.Extensions.MatchGenericParameters(m, args,
+                        args[0],
+                        typeof(System.Byte[]), typeof(System.Text.Encoding)))
+                    {
+                        method = m.MakeGenericMethod(args);
+                        _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+
+                        break;
+                    }
+                }
+            }
+            
+            //Deserialize<List<HotUpdateType>>
+            args = new Type[] { typeof(List<ILRuntime.Runtime.Intepreter.ILTypeInstance>) };
+            if (genericMethods.TryGetValue("Deserialize", out lst))
+            {
+                foreach (var m in lst)
+                {
+                    if (ILRuntime.Runtime.Extensions.MatchGenericParameters(m, args,
+                        args[0],
+                        typeof(System.Byte[]), typeof(System.Text.Encoding)))
+                    {
+                        method = m.MakeGenericMethod(args);
+                        _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+
+                        break;
+                    }
+                }
+            }
+            
+            //Deserialize<Dictionary<CLRType, HotUpdateType>>
+            foreach (var kvp in IlRuntimeTypes)
+            {
+                if (kvp.Value is ILRuntime.Reflection.ILRuntimeType) continue;
+                var t = ConstMgr.DictDefType.MakeGenericType(new Type[]
+                    { kvp.Value, typeof(ILRuntime.Runtime.Intepreter.ILTypeInstance) });
+                args = new Type[] { t };
+                if (genericMethods.TryGetValue("Deserialize", out lst))
+                {
+                    foreach (var m in lst)
+                    {
+                        if (ILRuntime.Runtime.Extensions.MatchGenericParameters(m, args,
+                            args[0],
+                            typeof(System.Byte[]), typeof(System.Text.Encoding)))
+                        {
+                            method = m.MakeGenericMethod(args);
+                            _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+
+                            break;
+                        }
+                    }
+                }   
+            }
+            
+            //Deserialize<Dictionary<HotUpdateType, CLRType>>
+            foreach (var kvp in IlRuntimeTypes)
+            {
+                if (kvp.Value is ILRuntime.Reflection.ILRuntimeType) continue;
+                var t = ConstMgr.DictDefType.MakeGenericType(new Type[]
+                    { typeof(ILRuntime.Runtime.Intepreter.ILTypeInstance), kvp.Value });
+                args = new Type[] { t };
+                if (genericMethods.TryGetValue("Deserialize", out lst))
+                {
+                    foreach (var m in lst)
+                    {
+                        if (ILRuntime.Runtime.Extensions.MatchGenericParameters(m, args,
+                            args[0],
+                            typeof(System.Byte[]), typeof(System.Text.Encoding)))
+                        {
+                            method = m.MakeGenericMethod(args);
+                            _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+
+                            break;
+                        }
+                    }
+                }   
+            }
+            
+            //Deserialize<Dictionary<HotUpdateType, HotUpdateType>>
+            args = new Type[] { typeof(Dictionary<ILRuntime.Runtime.Intepreter.ILTypeInstance,ILRuntime.Runtime.Intepreter.ILTypeInstance>) };
+            if (genericMethods.TryGetValue("Deserialize", out lst))
+            {
+                foreach (var m in lst)
+                {
+                    if (ILRuntime.Runtime.Extensions.MatchGenericParameters(m, args,
+                        args[0],
+                        typeof(System.Byte[]), typeof(System.Text.Encoding)))
+                    {
+                        method = m.MakeGenericMethod(args);
+                        _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+
+                        break;
+                    }
+                }
+            }  
         }
 
         /// <summary>
@@ -161,10 +275,18 @@ namespace Nino.Serialization
             //获取泛型参数<T>的实际类型
             var genericArguments = method.GenericArguments;
             var t = genericArguments[0];
+            object r;
+            if (t is ILRuntime.CLR.TypeSystem.CLRType)
+            {
+                r = Activator.CreateInstance(t.ReflectionType);
+            }
+            else
+            {
+                r = ((ILRuntime.CLR.TypeSystem.ILType)t).Instantiate();
+            }
 
             var resultOfThisMethod =
-                Nino.Serialization.Deserializer.Deserialize(t.ReflectionType,
-                    ((ILRuntime.CLR.TypeSystem.ILType)t).Instantiate(), @data,
+                Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, r, @data,
                     @encoding ?? Encoding.UTF8);
 
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);

@@ -147,6 +147,22 @@ namespace Nino.Serialization
 			//prevent null encoding
 			encoding = encoding == null ? DefaultEncoding : encoding;
 			
+			//basic type
+			if (TypeModel.IsBasicType(type))
+			{
+				//share a reader
+				if (reader != null)
+				{
+					return ReadBasicType(type, reader);
+				}
+
+				//start Deserialize
+				using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
+				{
+					return ReadBasicType(type, reader);
+				}
+			}
+			
 			//try code gen
 			if (TypeModel.TryGetDeserializeAction(type, out var func))
 			{

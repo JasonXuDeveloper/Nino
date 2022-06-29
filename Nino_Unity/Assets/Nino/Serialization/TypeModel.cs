@@ -239,8 +239,8 @@ namespace Nino.Serialization
 			};
 			
 			//include all or not
-			object ns = type.GetCustomAttribute(typeof(NinoSerializeAttribute), false);
-			model.includeAll = ((NinoSerializeAttribute)ns).IncludeAll;
+			object[] ns = type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
+			model.includeAll = ((NinoSerializeAttribute)ns[0]).IncludeAll;
 
 			//store temp attr
 			NinoMemberAttribute sp;
