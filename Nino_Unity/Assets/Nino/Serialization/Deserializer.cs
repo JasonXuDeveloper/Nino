@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 using System.Reflection;
@@ -71,7 +72,7 @@ namespace Nino.Serialization
 				case TypeCode.Int64:
 					return (long)reader.DecompressAndReadNumber();
 				case TypeCode.UInt64:
-					return (ulong)reader.DecompressAndReadNumber();
+					return reader.DecompressAndReadNumber();
 				case TypeCode.String:
 					return reader.ReadString();
 				case TypeCode.Boolean:
@@ -156,6 +157,28 @@ namespace Nino.Serialization
 				using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
 				{
 					return func(reader);
+				}
+			}
+			
+			//another attempt
+			if (TypeModel.TryGetHelper(type, out _))
+			{
+				//reflect generic method
+				var method = typeof(Serializer).GetMethod("Deserialize",
+					BindingFlags.Default | BindingFlags.Public | BindingFlags.Static);
+				var tArg = ArrayPool<Type>.Request(1);
+				tArg[0] = type;
+				method = method?.MakeGenericMethod(tArg);
+				ArrayPool<Type>.Return(tArg);
+				var par = ArrayPool<object>.Request(2);
+				par[0] = data;
+				par[1] = encoding;
+				var ret = method?.Invoke(null,par);
+				ArrayPool<object>.Return(par);
+				if (ret != null)
+				{
+					Logger.D(111);
+					return ret;
 				}
 			}
 			

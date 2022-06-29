@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 using System.Reflection;
@@ -182,6 +183,28 @@ namespace Nino.Serialization
 					return writer.ToCompressedBytes();
 				}
 			}
+			
+			//another attempt
+			if (TypeModel.TryGetHelper(type, out _))
+			{
+				//reflect generic method
+				var method = typeof(Serializer).GetMethod("Serialize",
+					BindingFlags.Default | BindingFlags.Public | BindingFlags.Static);
+				var tArg = ArrayPool<Type>.Request(1);
+				tArg[0] = type;
+				method = method?.MakeGenericMethod(tArg);
+				ArrayPool<Type>.Return(tArg);
+				var par = ArrayPool<object>.Request(2);
+				par[0] = value;
+				par[1] = encoding;
+				var ret = method?.Invoke(null,par);
+				ArrayPool<object>.Return(par);
+				if (ret != null)
+				{
+					return (byte[])ret;
+				}
+			}
+			
 			//Get Attribute that indicates a class/struct to be serialized
 			TypeModel.TryGetModel(type, out var model);
 

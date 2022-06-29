@@ -54,6 +54,12 @@ namespace Nino.Serialization
                 Logger.E("Code Gen", $"Can not generate code for type: {type} due to it is a nested class");
                 return false;
             }
+            //generic
+            if(type.IsGenericType)
+            {
+                Logger.E("Code Gen", $"Can not generate code for type: {type} due to it is a generic class");
+                return false;
+            }
 
             //find NinoSerializeAttribute
             NinoSerializeAttribute[] ns =
