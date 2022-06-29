@@ -4,8 +4,6 @@
 
 *第一次序列化的时候，Nino会对类型进行缓存，达到预热效果，使得同一类型的第二次开始的序列化速度大幅度提升，其他库亦是如此*
 
-> Nino 反序列化还在优化中，反序列化性能的对比图还没更新，目前Nino Reflection反序列化比Protobuf快10%，Nino Code Gen反序列化比MsgPack快80%
-
 ## Unity平台性能测试
 
 ### 结论
@@ -71,11 +69,10 @@ Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典会无法使用，因�
 
 ### 反序列化速度（ms）
 
-![i3](https://s1.ax1x.com/2022/06/15/XodCUP.png)
+![i3](https://s1.ax1x.com/2022/06/29/jnsrWt.png)
 
-> MsgPack (LZ4 Compress) < Nino Code Gen < MongoDB.Bson < Protobuf-net < Nino Reflection < BinaryFormatter
+> Nino Code Gen < MsgPack (LZ4 Compress) < MongoDB.Bson < Nino Reflection < Protobuf-net  < BinaryFormatter
 >
-> 注：这个数据待更新
 
 
 
