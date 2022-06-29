@@ -243,7 +243,7 @@ namespace Nino.Serialization
 			model.includeAll = ((NinoSerializeAttribute)ns[0]).IncludeAll;
 
 			//store temp attr
-			NinoMemberAttribute sp;
+			object[] sps;
 			//flag
 			const BindingFlags flags = BindingFlags.Default | BindingFlags.DeclaredOnly | BindingFlags.Public |
 			                           BindingFlags.NonPublic | BindingFlags.Instance;
@@ -257,15 +257,16 @@ namespace Nino.Serialization
 				if (model.includeAll)
 				{
 					//skip nino ignore
-					if (f.GetCustomAttribute(typeof(NinoIgnoreAttribute), false) != null) continue;
+					var ig = f.GetCustomAttributes(typeof(NinoIgnoreAttribute), false);
+					if (ig.Length > 0) continue;
 					index = (ushort)model.members.Count;
 				}
 				else
 				{
-					sp = f.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
+					sps = f.GetCustomAttributes(typeof(NinoMemberAttribute), false);
 					//not fetch all and no attribute => skip this member
-					if (sp == null) continue;
-					index = sp.Index;
+					if (sps.Length != 1) continue;
+					index = ((NinoMemberAttribute)sps[0]).Index;
 				}
 				//record field
 				model.members.Add(index, f);
@@ -309,15 +310,16 @@ namespace Nino.Serialization
 				if (model.includeAll)
 				{
 					//skip nino ignore
-					if (p.GetCustomAttribute(typeof(NinoIgnoreAttribute), false) != null) continue;
+					var ig = p.GetCustomAttributes(typeof(NinoIgnoreAttribute), false);
+					if (ig.Length > 0) continue;
 					index = (ushort)model.members.Count;
 				}
 				else
 				{
-					sp = p.GetCustomAttribute(typeof(NinoMemberAttribute), false) as NinoMemberAttribute;
+					sps = p.GetCustomAttributes(typeof(NinoMemberAttribute), false);
 					//not fetch all and no attribute => skip this member
-					if (sp == null) continue;
-					index = sp.Index;
+					if (sps.Length != 1) continue;
+					index = ((NinoMemberAttribute)sps[0]).Index;
 				}
 				//record property
 				model.members.Add(index, p);
