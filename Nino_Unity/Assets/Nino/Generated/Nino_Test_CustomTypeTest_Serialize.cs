@@ -62,20 +62,25 @@ namespace Nino.Test
                 value.qs = new System.Collections.Generic.List<UnityEngine.Quaternion>(reader.ReadLength());
                 for(int i = 0, cnt = value.qs.Capacity; i < cnt; i++)
                 {
-                    value.qs.Add((UnityEngine.Quaternion)reader.ReadCommonVal(typeof(UnityEngine.Quaternion)));
+                    var value_qs_i = (UnityEngine.Quaternion)reader.ReadCommonVal(typeof(UnityEngine.Quaternion));
+                    value.qs.Add(value_qs_i);
                 }
                 value.m = (UnityEngine.Matrix4x4)reader.ReadCommonVal(typeof(UnityEngine.Matrix4x4));
-                var this_dict_len = reader.ReadLength();
-                value.dict = new System.Collections.Generic.Dictionary<System.String,System.Int32>(this_dict_len);
-                for(int i = 0; i < this_dict_len; i++)
+                var value_dict_len = reader.ReadLength();
+                value.dict = new System.Collections.Generic.Dictionary<System.String,System.Int32>(value_dict_len);
+                for(int i = 0; i < value_dict_len; i++)
                 {
-                    value.dict[reader.ReadString()] =  (System.Int32)reader.DecompressAndReadNumber();
+                    var value_dict_key = reader.ReadString();
+                    var value_dict_val =  (System.Int32)reader.DecompressAndReadNumber();
+                    value.dict[value_dict_key] = value_dict_val;
                 }
-                var this_dict2_len = reader.ReadLength();
-                value.dict2 = new System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>(this_dict2_len);
-                for(int i = 0; i < this_dict2_len; i++)
+                var value_dict2_len = reader.ReadLength();
+                value.dict2 = new System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>(value_dict2_len);
+                for(int i = 0; i < value_dict2_len; i++)
                 {
-                    value.dict2[reader.ReadString()] = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                    var value_dict2_key = reader.ReadString();
+                    var value_dict2_val = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                    value.dict2[value_dict2_key] = value_dict2_val;
                 }
                 return value;
             }

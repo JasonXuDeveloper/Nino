@@ -11,7 +11,7 @@ namespace Nino.Test.Editor.Serialization
         private const string SerializationTest9 = "Nino/Test/Serialization/Test9 - Basic Types";
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest9)]
+        [UnityEditor.MenuItem(SerializationTest9,priority=9)]
 #endif
         public static void Main()
         {

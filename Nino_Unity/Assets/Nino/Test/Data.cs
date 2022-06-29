@@ -10,6 +10,51 @@ using MongoDB.Bson.Serialization.Options;
 
 namespace Nino.Test
 {
+    [NinoSerialize]
+    public partial class ComplexData
+    {
+        [NinoMember(0)]
+        public int[][] a;
+        [NinoMember(1)]
+        public List<int[]> b;
+        [NinoMember(2)]
+        public List<int>[] c;
+        [NinoMember(3)]
+        public Dictionary<string,Dictionary<string, int>> d;
+        [NinoMember(4)]
+        public Dictionary<string,Dictionary<string, int[][]>>[] e;
+        [NinoMember(5)] 
+        public Data[][] f;
+        [NinoMember(6)]
+        public List<Data[]> g;
+        [NinoMember(7)]
+        public Data[][][] h;
+        [NinoMember(8)]
+        public List<Data>[] i;
+        [NinoMember(9)]
+        public List<Data[]>[] j;
+        public override string ToString()
+        {
+            return $"{string.Join(",", a.SelectMany(x => x).ToArray())},\n" +
+                   $"{string.Join(",", b.SelectMany(x => x).ToArray())},\n" +
+                   $"{string.Join(",", c.SelectMany(x => x).ToArray())},\n" +
+                   $"{GetDictString(d)},\n" +
+                   $"{string.Join(",\n", e.Select(GetDictString).ToArray())}\n" +
+                   $"{string.Join(",\n", f.SelectMany(x => x).Select(x => x))}\n" +
+                   $"{string.Join(",\n", g.SelectMany(x => x).Select(x => x))}\n" +
+                   $"{string.Join(",\n", h.SelectMany(x => x).SelectMany(x => x).Select(x => x))}\n" +
+                   $"{string.Join(",\n", i.SelectMany(x => x).Select(x => x))}\n" +
+                   $"{string.Join(",\n", j.SelectMany(x => x).Select(x => x).SelectMany(x => x).Select(x => x))}\n";
+        }
+
+        private string GetDictString<K,V>(Dictionary<K,Dictionary<K,V>> ddd)
+        {
+            return $"{string.Join(",", ddd.Keys.ToList())},\n" +
+                $"   {string.Join(",", ddd.Values.ToList().SelectMany(k=>k.Keys))},\n" +
+                $"   {string.Join(",", ddd.Values.ToList().SelectMany(k=>k.Values))}";
+        }
+    }
+    
     [Serializable]
     [ProtoContract]
     [NinoSerialize]

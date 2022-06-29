@@ -11,7 +11,7 @@ namespace Nino.Test.Editor.Serialization
         private const string SerializationTest7 = "Nino/Test/Serialization/Test7 - Custom Type Importer Exporter";
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest7)]
+        [UnityEditor.MenuItem(SerializationTest7,priority=7)]
 #endif
         public static void Main()
         {

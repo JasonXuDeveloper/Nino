@@ -13,6 +13,7 @@ namespace Nino.Serialization
 	/// <summary>
 	/// A read that Reads serialization Data
 	/// </summary>
+	// ReSharper disable CognitiveComplexity
 	public class Reader : IDisposable
 	{
 		/// <summary>
@@ -151,7 +152,7 @@ namespace Nino.Serialization
 				case TypeCode.Int64:
 					return (long)DecompressAndReadNumber();
 				case TypeCode.UInt64:
-					return (ulong)DecompressAndReadNumber();
+					return DecompressAndReadNumber();
 				case TypeCode.String:
 					return ReadString();
 				case TypeCode.Boolean:
@@ -457,6 +458,280 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
+		/// Try get basic type arr
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="len"></param>
+		/// <param name="result"></param>
+		/// <returns></returns>
+		private Array TryGetBasicTypeArray(Type type, int len, out bool result)
+		{
+			result = true;
+			switch (Type.GetTypeCode(type))
+			{
+				case TypeCode.Byte:
+					return ReadBytes(len);
+				case TypeCode.SByte:
+					var sByteArr = new sbyte[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						sByteArr[i] = ReadSByte();
+					}
+
+					return sByteArr;
+				case TypeCode.Int16:
+					var shortArr = new short[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						shortArr[i] = ReadInt16();
+					}
+
+					return shortArr;
+				case TypeCode.UInt16:
+					var ushortArr = new ushort[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						ushortArr[i] = ReadUInt16();
+					}
+
+					return ushortArr;
+				case TypeCode.Int32:
+					var intArr = new int[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						intArr[i] = (int)DecompressAndReadNumber();
+					}
+
+					return intArr;
+				case TypeCode.UInt32:
+					var uintArr = new uint[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						uintArr[i] = (uint)DecompressAndReadNumber();
+					}
+
+					return uintArr;
+				case TypeCode.Int64:
+					var longArr = new long[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						longArr[i] = (long)DecompressAndReadNumber();
+					}
+
+					return longArr;
+				case TypeCode.UInt64:
+					var ulongArr = new ulong[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						ulongArr[i] = DecompressAndReadNumber();
+					}
+
+					return ulongArr;
+				case TypeCode.String:
+					var strArr = new string[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						strArr[i] = ReadString();
+					}
+
+					return strArr;
+				case TypeCode.Boolean:
+					var boolArr = new bool[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						boolArr[i] = ReadBool();
+					}
+
+					return boolArr;
+				case TypeCode.Double:
+					var doubleArr = new double[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						doubleArr[i] = ReadDouble();
+					}
+
+					return doubleArr;
+				case TypeCode.Single:
+					var floatArr = new float[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						floatArr[i] = ReadSingle();
+					}
+
+					return floatArr;
+				case TypeCode.Decimal:
+					var decimalArr = new decimal[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						decimalArr[i] = ReadDecimal();
+					}
+
+					return decimalArr;
+				case TypeCode.Char:
+					var charArr = new char[len];
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						charArr[i] = ReadChar();
+					}
+
+					return charArr;
+			}
+
+			result = false;
+			return null;
+		}
+
+		/// <summary>
+		/// Try get basic type list
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="len"></param>
+		/// <param name="result"></param>
+		/// <returns></returns>
+		private IList TryGetBasicTypeList(Type type, int len, out bool result)
+		{
+			result = true;
+			switch (Type.GetTypeCode(type))
+			{
+				case TypeCode.Byte:
+					return ReadBytes(len).ToList();
+				case TypeCode.SByte:
+					var sByteArr = new System.Collections.Generic.List<sbyte>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						sByteArr.Add(ReadSByte());
+					}
+
+					return sByteArr;
+				case TypeCode.Int16:
+					var shortArr = new System.Collections.Generic.List<short>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						shortArr.Add(ReadInt16());
+					}
+
+					return shortArr;
+				case TypeCode.UInt16:
+					var ushortArr = new System.Collections.Generic.List<ushort>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						ushortArr.Add(ReadUInt16());
+					}
+
+					return ushortArr;
+				case TypeCode.Int32:
+					var intArr = new System.Collections.Generic.List<int>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						intArr.Add((int)DecompressAndReadNumber());
+					}
+
+					return intArr;
+				case TypeCode.UInt32:
+					var uintArr = new System.Collections.Generic.List<uint>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						uintArr.Add((uint)DecompressAndReadNumber());
+					}
+
+					return uintArr;
+				case TypeCode.Int64:
+					var longArr = new System.Collections.Generic.List<long>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						longArr.Add((long)DecompressAndReadNumber());
+					}
+
+					return longArr;
+				case TypeCode.UInt64:
+					var ulongArr = new System.Collections.Generic.List<ulong>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						ulongArr.Add(DecompressAndReadNumber());
+					}
+
+					return ulongArr;
+				case TypeCode.String:
+					var strArr = new System.Collections.Generic.List<string>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						strArr.Add(ReadString());
+					}
+
+					return strArr;
+				case TypeCode.Boolean:
+					var boolArr = new System.Collections.Generic.List<bool>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						boolArr.Add(ReadBool());
+					}
+
+					return boolArr;
+				case TypeCode.Double:
+					var doubleArr = new System.Collections.Generic.List<double>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						doubleArr.Add(ReadDouble());
+					}
+
+					return doubleArr;
+				case TypeCode.Single:
+					var floatArr = new System.Collections.Generic.List<float>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						floatArr.Add(ReadSingle());
+					}
+
+					return floatArr;
+				case TypeCode.Decimal:
+					var decimalArr = new System.Collections.Generic.List<decimal>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						decimalArr.Add(ReadDecimal());
+					}
+
+					return decimalArr;
+				case TypeCode.Char:
+					var charArr = new System.Collections.Generic.List<char>(len);
+					//read item
+					for (int i = 0; i < len; i++)
+					{
+						charArr.Add(ReadChar());
+					}
+
+					return charArr;
+			}
+
+			result = false;
+			return null;
+		}
+
+		/// <summary>
 		/// Read Array
 		/// </summary>
 		/// <param name="type"></param>
@@ -467,13 +742,12 @@ namespace Nino.Serialization
 			//read len
 			int len = ReadLength();
 
-			//byte[] -> write directly
-			if (type == ConstMgr.ByteArrType)
+			var arr = TryGetBasicTypeArray(type, len, out bool result);
+			if (result)
 			{
-				//read item
-				return ReadBytes(len);
+				return arr;
 			}
-
+			
 			//other type
 			var elemType = type.GetElementType();
 			if (elemType == null)
@@ -481,7 +755,7 @@ namespace Nino.Serialization
 				throw new NullReferenceException("element type is null, can not make array");
 			}
 
-			var arr = Array.CreateInstance(elemType, len);
+			arr = Array.CreateInstance(elemType, len);
 			//read item
 			for (int i = 0; i < len; i++)
 			{
@@ -508,16 +782,16 @@ namespace Nino.Serialization
 			//read len
 			int len = ReadLength();
 
-			//List<byte> -> write directly
-			if (type == ConstMgr.ByteListType)
+			var arr = TryGetBasicTypeList(type, len, out bool result);
+			if (result)
 			{
-				return ReadBytes(len).ToList();
+				return arr;
 			}
 
 			//other
 			var elemType = type.GenericTypeArguments[0];
 			Type newType = ConstMgr.ListDefType.MakeGenericType(elemType);
-			var arr = Activator.CreateInstance(newType, ConstMgr.EmptyParam) as IList;
+			arr = Activator.CreateInstance(newType, ConstMgr.EmptyParam) as IList;
 			//read item
 			for (int i = 0; i < len; i++)
 			{
@@ -590,4 +864,5 @@ namespace Nino.Serialization
 			return dict;
 		}
 	}
+	// ReSharper restore CognitiveComplexity
 }

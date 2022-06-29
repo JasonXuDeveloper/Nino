@@ -149,36 +149,6 @@ namespace Nino.Serialization
             Dictionary<ushort, MemberInfo> members = model.members;
 
             #region serialize
-
-            string GetSerializeBasicTypeStatement(Type mt,string val)
-            {
-                switch (Type.GetTypeCode(mt))
-                {
-                    case TypeCode.Int32:
-                    case TypeCode.UInt32:
-                    case TypeCode.Int64:
-                    case TypeCode.UInt64:
-                        return $"writer.CompressAndWrite({val})";
-                    case TypeCode.Byte:
-                    case TypeCode.SByte:
-                    case TypeCode.Int16:
-                    case TypeCode.UInt16:
-                    case TypeCode.String:
-                    case TypeCode.Boolean:
-                    case TypeCode.Double:
-                    case TypeCode.Single:
-                    case TypeCode.Decimal:
-                    case TypeCode.Char:
-                        return $"writer.Write({val})";
-                    default:
-                        if (GetValidNinoClass(mt))
-                        {
-                            return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.NinoWriteMembers({val}, writer)";
-                        }
-                        return $"writer.WriteCommonVal(typeof({BeautifulLongTypeName(mt)}), {val})";
-                }
-            }
-            
             //build params
             StringBuilder sb = new StringBuilder();
             var keys = members.Keys.OrderBy(k => k).ToList();
@@ -205,7 +175,18 @@ namespace Nino.Serialization
                     //write item
                     sb.Append($"                    foreach (var entry in value.{members[key].Name})\n");
                     sb.Append("                    {\n");
-                    sb.Append($"                        {GetSerializeBasicTypeStatement(elemType,"entry")};\n");
+                    if (elemType.IsArray || (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                    {
+                        sb.Append($"{GetSerializeBasicTypeStatement(elemType,"entry")}");
+                    }
+                    else if (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                    {
+                        sb.Append($"{GetSerializeBasicTypeStatement(elemType,"entry")}");
+                    }
+                    else
+                    {
+                        sb.Append($"                        {GetSerializeBasicTypeStatement(elemType,"entry")};\n");
+                    }
                     sb.Append("                    }\n");
                     sb.Append("                }\n");
                     //if null then write 0 len
@@ -231,9 +212,31 @@ namespace Nino.Serialization
                     sb.Append($"                    foreach (var entry in value.{members[key].Name})\n");
                     sb.Append("                    {\n");
                     //write key
-                    sb.Append($"                        {GetSerializeBasicTypeStatement(keyType,"entry.Key")};\n");
+                    if (keyType.IsArray || (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                    {
+                        sb.Append($"{GetSerializeBasicTypeStatement(keyType,"entry.Key")}");
+                    }
+                    else if (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                    {
+                        sb.Append($"{GetSerializeBasicTypeStatement(keyType,"entry.Key")}");
+                    }
+                    else
+                    {
+                        sb.Append($"                        {GetSerializeBasicTypeStatement(keyType,"entry.Key")};\n");
+                    }
                     //write value
-                    sb.Append($"                        {GetSerializeBasicTypeStatement(valueType,"entry.Value")};\n");
+                    if (valueType.IsArray || (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                    {
+                        sb.Append($"{GetSerializeBasicTypeStatement(valueType,"entry.Value")}");
+                    }
+                    else if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                    {
+                        sb.Append($"{GetSerializeBasicTypeStatement(valueType,"entry.Value")}");
+                    }
+                    else
+                    {
+                        sb.Append($"                        {GetSerializeBasicTypeStatement(valueType,"entry.Value")};\n");
+                    }
 
                     sb.Append("                    }\n");
                     sb.Append("                }\n");
@@ -251,8 +254,11 @@ namespace Nino.Serialization
                 }
             }
 
-            //remove comma at the end
-            sb.Remove(sb.Length - 1, 1);
+            if (members.Count > 0)
+            {
+                //remove \n at the end
+                sb.Remove(sb.Length - 1, 1);
+            }
 
             //replace template members
             template = template.Replace("{members}", sb.ToString());
@@ -260,45 +266,6 @@ namespace Nino.Serialization
             #endregion
 
             #region deserialize
-
-            string GetBasicTypeStatement(Type mt)
-            {
-                switch (Type.GetTypeCode(mt))
-                    {
-                        case TypeCode.Int32:
-                        case TypeCode.UInt32:
-                        case TypeCode.Int64:
-                        case TypeCode.UInt64:
-                            return $" ({BeautifulLongTypeName(mt)})reader.DecompressAndReadNumber()";
-                        case TypeCode.Byte:
-                            return "reader.ReadByte()";
-                        case TypeCode.SByte:
-                            return "reader.ReadSByte()";
-                        case TypeCode.Int16:
-                            return "reader.ReadInt16()";
-                        case TypeCode.UInt16:
-                            return "reader.ReadUInt16()";
-                        case TypeCode.String:
-                            return "reader.ReadString()";
-                        case TypeCode.Boolean:
-                            return "reader.ReadBool()";
-                        case TypeCode.Double:
-                            return "reader.ReadDouble()";
-                        case TypeCode.Single:
-                            return "reader.ReadSingle()";
-                        case TypeCode.Decimal:
-                            return "reader.ReadDecimal()";
-                        case TypeCode.Char:
-                            return "reader.ReadChar()";
-                        default:
-                            if (GetValidNinoClass(mt))
-                            {
-                                return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.NinoReadMembers(reader)";
-                            }
-                            return $"({BeautifulLongTypeName(mt)})reader.ReadCommonVal(typeof({BeautifulLongTypeName(mt)}))";
-                    }
-            }
-
             sb.Clear();
             keys = members.Keys.OrderBy(k => k).ToList();
             foreach (var key in keys)
@@ -333,15 +300,16 @@ namespace Nino.Serialization
                             throw new NotSupportedException("can not serialize multidimensional array, use jagged array instead");
                         }
                         //jagged
-                        if (BeautifulLongTypeName(elemType).Contains("[]"))
+                        //wrong -> value.e = new System.Collections.Generic.Dictionary<System.String,System.Collections.Generic.Dictionary<System.String,System.Int32[reader.ReadLength()][]>>[];
+                        //correct -> value.e = new System.Collections.Generic.Dictionary<System.String,System.Collections.Generic.Dictionary<System.String,System.Int32[][]>>[reader.ReadLength()];
+                        var et = $"{BeautifulLongTypeName(elemType)}[]";
+                        int pos = et.Length - 1;
+                        while (et[pos]== '[' || et[pos] == ']')
                         {
-                            var et = BeautifulLongTypeName(elemType);
-                            arr = $"{et.Replace(et.Substring(et.IndexOf('[') - 1, 2), $"{et[et.IndexOf('[') - 1]}[reader.ReadLength()")}[]";
+                            pos--;
                         }
-                        else
-                        {
-                            arr = $"{BeautifulLongTypeName(elemType)}[reader.ReadLength()]";
-                        }
+                        var sub = et.Substring(pos, 2);
+                        arr = $"{et.Replace(sub,$"{sub}reader.ReadLength()")}";
                     }
                     sb.Append(
                         $"                value.{members[key].Name} = new {(mt.IsArray ? arr : $"{BeautifulLongTypeName(mt)}(reader.ReadLength())")};\n");
@@ -351,17 +319,29 @@ namespace Nino.Serialization
                     //if nino serialize class => loop call method
                     string valStr = GetValidNinoClass(elemType)
                         ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.NinoReadMembers(reader)"
-                        : GetBasicTypeStatement(elemType);
+                        : GetDeserializeBasicTypeStatement(elemType, $"value_{members[key].Name}_i","                \t");
+                    
+                    if (elemType != null && !(elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
+                    {
+                        sb.Append(
+                            $"                    var value_{members[key].Name}_i = {valStr}" +
+                            $"{((elemType.IsArray || (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType))?"":";")}\n");
+                    }
+                    else
+                    {
+                        
+                        sb.Append($" {valStr}");
+                    }
                     
                     if (mt.IsArray)
                     {
                         sb.Append(
-                            $"                    value.{members[key].Name}[i] = {valStr};\n");
+                            $"                    value.{members[key].Name}[i] = value_{members[key].Name}_i;\n");
                     }
                     else
                     {
                         sb.Append(
-                            $"                    value.{members[key].Name}.Add({valStr});\n");
+                            $"                    value.{members[key].Name}.Add(value_{members[key].Name}_i);\n");
                     }
                     sb.Append("                }\n");
                 }
@@ -372,32 +352,52 @@ namespace Nino.Serialization
                     Type keyType = args[0];
                     Type valueType = args[1];
                     //create field
-                    sb.Append($"                var this_{members[key].Name}_len = reader.ReadLength();\n");
+                    sb.Append($"                var value_{members[key].Name}_len = reader.ReadLength();\n");
                     sb.Append(
-                        $"                value.{members[key].Name} = new {BeautifulLongTypeName(mt)}(this_{members[key].Name}_len);\n");
+                        $"                value.{members[key].Name} = new {BeautifulLongTypeName(mt)}(value_{members[key].Name}_len);\n");
                     //write items
-                    sb.Append($"                for(int i = 0; i < this_{members[key].Name}_len; i++)\n");
+                    sb.Append($"                for(int i = 0; i < value_{members[key].Name}_len; i++)\n");
                     sb.Append("                {\n");
 
                     //read key
                     string valStr = GetValidNinoClass(keyType)
                         ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.NinoReadMembers(reader)"
-                        : GetBasicTypeStatement(keyType);
-                    sb.Append(
-                        $"                    value.{members[key].Name}[{valStr}] = ");
+                        : GetDeserializeBasicTypeStatement(keyType, $"value_{members[key].Name}_key","                \t");
+                    if (!(keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
+                    {
+                        sb.Append(
+                            $"                    var value_{members[key].Name}_key = {valStr}" +
+                            $"{((keyType.IsArray || (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType))?"":";")}\n");
+                    }
+                    else
+                    {
+                        sb.Append($"{valStr}");
+                    }
 
                     //read value
                     valStr = GetValidNinoClass(valueType)
                         ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.NinoReadMembers(reader)"
-                        : GetBasicTypeStatement(valueType);
-                    sb.Append($"{valStr};\n");
-
+                        : GetDeserializeBasicTypeStatement(valueType, $"value_{members[key].Name}_val","                \t");
+                    if (!(valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
+                    {
+                        sb.Append(
+                            $"                    var value_{members[key].Name}_val = {valStr}" +
+                            $"{((valueType.IsArray || (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType))?"":";")}\n");
+                    }
+                    else
+                    {
+                        sb.Append($"{valStr}");
+                    }
+                    
+                    sb.Append(
+                        $"                    value.{members[key].Name}[value_{members[key].Name}_key] = value_{members[key].Name}_val;\n");
+                    
                     sb.Append("                }\n");
                 }
                 //not enum -> basic type
                 else
                 {
-                    sb.Append($"                value.{members[key].Name} = {GetBasicTypeStatement(mt)};\n");
+                    sb.Append($"                value.{members[key].Name} = {GetDeserializeBasicTypeStatement(mt)};\n");
                 }
             }
 
@@ -437,7 +437,298 @@ namespace Nino.Serialization
             Logger.D("Code Gen", $"saved {output}, please move this file to your project");
 #endif
         }
+        
+        // ReSharper disable CognitiveComplexity
+        private static string GetDeserializeBasicTypeStatement(Type mt,string val = "",string space = "                ")
+            // ReSharper restore CognitiveComplexity
+        {
+                switch (Type.GetTypeCode(mt))
+                    {
+                        case TypeCode.Int32:
+                        case TypeCode.UInt32:
+                        case TypeCode.Int64:
+                        case TypeCode.UInt64:
+                            return $" ({BeautifulLongTypeName(mt)})reader.DecompressAndReadNumber()";
+                        case TypeCode.Byte:
+                            return "reader.ReadByte()";
+                        case TypeCode.SByte:
+                            return "reader.ReadSByte()";
+                        case TypeCode.Int16:
+                            return "reader.ReadInt16()";
+                        case TypeCode.UInt16:
+                            return "reader.ReadUInt16()";
+                        case TypeCode.String:
+                            return "reader.ReadString()";
+                        case TypeCode.Boolean:
+                            return "reader.ReadBool()";
+                        case TypeCode.Double:
+                            return "reader.ReadDouble()";
+                        case TypeCode.Single:
+                            return "reader.ReadSingle()";
+                        case TypeCode.Decimal:
+                            return "reader.ReadDecimal()";
+                        case TypeCode.Char:
+                            return "reader.ReadChar()";
+                        default:
+                            if (GetValidNinoClass(mt))
+                            {
+                                return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.NinoReadMembers(reader)";
+                            }
+                            if (mt.IsArray ||
+                                (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                            {
+                                Type elemType = mt.IsGenericType ? mt.GenericTypeArguments[0] : mt.GetElementType();
+                                StringBuilder builder = new StringBuilder();
+                                if (elemType == ConstMgr.ByteType)
+                                {
+                                    builder.Append(
+                                        $"reader.ReadBytes(reader.ReadLength());\n");
+                                    return builder.ToString();
+                                }
+                                //create field
+                                string arr = String.Empty;
+                                if (mt.IsArray)
+                                {
+                                    //multidimensional array
+                                    if (mt.GetArrayRank() > 1)
+                                    {
+                                        throw new NotSupportedException("can not serialize multidimensional array, use jagged array instead");
+                                    }
+                                    //jagged
+                                    //wrong -> value.e = new System.Collections.Generic.Dictionary<System.String,System.Collections.Generic.Dictionary<System.String,System.Int32[reader.ReadLength()][]>>[];
+                                    //correct -> value.e = new System.Collections.Generic.Dictionary<System.String,System.Collections.Generic.Dictionary<System.String,System.Int32[][]>>[reader.ReadLength()];
+                                    var et = $"{BeautifulLongTypeName(elemType)}[]";
+                                    int pos = et.Length - 1;
+                                    while (et[pos]== '[' || et[pos] == ']')
+                                    {
+                                        pos--;
+                                    }
+                                    var sub = et.Substring(pos, 2);
+                                    arr = $"{et.Replace(sub,$"{sub}reader.ReadLength()")}";
+                                }
+                                builder.Append($"new {(mt.IsArray ? arr : $"{BeautifulLongTypeName(mt)}(reader.ReadLength())")};\n");
+                                //write items
+                                builder.Append(space).Append($"for(int {val}_i = 0, {val}_cnt = {val}.{(mt.IsArray ? "Length" : "Capacity")}; {val}_i < {val}_cnt; {val}_i++)\n");
+                                builder.Append(space).Append("{\n");
+                                //if nino serialize class => loop call method
+                                string valStr = GetValidNinoClass(elemType)
+                                    ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.NinoReadMembers(reader)"
+                                    : GetDeserializeBasicTypeStatement(elemType, $"value_{val}_i",$"{space}\t");
 
+                                if (elemType != null && !(elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
+                                {
+                                    builder.Append(space).Append('\t').Append($"var value_{val}_i = {valStr}" +
+                                                                              $"{((elemType.IsArray || (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType))?"":";")}\n");
+                                }
+                                else
+                                {
+                                    builder.Append($"{valStr}");
+                                }
+                                
+                                if (mt.IsArray)
+                                {
+                                    builder.Append(space).Append('\t').Append(
+                                        $"{val}[{val}_i] = value_{val}_i;\n");
+                                }
+                                else
+                                {
+                                    builder.Append(space).Append('\t').Append(
+                                        $"{val}.Add(value_{val}_i);\n");
+                                }
+                                builder.Append(space).Append("}");
+                                return builder.ToString();
+                            }
+                            if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                            {
+                                StringBuilder builder = new StringBuilder();
+                                var args = mt.GetGenericArguments();
+                                Type keyType = args[0];
+                                Type valueType = args[1];
+                                //create field
+                                builder.Append(space).Append($"var {val}_len = reader.ReadLength();\n");
+                                builder.Append(space).Append(
+                                    $"var {val} = new {BeautifulLongTypeName(mt)}({val}_len);\n");
+                                //write items
+                                builder.Append(space).Append($"for(int {val}_i = 0; {val}_i < {val}_len; {val}_i++)\n");
+                                builder.Append(space).Append("{\n");
+
+                                //read key
+                                string valStr = GetValidNinoClass(keyType)
+                                    ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.NinoReadMembers(reader)"
+                                    : GetDeserializeBasicTypeStatement(keyType, $"{val}_key",$"{space}\t");
+                                if (!(keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
+                                {
+                                    builder.Append(space).Append('\t').Append($"var {val}_key = {valStr}" +
+                                    $"{((keyType.IsArray || (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType))?"":";")}\n");
+                                }
+                                else
+                                {
+                                    builder.Append($"{valStr}");
+                                }
+                    
+                                //read value
+                                valStr = GetValidNinoClass(valueType)
+                                    ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.NinoReadMembers(reader)"
+                                    : GetDeserializeBasicTypeStatement(valueType, $"{val}_val",$"{space}\t");
+                                if (!(valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
+                                {
+                                    builder.Append(space).Append('\t').Append($"var {val}_val = {valStr}" +
+                                                                              $"{((valueType.IsArray || (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType))?"":";")}\n");
+                                }
+                                else
+                                {
+                                    builder.Append($"{valStr}\n");
+                                }
+                    
+                                builder.Append(space).Append('\t').Append($"{val}[{val}_key] = {val}_val;\n");
+                    
+                                builder.Append(space).Append("}\n");
+                                return builder.ToString();
+                            }
+                            return $"({BeautifulLongTypeName(mt)})reader.ReadCommonVal(typeof({BeautifulLongTypeName(mt)}))";
+                    }
+            }
+        
+        // ReSharper disable CognitiveComplexity
+        private static string GetSerializeBasicTypeStatement(Type mt,string val,int indent = 0,string space = "                        ")
+            // ReSharper restore CognitiveComplexity
+        {
+                switch (Type.GetTypeCode(mt))
+                {
+                    case TypeCode.Int32:
+                    case TypeCode.UInt32:
+                    case TypeCode.Int64:
+                    case TypeCode.UInt64:
+                        return $"writer.CompressAndWrite({val})";
+                    case TypeCode.Byte:
+                    case TypeCode.SByte:
+                    case TypeCode.Int16:
+                    case TypeCode.UInt16:
+                    case TypeCode.String:
+                    case TypeCode.Boolean:
+                    case TypeCode.Double:
+                    case TypeCode.Single:
+                    case TypeCode.Decimal:
+                    case TypeCode.Char:
+                        return $"writer.Write({val})";
+                    default:
+                        if (GetValidNinoClass(mt))
+                        {
+                            return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.NinoWriteMembers({val}, writer)";
+                        }
+                        if (mt.IsArray || (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                        {
+                            StringBuilder builder = new StringBuilder();
+                            Type elemType = mt.IsGenericType ? mt.GenericTypeArguments[0] : mt.GetElementType();
+                            if (elemType == null)
+                            {
+                                throw new InvalidOperationException("Invalid array type");
+                            }
+                            //if nino serialize class => loop call method
+                            //check null
+                            builder.Append(space).Append(Repeat("    ", indent)).Append($"if({val} != null)\n");
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("{\n");
+                            //write len
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append($"writer.CompressAndWrite({val}.{(mt.IsArray ? "Length" : "Count")});\n");
+                            //write item
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append($"foreach (var entry{indent} in {val})\n");
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("{\n");
+                            if (elemType.IsArray || (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                            {
+                                builder.Append(
+                                    $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", indent + 1, $"{space}\t")}");
+                            }
+                            else if (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                            {
+                                builder.Append(
+                                    $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", indent + 1, $"{space}\t")}");
+                            }
+                            else
+                            {
+                                builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
+                                    $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", indent, space)};\n");
+                            }
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("}\n");
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("}\n");
+                            //if null then write 0 len
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("else\n");
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("{\n");
+                            //write len
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("writer.CompressAndWrite(0);\n");
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("}\n");
+                            return builder.ToString();
+                        }
+
+                        if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                        {
+                            StringBuilder builder = new StringBuilder();
+                            var args = mt.GetGenericArguments();
+                            Type keyType = args[0];
+                            Type valueType = args[1];
+                            //check null
+                            builder.Append(space).Append(Repeat("    ", indent)).Append($"if({val} != null)\n");
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("{\n");
+                            //write len
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append($"writer.CompressAndWrite({val}.Count);\n");
+                            //write item
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append($"foreach (var entry{indent} in {val})\n");
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("{\n");
+                            
+                            //write key
+                            if (keyType.IsArray || (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                            {
+                                builder.Append(
+                                    $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}", indent + 1, $"{space}\t")}");
+                            }
+                            else if (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                            {
+                                builder.Append(
+                                    $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}", indent + 1, $"{space}\t")}");
+                            }
+                            else
+                            {
+                                builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
+                                    $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}.Key", indent, space)};\n");
+                            }
+
+                            //write value
+                            if (valueType.IsArray || (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
+                            {
+                                builder.Append(
+                                    $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", indent + 1, $"{space}\t")}");
+                            }
+                            else if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                            {
+                                builder.Append(
+                                    $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", indent + 1, $"{space}\t")}");
+                            }
+                            else
+                            {
+                                builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
+                                    $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", indent, space)};\n");
+                            }
+
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("}\n");
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("}\n");
+                            //if null then write 0 len
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("else\n");
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("{\n");
+                            //write len
+                            builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("writer.CompressAndWrite(0);\n");
+                            builder.Append(space).Append(Repeat("    ", indent)).Append("}\n");
+                            return builder.ToString();
+                        }
+
+                        return $"writer.WriteCommonVal(typeof({BeautifulLongTypeName(mt)}), {val})";
+                }
+            }
+        
+        private static string Repeat(string value, int count)
+        {
+            if (count < 1) return string.Empty;
+            return new StringBuilder(value.Length * count).Insert(0, value, count).ToString();
+        }
+        
         private static string BeautifulLongTypeName(this Type mt)
         {
             return $"{mt.Namespace}{(!string.IsNullOrEmpty(mt.Namespace) ? "." : "")}{mt.GetFriendlyName()}";

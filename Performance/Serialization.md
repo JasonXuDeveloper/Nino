@@ -1,6 +1,6 @@
 # Serilization 性能报告
 
-#### [**测试数据**](/Nino/Assets/Nino/Test/Data.cs)
+#### [**测试数据**](/Nino_Unity/Assets/Nino/Test/Data.cs)
 
 *第一次序列化的时候，Nino会对类型进行缓存，达到预热效果，使得同一类型的第二次开始的序列化速度大幅度提升，其他库亦是如此*
 
@@ -32,7 +32,7 @@ Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典会无法使用，因�
 
 ### 备注
 
-- 测试的时候[MsgPack有生成代码](/Nino/Assets/Nino/Test/MessagePackGenerated.cs)，所以不要说Nino生成代码后和其他库对比不公平
+- 测试的时候[MsgPack有生成代码](/Nino_Unity/Assets/Nino/Test/MessagePackGenerated.cs)，所以不要说Nino生成代码后和其他库对比不公平
 - 这里测试用的是MsgPack LZ4压缩，如果不开压缩的话，MsgPack的速度会快10%，但是体积则会变大很多（大概是Protobuf-net的体积的60%，即Nino的数倍）
 - MsgPack之所以比较快是因为它用到了Emit以及生成了动态类型进行序列化（高效且低GC），但是在IL2CPP平台下，会遇到限制，所以上面才会提到MsgPack在IL2CPP平台使用起来很繁琐，Nino Code Gen这边是静态生成进行序列化（高效且低GC），即便不生成代码也不影响IL2CPP下使用，并且Nino生成的代码可以搭配ILRuntime或Huatuo技术实时热更
 - Odin序列化性能不如MsgPack，故而Odin序列化性能不如Nino Code Gen

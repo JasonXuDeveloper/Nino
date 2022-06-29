@@ -20,7 +20,7 @@ namespace Nino.Test.Editor.Serialization
         }
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest6)]
+        [UnityEditor.MenuItem(SerializationTest6,priority=6)]
 #endif
         public static void Main()
         {

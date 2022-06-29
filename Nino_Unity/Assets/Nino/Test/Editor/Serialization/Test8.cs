@@ -10,7 +10,7 @@ namespace Nino.Test.Editor.Serialization
         private const string SerializationTest8 = "Nino/Test/Serialization/Test8 - Include All Member Class";
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest8)]
+        [UnityEditor.MenuItem(SerializationTest8,priority=8)]
 #endif
         public static void Main()
         {

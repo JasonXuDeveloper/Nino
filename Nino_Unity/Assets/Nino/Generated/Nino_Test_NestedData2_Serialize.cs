@@ -43,12 +43,14 @@ namespace Nino.Test
                 value.ps = new Nino.Test.Data[reader.ReadLength()];
                 for(int i = 0, cnt = value.ps.Length; i < cnt; i++)
                 {
-                    value.ps[i] = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                    var value_ps_i = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                    value.ps[i] = value_ps_i;
                 }
                 value.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
                 for(int i = 0, cnt = value.vs.Capacity; i < cnt; i++)
                 {
-                    value.vs.Add( (System.Int32)reader.DecompressAndReadNumber());
+                    var value_vs_i =  (System.Int32)reader.DecompressAndReadNumber();
+                    value.vs.Add(value_vs_i);
                 }
                 return value;
             }
