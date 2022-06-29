@@ -11,6 +11,8 @@ namespace Nino.Serialization
 	internal class TypeModel
 	{
 		private const string HelperName = "NinoSerializationHelper";
+		private const string HelperSerializeMethodName = "NinoWriteMembers";
+		private const string HelperDeserializeMethodName = "NinoReadMembers";
 		
 		public Dictionary<ushort, MemberInfo> members;
 		public Dictionary<ushort, Type> types;
@@ -90,6 +92,16 @@ namespace Nino.Serialization
 		private static readonly Dictionary<Type, Action<object, Writer>> SerializeActions = new Dictionary<Type, Action<object, Writer>>(10);
 
 		/// <summary>
+		/// Serialize methods
+		/// </summary>
+		private static readonly Dictionary<Type, MethodInfo> SerializeMethods = new Dictionary<Type, MethodInfo>(10);
+		
+		/// <summary>
+		/// Deserialize methods
+		/// </summary>
+		private static readonly Dictionary<Type, MethodInfo> DeserializeMethods = new Dictionary<Type, MethodInfo>(10);
+
+		/// <summary>
 		/// Add a code gen serialize action
 		/// </summary>
 		/// <param name="type"></param>
@@ -153,6 +165,38 @@ namespace Nino.Serialization
 			GeneratedSerializationHelper[type] = helper;
 			return GeneratedSerializationHelper[type] != null;
 		}
+		
+		/// <summary>
+		/// Get whether or not a type is a code gen type
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="helper"></param>
+		/// <param name="sm"></param>
+		/// <param name="dm"></param>
+		/// <returns></returns>
+		internal static bool TryGetHelperMethodInfo(Type type, out object helper, out MethodInfo sm, out MethodInfo dm)
+		{
+			sm = null;
+			dm = null;
+			if (!TryGetHelper(type, out helper))
+			{
+				return false;
+			}
+
+			if (!SerializeMethods.TryGetValue(type, out sm))
+			{
+				sm = helper.GetType().GetMethod(HelperSerializeMethodName, BindingFlags.Public);
+				SerializeMethods[type] = sm;
+			}
+
+			if (!DeserializeMethods.TryGetValue(type, out dm))
+			{
+				dm = helper.GetType().GetMethod(HelperSerializeMethodName, BindingFlags.Public);
+				DeserializeMethods[type] = dm;
+			}
+			
+			return sm != null && dm != null;
+		}
 
 		/// <summary>
 		/// Try get cached model
@@ -163,8 +207,7 @@ namespace Nino.Serialization
 		internal static void TryGetModel(Type type, out TypeModel model)
 		{
 			if (TypeModels.TryGetValue(type, out model)) return;
-			NinoSerializeAttribute[] ns =
-				(NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
+			object[] ns = type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
 			if (ns.Length != 0) return;
 			model = new TypeModel()
 			{
@@ -196,9 +239,8 @@ namespace Nino.Serialization
 			};
 			
 			//include all or not
-			NinoSerializeAttribute[] ns =
-				(NinoSerializeAttribute[])type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-			model.includeAll = ns[0].IncludeAll;
+			object ns = type.GetCustomAttribute(typeof(NinoSerializeAttribute), false);
+			model.includeAll = ((NinoSerializeAttribute)ns).IncludeAll;
 
 			//store temp attr
 			NinoMemberAttribute sp;
@@ -227,7 +269,19 @@ namespace Nino.Serialization
 				}
 				//record field
 				model.members.Add(index, f);
+#if ILRuntime
+				var t = f.FieldType;
+				if (t.IsGenericType)
+				{
+					model.types.Add(index, t);
+				}
+				else
+				{
+					model.types.Add(index, t.ResolveRealType());
+				}
+#else
 				model.types.Add(index, f.FieldType);
+#endif
 				//record min/max
 				if (index < model.min)
 				{
@@ -267,7 +321,19 @@ namespace Nino.Serialization
 				}
 				//record property
 				model.members.Add(index, p);
+#if ILRuntime
+				var t = p.PropertyType;
+				if (t.IsArray || t.IsGenericType)
+				{
+					model.types.Add(index, t);
+				}
+				else
+				{
+					model.types.Add(index, t.ResolveRealType());
+				}
+#else
 				model.types.Add(index, p.PropertyType);
+#endif
 				//record min/max
 				if (index < model.min)
 				{

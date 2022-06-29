@@ -80,6 +80,32 @@ public partial class NotIncludeAllClass
 
 
 
+## ILRuntime
+
+Nino支持ILRuntime的使用，但需要初始化ILRuntime：
+
+1. 把ILRuntime导入Unity工程，并对ILRuntime目录生成assembly definition文件
+
+2. 进入Nino_Unity/Assets/Nino/Serialization，找到```Nino.Serialization.asmdef```，选中后在Inspector上添加对ILRuntime的assembly definition的引用，并apply变动
+
+3. 在PlayerSetting里Symbol区域添加```ILRuntime```（如果Symbol一栏不是空的，记得两个标签之前要用```;```隔开）
+
+4. 调用ILRuntime解析工具
+
+   ```csharp
+   Nino.Serialization.ILRuntimeResolver.RegisterILRuntimeClrRedirection(domain);
+   ```
+
+   domain是ILRuntime的AppDomain，该方法应该在domain.LoadAssembly后，进入热更代码前调用，参考Test11
+
+5. 热更工程引用Library/ScriptAssemblies/Nino.Serialization.dll和Library/ScriptAssemblies/Nino.Shared.dll
+
+6. 如果需要给热更工程生成代码，打开```Nino_Unity/Assets/Nino/Editor/SerializationHelper.cs```，修改```ExternalDLLPath```字段内的```Assets/Nino/Test/Editor/Serialization/Test11.bytes```，变为你的热更工程的DLL文件的路径，记得带后缀，修改生效后，在菜单栏点击```Nino/Generator/Serialization Code```即可给热更工程的Nino序列化类型生成代码
+
+7. 生成热更工程的代码后，需要把生成的热更序列化类型的代码从Unity工程移到热更工程，并且在Unity工程删掉会报错的热更类型代码
+
+> 如果用的是assembly definition来生成热更库的，需要把生成的热更代码放到assembly definition的目录内，把外部会报错的代码挪进去就好
+
 
 
 ## 注册序列化委托

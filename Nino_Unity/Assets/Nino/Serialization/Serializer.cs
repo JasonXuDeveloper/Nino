@@ -165,6 +165,17 @@ namespace Nino.Serialization
 		internal static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
 			// ReSharper restore CognitiveComplexity
 		{
+			//prevent null encoding
+			encoding = encoding == null ? DefaultEncoding : encoding;
+			
+			//ILRuntime
+#if ILRuntime
+			if(value is ILRuntime.Runtime.Intepreter.ILTypeInstance ins)
+			{
+				type = ins.Type.ReflectionType;
+			}
+#endif
+
 			//try code gen
 			if (TypeModel.TryGetSerializeAction(type, out var action))
 			{
@@ -185,23 +196,30 @@ namespace Nino.Serialization
 			}
 			
 			//another attempt
-			if (TypeModel.TryGetHelper(type, out _))
+			if (TypeModel.TryGetHelperMethodInfo(type, out var helper, out var sm, out _))
 			{
 				//reflect generic method
-				var method = typeof(Serializer).GetMethod("Serialize",
-					BindingFlags.Default | BindingFlags.Public | BindingFlags.Static);
-				var tArg = ArrayPool<Type>.Request(1);
-				tArg[0] = type;
-				method = method?.MakeGenericMethod(tArg);
-				ArrayPool<Type>.Return(tArg);
-				var par = ArrayPool<object>.Request(2);
-				par[0] = value;
-				par[1] = encoding;
-				var ret = method?.Invoke(null,par);
-				ArrayPool<object>.Return(par);
-				if (ret != null)
+				//share a writer
+				if (writer != null)
 				{
-					return (byte[])ret;
+					var objs = ArrayPool<object>.Request(2);
+					objs[0] = value;
+					objs[1] = writer;
+					sm.Invoke(helper, objs);
+					ArrayPool<object>.Return(objs);
+					return ConstMgr.Null;
+				}
+
+				//start serialize
+				using (writer = new Writer(encoding))
+				{
+					var objs = ArrayPool<object>.Request(2);
+					objs[0] = value;
+					objs[1] = writer;
+					sm.Invoke(helper, objs);
+					ArrayPool<object>.Return(objs);
+					//compress it
+					return writer.ToCompressedBytes();
 				}
 			}
 			

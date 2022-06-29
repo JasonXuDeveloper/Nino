@@ -2,11 +2,11 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using Nino.Shared;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
 using System.Runtime.CompilerServices;
+using Nino.Shared.Util;
 
 namespace Nino.Serialization
 {
@@ -24,7 +24,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// 缓存反射创建dict的参数数组
 		/// </summary>
-		private static volatile UncheckedStack<Type[]> _reflectionGenericTypePool = new UncheckedStack<Type[]>(3);
+		private static volatile Nino.Shared.UncheckedStack<Type[]> _reflectionGenericTypePool = new Nino.Shared.UncheckedStack<Type[]>(3);
 
 		/// <summary>
 		/// encoding for string
@@ -171,16 +171,40 @@ namespace Nino.Serialization
 			if (type.IsEnum)
 			{
 				//try decompress and read
+#if ILRuntime
+				switch (Type.GetTypeCode(Enum.GetUnderlyingType(type)))
+				{
+					case TypeCode.Byte:
+						return ReadByte();
+					case TypeCode.SByte:
+						return ReadSByte();
+					case TypeCode.Int16:
+						return ReadInt16();
+					case TypeCode.UInt16:
+						return ReadUInt16();
+					//need to consider compress
+					case TypeCode.Int32:
+						return (int)DecompressAndReadNumber();
+					case TypeCode.UInt32:
+						return (uint)DecompressAndReadNumber();
+					case TypeCode.Int64:
+						return (long)DecompressAndReadNumber();
+					case TypeCode.UInt64:
+						return DecompressAndReadNumber();
+				}
+#endif
 				return Enum.ToObject(type, DecompressAndReadEnum(Enum.GetUnderlyingType(type)));
 			}
 
 			//array/ list -> recursive
 			if (type.IsArray)
 			{
+#if !ILRuntime
 				if (type.GetArrayRank() > 1)
 				{
-					throw new NotSupportedException("can not serialize multidimensional array, use jagged array instead");
+					throw new NotSupportedException("can not deserialize multidimensional array, use jagged array instead");
 				}
+#endif
 				return ReadArray(type);
 			}
 
@@ -235,8 +259,11 @@ namespace Nino.Serialization
 					return ReadUInt16();
 				//need to consider compress
 				case TypeCode.Int32:
+					return (ulong)(int)DecompressAndReadNumber();
 				case TypeCode.UInt32:
+					return (uint)DecompressAndReadNumber();
 				case TypeCode.Int64:
+					return (ulong)(long)DecompressAndReadNumber();
 				case TypeCode.UInt64:
 					return DecompressAndReadNumber();
 			}
@@ -741,12 +768,6 @@ namespace Nino.Serialization
 		{
 			//read len
 			int len = ReadLength();
-
-			var arr = TryGetBasicTypeArray(type, len, out bool result);
-			if (result)
-			{
-				return arr;
-			}
 			
 			//other type
 			var elemType = type.GetElementType();
@@ -754,17 +775,22 @@ namespace Nino.Serialization
 			{
 				throw new NullReferenceException("element type is null, can not make array");
 			}
-
+			
+			var arr = TryGetBasicTypeArray(elemType, len, out bool result);
+			if (result)
+			{
+				return arr;
+			}
+			
 			arr = Array.CreateInstance(elemType, len);
 			//read item
 			for (int i = 0; i < len; i++)
 			{
 				var obj = ReadCommonVal(elemType);
-				if (obj.GetType() != elemType)
-				{
-					obj = Convert.ChangeType(obj, elemType);
-				}
-
+#if ILRuntime
+				arr.SetValue(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj), i);
+				continue;
+#endif
 				arr.SetValue(obj, i);
 			}
 
@@ -782,25 +808,30 @@ namespace Nino.Serialization
 			//read len
 			int len = ReadLength();
 
-			var arr = TryGetBasicTypeList(type, len, out bool result);
+			//other
+			var elemType = type.GenericTypeArguments[0];
+#if ILRuntime
+			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
+			{
+				elemType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
+			}
+#endif
+
+			var arr = TryGetBasicTypeList(elemType, len, out bool result);
 			if (result)
 			{
 				return arr;
 			}
-
-			//other
-			var elemType = type.GenericTypeArguments[0];
-			Type newType = ConstMgr.ListDefType.MakeGenericType(elemType);
-			arr = Activator.CreateInstance(newType, ConstMgr.EmptyParam) as IList;
+			
+			arr = Activator.CreateInstance(type, ConstMgr.EmptyParam) as IList;
 			//read item
 			for (int i = 0; i < len; i++)
 			{
 				var obj = ReadCommonVal(elemType);
-				if (obj.GetType() != elemType)
-				{
-					obj = Convert.ChangeType(obj, elemType);
-				}
-
+#if ILRuntime
+				arr?.Add(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj));
+				continue;
+#endif
 				arr?.Add(obj);
 			}
 
@@ -818,24 +849,21 @@ namespace Nino.Serialization
 			//parse dict type
 			var args = type.GetGenericArguments();
 			Type keyType = args[0];
+#if ILRuntime
+			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
+			{
+				keyType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
+			}
+#endif
 			Type valueType = args[1];
-			Type[] temp;
-			if (_reflectionGenericTypePool.Count > 0)
+#if ILRuntime
+			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt2)
 			{
-				temp = _reflectionGenericTypePool.Pop();
-				temp[0] = keyType;
-				temp[1] = valueType;
+				valueType = wt2?.CLRType.GenericArguments[1].Value.ReflectionType;
 			}
-			else
-			{
-				// ReSharper disable RedundantExplicitArrayCreation
-				temp = new Type[] { keyType, valueType };
-				// ReSharper restore RedundantExplicitArrayCreation
-			}
+#endif
 
-			Type dictType = ConstMgr.DictDefType.MakeGenericType(temp);
-			_reflectionGenericTypePool.Push(temp);
-			var dict = Activator.CreateInstance(dictType) as IDictionary;
+			var dict = Activator.CreateInstance(type) as IDictionary;
 
 			//read len
 			int len = ReadLength();
@@ -845,19 +873,15 @@ namespace Nino.Serialization
 			{
 				//read key
 				var key = ReadCommonVal(keyType);
-				if (key.GetType() != keyType)
-				{
-					key = Convert.ChangeType(key, keyType);
-				}
-
 				//read value
 				var val = ReadCommonVal(valueType);
-				if (val.GetType() != valueType)
-				{
-					val = Convert.ChangeType(val, valueType);
-				}
 
 				//add
+#if ILRuntime
+				dict?.Add(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(keyType, key),
+							ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(valueType, val));
+				continue;
+#endif
 				dict?.Add(key, val);
 			}
 

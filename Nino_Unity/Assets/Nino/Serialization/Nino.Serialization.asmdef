@@ -1,7 +1,8 @@
 {
     "name": "Nino.Serialization",
     "references": [
-        "Nino.Shared"
+        "Nino.Shared",
+        "ILRuntime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

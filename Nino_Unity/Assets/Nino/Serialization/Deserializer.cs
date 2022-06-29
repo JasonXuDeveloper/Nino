@@ -144,6 +144,9 @@ namespace Nino.Serialization
 		internal static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader = null)
 			// ReSharper restore CognitiveComplexity
 		{
+			//prevent null encoding
+			encoding = encoding == null ? DefaultEncoding : encoding;
+			
 			//try code gen
 			if (TypeModel.TryGetDeserializeAction(type, out var func))
 			{
@@ -161,23 +164,27 @@ namespace Nino.Serialization
 			}
 			
 			//another attempt
-			if (TypeModel.TryGetHelper(type, out _))
+			//another attempt
+			if (TypeModel.TryGetHelperMethodInfo(type, out var helper, out _, out var dm))
 			{
 				//reflect generic method
-				var method = typeof(Serializer).GetMethod("Deserialize",
-					BindingFlags.Default | BindingFlags.Public | BindingFlags.Static);
-				var tArg = ArrayPool<Type>.Request(1);
-				tArg[0] = type;
-				method = method?.MakeGenericMethod(tArg);
-				ArrayPool<Type>.Return(tArg);
-				var par = ArrayPool<object>.Request(2);
-				par[0] = data;
-				par[1] = encoding;
-				var ret = method?.Invoke(null,par);
-				ArrayPool<object>.Return(par);
-				if (ret != null)
+				//share a writer
+				if (reader != null)
 				{
-					Logger.D(111);
+					var objs = ArrayPool<object>.Request(1);
+					objs[0] = reader;
+					var ret = dm.Invoke(helper, objs);
+					ArrayPool<object>.Return(objs);
+					return ret;
+				}
+
+				//start deserialize
+				using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
+				{
+					var objs = ArrayPool<object>.Request(1);
+					objs[0] = reader;
+					var ret = dm.Invoke(helper, objs);
+					ArrayPool<object>.Return(objs);
 					return ret;
 				}
 			}
@@ -200,7 +207,11 @@ namespace Nino.Serialization
 			//create type
 			if (val == null || val == ConstMgr.Null)
 			{
+#if ILRuntime
+				val = ILRuntimeResolver.CreateInstance(type);
+#else
 				val = Activator.CreateInstance(type);
+#endif
 			}
 
 			//min, max index
@@ -236,10 +247,19 @@ namespace Nino.Serialization
 						if (values.TryGetValue(member.Name, out var ret))
 						{
 							//type check
+#if !ILRuntime
 							if (ret.GetType() != type)
 							{
-								ret = type.IsEnum ? Enum.ToObject(type, ret) : Convert.ChangeType(ret, type);
+								if (type.IsEnum)
+								{
+									ret = Enum.ToObject(type, ret);
+								}
+								else
+								{
+									ret = Convert.ChangeType(ret, type);
+								}
 							}
+#endif
 
 							SetMember(model.members[min], val, ret);
 						}
@@ -260,10 +280,19 @@ namespace Nino.Serialization
 						//read basic values
 						var ret = reader.ReadCommonVal(type);
 						//type check
+#if !ILRuntime
 						if (ret.GetType() != type)
 						{
-							ret = type.IsEnum ? Enum.ToObject(type, ret) : Convert.ChangeType(ret, type);
+							if (type.IsEnum)
+							{
+								ret = Enum.ToObject(type, ret);
+							}
+							else
+							{
+								ret = Convert.ChangeType(ret, type);
+							}
 						}
+#endif
 
 						SetMember(model.members[min], val, ret);
 					}
