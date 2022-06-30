@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;net6.0;netcoreapp3.1;netstandard2.0</TargetFrameworks>
+        <TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -14,6 +15,10 @@
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Title>Nino.Serialization</Title>
+        <PackageVersion>1.0.2</PackageVersion>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <PackageReleaseNotes>v1.0.2
+- fixed neg number serialization error</PackageReleaseNotes> 
     </PropertyGroup>
 
     <ItemGroup>

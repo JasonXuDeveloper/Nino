@@ -455,6 +455,11 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void CompressAndWrite(long num)
 		{
+			if (num < 0)
+			{
+				CompressAndWriteNeg(num);
+				return;
+			}
 			if (num <= int.MaxValue)
 			{
 				CompressAndWrite((int)num);
@@ -466,8 +471,26 @@ namespace Nino.Serialization
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private void CompressAndWriteNeg(long num)
+		{
+			if (num >= int.MinValue)
+			{
+				CompressAndWriteNeg((int)num);
+				return;
+			}
+
+			Write((byte)CompressType.Int64);
+			Write(num);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void CompressAndWrite(int num)
 		{
+			if (num < 0)
+			{
+				CompressAndWriteNeg(num);
+				return;
+			}
 			if (num <= short.MaxValue)
 			{
 				CompressAndWrite((short)num);
@@ -479,8 +502,26 @@ namespace Nino.Serialization
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private void CompressAndWriteNeg(int num)
+		{
+			if (num >= short.MinValue)
+			{
+				CompressAndWriteNeg((short)num);
+				return;
+			}
+
+			Write((byte)CompressType.Int32);
+			Write(num);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void CompressAndWrite(short num)
 		{
+			if (num < 0)
+			{
+				CompressAndWriteNeg(num);
+				return;
+			}
 			//parse to byte
 			if (num <= sbyte.MaxValue)
 			{
@@ -491,6 +532,19 @@ namespace Nino.Serialization
 			if (num <= byte.MaxValue)
 			{
 				CompressAndWrite((byte)num);
+				return;
+			}
+
+			Write((byte)CompressType.Int16);
+			Write(num);
+		}
+		
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private void CompressAndWriteNeg(short num)
+		{
+			if (num >= sbyte.MinValue)
+			{
+				CompressAndWrite((sbyte)num);
 				return;
 			}
 

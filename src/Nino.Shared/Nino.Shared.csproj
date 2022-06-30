@@ -1,7 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.0</TargetFramework>
+        <TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;net6.0;netcoreapp3.1;netstandard2.0</TargetFrameworks>
+        <TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -13,8 +14,10 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
-        <PackageReleaseNotes>v1.0.0</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.1</PackageReleaseNotes>
         <Title>Nino.Shared</Title>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl> 
+        <PackageVersion>1.0.1</PackageVersion>
     </PropertyGroup>
 
     <ItemGroup>
