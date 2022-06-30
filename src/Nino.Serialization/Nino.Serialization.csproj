@@ -15,9 +15,10 @@
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Title>Nino.Serialization</Title>
-        <PackageVersion>1.0.2</PackageVersion>
+        <PackageId>Nino.Serialization</PackageId>
+        <PackageVersion>1.0.3</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.2
+        <PackageReleaseNotes>v1.0.3
 - fixed neg number serialization error</PackageReleaseNotes> 
     </PropertyGroup>
 

@@ -14,10 +14,12 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
-        <PackageReleaseNotes>v1.0.1</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.2
+- modified csproj info</PackageReleaseNotes>
         <Title>Nino.Shared</Title>
+        <PackageId>Nino.Shared</PackageId>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-        <PackageVersion>1.0.1</PackageVersion>
+        <PackageVersion>1.0.2</PackageVersion>
     </PropertyGroup>
 
     <ItemGroup>
