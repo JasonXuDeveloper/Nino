@@ -61,6 +61,7 @@ Useful Unity Modules | 实用的Unity模块
 ## 工程目录
 
 - Docs，文档
+- src，托管到nuget上的Nino源码
 - Nino_Dotnet，Nino 标准.net core 5.0 工程，内含Benchmark
 - Nino_Unity，Nino Unity 2019及以上版本的工程，包含源码和测试代码
 - Performance，性能报告
@@ -82,6 +83,8 @@ Useful Unity Modules | 实用的Unity模块
 
 
 ## 在非Unity平台使用
+
+- 使用src内的代码，或；
 
 - 参考```Nino_Dotnet```将```Nino_Unity/Assets/Nino```内除了Editor的代码全引用到自己C#工程即可
 

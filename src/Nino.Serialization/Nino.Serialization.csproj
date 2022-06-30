@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <Authors>JasonXuDeveloper</Authors>
+        <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
+        <Copyright>JasonXuDeveloper</Copyright>
+        <PackageLicenseUrl>https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE</PackageLicenseUrl>
+        <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
+        <NeutralLanguage>en-001</NeutralLanguage>
+        <Company />
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Title>Nino.Serialization</Title>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Nino.Shared\Nino.Shared.csproj" />
+    </ItemGroup>
+
+</Project>

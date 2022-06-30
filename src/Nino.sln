@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.Shared", "Nino.Shared\Nino.Shared.csproj", "{FD1B1E5E-BDA3-433C-BDEE-2C64B73C53DE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.Serialization", "Nino.Serialization\Nino.Serialization.csproj", "{233244F5-661E-46D8-9DD2-7BE0D1E70552}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FD1B1E5E-BDA3-433C-BDEE-2C64B73C53DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD1B1E5E-BDA3-433C-BDEE-2C64B73C53DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD1B1E5E-BDA3-433C-BDEE-2C64B73C53DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD1B1E5E-BDA3-433C-BDEE-2C64B73C53DE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{233244F5-661E-46D8-9DD2-7BE0D1E70552}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{233244F5-661E-46D8-9DD2-7BE0D1E70552}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{233244F5-661E-46D8-9DD2-7BE0D1E70552}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{233244F5-661E-46D8-9DD2-7BE0D1E70552}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
