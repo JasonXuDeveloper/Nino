@@ -10,8 +10,8 @@
         <Copyright>JasonXuDeveloper</Copyright>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
-        <Company />
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Title>Nino.Serialization</Title>
     </PropertyGroup>

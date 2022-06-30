@@ -8,6 +8,7 @@
         <Authors>JasonXuDeveloper</Authors>
         <Copyright>JasonXuDeveloper</Copyright>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
