@@ -39,17 +39,20 @@ namespace Nino.Serialization
         /// <returns></returns>
 		public static object CreateInstance(Type type)
 		{
-			string typeName = type.FullName;
-			if (FindType(typeName) != null)
-			{
-				return appDomain.Instantiate(typeName);
-			}
+            if (appDomain != null)
+            {
+                string typeName = type.FullName;
+                if (FindType(typeName) != null)
+                {
+                    return appDomain.Instantiate(typeName);
+                }
 
-			if (typeName != null && appDomain.LoadedTypes.ContainsKey(typeName))
-			{
-				IlRuntimeTypes[typeName] = type;
-				return appDomain.Instantiate(typeName);
-			}
+                if (typeName != null && appDomain.LoadedTypes.ContainsKey(typeName))
+                {
+                    IlRuntimeTypes[typeName] = type;
+                    return appDomain.Instantiate(typeName);
+                }
+            }
 			return Activator.CreateInstance(type);
 		}
 
