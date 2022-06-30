@@ -8,7 +8,7 @@
         <Authors>JasonXuDeveloper</Authors>
         <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
         <Copyright>JasonXuDeveloper</Copyright>
-        <PackageLicenseUrl>https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE</PackageLicenseUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <Company />

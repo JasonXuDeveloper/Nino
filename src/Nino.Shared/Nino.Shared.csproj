@@ -7,7 +7,6 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Authors>JasonXuDeveloper</Authors>
         <Copyright>JasonXuDeveloper</Copyright>
-        <!-- <PackageLicenseUrl>https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE</PackageLicenseUrl> -->
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
