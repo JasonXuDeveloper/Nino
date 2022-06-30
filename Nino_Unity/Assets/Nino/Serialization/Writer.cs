@@ -748,6 +748,13 @@ namespace Nino.Serialization
 
 			//other
 			var elemType = type.GenericTypeArguments[0];
+#if ILRuntime
+			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
+			{
+				elemType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
+			}
+#endif
+
 			//write len
 			CompressAndWrite(arr.Count);
 			//write item

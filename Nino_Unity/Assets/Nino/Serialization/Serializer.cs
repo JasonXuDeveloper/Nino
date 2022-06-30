@@ -101,7 +101,13 @@ namespace Nino.Serialization
 					writer.Write(s);
 					return;
 				default:
-					writer.WriteCommonVal(typeof(T), val);
+					var type = typeof(T);
+					if (type == ConstMgr.ObjectType)
+					{
+						//unbox
+						type = val.GetType();
+					}
+					writer.WriteCommonVal(type, val);
 					return;
 			}
 		}
@@ -174,8 +180,10 @@ namespace Nino.Serialization
 			{
 				type = ins.Type.ReflectionType;
 			}
-#endif
 
+			type = type.ResolveRealType();
+#endif
+			
 			//basic type
 			if (TypeModel.IsBasicType(type))
 			{
@@ -194,7 +202,7 @@ namespace Nino.Serialization
 					return writer.ToCompressedBytes();
 				}
 			}
-			
+
 			//try code gen
 			if (TypeModel.TryGetSerializeAction(type, out var action))
 			{
@@ -221,6 +229,14 @@ namespace Nino.Serialization
 				//share a writer
 				if (writer != null)
 				{
+#if ILRuntime
+					if (value is ILRuntime.Runtime.Intepreter.ILTypeInstance instance)
+					{
+						((SerializationHelper1ILTypeInstanceAdapter.Adapter)helper).NinoWriteMembers(
+							instance, writer);
+						return ConstMgr.Null;
+					}
+#endif
 					var objs = ArrayPool<object>.Request(2);
 					objs[0] = value;
 					objs[1] = writer;
@@ -232,6 +248,14 @@ namespace Nino.Serialization
 				//start serialize
 				using (writer = new Writer(encoding))
 				{
+#if ILRuntime
+					if (value is ILRuntime.Runtime.Intepreter.ILTypeInstance instance)
+					{
+						((SerializationHelper1ILTypeInstanceAdapter.Adapter)helper).NinoWriteMembers(
+							instance, writer);
+						return ConstMgr.Null;
+					}
+#endif
 					var objs = ArrayPool<object>.Request(2);
 					objs[0] = value;
 					objs[1] = writer;

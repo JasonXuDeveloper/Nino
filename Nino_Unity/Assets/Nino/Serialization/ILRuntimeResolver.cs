@@ -17,7 +17,7 @@ namespace Nino.Serialization
     /// </summary>
     public static class ILRuntimeResolver
     {
-        private static ILRuntime.Runtime.Enviorment.AppDomain _appDomain;
+        internal static ILRuntime.Runtime.Enviorment.AppDomain appDomain;
 
         private static readonly Dictionary<string, Type> IlRuntimeTypes = new Dictionary<string, Type>();
 
@@ -42,13 +42,13 @@ namespace Nino.Serialization
 			string typeName = type.FullName;
 			if (FindType(typeName) != null)
 			{
-				return _appDomain.Instantiate(typeName);
+				return appDomain.Instantiate(typeName);
 			}
 
-			if (typeName != null && _appDomain.LoadedTypes.ContainsKey(typeName))
+			if (typeName != null && appDomain.LoadedTypes.ContainsKey(typeName))
 			{
 				IlRuntimeTypes[typeName] = type;
-				return _appDomain.Instantiate(typeName);
+				return appDomain.Instantiate(typeName);
 			}
 			return Activator.CreateInstance(type);
 		}
@@ -59,7 +59,7 @@ namespace Nino.Serialization
         /// <param name="domain"></param>
         public static unsafe void RegisterILRuntimeClrRedirection(ILRuntime.Runtime.Enviorment.AppDomain domain)
         {
-            _appDomain = domain;
+            appDomain = domain;
             //cache types
             IlRuntimeTypes.Clear();
             var allTypes = domain.LoadedTypes.Values.Select(x => x.ReflectionType).ToArray();
@@ -68,7 +68,7 @@ namespace Nino.Serialization
                 if (t.FullName != null) IlRuntimeTypes[t.FullName] = t;
             }
             
-            _appDomain.RegisterCrossBindingAdaptor(new SerializationHelper1ILTypeInstanceAdapter());
+            appDomain.RegisterCrossBindingAdaptor(new SerializationHelper1ILTypeInstanceAdapter());
             //reg redirections
             MethodBase method;
             var type = typeof(Nino.Serialization.Serializer);
@@ -94,10 +94,10 @@ namespace Nino.Serialization
                 foreach (var m in lst)
                 {
                     if (ILRuntime.Runtime.Extensions.MatchGenericParameters(m, args, typeof(System.Byte[]),
-                        typeof(ILRuntime.Runtime.Intepreter.ILTypeInstance), typeof(System.Text.Encoding)))
+                        args[0], typeof(System.Text.Encoding)))
                     {
                         method = m.MakeGenericMethod(args);
-                        _appDomain.RegisterCLRMethodRedirection(method, Serialize_0);
+                        appDomain.RegisterCLRMethodRedirection(method, Serialize_0);
 
                         break;
                     }
@@ -132,7 +132,7 @@ namespace Nino.Serialization
                         typeof(System.Byte[]), typeof(System.Text.Encoding)))
                     {
                         method = m.MakeGenericMethod(args);
-                        _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+                        appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
 
                         break;
                     }
@@ -150,7 +150,7 @@ namespace Nino.Serialization
                         typeof(System.Byte[]), typeof(System.Text.Encoding)))
                     {
                         method = m.MakeGenericMethod(args);
-                        _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+                        appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
 
                         break;
                     }
@@ -168,7 +168,7 @@ namespace Nino.Serialization
                         typeof(System.Byte[]), typeof(System.Text.Encoding)))
                     {
                         method = m.MakeGenericMethod(args);
-                        _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+                        appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
 
                         break;
                     }
@@ -191,7 +191,7 @@ namespace Nino.Serialization
                             typeof(System.Byte[]), typeof(System.Text.Encoding)))
                         {
                             method = m.MakeGenericMethod(args);
-                            _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+                            appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
 
                             break;
                         }
@@ -215,7 +215,7 @@ namespace Nino.Serialization
                             typeof(System.Byte[]), typeof(System.Text.Encoding)))
                         {
                             method = m.MakeGenericMethod(args);
-                            _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+                            appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
 
                             break;
                         }
@@ -234,7 +234,7 @@ namespace Nino.Serialization
                         typeof(System.Byte[]), typeof(System.Text.Encoding)))
                     {
                         method = m.MakeGenericMethod(args);
-                        _appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
+                        appDomain.RegisterCLRMethodRedirection(method, Deserialize_0);
 
                         break;
                     }
@@ -316,17 +316,18 @@ namespace Nino.Serialization
                 0);
             intp.Free(ptrOfThisMethod);
 
+            //获取泛型参数<T>的实际类型
+            var genericArguments = method.GenericArguments;
+            var t = genericArguments[0];
             ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 2);
-            var @val =
-                (ILRuntime.Runtime.Intepreter.ILTypeInstance)ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(
-                    typeof(ILRuntime.Runtime.Intepreter.ILTypeInstance),
-                    ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
-                    0);
+            var val = ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(
+                t.ReflectionType,
+                ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
+                0);
             intp.Free(ptrOfThisMethod);
 
-
             var resultOfThisMethod =
-                Nino.Serialization.Serializer.Serialize(@val.Type.ReflectionType, @val, @encoding ?? Encoding.UTF8);
+                Nino.Serialization.Serializer.Serialize(t.ReflectionType, @val, @encoding ?? Encoding.UTF8);
 
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);
         }
@@ -372,12 +373,12 @@ namespace Nino.Serialization
 
         public class Adapter : Nino.Serialization.ISerializationHelper<ILRuntime.Runtime.Intepreter.ILTypeInstance>, ILRuntime.Runtime.Enviorment.CrossBindingAdaptorType
         {
-            ILRuntime.Runtime.Enviorment.CrossBindingMethodInfo<ILRuntime.Runtime.Intepreter.ILTypeInstance, Nino.Serialization.Writer> mNinoWriteMembers_0 = new ILRuntime.Runtime.Enviorment.CrossBindingMethodInfo<ILRuntime.Runtime.Intepreter.ILTypeInstance, Nino.Serialization.Writer>("NinoWriteMembers");
-            ILRuntime.Runtime.Enviorment.CrossBindingFunctionInfo<Nino.Serialization.Reader, ILRuntime.Runtime.Intepreter.ILTypeInstance> mNinoReadMembers_1 = new ILRuntime.Runtime.Enviorment.CrossBindingFunctionInfo<Nino.Serialization.Reader, ILRuntime.Runtime.Intepreter.ILTypeInstance>("NinoReadMembers");
-
             bool isInvokingToString;
             ILRuntime.Runtime.Intepreter.ILTypeInstance instance;
             ILRuntime.Runtime.Enviorment.AppDomain appdomain;
+
+            private ILRuntime.CLR.Method.IMethod write;
+            private ILRuntime.CLR.Method.IMethod read;
 
             public Adapter()
             {
@@ -394,12 +395,36 @@ namespace Nino.Serialization
 
             public void NinoWriteMembers(ILRuntime.Runtime.Intepreter.ILTypeInstance val, Nino.Serialization.Writer writer)
             {
-                mNinoWriteMembers_0.Invoke(this.instance, val, writer);
+                if (write == null)
+                {
+                    string Name = nameof(NinoWriteMembers);
+                    var ilType = instance.Type;
+                    write = ilType.GetMethod(Name, 2);
+                }
+                using (var ctx = appdomain.BeginInvoke(write))
+                {
+                    ctx.PushObject(instance);
+                    ctx.PushObject(val);
+                    ctx.PushObject(writer);
+                    ctx.Invoke();
+                }
             }
 
             public ILRuntime.Runtime.Intepreter.ILTypeInstance NinoReadMembers(Nino.Serialization.Reader reader)
             {
-                return mNinoReadMembers_1.Invoke(this.instance, reader);
+                if (read == null)
+                {
+                    string Name = nameof(NinoReadMembers);
+                    var ilType = instance.Type;
+                    read = ilType.GetMethod(Name, 1);
+                }
+                using (var ctx = appdomain.BeginInvoke(read))
+                {
+                    ctx.PushObject(instance);
+                    ctx.PushObject(reader);
+                    ctx.Invoke();
+                    return ctx.ReadObject<ILRuntime.Runtime.Intepreter.ILTypeInstance>();
+                }
             }
 
             public override string ToString()

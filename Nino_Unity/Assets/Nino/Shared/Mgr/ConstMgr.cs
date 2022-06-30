@@ -29,6 +29,7 @@ namespace Nino.Shared.Mgr
 
         #region basic types
 
+        public static readonly Type ObjectType = typeof(object);
         public static readonly Type ByteType = typeof(byte);
         public static readonly Type SByteType = typeof(sbyte);
         public static readonly Type ShortType = typeof(short);

@@ -13,6 +13,9 @@ namespace Nino.Serialization
 		private const string HelperName = "NinoSerializationHelper";
 		private const string HelperSerializeMethodName = "NinoWriteMembers";
 		private const string HelperDeserializeMethodName = "NinoReadMembers";
+
+		private const BindingFlags ReflectionFlags =
+			BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Default;
 		
 		public Dictionary<ushort, MemberInfo> members;
 		public Dictionary<ushort, Type> types;
@@ -160,7 +163,7 @@ namespace Nino.Serialization
 		{
 			if (GeneratedSerializationHelper.TryGetValue(type, out helper)) return helper != null;
 			
-			var field = type.GetField(HelperName, BindingFlags.Public | BindingFlags.Static);
+			var field = type.GetField(HelperName, ReflectionFlags | BindingFlags.Static);
 			helper = field?.GetValue(null);
 			GeneratedSerializationHelper[type] = helper;
 			return GeneratedSerializationHelper[type] != null;
@@ -185,13 +188,13 @@ namespace Nino.Serialization
 
 			if (!SerializeMethods.TryGetValue(type, out sm))
 			{
-				sm = helper.GetType().GetMethod(HelperSerializeMethodName, BindingFlags.Public);
+				sm = helper.GetType().GetMethod(HelperSerializeMethodName, ReflectionFlags);
 				SerializeMethods[type] = sm;
 			}
 
 			if (!DeserializeMethods.TryGetValue(type, out dm))
 			{
-				dm = helper.GetType().GetMethod(HelperSerializeMethodName, BindingFlags.Public);
+				dm = helper.GetType().GetMethod(HelperDeserializeMethodName, ReflectionFlags);
 				DeserializeMethods[type] = dm;
 			}
 			

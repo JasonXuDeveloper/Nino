@@ -180,13 +180,18 @@ namespace Nino.Serialization
 			}
 			
 			//another attempt
-			//another attempt
 			if (TypeModel.TryGetHelperMethodInfo(type, out var helper, out _, out var dm))
 			{
 				//reflect generic method
-				//share a writer
+				//share a reader
 				if (reader != null)
 				{
+#if ILRuntime
+					if (type is ILRuntime.Reflection.ILRuntimeType)
+					{
+						return ((SerializationHelper1ILTypeInstanceAdapter.Adapter)helper).NinoReadMembers(reader);
+					}
+#endif
 					var objs = ArrayPool<object>.Request(1);
 					objs[0] = reader;
 					var ret = dm.Invoke(helper, objs);
@@ -197,6 +202,12 @@ namespace Nino.Serialization
 				//start deserialize
 				using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
 				{
+#if ILRuntime
+					if (type is ILRuntime.Reflection.ILRuntimeType)
+					{
+						return ((SerializationHelper1ILTypeInstanceAdapter.Adapter)helper).NinoReadMembers(reader);
+					}
+#endif
 					var objs = ArrayPool<object>.Request(1);
 					objs[0] = reader;
 					var ret = dm.Invoke(helper, objs);
