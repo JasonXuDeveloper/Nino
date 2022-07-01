@@ -81,12 +81,6 @@ namespace Nino.Benchmark
         [GlobalSetup]
         public void Setup()
         {
-            //register importer (custom way to write those objects)
-            Nino.Serialization.Serializer.AddCustomImporter<DateTime>((datetime, writer) =>
-            {
-                //write long
-                writer.Write(datetime.ToBinary());
-            });
             //nested data
             Data[] dt = new Data[10000];
             for (int i = 0; i < dt.Length; i++)

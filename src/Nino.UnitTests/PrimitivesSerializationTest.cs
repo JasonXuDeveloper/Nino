@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -22,6 +23,7 @@ namespace Nino.UnitTests
             public static readonly Type DoubleType = typeof(double);
             public static readonly Type FloatType = typeof(float);
             public static readonly Type CharType = typeof(char);
+            public static readonly Type DateTimeType = typeof(DateTime);
             
             Array of the above types
             List of the above types
@@ -122,10 +124,12 @@ namespace Nino.UnitTests
         public void TestBool()
         {
             bool val = true;
+            // ReSharper disable ConditionIsAlwaysTrueOrFalse
             byte[] buf = Serialization.Serializer.Serialize(val);
             bool result = Serialization.Deserializer.Deserialize<bool>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(true, val);
+            // ReSharper restore ConditionIsAlwaysTrueOrFalse
         }
 
         [TestMethod]
@@ -167,7 +171,17 @@ namespace Nino.UnitTests
             Assert.AreEqual(val, result);
             Assert.AreEqual('a', val);
         }
-
+        
+        [TestMethod]
+        public void TestDateTime()
+        {
+            DateTime val = new DateTime(2000, 1, 1);
+            byte[] buf = Serialization.Serializer.Serialize(val);
+            DateTime result = Serialization.Deserializer.Deserialize<DateTime>(buf);
+            Assert.AreEqual(val, result);
+            Assert.AreEqual(new DateTime(2000, 1, 1), val);
+        }
+        
         [TestMethod]
         public void TestByteArr()
         {
@@ -296,6 +310,16 @@ namespace Nino.UnitTests
             char[] result = Serialization.Deserializer.Deserialize<char[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { 'a', 'b', 'c', 'd', 'e' }));
+        }
+        
+        [TestMethod]
+        public void TestDateTimeArr()
+        {
+            DateTime[] val = new[] { DateTime.Today, DateTime.Today.AddDays(-1234) };
+            byte[] buf = Serialization.Serializer.Serialize(val);
+            DateTime[] result = Serialization.Deserializer.Deserialize<DateTime[]>(buf);
+            Assert.IsTrue(val.SequenceEqual(result));
+            Assert.IsTrue(result.SequenceEqual(new[] { DateTime.Today, DateTime.Today.AddDays(-1234) }));
         }
 
         [TestMethod]
@@ -440,6 +464,20 @@ namespace Nino.UnitTests
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<decimal>
                 { decimal.MinValue, decimal.MaxValue }));
         }
+        
+        [TestMethod]
+        public void TestCharList()
+        {
+            System.Collections.Generic.List<char> val = new System.Collections.Generic.List<char>
+                { char.MinValue, char.MaxValue };
+            byte[] buf = Serialization.Serializer.Serialize(val);
+            System.Collections.Generic.List<char> result =
+                Serialization.Deserializer.Deserialize<System.Collections.Generic.List<char>>(buf);
+            Assert.IsTrue(val.SequenceEqual(result));
+            Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<char>
+                { char.MinValue, char.MaxValue }));
+        }
+        
 
         [TestMethod]
         public void TestStringList()
@@ -451,6 +489,19 @@ namespace Nino.UnitTests
                 Serialization.Deserializer.Deserialize<System.Collections.Generic.List<string>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<string> { "Hello", "World" }));
+        }
+        
+        [TestMethod]
+        public void TestDateTimeList()
+        {
+            System.Collections.Generic.List<DateTime> val = new System.Collections.Generic.List<DateTime>
+                { DateTime.Today, DateTime.Today.AddDays(-1234) };
+            byte[] buf = Serialization.Serializer.Serialize(val);
+            System.Collections.Generic.List<DateTime> result =
+                Serialization.Deserializer.Deserialize<System.Collections.Generic.List<DateTime>>(buf);
+            Assert.IsTrue(val.SequenceEqual(result));
+            Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<DateTime>
+                { DateTime.Today, DateTime.Today.AddDays(-1234) }));
         }
 
         [TestMethod]

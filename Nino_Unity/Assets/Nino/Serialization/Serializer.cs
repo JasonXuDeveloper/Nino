@@ -101,6 +101,9 @@ namespace Nino.Serialization
 				case string s:
 					writer.Write(s);
 					return true;
+				case DateTime dt:
+					writer.Write(dt);
+					return true;
 				default:
 					var type = typeof(T);
 					if (type == ConstMgr.ObjectType)
@@ -129,6 +132,7 @@ namespace Nino.Serialization
 							return false;
 						}
 					}
+					//list/array/dict/已注册类型才会走这里
 					writer.WriteCommonVal(type, val);
 					return true;
 			}

@@ -87,6 +87,8 @@ namespace Nino.Serialization
 					return reader.ReadDecimal();
 				case TypeCode.Char:
 					return reader.ReadChar();
+				case TypeCode.DateTime:
+					return reader.ReadDateTime();
 				default:
 					//basic type
 					//看看有没有注册委托，没的话有概率不行

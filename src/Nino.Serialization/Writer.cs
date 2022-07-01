@@ -132,6 +132,16 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
+		/// Write a DateTime
+		/// </summary>
+		/// <param name="value"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void Write(DateTime value)
+		{
+			Write(value.ToOADate());
+		}
+
+		/// <summary>
 		/// Write string
 		/// </summary>
 		/// <param name="val"></param>
@@ -618,6 +628,9 @@ namespace Nino.Serialization
 					return;
 				case string s:
 					Write(s);
+					return;
+				case DateTime dt:
+					Write(dt);
 					return;
 			}
 

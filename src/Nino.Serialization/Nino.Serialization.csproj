@@ -21,7 +21,8 @@
         <PackageVersion>1.0.5</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <PackageReleaseNotes>v1.0.5
-- [optimization] better performance with primitives</PackageReleaseNotes>
+- [optimization] better performance with primitives
+- [feat] support DateTime as default</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType> 
     </PropertyGroup>
 

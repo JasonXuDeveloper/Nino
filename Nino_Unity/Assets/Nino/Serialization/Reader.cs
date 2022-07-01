@@ -159,6 +159,8 @@ namespace Nino.Serialization
 					return ReadDecimal();
 				case TypeCode.Char:
 					return ReadChar();
+				case TypeCode.DateTime:
+					return ReadDateTime();
 			}
 
 			//enum, normally this wont be true, as enum has a typecode
@@ -314,6 +316,15 @@ namespace Nino.Serialization
 		public char ReadChar()
 		{
 			return (char)ReadInt16();
+		}
+
+		/// <summary>
+		/// Read DateTime
+		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public DateTime ReadDateTime()
+		{
+			return DateTime.FromOADate(ReadDouble());
 		}
 
 		/// <summary>

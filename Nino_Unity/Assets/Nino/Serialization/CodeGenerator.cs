@@ -488,6 +488,8 @@ namespace Nino.Serialization
                             return "reader.ReadDecimal()";
                         case TypeCode.Char:
                             return "reader.ReadChar()";
+                        case TypeCode.DateTime:
+                            return "reader.ReadDateTime()";
                         default:
                             if (GetValidNinoClass(mt, false))
                             {
@@ -629,6 +631,7 @@ namespace Nino.Serialization
                     case TypeCode.Single:
                     case TypeCode.Decimal:
                     case TypeCode.Char:
+                    case TypeCode.DateTime:
                         return $"writer.Write({val})";
                     default:
                         if (GetValidNinoClass(mt, false))

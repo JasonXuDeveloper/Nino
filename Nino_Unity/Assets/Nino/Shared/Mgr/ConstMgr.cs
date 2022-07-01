@@ -44,6 +44,7 @@ namespace Nino.Shared.Mgr
         public static readonly Type DoubleType = typeof(double);
         public static readonly Type FloatType = typeof(float);
         public static readonly Type CharType = typeof(char);
+        public static readonly Type DateTimeType = typeof(DateTime);
         public static readonly Type ByteArrType = typeof(byte[]);
         public static readonly Type ByteListType = typeof(List<byte>);
         public static readonly Type ListDefType = typeof(List<>);
