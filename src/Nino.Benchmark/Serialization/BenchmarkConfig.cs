@@ -87,7 +87,7 @@ namespace Nino.Benchmark
 
             public UnitType UnitType => UnitType.Size;
 
-            public string Legend => null;
+            public string Legend => string.Empty;
 
             public string GetValue(Summary summary, BenchmarkCase benchmarkCase)
             {

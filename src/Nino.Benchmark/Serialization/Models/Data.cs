@@ -94,17 +94,14 @@ namespace Nino.Benchmark.Models
         [NinoMember(1)]
         [Key(1)]
         [System.Runtime.Serialization.DataMember]
-        public string name;
+        public string Name = "";
 
-        [ProtoMember(2)]
-        [NinoMember(2)]
-        [Key(2)]
-        [System.Runtime.Serialization.DataMember]
-        public Data[] ps;
+        [ProtoMember(2)] [NinoMember(2)] [Key(2)] [System.Runtime.Serialization.DataMember]
+        public Data[] Ps = Array.Empty<Data>();
 
         public override string ToString()
         {
-            return $"{name},{ps[0]}";
+            return $"{Name},{Ps[0]}";
         }
     }
 }

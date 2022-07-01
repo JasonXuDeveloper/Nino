@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System;
 using System.IO;
 using System.Text;
 using Newtonsoft.Json;
@@ -17,7 +18,7 @@ namespace Nino.Benchmark.Serializers
             using (var sr = new StreamReader(ms, Encoding.UTF8))
             using (var jr = new JsonTextReader(sr))
             {
-                return Serializer.Deserialize<T>(jr);
+                return Serializer.Deserialize<T>(jr) ?? Activator.CreateInstance<T>();
             }
         }
 

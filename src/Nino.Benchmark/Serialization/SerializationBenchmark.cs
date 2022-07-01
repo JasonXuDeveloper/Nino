@@ -51,8 +51,8 @@ namespace Nino.Benchmark
 
             NestedDataInput = new NestedData()
             {
-                name = "Test",
-                ps = dt
+                Name = "Test",
+                Ps = dt
             };
         }
 

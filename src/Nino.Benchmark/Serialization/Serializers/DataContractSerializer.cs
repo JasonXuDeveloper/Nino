@@ -1,6 +1,7 @@
 ﻿// Copyright (c) All contributors. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System;
 using System.IO;
 
 namespace Nino.Benchmark.Serializers
@@ -11,7 +12,13 @@ namespace Nino.Benchmark.Serializers
         {
             using (var ms = new MemoryStream((byte[])input))
             {
-                return (T)new System.Runtime.Serialization.DataContractSerializer(typeof(T)).ReadObject(ms);
+                var obj = new System.Runtime.Serialization.DataContractSerializer(typeof(T)).ReadObject(ms);
+                if (obj is null)
+                {
+                    return Activator.CreateInstance<T>();
+                }
+
+                return (T)obj;
             }
         }
 

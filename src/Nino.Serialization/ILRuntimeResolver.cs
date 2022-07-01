@@ -290,7 +290,7 @@ namespace Nino.Serialization
 
             var resultOfThisMethod =
                 Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, r, @data,
-                    @encoding ?? Encoding.UTF8);
+                    @encoding ?? Encoding.UTF8, null);
 
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);
         }
@@ -330,7 +330,7 @@ namespace Nino.Serialization
             intp.Free(ptrOfThisMethod);
 
             var resultOfThisMethod =
-                Nino.Serialization.Serializer.Serialize(t.ReflectionType, @val, @encoding ?? Encoding.UTF8);
+                Nino.Serialization.Serializer.Serialize(t.ReflectionType, @val, @encoding ?? Encoding.UTF8, null);
 
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);
         }

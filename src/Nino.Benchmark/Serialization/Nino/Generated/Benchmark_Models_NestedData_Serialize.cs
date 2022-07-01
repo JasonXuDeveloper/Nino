@@ -9,11 +9,11 @@ namespace Nino.Benchmark.Models
             #region NINO_CODEGEN
             public void NinoWriteMembers(NestedData value, Nino.Serialization.Writer writer)
             {
-                writer.Write(value.name);
-                if(value.ps != null)
+                writer.Write(value.Name);
+                if(value.Ps != null)
                 {
-                    writer.CompressAndWrite(value.ps.Length);
-                    foreach (var entry in value.ps)
+                    writer.CompressAndWrite(value.Ps.Length);
+                    foreach (var entry in value.Ps)
                     {
                         Benchmark.Models.Data.NinoSerializationHelper.NinoWriteMembers(entry, writer);
                     }
@@ -32,12 +32,12 @@ namespace Nino.Benchmark.Models
             public NestedData NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 NestedData value = new NestedData();
-                value.name = reader.ReadString();
-                value.ps = new Benchmark.Models.Data[reader.ReadLength()];
-                for(int i = 0, cnt = value.ps.Length; i < cnt; i++)
+                value.Name = reader.ReadString();
+                value.Ps = new Benchmark.Models.Data[reader.ReadLength()];
+                for(int i = 0, cnt = value.Ps.Length; i < cnt; i++)
                 {
                     var value_ps_i = Benchmark.Models.Data.NinoSerializationHelper.NinoReadMembers(reader);
-                    value.ps[i] = value_ps_i;
+                    value.Ps[i] = value_ps_i;
                 }
                 return value;
             }

@@ -145,7 +145,7 @@ namespace Nino.Serialization
 		public object ReadCommonVal(Type type)
 			// ReSharper restore CognitiveComplexity
 		{
-			switch (Type.GetTypeCode(type))
+			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
 					return ReadByte();
@@ -515,7 +515,7 @@ namespace Nino.Serialization
 		private Array TryGetBasicTypeArray(Type type, int len, out bool result)
 		{
 			result = true;
-			switch (Type.GetTypeCode(type))
+			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
 					return ReadBytes(len);
@@ -652,7 +652,7 @@ namespace Nino.Serialization
 		private IList TryGetBasicTypeList(Type type, int len, out bool result)
 		{
 			result = true;
-			switch (Type.GetTypeCode(type))
+			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
 					return ReadBytes(len).ToList();

@@ -57,7 +57,7 @@ namespace Nino.Serialization
 			// ReSharper restore CognitiveComplexity
 		{
 			result = true;
-			switch (Type.GetTypeCode(type))
+			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
 					return reader.ReadByte();
@@ -130,13 +130,6 @@ namespace Nino.Serialization
 			Type type = typeof(T);
 			Reader reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
 			
-			//basic type
-			var obj = AttemptReadBasicType(type, reader, out var result);
-			if (result)
-			{
-				reader.Dispose();
-				return (T)obj;
-			}
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
@@ -148,6 +141,13 @@ namespace Nino.Serialization
 					reader.Dispose();
 					return ret;
 				}
+			}
+			//basic type
+			var obj = AttemptReadBasicType(type, reader, out var result);
+			if (result)
+			{
+				reader.Dispose();
+				return (T)obj;
 			}
 
 			return (T)Deserialize(type, obj, data, encoding ?? DefaultEncoding, reader);
@@ -177,15 +177,6 @@ namespace Nino.Serialization
 				reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding);
 			}
 			
-			//basic type
-			val = AttemptReadBasicType(type, reader, out var result);
-			if (result)
-			{
-				if(returnDispose)
-					reader.Dispose();
-				return val;
-			}
-			
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
@@ -198,6 +189,15 @@ namespace Nino.Serialization
 						reader.Dispose();
 					return ret;
 				}
+			}
+			
+			//basic type
+			val = AttemptReadBasicType(type, reader, out var result);
+			if (result)
+			{
+				if(returnDispose)
+					reader.Dispose();
+				return val;
 			}
 			
 			//create type

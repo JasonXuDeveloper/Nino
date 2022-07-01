@@ -698,7 +698,7 @@ namespace Nino.Serialization
 			type = Enum.GetUnderlyingType(type);
 			//typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
 			//typeof(int), typeof(uint), typeof(long), typeof(ulong)
-			switch (Type.GetTypeCode(type))
+			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
 					WriteCommonVal(type, (byte)val);
@@ -735,7 +735,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void CompressAndWriteEnum(Type type, ulong val)
 		{
-			switch (Type.GetTypeCode(type))
+			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
 					Write((byte)val);

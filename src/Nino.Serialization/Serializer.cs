@@ -153,14 +153,6 @@ namespace Nino.Serialization
 			Type type = typeof(T);
 			Writer writer = new Writer(encoding ?? DefaultEncoding);
 
-			//basic type
-			if (AttemptWriteBasicType(val, writer))
-			{
-				//compress it
-				var ret = writer.ToCompressedBytes();
-				writer.Dispose();
-				return ret;
-			}
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
@@ -174,6 +166,14 @@ namespace Nino.Serialization
 					writer.Dispose();
 					return ret;
 				}
+			}
+			//basic type
+			if (AttemptWriteBasicType(val, writer))
+			{
+				//compress it
+				var ret = writer.ToCompressedBytes();
+				writer.Dispose();
+				return ret;
 			}
 			//reflection type
 			return Serialize(type, val, encoding ?? DefaultEncoding, writer);
@@ -211,15 +211,6 @@ namespace Nino.Serialization
 			{
 				writer = new Writer(encoding);
 			}
-			
-			//basic type
-			if (AttemptWriteBasicType(value, writer))
-			{
-				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
-				if(returnValue)
-					writer.Dispose();
-				return ret;
-			}
 
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
@@ -234,6 +225,15 @@ namespace Nino.Serialization
 						writer.Dispose();
 					return ret;
 				}
+			}
+			
+			//basic type
+			if (AttemptWriteBasicType(value, writer))
+			{
+				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+				if(returnValue)
+					writer.Dispose();
+				return ret;
 			}
 
 			//Get Attribute that indicates a class/struct to be serialized

@@ -4,6 +4,7 @@
 #pragma warning disable SA1649 // File name should match first type name
 
 using MessagePack;
+using MessagePack.Formatters;
 
 namespace Nino.Benchmark.Serializers
 {
@@ -42,7 +43,7 @@ namespace Nino.Benchmark.Serializers
         {
         }
 
-        public MessagePack.Formatters.IMessagePackFormatter<T> GetFormatter<T>()
+        public IMessagePackFormatter<T>? GetFormatter<T>()
         {
             return Cache<T>.Formatter;
         }
@@ -50,7 +51,7 @@ namespace Nino.Benchmark.Serializers
         private static class Cache<T>
         {
             #pragma warning disable SA1401 // Fields should be private
-            public static MessagePack.Formatters.IMessagePackFormatter<T> Formatter;
+            public static IMessagePackFormatter<T>? Formatter;
             #pragma warning restore SA1401 // Fields should be private
 
             static Cache()

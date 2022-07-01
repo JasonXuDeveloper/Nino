@@ -27,11 +27,66 @@ namespace Nino.Serialization
 		/// Cached Models
 		/// </summary>
 		private static readonly Dictionary<Type, TypeModel> TypeModels = new Dictionary<Type, TypeModel>(10);
-		
+
+		/// <summary>
+		/// Cached Models
+		/// </summary>
+		private static readonly Dictionary<Type, TypeCode> TypeCodes = new Dictionary<Type, TypeCode>(30)
+		{
+			{ typeof(byte), TypeCode.Byte },
+			{ typeof(sbyte), TypeCode.SByte },
+			{ typeof(short), TypeCode.Int16 },
+			{ typeof(ushort), TypeCode.UInt16 },
+			{ typeof(int), TypeCode.Int32 },
+			{ typeof(uint), TypeCode.UInt32 },
+			{ typeof(long), TypeCode.Int64 },
+			{ typeof(ulong), TypeCode.UInt64 },
+			{ typeof(float), TypeCode.Single },
+			{ typeof(double), TypeCode.Double },
+			{ typeof(decimal), TypeCode.Decimal },
+			{ typeof(char), TypeCode.Char },
+			{ typeof(bool), TypeCode.Boolean },
+			{ typeof(string), TypeCode.String },
+			{ typeof(object), TypeCode.Object },
+			{ typeof(DateTime), TypeCode.DateTime },
+		};
+
 		/// <summary>
 		/// Generated helpers
 		/// </summary>
-		private static readonly Dictionary<Type, object> GeneratedSerializationHelper = new Dictionary<Type, object>(10);
+		private static readonly Dictionary<Type, object> GeneratedSerializationHelper = new Dictionary<Type, object>(50)
+		{
+			{ typeof(byte), null },
+			{ typeof(sbyte), null },
+			{ typeof(short), null },
+			{ typeof(ushort), null },
+			{ typeof(int), null },
+			{ typeof(uint), null },
+			{ typeof(long), null },
+			{ typeof(ulong), null },
+			{ typeof(bool), null },
+			{ typeof(float), null },
+			{ typeof(double), null },
+			{ typeof(decimal), null },
+			{ typeof(char), null },
+			{ typeof(string), null },
+			{ typeof(DateTime), null },
+		};
+
+		/// <summary>
+		/// Get a type code
+		/// </summary>
+		/// <param name="type"></param>
+		/// <returns></returns>
+		internal static TypeCode GetTypeCode(Type type)
+		{
+			if (TypeCodes.TryGetValue(type, out var ret))
+			{
+				return ret;
+			}
+			TypeCodes[type] = ret = Type.GetTypeCode(type);
+			return ret;
+		}
 		
 		/// <summary>
 		/// Get whether or not a type is a code gen type

@@ -143,7 +143,7 @@ namespace Nino.Benchmark
         {
             public static readonly GenericEqualityComparer<T> Default = new GenericEqualityComparer<T>();
 
-            public bool Equals(T x, T y)
+            public bool Equals(T? x, T? y)
             {
                 return x.TrueEquals(y);
             }
