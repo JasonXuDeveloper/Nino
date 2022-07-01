@@ -1,5 +1,7 @@
 # Nino
-Useful Unity Modules | 实用的Unity模块
+Definatly useful and high performance modules for C# projects, especially for Unity.
+
+实用的高性能C#模块，尤其在Unity平台能带来令人难以置信的便利。
 
 
 ## 功能列表
@@ -13,12 +15,15 @@ Useful Unity Modules | 实用的Unity模块
     - 二进制流对象池（线程安全）
     - 高性能动态扩容Buffer（易用、高效，低GC）
     - 可动态修改Buffer流（包含不需要分配io_buffer去read/write的方法）
+  - Collections
+    - 无检查List
+    - 无检查Stack
   - Mgr
     - 压缩解压助手
   
 - 序列化模块，[使用教程](Docs/Serialization.md)
 
-  > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，目标是更小体积，更高性能
+  > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，优势是更小体积，更高性能
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行序列化和反序列化，无法跨语言使用
   - 测试案例
@@ -52,25 +57,25 @@ Useful Unity Modules | 实用的Unity模块
     
   - [性能报告](Performance/Serialization.md)
   
-- 可删除目录：
-  - Nino/Nino/Assets/Nino/Test，测试代码
-  - Nino/Nino/Asset/ThirdParty，测试用的第三方库
+  - RoadMap
+  
+    - IL Emit -> 非IL2CPP环境
+    - ExpressionTree -> 非IL2CPP环境
+    - native zstream to zlib -> 全局
+    - analyser -> 全局
 
 
 
-## 工程目录
+## 目录结构
 
 - Docs，文档
-- src，托管到nuget上的Nino源码
-- Nino_Dotnet，Nino 标准.net core 5.0 工程，内含Benchmark
+- src，Nino源码
 - Nino_Unity，Nino Unity 2019及以上版本的工程，包含源码和测试代码
 - Performance，性能报告
 
 
 
-
-
-## 在Unity内使用
+## 在Unity平台使用
 
 有两种方法：
 
@@ -84,10 +89,17 @@ Useful Unity Modules | 实用的Unity模块
 
 ## 在非Unity平台使用
 
-- 使用src内的代码，或；
+- 使用NuGet
 
-- 参考```Nino_Dotnet```将```Nino_Unity/Assets/Nino```内除了Editor的代码全引用到自己C#工程即可
+  NuGet里搜Nino就好，目前有```Nino.Shared```和```Nino.Serialization```
 
-  > 如果需要运行测试案例，记得也需要复制```Nino/Nino/Asset/ThirdParty```到C#工程
-  >
-  > ```Nino/Nino/Assets/Nino/Test```内部分文件需要修改，例如BuildTest无法在非Unity环境运行
+  ```bash
+  PM> Install-Package Nino.Shared -Version 1.0.2
+  ```
+
+  ```bash
+  PM> Install-Package Nino.Serialization -Version 1.0.4
+  ```
+
+- 使用src下的代码（复制进自己项目即可）
+
