@@ -24,61 +24,6 @@ namespace Nino.Serialization
 		public bool IncludeAll;
 
 		/// <summary>
-		/// Get whether or not a type is basic type and can be serialized/deserialized directly
-		/// </summary>
-		/// <param name="type"></param>
-		/// <returns></returns>
-		public static bool IsBasicType(Type type)
-		{
-			if (!type.IsEnum && !type.IsArray)
-			{
-				switch (Type.GetTypeCode(type))
-				{
-					//基础类型肯定可以
-					case TypeCode.Int32:
-					case TypeCode.UInt32:
-					case TypeCode.Int64:
-					case TypeCode.UInt64:
-					case TypeCode.Byte:
-					case TypeCode.SByte:
-					case TypeCode.Int16:
-					case TypeCode.UInt16:
-					case TypeCode.String:
-					case TypeCode.Boolean:
-					case TypeCode.Double:
-					case TypeCode.Single:
-					case TypeCode.Decimal:
-					case TypeCode.Char:
-						return true;
-					default:
-						//看看有没有注册委托，没的话有概率不行
-						if (!Serializer.CustomImporter.ContainsKey(type) &&
-						    !Deserializer.CustomExporter.ContainsKey(type))
-						{
-							//比如泛型，只能list和dict
-							if (type.IsGenericType)
-							{
-								var genericDefType = type.GetGenericTypeDefinition();
-								//不是list和dict就再见了
-								if (genericDefType != ConstMgr.ListDefType && genericDefType != ConstMgr.DictDefType)
-								{
-									return false;
-								}
-							}
-							//其他类型也不行
-							else
-							{
-								return false;
-							}
-						}
-						return true;
-				}
-			}
-
-			return true;
-		}
-		
-		/// <summary>
 		/// Cached Models
 		/// </summary>
 		private static readonly Dictionary<Type, TypeModel> TypeModels = new Dictionary<Type, TypeModel>(10);

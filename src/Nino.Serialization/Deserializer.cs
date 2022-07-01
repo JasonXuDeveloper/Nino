@@ -46,14 +46,17 @@ namespace Nino.Serialization
 			CustomExporter.Add(typeof(T), (reader) => func.Invoke(reader));
 		}
 
-
 		/// <summary>
 		/// Read basic type from reader
 		/// </summary>
 		/// <param name="type"></param>
 		/// <param name="reader"></param>
-		private static object ReadBasicType(Type type, Reader reader)
+		/// <param name="result"></param>
+		// ReSharper disable CognitiveComplexity
+		private static object AttemptReadBasicType(Type type, Reader reader, out bool result)
+			// ReSharper restore CognitiveComplexity
 		{
+			result = true;
 			switch (Type.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
@@ -85,10 +88,34 @@ namespace Nino.Serialization
 				case TypeCode.Char:
 					return reader.ReadChar();
 				default:
+					//basic type
+					//看看有没有注册委托，没的话有概率不行
+					if (!Serializer.CustomImporter.ContainsKey(type) &&
+					    !CustomExporter.ContainsKey(type))
+					{
+						//比如泛型，只能list和dict
+						if (type.IsGenericType)
+						{
+							var genericDefType = type.GetGenericTypeDefinition();
+							//不是list和dict就再见了
+							if (genericDefType != ConstMgr.ListDefType && genericDefType != ConstMgr.DictDefType)
+							{
+								result = false;
+								return null;
+							}
+						}
+						//其他类型也不行
+						else if (!type.IsArray)
+						{
+							result = false;
+							return null;
+						}
+					}
+
 					return reader.ReadCommonVal(type);
 			}
 		}
-
+		
 		/// <summary>
 		/// Deserialize a NinoSerialize object
 		/// </summary>
@@ -98,18 +125,18 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public static T Deserialize<T>(byte[] data, Encoding encoding = null)
 		{
-			Type t = typeof(T);
+			Type type = typeof(T);
 			//basic type
-			if (TypeModel.IsBasicType(t))
+			using (var reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding))
 			{
-				//start Deserialize
-				using (var reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding))
+				var ret = AttemptReadBasicType(typeof(T), reader, out var result);
+				if (result)
 				{
-					return (T)ReadBasicType(t, reader);
+					return (T)ret;
 				}
 			}
 			//code generated type
-			if (TypeModel.TryGetHelper(t, out var helperObj))
+			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
 				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
 				if (helper != null)
@@ -123,7 +150,7 @@ namespace Nino.Serialization
 			}
 
 			T val = Activator.CreateInstance<T>();
-			return (T)Deserialize(typeof(T), val, data, encoding ?? DefaultEncoding);
+			return (T)Deserialize(type, val, data, encoding ?? DefaultEncoding);
 		}
 
 		/// <summary>
@@ -145,18 +172,23 @@ namespace Nino.Serialization
 			encoding = encoding == null ? DefaultEncoding : encoding;
 			
 			//basic type
-			if (TypeModel.IsBasicType(type))
+			if (reader != null)
 			{
-				//share a reader
-				if (reader != null)
+				var ret = AttemptReadBasicType(type, reader, out var result);
+				if (result)
 				{
-					return ReadBasicType(type, reader);
+					return ret;
 				}
-
-				//start Deserialize
-				using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
+			}
+			else
+			{
+				using (var temp = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
 				{
-					return ReadBasicType(type, reader);
+					var ret = AttemptReadBasicType(type, temp, out var result);
+					if (result)
+					{
+						return ret;
+					}
 				}
 			}
 			

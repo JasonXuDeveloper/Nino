@@ -18,20 +18,20 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
-		private ExtensibleBuffer<byte> buffer;
+		private ExtensibleBuffer<byte> _buffer;
 		
 		/// <summary>
 		/// encoding for string
 		/// </summary>
-		private readonly Encoding encoding;
+		private readonly Encoding _encoding;
 
 		/// <summary>
 		/// Dispose the read
 		/// </summary>
 		public void Dispose()
 		{
-			ObjectPool<ExtensibleBuffer<byte>>.Return(buffer);
-			buffer = null;
+			ObjectPool<ExtensibleBuffer<byte>>.Return(_buffer);
+			_buffer = null;
 		}
 
 		/// <summary>
@@ -42,9 +42,9 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public Reader(ExtensibleBuffer<byte> data, int outputLength, Encoding encoding)
 		{
-			buffer = data;
-			buffer.ReadOnly = true;
-			this.encoding = encoding;
+			_buffer = data;
+			_buffer.ReadOnly = true;
+			this._encoding = encoding;
 			_position = 0;
 			_length = outputLength;
 		}
@@ -228,7 +228,7 @@ namespace Nino.Serialization
 			{
 				//no chance to Deserialize -> see if this type can be serialized in other ways
 				//try recursive
-				return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, encoding, this);
+				return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this);
 			}
 		}
 
@@ -281,7 +281,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public byte ReadByte()
 		{
-			return buffer[_position++];
+			return _buffer[_position++];
 		}
 
 		/// <summary>
@@ -292,7 +292,7 @@ namespace Nino.Serialization
 		public byte[] ReadBytes(int len)
 		{
 			byte[] ret = new byte[len];
-			buffer.CopyTo(ref ret, _position, len);
+			_buffer.CopyTo(ref ret, _position, len);
 			_position += len;
 			return ret;
 		}
@@ -304,7 +304,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public sbyte ReadSByte()
 		{
-			return (sbyte)(buffer[_position++]);
+			return (sbyte)(_buffer[_position++]);
 		}
 
 		/// <summary>
@@ -323,7 +323,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public short ReadInt16()
 		{
-			return (short)(buffer[_position++] | buffer[_position++] << 8);
+			return (short)(_buffer[_position++] | _buffer[_position++] << 8);
 		}
 
 		/// <summary>
@@ -343,8 +343,8 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public int ReadInt32()
 		{
-			return (buffer[_position++] | buffer[_position++] << 8 | buffer[_position++] << 16 |
-			        buffer[_position++] << 24);
+			return (_buffer[_position++] | _buffer[_position++] << 8 | _buffer[_position++] << 16 |
+			        _buffer[_position++] << 24);
 		}
 
 		/// <summary>
@@ -444,8 +444,8 @@ namespace Nino.Serialization
 
 			//Read directly
 			var buf = stackalloc byte [len];
-			buffer.CopyTo(buf, _position, len);
-			var ret = encoding.GetString(buf, len);
+			_buffer.CopyTo(buf, _position, len);
+			var ret = _encoding.GetString(buf, len);
 			_position += len;
 			return ret;
 		}
@@ -459,7 +459,7 @@ namespace Nino.Serialization
 			decimal result;
 			var resultSpan = new Span<byte>(&result, ConstMgr.SizeOfDecimal);
 			var buf = stackalloc byte[ConstMgr.SizeOfDecimal];
-			buffer.CopyTo(buf, _position, ConstMgr.SizeOfDecimal);
+			_buffer.CopyTo(buf, _position, ConstMgr.SizeOfDecimal);
 			fixed (byte* resultPtr = &resultSpan.GetPinnableReference())
 			{
 				Buffer.MemoryCopy(buf, resultPtr, ConstMgr.SizeOfDecimal, ConstMgr.SizeOfDecimal);

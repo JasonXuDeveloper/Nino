@@ -22,12 +22,12 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
-		private ExtensibleBuffer<byte> buffer;
+		private ExtensibleBuffer<byte> _buffer;
 
 		/// <summary>
 		/// encoding for string
 		/// </summary>
-		private readonly Encoding encoding;
+		private readonly Encoding _encoding;
 
 		/// <summary>
 		/// Convert writer to byte
@@ -35,7 +35,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToBytes()
 		{
-			return buffer.ToArray(0, length);
+			return _buffer.ToArray(0, _length);
 		}
 
 		/// <summary>
@@ -44,7 +44,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToCompressedBytes()
 		{
-			return CompressMgr.Compress(buffer, length);
+			return CompressMgr.Compress(_buffer, _length);
 		}
 
 		/// <summary>
@@ -52,8 +52,8 @@ namespace Nino.Serialization
 		/// </summary>
 		public void Dispose()
 		{
-			ObjectPool<ExtensibleBuffer<byte>>.Return(buffer);
-			buffer = null;
+			ObjectPool<ExtensibleBuffer<byte>>.Return(_buffer);
+			_buffer = null;
 		}
 
 		/// <summary>
@@ -65,27 +65,27 @@ namespace Nino.Serialization
 			var peak = ObjectPool<ExtensibleBuffer<byte>>.Peak();
 			if (peak != null && peak.ExpandSize == BufferBlockSize)
 			{
-				buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+				_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
 			}
 			else
 			{
-				buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
+				_buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
 			}
-			buffer.ReadOnly = false;
-			this.encoding = encoding;
-			length = 0;
-			position = 0;
+			_buffer.ReadOnly = false;
+			this._encoding = encoding;
+			_length = 0;
+			_position = 0;
 		}
 
 		/// <summary>
 		/// Length of the buffer
 		/// </summary>
-		private int length;
+		private int _length;
 
 		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
-		private int position;
+		private int _position;
 
 		/// <summary>
 		/// Write byte[]
@@ -106,9 +106,9 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private void Write(byte[] data, int len)
 		{
-			buffer.CopyFrom(data, 0, position, len);
-			position += len;
-			length += len;
+			_buffer.CopyFrom(data, 0, _position, len);
+			_position += len;
+			_length += len;
 		}
 
 		/// <summary>
@@ -144,7 +144,7 @@ namespace Nino.Serialization
 				Write((byte)0);
 				return;
 			}
-			var len = encoding.GetByteCount(val);
+			var len = _encoding.GetByteCount(val);
 			if (len <= byte.MaxValue)
 			{
 				Write((byte)CompressType.ByteString);
@@ -162,7 +162,7 @@ namespace Nino.Serialization
 
 			//write directly
 			var b = BufferPool.RequestBuffer(len);
-			if (len == encoding.GetBytes(val, 0, val.Length, b, 0))
+			if (len == _encoding.GetBytes(val, 0, val.Length, b, 0))
 			{
 				Write(b, len);
 			}
@@ -182,23 +182,23 @@ namespace Nino.Serialization
 		{
 			var valueSpan = new ReadOnlySpan<byte>(&d, ConstMgr.SizeOfDecimal);
 			//16 bytes can consider write manually
-			buffer[position++] = valueSpan[0];
-			buffer[position++] = valueSpan[1];
-			buffer[position++] = valueSpan[2];
-			buffer[position++] = valueSpan[3];
-			buffer[position++] = valueSpan[4];
-			buffer[position++] = valueSpan[5];
-			buffer[position++] = valueSpan[6];
-			buffer[position++] = valueSpan[7];
-			buffer[position++] = valueSpan[8];
-			buffer[position++] = valueSpan[9];
-			buffer[position++] = valueSpan[10];
-			buffer[position++] = valueSpan[11];
-			buffer[position++] = valueSpan[12];
-			buffer[position++] = valueSpan[13];
-			buffer[position++] = valueSpan[14];
-			buffer[position++] = valueSpan[15];
-			length += ConstMgr.SizeOfDecimal;
+			_buffer[_position++] = valueSpan[0];
+			_buffer[_position++] = valueSpan[1];
+			_buffer[_position++] = valueSpan[2];
+			_buffer[_position++] = valueSpan[3];
+			_buffer[_position++] = valueSpan[4];
+			_buffer[_position++] = valueSpan[5];
+			_buffer[_position++] = valueSpan[6];
+			_buffer[_position++] = valueSpan[7];
+			_buffer[_position++] = valueSpan[8];
+			_buffer[_position++] = valueSpan[9];
+			_buffer[_position++] = valueSpan[10];
+			_buffer[_position++] = valueSpan[11];
+			_buffer[_position++] = valueSpan[12];
+			_buffer[_position++] = valueSpan[13];
+			_buffer[_position++] = valueSpan[14];
+			_buffer[_position++] = valueSpan[15];
+			_length += ConstMgr.SizeOfDecimal;
 		}
 
 		/// <summary>
@@ -232,9 +232,9 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte num)
 		{
-			buffer[position] = num;
-			position += 1;
-			length += 1;
+			_buffer[_position] = num;
+			_position += 1;
+			_length += 1;
 		}
 
 		/// <summary>
@@ -244,9 +244,9 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(sbyte num)
 		{
-			buffer[position] = (byte)num;
-			position += 1;
-			length += 1;
+			_buffer[_position] = (byte)num;
+			_position += 1;
+			_length += 1;
 		}
 
 		/// <summary>
@@ -265,12 +265,12 @@ namespace Nino.Serialization
 			// Position += SizeOfInt;
 			// Length += SizeOfInt;
 
-			buffer[position++] = (byte)num;
-			buffer[position++] = (byte)(num >> 8);
-			buffer[position++] = (byte)(num >> 16);
-			buffer[position++] = (byte)(num >> 24);
+			_buffer[_position++] = (byte)num;
+			_buffer[_position++] = (byte)(num >> 8);
+			_buffer[_position++] = (byte)(num >> 16);
+			_buffer[_position++] = (byte)(num >> 24);
 
-			length += ConstMgr.SizeOfInt;
+			_length += ConstMgr.SizeOfInt;
 		}
 
 		/// <summary>
@@ -289,12 +289,12 @@ namespace Nino.Serialization
 			// Position += SizeOfUInt;
 			// Length += SizeOfUInt;
 
-			buffer[position++] = (byte)num;
-			buffer[position++] = (byte)(num >> 8);
-			buffer[position++] = (byte)(num >> 16);
-			buffer[position++] = (byte)(num >> 24);
+			_buffer[_position++] = (byte)num;
+			_buffer[_position++] = (byte)(num >> 8);
+			_buffer[_position++] = (byte)(num >> 16);
+			_buffer[_position++] = (byte)(num >> 24);
 
-			length += ConstMgr.SizeOfUInt;
+			_length += ConstMgr.SizeOfUInt;
 		}
 
 		/// <summary>
@@ -313,10 +313,10 @@ namespace Nino.Serialization
 			// Position += SizeOfShort;
 			// Length += SizeOfShort;
 
-			buffer[position++] = (byte)num;
-			buffer[position++] = (byte)(num >> 8);
+			_buffer[_position++] = (byte)num;
+			_buffer[_position++] = (byte)(num >> 8);
 
-			length += ConstMgr.SizeOfShort;
+			_length += ConstMgr.SizeOfShort;
 		}
 
 		/// <summary>
@@ -335,10 +335,10 @@ namespace Nino.Serialization
 			// Position += SizeOfUShort;
 			// Length += SizeOfUShort;
 
-			buffer[position++] = (byte)num;
-			buffer[position++] = (byte)(num >> 8);
+			_buffer[_position++] = (byte)num;
+			_buffer[_position++] = (byte)(num >> 8);
 
-			length += ConstMgr.SizeOfUShort;
+			_length += ConstMgr.SizeOfUShort;
 		}
 
 		/// <summary>
@@ -357,16 +357,16 @@ namespace Nino.Serialization
 			// Position += SizeOfLong;
 			// Length += SizeOfLong;
 
-			buffer[position++] = (byte)num;
-			buffer[position++] = (byte)(num >> 8);
-			buffer[position++] = (byte)(num >> 16);
-			buffer[position++] = (byte)(num >> 24);
-			buffer[position++] = (byte)(num >> 32);
-			buffer[position++] = (byte)(num >> 40);
-			buffer[position++] = (byte)(num >> 48);
-			buffer[position++] = (byte)(num >> 56);
+			_buffer[_position++] = (byte)num;
+			_buffer[_position++] = (byte)(num >> 8);
+			_buffer[_position++] = (byte)(num >> 16);
+			_buffer[_position++] = (byte)(num >> 24);
+			_buffer[_position++] = (byte)(num >> 32);
+			_buffer[_position++] = (byte)(num >> 40);
+			_buffer[_position++] = (byte)(num >> 48);
+			_buffer[_position++] = (byte)(num >> 56);
 
-			length += ConstMgr.SizeOfLong;
+			_length += ConstMgr.SizeOfLong;
 		}
 
 		/// <summary>
@@ -385,16 +385,16 @@ namespace Nino.Serialization
 			// Position += SizeOfULong;
 			// Length += SizeOfULong;
 
-			buffer[position++] = (byte)num;
-			buffer[position++] = (byte)(num >> 8);
-			buffer[position++] = (byte)(num >> 16);
-			buffer[position++] = (byte)(num >> 24);
-			buffer[position++] = (byte)(num >> 32);
-			buffer[position++] = (byte)(num >> 40);
-			buffer[position++] = (byte)(num >> 48);
-			buffer[position++] = (byte)(num >> 56);
+			_buffer[_position++] = (byte)num;
+			_buffer[_position++] = (byte)(num >> 8);
+			_buffer[_position++] = (byte)(num >> 16);
+			_buffer[_position++] = (byte)(num >> 24);
+			_buffer[_position++] = (byte)(num >> 32);
+			_buffer[_position++] = (byte)(num >> 40);
+			_buffer[_position++] = (byte)(num >> 48);
+			_buffer[_position++] = (byte)(num >> 56);
 
-			length += ConstMgr.SizeOfULong;
+			_length += ConstMgr.SizeOfULong;
 		}
 
 		#endregion
@@ -568,7 +568,9 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <exception cref="InvalidDataException"></exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		// ReSharper disable CognitiveComplexity
 		public void WriteCommonVal(Type type, object val)
+			// ReSharper restore CognitiveComplexity
 		{
 			//write basic values
 			switch (val)
@@ -668,7 +670,7 @@ namespace Nino.Serialization
 			}
 			else
 			{
-				Serializer.Serialize(type, val, encoding, this);
+				Serializer.Serialize(type, val, _encoding, this);
 			}
 		}
 
