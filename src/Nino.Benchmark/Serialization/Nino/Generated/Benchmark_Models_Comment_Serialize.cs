@@ -9,15 +9,15 @@ namespace Nino.Benchmark.Models
             #region NINO_CODEGEN
             public void NinoWriteMembers(Comment value, Nino.Serialization.Writer writer)
             {
-                writer.CompressAndWrite(value.comment_id);
-                writer.CompressAndWrite(value.post_id);
-                writer.Write(value.creation_date);
-                writer.CompressAndWrite(value.score);
-                writer.Write(value.edited);
-                writer.Write(value.body);
-                writer.Write(value.link);
-                writer.Write(value.body_markdown);
-                writer.Write(value.upvoted);
+                writer.CompressAndWrite(value.CommentId);
+                writer.CompressAndWrite(value.PostId);
+                writer.Write(value.CreationDate);
+                writer.CompressAndWrite(value.Score);
+                writer.Write(value.Edited);
+                writer.Write(value.Body);
+                writer.Write(value.Link);
+                writer.Write(value.BodyMarkdown);
+                writer.Write(value.Upvoted);
             }
 
             public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
@@ -28,15 +28,15 @@ namespace Nino.Benchmark.Models
             public Comment NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 Comment value = new Comment();
-                value.comment_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.post_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.creation_date = reader.ReadDateTime();
-                value.score =  (System.Int32)reader.DecompressAndReadNumber();
-                value.edited = reader.ReadBool();
-                value.body = reader.ReadString();
-                value.link = reader.ReadString();
-                value.body_markdown = reader.ReadString();
-                value.upvoted = reader.ReadBool();
+                value.CommentId =  (System.Int32)reader.DecompressAndReadNumber();
+                value.PostId =  (System.Int32)reader.DecompressAndReadNumber();
+                value.CreationDate = reader.ReadDateTime();
+                value.Score =  (System.Int32)reader.DecompressAndReadNumber();
+                value.Edited = reader.ReadBool();
+                value.Body = reader.ReadString();
+                value.Link = reader.ReadString();
+                value.BodyMarkdown = reader.ReadString();
+                value.Upvoted = reader.ReadBool();
                 return value;
             }
 

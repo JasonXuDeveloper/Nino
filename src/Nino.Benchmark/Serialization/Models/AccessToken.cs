@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using MessagePack;
 using Nino.Serialization;
 using ProtoBuf;
+#pragma warning disable 8618
 
 namespace Nino.Benchmark.Models
 {
@@ -14,33 +15,33 @@ namespace Nino.Benchmark.Models
     public partial class AccessToken : IGenericEquality<AccessToken>
     {
         [System.Runtime.Serialization.DataMember, ProtoMember(1), Key(0), NinoMember(0)]
-        public string access_token { get; set; }
+        public string Token { get; set; }
 
         [System.Runtime.Serialization.DataMember, ProtoMember(2), Key(2 - 1), NinoMember(1)]
-        public DateTime expires_on_date { get; set; }
+        public DateTime ExpiresOnDate { get; set; }
 
         [System.Runtime.Serialization.DataMember, ProtoMember(3), Key(3 - 1), NinoMember(2)]
-        public int account_id { get; set; }
+        public int AccountId { get; set; }
 
         [System.Runtime.Serialization.DataMember, ProtoMember(4), Key(4 - 1), NinoMember(3)]
-        public List<string> scope { get; set; }
+        public List<string> Scope { get; set; }
 
         public bool Equals(AccessToken obj)
         {
             return
-                this.access_token.TrueEqualsString(obj.access_token) ||
-                this.expires_on_date.TrueEquals(obj.expires_on_date) ||
-                this.account_id.TrueEquals(obj.account_id) ||
-                this.scope.TrueEqualsString(obj.scope);
+                this.Token.TrueEqualsString(obj.Token) ||
+                this.ExpiresOnDate.TrueEquals(obj.ExpiresOnDate) ||
+                this.AccountId.TrueEquals(obj.AccountId) ||
+                this.Scope.TrueEqualsString(obj.Scope);
         }
 
         public bool EqualsDynamic(dynamic obj)
         {
             return
-                this.access_token.TrueEqualsString((string)obj.access_token) ||
-                this.expires_on_date.TrueEquals((DateTime)obj.expires_on_date) ||
-                this.account_id.TrueEquals((int)obj.account_id) ||
-                this.scope.TrueEqualsString((IEnumerable<string>)obj.scope);
+                this.Token.TrueEqualsString((string)obj.access_token) ||
+                this.ExpiresOnDate.TrueEquals((DateTime)obj.expires_on_date) ||
+                this.AccountId.TrueEquals((int)obj.account_id) ||
+                this.Scope.TrueEqualsString((IEnumerable<string>)obj.scope);
         }
     }
 }

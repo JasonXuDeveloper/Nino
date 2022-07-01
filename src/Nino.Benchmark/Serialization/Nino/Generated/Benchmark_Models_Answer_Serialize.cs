@@ -9,23 +9,23 @@ namespace Nino.Benchmark.Models
             #region NINO_CODEGEN
             public void NinoWriteMembers(Answer value, Nino.Serialization.Writer writer)
             {
-                writer.CompressAndWrite(value.question_id);
-                writer.CompressAndWrite(value.answer_id);
-                writer.Write(value.locked_date);
-                writer.Write(value.creation_date);
-                writer.Write(value.last_edit_date);
-                writer.Write(value.last_activity_date);
-                writer.CompressAndWrite(value.score);
-                writer.Write(value.community_owned_date);
-                writer.Write(value.is_accepted);
-                writer.Write(value.body);
-                writer.Write(value.title);
-                writer.CompressAndWrite(value.up_vote_count);
-                writer.CompressAndWrite(value.down_vote_count);
-                if(value.comments != null)
+                writer.CompressAndWrite(value.QuestionId);
+                writer.CompressAndWrite(value.AnswerId);
+                writer.Write(value.LockedDate);
+                writer.Write(value.CreationDate);
+                writer.Write(value.LastEditDate);
+                writer.Write(value.LastActivityDate);
+                writer.CompressAndWrite(value.Score);
+                writer.Write(value.CommunityOwnedDate);
+                writer.Write(value.IsAccepted);
+                writer.Write(value.Body);
+                writer.Write(value.Title);
+                writer.CompressAndWrite(value.UpVoteCount);
+                writer.CompressAndWrite(value.DownVoteCount);
+                if(value.Comments != null)
                 {
-                    writer.CompressAndWrite(value.comments.Count);
-                    foreach (var entry in value.comments)
+                    writer.CompressAndWrite(value.Comments.Count);
+                    foreach (var entry in value.Comments)
                     {
                         Benchmark.Models.Comment.NinoSerializationHelper.NinoWriteMembers(entry, writer);
                     }
@@ -34,11 +34,11 @@ namespace Nino.Benchmark.Models
                 {
                     writer.CompressAndWrite(0);
                 }
-                writer.Write(value.link);
-                if(value.tags != null)
+                writer.Write(value.Link);
+                if(value.Tags != null)
                 {
-                    writer.CompressAndWrite(value.tags.Count);
-                    foreach (var entry in value.tags)
+                    writer.CompressAndWrite(value.Tags.Count);
+                    foreach (var entry in value.Tags)
                     {
                         writer.Write(entry);
                     }
@@ -47,12 +47,12 @@ namespace Nino.Benchmark.Models
                 {
                     writer.CompressAndWrite(0);
                 }
-                writer.Write(value.upvoted);
-                writer.Write(value.downvoted);
-                writer.Write(value.accepted);
-                writer.CompressAndWrite(value.comment_count);
-                writer.Write(value.body_markdown);
-                writer.Write(value.share_link);
+                writer.Write(value.Upvoted);
+                writer.Write(value.Downvoted);
+                writer.Write(value.Accepted);
+                writer.CompressAndWrite(value.CommentCount);
+                writer.Write(value.BodyMarkdown);
+                writer.Write(value.ShareLink);
             }
 
             public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
@@ -63,38 +63,38 @@ namespace Nino.Benchmark.Models
             public Answer NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 Answer value = new Answer();
-                value.question_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.answer_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.locked_date = reader.ReadDateTime();
-                value.creation_date = reader.ReadDateTime();
-                value.last_edit_date = reader.ReadDateTime();
-                value.last_activity_date = reader.ReadDateTime();
-                value.score =  (System.Int32)reader.DecompressAndReadNumber();
-                value.community_owned_date = reader.ReadDateTime();
-                value.is_accepted = reader.ReadBool();
-                value.body = reader.ReadString();
-                value.title = reader.ReadString();
-                value.up_vote_count =  (System.Int32)reader.DecompressAndReadNumber();
-                value.down_vote_count =  (System.Int32)reader.DecompressAndReadNumber();
-                value.comments = new System.Collections.Generic.List<Benchmark.Models.Comment>(reader.ReadLength());
-                for(int i = 0, cnt = value.comments.Capacity; i < cnt; i++)
+                value.QuestionId =  (System.Int32)reader.DecompressAndReadNumber();
+                value.AnswerId =  (System.Int32)reader.DecompressAndReadNumber();
+                value.LockedDate = reader.ReadDateTime();
+                value.CreationDate = reader.ReadDateTime();
+                value.LastEditDate = reader.ReadDateTime();
+                value.LastActivityDate = reader.ReadDateTime();
+                value.Score =  (System.Int32)reader.DecompressAndReadNumber();
+                value.CommunityOwnedDate = reader.ReadDateTime();
+                value.IsAccepted = reader.ReadBool();
+                value.Body = reader.ReadString();
+                value.Title = reader.ReadString();
+                value.UpVoteCount =  (System.Int32)reader.DecompressAndReadNumber();
+                value.DownVoteCount =  (System.Int32)reader.DecompressAndReadNumber();
+                value.Comments = new System.Collections.Generic.List<Benchmark.Models.Comment>(reader.ReadLength());
+                for(int i = 0, cnt = value.Comments.Capacity; i < cnt; i++)
                 {
                     var value_comments_i = Benchmark.Models.Comment.NinoSerializationHelper.NinoReadMembers(reader);
-                    value.comments.Add(value_comments_i);
+                    value.Comments.Add(value_comments_i);
                 }
-                value.link = reader.ReadString();
-                value.tags = new System.Collections.Generic.List<System.String>(reader.ReadLength());
-                for(int i = 0, cnt = value.tags.Capacity; i < cnt; i++)
+                value.Link = reader.ReadString();
+                value.Tags = new System.Collections.Generic.List<System.String>(reader.ReadLength());
+                for(int i = 0, cnt = value.Tags.Capacity; i < cnt; i++)
                 {
                     var value_tags_i = reader.ReadString();
-                    value.tags.Add(value_tags_i);
+                    value.Tags.Add(value_tags_i);
                 }
-                value.upvoted = reader.ReadBool();
-                value.downvoted = reader.ReadBool();
-                value.accepted = reader.ReadBool();
-                value.comment_count =  (System.Int32)reader.DecompressAndReadNumber();
-                value.body_markdown = reader.ReadString();
-                value.share_link = reader.ReadString();
+                value.Upvoted = reader.ReadBool();
+                value.Downvoted = reader.ReadBool();
+                value.Accepted = reader.ReadBool();
+                value.CommentCount =  (System.Int32)reader.DecompressAndReadNumber();
+                value.BodyMarkdown = reader.ReadString();
+                value.ShareLink = reader.ReadString();
                 return value;
             }
 

@@ -15,6 +15,7 @@ using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;
+using Perfolizer.Horology;
 
 namespace Nino.Benchmark
 {
@@ -56,7 +57,7 @@ namespace Nino.Benchmark
 
             public string GetLogicalGroupKey(ImmutableArray<BenchmarkCase> allBenchmarksCases, BenchmarkCase benchmarkCase)
             {
-                return null;
+                return String.Empty;
             }
 
             public IEnumerable<IGrouping<string, BenchmarkCase>> GetLogicalGroupOrder(IEnumerable<IGrouping<string, BenchmarkCase>> logicalGroups)
@@ -91,7 +92,8 @@ namespace Nino.Benchmark
 
             public string GetValue(Summary summary, BenchmarkCase benchmarkCase)
             {
-                return this.GetValue(summary, benchmarkCase, null);
+                return GetValue(summary, benchmarkCase,
+                    new SummaryStyle(null, true, SizeUnit.B, TimeUnit.Millisecond));
             }
 
             public string GetValue(Summary summary, BenchmarkCase benchmarkCase, SummaryStyle style)
@@ -102,19 +104,24 @@ namespace Nino.Benchmark
                     return "-";
                 }
 
-                var instance = Activator.CreateInstance(mi.DeclaringType);
-                mi.DeclaringType.GetField("Serializer").SetValue(instance, benchmarkCase.Parameters[0].Value);
-                mi.DeclaringType.GetMethod("Setup").Invoke(instance, null);
-
-                var bytes = (byte[])mi.Invoke(instance, null);
-                var byteSize = bytes.Length;
-                var cultureInfo = summary.GetCultureInfo();
-                if (style.PrintUnitsInContent)
+                if (mi.DeclaringType != null)
                 {
-                    return SizeValue.FromBytes(byteSize).ToString(style.SizeUnit, cultureInfo);
+                    var instance = Activator.CreateInstance(mi.DeclaringType);
+                    mi.DeclaringType.GetField("Serializer")?.SetValue(instance, benchmarkCase.Parameters[0].Value);
+                    mi.DeclaringType.GetMethod("Setup")?.Invoke(instance, null);
+
+                    var bytes = (byte[])mi.Invoke(instance, null)!;
+                    var byteSize = bytes.Length;
+                    var cultureInfo = summary.GetCultureInfo();
+                    if (style.PrintUnitsInContent)
+                    {
+                        return SizeValue.FromBytes(byteSize).ToString(style.SizeUnit, cultureInfo);
+                    }
+
+                    return byteSize.ToString("0.##", cultureInfo);
                 }
 
-                return byteSize.ToString("0.##", cultureInfo);
+                return "-";
             }
 
             public bool IsAvailable(Summary summary)

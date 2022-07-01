@@ -43,7 +43,7 @@ namespace Nino.Benchmark
 
         public static bool TrueEquals<T>(this T a, T b)
         {
-            if (a.Equals(b))
+            if (a != null && a.Equals(b))
             {
                 return true;
             }
@@ -120,7 +120,7 @@ namespace Nino.Benchmark
                         return false;
                     }
 
-                    if (!c1.EqualsDynamic(c2))
+                    if (!c1?.EqualsDynamic(c2))
                     {
                         return false;
                     }

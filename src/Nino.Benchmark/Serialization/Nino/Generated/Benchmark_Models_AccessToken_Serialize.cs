@@ -9,13 +9,13 @@ namespace Nino.Benchmark.Models
             #region NINO_CODEGEN
             public void NinoWriteMembers(AccessToken value, Nino.Serialization.Writer writer)
             {
-                writer.Write(value.access_token);
-                writer.Write(value.expires_on_date);
-                writer.CompressAndWrite(value.account_id);
-                if(value.scope != null)
+                writer.Write(value.Token);
+                writer.Write(value.ExpiresOnDate);
+                writer.CompressAndWrite(value.AccountId);
+                if(value.Scope != null)
                 {
-                    writer.CompressAndWrite(value.scope.Count);
-                    foreach (var entry in value.scope)
+                    writer.CompressAndWrite(value.Scope.Count);
+                    foreach (var entry in value.Scope)
                     {
                         writer.Write(entry);
                     }
@@ -34,14 +34,14 @@ namespace Nino.Benchmark.Models
             public AccessToken NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 AccessToken value = new AccessToken();
-                value.access_token = reader.ReadString();
-                value.expires_on_date = reader.ReadDateTime();
-                value.account_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.scope = new System.Collections.Generic.List<System.String>(reader.ReadLength());
-                for(int i = 0, cnt = value.scope.Capacity; i < cnt; i++)
+                value.Token = reader.ReadString();
+                value.ExpiresOnDate = reader.ReadDateTime();
+                value.AccountId =  (System.Int32)reader.DecompressAndReadNumber();
+                value.Scope = new System.Collections.Generic.List<System.String>(reader.ReadLength());
+                for(int i = 0, cnt = value.Scope.Capacity; i < cnt; i++)
                 {
                     var value_scope_i = reader.ReadString();
-                    value.scope.Add(value_scope_i);
+                    value.Scope.Add(value_scope_i);
                 }
                 return value;
             }

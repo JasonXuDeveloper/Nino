@@ -3,6 +3,9 @@
 
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
+#pragma warning disable 618
+#pragma warning disable 8604
+// #pragma warning disable 618
 
 namespace Nino.Benchmark.Serializers
 {
@@ -12,7 +15,8 @@ namespace Nino.Benchmark.Serializers
         {
             using (var ms = new MemoryStream((byte[])input))
             {
-                return (T)new BinaryFormatter().Deserialize(ms);
+                 BinaryFormatter formatter = new BinaryFormatter();
+                 return (T)formatter.Deserialize(ms);
             }
         }
 
@@ -20,8 +24,8 @@ namespace Nino.Benchmark.Serializers
         {
             using (var ms = new MemoryStream())
             {
-                new BinaryFormatter().Serialize(ms, input);
-                ms.Flush();
+                BinaryFormatter formatter = new BinaryFormatter();
+                formatter.Serialize(ms, input);
                 return ms.ToArray();
             }
         }

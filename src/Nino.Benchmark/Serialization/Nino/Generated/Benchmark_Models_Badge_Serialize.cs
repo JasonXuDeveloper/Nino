@@ -9,11 +9,11 @@ namespace Nino.Benchmark.Models
             #region NINO_CODEGEN
             public void NinoWriteMembers(Badge value, Nino.Serialization.Writer writer)
             {
-                writer.CompressAndWrite(value.badge_id);
-                writer.Write(value.name);
-                writer.Write(value.description);
-                writer.CompressAndWrite(value.award_count);
-                writer.Write(value.link);
+                writer.CompressAndWrite(value.BadgeId);
+                writer.Write(value.Name);
+                writer.Write(value.Description);
+                writer.CompressAndWrite(value.AwardCount);
+                writer.Write(value.Link);
             }
 
             public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
@@ -24,11 +24,11 @@ namespace Nino.Benchmark.Models
             public Badge NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 Badge value = new Badge();
-                value.badge_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.name = reader.ReadString();
-                value.description = reader.ReadString();
-                value.award_count =  (System.Int32)reader.DecompressAndReadNumber();
-                value.link = reader.ReadString();
+                value.BadgeId =  (System.Int32)reader.DecompressAndReadNumber();
+                value.Name = reader.ReadString();
+                value.Description = reader.ReadString();
+                value.AwardCount =  (System.Int32)reader.DecompressAndReadNumber();
+                value.Link = reader.ReadString();
                 return value;
             }
 

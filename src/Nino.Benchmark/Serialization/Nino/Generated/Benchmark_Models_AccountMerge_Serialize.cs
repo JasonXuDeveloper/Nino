@@ -9,9 +9,9 @@ namespace Nino.Benchmark.Models
             #region NINO_CODEGEN
             public void NinoWriteMembers(AccountMerge value, Nino.Serialization.Writer writer)
             {
-                writer.CompressAndWrite(value.old_account_id);
-                writer.CompressAndWrite(value.new_account_id);
-                writer.Write(value.merge_date);
+                writer.CompressAndWrite(value.OldAccountId);
+                writer.CompressAndWrite(value.NewAccountId);
+                writer.Write(value.MergeDate);
             }
 
             public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
@@ -22,9 +22,9 @@ namespace Nino.Benchmark.Models
             public AccountMerge NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 AccountMerge value = new AccountMerge();
-                value.old_account_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.new_account_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.merge_date = reader.ReadDateTime();
+                value.OldAccountId =  (System.Int32)reader.DecompressAndReadNumber();
+                value.NewAccountId =  (System.Int32)reader.DecompressAndReadNumber();
+                value.MergeDate = reader.ReadDateTime();
                 return value;
             }
 

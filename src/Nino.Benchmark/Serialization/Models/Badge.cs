@@ -4,6 +4,7 @@
 using ProtoBuf;
 using MessagePack;
 using Nino.Serialization;
+#pragma warning disable 8618
 
 namespace Nino.Benchmark.Models
 {
@@ -12,38 +13,38 @@ namespace Nino.Benchmark.Models
     public partial class Badge : IGenericEquality<Badge>
     {
         [System.Runtime.Serialization.DataMember, ProtoMember(1), Key(1 - 1), NinoMember(0)]
-        public int badge_id { get; set; }
+        public int BadgeId { get; set; }
 
         [System.Runtime.Serialization.DataMember, ProtoMember(3), Key(3 - 1), NinoMember(2)]
-        public string name { get; set; }
+        public string Name { get; set; }
 
         [System.Runtime.Serialization.DataMember, ProtoMember(4), Key(4 - 1), NinoMember(3)]
-        public string description { get; set; }
+        public string Description { get; set; }
 
         [System.Runtime.Serialization.DataMember, ProtoMember(5), Key(5 - 1), NinoMember(4)]
-        public int award_count { get; set; }
+        public int AwardCount { get; set; }
 
         [System.Runtime.Serialization.DataMember, ProtoMember(8), Key(8 - 1), NinoMember(6)]
-        public string link { get; set; }
+        public string Link { get; set; }
 
         public bool Equals(Badge obj)
         {
             return
-                this.award_count.TrueEquals(obj.award_count) &&
-                this.badge_id.TrueEquals(obj.badge_id) &&
-                this.description.TrueEqualsString(obj.description) &&
-                this.link.TrueEqualsString(obj.link) &&
-                this.name.TrueEqualsString(obj.name);
+                this.AwardCount.TrueEquals(obj.AwardCount) &&
+                this.BadgeId.TrueEquals(obj.BadgeId) &&
+                this.Description.TrueEqualsString(obj.Description) &&
+                this.Link.TrueEqualsString(obj.Link) &&
+                this.Name.TrueEqualsString(obj.Name);
         }
 
         public bool EqualsDynamic(dynamic obj)
         {
             return
-                this.award_count.TrueEquals((int)obj.award_count) &&
-                this.badge_id.TrueEquals((int)obj.badge_id) &&
-                this.description.TrueEqualsString((string)obj.description) &&
-                this.link.TrueEqualsString((string)obj.link) &&
-                this.name.TrueEqualsString((string)obj.name);
+                this.AwardCount.TrueEquals((int)obj.award_count) &&
+                this.BadgeId.TrueEquals((int)obj.badge_id) &&
+                this.Description.TrueEqualsString((string)obj.description) &&
+                this.Link.TrueEqualsString((string)obj.link) &&
+                this.Name.TrueEqualsString((string)obj.name);
         }
     }
 }
