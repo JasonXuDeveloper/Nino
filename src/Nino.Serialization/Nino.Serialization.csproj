@@ -18,10 +18,11 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.3</PackageVersion>
+        <PackageVersion>1.0.4</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.3
-- fixed neg number serialization error</PackageReleaseNotes> 
+        <PackageReleaseNotes>v1.0.4
+- [optimization] better performance when calling code gen method implicitly</PackageReleaseNotes>
+        <RepositoryType>git</RepositoryType> 
     </PropertyGroup>
 
     <ItemGroup>

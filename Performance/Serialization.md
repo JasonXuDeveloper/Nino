@@ -12,7 +12,7 @@
 
 序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection基本与Protobuf-net一致，其他库不尽人意
 
-反序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection略跨于Protobuf-net一致，略微逊色于MongoDB.Bson，BinaryFormatter最糟糕
+反序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection略快于Protobuf-net，略微逊色于MongoDB.Bson，BinaryFormatter最糟糕
 
 GC方面，Nino Code Gen和MsgPack碾压全部其他库，一览众山小，第一次序列化数据时产生的GC是其他序列化库的几分之一，甚至几十分之一！第二次开始序列化的时候会复用对象池内的数据，使得产生的GC仅仅只是其他序列化库的几百甚至几千分之一！
 

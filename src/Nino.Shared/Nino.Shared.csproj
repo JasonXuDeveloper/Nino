@@ -20,7 +20,9 @@
         <PackageReleaseNotes>v1.0.2
 - modified csproj info</PackageReleaseNotes>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-        <PackageVersion>1.0.2</PackageVersion>
+        <PackageVersion>1.0.2</PackageVersion> 
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild> 
+        <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 
     <ItemGroup>

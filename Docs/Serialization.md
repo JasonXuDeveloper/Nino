@@ -205,6 +205,12 @@ byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);
 Nino.Serialization.Deserializer.Deserialize<T>(byte[] data);
 ```
 
+```csharp
+Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding);
+```
+
+> 同时如果没有指定的编码的话，会使用UTF8
+>
 > 需要注意编码问题，并且反序列化的对象需要能够通过new()创建（即包含无参数构造函数）
 
 ```csharp
