@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Text;
-using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 using System.Reflection;
@@ -139,11 +138,6 @@ namespace Nino.Serialization
 				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
 				if (helper != null)
 				{
-					//record
-					TypeModel.AddSerializeAction(t, (obj, writer) =>
-					{
-						helper.NinoWriteMembers((T)obj, writer);
-					});
 					//start serialize
 					using (var writer = new Writer(encoding ?? DefaultEncoding))
 					{
@@ -203,74 +197,35 @@ namespace Nino.Serialization
 				}
 			}
 
-			//try code gen
-			if (TypeModel.TryGetSerializeAction(type, out var action))
+			//code generated type
+			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
-				//share a writer
-				if (writer != null)
+				ISerializationHelper helper = (ISerializationHelper)helperObj;
+				if (helper != null)
 				{
-					action(value, writer);
-					return ConstMgr.Null;
-				}
-
-				//start serialize
-				using (writer = new Writer(encoding))
-				{
-					action(value, writer);
-					//compress it
-					return writer.ToCompressedBytes();
-				}
-			}
-			
-			//another attempt
-			if (TypeModel.TryGetHelperMethodInfo(type, out var helper, out var sm, out _))
-			{
-				//reflect generic method
-				//share a writer
-				if (writer != null)
-				{
-#if ILRuntime
-					if (value is ILRuntime.Runtime.Intepreter.ILTypeInstance instance)
+					//start serialize
+					//share a writer
+					if (writer != null)
 					{
-						((SerializationHelper1ILTypeInstanceAdapter.Adapter)helper).NinoWriteMembers(
-							instance, writer);
+						helper.NinoWriteMembers(value, writer);
 						return ConstMgr.Null;
 					}
-#endif
-					var objs = ArrayPool<object>.Request(2);
-					objs[0] = value;
-					objs[1] = writer;
-					sm.Invoke(helper, objs);
-					ArrayPool<object>.Return(objs);
-					return ConstMgr.Null;
-				}
 
-				//start serialize
-				using (writer = new Writer(encoding))
-				{
-#if ILRuntime
-					if (value is ILRuntime.Runtime.Intepreter.ILTypeInstance instance)
+					//start serialize
+					using (writer = new Writer(encoding))
 					{
-						((SerializationHelper1ILTypeInstanceAdapter.Adapter)helper).NinoWriteMembers(
-							instance, writer);
-						return ConstMgr.Null;
+						helper.NinoWriteMembers(value, writer);
+						//compress it
+						return writer.ToCompressedBytes();
 					}
-#endif
-					var objs = ArrayPool<object>.Request(2);
-					objs[0] = value;
-					objs[1] = writer;
-					sm.Invoke(helper, objs);
-					ArrayPool<object>.Return(objs);
-					//compress it
-					return writer.ToCompressedBytes();
 				}
 			}
-			
+
 			//Get Attribute that indicates a class/struct to be serialized
 			TypeModel.TryGetModel(type, out var model);
 
 			//invalid model
-			if (model != null && !model.valid)
+			if (model != null && !model.Valid)
 			{
 				return ConstMgr.Null;
 			}
@@ -282,25 +237,25 @@ namespace Nino.Serialization
 			}
 
 			//min, max index
-			ushort min = model.min, max = model.max;
+			ushort min = model.Min, max = model.Max;
 
 			void Write()
 			{
 				//only include all model need this
-				if (model.includeAll)
+				if (model.IncludeAll)
 				{
 					//write len
-					writer.CompressAndWrite(model.members.Count);
+					writer.CompressAndWrite(model.Members.Count);
 				}
 				
 				for (; min <= max; min++)
 				{
 					//prevent index not exist
-					if (!model.types.ContainsKey(min)) continue;
+					if (!model.Types.ContainsKey(min)) continue;
 					//get type of that member
-					type = model.types[min];
+					type = model.Types[min];
 					//try code gen, if no code gen then reflection
-					object val = GetVal(model.members[min], value);
+					object val = GetVal(model.Members[min], value);
 					//string/list/dict can be null, other cannot
 					//nullable need to register custom importer
 					if (val == null)
@@ -322,14 +277,14 @@ namespace Nino.Serialization
 						else
 						{
 							throw new NullReferenceException(
-								$"{type.FullName}.{model.members[min].Name} is null, cannot serialize");
+								$"{type.FullName}.{model.Members[min].Name} is null, cannot serialize");
 						}
 					}
 
 					//only include all model need this
-					if (model.includeAll)
+					if (model.IncludeAll)
 					{
-						var needToStore = model.members[min];
+						var needToStore = model.Members[min];
 						writer.Write(needToStore.Name);
 						writer.Write(type.FullName);
 					}

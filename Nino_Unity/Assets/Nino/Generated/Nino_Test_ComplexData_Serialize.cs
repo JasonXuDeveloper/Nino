@@ -300,6 +300,11 @@ namespace Nino.Test
                 }
             }
 
+            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
+            {
+	            NinoWriteMembers((ComplexData)val, writer);
+            }
+
             public ComplexData NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 ComplexData value = new ComplexData();
@@ -448,6 +453,11 @@ namespace Nino.Test
                     value.j[i] = value_j_i;
                 }
                 return value;
+            }
+
+            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+	            return NinoReadMembers(reader);
             }
             #endregion
         }

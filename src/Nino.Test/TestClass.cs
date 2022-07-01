@@ -7,8 +7,10 @@ namespace Nino.Test
     {
         public static void Main(string[] args)
         {
-            long key = -234567;
-            Console.WriteLine(Deserializer.Deserialize<int>(Serializer.Serialize(key)));
+            long key = -100;
+            var buffer = Serializer.Serialize(key);
+            Console.WriteLine($"serialized int64 as {buffer.Length} bytes: {String.Join(",",buffer)}");
+            Console.WriteLine(Deserializer.Deserialize<int>(buffer));
         }
     }
 }

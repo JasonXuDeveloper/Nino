@@ -413,6 +413,11 @@ namespace Nino.Serialization
                 }
             }
 
+            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
+            {
+	            NinoWriteMembers((ILRuntime.Runtime.Intepreter.ILTypeInstance)val, writer);
+            }
+
             public ILRuntime.Runtime.Intepreter.ILTypeInstance NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 if (read == null)
@@ -428,6 +433,11 @@ namespace Nino.Serialization
                     ctx.Invoke();
                     return ctx.ReadObject<ILRuntime.Runtime.Intepreter.ILTypeInstance>();
                 }
+            }
+
+            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+	            return NinoReadMembers(reader);
             }
 
             public override string ToString()

@@ -36,6 +36,11 @@ namespace Nino.Test
                 }
             }
 
+            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
+            {
+	            NinoWriteMembers((NestedData2)val, writer);
+            }
+
             public NestedData2 NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 NestedData2 value = new NestedData2();
@@ -53,6 +58,11 @@ namespace Nino.Test
                     value.vs.Add(value_vs_i);
                 }
                 return value;
+            }
+
+            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+	            return NinoReadMembers(reader);
             }
             #endregion
         }

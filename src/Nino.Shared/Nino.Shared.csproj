@@ -3,10 +3,13 @@
     <PropertyGroup>
         <TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;net6.0;netcoreapp3.1;netstandard2.0</TargetFrameworks>
         <TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
-        <ImplicitUsings>disable</ImplicitUsings>
+        <LangVersion>7.3</LangVersion>
         <Nullable>disable</Nullable>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <PackageId>Nino.Shared</PackageId>
         <Authors>JasonXuDeveloper</Authors>
+        <Title>Nino.Shared</Title>
+        <PackageTags>Nino;Performance</PackageTags>
         <Copyright>JasonXuDeveloper</Copyright>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
@@ -16,8 +19,6 @@
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
         <PackageReleaseNotes>v1.0.2
 - modified csproj info</PackageReleaseNotes>
-        <Title>Nino.Shared</Title>
-        <PackageId>Nino.Shared</PackageId>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
         <PackageVersion>1.0.2</PackageVersion>
     </PropertyGroup>

@@ -20,6 +20,11 @@ namespace Nino.Test
                 writer.Write(value.name);
             }
 
+            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
+            {
+	            NinoWriteMembers((Data)val, writer);
+            }
+
             public Data NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 Data value = new Data();
@@ -33,6 +38,11 @@ namespace Nino.Test
                 value.en = (Nino.Test.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
                 value.name = reader.ReadString();
                 return value;
+            }
+
+            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+	            return NinoReadMembers(reader);
             }
             #endregion
         }

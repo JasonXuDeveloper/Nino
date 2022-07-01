@@ -53,6 +53,11 @@ namespace Nino.Test
                 }
             }
 
+            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
+            {
+	            NinoWriteMembers((CustomTypeTest)val, writer);
+            }
+
             public CustomTypeTest NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 CustomTypeTest value = new CustomTypeTest();
@@ -83,6 +88,11 @@ namespace Nino.Test
                     value.dict2[value_dict2_key] = value_dict2_val;
                 }
                 return value;
+            }
+
+            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+	            return NinoReadMembers(reader);
             }
             #endregion
         }

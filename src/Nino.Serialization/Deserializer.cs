@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Text;
-using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 using System.Reflection;
@@ -115,8 +114,6 @@ namespace Nino.Serialization
 				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
 				if (helper != null)
 				{
-					//record
-					TypeModel.AddDeserializeAction(t, reader => helper.NinoReadMembers(reader));
 					//start Deserialize
 					using (var reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding))
 					{
@@ -163,64 +160,32 @@ namespace Nino.Serialization
 				}
 			}
 			
-			//try code gen
-			if (TypeModel.TryGetDeserializeAction(type, out var func))
+			//code generated type
+			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
-				//share a reader
-				if (reader != null)
+				ISerializationHelper helper = (ISerializationHelper)helperObj;
+				if (helper != null)
 				{
-					return func(reader);
-				}
+					//start Deserialize
+					//share a reader
+					if (reader != null)
+					{
+						return helper.NinoReadMembers(reader);
+					}
 
-				//start Deserialize
-				using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
-				{
-					return func(reader);
+					//start Deserialize
+					using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
+					{
+						return helper.NinoReadMembers(reader);
+					}
 				}
 			}
-			
-			//another attempt
-			if (TypeModel.TryGetHelperMethodInfo(type, out var helper, out _, out var dm))
-			{
-				//reflect generic method
-				//share a reader
-				if (reader != null)
-				{
-#if ILRuntime
-					if (type is ILRuntime.Reflection.ILRuntimeType)
-					{
-						return ((SerializationHelper1ILTypeInstanceAdapter.Adapter)helper).NinoReadMembers(reader);
-					}
-#endif
-					var objs = ArrayPool<object>.Request(1);
-					objs[0] = reader;
-					var ret = dm.Invoke(helper, objs);
-					ArrayPool<object>.Return(objs);
-					return ret;
-				}
 
-				//start deserialize
-				using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
-				{
-#if ILRuntime
-					if (type is ILRuntime.Reflection.ILRuntimeType)
-					{
-						return ((SerializationHelper1ILTypeInstanceAdapter.Adapter)helper).NinoReadMembers(reader);
-					}
-#endif
-					var objs = ArrayPool<object>.Request(1);
-					objs[0] = reader;
-					var ret = dm.Invoke(helper, objs);
-					ArrayPool<object>.Return(objs);
-					return ret;
-				}
-			}
-			
 			//Get Attribute that indicates a class/struct to be serialized
 			TypeModel.TryGetModel(type, out var model);
 
 			//invalid model
-			if (model != null && !model.valid)
+			if (model != null && !model.Valid)
 			{
 				return ConstMgr.Null;
 			}
@@ -242,12 +207,12 @@ namespace Nino.Serialization
 			}
 
 			//min, max index
-			ushort min = model.min, max = model.max;
+			ushort min = model.Min, max = model.Max;
 
 			void Read()
 			{
 				//only include all model need this
-				if (model.includeAll)
+				if (model.IncludeAll)
 				{
 					//read len
 					var len = reader.ReadLength();
@@ -265,11 +230,11 @@ namespace Nino.Serialization
 					for (; min <= max; min++)
 					{
 						//prevent index not exist
-						if (!model.types.ContainsKey(min)) continue;
+						if (!model.Types.ContainsKey(min)) continue;
 						//get the member
-						var member = model.members[min];
+						var member = model.Members[min];
 						//member type
-						type = model.types[min];
+						type = model.Types[min];
 						//try get same member and set it
 						if (values.TryGetValue(member.Name, out var ret))
 						{
@@ -288,7 +253,7 @@ namespace Nino.Serialization
 							}
 #endif
 
-							SetMember(model.members[min], val, ret);
+							SetMember(model.Members[min], val, ret);
 						}
 					}
 				}
@@ -299,9 +264,9 @@ namespace Nino.Serialization
 						//if end, skip
 						if (reader.EndOfReader) continue;
 						//prevent index not exist
-						if (!model.types.ContainsKey(min)) continue;
+						if (!model.Types.ContainsKey(min)) continue;
 						//get type of that member
-						type = model.types[min];
+						type = model.Types[min];
 						//try code gen, if no code gen then reflection
 
 						//read basic values
@@ -321,7 +286,7 @@ namespace Nino.Serialization
 						}
 #endif
 
-						SetMember(model.members[min], val, ret);
+						SetMember(model.Members[min], val, ret);
 					}
 				}
 			}

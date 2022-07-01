@@ -125,6 +125,11 @@ namespace Nino.Test
                 }
             }
 
+            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
+            {
+	            NinoWriteMembers((BuildTestDataCodeGen)val, writer);
+            }
+
             public BuildTestDataCodeGen NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 BuildTestDataCodeGen value = new BuildTestDataCodeGen();
@@ -194,6 +199,11 @@ namespace Nino.Test
                     value.v[value_v_key] = value_v_val;
                 }
                 return value;
+            }
+
+            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+	            return NinoReadMembers(reader);
             }
             #endregion
         }

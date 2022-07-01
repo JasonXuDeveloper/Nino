@@ -15,6 +15,11 @@ namespace Nino.Test
                 writer.Write(value.d);
             }
 
+            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
+            {
+	            NinoWriteMembers((IncludeAllClassCodeGen)val, writer);
+            }
+
             public IncludeAllClassCodeGen NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 IncludeAllClassCodeGen value = new IncludeAllClassCodeGen();
@@ -23,6 +28,11 @@ namespace Nino.Test
                 value.c = reader.ReadSingle();
                 value.d = reader.ReadDouble();
                 return value;
+            }
+
+            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+	            return NinoReadMembers(reader);
             }
             #endregion
         }

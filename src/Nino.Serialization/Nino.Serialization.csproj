@@ -3,10 +3,14 @@
     <PropertyGroup>
         <TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;net6.0;netcoreapp3.1;netstandard2.0</TargetFrameworks>
         <TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
-        <ImplicitUsings>disable</ImplicitUsings>
+        <LangVersion>7.3</LangVersion>
         <Nullable>disable</Nullable>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <PackageId>Nino.Serialization</PackageId>
         <Authors>JasonXuDeveloper</Authors>
+        <Title>Nino.Serialization</Title>
+        <PackageTags>Nino;Serialization;Binary</PackageTags>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
         <Copyright>JasonXuDeveloper</Copyright>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -14,8 +18,6 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <Title>Nino.Serialization</Title>
-        <PackageId>Nino.Serialization</PackageId>
         <PackageVersion>1.0.3</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <PackageReleaseNotes>v1.0.3

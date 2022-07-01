@@ -15,6 +15,11 @@ namespace Nino.Test
                 writer.Write(value.d);
             }
 
+            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
+            {
+	            NinoWriteMembers((NotIncludeAllClass)val, writer);
+            }
+
             public NotIncludeAllClass NinoReadMembers(Nino.Serialization.Reader reader)
             {
                 NotIncludeAllClass value = new NotIncludeAllClass();
@@ -23,6 +28,11 @@ namespace Nino.Test
                 value.c = reader.ReadSingle();
                 value.d = reader.ReadDouble();
                 return value;
+            }
+
+            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
+            {
+	            return NinoReadMembers(reader);
             }
             #endregion
         }

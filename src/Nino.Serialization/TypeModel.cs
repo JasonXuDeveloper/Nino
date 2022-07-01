@@ -2,6 +2,7 @@
 using Nino.Shared.Mgr;
 using System.Reflection;
 using System.Collections.Generic;
+// ReSharper disable CognitiveComplexity
 
 namespace Nino.Serialization
 {
@@ -11,18 +12,16 @@ namespace Nino.Serialization
 	internal class TypeModel
 	{
 		private const string HelperName = "NinoSerializationHelper";
-		private const string HelperSerializeMethodName = "NinoWriteMembers";
-		private const string HelperDeserializeMethodName = "NinoReadMembers";
 
 		private const BindingFlags ReflectionFlags =
 			BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Default;
 		
-		public Dictionary<ushort, MemberInfo> members;
-		public Dictionary<ushort, Type> types;
-		public ushort min;
-		public ushort max;
-		public bool valid;
-		public bool includeAll;
+		public Dictionary<ushort, MemberInfo> Members;
+		public Dictionary<ushort, Type> Types;
+		public ushort Min;
+		public ushort Max;
+		public bool Valid;
+		public bool IncludeAll;
 
 		/// <summary>
 		/// Get whether or not a type is basic type and can be serialized/deserialized directly
@@ -90,70 +89,6 @@ namespace Nino.Serialization
 		private static readonly Dictionary<Type, object> GeneratedSerializationHelper = new Dictionary<Type, object>(10);
 		
 		/// <summary>
-		/// Generated helpers
-		/// </summary>
-		private static readonly Dictionary<Type, Action<object, Writer>> SerializeActions = new Dictionary<Type, Action<object, Writer>>(10);
-
-		/// <summary>
-		/// Serialize methods
-		/// </summary>
-		private static readonly Dictionary<Type, MethodInfo> SerializeMethods = new Dictionary<Type, MethodInfo>(10);
-		
-		/// <summary>
-		/// Deserialize methods
-		/// </summary>
-		private static readonly Dictionary<Type, MethodInfo> DeserializeMethods = new Dictionary<Type, MethodInfo>(10);
-
-		/// <summary>
-		/// Add a code gen serialize action
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="action"></param>
-		internal static void AddSerializeAction(Type type, Action<object, Writer> action)
-		{
-			if (SerializeActions.ContainsKey(type)) return;
-			SerializeActions[type] = action;
-		}
-
-		/// <summary>
-		/// try get a code gen serialize action
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="action"></param>
-		/// <returns></returns>
-		internal static bool TryGetSerializeAction(Type type, out Action<object, Writer> action)
-		{
-			return SerializeActions.TryGetValue(type, out action);
-		}
-		
-		/// <summary>
-		/// Generated helpers
-		/// </summary>
-		private static readonly Dictionary<Type, Func<Reader, object>> DeserializeActions = new Dictionary<Type, Func<Reader, object>>(10);
-
-		/// <summary>
-		/// Add a code gen deserialize action
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="func"></param>
-		internal static void AddDeserializeAction(Type type, Func<Reader, object> func)
-		{
-			if (DeserializeActions.ContainsKey(type)) return;
-			DeserializeActions[type] = func;
-		}
-
-		/// <summary>
-		/// try get a code gen serialize action
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="func"></param>
-		/// <returns></returns>
-		internal static bool TryGetDeserializeAction(Type type, out Func<Reader, object> func)
-		{
-			return DeserializeActions.TryGetValue(type, out func);
-		}
-		
-		/// <summary>
 		/// Get whether or not a type is a code gen type
 		/// </summary>
 		/// <param name="type"></param>
@@ -170,38 +105,6 @@ namespace Nino.Serialization
 		}
 		
 		/// <summary>
-		/// Get whether or not a type is a code gen type
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="helper"></param>
-		/// <param name="sm"></param>
-		/// <param name="dm"></param>
-		/// <returns></returns>
-		internal static bool TryGetHelperMethodInfo(Type type, out object helper, out MethodInfo sm, out MethodInfo dm)
-		{
-			sm = null;
-			dm = null;
-			if (!TryGetHelper(type, out helper))
-			{
-				return false;
-			}
-
-			if (!SerializeMethods.TryGetValue(type, out sm))
-			{
-				sm = helper.GetType().GetMethod(HelperSerializeMethodName, ReflectionFlags);
-				SerializeMethods[type] = sm;
-			}
-
-			if (!DeserializeMethods.TryGetValue(type, out dm))
-			{
-				dm = helper.GetType().GetMethod(HelperDeserializeMethodName, ReflectionFlags);
-				DeserializeMethods[type] = dm;
-			}
-			
-			return sm != null && dm != null;
-		}
-
-		/// <summary>
 		/// Try get cached model
 		/// </summary>
 		/// <param name="type"></param>
@@ -214,7 +117,7 @@ namespace Nino.Serialization
 			if (ns.Length != 0) return;
 			model = new TypeModel()
 			{
-				valid = false
+				Valid = false
 			};
 			TypeModels.Add(type, model);
 			throw new InvalidOperationException(
@@ -232,18 +135,18 @@ namespace Nino.Serialization
 		{
 			var model = new TypeModel
 			{
-				min = ushort.MaxValue,
-				max = ushort.MinValue,
-				valid = true,
+				Min = ushort.MaxValue,
+				Max = ushort.MinValue,
+				Valid = true,
 				//fetch members
-				members = new Dictionary<ushort, MemberInfo>(10),
+				Members = new Dictionary<ushort, MemberInfo>(10),
 				//fetch types
-				types = new Dictionary<ushort, Type>(10)
+				Types = new Dictionary<ushort, Type>(10)
 			};
 			
 			//include all or not
 			object[] ns = type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
-			model.includeAll = ((NinoSerializeAttribute)ns[0]).IncludeAll;
+			model.IncludeAll = ((NinoSerializeAttribute)ns[0]).IncludeAll;
 
 			//store temp attr
 			object[] sps;
@@ -257,12 +160,12 @@ namespace Nino.Serialization
 			//iterate fields
 			foreach (var f in fs)
 			{
-				if (model.includeAll)
+				if (model.IncludeAll)
 				{
 					//skip nino ignore
 					var ig = f.GetCustomAttributes(typeof(NinoIgnoreAttribute), false);
 					if (ig.Length > 0) continue;
-					index = (ushort)model.members.Count;
+					index = (ushort)model.Members.Count;
 				}
 				else
 				{
@@ -272,29 +175,29 @@ namespace Nino.Serialization
 					index = ((NinoMemberAttribute)sps[0]).Index;
 				}
 				//record field
-				model.members.Add(index, f);
+				model.Members.Add(index, f);
 #if ILRuntime
 				var t = f.FieldType;
 				if (t.IsGenericType)
 				{
-					model.types.Add(index, t);
+					model.Types.Add(index, t);
 				}
 				else
 				{
-					model.types.Add(index, t.ResolveRealType());
+					model.Types.Add(index, t.ResolveRealType());
 				}
 #else
-				model.types.Add(index, f.FieldType);
+				model.Types.Add(index, f.FieldType);
 #endif
 				//record min/max
-				if (index < model.min)
+				if (index < model.Min)
 				{
-					model.min = index;
+					model.Min = index;
 				}
 
-				if (index > model.max)
+				if (index > model.Max)
 				{
-					model.max = index;
+					model.Max = index;
 				}
 			}
 
@@ -310,12 +213,12 @@ namespace Nino.Serialization
 						$"Cannot read or write property {p.Name} in {type.FullName}, cannot Serialize or Deserialize this property");
 				}
 				
-				if (model.includeAll)
+				if (model.IncludeAll)
 				{
 					//skip nino ignore
 					var ig = p.GetCustomAttributes(typeof(NinoIgnoreAttribute), false);
 					if (ig.Length > 0) continue;
-					index = (ushort)model.members.Count;
+					index = (ushort)model.Members.Count;
 				}
 				else
 				{
@@ -325,35 +228,35 @@ namespace Nino.Serialization
 					index = ((NinoMemberAttribute)sps[0]).Index;
 				}
 				//record property
-				model.members.Add(index, p);
+				model.Members.Add(index, p);
 #if ILRuntime
 				var t = p.PropertyType;
 				if (t.IsArray || t.IsGenericType)
 				{
-					model.types.Add(index, t);
+					model.Types.Add(index, t);
 				}
 				else
 				{
-					model.types.Add(index, t.ResolveRealType());
+					model.Types.Add(index, t.ResolveRealType());
 				}
 #else
-				model.types.Add(index, p.PropertyType);
+				model.Types.Add(index, p.PropertyType);
 #endif
 				//record min/max
-				if (index < model.min)
+				if (index < model.Min)
 				{
-					model.min = index;
+					model.Min = index;
 				}
 
-				if (index > model.max)
+				if (index > model.Max)
 				{
-					model.max = index;
+					model.Max = index;
 				}
 			}
 			
-			if (model.members.Count == 0)
+			if (model.Members.Count == 0)
 			{
-				model.valid = false;
+				model.Valid = false;
 			}
 
 			TypeModels.Add(type, model);
