@@ -1,12 +1,20 @@
 # Nino
 Definatly useful and high performance modules for C# projects, especially for Unity.
 
-实用的高性能C#模块，尤其在Unity平台能带来令人难以置信的便利。
+实用的高性能C#模块，尤其在Unity平台能带来令人难以置信的效益。
+
+![build](https://img.shields.io/github/workflow/status/JasonXuDeveloper/Nino/.NET?logo=github)
+
+![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
+
+
+
+
 
 
 ## 功能列表
 
-- 共享模块
+- 共享模块 [![nino.shared.nuget](https://img.shields.io/nuget/v/Nino.Shared?label=Nino.Shared)](https://www.nuget.org/packages/Nino.Shared/)
   
   - IO
     - 高性能数据压缩流
@@ -21,7 +29,7 @@ Definatly useful and high performance modules for C# projects, especially for Un
   - Mgr
     - 压缩解压助手
   
-- 序列化模块，[使用教程](Docs/Serialization.md)
+- 序列化模块，[使用教程](Docs/Serialization.md) [![nino.serialization.nuget](https://img.shields.io/nuget/v/Nino.Serialization?label=Nino.Serialization)](https://www.nuget.org/packages/Nino.Serialization)
 
   > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，优势是更小体积，更高性能
   >
