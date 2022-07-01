@@ -50,6 +50,22 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
+		/// Create a nino read
+		/// </summary>
+		/// <param name="data"></param>
+		/// <param name="outputLength"></param>
+		/// <param name="encoding"></param>
+		public Reader(byte[] data, int outputLength, Encoding encoding)
+		{
+			_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+			_buffer.CopyFrom(data, 0, 0, outputLength);
+			_buffer.ReadOnly = true;
+			this._encoding = encoding;
+			_position = 0;
+			_length = outputLength;
+		}
+
+		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
 		private int _position;
@@ -230,7 +246,7 @@ namespace Nino.Serialization
 			{
 				//no chance to Deserialize -> see if this type can be serialized in other ways
 				//try recursive
-				return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this);
+				return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this, false);
 			}
 		}
 

@@ -683,7 +683,7 @@ namespace Nino.Serialization
 			}
 			else
 			{
-				Serializer.Serialize(type, val, _encoding, this);
+				Serializer.Serialize(type, val, _encoding, this, false);
 			}
 		}
 

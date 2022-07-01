@@ -110,6 +110,9 @@ namespace Nino.Serialization
 					{
 						//unbox
 						type = val.GetType();
+						//failed to unbox
+						if (type == ConstMgr.ObjectType)
+							return false;
 					}
 					//basic type
 					//看看有没有注册委托，没的话有概率不行
@@ -127,12 +130,12 @@ namespace Nino.Serialization
 							}
 						}
 						//其他类型也不行
-						else if(!type.IsArray)
+						else if(!type.IsArray && !type.IsEnum)
 						{
 							return false;
 						}
 					}
-					//list/array/dict/已注册类型才会走这里
+					//list/array/dict/enum/已注册类型才会走这里
 					writer.WriteCommonVal(type, val);
 					return true;
 			}
@@ -148,14 +151,15 @@ namespace Nino.Serialization
 		public static byte[] Serialize<T>(T val, Encoding encoding = null)
 		{
 			Type type = typeof(T);
+			Writer writer = new Writer(encoding ?? DefaultEncoding);
+
 			//basic type
-			using (var writer = new Writer(encoding ?? DefaultEncoding))
+			if (AttemptWriteBasicType(val, writer))
 			{
-				if (AttemptWriteBasicType(val, writer))
-				{
-					//compress it
-					return writer.ToCompressedBytes();
-				}
+				//compress it
+				var ret = writer.ToCompressedBytes();
+				writer.Dispose();
+				return ret;
 			}
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
@@ -164,16 +168,15 @@ namespace Nino.Serialization
 				if (helper != null)
 				{
 					//start serialize
-					using (var writer = new Writer(encoding ?? DefaultEncoding))
-					{
-						helper.NinoWriteMembers(val, writer);
-						//compress it
-						return writer.ToCompressedBytes();
-					}
+					helper.NinoWriteMembers(val, writer);
+					//compress it
+					var ret = writer.ToCompressedBytes();
+					writer.Dispose();
+					return ret;
 				}
 			}
 			//reflection type
-			return Serialize(type, val, encoding ?? DefaultEncoding);
+			return Serialize(type, val, encoding ?? DefaultEncoding, writer);
 		}
 
 		/// <summary>
@@ -183,15 +186,16 @@ namespace Nino.Serialization
 		/// <param name="value"></param>
 		/// <param name="encoding"></param>
 		/// <param name="writer"></param>
+		/// <param name="returnValue"></param>
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
 		// ReSharper disable CognitiveComplexity
-		internal static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer = null)
+		internal static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer, bool returnValue = true)
 			// ReSharper restore CognitiveComplexity
 		{
 			//prevent null encoding
-			encoding = encoding == null ? DefaultEncoding : encoding;
+			encoding = encoding ?? DefaultEncoding;
 			
 			//ILRuntime
 #if ILRuntime
@@ -202,24 +206,19 @@ namespace Nino.Serialization
 
 			type = type.ResolveRealType();
 #endif
+
+			if (writer == null)
+			{
+				writer = new Writer(encoding);
+			}
 			
 			//basic type
-			if (writer != null)
+			if (AttemptWriteBasicType(value, writer))
 			{
-				if (AttemptWriteBasicType(value, writer))
-				{
-					return ConstMgr.Null;
-				}
-			}
-			else
-			{
-				using (var temp = new Writer(encoding))
-				{
-					if (AttemptWriteBasicType(value, temp))
-					{
-						return temp.ToCompressedBytes();
-					}
-				}
+				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+				if(returnValue)
+					writer.Dispose();
+				return ret;
 			}
 
 			//code generated type
@@ -229,20 +228,11 @@ namespace Nino.Serialization
 				if (helper != null)
 				{
 					//start serialize
-					//share a writer
-					if (writer != null)
-					{
-						helper.NinoWriteMembers(value, writer);
-						return ConstMgr.Null;
-					}
-
-					//start serialize
-					using (writer = new Writer(encoding))
-					{
-						helper.NinoWriteMembers(value, writer);
-						//compress it
-						return writer.ToCompressedBytes();
-					}
+					helper.NinoWriteMembers(value, writer);
+					var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+					if(returnValue)
+						writer.Dispose();
+					return ret;
 				}
 			}
 
@@ -318,20 +308,11 @@ namespace Nino.Serialization
 				}
 			}
 
-			//share a writer
-			if (writer != null)
-			{
-				Write();
-				return ConstMgr.Null;
-			}
-
-			//start serialize
-			using (writer = new Writer(encoding))
-			{
-				Write();
-				//compress it
-				return writer.ToCompressedBytes();
-			}
+			Write();
+			var buf = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+			if(returnValue)
+				writer.Dispose();
+			return buf;
 		}
 
 		/// <summary>

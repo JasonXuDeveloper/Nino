@@ -107,7 +107,7 @@ namespace Nino.Serialization
 							}
 						}
 						//其他类型也不行
-						else if (!type.IsArray)
+						else if (!type.IsArray && !type.IsEnum)
 						{
 							result = false;
 							return null;
@@ -128,14 +128,14 @@ namespace Nino.Serialization
 		public static T Deserialize<T>(byte[] data, Encoding encoding = null)
 		{
 			Type type = typeof(T);
+			Reader reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
+			
 			//basic type
-			using (var reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding))
+			var obj = AttemptReadBasicType(type, reader, out var result);
+			if (result)
 			{
-				var ret = AttemptReadBasicType(typeof(T), reader, out var result);
-				if (result)
-				{
-					return (T)ret;
-				}
+				reader.Dispose();
+				return (T)obj;
 			}
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
@@ -144,15 +144,13 @@ namespace Nino.Serialization
 				if (helper != null)
 				{
 					//start Deserialize
-					using (var reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding))
-					{
-						return helper.NinoReadMembers(reader);
-					}
+					var ret = helper.NinoReadMembers(reader);
+					reader.Dispose();
+					return ret;
 				}
 			}
 
-			T val = Activator.CreateInstance<T>();
-			return (T)Deserialize(type, val, data, encoding ?? DefaultEncoding);
+			return (T)Deserialize(type, obj, data, encoding ?? DefaultEncoding, reader);
 		}
 
 		/// <summary>
@@ -163,35 +161,29 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="encoding"></param>
 		/// <param name="reader"></param>
+		/// <param name="returnDispose"></param>
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
 		// ReSharper disable CognitiveComplexity
-		internal static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader = null)
+		internal static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader, bool returnDispose = true)
 			// ReSharper restore CognitiveComplexity
 		{
 			//prevent null encoding
-			encoding = encoding == null ? DefaultEncoding : encoding;
+			encoding = encoding ?? DefaultEncoding;
+
+			if (reader == null)
+			{
+				reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding);
+			}
 			
 			//basic type
-			if (reader != null)
+			val = AttemptReadBasicType(type, reader, out var result);
+			if (result)
 			{
-				var ret = AttemptReadBasicType(type, reader, out var result);
-				if (result)
-				{
-					return ret;
-				}
-			}
-			else
-			{
-				using (var temp = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
-				{
-					var ret = AttemptReadBasicType(type, temp, out var result);
-					if (result)
-					{
-						return ret;
-					}
-				}
+				if(returnDispose)
+					reader.Dispose();
+				return val;
 			}
 			
 			//code generated type
@@ -201,35 +193,13 @@ namespace Nino.Serialization
 				if (helper != null)
 				{
 					//start Deserialize
-					//share a reader
-					if (reader != null)
-					{
-						return helper.NinoReadMembers(reader);
-					}
-
-					//start Deserialize
-					using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
-					{
-						return helper.NinoReadMembers(reader);
-					}
+					var ret = helper.NinoReadMembers(reader);
+					if(returnDispose)
+						reader.Dispose();
+					return ret;
 				}
 			}
-
-			//Get Attribute that indicates a class/struct to be serialized
-			TypeModel.TryGetModel(type, out var model);
-
-			//invalid model
-			if (model != null && !model.Valid)
-			{
-				return ConstMgr.Null;
-			}
-
-			//generate model
-			if (model == null)
-			{
-				model = TypeModel.CreateModel(type);
-			}
-
+			
 			//create type
 			if (val == null || val == ConstMgr.Null)
 			{
@@ -238,6 +208,21 @@ namespace Nino.Serialization
 #else
 				val = Activator.CreateInstance(type);
 #endif
+			}
+
+			//Get Attribute that indicates a class/struct to be serialized
+			TypeModel.TryGetModel(type, out var model);
+
+			//invalid model
+			if (model != null && !model.Valid)
+			{
+				return null;
+			}
+
+			//generate model
+			if (model == null)
+			{
+				model = TypeModel.CreateModel(type);
 			}
 
 			//min, max index
@@ -325,19 +310,11 @@ namespace Nino.Serialization
 				}
 			}
 
-			//share a reader
-			if (reader != null)
-			{
-				Read();
-				return val;
-			}
-
 			//start Deserialize
-			using (reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding))
-			{
-				Read();
-				return val;
-			}
+			Read();
+			if(returnDispose)
+				reader.Dispose();
+			return val;
 		}
 
 		/// <summary>

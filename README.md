@@ -1,5 +1,5 @@
 # Nino
-Definatly useful and high performance modules for C# projects, especially for Unity.
+Definitely useful and high performance modules for C# projects, especially for Unity.
 
 实用的高性能C#模块，尤其在Unity平台能带来令人难以置信的效益。
 

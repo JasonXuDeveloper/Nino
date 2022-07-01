@@ -8,6 +8,8 @@
 
 ### 结论
 
+> 数据越大，Nino的性能对比其他库就越强大，如果测试的数据很小，则与其他库差距不大，甚至会略微差于其他库
+
 体积方面，Nino最小，MsgPack其次，其他库不尽人意
 
 序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection基本与Protobuf-net一致，其他库不尽人意

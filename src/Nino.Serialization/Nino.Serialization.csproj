@@ -21,8 +21,9 @@
         <PackageVersion>1.0.5</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <PackageReleaseNotes>v1.0.5
+- [feat] support DateTime as default
 - [optimization] better performance with primitives
-- [feat] support DateTime as default</PackageReleaseNotes>
+- [optimization] enhance serialization/deserialization performance</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType> 
     </PropertyGroup>
 
