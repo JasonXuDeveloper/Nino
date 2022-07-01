@@ -11,12 +11,12 @@ namespace Nino.Benchmark.Models
             {
                 writer.CompressAndWrite(value.question_id);
                 writer.CompressAndWrite(value.answer_id);
-                writer.WriteCommonVal(typeof(System.DateTime), value.locked_date);
-                writer.WriteCommonVal(typeof(System.DateTime), value.creation_date);
-                writer.WriteCommonVal(typeof(System.DateTime), value.last_edit_date);
-                writer.WriteCommonVal(typeof(System.DateTime), value.last_activity_date);
+                writer.Write(value.locked_date);
+                writer.Write(value.creation_date);
+                writer.Write(value.last_edit_date);
+                writer.Write(value.last_activity_date);
                 writer.CompressAndWrite(value.score);
-                writer.WriteCommonVal(typeof(System.DateTime), value.community_owned_date);
+                writer.Write(value.community_owned_date);
                 writer.Write(value.is_accepted);
                 writer.Write(value.body);
                 writer.Write(value.title);
@@ -65,12 +65,12 @@ namespace Nino.Benchmark.Models
                 Answer value = new Answer();
                 value.question_id =  (System.Int32)reader.DecompressAndReadNumber();
                 value.answer_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.locked_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
-                value.creation_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
-                value.last_edit_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
-                value.last_activity_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.locked_date = reader.ReadDateTime();
+                value.creation_date = reader.ReadDateTime();
+                value.last_edit_date = reader.ReadDateTime();
+                value.last_activity_date = reader.ReadDateTime();
                 value.score =  (System.Int32)reader.DecompressAndReadNumber();
-                value.community_owned_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.community_owned_date = reader.ReadDateTime();
                 value.is_accepted = reader.ReadBool();
                 value.body = reader.ReadString();
                 value.title = reader.ReadString();

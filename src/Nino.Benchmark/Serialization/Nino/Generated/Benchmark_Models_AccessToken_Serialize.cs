@@ -10,7 +10,7 @@ namespace Nino.Benchmark.Models
             public void NinoWriteMembers(AccessToken value, Nino.Serialization.Writer writer)
             {
                 writer.Write(value.access_token);
-                writer.WriteCommonVal(typeof(System.DateTime), value.expires_on_date);
+                writer.Write(value.expires_on_date);
                 writer.CompressAndWrite(value.account_id);
                 if(value.scope != null)
                 {
@@ -35,7 +35,7 @@ namespace Nino.Benchmark.Models
             {
                 AccessToken value = new AccessToken();
                 value.access_token = reader.ReadString();
-                value.expires_on_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.expires_on_date = reader.ReadDateTime();
                 value.account_id =  (System.Int32)reader.DecompressAndReadNumber();
                 value.scope = new System.Collections.Generic.List<System.String>(reader.ReadLength());
                 for(int i = 0, cnt = value.scope.Capacity; i < cnt; i++)

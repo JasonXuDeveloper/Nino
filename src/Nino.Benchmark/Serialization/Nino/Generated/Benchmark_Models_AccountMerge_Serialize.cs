@@ -11,7 +11,7 @@ namespace Nino.Benchmark.Models
             {
                 writer.CompressAndWrite(value.old_account_id);
                 writer.CompressAndWrite(value.new_account_id);
-                writer.WriteCommonVal(typeof(System.DateTime), value.merge_date);
+                writer.Write(value.merge_date);
             }
 
             public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
@@ -24,7 +24,7 @@ namespace Nino.Benchmark.Models
                 AccountMerge value = new AccountMerge();
                 value.old_account_id =  (System.Int32)reader.DecompressAndReadNumber();
                 value.new_account_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.merge_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.merge_date = reader.ReadDateTime();
                 return value;
             }
 

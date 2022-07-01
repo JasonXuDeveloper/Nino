@@ -11,7 +11,7 @@ namespace Nino.Benchmark.Models
             {
                 writer.CompressAndWrite(value.comment_id);
                 writer.CompressAndWrite(value.post_id);
-                writer.WriteCommonVal(typeof(System.DateTime), value.creation_date);
+                writer.Write(value.creation_date);
                 writer.CompressAndWrite(value.score);
                 writer.Write(value.edited);
                 writer.Write(value.body);
@@ -30,7 +30,7 @@ namespace Nino.Benchmark.Models
                 Comment value = new Comment();
                 value.comment_id =  (System.Int32)reader.DecompressAndReadNumber();
                 value.post_id =  (System.Int32)reader.DecompressAndReadNumber();
-                value.creation_date = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.creation_date = reader.ReadDateTime();
                 value.score =  (System.Int32)reader.DecompressAndReadNumber();
                 value.edited = reader.ReadBool();
                 value.body = reader.ReadString();

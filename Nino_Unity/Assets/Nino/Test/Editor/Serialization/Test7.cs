@@ -42,12 +42,6 @@ namespace Nino.Test.Editor.Serialization
                 }
             };
 
-            //register importer (custom way to write those objects)
-            Serializer.AddCustomImporter<DateTime>((datetime, writer) =>
-            {
-                //write long
-                writer.Write(datetime.ToBinary());
-            });
             Serializer.AddCustomImporter<int?>((val, writer) =>
             {
                 //write int
@@ -89,8 +83,6 @@ namespace Nino.Test.Editor.Serialization
             Logger.D($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
 
             //register exporter (custom way to export bytes to object)
-            //as when writing datetime, we wrote long, here we read long and parse back to datetime
-            Deserializer.AddCustomExporter<DateTime>(reader => DateTime.FromBinary(reader.ReadInt64()));
             //as when writing nullable<int>, we wrote int, here we read int
             Deserializer.AddCustomExporter<int?>(reader => reader.ReadInt32());
             //as we wrote 3 floats with vector3, now we read 3 floats and parse to vector
