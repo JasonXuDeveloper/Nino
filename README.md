@@ -3,9 +3,7 @@ Definatly useful and high performance modules for C# projects, especially for Un
 
 实用的高性能C#模块，尤其在Unity平台能带来令人难以置信的效益。
 
-![build](https://img.shields.io/github/workflow/status/JasonXuDeveloper/Nino/.NET?logo=github)
-
-![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
+![build](https://img.shields.io/github/workflow/status/JasonXuDeveloper/Nino/.NET?logo=github)![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
 
 
 
