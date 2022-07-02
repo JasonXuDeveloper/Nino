@@ -15,8 +15,6 @@ namespace Nino.Shared
         private T[] _array; // Storage for UncheckedStack elements
         private int _size; // Number of items in the UncheckedStack.
         private int _version; // Used to keep enumerator in sync w/ collection.
-        private int size; // Number of items in the UncheckedStack.
-        private int version; // Used to keep enumerator in sync w/ collection.
         private Object _syncRoot;
 
         private const int _defaultCapacity = 4;

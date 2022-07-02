@@ -272,7 +272,8 @@ namespace Nino.Serialization
 				return ret;
 			}
 
-			return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this, false);
+			return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this, false, true, false,
+				true, true);
 		}
 
 		/// <summary>
@@ -349,12 +350,8 @@ namespace Nino.Serialization
 		{
 			T result;
 			byte* ptr = (byte*)&result;
-			int i = 0;
-			while (i < len)
-			{
-				*(ptr + i++) = ReadByte();
-			}
-
+			_buffer.CopyTo(ptr, _position, len);
+			_position += len;
 			return result;
 		}
 
@@ -488,20 +485,8 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe string ReadString()
 		{
-			var type = GetCompressType();
-			int len;
-			switch (type)
-			{
-				case CompressType.ByteString:
-					len = ReadByte();
-					break;
-				case CompressType.UInt16String:
-					len = ReadUInt16();
-					break;
-				default:
-					throw new InvalidOperationException($"invalid compress type for string: {type}");
-			}
-
+			int len = (int)DecompressAndReadNumber();
+			
 			//empty string -> no gc
 			if (len == 0)
 			{

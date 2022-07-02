@@ -94,7 +94,7 @@ namespace Nino.Serialization
 				}
 			}
 
-			return (T)Deserialize(type, null, data, encoding ?? DefaultEncoding, reader, skipCheck: true);
+			return (T)Deserialize(type, null, data, encoding ?? DefaultEncoding, reader, true, true, true);
 		}
 
 		/// <summary>
@@ -106,20 +106,24 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		/// <param name="reader"></param>
 		/// <param name="returnDispose"></param>
-		/// <param name="skipCheck"></param>
+		/// <param name="skipBasicCheck"></param>
+		/// <param name="skipCodeGenCheck"></param>
+		/// <param name="skipGenericCheck"></param>
+		/// <param name="skipEnumCheck"></param>
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
 		// ReSharper disable CognitiveComplexity
 		internal static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader,
-				bool returnDispose = true, bool skipCheck = false)
+				bool returnDispose = true, bool skipBasicCheck = false, bool skipCodeGenCheck = false,
+				bool skipGenericCheck = false, bool skipEnumCheck = false)
 			// ReSharper restore CognitiveComplexity
 		{
 			//prevent null encoding
 			encoding = encoding ?? DefaultEncoding;
 
 			//basic type
-			if (!skipCheck && WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
+			if (!skipBasicCheck && WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
 			{
 				Reader basicReader;
 				if (TypeModel.NoCompressionTypes.Contains(type))
@@ -144,7 +148,7 @@ namespace Nino.Serialization
 			}
 
 			//enum
-			if (type.IsEnum)
+			if (!skipEnumCheck && type.IsEnum)
 			{
 
 				var ret = Deserialize(Enum.GetUnderlyingType(type), null, data, encoding, reader, returnDispose);
@@ -156,7 +160,7 @@ namespace Nino.Serialization
 			}
 
 			//code generated type
-			if (TypeModel.TryGetHelper(type, out var helperObj))
+			if (!skipCodeGenCheck && TypeModel.TryGetHelper(type, out var helperObj))
 			{
 				ISerializationHelper helper = (ISerializationHelper)helperObj;
 				if (helper != null)
@@ -170,7 +174,7 @@ namespace Nino.Serialization
 			}
 
 			//array
-			if (type.IsArray)
+			if (!skipGenericCheck && type.IsArray)
 			{
 				var ret = reader.ReadArray(type);
 				if (returnDispose)
@@ -179,7 +183,7 @@ namespace Nino.Serialization
 			}
 
 			//list, dict
-			if (type.IsGenericType)
+			if (!skipGenericCheck && type.IsGenericType)
 			{
 				var genericDefType = type.GetGenericTypeDefinition();
 				//不是list和dict就再见了

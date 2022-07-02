@@ -241,6 +241,62 @@ namespace Nino.Shared.IO
         }
 
         /// <summary>
+        /// Copy data to extensible buffer
+        /// </summary>
+        /// <param name="src"></param>
+        /// <param name="srcIndex"></param>
+        /// <param name="dstIndex"></param>
+        /// <param name="length"></param>
+        /// <exception cref="InvalidOperationException"></exception>
+        public unsafe void CopyFrom(T* src, int srcIndex, int dstIndex, int length)
+        {
+            //same block
+            if (dstIndex >> powerOf2 == (dstIndex + length) >> powerOf2)
+            {
+                EnsureCapacity(dstIndex >> powerOf2);
+                fixed (T* ptr = Data.items[dstIndex >> powerOf2])
+                {
+                    Buffer.MemoryCopy(src + srcIndex, ptr + GetCurBlockIndex(dstIndex), length, length);
+
+                }
+            }
+            //separate blocks
+            else
+            {
+                //suppose from index 1000 copy 50 bytes => copy 24 bytes to _Data.items[0], then copy 26 bytes to _data[1], srcIndex = 0
+                int index = dstIndex >> powerOf2; //index = 1000/1024 => 0
+                dstIndex = GetCurBlockIndex(dstIndex);
+                //copy exceed blocks
+                while (
+                    dstIndex + length >
+                    ExpandSize) //first iteration => suppose 1000 + 50 > 1024, second iter: 0+26 < max, break
+                {
+                    EnsureCapacity(index * ExpandSize);
+                    //first iteration => suppose copy src[0] to _Data.items[0][1000], will copy 1024-1000=> 24 bytes
+                    fixed (T* ptr = Data.items[index])
+                    {
+                        Buffer.MemoryCopy(src + srcIndex, ptr + dstIndex, ExpandSize - dstIndex, ExpandSize - dstIndex);
+
+                    }
+                    index++; //next index of extensible buffer
+                    srcIndex += ExpandSize - dstIndex; //first iteration => 0 += 1024-1000 => srcIndex = 24
+                    length -= ExpandSize - dstIndex; //first iteration => 50 -= 1024 - 1000 => length = 26
+                    dstIndex = 0; //empty the dstIndex for the next iteration
+                }
+
+                EnsureCapacity(index * ExpandSize);
+                //copy remained block
+                //suppose srcIndex = 24, index = 1, dstIndex=0, length = 26
+                //will copy from src[24] to _Data.items[1][0], length of 26
+                fixed (T* ptr = Data.items[index])
+                {
+                    Buffer.MemoryCopy(src + srcIndex, ptr + dstIndex, length, length);
+
+                }
+            }
+        }
+
+        /// <summary>
         /// Copy data from buffer to dst from dst[0]
         /// </summary>
         /// <param name="dst"></param>

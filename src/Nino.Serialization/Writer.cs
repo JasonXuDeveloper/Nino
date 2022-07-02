@@ -230,7 +230,7 @@ namespace Nino.Serialization
 		{
 			if (!AttemptWriteBasicType(val))
 			{
-				Serializer.Serialize(type, val, _encoding, this, false);
+				Serializer.Serialize(type, val, _encoding, this, false, true, false, true, true);
 			}
 		}
 
@@ -259,6 +259,19 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
+		/// Write byte[]
+		/// </summary>
+		/// <param name="data"></param>
+		/// <param name="len"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private unsafe void Write(byte* data, int len)
+		{
+			_buffer.CopyFrom(data, 0, _position, len);
+			_position += len;
+			_length += len;
+		}
+
+		/// <summary>
 		/// Write unmanaged type
 		/// </summary>
 		/// <param name="val"></param>
@@ -267,11 +280,7 @@ namespace Nino.Serialization
 		private unsafe void Write<T>(T val, int len) where T : unmanaged
 		{
 			byte* ptr = (byte*)&val;
-			int i = 0;
-			while (i < len)
-			{
-				Write(*(ptr + i++));
-			}
+			Write(ptr, len);
 		}
 
 		/// <summary>
@@ -309,43 +318,23 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(string val)
+		public unsafe void Write(string val)
 		{
 			if (string.IsNullOrEmpty(val))
 			{
-				Write((byte)CompressType.ByteString);
+				Write((byte)CompressType.Byte);
 				Write((byte)0);
 				return;
 			}
-
-			var len = _encoding.GetByteCount(val);
-			if (len <= byte.MaxValue)
+			
+			int bufferSize = _encoding.GetMaxByteCount(val.Length);
+			byte* buffer = stackalloc byte[bufferSize];
+			fixed (char* pValue = val)
 			{
-				Write((byte)CompressType.ByteString);
-				Write((byte)len);
+				int byteCount = _encoding.GetBytes(pValue, val.Length, buffer, bufferSize);
+				CompressAndWrite(byteCount);
+				Write(buffer, byteCount);
 			}
-			else if (len <= ushort.MaxValue)
-			{
-				Write((byte)CompressType.UInt16String);
-				Write((ushort)len);
-			}
-			else
-			{
-				throw new InvalidDataException($"string is too long, len:{len}, max is: {ushort.MaxValue}");
-			}
-
-			//write directly
-			var b = BufferPool.RequestBuffer(len);
-			if (len == _encoding.GetBytes(val, 0, val.Length, b, 0))
-			{
-				Write(b, len);
-			}
-			else
-			{
-				throw new InvalidDataException("invalid string to write, can not determine length");
-			}
-
-			BufferPool.ReturnBuffer(b);
 		}
 
 		/// <summary>

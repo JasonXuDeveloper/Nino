@@ -12,13 +12,13 @@ namespace Nino.Benchmark.Serializers
     {
         public override T Deserialize<T>(object input)
         {
-            var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
+            var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
             return MessagePack.MessagePackSerializer.Deserialize<T>((byte[])input, lz4Options);
         }
 
         public override object Serialize<T>(T input)
         {
-            var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
+            var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
             return MessagePack.MessagePackSerializer.Serialize(input, lz4Options);
         }
 

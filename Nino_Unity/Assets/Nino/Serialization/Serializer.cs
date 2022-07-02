@@ -93,7 +93,7 @@ namespace Nino.Serialization
 			}
 
 			//reflection type
-			return Serialize(type, val, encoding ?? DefaultEncoding, writer, skipCheck: true);
+			return Serialize(type, val, encoding ?? DefaultEncoding, writer, true, true, true);
 		}
 
 		/// <summary>
@@ -104,13 +104,17 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		/// <param name="writer"></param>
 		/// <param name="returnValue"></param>
-		/// <param name="skipCheck"></param>
+		/// <param name="skipBasicCheck"></param>
+		/// <param name="skipCodeGenCheck"></param>
+		/// <param name="skipGenericCheck"></param>
+		/// <param name="skipEnumCheck"></param>
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
 		// ReSharper disable CognitiveComplexity
 		internal static byte[] Serialize(Type type, object value, Encoding encoding, Writer writer,
-				bool returnValue = true, bool skipCheck = false)
+				bool returnValue = true, bool skipBasicCheck = false, bool skipCodeGenCheck = false,
+				bool skipGenericCheck = false, bool skipEnumCheck = false)
 			// ReSharper restore CognitiveComplexity
 		{
 			//prevent null encoding
@@ -132,7 +136,7 @@ namespace Nino.Serialization
 			}
 
 			//basic type
-			if (!skipCheck && WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
+			if (!skipBasicCheck && WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
 			{
 				wrapper.Serialize(value, writer);
 				if (TypeModel.NoCompressionTypes.Contains(type))
@@ -152,14 +156,14 @@ namespace Nino.Serialization
 			}
 
 			//enum			
-			if (type.IsEnum)
+			if (!skipEnumCheck && type.IsEnum)
 			{
 				type = Enum.GetUnderlyingType(type);
 				return Serialize(type, value, encoding, writer, returnValue);
 			}
 
 			//code generated type
-			if (!skipCheck && TypeModel.TryGetHelper(type, out var helperObj))
+			if (!skipCodeGenCheck && TypeModel.TryGetHelper(type, out var helperObj))
 			{
 				ISerializationHelper helper = (ISerializationHelper)helperObj;
 				if (helper != null)
@@ -174,7 +178,7 @@ namespace Nino.Serialization
 			}
 
 			//array
-			if (type.IsArray)
+			if (!skipGenericCheck && type.IsArray)
 			{
 				writer.Write((Array)value);
 				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
@@ -184,7 +188,7 @@ namespace Nino.Serialization
 			}
 
 			//list, dict
-			if (type.IsGenericType)
+			if (!skipGenericCheck && type.IsGenericType)
 			{
 				var genericDefType = type.GetGenericTypeDefinition();
 				//不是list和dict就再见了
@@ -248,7 +252,7 @@ namespace Nino.Serialization
 					{
 						if (type == ConstMgr.StringType)
 						{
-							writer.Write((byte)CompressType.ByteString);
+							writer.Write((byte)CompressType.Byte);
 							writer.Write((byte)0);
 							continue;
 						}

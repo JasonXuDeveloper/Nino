@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Nino.Serialization
+﻿namespace Nino.Serialization
 {
     /// <summary>
     /// Compress type when serializing and deserializing
@@ -8,18 +6,6 @@ namespace Nino.Serialization
     /// </summary>
     public enum CompressType : byte
     {
-        /// <summary>
-        /// A string has a length of 0 to 255 (byte) 8 bit
-        /// 一个只有0到255长度的字符串
-        /// </summary>
-        ByteString = 0,
-
-        /// <summary>
-        /// A string has a length of 256 to 65535 (byte to word) 16 bit
-        /// 一个只有256到65535长度的字符串
-        /// </summary>
-        UInt16String = 1,
-
         /// <summary>
         /// A number has a length of 0 to 255 (byte) 8 bit
         /// 一个在0到255之间的数字
