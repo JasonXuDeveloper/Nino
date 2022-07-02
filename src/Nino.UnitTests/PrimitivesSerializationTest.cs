@@ -4,6 +4,12 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Nino.UnitTests
 {
+    public enum TestEnumVal: short
+    {
+        A = Int16.MinValue,
+        B = Int16.MaxValue, 
+    }
+    
     [TestClass]
     public class PrimitivesSerializationTest
     {
@@ -29,6 +35,16 @@ namespace Nino.UnitTests
             List of the above types
             Dictionary of some of the above types
          */
+
+        [TestMethod]
+        public void TestEnum()
+        {
+            TestEnumVal val = TestEnumVal.A;
+            byte[] buf = Serialization.Serializer.Serialize(val);
+            TestEnumVal val2 = Serialization.Deserializer.Deserialize<TestEnumVal>(buf);
+            Assert.AreEqual(val, val2);
+            Assert.AreEqual(TestEnumVal.A, val2);
+        }
 
         [TestMethod]
         public void TestByte()

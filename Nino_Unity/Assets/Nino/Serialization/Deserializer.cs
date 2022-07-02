@@ -47,78 +47,6 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-		/// Read basic type from reader
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="reader"></param>
-		/// <param name="result"></param>
-		// ReSharper disable CognitiveComplexity
-		private static object AttemptReadBasicType(Type type, Reader reader, out bool result)
-			// ReSharper restore CognitiveComplexity
-		{
-			result = true;
-			switch (TypeModel.GetTypeCode(type))
-			{
-				case TypeCode.Byte:
-					return reader.ReadByte();
-				case TypeCode.SByte:
-					return reader.ReadSByte();
-				case TypeCode.Int16:
-					return reader.ReadInt16();
-				case TypeCode.UInt16:
-					return reader.ReadUInt16();
-				case TypeCode.Int32:
-					return (int)reader.DecompressAndReadNumber();
-				case TypeCode.UInt32:
-					return (uint)reader.DecompressAndReadNumber();
-				case TypeCode.Int64:
-					return (long)reader.DecompressAndReadNumber();
-				case TypeCode.UInt64:
-					return reader.DecompressAndReadNumber();
-				case TypeCode.String:
-					return reader.ReadString();
-				case TypeCode.Boolean:
-					return reader.ReadBool();
-				case TypeCode.Double:
-					return reader.ReadDouble();
-				case TypeCode.Single:
-					return reader.ReadSingle();
-				case TypeCode.Decimal:
-					return reader.ReadDecimal();
-				case TypeCode.Char:
-					return reader.ReadChar();
-				case TypeCode.DateTime:
-					return reader.ReadDateTime();
-				default:
-					//basic type
-					//看看有没有注册委托，没的话有概率不行
-					if (!Serializer.CustomImporter.ContainsKey(type) &&
-					    !CustomExporter.ContainsKey(type))
-					{
-						//比如泛型，只能list和dict
-						if (type.IsGenericType)
-						{
-							var genericDefType = type.GetGenericTypeDefinition();
-							//不是list和dict就再见了
-							if (genericDefType != ConstMgr.ListDefType && genericDefType != ConstMgr.DictDefType)
-							{
-								result = false;
-								return null;
-							}
-						}
-						//其他类型也不行
-						else if (!type.IsArray && !type.IsEnum)
-						{
-							result = false;
-							return null;
-						}
-					}
-
-					return reader.ReadCommonVal(type);
-			}
-		}
-		
-		/// <summary>
 		/// Deserialize a NinoSerialize object
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
@@ -128,7 +56,43 @@ namespace Nino.Serialization
 		public static T Deserialize<T>(byte[] data, Encoding encoding = null)
 		{
 			Type type = typeof(T);
+			object obj;
+			
+			switch (TypeModel.GetTypeCode(type))
+			{
+				//basic type without compression
+				case TypeCode.Int32:
+				case TypeCode.UInt32:
+				case TypeCode.Int64:
+				case TypeCode.UInt64:
+				case TypeCode.Byte:
+				case TypeCode.SByte:
+				case TypeCode.Int16:
+				case TypeCode.UInt16:
+				case TypeCode.Boolean:
+				case TypeCode.Char:
+				case TypeCode.Decimal:
+				case TypeCode.Double:
+				case TypeCode.Single:
+				case TypeCode.DateTime:
+					Reader noCompressionReader = new Reader(data, data.Length, encoding ?? DefaultEncoding);
+					//basic type
+					obj = noCompressionReader.AttemptReadBasicType(type, out var r);
+					if (r)
+					{
+						noCompressionReader.Dispose();
+						return (T)obj;
+					}
+					break;
+			}
 			Reader reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
+			//basic type
+			obj = reader.AttemptReadBasicType(type, out var result);
+			if (result)
+			{
+				reader.Dispose();
+				return (T)obj;
+			}
 			
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
@@ -141,13 +105,6 @@ namespace Nino.Serialization
 					reader.Dispose();
 					return ret;
 				}
-			}
-			//basic type
-			var obj = AttemptReadBasicType(type, reader, out var result);
-			if (result)
-			{
-				reader.Dispose();
-				return (T)obj;
 			}
 
 			return (T)Deserialize(type, obj, data, encoding ?? DefaultEncoding, reader);
@@ -177,6 +134,15 @@ namespace Nino.Serialization
 				reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding);
 			}
 			
+			//basic type
+			val = reader.AttemptReadBasicType(type, out var result);
+			if (result)
+			{
+				if(returnDispose)
+					reader.Dispose();
+				return val;
+			}
+			
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
@@ -189,15 +155,6 @@ namespace Nino.Serialization
 						reader.Dispose();
 					return ret;
 				}
-			}
-			
-			//basic type
-			val = AttemptReadBasicType(type, reader, out var result);
-			if (result)
-			{
-				if(returnDispose)
-					reader.Dispose();
-				return val;
 			}
 			
 			//create type

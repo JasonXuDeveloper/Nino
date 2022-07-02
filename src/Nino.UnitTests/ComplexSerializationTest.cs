@@ -80,6 +80,23 @@ namespace Nino.UnitTests
             return $"{X},{Y},{Z},{F},{D},{Db},{Bo},{En},{Name}";
         }
     }
+    
+    [NinoSerialize]
+    [CodeGenIgnore]
+    public partial class NestedData
+    {
+        [NinoMember(1)]
+        [System.Runtime.Serialization.DataMember]
+        public string Name = "";
+
+        [NinoMember(2)]
+        public Data[] Ps = Array.Empty<Data>();
+
+        public override string ToString()
+        {
+            return $"{Name},{Ps[0]}";
+        }
+    }
 
     public enum TestEnum : byte
     {
@@ -90,6 +107,51 @@ namespace Nino.UnitTests
     [TestClass]
     public class ComplexSerializationTest
     {
+        [TestMethod]
+        public void TestNestedData()
+        {
+            //nested data
+            Data[] dt = new Data[1000];
+            for (int i = 0; i < dt.Length; i++)
+            {
+                dt[i] = new Data()
+                {
+                    X = short.MaxValue,
+                    Y = byte.MaxValue,
+                    Z = short.MaxValue,
+                    F = 1234.56789f,
+                    D = 66.66666666m,
+                    Db = 999.999999999999,
+                    Bo = true,
+                    En = TestEnum.A,
+                    Name = "aasdfghjhgtrewqwerftg"
+                };
+            }
+
+            var nd = new NestedData()
+            {
+                Name = "Test",
+                Ps = dt
+            };
+
+            var buf = Serializer.Serialize(nd);
+            var nd2 = Deserializer.Deserialize<NestedData>(buf);
+            Assert.AreEqual(nd.Name, nd2.Name);
+            Assert.AreEqual(nd.Ps.Length, nd2.Ps.Length);
+            for (int i = 0; i < nd.Ps.Length; i++)
+            {
+                Assert.AreEqual(nd.Ps[i].X, nd2.Ps[i].X);
+                Assert.AreEqual(nd.Ps[i].Y, nd2.Ps[i].Y);
+                Assert.AreEqual(nd.Ps[i].Z, nd2.Ps[i].Z);
+                Assert.AreEqual(nd.Ps[i].F, nd2.Ps[i].F);
+                Assert.AreEqual(nd.Ps[i].D, nd2.Ps[i].D);
+                Assert.AreEqual(nd.Ps[i].Db, nd2.Ps[i].Db);
+                Assert.AreEqual(nd.Ps[i].Bo, nd2.Ps[i].Bo);
+                Assert.AreEqual(nd.Ps[i].En, nd2.Ps[i].En);
+                Assert.AreEqual(nd.Ps[i].Name, nd2.Ps[i].Name);
+            }
+        }
+        
         [TestMethod]
         public void TestComplexData()
         {

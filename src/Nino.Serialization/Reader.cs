@@ -19,7 +19,7 @@ namespace Nino.Serialization
 		/// Buffer that stores data
 		/// </summary>
 		private ExtensibleBuffer<byte> _buffer;
-		
+
 		/// <summary>
 		/// encoding for string
 		/// </summary>
@@ -44,7 +44,7 @@ namespace Nino.Serialization
 		{
 			_buffer = data;
 			_buffer.ReadOnly = true;
-			this._encoding = encoding;
+			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
 		}
@@ -135,16 +135,17 @@ namespace Nino.Serialization
 			}
 		}
 
+
 		/// <summary>
-		/// Read primitive value from binary writer, DO NOT USE THIS FOR CUSTOM EXPORTER
+		/// Read basic type from reader
 		/// </summary>
 		/// <param name="type"></param>
-		/// <exception cref="InvalidDataException"></exception>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		/// <param name="result"></param>
 		// ReSharper disable CognitiveComplexity
-		public object ReadCommonVal(Type type)
+		internal object AttemptReadBasicType(Type type, out bool result)
 			// ReSharper restore CognitiveComplexity
 		{
+			result = true;
 			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
@@ -177,77 +178,101 @@ namespace Nino.Serialization
 					return ReadChar();
 				case TypeCode.DateTime:
 					return ReadDateTime();
-			}
+				default:
+					//basic type
+					//看看有没有注册委托，没的话有概率不行
+					if (!Deserializer.CustomExporter.ContainsKey(type))
+					{
+						//比如泛型，只能list和dict
+						if (type.IsGenericType)
+						{
+							var genericDefType = type.GetGenericTypeDefinition();
+							//不是list和dict就再见了
+							if (genericDefType == ConstMgr.ListDefType)
+							{
+								return ReadList(type);
+							}
 
-			//enum, normally this wont be true, as enum has a typecode
-			if (type.IsEnum)
-			{
-				//try decompress and read
-#if ILRuntime
-				switch (Type.GetTypeCode(Enum.GetUnderlyingType(type)))
-				{
-					case TypeCode.Byte:
-						return ReadByte();
-					case TypeCode.SByte:
-						return ReadSByte();
-					case TypeCode.Int16:
-						return ReadInt16();
-					case TypeCode.UInt16:
-						return ReadUInt16();
-					//need to consider compress
-					case TypeCode.Int32:
-						return (int)DecompressAndReadNumber();
-					case TypeCode.UInt32:
-						return (uint)DecompressAndReadNumber();
-					case TypeCode.Int64:
-						return (long)DecompressAndReadNumber();
-					case TypeCode.UInt64:
-						return DecompressAndReadNumber();
-				}
-#endif
-				return Enum.ToObject(type, DecompressAndReadEnum(Enum.GetUnderlyingType(type)));
-			}
+							if (genericDefType == ConstMgr.DictDefType)
+							{
+								return ReadDictionary(type);
+							}
 
-			//array/ list -> recursive
-			if (type.IsArray)
-			{
+							result = false;
+							return null;
+						}
+
+						//其他类型也不行
+						if (type.IsArray)
+						{
 #if !ILRuntime
-				if (type.GetArrayRank() > 1)
-				{
-					throw new NotSupportedException("can not deserialize multidimensional array, use jagged array instead");
-				}
+							if (type.GetArrayRank() > 1)
+							{
+								throw new NotSupportedException(
+									"can not deserialize multidimensional array, use jagged array instead");
+							}
 #endif
-				return ReadArray(type);
-			}
+							return ReadArray(type);
+						}
 
-			if (type.IsGenericType)
+						if (type.IsEnum)
+						{
+							//try decompress and read
+#if ILRuntime
+							switch (Type.GetTypeCode(type))
+							{
+								case TypeCode.Byte:
+									return ReadByte();
+								case TypeCode.SByte:
+									return ReadSByte();
+								case TypeCode.Int16:
+									return ReadInt16();
+								case TypeCode.UInt16:
+									return ReadUInt16();
+								//need to consider compress
+								case TypeCode.Int32:
+									return (int)DecompressAndReadNumber();
+								case TypeCode.UInt32:
+									return (uint)DecompressAndReadNumber();
+								case TypeCode.Int64:
+									return (long)DecompressAndReadNumber();
+								case TypeCode.UInt64:
+									return DecompressAndReadNumber();
+							}
+#endif
+							return Enum.ToObject(type, DecompressAndReadEnum(Enum.GetUnderlyingType(type)));
+						}
+					}
+					else
+					{
+						if (Deserializer.CustomExporter.TryGetValue(type, out var exporterDelegate))
+						{
+							return exporterDelegate.Invoke(this);
+						}
+					}
+
+					result = false;
+					return null;
+			}
+		}
+
+		/// <summary>
+		/// Read primitive value from binary writer, DO NOT USE THIS FOR CUSTOM EXPORTER
+		/// </summary>
+		/// <param name="type"></param>
+		/// <exception cref="InvalidDataException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		// ReSharper disable CognitiveComplexity
+		public object ReadCommonVal(Type type)
+			// ReSharper restore CognitiveComplexity
+		{
+			var ret = AttemptReadBasicType(type, out bool result);
+			if (result)
 			{
-				var genericDefType = type.GetGenericTypeDefinition();
-
-				//list
-				if (genericDefType == ConstMgr.ListDefType)
-				{
-					return ReadList(type);
-				}
-
-				//dict
-				if (genericDefType == ConstMgr.DictDefType)
-				{
-					return ReadDictionary(type);
-				}
+				return ret;
 			}
 
-			//custom exporter
-			if (Deserializer.CustomExporter.TryGetValue(type, out var exporterDelegate))
-			{
-				return exporterDelegate.Invoke(this);
-			}
-			else
-			{
-				//no chance to Deserialize -> see if this type can be serialized in other ways
-				//try recursive
-				return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this, false);
-			}
+			return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this, false);
 		}
 
 		/// <summary>
@@ -316,6 +341,24 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
+		/// Read unmanaged type
+		/// </summary>
+		/// <param name="len"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private unsafe T Read<T>(int len) where T : unmanaged
+		{
+			T result;
+			byte* ptr = (byte*)&result;
+			int i = 0;
+			while (i < len)
+			{
+				*(ptr + i++) = ReadByte();
+			}
+
+			return result;
+		}
+
+		/// <summary>
 		/// Read sbyte
 		/// </summary>
 		/// <returns></returns>
@@ -329,9 +372,10 @@ namespace Nino.Serialization
 		/// Read char
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public char ReadChar()
+		public unsafe char ReadChar()
 		{
-			return (char)ReadInt16();
+			ushort tmpBuffer = ReadUInt16();
+			return *((char*)&tmpBuffer);
 		}
 
 		/// <summary>
@@ -350,7 +394,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public short ReadInt16()
 		{
-			return (short)(_buffer[_position++] | _buffer[_position++] << 8);
+			return Read<short>(ConstMgr.SizeOfShort);
 		}
 
 		/// <summary>
@@ -360,7 +404,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public ushort ReadUInt16()
 		{
-			return (ushort)(ReadInt16());
+			return Read<ushort>(ConstMgr.SizeOfUShort);
 		}
 
 		/// <summary>
@@ -370,8 +414,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public int ReadInt32()
 		{
-			return (_buffer[_position++] | _buffer[_position++] << 8 | _buffer[_position++] << 16 |
-			        _buffer[_position++] << 24);
+			return Read<int>(ConstMgr.SizeOfInt);
 		}
 
 		/// <summary>
@@ -381,7 +424,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public uint ReadUInt32()
 		{
-			return (uint)(ReadInt32());
+			return Read<uint>(ConstMgr.SizeOfUInt);
 		}
 
 		/// <summary>
@@ -391,9 +434,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public long ReadInt64()
 		{
-			uint lo = ReadUInt32();
-			uint hi = ReadUInt32();
-			return (long)(hi) << 32 | lo;
+			return Read<long>(ConstMgr.SizeOfLong);
 		}
 
 		/// <summary>
@@ -403,9 +444,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public ulong ReadUInt64()
 		{
-			uint lo = ReadUInt32();
-			uint hi = ReadUInt32();
-			return ((ulong)hi) << 32 | lo;
+			return Read<ulong>(ConstMgr.SizeOfULong);
 		}
 
 		/// <summary>
@@ -470,7 +509,7 @@ namespace Nino.Serialization
 			}
 
 			//Read directly
-			var buf = stackalloc byte [len];
+			var buf = stackalloc byte[len];
 			_buffer.CopyTo(buf, _position, len);
 			var ret = _encoding.GetString(buf, len);
 			_position += len;
@@ -481,28 +520,19 @@ namespace Nino.Serialization
 		/// Read decimal
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe decimal ReadDecimal()
+		public decimal ReadDecimal()
 		{
-			decimal result;
-			var resultSpan = new Span<byte>(&result, ConstMgr.SizeOfDecimal);
-			var buf = stackalloc byte[ConstMgr.SizeOfDecimal];
-			_buffer.CopyTo(buf, _position, ConstMgr.SizeOfDecimal);
-			fixed (byte* resultPtr = &resultSpan.GetPinnableReference())
-			{
-				Buffer.MemoryCopy(buf, resultPtr, ConstMgr.SizeOfDecimal, ConstMgr.SizeOfDecimal);
-			}
-
-			_position += ConstMgr.SizeOfDecimal;
-			return result;
+			return Read<Decimal>(ConstMgr.SizeOfDecimal);
 		}
 
 		/// <summary>
 		/// Read bool
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public bool ReadBool()
+		public unsafe bool ReadBool()
 		{
-			return ReadByte() != 0;
+			var ret = ReadByte();
+			return *((bool*)&ret);
 		}
 
 		/// <summary>
@@ -789,20 +819,20 @@ namespace Nino.Serialization
 		{
 			//read len
 			int len = ReadLength();
-			
+
 			//other type
 			var elemType = type.GetElementType();
 			if (elemType == null)
 			{
 				throw new NullReferenceException("element type is null, can not make array");
 			}
-			
+
 			var arr = TryGetBasicTypeArray(elemType, len, out bool result);
 			if (result)
 			{
 				return arr;
 			}
-			
+
 			arr = Array.CreateInstance(elemType, len);
 			//read item
 			for (int i = 0; i < len; i++)
@@ -843,7 +873,7 @@ namespace Nino.Serialization
 			{
 				return arr;
 			}
-			
+
 			arr = Activator.CreateInstance(type, ConstMgr.EmptyParam) as IList;
 			//read item
 			for (int i = 0; i < len; i++)

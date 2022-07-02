@@ -46,102 +46,6 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-		/// Write basic type to writer
-		/// </summary>
-		/// <param name="val"></param>
-		/// <param name="writer"></param>
-		/// <typeparam name="T"></typeparam>
-		// ReSharper disable CognitiveComplexity
-		private static bool AttemptWriteBasicType<T>(T val, Writer writer)
-			// ReSharper restore CognitiveComplexity
-		{
-			switch (val)
-			{
-				//without sign
-				case ulong ul:
-					writer.CompressAndWrite(ul);
-					return true;
-				case uint ui:
-					writer.CompressAndWrite(ui);
-					return true;
-				case ushort us: //unnecessary to compress
-					writer.Write(us);
-					return true;
-				case byte b: //unnecessary to compress
-					writer.Write(b);
-					return true;
-				// with sign
-				case long l:
-					writer.CompressAndWrite(l);
-					return true;
-				case int i:
-					writer.CompressAndWrite(i);
-					return true;
-				case short s: //unnecessary to compress
-					writer.Write(s);
-					return true;
-				case sbyte sb: //unnecessary to compress
-					writer.Write(sb);
-					return true;
-				case bool b:
-					writer.Write(b);
-					return true;
-				case double db:
-					writer.Write(db);
-					return true;
-				case decimal dc:
-					writer.Write(dc);
-					return true;
-				case float fl:
-					writer.Write(fl);
-					return true;
-				case char c:
-					writer.Write(c);
-					return true;
-				case string s:
-					writer.Write(s);
-					return true;
-				case DateTime dt:
-					writer.Write(dt);
-					return true;
-				default:
-					var type = typeof(T);
-					if (type == ConstMgr.ObjectType)
-					{
-						//unbox
-						type = val.GetType();
-						//failed to unbox
-						if (type == ConstMgr.ObjectType)
-							return false;
-					}
-					//basic type
-					//看看有没有注册委托，没的话有概率不行
-					if (!CustomImporter.ContainsKey(type) &&
-					    !Deserializer.CustomExporter.ContainsKey(type))
-					{
-						//比如泛型，只能list和dict
-						if (type.IsGenericType)
-						{
-							var genericDefType = type.GetGenericTypeDefinition();
-							//不是list和dict就再见了
-							if (genericDefType != ConstMgr.ListDefType && genericDefType != ConstMgr.DictDefType)
-							{
-								return false;
-							}
-						}
-						//其他类型也不行
-						else if(!type.IsArray && !type.IsEnum)
-						{
-							return false;
-						}
-					}
-					//list/array/dict/enum/已注册类型才会走这里
-					writer.WriteCommonVal(type, val);
-					return true;
-			}
-		}
-		
-		/// <summary>
 		/// Serialize a NinoSerialize object
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
@@ -153,6 +57,36 @@ namespace Nino.Serialization
 			Type type = typeof(T);
 			Writer writer = new Writer(encoding ?? DefaultEncoding);
 
+			//basic type
+			if (writer.AttemptWriteBasicType(val))
+			{
+				switch (TypeModel.GetTypeCode(type))
+				{
+					//basic type without compression
+					case TypeCode.Int32:
+					case TypeCode.UInt32:
+					case TypeCode.Int64:
+					case TypeCode.UInt64:
+					case TypeCode.Byte:
+					case TypeCode.SByte:
+					case TypeCode.Int16:
+					case TypeCode.UInt16:
+					case TypeCode.Boolean:
+					case TypeCode.Char:
+					case TypeCode.Decimal:
+					case TypeCode.Double:
+					case TypeCode.Single:
+					case TypeCode.DateTime:
+						//don't compress it
+						var noCompression = writer.ToBytes();
+						writer.Dispose();
+						return noCompression;
+				}
+				//compress it
+				var ret = writer.ToCompressedBytes();
+				writer.Dispose();
+				return ret;
+			}
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
@@ -166,14 +100,6 @@ namespace Nino.Serialization
 					writer.Dispose();
 					return ret;
 				}
-			}
-			//basic type
-			if (AttemptWriteBasicType(val, writer))
-			{
-				//compress it
-				var ret = writer.ToCompressedBytes();
-				writer.Dispose();
-				return ret;
 			}
 			//reflection type
 			return Serialize(type, val, encoding ?? DefaultEncoding, writer);
@@ -211,6 +137,15 @@ namespace Nino.Serialization
 			{
 				writer = new Writer(encoding);
 			}
+			
+			//basic type
+			if (writer.AttemptWriteBasicType(value))
+			{
+				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+				if(returnValue)
+					writer.Dispose();
+				return ret;
+			}
 
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
@@ -225,15 +160,6 @@ namespace Nino.Serialization
 						writer.Dispose();
 					return ret;
 				}
-			}
-			
-			//basic type
-			if (AttemptWriteBasicType(value, writer))
-			{
-				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
-				if(returnValue)
-					writer.Dispose();
-				return ret;
 			}
 
 			//Get Attribute that indicates a class/struct to be serialized

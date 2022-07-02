@@ -3,6 +3,8 @@ using Nino.Shared.IO;
 using System.IO.Compression;
 using DeflateStream = Nino.Shared.IO.DeflateStream;
 // ReSharper disable UnusedMember.Local
+// ReSharper disable HeuristicUnreachableCode
+#pragma warning disable 162
 
 namespace Nino.Shared.Mgr
 {
@@ -230,7 +232,7 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         private static byte[] CompressOnNative(ExtensibleBuffer<byte> data, int length)
         {
-            using (var compressedStream = new MemoryStream())
+            using (var compressedStream = new MemoryStream(length))
             using (var zipStream = new System.IO.Compression.DeflateStream(compressedStream, CompressionMode.Compress))
             {
                 data.WriteToStream(zipStream, length);

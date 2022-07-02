@@ -18,7 +18,7 @@ namespace Nino.Serialization
 		/// block size when creating buffer
 		/// </summary>
 		private const int BufferBlockSize = 1024 * 2;
-		
+
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
@@ -71,8 +71,9 @@ namespace Nino.Serialization
 			{
 				_buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
 			}
+
 			_buffer.ReadOnly = false;
-			this._encoding = encoding;
+			_encoding = encoding;
 			_length = 0;
 			_position = 0;
 		}
@@ -86,6 +87,152 @@ namespace Nino.Serialization
 		/// Position of the current buffer
 		/// </summary>
 		private int _position;
+
+		/// <summary>
+		/// Write basic type to writer
+		/// </summary>
+		/// <param name="val"></param>
+		/// <typeparam name="T"></typeparam>
+		// ReSharper disable CognitiveComplexity
+		internal bool AttemptWriteBasicType<T>(T val)
+			// ReSharper restore CognitiveComplexity
+		{
+			switch (val)
+			{
+				//without sign
+				case ulong ul:
+					CompressAndWrite(ul);
+					return true;
+				case uint ui:
+					CompressAndWrite(ui);
+					return true;
+				case ushort us: //unnecessary to compress
+					Write(us);
+					return true;
+				case byte b: //unnecessary to compress
+					Write(b);
+					return true;
+				// with sign
+				case long l:
+					CompressAndWrite(l);
+					return true;
+				case int i:
+					CompressAndWrite(i);
+					return true;
+				case short s: //unnecessary to compress
+					Write(s);
+					return true;
+				case sbyte sb: //unnecessary to compress
+					Write(sb);
+					return true;
+				case bool b:
+					Write(b);
+					return true;
+				case double db:
+					Write(db);
+					return true;
+				case decimal dc:
+					Write(dc);
+					return true;
+				case float fl:
+					Write(fl);
+					return true;
+				case char c:
+					Write(c);
+					return true;
+				case string s:
+					Write(s);
+					return true;
+				case DateTime dt:
+					Write(dt);
+					return true;
+				default:
+					var type = typeof(T);
+					if (type == ConstMgr.ObjectType)
+					{
+						//unbox
+						type = val.GetType();
+						//failed to unbox
+						if (type == ConstMgr.ObjectType)
+							return false;
+					}
+
+					//basic type
+					//看看有没有注册委托，没的话有概率不行
+					if (!Serializer.CustomImporter.ContainsKey(type))
+					{
+						//比如泛型，只能list和dict
+						if (type.IsGenericType)
+						{
+							var genericDefType = type.GetGenericTypeDefinition();
+							//不是list和dict就再见了
+							if (genericDefType == ConstMgr.ListDefType)
+							{
+								Write((ICollection)val);
+								return true;
+							}
+
+							if (genericDefType == ConstMgr.DictDefType)
+							{
+								Write((IDictionary)val);
+								return true;
+							}
+
+							return false;
+						}
+
+						//其他类型也不行
+						if (type.IsArray)
+						{
+#if !ILRuntime
+							if (type.GetArrayRank() > 1)
+							{
+								throw new NotSupportedException(
+									"can not serialize multidimensional array, use jagged array instead");
+							}
+#endif
+							Write(val as Array);
+							return true;
+						}
+
+						if (type.IsEnum)
+						{
+							//have to box enum
+							CompressAndWriteEnum(type, val);
+							return true;
+						}
+
+						return false;
+					}
+					else
+					{
+						if (Serializer.CustomImporter.TryGetValue(type, out var importerDelegate))
+						{
+							importerDelegate.Invoke(val, this);
+							return true;
+						}
+					}
+
+					return false;
+			}
+		}
+
+		/// <summary>
+		/// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="val"></param>
+		/// <exception cref="InvalidDataException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		// ReSharper disable CognitiveComplexity
+		public void WriteCommonVal(Type type, object val)
+			// ReSharper restore CognitiveComplexity
+		{
+			if (!AttemptWriteBasicType(val))
+			{
+				Serializer.Serialize(type, val, _encoding, this, false);
+			}
+		}
 
 		/// <summary>
 		/// Write byte[]
@@ -109,6 +256,22 @@ namespace Nino.Serialization
 			_buffer.CopyFrom(data, 0, _position, len);
 			_position += len;
 			_length += len;
+		}
+
+		/// <summary>
+		/// Write unmanaged type
+		/// </summary>
+		/// <param name="val"></param>
+		/// <param name="len"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private unsafe void Write<T>(T val, int len) where T : unmanaged
+		{
+			byte* ptr = (byte*)&val;
+			int i = 0;
+			while (i < len)
+			{
+				Write(*(ptr + i++));
+			}
 		}
 
 		/// <summary>
@@ -148,12 +311,13 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(string val)
 		{
-            if (string.IsNullOrEmpty(val))
+			if (string.IsNullOrEmpty(val))
 			{
 				Write((byte)CompressType.ByteString);
 				Write((byte)0);
 				return;
 			}
+
 			var len = _encoding.GetByteCount(val);
 			if (len <= byte.MaxValue)
 			{
@@ -180,6 +344,7 @@ namespace Nino.Serialization
 			{
 				throw new InvalidDataException("invalid string to write, can not determine length");
 			}
+
 			BufferPool.ReturnBuffer(b);
 		}
 
@@ -188,27 +353,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="d"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe void Write(decimal d)
+		public void Write(decimal d)
 		{
-			var valueSpan = new ReadOnlySpan<byte>(&d, ConstMgr.SizeOfDecimal);
-			//16 bytes can consider write manually
-			_buffer[_position++] = valueSpan[0];
-			_buffer[_position++] = valueSpan[1];
-			_buffer[_position++] = valueSpan[2];
-			_buffer[_position++] = valueSpan[3];
-			_buffer[_position++] = valueSpan[4];
-			_buffer[_position++] = valueSpan[5];
-			_buffer[_position++] = valueSpan[6];
-			_buffer[_position++] = valueSpan[7];
-			_buffer[_position++] = valueSpan[8];
-			_buffer[_position++] = valueSpan[9];
-			_buffer[_position++] = valueSpan[10];
-			_buffer[_position++] = valueSpan[11];
-			_buffer[_position++] = valueSpan[12];
-			_buffer[_position++] = valueSpan[13];
-			_buffer[_position++] = valueSpan[14];
-			_buffer[_position++] = valueSpan[15];
-			_length += ConstMgr.SizeOfDecimal;
+			Write(d, ConstMgr.SizeOfDecimal);
 		}
 
 		/// <summary>
@@ -217,20 +364,15 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(bool value)
+		public unsafe void Write(bool value)
 		{
-			Write((byte)(value ? 1 : 0));
+			Write(*((byte*)(&value)));
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(char ch)
+		public unsafe void Write(char value)
 		{
-			var bytes = BitConverter.GetBytes(ch);
-			//faster
-			for (int i = 0; i < bytes.Length; i++)
-			{
-				Write(bytes[i]);
-			}
+			Write(*((ushort*)(&value)));
 		}
 
 		#region write whole num
@@ -266,21 +408,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(int num)
 		{
-
-			// fixed (byte* p = &buffer[Position])
-			// {
-			// 	*(int*)p = num;
-			// }
-			//
-			// Position += SizeOfInt;
-			// Length += SizeOfInt;
-
-			_buffer[_position++] = (byte)num;
-			_buffer[_position++] = (byte)(num >> 8);
-			_buffer[_position++] = (byte)(num >> 16);
-			_buffer[_position++] = (byte)(num >> 24);
-
-			_length += ConstMgr.SizeOfInt;
+			Write(num, ConstMgr.SizeOfInt);
 		}
 
 		/// <summary>
@@ -290,21 +418,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(uint num)
 		{
-
-			// fixed (byte* p = &buffer[Position])
-			// {
-			// 	*(uint*)p = num;
-			// }
-			//
-			// Position += SizeOfUInt;
-			// Length += SizeOfUInt;
-
-			_buffer[_position++] = (byte)num;
-			_buffer[_position++] = (byte)(num >> 8);
-			_buffer[_position++] = (byte)(num >> 16);
-			_buffer[_position++] = (byte)(num >> 24);
-
-			_length += ConstMgr.SizeOfUInt;
+			Write(num, ConstMgr.SizeOfUInt);
 		}
 
 		/// <summary>
@@ -314,19 +428,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(short num)
 		{
-
-			// fixed (byte* p = &buffer[Position])
-			// {
-			// 	*(short*)p = num;
-			// }
-			//
-			// Position += SizeOfShort;
-			// Length += SizeOfShort;
-
-			_buffer[_position++] = (byte)num;
-			_buffer[_position++] = (byte)(num >> 8);
-
-			_length += ConstMgr.SizeOfShort;
+			Write(num, ConstMgr.SizeOfShort);
 		}
 
 		/// <summary>
@@ -336,19 +438,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ushort num)
 		{
-
-			// fixed (byte* p = &buffer[Position])
-			// {
-			// 	*(ushort*)p = num;
-			// }
-			//
-			// Position += SizeOfUShort;
-			// Length += SizeOfUShort;
-
-			_buffer[_position++] = (byte)num;
-			_buffer[_position++] = (byte)(num >> 8);
-
-			_length += ConstMgr.SizeOfUShort;
+			Write(num, ConstMgr.SizeOfUShort);
 		}
 
 		/// <summary>
@@ -358,25 +448,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(long num)
 		{
-
-			// fixed (byte* p = &buffer[Position])
-			// {
-			// 	*(long*)p = num;
-			// }
-			//
-			// Position += SizeOfLong;
-			// Length += SizeOfLong;
-
-			_buffer[_position++] = (byte)num;
-			_buffer[_position++] = (byte)(num >> 8);
-			_buffer[_position++] = (byte)(num >> 16);
-			_buffer[_position++] = (byte)(num >> 24);
-			_buffer[_position++] = (byte)(num >> 32);
-			_buffer[_position++] = (byte)(num >> 40);
-			_buffer[_position++] = (byte)(num >> 48);
-			_buffer[_position++] = (byte)(num >> 56);
-
-			_length += ConstMgr.SizeOfLong;
+			Write(num, ConstMgr.SizeOfLong);
 		}
 
 		/// <summary>
@@ -386,25 +458,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ulong num)
 		{
-
-			// fixed (byte* p = &buffer[Position])
-			// {
-			// 	*(ulong*)p = num;
-			// }
-			//
-			// Position += SizeOfULong;
-			// Length += SizeOfULong;
-
-			_buffer[_position++] = (byte)num;
-			_buffer[_position++] = (byte)(num >> 8);
-			_buffer[_position++] = (byte)(num >> 16);
-			_buffer[_position++] = (byte)(num >> 24);
-			_buffer[_position++] = (byte)(num >> 32);
-			_buffer[_position++] = (byte)(num >> 40);
-			_buffer[_position++] = (byte)(num >> 48);
-			_buffer[_position++] = (byte)(num >> 56);
-
-			_length += ConstMgr.SizeOfULong;
+			Write(num, ConstMgr.SizeOfULong);
 		}
 
 		#endregion
@@ -470,6 +524,7 @@ namespace Nino.Serialization
 				CompressAndWriteNeg(num);
 				return;
 			}
+
 			if (num <= int.MaxValue)
 			{
 				CompressAndWrite((int)num);
@@ -501,6 +556,7 @@ namespace Nino.Serialization
 				CompressAndWriteNeg(num);
 				return;
 			}
+
 			if (num <= short.MaxValue)
 			{
 				CompressAndWrite((short)num);
@@ -532,6 +588,7 @@ namespace Nino.Serialization
 				CompressAndWriteNeg(num);
 				return;
 			}
+
 			//parse to byte
 			if (num <= sbyte.MaxValue)
 			{
@@ -548,7 +605,7 @@ namespace Nino.Serialization
 			Write((byte)CompressType.Int16);
 			Write(num);
 		}
-		
+
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private void CompressAndWriteNeg(short num)
 		{
@@ -572,132 +629,13 @@ namespace Nino.Serialization
 		#endregion
 
 		/// <summary>
-		/// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="val"></param>
-		/// <exception cref="InvalidDataException"></exception>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		// ReSharper disable CognitiveComplexity
-		public void WriteCommonVal(Type type, object val)
-			// ReSharper restore CognitiveComplexity
-		{
-			//write basic values
-			switch (val)
-			{
-				//without sign
-				case ulong ul:
-					CompressAndWrite(ul);
-					return;
-				case uint ui:
-					CompressAndWrite(ui);
-					return;
-				case ushort us: //unnecessary to compress
-					Write(us);
-					return;
-				case byte b: //unnecessary to compress
-					Write(b);
-					return;
-				// with sign
-				case long l:
-					CompressAndWrite(l);
-					return;
-				case int i:
-					CompressAndWrite(i);
-					return;
-				case short s: //unnecessary to compress
-					Write(s);
-					return;
-				case sbyte sb: //unnecessary to compress
-					Write(sb);
-					return;
-				case bool b:
-					Write(b);
-					return;
-				case double db:
-					Write(db);
-					return;
-				case decimal dc:
-					Write(dc);
-					return;
-				case float fl:
-					Write(fl);
-					return;
-				case char c:
-					Write(c);
-					return;
-				case string s:
-					Write(s);
-					return;
-				case DateTime dt:
-					Write(dt);
-					return;
-			}
-
-			//enum
-			if (type.IsEnum)
-			{
-				//try compress and write
-				// ReSharper disable PossibleInvalidCastException
-				CompressAndWriteEnum(type, val);
-				// ReSharper restore PossibleInvalidCastException
-				return;
-			}
-
-			//array/ list -> recursive
-			if (type.IsArray)
-			{
-#if !ILRuntime
-				if (type.GetArrayRank() > 1)
-				{
-					throw new NotSupportedException("can not serialize multidimensional array, use jagged array instead");
-				}
-#endif
-				Write((Array)val);
-				return;
-			}
-
-			if (type.IsGenericType)
-			{
-				var genericDefType = type.GetGenericTypeDefinition();
-
-				//list
-				if (genericDefType == ConstMgr.ListDefType)
-				{
-					Write((ICollection)val);
-					return;
-				}
-
-				//dict
-				if (genericDefType == ConstMgr.DictDefType)
-				{
-					Write((IDictionary)val);
-					return;
-				}
-			}
-
-			//custom importer
-			if (Serializer.CustomImporter.TryGetValue(type, out var importerDelegate))
-			{
-				importerDelegate.Invoke(val, this);
-			}
-			else
-			{
-				Serializer.Serialize(type, val, _encoding, this, false);
-			}
-		}
-
-		/// <summary>
-		/// Compress and write enum
+		/// Compress and write enum (boxing)
 		/// </summary>
 		/// <param name="type"></param>
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void CompressAndWriteEnum(Type type, object val)
+		internal void CompressAndWriteEnum(Type type, object val)
 		{
-			type = Enum.GetUnderlyingType(type);
-			//typeof(byte), typeof(sbyte), typeof(short), typeof(ushort),
-			//typeof(int), typeof(uint), typeof(long), typeof(ulong)
 			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
@@ -728,7 +666,7 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-		/// Compress and write enum
+		/// Compress and write enum (no boxing)
 		/// </summary>
 		/// <param name="type"></param>
 		/// <param name="val"></param>
@@ -774,6 +712,7 @@ namespace Nino.Serialization
 				CompressAndWrite(0);
 				return;
 			}
+
 			var type = arr.GetType();
 			//byte[] -> write directly
 			if (type == ConstMgr.ByteArrType)
@@ -799,12 +738,13 @@ namespace Nino.Serialization
 		public void Write(ICollection arr)
 		{
 			//empty
-			if(arr == null)
-            {
+			if (arr == null)
+			{
 				//write len
 				CompressAndWrite(0);
 				return;
 			}
+
 			var type = arr.GetType();
 			//List<byte> -> write directly
 			if (type == ConstMgr.ByteListType)
@@ -843,6 +783,7 @@ namespace Nino.Serialization
 				CompressAndWrite(0);
 				return;
 			}
+
 			var type = dictionary.GetType();
 			var args = type.GetGenericArguments();
 			Type keyType = args[0];
