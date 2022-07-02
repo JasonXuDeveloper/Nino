@@ -74,6 +74,48 @@ namespace Nino.Serialization
 		};
 
 		/// <summary>
+		/// No compression typecodes
+		/// </summary>
+		internal static readonly HashSet<TypeCode> NoCompressionTypeCodes = new HashSet<TypeCode>()
+		{
+			TypeCode.Int32,
+			TypeCode.UInt32,
+			TypeCode.Int64,
+			TypeCode.UInt64,
+			TypeCode.Byte,
+			TypeCode.SByte,
+			TypeCode.Int16,
+			TypeCode.UInt16,
+			TypeCode.Boolean,
+			TypeCode.Char,
+			TypeCode.Decimal,
+			TypeCode.Double,
+			TypeCode.Single,
+			TypeCode.DateTime,
+		};
+
+		/// <summary>
+		/// No compression types
+		/// </summary>
+		internal static readonly HashSet<Type> NoCompressionTypes = new HashSet<Type>()
+		{
+			typeof(int),
+			typeof(uint),
+			typeof(long),
+			typeof(ulong),
+			typeof(byte),
+			typeof(sbyte),
+			typeof(short),
+			typeof(ushort),
+			typeof(bool),
+			typeof(char),
+			typeof(decimal),
+			typeof(double),
+			typeof(float),
+			typeof(DateTime),
+		};
+
+		/// <summary>
 		/// Get a type code
 		/// </summary>
 		/// <param name="type"></param>

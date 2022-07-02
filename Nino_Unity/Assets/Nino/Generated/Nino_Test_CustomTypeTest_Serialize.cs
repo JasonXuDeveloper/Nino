@@ -10,7 +10,7 @@ namespace Nino.Test
             public void NinoWriteMembers(CustomTypeTest value, Nino.Serialization.Writer writer)
             {
                 writer.WriteCommonVal(typeof(UnityEngine.Vector3), value.v3);
-                writer.WriteCommonVal(typeof(System.DateTime), value.dt);
+                writer.Write(value.dt);
                 writer.WriteCommonVal(typeof(System.Nullable<System.Int32>), value.ni);
                 if(value.qs != null)
                 {
@@ -62,7 +62,7 @@ namespace Nino.Test
             {
                 CustomTypeTest value = new CustomTypeTest();
                 value.v3 = (UnityEngine.Vector3)reader.ReadCommonVal(typeof(UnityEngine.Vector3));
-                value.dt = (System.DateTime)reader.ReadCommonVal(typeof(System.DateTime));
+                value.dt = reader.ReadDateTime();
                 value.ni = (System.Nullable<System.Int32>)reader.ReadCommonVal(typeof(System.Nullable<System.Int32>));
                 value.qs = new System.Collections.Generic.List<UnityEngine.Quaternion>(reader.ReadLength());
                 for(int i = 0, cnt = value.qs.Capacity; i < cnt; i++)

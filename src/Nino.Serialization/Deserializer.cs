@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 using System.Reflection;
@@ -56,44 +57,30 @@ namespace Nino.Serialization
 		public static T Deserialize<T>(byte[] data, Encoding encoding = null)
 		{
 			Type type = typeof(T);
-			object obj;
-			
-			switch (TypeModel.GetTypeCode(type))
-			{
-				//basic type without compression
-				case TypeCode.Int32:
-				case TypeCode.UInt32:
-				case TypeCode.Int64:
-				case TypeCode.UInt64:
-				case TypeCode.Byte:
-				case TypeCode.SByte:
-				case TypeCode.Int16:
-				case TypeCode.UInt16:
-				case TypeCode.Boolean:
-				case TypeCode.Char:
-				case TypeCode.Decimal:
-				case TypeCode.Double:
-				case TypeCode.Single:
-				case TypeCode.DateTime:
-					Reader noCompressionReader = new Reader(data, data.Length, encoding ?? DefaultEncoding);
-					//basic type
-					obj = noCompressionReader.AttemptReadBasicType(type, out var r);
-					if (r)
-					{
-						noCompressionReader.Dispose();
-						return (T)obj;
-					}
-					break;
-			}
-			Reader reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
+
 			//basic type
-			obj = reader.AttemptReadBasicType(type, out var result);
-			if (result)
+			if (WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
 			{
-				reader.Dispose();
-				return (T)obj;
+				Reader basicReader;
+				if (TypeModel.NoCompressionTypes.Contains(type))
+				{
+					basicReader = new Reader(data, data.Length, encoding ?? DefaultEncoding);
+				}
+				else
+				{
+					basicReader = new Reader(CompressMgr.Decompress(data, out var length), length,
+						encoding ?? DefaultEncoding);
+
+				}
+
+				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(basicReader);
+				basicReader.Dispose();
+				var retVal = ret.Value;
+				ObjectPool<Box<T>>.Return(ret);
+				return retVal;
 			}
-			
+
+			Reader reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
@@ -107,7 +94,7 @@ namespace Nino.Serialization
 				}
 			}
 
-			return (T)Deserialize(type, obj, data, encoding ?? DefaultEncoding, reader);
+			return (T)Deserialize(type, null, data, encoding ?? DefaultEncoding, reader, skipCheck: true);
 		}
 
 		/// <summary>
@@ -119,30 +106,55 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		/// <param name="reader"></param>
 		/// <param name="returnDispose"></param>
+		/// <param name="skipCheck"></param>
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
 		// ReSharper disable CognitiveComplexity
-		internal static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader, bool returnDispose = true)
+		internal static object Deserialize(Type type, object val, byte[] data, Encoding encoding, Reader reader,
+				bool returnDispose = true, bool skipCheck = false)
 			// ReSharper restore CognitiveComplexity
 		{
 			//prevent null encoding
 			encoding = encoding ?? DefaultEncoding;
 
+			//basic type
+			if (!skipCheck && WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
+			{
+				Reader basicReader;
+				if (TypeModel.NoCompressionTypes.Contains(type))
+				{
+					basicReader = new Reader(data, data.Length, encoding ?? DefaultEncoding);
+				}
+				else
+				{
+					basicReader = new Reader(CompressMgr.Decompress(data, out var length), length,
+						encoding ?? DefaultEncoding);
+				}
+
+				var ret = wrapper.Deserialize(basicReader);
+				if (returnDispose)
+					basicReader.Dispose();
+				return ret;
+			}
+
 			if (reader == null)
 			{
 				reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding);
 			}
-			
-			//basic type
-			val = reader.AttemptReadBasicType(type, out var result);
-			if (result)
+
+			//enum
+			if (type.IsEnum)
 			{
-				if(returnDispose)
-					reader.Dispose();
-				return val;
+
+				var ret = Deserialize(Enum.GetUnderlyingType(type), null, data, encoding, reader, returnDispose);
+#if !ILRuntime
+				ret = Enum.ToObject(type, ret);
+
+#endif
+				return ret;
 			}
-			
+
 			//code generated type
 			if (TypeModel.TryGetHelper(type, out var helperObj))
 			{
@@ -151,12 +163,43 @@ namespace Nino.Serialization
 				{
 					//start Deserialize
 					var ret = helper.NinoReadMembers(reader);
-					if(returnDispose)
+					if (returnDispose)
 						reader.Dispose();
 					return ret;
 				}
 			}
-			
+
+			//array
+			if (type.IsArray)
+			{
+				var ret = reader.ReadArray(type);
+				if (returnDispose)
+					reader.Dispose();
+				return ret;
+			}
+
+			//list, dict
+			if (type.IsGenericType)
+			{
+				var genericDefType = type.GetGenericTypeDefinition();
+				//不是list和dict就再见了
+				if (genericDefType == ConstMgr.ListDefType)
+				{
+					var ret = reader.ReadList(type);
+					if (returnDispose)
+						reader.Dispose();
+					return ret;
+				}
+
+				if (genericDefType == ConstMgr.DictDefType)
+				{
+					var ret = reader.ReadDictionary(type);
+					if (returnDispose)
+						reader.Dispose();
+					return ret;
+				}
+			}
+
 			//create type
 			if (val == null || val == ConstMgr.Null)
 			{
@@ -269,7 +312,7 @@ namespace Nino.Serialization
 
 			//start Deserialize
 			Read();
-			if(returnDispose)
+			if (returnDispose)
 				reader.Dispose();
 			return val;
 		}

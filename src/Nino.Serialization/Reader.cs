@@ -60,7 +60,7 @@ namespace Nino.Serialization
 			_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
 			_buffer.CopyFrom(data, 0, 0, outputLength);
 			_buffer.ReadOnly = true;
-			this._encoding = encoding;
+			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
 		}
@@ -542,7 +542,7 @@ namespace Nino.Serialization
 		/// <param name="len"></param>
 		/// <param name="result"></param>
 		/// <returns></returns>
-		private Array TryGetBasicTypeArray(Type type, int len, out bool result)
+		internal Array TryGetBasicTypeArray(Type type, int len, out bool result)
 		{
 			result = true;
 			switch (TypeModel.GetTypeCode(type))
@@ -679,7 +679,7 @@ namespace Nino.Serialization
 		/// <param name="len"></param>
 		/// <param name="result"></param>
 		/// <returns></returns>
-		private IList TryGetBasicTypeList(Type type, int len, out bool result)
+		internal IList TryGetBasicTypeList(Type type, int len, out bool result)
 		{
 			result = true;
 			switch (TypeModel.GetTypeCode(type))
