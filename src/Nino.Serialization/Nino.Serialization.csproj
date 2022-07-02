@@ -20,7 +20,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <PackageVersion>1.0.6</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.5
+        <PackageReleaseNotes>v1.0.6
 - [optimization] lower GC and faster performance on primitives
 - [optimization] faster read/write methods</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType> 
