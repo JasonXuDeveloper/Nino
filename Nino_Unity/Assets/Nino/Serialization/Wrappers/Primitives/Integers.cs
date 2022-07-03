@@ -48,7 +48,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<byte>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.ReadByte());
             }
@@ -74,24 +75,35 @@ namespace Nino.Serialization
 
     internal class SByteArrWrapper : NinoWrapperBase<sbyte[]>
     {
-        public override void Serialize(sbyte[] val, Writer writer)
+        public override unsafe void Serialize(sbyte[] val, Writer writer)
         {
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
+            int len = val.Length;
+            writer.CompressAndWrite(len);
+            if (len > 0)
             {
-                writer.Write(v);
+                fixed (sbyte* ptr = val)
+                {
+                    writer.Write((byte*)ptr, len);
+                }
             }
         }
 
-        public override Box<sbyte[]> Deserialize(Reader reader)
+        public override unsafe Box<sbyte[]> Deserialize(Reader reader)
         {
             var ret = ObjectPool<Box<sbyte[]>>.Request();
             int len = reader.ReadLength();
-            var arr = new sbyte[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            sbyte[] arr;
+            if (len == 0)
             {
-                arr[i] = reader.ReadSByte();
+                arr = Array.Empty<sbyte>();
+            }
+            else
+            {
+                arr = new sbyte[len];
+                fixed (sbyte* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len);
+                }
             }
             ret.Value = arr;
             return ret;
@@ -115,7 +127,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<sbyte>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.ReadSByte());
             }
@@ -141,24 +154,35 @@ namespace Nino.Serialization
 
     internal class ShortArrWrapper : NinoWrapperBase<short[]>
     {
-        public override void Serialize(short[] val, Writer writer)
+        public override unsafe void Serialize(short[] val, Writer writer)
         {
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
+            int len = val.Length;
+            writer.CompressAndWrite(len);
+            if (len > 0)
             {
-                writer.Write(v);
+                fixed (short* ptr = val)
+                {
+                    writer.Write((byte*)ptr, len * 2);
+                }
             }
         }
 
-        public override Box<short[]> Deserialize(Reader reader)
+        public override unsafe Box<short[]> Deserialize(Reader reader)
         {
             var ret = ObjectPool<Box<short[]>>.Request();
             int len = reader.ReadLength();
-            var arr = new short[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            short[] arr;
+            if (len == 0)
             {
-                arr[i] = reader.ReadInt16();
+                arr = Array.Empty<short>();
+            }
+            else
+            {
+                arr = new short[len];
+                fixed (short* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len * 2);
+                }
             }
             ret.Value = arr;
             return ret;
@@ -182,7 +206,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<short>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.ReadInt16());
             }
@@ -208,24 +233,35 @@ namespace Nino.Serialization
 
     internal class UShortArrWrapper : NinoWrapperBase<ushort[]>
     {
-        public override void Serialize(ushort[] val, Writer writer)
+        public override unsafe void Serialize(ushort[] val, Writer writer)
         {
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
+            int len = val.Length;
+            writer.CompressAndWrite(len);
+            if (len > 0)
             {
-                writer.Write(v);
+                fixed (ushort* ptr = val)
+                {
+                    writer.Write((byte*)ptr, len * 2);
+                }
             }
         }
 
-        public override Box<ushort[]> Deserialize(Reader reader)
+        public override unsafe Box<ushort[]> Deserialize(Reader reader)
         {
             var ret = ObjectPool<Box<ushort[]>>.Request();
             int len = reader.ReadLength();
-            var arr = new ushort[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            ushort[] arr;
+            if (len == 0)
             {
-                arr[i] = reader.ReadUInt16();
+                arr = Array.Empty<ushort>();
+            }
+            else
+            {
+                arr = new ushort[len];
+                fixed (ushort* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len * 2);
+                }
             }
             ret.Value = arr;
             return ret;
@@ -249,7 +285,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<ushort>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.ReadUInt16());
             }
@@ -290,9 +327,10 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new int[len];
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i < len)
             {
-                arr[i] = (int)reader.DecompressAndReadNumber();
+                arr[i++] = (int)reader.DecompressAndReadNumber();
             }
             ret.Value = arr;
             return ret;
@@ -316,7 +354,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<int>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add((int)reader.DecompressAndReadNumber());
             }
@@ -357,9 +396,10 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new uint[len];
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i < len)
             {
-                arr[i] = (uint)reader.DecompressAndReadNumber();
+                arr[i++] = (uint)reader.DecompressAndReadNumber();
             }
             ret.Value = arr;
             return ret;
@@ -383,7 +423,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<uint>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add((uint)reader.DecompressAndReadNumber());
             }
@@ -424,9 +465,10 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new long[len];
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i < len)
             {
-                arr[i] = (long)reader.DecompressAndReadNumber();
+                arr[i++] = (long)reader.DecompressAndReadNumber();
             }
             ret.Value = arr;
             return ret;
@@ -450,7 +492,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<long>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add((long)reader.DecompressAndReadNumber());
             }
@@ -491,9 +534,10 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new ulong[len];
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i < len)
             {
-                arr[i] = reader.DecompressAndReadNumber();
+                arr[i++] = reader.DecompressAndReadNumber();
             }
             ret.Value = arr;
             return ret;
@@ -517,7 +561,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<ulong>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.DecompressAndReadNumber());
             }

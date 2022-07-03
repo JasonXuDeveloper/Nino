@@ -4,7 +4,6 @@ using System.Text;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
@@ -97,116 +96,66 @@ namespace Nino.Serialization
 		internal bool AttemptWriteBasicType(Type type, object val)
 			// ReSharper restore CognitiveComplexity
 		{
-			switch (val)
+			if (type == ConstMgr.ObjectType)
 			{
-				//without sign
-				case ulong ul:
-					CompressAndWrite(ul);
-					return true;
-				case uint ui:
-					CompressAndWrite(ui);
-					return true;
-				case ushort us: //unnecessary to compress
-					Write(us);
-					return true;
-				case byte b: //unnecessary to compress
-					Write(b);
-					return true;
-				// with sign
-				case long l:
-					CompressAndWrite(l);
-					return true;
-				case int i:
-					CompressAndWrite(i);
-					return true;
-				case short s: //unnecessary to compress
-					Write(s);
-					return true;
-				case sbyte sb: //unnecessary to compress
-					Write(sb);
-					return true;
-				case bool b:
-					Write(b);
-					return true;
-				case double db:
-					Write(db);
-					return true;
-				case decimal dc:
-					Write(dc);
-					return true;
-				case float fl:
-					Write(fl);
-					return true;
-				case char c:
-					Write(c);
-					return true;
-				case string s:
-					Write(s);
-					return true;
-				case DateTime dt:
-					Write(dt);
-					return true;
-				default:
-					if (val == null) return false;
-					if (WrapperManifest.TryGetWrapper(type, out var wrapper))
-					{
-						wrapper.Serialize(val,this);
-						return true;
-					}
-					if (type == ConstMgr.ObjectType)
-					{
-						//unbox
-						type = val.GetType();
-						//failed to unbox
-						if (type == ConstMgr.ObjectType)
-							return false;
-					}
-
-					//basic type
-					//比如泛型，只能list和dict
-					if (type.IsGenericType)
-					{
-						var genericDefType = type.GetGenericTypeDefinition();
-						//不是list和dict就再见了
-						if (genericDefType == ConstMgr.ListDefType)
-						{
-							Write((ICollection)val);
-							return true;
-						}
-
-						if (genericDefType == ConstMgr.DictDefType)
-						{
-							Write((IDictionary)val);
-							return true;
-						}
-
-						return false;
-					}
-
-					//其他类型也不行
-					if (type.IsArray)
-					{
-#if !ILRuntime
-						if (type.GetArrayRank() > 1)
-						{
-							throw new NotSupportedException(
-								"can not serialize multidimensional array, use jagged array instead");
-						}
-#endif
-						Write(val as Array);
-						return true;
-					}
-
-					//因为这里不是typecode，所以enum要单独检测
-					if (type.IsEnum)
-					{
-						//have to box enum
-						CompressAndWriteEnum(type, val);
-						return true;
-					}
-
+				if (val == null) return false;
+				//unbox
+				type = val.GetType();
+				//failed to unbox
+				if (type == ConstMgr.ObjectType)
 					return false;
 			}
+
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
+			{
+				wrapper.Serialize(val, this);
+				return true;
+			}
+
+			//因为这里不是typecode，所以enum要单独检测
+			if (type.IsEnum)
+			{
+				//have to box enum
+				CompressAndWriteEnum(type, val);
+				return true;
+			}
+
+			//basic type
+			//比如泛型，只能list和dict
+			if (type.IsGenericType)
+			{
+				var genericDefType = type.GetGenericTypeDefinition();
+				//不是list和dict就再见了
+				if (genericDefType == ConstMgr.ListDefType)
+				{
+					Write((IList)val);
+					return true;
+				}
+
+				if (genericDefType == ConstMgr.DictDefType)
+				{
+					Write((IDictionary)val);
+					return true;
+				}
+
+				return false;
+			}
+
+			//其他类型也不行
+			if (type.IsArray)
+			{
+#if !ILRuntime
+				if (type.GetArrayRank() > 1)
+				{
+					throw new NotSupportedException(
+						"can not serialize multidimensional array, use jagged array instead");
+				}
+#endif
+				Write(val as Array);
+				return true;
+			}
+
+			return false;
 		}
 
 		/// <summary>
@@ -222,7 +171,7 @@ namespace Nino.Serialization
 		{
 			if (!AttemptWriteBasicType(type, val))
 			{
-				Serializer.Serialize(type, val, _encoding, this, false, false, false, true, true);
+				Serializer.Serialize(type, val, _encoding, this, false, true, false, true, true);
 			}
 		}
 
@@ -256,7 +205,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private unsafe void Write(byte* data, int len)
+		internal unsafe void Write(byte* data, int len)
 		{
 			//mono can not guarantee overlapped memory copy 
 			if (ConstMgr.IsMono)
@@ -269,6 +218,7 @@ namespace Nino.Serialization
 			{
 				_buffer.CopyFrom(data, 0, _position, len);
 			}
+
 			_position += len;
 			_length += len;
 		}
@@ -328,7 +278,7 @@ namespace Nino.Serialization
 				Write((byte)0);
 				return;
 			}
-			
+
 			int bufferSize = _encoding.GetMaxByteCount(val.Length);
 			byte* buffer = stackalloc byte[bufferSize];
 			fixed (char* pValue = val)
@@ -620,38 +570,38 @@ namespace Nino.Serialization
 		#endregion
 
 		/// <summary>
-		/// Compress and write enum (boxing)
+		/// Compress and write enum (no boxing)
 		/// </summary>
 		/// <param name="type"></param>
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal void CompressAndWriteEnum(Type type, object val)
+		public void CompressAndWriteEnum(Type type, object val)
 		{
 			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
-					WriteCommonVal(type, (byte)val);
+					Write((byte)val);
 					return;
 				case TypeCode.SByte:
-					WriteCommonVal(type, (sbyte)val);
+					Write((sbyte)val);
 					return;
 				case TypeCode.Int16:
-					WriteCommonVal(type, (short)val);
+					Write((short)val);
 					return;
 				case TypeCode.UInt16:
-					WriteCommonVal(type, (ushort)val);
+					Write((ushort)val);
 					return;
 				case TypeCode.Int32:
-					WriteCommonVal(type, (int)val);
+					CompressAndWrite((int)val);
 					return;
 				case TypeCode.UInt32:
-					WriteCommonVal(type, (uint)val);
+					CompressAndWrite((uint)val);
 					return;
 				case TypeCode.Int64:
-					WriteCommonVal(type, (long)val);
+					CompressAndWrite((long)val);
 					return;
 				case TypeCode.UInt64:
-					WriteCommonVal(type, (ulong)val);
+					CompressAndWrite((ulong)val);
 					return;
 			}
 		}
@@ -705,28 +655,23 @@ namespace Nino.Serialization
 			}
 
 			var type = arr.GetType();
-			//byte[] -> write directly
-			if (type == ConstMgr.ByteArrType)
-			{
-				var dt = (byte[])arr;
-				//write item
-				Write(dt);
-				return;
-			}
 
 			//other type
 			var elemType = type.GetElementType();
 			//write len
-			CompressAndWrite(arr.Length);
+			int len = arr.Length;
+			CompressAndWrite(len);
+			var lst = ((IList)arr);
 			//write item
-			foreach (var c in arr)
+			int i = 0;
+			while (i < len)
 			{
-				WriteCommonVal(elemType, c);
+				WriteCommonVal(elemType, lst[i++]);
 			}
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(ICollection arr)
+		public void Write(IList arr)
 		{
 			//empty
 			if (arr == null)
@@ -737,14 +682,6 @@ namespace Nino.Serialization
 			}
 
 			var type = arr.GetType();
-			//List<byte> -> write directly
-			if (type == ConstMgr.ByteListType)
-			{
-				var dt = (List<byte>)arr;
-				//write item
-				Write(dt.ToArray());
-				return;
-			}
 
 			//other
 			var elemType = type.GenericTypeArguments[0];
@@ -776,11 +713,26 @@ namespace Nino.Serialization
 			}
 
 			var type = dictionary.GetType();
+			//parse dict type
 			var args = type.GetGenericArguments();
 			Type keyType = args[0];
+#if ILRuntime
+			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
+			{
+				keyType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
+			}
+#endif
 			Type valueType = args[1];
+#if ILRuntime
+			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt2)
+			{
+				valueType = wt2?.CLRType.GenericArguments[1].Value.ReflectionType;
+			}
+#endif
+
 			//write len
-			CompressAndWrite(dictionary.Count);
+			int len = dictionary.Count;
+			CompressAndWrite(len);
 			//record keys
 			var keys = dictionary.Keys;
 			//write items

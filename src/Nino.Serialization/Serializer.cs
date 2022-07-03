@@ -214,7 +214,7 @@ namespace Nino.Serialization
 				//不是list和dict就再见了
 				if (genericDefType == ConstMgr.ListDefType)
 				{
-					writer.Write((ICollection)value);
+					writer.Write((IList)value);
 					var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
 					if (returnValue)
 						writer.Dispose();

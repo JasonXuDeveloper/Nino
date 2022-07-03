@@ -91,8 +91,7 @@ namespace Nino.Serialization
 
 				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(basicReader);
 				basicReader.Dispose();
-				var retVal = ret.Value;
-				ObjectPool<Box<T>>.Return(ret);
+				var retVal = ret.RetrieveValueAndReturn();
 				return retVal;
 			}
 
@@ -108,8 +107,7 @@ namespace Nino.Serialization
 					//start Deserialize
 					var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
 					reader.Dispose();
-					var retVal = ret.Value;
-					ObjectPool<Box<T>>.Return(ret);
+					var retVal = ret.RetrieveValueAndReturn();
 					return retVal;
 				}
 			}

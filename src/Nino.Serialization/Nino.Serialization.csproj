@@ -23,6 +23,7 @@
         <PackageReleaseNotes>v1.0.8
 - [optimization] better code gen
 - [optimization] less memory consumption
+- [optimization] more efficient for primitive arrays
 - [optimization] faster code gen and faster custom importer exporter</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType> 
     </PropertyGroup>

@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using Nino.Shared.IO;
+using System.Collections.Generic;
 
 namespace Nino.Serialization
 {
@@ -21,24 +21,35 @@ namespace Nino.Serialization
 
     internal class FloatArrWrapper : NinoWrapperBase<float[]>
     {
-        public override void Serialize(float[] val, Writer writer)
+        public override unsafe void Serialize(float[] val, Writer writer)
         {
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
+            int len = val.Length;
+            writer.CompressAndWrite(len);
+            if (len > 0)
             {
-                writer.Write(v);
+                fixed (float* ptr = val)
+                {
+                    writer.Write((byte*)ptr, len * 4);
+                }
             }
         }
 
-        public override Box<float[]> Deserialize(Reader reader)
+        public override unsafe Box<float[]> Deserialize(Reader reader)
         {
             var ret = ObjectPool<Box<float[]>>.Request();
             int len = reader.ReadLength();
-            var arr = new float[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            float[] arr;
+            if (len == 0)
             {
-                arr[i] = reader.ReadSingle();
+                arr = Array.Empty<float>();
+            }
+            else
+            {
+                arr = new float[len];
+                fixed (float* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len * 4);
+                }
             }
             ret.Value = arr;
             return ret;
@@ -88,24 +99,35 @@ namespace Nino.Serialization
 
     internal class DoubleArrWrapper : NinoWrapperBase<double[]>
     {
-        public override void Serialize(double[] val, Writer writer)
+        public override unsafe void Serialize(double[] val, Writer writer)
         {
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
+            int len = val.Length;
+            writer.CompressAndWrite(len);
+            if (len > 0)
             {
-                writer.Write(v);
+                fixed (double* ptr = val)
+                {
+                    writer.Write((byte*)ptr, len * 8);
+                }
             }
         }
 
-        public override Box<double[]> Deserialize(Reader reader)
+        public override unsafe Box<double[]> Deserialize(Reader reader)
         {
             var ret = ObjectPool<Box<double[]>>.Request();
             int len = reader.ReadLength();
-            var arr = new double[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            double[] arr;
+            if (len == 0)
             {
-                arr[i] = reader.ReadDouble();
+                arr = Array.Empty<double>();
+            }
+            else
+            {
+                arr = new double[len];
+                fixed (double* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len * 8);
+                }
             }
             ret.Value = arr;
             return ret;
@@ -155,24 +177,35 @@ namespace Nino.Serialization
 
     internal class DecimalArrWrapper : NinoWrapperBase<decimal[]>
     {
-        public override void Serialize(decimal[] val, Writer writer)
+        public override unsafe void Serialize(decimal[] val, Writer writer)
         {
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
+            int len = val.Length;
+            writer.CompressAndWrite(len);
+            if (len > 0)
             {
-                writer.Write(v);
+                fixed (decimal* ptr = val)
+                {
+                    writer.Write((byte*)ptr, len * 16);
+                }
             }
         }
 
-        public override Box<decimal[]> Deserialize(Reader reader)
+        public override unsafe Box<decimal[]> Deserialize(Reader reader)
         {
             var ret = ObjectPool<Box<decimal[]>>.Request();
             int len = reader.ReadLength();
-            var arr = new decimal[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            decimal[] arr;
+            if (len == 0)
             {
-                arr[i] = reader.ReadDecimal();
+                arr = Array.Empty<decimal>();
+            }
+            else
+            {
+                arr = new decimal[len];
+                fixed (decimal* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len * 16);
+                }
             }
             ret.Value = arr;
             return ret;

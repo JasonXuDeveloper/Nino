@@ -280,6 +280,27 @@ namespace Nino.Serialization
 			_position += len;
 			return ret;
 		}
+		
+		/// <summary>
+		/// Copy buffer to a buffer, usually buffer allocated with stackalloc
+		/// </summary>
+		/// <param name="ptr"></param>
+		/// <param name="len"></param>
+		internal unsafe void ReadToBuffer(byte* ptr, int len)
+		{
+			//overlap memory copy
+			if (ConstMgr.IsMono)
+			{
+				byte* temp = stackalloc byte[len];
+				_buffer.CopyTo(temp, _position, len);
+				Unsafe.CopyBlockUnaligned(ptr, temp, (uint)len);
+			}
+			else
+			{
+				_buffer.CopyTo(ptr, _position, len);
+			}
+			_position += len;
+		}
 
 		/// <summary>
 		/// Read unmanaged type
@@ -497,14 +518,15 @@ namespace Nino.Serialization
 
 			Array arr = Array.CreateInstance(elemType, len);
 			//read item
-			for (int i = 0; i < len; i++)
+			int i = 0;
+			while(i < len)
 			{
 				var obj = ReadCommonVal(elemType);
 #if ILRuntime
-				arr.SetValue(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj), i);
+				arr.SetValue(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj), i++);
 				continue;
 #else
-				arr.SetValue(obj, i);
+				arr.SetValue(obj, i++);
 #endif
 			}
 
@@ -540,7 +562,8 @@ namespace Nino.Serialization
 			
 			IList arr = Activator.CreateInstance(type, ConstMgr.EmptyParam) as IList;
 			//read item
-			for (int i = 0; i < len; i++)
+			int i = 0;
+			while(i++ < len)
 			{
 				var obj = ReadCommonVal(elemType);
 #if ILRuntime
@@ -585,7 +608,8 @@ namespace Nino.Serialization
 			int len = ReadLength();
 
 			//read item
-			for (int i = 0; i < len; i++)
+			int i = 0;
+			while(i++ < len)
 			{
 				//read key
 				var key = ReadCommonVal(keyType);

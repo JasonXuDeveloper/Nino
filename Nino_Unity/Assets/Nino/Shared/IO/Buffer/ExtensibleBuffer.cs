@@ -246,6 +246,7 @@ namespace Nino.Shared.IO
 
         /// <summary>
         /// Copy data to extensible buffer
+        /// why unaligned? https://stackoverflow.com/a/72418388
         /// </summary>
         /// <param name="src"></param>
         /// <param name="srcIndex"></param>

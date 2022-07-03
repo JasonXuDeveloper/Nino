@@ -21,24 +21,35 @@ namespace Nino.Serialization
 
     internal class BoolArrWrapper : NinoWrapperBase<bool[]>
     {
-        public override void Serialize(bool[] val, Writer writer)
+        public override unsafe void Serialize(bool[] val, Writer writer)
         {
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
+            int len = val.Length;
+            writer.CompressAndWrite(len);
+            if (len > 0)
             {
-                writer.Write(v);
+                fixed (bool* ptr = val)
+                {
+                    writer.Write((byte*)ptr, len);
+                }
             }
         }
 
-        public override Box<bool[]> Deserialize(Reader reader)
+        public override unsafe Box<bool[]> Deserialize(Reader reader)
         {
             var ret = ObjectPool<Box<bool[]>>.Request();
             int len = reader.ReadLength();
-            var arr = new bool[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            bool[] arr;
+            if (len == 0)
             {
-                arr[i] = reader.ReadBool();
+                arr = Array.Empty<bool>();
+            }
+            else
+            {
+                arr = new bool[len];
+                fixed (bool* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len);
+                }
             }
             ret.Value = arr;
             return ret;
@@ -62,7 +73,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<bool>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.ReadBool());
             }
@@ -88,24 +100,35 @@ namespace Nino.Serialization
 
     internal class CharArrWrapper : NinoWrapperBase<char[]>
     {
-        public override void Serialize(char[] val, Writer writer)
+        public override unsafe void Serialize(char[] val, Writer writer)
         {
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
+            int len = val.Length;
+            writer.CompressAndWrite(len);
+            if (len > 0)
             {
-                writer.Write(v);
+                fixed (char* ptr = val)
+                {
+                    writer.Write((byte*)ptr, len * 2);
+                }
             }
         }
 
-        public override Box<char[]> Deserialize(Reader reader)
+        public override unsafe Box<char[]> Deserialize(Reader reader)
         {
             var ret = ObjectPool<Box<char[]>>.Request();
             int len = reader.ReadLength();
-            var arr = new char[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            char[] arr;
+            if (len == 0)
             {
-                arr[i] = reader.ReadChar();
+                arr = Array.Empty<char>();
+            }
+            else
+            {
+                arr = new char[len];
+                fixed (char* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len * 2);
+                }
             }
             ret.Value = arr;
             return ret;
@@ -129,7 +152,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<char>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.ReadChar());
             }
@@ -169,10 +193,10 @@ namespace Nino.Serialization
             var ret = ObjectPool<Box<string[]>>.Request();
             int len = reader.ReadLength();
             var arr = new string[len];
-            //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i < len)
             {
-                arr[i] = reader.ReadString();
+                arr[i++] = reader.ReadString();
             }
             ret.Value = arr;
             return ret;
@@ -196,7 +220,8 @@ namespace Nino.Serialization
             int len = reader.ReadLength();
             var arr = new List<string>(len);
             //read item
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.ReadString());
             }
@@ -236,9 +261,10 @@ namespace Nino.Serialization
             var ret = ObjectPool<Box<DateTime[]>>.Request();
             int len = reader.ReadLength();
             var arr = new DateTime[len];
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i < len)
             {
-                arr[i] = reader.ReadDateTime();
+                arr[i++] = reader.ReadDateTime();
             }
             ret.Value = arr;
             return ret;
@@ -261,7 +287,8 @@ namespace Nino.Serialization
             var ret = ObjectPool<Box<List<DateTime>>>.Request();
             int len = reader.ReadLength();
             var arr = new List<DateTime>(len);
-            for (int i = 0; i < len; i++)
+            int i = 0;
+            while (i++ < len)
             {
                 arr.Add(reader.ReadDateTime());
             }
