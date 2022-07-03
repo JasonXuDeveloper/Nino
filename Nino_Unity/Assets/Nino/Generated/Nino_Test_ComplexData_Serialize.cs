@@ -4,10 +4,10 @@ namespace Nino.Test
     public partial class ComplexData
     {
         public static ComplexData.SerializationHelper NinoSerializationHelper = new ComplexData.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<ComplexData>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<ComplexData>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(ComplexData value, Nino.Serialization.Writer writer)
+            public override void Serialize(ComplexData value, Nino.Serialization.Writer writer)
             {
                 if(value.a != null)
                 {
@@ -171,7 +171,7 @@ namespace Nino.Test
                         	writer.CompressAndWrite(entry.Length);
                         	foreach (var entry0 in entry)
                         	{
-                        		Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry0, writer);
+                        		Nino.Test.Data.NinoSerializationHelper.Serialize(entry0, writer);
                         	}
                         }
                         else
@@ -194,7 +194,7 @@ namespace Nino.Test
                         	writer.CompressAndWrite(entry.Length);
                         	foreach (var entry0 in entry)
                         	{
-                        		Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry0, writer);
+                        		Nino.Test.Data.NinoSerializationHelper.Serialize(entry0, writer);
                         	}
                         }
                         else
@@ -222,7 +222,7 @@ namespace Nino.Test
                         		    writer.CompressAndWrite(entry0.Length);
                         		    foreach (var entry1 in entry0)
                         		    {
-                        			    Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry1, writer);
+                        			    Nino.Test.Data.NinoSerializationHelper.Serialize(entry1, writer);
                         		    }
                         	    }
                         	    else
@@ -251,7 +251,7 @@ namespace Nino.Test
                         	writer.CompressAndWrite(entry.Count);
                         	foreach (var entry0 in entry)
                         	{
-                        		Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry0, writer);
+                        		Nino.Test.Data.NinoSerializationHelper.Serialize(entry0, writer);
                         	}
                         }
                         else
@@ -279,7 +279,7 @@ namespace Nino.Test
                         		    writer.CompressAndWrite(entry0.Length);
                         		    foreach (var entry1 in entry0)
                         		    {
-                        			    Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry1, writer);
+                        			    Nino.Test.Data.NinoSerializationHelper.Serialize(entry1, writer);
                         		    }
                         	    }
                         	    else
@@ -300,12 +300,7 @@ namespace Nino.Test
                 }
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((ComplexData)val, writer);
-            }
-
-            public ComplexData NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<ComplexData> Deserialize(Nino.Serialization.Reader reader)
             {
                 ComplexData value = new ComplexData();
                 value.a = new System.Int32[reader.ReadLength()][];
@@ -393,7 +388,7 @@ namespace Nino.Test
                     var value_f_i = new Nino.Test.Data[reader.ReadLength()];
                 	for(int value_f_i_i = 0, value_f_i_cnt = value_f_i.Length; value_f_i_i < value_f_i_cnt; value_f_i_i++)
                 	{
-                		var value_value_f_i_i = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                		var value_value_f_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
                 		value_f_i[value_f_i_i] = value_value_f_i_i;
                 	}
                     value.f[i] = value_f_i;
@@ -404,7 +399,7 @@ namespace Nino.Test
                     var value_g_i = new Nino.Test.Data[reader.ReadLength()];
                 	for(int value_g_i_i = 0, value_g_i_cnt = value_g_i.Length; value_g_i_i < value_g_i_cnt; value_g_i_i++)
                 	{
-                		var value_value_g_i_i = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                		var value_value_g_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
                 		value_g_i[value_g_i_i] = value_value_g_i_i;
                 	}
                     value.g.Add(value_g_i);
@@ -418,7 +413,7 @@ namespace Nino.Test
                 		var value_value_h_i_i = new Nino.Test.Data[reader.ReadLength()];
                 		for(int value_value_h_i_i_i = 0, value_value_h_i_i_cnt = value_value_h_i_i.Length; value_value_h_i_i_i < value_value_h_i_i_cnt; value_value_h_i_i_i++)
                 		{
-                			var value_value_value_h_i_i_i = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                			var value_value_value_h_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
                 			value_value_h_i_i[value_value_h_i_i_i] = value_value_value_h_i_i_i;
                 		}
                 		value_h_i[value_h_i_i] = value_value_h_i_i;
@@ -431,7 +426,7 @@ namespace Nino.Test
                     var value_i_i = new System.Collections.Generic.List<Nino.Test.Data>(reader.ReadLength());
                 	for(int value_i_i_i = 0, value_i_i_cnt = value_i_i.Capacity; value_i_i_i < value_i_i_cnt; value_i_i_i++)
                 	{
-                		var value_value_i_i_i = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                		var value_value_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
                 		value_i_i.Add(value_value_i_i_i);
                 	}
                     value.i[i] = value_i_i;
@@ -445,19 +440,16 @@ namespace Nino.Test
                 		var value_value_j_i_i = new Nino.Test.Data[reader.ReadLength()];
                 		for(int value_value_j_i_i_i = 0, value_value_j_i_i_cnt = value_value_j_i_i.Length; value_value_j_i_i_i < value_value_j_i_i_cnt; value_value_j_i_i_i++)
                 		{
-                			var value_value_value_j_i_i_i = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                			var value_value_value_j_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
                 			value_value_j_i_i[value_value_j_i_i_i] = value_value_value_j_i_i_i;
                 		}
                 		value_j_i.Add(value_value_j_i_i);
                 	}
                     value.j[i] = value_j_i;
                 }
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.ComplexData>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

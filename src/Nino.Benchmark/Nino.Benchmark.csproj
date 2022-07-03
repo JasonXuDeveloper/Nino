@@ -31,4 +31,7 @@
       <ItemGroup>
         <ProjectReference Include="..\Nino.Serialization\Nino.Serialization.csproj" />
       </ItemGroup>
+      <ItemGroup>
+        <Folder Include="Serialization\Nino\Generated" />
+      </ItemGroup>
 </Project>

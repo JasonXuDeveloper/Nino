@@ -4,10 +4,10 @@ namespace Nino.Benchmark.Models
     public partial class Data
     {
         public static Data.SerializationHelper NinoSerializationHelper = new Data.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Data>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<Data>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(Data value, Nino.Serialization.Writer writer)
+            public override void Serialize(Data value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.X);
                 writer.Write(value.Y);
@@ -20,12 +20,7 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.Name);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((Data)val, writer);
-            }
-
-            public Data NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<Data> Deserialize(Nino.Serialization.Reader reader)
             {
                 Data value = new Data();
                 value.X =  (System.Int32)reader.DecompressAndReadNumber();
@@ -35,14 +30,11 @@ namespace Nino.Benchmark.Models
                 value.D = reader.ReadDecimal();
                 value.Db = reader.ReadDouble();
                 value.Bo = reader.ReadBool();
-                value.En = (Benchmark.Models.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
+                value.En = (Nino.Benchmark.Models.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
                 value.Name = reader.ReadString();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.Data>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

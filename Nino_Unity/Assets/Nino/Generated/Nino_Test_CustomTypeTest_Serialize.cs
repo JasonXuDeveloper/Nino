@@ -4,10 +4,10 @@ namespace Nino.Test
     public partial class CustomTypeTest
     {
         public static CustomTypeTest.SerializationHelper NinoSerializationHelper = new CustomTypeTest.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<CustomTypeTest>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<CustomTypeTest>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(CustomTypeTest value, Nino.Serialization.Writer writer)
+            public override void Serialize(CustomTypeTest value, Nino.Serialization.Writer writer)
             {
                 writer.WriteCommonVal(typeof(UnityEngine.Vector3), value.v3);
                 writer.Write(value.dt);
@@ -44,7 +44,7 @@ namespace Nino.Test
                     foreach (var entry in value.dict2)
                     {
                         writer.Write(entry.Key);
-                        Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry.Value, writer);
+                        Nino.Test.Data.NinoSerializationHelper.Serialize(entry.Value, writer);
                     }
                 }
                 else
@@ -53,12 +53,7 @@ namespace Nino.Test
                 }
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((CustomTypeTest)val, writer);
-            }
-
-            public CustomTypeTest NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<CustomTypeTest> Deserialize(Nino.Serialization.Reader reader)
             {
                 CustomTypeTest value = new CustomTypeTest();
                 value.v3 = (UnityEngine.Vector3)reader.ReadCommonVal(typeof(UnityEngine.Vector3));
@@ -84,15 +79,12 @@ namespace Nino.Test
                 for(int i = 0; i < value_dict2_len; i++)
                 {
                     var value_dict2_key = reader.ReadString();
-                    var value_dict2_val = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                    var value_dict2_val = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
                     value.dict2[value_dict2_key] = value_dict2_val;
                 }
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.CustomTypeTest>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 
 namespace Nino.Shared.IO
 {
@@ -11,12 +12,12 @@ namespace Nino.Shared.IO
         private const int DefaultBufferSize = 128;
         private const int DefaultBufferCount = 10;
         internal readonly UncheckedList<T[]> Data;
-        
+
         /// <summary>
         /// expand size for each block
         /// </summary>
         public readonly ushort ExpandSize;
-        
+
         /// <summary>
         /// stores the power of 2 for the expand size, which optimizes division
         /// </summary>
@@ -45,7 +46,7 @@ namespace Nino.Shared.IO
         /// </summary>
         public ExtensibleBuffer(ushort expandSize) : this(DefaultBufferCount, expandSize)
         {
-            
+
         }
 
         /// <summary>
@@ -69,6 +70,7 @@ namespace Nino.Shared.IO
                     return ret;
                 }
             }
+
             //new buffer
             var buffer = new ExtensibleBuffer<T>(DefaultBufferCount, (ushort)data.Length, data);
             return buffer;
@@ -87,6 +89,7 @@ namespace Nino.Shared.IO
             {
                 size = (ushort)PowerOf2.RoundUpToPowerOf2(size);
             }
+
             powerOf2 = PowerOf2.GetPower(size);
             ExpandSize = size;
             Data = new UncheckedList<T[]>(capacity) { initialData ?? new T[ExpandSize] };
@@ -108,7 +111,7 @@ namespace Nino.Shared.IO
             set
             {
                 if (ReadOnly)
-                    throw new InvalidOperationException("this extensible buffer is readonly");   
+                    throw new InvalidOperationException("this extensible buffer is readonly");
                 EnsureCapacity(index);
                 Data.items[index >> powerOf2][GetCurBlockIndex(index)] = value;
             }
@@ -178,6 +181,7 @@ namespace Nino.Shared.IO
                 //suppose: copy Data.items[1] from 0 to ret[24] with len of 26
                 Buffer.BlockCopy(Data.items[index], startIndex, ret, dstIndex, length);
             }
+
             return ret;
         }
 
@@ -256,7 +260,7 @@ namespace Nino.Shared.IO
                 EnsureCapacity(dstIndex >> powerOf2);
                 fixed (T* ptr = Data.items[dstIndex >> powerOf2])
                 {
-                    Buffer.MemoryCopy(src + srcIndex, ptr + GetCurBlockIndex(dstIndex), length, length);
+                    Unsafe.CopyBlockUnaligned(ptr + GetCurBlockIndex(dstIndex), src + srcIndex, (uint)length);
                 }
             }
             //separate blocks
@@ -274,9 +278,9 @@ namespace Nino.Shared.IO
                     //first iteration => suppose copy src[0] to _Data.items[0][1000], will copy 1024-1000=> 24 bytes
                     fixed (T* ptr = Data.items[index])
                     {
-                        Buffer.MemoryCopy(src + srcIndex, ptr + dstIndex, ExpandSize - dstIndex, ExpandSize - dstIndex);
-
+                        Unsafe.CopyBlockUnaligned(ptr + dstIndex, src + srcIndex, (uint)(ExpandSize - dstIndex));
                     }
+
                     index++; //next index of extensible buffer
                     srcIndex += ExpandSize - dstIndex; //first iteration => 0 += 1024-1000 => srcIndex = 24
                     length -= ExpandSize - dstIndex; //first iteration => 50 -= 1024 - 1000 => length = 26
@@ -289,7 +293,7 @@ namespace Nino.Shared.IO
                 //will copy from src[24] to _Data.items[1][0], length of 26
                 fixed (T* ptr = Data.items[index])
                 {
-                    Buffer.MemoryCopy(src + srcIndex, ptr + dstIndex, length, length);
+                    Unsafe.CopyBlockUnaligned(ptr + dstIndex, src + srcIndex, (uint)length);
                 }
             }
         }
@@ -307,11 +311,12 @@ namespace Nino.Shared.IO
             {
                 throw new OverflowException("dst is not long enough");
             }
+
             //same block
             if (srcIndex >> powerOf2 == (srcIndex + length) >> powerOf2)
             {
                 EnsureCapacity(srcIndex >> powerOf2);
-                Buffer.BlockCopy(Data.items[srcIndex >> powerOf2], GetCurBlockIndex(srcIndex), dst,0, length);
+                Buffer.BlockCopy(Data.items[srcIndex >> powerOf2], GetCurBlockIndex(srcIndex), dst, 0, length);
             }
             //separate blocks
             else
@@ -352,7 +357,7 @@ namespace Nino.Shared.IO
                 EnsureCapacity(srcIndex >> powerOf2);
                 fixed (T* ptr = Data.items[srcIndex >> powerOf2])
                 {
-                    Buffer.MemoryCopy(ptr + GetCurBlockIndex(srcIndex), dst + 0, length,length);
+                    Unsafe.CopyBlockUnaligned(dst, ptr + GetCurBlockIndex(srcIndex), (uint)length);
                 }
             }
             //separate blocks
@@ -368,8 +373,10 @@ namespace Nino.Shared.IO
                     EnsureCapacity(index * ExpandSize);
                     fixed (T* ptr = Data.items[index])
                     {
-                        Buffer.MemoryCopy(ptr + srcIndex, dst + dstIndex, ExpandSize - srcIndex, ExpandSize - srcIndex);
+                        Unsafe.CopyBlockUnaligned(dst + dstIndex, ptr + srcIndex, (uint)(ExpandSize - srcIndex));
+
                     }
+
                     index++;
                     dstIndex += ExpandSize - srcIndex;
                     length -= ExpandSize - srcIndex;
@@ -379,7 +386,7 @@ namespace Nino.Shared.IO
                 EnsureCapacity(index * ExpandSize);
                 fixed (T* ptr = Data.items[index])
                 {
-                    Buffer.MemoryCopy(ptr + srcIndex, dst + dstIndex, length,length);
+                    Unsafe.CopyBlockUnaligned(dst + dstIndex, ptr + srcIndex, (uint)length);
                 }
             }
         }
@@ -394,7 +401,7 @@ namespace Nino.Shared.IO
             EnsureCapacity(blockIndex * ExpandSize);
             fixed (T* ptr = Data.items[blockIndex])
             {
-                Buffer.MemoryCopy(data,ptr,ExpandSize,ExpandSize);
+                Unsafe.CopyBlockUnaligned(ptr, data, ExpandSize);
             }
         }
     }

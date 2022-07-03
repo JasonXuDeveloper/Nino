@@ -4,10 +4,10 @@ namespace Nino.Test
     public partial class Data
     {
         public static Data.SerializationHelper NinoSerializationHelper = new Data.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Data>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<Data>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(Data value, Nino.Serialization.Writer writer)
+            public override void Serialize(Data value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.x);
                 writer.Write(value.y);
@@ -20,12 +20,7 @@ namespace Nino.Test
                 writer.Write(value.name);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((Data)val, writer);
-            }
-
-            public Data NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<Data> Deserialize(Nino.Serialization.Reader reader)
             {
                 Data value = new Data();
                 value.x =  (System.Int32)reader.DecompressAndReadNumber();
@@ -37,12 +32,9 @@ namespace Nino.Test
                 value.bo = reader.ReadBool();
                 value.en = (Nino.Test.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
                 value.name = reader.ReadString();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.Data>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

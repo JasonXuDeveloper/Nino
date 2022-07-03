@@ -4,33 +4,25 @@ namespace Nino.Benchmark.Models
     public partial class AccountMerge
     {
         public static AccountMerge.SerializationHelper NinoSerializationHelper = new AccountMerge.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<AccountMerge>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<AccountMerge>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(AccountMerge value, Nino.Serialization.Writer writer)
+            public override void Serialize(AccountMerge value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.OldAccountId);
                 writer.CompressAndWrite(value.NewAccountId);
                 writer.Write(value.MergeDate);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((AccountMerge)val, writer);
-            }
-
-            public AccountMerge NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<AccountMerge> Deserialize(Nino.Serialization.Reader reader)
             {
                 AccountMerge value = new AccountMerge();
                 value.OldAccountId =  (System.Int32)reader.DecompressAndReadNumber();
                 value.NewAccountId =  (System.Int32)reader.DecompressAndReadNumber();
                 value.MergeDate = reader.ReadDateTime();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.AccountMerge>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

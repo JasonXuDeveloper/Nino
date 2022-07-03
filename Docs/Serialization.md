@@ -88,7 +88,7 @@ Nino支持ILRuntime的使用，但需要初始化ILRuntime：
 
 2. 进入Nino_Unity/Assets/Nino/Serialization，找到```Nino.Serialization.asmdef```，选中后在Inspector上添加对ILRuntime的assembly definition的引用，并apply变动
 
-3. 在PlayerSetting里Symbol区域添加```ILRuntime```（如果Symbol一栏不是空的，记得两个标签之前要用```;```隔开）
+3. 在PlayerSetting里Symbol区域添加```ILRuntime```（如果Symbol一栏不是空的，记得两个标签之间要用```;```隔开）
 
 4. 调用ILRuntime解析工具
 
@@ -105,6 +105,8 @@ Nino支持ILRuntime的使用，但需要初始化ILRuntime：
 7. 生成热更工程的代码后，需要把生成的热更序列化类型的代码从Unity工程移到热更工程，并且在Unity工程删掉会报错的热更类型代码
 
 > 如果用的是assembly definition来生成热更库的，需要把生成的热更代码放到assembly definition的目录内，把外部会报错的代码挪进去就好
+>
+> 需要注意的是，ILRuntime下生成与不生成代码的差距不是特别大
 
 
 
@@ -139,7 +141,9 @@ Serializer.AddCustomImporter<UnityEngine.Vector3>((val, writer) =>
 
 这里我们写了个Vector3，将其x,y,z以float的方式写入
 
-
+> 写入(U)Int/(U)Long可以用Write(U)Int32/Write(U)Int64，但是建议用CompressAndWrite接口，可以有效压缩体积
+>
+> 写入Enum也要使用对应压缩接口，需要声明enum对应的数值类型，并且给enum的值转为ulong，例如writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) value.En);
 
 ## 注册反序列化委托
 
@@ -166,11 +170,13 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 
 这里我们读了3个float作为xyz（因为写入的时候写3个float，xyz），创建了Vector3并返回
 
-
+>如果写入(U)Int/(U)Long时用了压缩接口，那么读的时候要用DecompressAndReadNumber接口读取，并且需要转换类型，如(int)reader.DecompressAndReadNumber()
+>
+>读取Enum要用DecompressAndReadEnum(enum声明类型)，enum默认是int类型的
 
 ## 代码生成
 
-不生成代码也不会影响使用，但是生成后性能可以翻倍
+不生成代码也不会影响使用，但是生成后性能快很多很多很多（ILRuntime下不会快特别多）
 
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
@@ -211,7 +217,9 @@ Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding);
 
 > 同时如果没有指定的编码的话，会使用UTF8
 >
-> 需要注意编码问题，并且反序列化的对象需要能够通过new()创建（即包含无参数构造函数）
+> 需要注意编码问题，并且反序列化的对象需要能够创建（包含无参数的构造函数）
+
+示范：
 
 ```csharp
 var obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(byteArr);

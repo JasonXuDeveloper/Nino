@@ -55,7 +55,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Generated helpers
 		/// </summary>
-		private static readonly Dictionary<int, object> GeneratedSerializationHelper = new Dictionary<int, object>(50)
+		private static readonly Dictionary<int, object> GeneratedWrapper = new Dictionary<int, object>(50)
 		{
 			{ typeof(byte).GetTypeHashCode(), null },
 			{ typeof(sbyte).GetTypeHashCode(), null },
@@ -147,14 +147,14 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="helper"></param>
 		/// <returns></returns>
-		internal static bool TryGetHelper(Type type, out object helper)
+		internal static bool TryGetWrapper(Type type, out object helper)
 		{
-			if (GeneratedSerializationHelper.TryGetValue(type.GetTypeHashCode(), out helper)) return helper != null;
+			if (GeneratedWrapper.TryGetValue(type.GetTypeHashCode(), out helper)) return helper != null;
 			
 			var field = type.GetField(HelperName, ReflectionFlags | BindingFlags.Static);
 			helper = field?.GetValue(null);
-			GeneratedSerializationHelper[type.GetTypeHashCode()] = helper;
-			return GeneratedSerializationHelper[type.GetTypeHashCode()] != null;
+			GeneratedWrapper[type.GetTypeHashCode()] = helper;
+			return GeneratedWrapper[type.GetTypeHashCode()] != null;
 		}
 		
 		/// <summary>

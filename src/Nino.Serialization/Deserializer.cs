@@ -43,6 +43,26 @@ namespace Nino.Serialization
 			};
 			WrapperManifest.AddWrapper(typeof(T), genericWrapper);
 		}
+		
+		/// <summary>
+		/// Add custom Exporter of all type objects
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="func"></param>
+		internal static void AddCustomExporter(Type type, Func<Reader, object> func)
+		{
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
+			{
+				((GenericWrapper<object>)wrapper).Exporter = func.Invoke;
+				return;
+			}
+
+			GenericWrapper<object> genericWrapper = new GenericWrapper<object>
+			{
+				Exporter = func.Invoke
+			};
+			WrapperManifest.AddWrapper(type, genericWrapper);
+		}
 
 		/// <summary>
 		/// Deserialize a NinoSerialize object
@@ -78,15 +98,19 @@ namespace Nino.Serialization
 
 			Reader reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
 			//code generated type
-			if (TypeModel.TryGetHelper(type, out var helperObj))
+			if (TypeModel.TryGetWrapper(type, out var wrapperObj))
 			{
-				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
-				if (helper != null)
+				wrapper = (NinoWrapperBase<T>)wrapperObj;
+				if (wrapper != null)
 				{
+					//add wrapper
+					WrapperManifest.AddWrapper(type, wrapper);
 					//start Deserialize
-					var ret = helper.NinoReadMembers(reader);
+					var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
 					reader.Dispose();
-					return ret;
+					var retVal = ret.Value;
+					ObjectPool<Box<T>>.Return(ret);
+					return retVal;
 				}
 			}
 
@@ -155,13 +179,15 @@ namespace Nino.Serialization
 			}
 
 			//code generated type
-			if (!skipCodeGenCheck && TypeModel.TryGetHelper(type, out var helperObj))
+			if (!skipCodeGenCheck && TypeModel.TryGetWrapper(type, out var wrapperObj))
 			{
-				ISerializationHelper helper = (ISerializationHelper)helperObj;
-				if (helper != null)
+				wrapper = (INinoWrapper)wrapperObj;
+				if (wrapper != null)
 				{
+					//add wrapper
+					WrapperManifest.AddWrapper(type, wrapper);
 					//start Deserialize
-					var ret = helper.NinoReadMembers(reader);
+					var ret = wrapper.Deserialize(reader);
 					if (returnDispose)
 						reader.Dispose();
 					return ret;

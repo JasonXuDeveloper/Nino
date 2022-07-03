@@ -295,7 +295,7 @@ namespace Nino.Serialization
 			{
 				byte* temp = stackalloc byte[len];
 				_buffer.CopyTo(temp, _position, len);
-				Buffer.MemoryCopy(temp, ptr, len, len);
+				Unsafe.CopyBlockUnaligned(ptr, temp, (uint)len);
 			}
 			else
 			{

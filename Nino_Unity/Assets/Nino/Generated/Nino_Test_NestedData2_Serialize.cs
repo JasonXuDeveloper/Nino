@@ -4,10 +4,10 @@ namespace Nino.Test
     public partial class NestedData2
     {
         public static NestedData2.SerializationHelper NinoSerializationHelper = new NestedData2.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<NestedData2>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<NestedData2>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(NestedData2 value, Nino.Serialization.Writer writer)
+            public override void Serialize(NestedData2 value, Nino.Serialization.Writer writer)
             {
                 writer.Write(value.name);
                 if(value.ps != null)
@@ -15,7 +15,7 @@ namespace Nino.Test
                     writer.CompressAndWrite(value.ps.Length);
                     foreach (var entry in value.ps)
                     {
-                        Nino.Test.Data.NinoSerializationHelper.NinoWriteMembers(entry, writer);
+                        Nino.Test.Data.NinoSerializationHelper.Serialize(entry, writer);
                     }
                 }
                 else
@@ -36,19 +36,14 @@ namespace Nino.Test
                 }
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((NestedData2)val, writer);
-            }
-
-            public NestedData2 NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<NestedData2> Deserialize(Nino.Serialization.Reader reader)
             {
                 NestedData2 value = new NestedData2();
                 value.name = reader.ReadString();
                 value.ps = new Nino.Test.Data[reader.ReadLength()];
                 for(int i = 0, cnt = value.ps.Length; i < cnt; i++)
                 {
-                    var value_ps_i = Nino.Test.Data.NinoSerializationHelper.NinoReadMembers(reader);
+                    var value_ps_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
                     value.ps[i] = value_ps_i;
                 }
                 value.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
@@ -57,12 +52,9 @@ namespace Nino.Test
                     var value_vs_i =  (System.Int32)reader.DecompressAndReadNumber();
                     value.vs.Add(value_vs_i);
                 }
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.NestedData2>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

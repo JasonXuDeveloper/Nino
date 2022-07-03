@@ -42,6 +42,26 @@ namespace Nino.Serialization
 			};
 			WrapperManifest.AddWrapper(typeof(T), genericWrapper);
 		}
+		
+		/// <summary>
+		/// Add custom importer of all objects
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="action"></param>
+		internal static void AddCustomImporter(Type type, Action<object, Writer> action)
+		{
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
+			{
+				((GenericWrapper<object>)wrapper).Importer = action.Invoke;
+				return;
+			}
+
+			GenericWrapper<object> genericWrapper = new GenericWrapper<object>
+			{
+				Importer = action.Invoke
+			};
+			WrapperManifest.AddWrapper(type, genericWrapper);
+		}
 
 		/// <summary>
 		/// Serialize a NinoSerialize object
@@ -74,13 +94,15 @@ namespace Nino.Serialization
 			}
 
 			//code generated type
-			if (TypeModel.TryGetHelper(type, out var helperObj))
+			if (TypeModel.TryGetWrapper(type, out var wrapperObj))
 			{
-				ISerializationHelper<T> helper = (ISerializationHelper<T>)helperObj;
-				if (helper != null)
+				wrapper = (NinoWrapperBase<T>)wrapperObj;
+				if (wrapper != null)
 				{
+					//add wrapper
+					WrapperManifest.AddWrapper(type, wrapper);
 					//start serialize
-					helper.NinoWriteMembers(val, writer);
+					((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
 					//compress it
 					var ret = writer.ToCompressedBytes();
 					writer.Dispose();
@@ -159,13 +181,15 @@ namespace Nino.Serialization
 			}
 
 			//code generated type
-			if (!skipCodeGenCheck && TypeModel.TryGetHelper(type, out var helperObj))
+			if (!skipCodeGenCheck && TypeModel.TryGetWrapper(type, out var wrapperObj))
 			{
-				ISerializationHelper helper = (ISerializationHelper)helperObj;
-				if (helper != null)
+				wrapper = (INinoWrapper)wrapperObj;
+				if (wrapper != null)
 				{
+					//add wrapper
+					WrapperManifest.AddWrapper(type, wrapper);
 					//start serialize
-					helper.NinoWriteMembers(value, writer);
+					wrapper.Serialize(value, writer);
 					var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
 					if (returnValue)
 						writer.Dispose();
@@ -246,18 +270,11 @@ namespace Nino.Serialization
 					//nullable need to register custom importer
 					if (val == null)
 					{
-						if (type == ConstMgr.StringType)
+						if (type == ConstMgr.StringType ||
+						    (type.IsGenericType &&
+						     type.GetGenericTypeDefinition() == ConstMgr.ListDefType ||
+						     type.GetGenericTypeDefinition() == ConstMgr.DictDefType))
 						{
-							writer.Write((byte)CompressType.Byte);
-							writer.Write((byte)0);
-							continue;
-						}
-						//list & dict
-						else if (type.IsGenericType &&
-						         type.GetGenericTypeDefinition() == ConstMgr.ListDefType ||
-						         type.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-						{
-							//empty list or dict
 							writer.CompressAndWrite(0);
 							continue;
 						}

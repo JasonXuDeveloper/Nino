@@ -17,11 +17,10 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
-        <PackageReleaseNotes>v1.0.4
-- [feat] quick hash computer for Type object
-- [feat] IsMono const boolean</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.5
+- [optimization] faster ExtensibleBuffer operations with pointers</PackageReleaseNotes>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-        <PackageVersion>1.0.4</PackageVersion> 
+        <PackageVersion>1.0.5</PackageVersion> 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild> 
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>

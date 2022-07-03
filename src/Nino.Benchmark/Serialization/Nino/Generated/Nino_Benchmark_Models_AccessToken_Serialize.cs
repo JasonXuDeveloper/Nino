@@ -4,10 +4,10 @@ namespace Nino.Benchmark.Models
     public partial class AccessToken
     {
         public static AccessToken.SerializationHelper NinoSerializationHelper = new AccessToken.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<AccessToken>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<AccessToken>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(AccessToken value, Nino.Serialization.Writer writer)
+            public override void Serialize(AccessToken value, Nino.Serialization.Writer writer)
             {
                 writer.Write(value.Token);
                 writer.Write(value.ExpiresOnDate);
@@ -26,12 +26,7 @@ namespace Nino.Benchmark.Models
                 }
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((AccessToken)val, writer);
-            }
-
-            public AccessToken NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<AccessToken> Deserialize(Nino.Serialization.Reader reader)
             {
                 AccessToken value = new AccessToken();
                 value.Token = reader.ReadString();
@@ -40,15 +35,12 @@ namespace Nino.Benchmark.Models
                 value.Scope = new System.Collections.Generic.List<System.String>(reader.ReadLength());
                 for(int i = 0, cnt = value.Scope.Capacity; i < cnt; i++)
                 {
-                    var value_scope_i = reader.ReadString();
-                    value.Scope.Add(value_scope_i);
+                    var value_Scope_i = reader.ReadString();
+                    value.Scope.Add(value_Scope_i);
                 }
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.AccessToken>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

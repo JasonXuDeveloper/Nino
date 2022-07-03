@@ -1,12 +1,16 @@
+using Nino.Shared.IO;
+
 namespace Nino.Serialization
 {
-    public class Box<T> : Box
+    public class Box<T>
     {
-        public new T Value;
-    }
+        public T Value;
 
-    public class Box
-    {
-        public object Value;
+        public T RetrieveValueAndReturn()
+        {
+            T ret = Value;
+            ObjectPool<Box<T>>.Return(this);
+            return ret;
+        }
     }
 }

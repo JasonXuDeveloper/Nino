@@ -357,7 +357,7 @@ namespace Nino.Serialization
         {
             get
             {
-                return typeof(Nino.Serialization.ISerializationHelper<ILRuntime.Runtime.Intepreter.ILTypeInstance>);
+                return typeof(Nino.Serialization.NinoWrapperBase<ILRuntime.Runtime.Intepreter.ILTypeInstance>);
             }
         }
 
@@ -374,7 +374,7 @@ namespace Nino.Serialization
             return new Adapter(appdomain, instance);
         }
 
-        public class Adapter : Nino.Serialization.ISerializationHelper<ILRuntime.Runtime.Intepreter.ILTypeInstance>, ILRuntime.Runtime.Enviorment.CrossBindingAdaptorType
+        public class Adapter : Nino.Serialization.NinoWrapperBase<ILRuntime.Runtime.Intepreter.ILTypeInstance>, ILRuntime.Runtime.Enviorment.CrossBindingAdaptorType
         {
             bool isInvokingToString;
             ILRuntime.Runtime.Intepreter.ILTypeInstance instance;
@@ -396,11 +396,11 @@ namespace Nino.Serialization
 
             public ILRuntime.Runtime.Intepreter.ILTypeInstance ILInstance { get { return instance; } }
 
-            public void NinoWriteMembers(ILRuntime.Runtime.Intepreter.ILTypeInstance val, Nino.Serialization.Writer writer)
+            public override void Serialize(ILRuntime.Runtime.Intepreter.ILTypeInstance val, Nino.Serialization.Writer writer)
             {
                 if (write == null)
                 {
-                    string Name = nameof(NinoWriteMembers);
+                    string Name = nameof(Serialize);
                     var ilType = instance.Type;
                     write = ilType.GetMethod(Name, 2);
                 }
@@ -413,16 +413,11 @@ namespace Nino.Serialization
                 }
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((ILRuntime.Runtime.Intepreter.ILTypeInstance)val, writer);
-            }
-
-            public ILRuntime.Runtime.Intepreter.ILTypeInstance NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<ILRuntime.Runtime.Intepreter.ILTypeInstance> Deserialize(Nino.Serialization.Reader reader)
             {
                 if (read == null)
                 {
-                    string Name = nameof(NinoReadMembers);
+                    string Name = nameof(Deserialize);
                     var ilType = instance.Type;
                     read = ilType.GetMethod(Name, 1);
                 }
@@ -431,13 +426,8 @@ namespace Nino.Serialization
                     ctx.PushObject(instance);
                     ctx.PushObject(reader);
                     ctx.Invoke();
-                    return ctx.ReadObject<ILRuntime.Runtime.Intepreter.ILTypeInstance>();
+                    return ctx.ReadObject<Nino.Serialization.Box<ILRuntime.Runtime.Intepreter.ILTypeInstance>>();
                 }
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
             }
 
             public override string ToString()

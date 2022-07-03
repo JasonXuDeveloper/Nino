@@ -262,7 +262,7 @@ namespace Nino.Serialization
 			if (ConstMgr.IsMono)
 			{
 				byte* temp = stackalloc byte[len];
-				Buffer.MemoryCopy(data, temp, len, len);
+				Unsafe.CopyBlockUnaligned(temp, data, (uint)len);
 				_buffer.CopyFrom(temp, 0, _position, len);
 			}
 			else

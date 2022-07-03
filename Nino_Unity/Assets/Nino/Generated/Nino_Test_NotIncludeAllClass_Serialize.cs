@@ -4,10 +4,10 @@ namespace Nino.Test
     public partial class NotIncludeAllClass
     {
         public static NotIncludeAllClass.SerializationHelper NinoSerializationHelper = new NotIncludeAllClass.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<NotIncludeAllClass>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<NotIncludeAllClass>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(NotIncludeAllClass value, Nino.Serialization.Writer writer)
+            public override void Serialize(NotIncludeAllClass value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.a);
                 writer.CompressAndWrite(value.b);
@@ -15,24 +15,16 @@ namespace Nino.Test
                 writer.Write(value.d);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((NotIncludeAllClass)val, writer);
-            }
-
-            public NotIncludeAllClass NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<NotIncludeAllClass> Deserialize(Nino.Serialization.Reader reader)
             {
                 NotIncludeAllClass value = new NotIncludeAllClass();
                 value.a =  (System.Int32)reader.DecompressAndReadNumber();
                 value.b =  (System.Int64)reader.DecompressAndReadNumber();
                 value.c = reader.ReadSingle();
                 value.d = reader.ReadDouble();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.NotIncludeAllClass>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

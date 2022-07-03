@@ -4,10 +4,10 @@ namespace Nino.Test
     public partial class IncludeAllClassCodeGen
     {
         public static IncludeAllClassCodeGen.SerializationHelper NinoSerializationHelper = new IncludeAllClassCodeGen.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<IncludeAllClassCodeGen>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<IncludeAllClassCodeGen>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(IncludeAllClassCodeGen value, Nino.Serialization.Writer writer)
+            public override void Serialize(IncludeAllClassCodeGen value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.a);
                 writer.CompressAndWrite(value.b);
@@ -15,24 +15,16 @@ namespace Nino.Test
                 writer.Write(value.d);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((IncludeAllClassCodeGen)val, writer);
-            }
-
-            public IncludeAllClassCodeGen NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<IncludeAllClassCodeGen> Deserialize(Nino.Serialization.Reader reader)
             {
                 IncludeAllClassCodeGen value = new IncludeAllClassCodeGen();
                 value.a =  (System.Int32)reader.DecompressAndReadNumber();
                 value.b =  (System.Int64)reader.DecompressAndReadNumber();
                 value.c = reader.ReadSingle();
                 value.d = reader.ReadDouble();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.IncludeAllClassCodeGen>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

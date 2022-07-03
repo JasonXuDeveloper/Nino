@@ -4,29 +4,21 @@ namespace Nino.UnitTests
     public partial class A
     {
         public static A.SerializationHelper NinoSerializationHelper = new A.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<A>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<A>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(A value, Nino.Serialization.Writer writer)
+            public override void Serialize(A value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.Val);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((A)val, writer);
-            }
-
-            public A NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<A> Deserialize(Nino.Serialization.Reader reader)
             {
                 A value = new A();
                 value.Val =  (System.Int32)reader.DecompressAndReadNumber();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.UnitTests.A>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

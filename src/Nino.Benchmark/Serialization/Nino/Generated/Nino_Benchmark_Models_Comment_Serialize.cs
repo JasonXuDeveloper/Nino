@@ -4,10 +4,10 @@ namespace Nino.Benchmark.Models
     public partial class Comment
     {
         public static Comment.SerializationHelper NinoSerializationHelper = new Comment.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Comment>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<Comment>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(Comment value, Nino.Serialization.Writer writer)
+            public override void Serialize(Comment value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.CommentId);
                 writer.CompressAndWrite(value.PostId);
@@ -20,12 +20,7 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.Upvoted);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((Comment)val, writer);
-            }
-
-            public Comment NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<Comment> Deserialize(Nino.Serialization.Reader reader)
             {
                 Comment value = new Comment();
                 value.CommentId =  (System.Int32)reader.DecompressAndReadNumber();
@@ -37,12 +32,9 @@ namespace Nino.Benchmark.Models
                 value.Link = reader.ReadString();
                 value.BodyMarkdown = reader.ReadString();
                 value.Upvoted = reader.ReadBool();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.Comment>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

@@ -18,14 +18,12 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.7</PackageVersion>
+        <PackageVersion>1.0.8</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.7
-- [optimization] reduce gc for primitive type deserialization
-- [optimization] more efficient custom importer exporter
-- [optimization] faster writing/reading some primitives
-- [optimization] faster writing string
-- [optimization] reduce code size</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.8
+- [optimization] better code gen
+- [optimization] less memory consumption
+- [optimization] faster code gen and faster custom importer exporter</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType> 
     </PropertyGroup>
 

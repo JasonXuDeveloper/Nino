@@ -4,10 +4,10 @@ namespace Nino.Benchmark.Models
     public partial class Answer
     {
         public static Answer.SerializationHelper NinoSerializationHelper = new Answer.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Answer>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<Answer>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(Answer value, Nino.Serialization.Writer writer)
+            public override void Serialize(Answer value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.QuestionId);
                 writer.CompressAndWrite(value.AnswerId);
@@ -27,7 +27,7 @@ namespace Nino.Benchmark.Models
                     writer.CompressAndWrite(value.Comments.Count);
                     foreach (var entry in value.Comments)
                     {
-                        Benchmark.Models.Comment.NinoSerializationHelper.NinoWriteMembers(entry, writer);
+                        Nino.Benchmark.Models.Comment.NinoSerializationHelper.Serialize(entry, writer);
                     }
                 }
                 else
@@ -55,12 +55,7 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.ShareLink);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((Answer)val, writer);
-            }
-
-            public Answer NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<Answer> Deserialize(Nino.Serialization.Reader reader)
             {
                 Answer value = new Answer();
                 value.QuestionId =  (System.Int32)reader.DecompressAndReadNumber();
@@ -76,18 +71,18 @@ namespace Nino.Benchmark.Models
                 value.Title = reader.ReadString();
                 value.UpVoteCount =  (System.Int32)reader.DecompressAndReadNumber();
                 value.DownVoteCount =  (System.Int32)reader.DecompressAndReadNumber();
-                value.Comments = new System.Collections.Generic.List<Benchmark.Models.Comment>(reader.ReadLength());
+                value.Comments = new System.Collections.Generic.List<Nino.Benchmark.Models.Comment>(reader.ReadLength());
                 for(int i = 0, cnt = value.Comments.Capacity; i < cnt; i++)
                 {
-                    var value_comments_i = Benchmark.Models.Comment.NinoSerializationHelper.NinoReadMembers(reader);
-                    value.Comments.Add(value_comments_i);
+                    var value_Comments_i = Nino.Benchmark.Models.Comment.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    value.Comments.Add(value_Comments_i);
                 }
                 value.Link = reader.ReadString();
                 value.Tags = new System.Collections.Generic.List<System.String>(reader.ReadLength());
                 for(int i = 0, cnt = value.Tags.Capacity; i < cnt; i++)
                 {
-                    var value_tags_i = reader.ReadString();
-                    value.Tags.Add(value_tags_i);
+                    var value_Tags_i = reader.ReadString();
+                    value.Tags.Add(value_Tags_i);
                 }
                 value.Upvoted = reader.ReadBool();
                 value.Downvoted = reader.ReadBool();
@@ -95,12 +90,9 @@ namespace Nino.Benchmark.Models
                 value.CommentCount =  (System.Int32)reader.DecompressAndReadNumber();
                 value.BodyMarkdown = reader.ReadString();
                 value.ShareLink = reader.ReadString();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.Answer>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }

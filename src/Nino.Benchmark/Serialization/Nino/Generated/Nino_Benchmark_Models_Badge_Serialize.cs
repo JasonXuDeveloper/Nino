@@ -4,10 +4,10 @@ namespace Nino.Benchmark.Models
     public partial class Badge
     {
         public static Badge.SerializationHelper NinoSerializationHelper = new Badge.SerializationHelper();
-        public class SerializationHelper: Nino.Serialization.ISerializationHelper<Badge>
+        public class SerializationHelper: Nino.Serialization.NinoWrapperBase<Badge>
         {
             #region NINO_CODEGEN
-            public void NinoWriteMembers(Badge value, Nino.Serialization.Writer writer)
+            public override void Serialize(Badge value, Nino.Serialization.Writer writer)
             {
                 writer.CompressAndWrite(value.BadgeId);
                 writer.Write(value.Name);
@@ -16,12 +16,7 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.Link);
             }
 
-            public void NinoWriteMembers(object val, Nino.Serialization.Writer writer)
-            {
-	            NinoWriteMembers((Badge)val, writer);
-            }
-
-            public Badge NinoReadMembers(Nino.Serialization.Reader reader)
+            public override Nino.Serialization.Box<Badge> Deserialize(Nino.Serialization.Reader reader)
             {
                 Badge value = new Badge();
                 value.BadgeId =  (System.Int32)reader.DecompressAndReadNumber();
@@ -29,12 +24,9 @@ namespace Nino.Benchmark.Models
                 value.Description = reader.ReadString();
                 value.AwardCount =  (System.Int32)reader.DecompressAndReadNumber();
                 value.Link = reader.ReadString();
-                return value;
-            }
-
-            object Nino.Serialization.ISerializationHelper.NinoReadMembers(Nino.Serialization.Reader reader)
-            {
-	            return NinoReadMembers(reader);
+                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.Badge>>.Request();
+                ret.Value = value;
+                return ret;
             }
             #endregion
         }
