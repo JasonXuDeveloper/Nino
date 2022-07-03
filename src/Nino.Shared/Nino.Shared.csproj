@@ -17,10 +17,11 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
-        <PackageReleaseNotes>v1.0.3
-- [optimzation] CompressMgr.Compress default capacity, reduce GC</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.4
+- [feat] quick hash computer for Type object
+- [feat] IsMono const boolean</PackageReleaseNotes>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-        <PackageVersion>1.0.3</PackageVersion> 
+        <PackageVersion>1.0.4</PackageVersion> 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild> 
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>

@@ -1,11 +1,10 @@
 using System;
-using System.Linq;
 using Nino.Shared.IO;
 using System.Collections.Generic;
 
 namespace Nino.Serialization
 {
-    internal class ByteWrapper: NinoWrapperBase<byte>
+    internal class ByteWrapper : NinoWrapperBase<byte>
     {
         public override void Serialize(byte val, Writer writer)
         {
@@ -20,7 +19,7 @@ namespace Nino.Serialization
         }
     }
 
-    internal class ByteArrWrapper: NinoWrapperBase<byte[]>
+    internal class ByteArrWrapper : NinoWrapperBase<byte[]>
     {
         public override void Serialize(byte[] val, Writer writer)
         {
@@ -47,14 +46,18 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<byte>>>.Request();
             int len = reader.ReadLength();
-            var arr = len != 0 ? reader.ReadBytes(len) : Array.Empty<byte>();
-            ret.Value = arr.ToList();
-            BufferPool.ReturnBuffer(arr);
+            var arr = new List<byte>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadByte());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
-    
-    internal class SByteWrapper: NinoWrapperBase<sbyte>
+
+    internal class SByteWrapper : NinoWrapperBase<sbyte>
     {
         public override void Serialize(sbyte val, Writer writer)
         {
@@ -69,7 +72,7 @@ namespace Nino.Serialization
         }
     }
 
-    internal class SByteArrWrapper: NinoWrapperBase<sbyte[]>
+    internal class SByteArrWrapper : NinoWrapperBase<sbyte[]>
     {
         public override void Serialize(sbyte[] val, Writer writer)
         {
@@ -84,9 +87,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<sbyte[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (sbyte[])reader.TryGetBasicTypeArray(typeof(sbyte), len, out _)
-                : Array.Empty<sbyte>();
+            var arr = new sbyte[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadSByte();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -106,12 +113,18 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<sbyte>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<sbyte>)reader.TryGetBasicTypeList(typeof(sbyte), len, out _);
+            var arr = new List<sbyte>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadSByte());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
-    
-    internal class ShortWrapper: NinoWrapperBase<short>
+
+    internal class ShortWrapper : NinoWrapperBase<short>
     {
         public override void Serialize(short val, Writer writer)
         {
@@ -126,7 +139,7 @@ namespace Nino.Serialization
         }
     }
 
-    internal class ShortArrWrapper: NinoWrapperBase<short[]>
+    internal class ShortArrWrapper : NinoWrapperBase<short[]>
     {
         public override void Serialize(short[] val, Writer writer)
         {
@@ -141,9 +154,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<short[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (short[])reader.TryGetBasicTypeArray(typeof(short), len, out _)
-                : Array.Empty<short>();
+            var arr = new short[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadInt16();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -163,12 +180,18 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<short>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<short>)reader.TryGetBasicTypeList(typeof(short), len, out _);
+            var arr = new List<short>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadInt16());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
-    
-    internal class UShortWrapper: NinoWrapperBase<ushort>
+
+    internal class UShortWrapper : NinoWrapperBase<ushort>
     {
         public override void Serialize(ushort val, Writer writer)
         {
@@ -183,7 +206,7 @@ namespace Nino.Serialization
         }
     }
 
-    internal class UShortArrWrapper: NinoWrapperBase<ushort[]>
+    internal class UShortArrWrapper : NinoWrapperBase<ushort[]>
     {
         public override void Serialize(ushort[] val, Writer writer)
         {
@@ -198,9 +221,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<ushort[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (ushort[])reader.TryGetBasicTypeArray(typeof(ushort), len, out _)
-                : Array.Empty<ushort>();
+            var arr = new ushort[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadUInt16();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -220,12 +247,18 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<ushort>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<ushort>)reader.TryGetBasicTypeList(typeof(ushort), len, out _);
+            var arr = new List<ushort>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadUInt16());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
-    
-    internal class IntWrapper: NinoWrapperBase<int>
+
+    internal class IntWrapper : NinoWrapperBase<int>
     {
         public override void Serialize(int val, Writer writer)
         {
@@ -240,7 +273,7 @@ namespace Nino.Serialization
         }
     }
 
-    internal class IntArrWrapper: NinoWrapperBase<int[]>
+    internal class IntArrWrapper : NinoWrapperBase<int[]>
     {
         public override void Serialize(int[] val, Writer writer)
         {
@@ -255,9 +288,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<int[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (int[])reader.TryGetBasicTypeArray(typeof(int), len, out _)
-                : Array.Empty<int>();
+            var arr = new int[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = (int)reader.DecompressAndReadNumber();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -277,12 +314,18 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<int>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<int>)reader.TryGetBasicTypeList(typeof(int), len, out _);
+            var arr = new List<int>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add((int)reader.DecompressAndReadNumber());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
-    
-    internal class UIntWrapper: NinoWrapperBase<uint>
+
+    internal class UIntWrapper : NinoWrapperBase<uint>
     {
         public override void Serialize(uint val, Writer writer)
         {
@@ -297,7 +340,7 @@ namespace Nino.Serialization
         }
     }
 
-    internal class UIntArrWrapper: NinoWrapperBase<uint[]>
+    internal class UIntArrWrapper : NinoWrapperBase<uint[]>
     {
         public override void Serialize(uint[] val, Writer writer)
         {
@@ -312,9 +355,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<uint[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (uint[])reader.TryGetBasicTypeArray(typeof(uint), len, out _)
-                : Array.Empty<uint>();
+            var arr = new uint[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = (uint)reader.DecompressAndReadNumber();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -334,12 +381,18 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<uint>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<uint>)reader.TryGetBasicTypeList(typeof(uint), len, out _);
+            var arr = new List<uint>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add((uint)reader.DecompressAndReadNumber());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
-    
-    internal class LongWrapper: NinoWrapperBase<long>
+
+    internal class LongWrapper : NinoWrapperBase<long>
     {
         public override void Serialize(long val, Writer writer)
         {
@@ -354,7 +407,7 @@ namespace Nino.Serialization
         }
     }
 
-    internal class LongArrWrapper: NinoWrapperBase<long[]>
+    internal class LongArrWrapper : NinoWrapperBase<long[]>
     {
         public override void Serialize(long[] val, Writer writer)
         {
@@ -369,9 +422,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<long[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (long[])reader.TryGetBasicTypeArray(typeof(long), len, out _)
-                : Array.Empty<long>();
+            var arr = new long[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = (long)reader.DecompressAndReadNumber();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -391,12 +448,18 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<long>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<long>)reader.TryGetBasicTypeList(typeof(long), len, out _);
+            var arr = new List<long>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add((long)reader.DecompressAndReadNumber());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
-    
-    internal class ULongWrapper: NinoWrapperBase<ulong>
+
+    internal class ULongWrapper : NinoWrapperBase<ulong>
     {
         public override void Serialize(ulong val, Writer writer)
         {
@@ -411,7 +474,7 @@ namespace Nino.Serialization
         }
     }
 
-    internal class ULongArrWrapper: NinoWrapperBase<ulong[]>
+    internal class ULongArrWrapper : NinoWrapperBase<ulong[]>
     {
         public override void Serialize(ulong[] val, Writer writer)
         {
@@ -426,9 +489,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<ulong[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (ulong[])reader.TryGetBasicTypeArray(typeof(ulong), len, out _)
-                : Array.Empty<ulong>();
+            var arr = new ulong[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.DecompressAndReadNumber();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -448,9 +515,14 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<ulong>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<ulong>)reader.TryGetBasicTypeList(typeof(ulong), len, out _);
+            var arr = new List<ulong>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.DecompressAndReadNumber());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
-
 }

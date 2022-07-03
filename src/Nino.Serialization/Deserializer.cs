@@ -2,7 +2,6 @@
 using System.Text;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
-using Nino.Shared.Util;
 using System.Reflection;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -20,15 +19,9 @@ namespace Nino.Serialization
 		private static readonly Encoding DefaultEncoding = Encoding.UTF8;
 
 		/// <summary>
-		/// Custom exporter
-		/// </summary>
-		internal static readonly Dictionary<Type, ExporterDelegate> CustomExporter =
-			new Dictionary<Type, ExporterDelegate>(5);
-
-		/// <summary>
 		/// Custom Exporter delegate that reads bytes to object
 		/// </summary>
-		internal delegate object ExporterDelegate(Reader reader);
+		internal delegate T ExporterDelegate<out T>(Reader reader);
 
 		/// <summary>
 		/// Add custom Exporter of all type T objects
@@ -38,13 +31,17 @@ namespace Nino.Serialization
 		public static void AddCustomExporter<T>(Func<Reader, T> func)
 		{
 			var type = typeof(T);
-			if (CustomExporter.ContainsKey(type))
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
-				Logger.W($"already added custom exporter for: {type}");
+				((GenericWrapper<T>)wrapper).Exporter = func.Invoke;
 				return;
 			}
 
-			CustomExporter.Add(typeof(T), (reader) => func.Invoke(reader));
+			GenericWrapper<T> genericWrapper = new GenericWrapper<T>
+			{
+				Exporter = func.Invoke
+			};
+			WrapperManifest.AddWrapper(typeof(T), genericWrapper);
 		}
 
 		/// <summary>
@@ -59,10 +56,10 @@ namespace Nino.Serialization
 			Type type = typeof(T);
 
 			//basic type
-			if (WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
 				Reader basicReader;
-				if (TypeModel.NoCompressionTypes.Contains(type))
+				if (TypeModel.IsNonCompressibleType(type))
 				{
 					basicReader = new Reader(data, data.Length, encoding ?? DefaultEncoding);
 				}
@@ -70,7 +67,6 @@ namespace Nino.Serialization
 				{
 					basicReader = new Reader(CompressMgr.Decompress(data, out var length), length,
 						encoding ?? DefaultEncoding);
-
 				}
 
 				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(basicReader);
@@ -123,10 +119,10 @@ namespace Nino.Serialization
 			encoding = encoding ?? DefaultEncoding;
 
 			//basic type
-			if (!skipBasicCheck && WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
+			if (!skipBasicCheck && WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
 				Reader basicReader;
-				if (TypeModel.NoCompressionTypes.Contains(type))
+				if (TypeModel.IsNonCompressibleType(type))
 				{
 					basicReader = new Reader(data, data.Length, encoding ?? DefaultEncoding);
 				}
@@ -154,7 +150,6 @@ namespace Nino.Serialization
 				var ret = Deserialize(Enum.GetUnderlyingType(type), null, data, encoding, reader, returnDispose);
 #if !ILRuntime
 				ret = Enum.ToObject(type, ret);
-
 #endif
 				return ret;
 			}

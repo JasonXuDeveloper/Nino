@@ -1,6 +1,6 @@
 using System;
-using System.Collections.Generic;
 using Nino.Shared.IO;
+using System.Collections.Generic;
 
 namespace Nino.Serialization
 {
@@ -34,9 +34,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<bool[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (bool[])reader.TryGetBasicTypeArray(typeof(bool), len, out _)
-                : Array.Empty<bool>();
+            var arr = new bool[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadBool();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -56,7 +60,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<bool>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<bool>)reader.TryGetBasicTypeList(typeof(bool), len, out _);
+            var arr = new List<bool>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadBool());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -91,9 +101,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<char[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (char[])reader.TryGetBasicTypeArray(typeof(char), len, out _)
-                : Array.Empty<char>();
+            var arr = new char[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadChar();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -113,7 +127,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<char>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<char>)reader.TryGetBasicTypeList(typeof(char), len, out _);
+            var arr = new List<char>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadChar());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -148,9 +168,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<string[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (string[])reader.TryGetBasicTypeArray(typeof(string), len, out _)
-                : Array.Empty<string>();
+            var arr = new string[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadString();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -170,7 +194,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<string>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<string>)reader.TryGetBasicTypeList(typeof(string), len, out _);
+            var arr = new List<string>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadString());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -210,7 +240,6 @@ namespace Nino.Serialization
             {
                 arr[i] = reader.ReadDateTime();
             }
-
             ret.Value = arr;
             return ret;
         }
@@ -236,8 +265,30 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadDateTime());
             }
-
             ret.Value = arr;
+            return ret;
+        }
+    }
+
+    internal class GenericWrapper<T> : NinoWrapperBase<T>
+    {
+        public Serializer.ImporterDelegate<T> Importer;
+        public Deserializer.ExporterDelegate<T> Exporter;
+        
+        public override void Serialize(T val, Writer writer)
+        {
+            if(Importer == null)
+                throw new InvalidOperationException($"Importer is null for type: {typeof(T)}");
+            Importer(val, writer);
+        }
+
+        public override Box<T> Deserialize(Reader reader)
+        {
+            if(Exporter == null)
+                throw new InvalidOperationException($"Exporter is null for type: {typeof(T)}");
+            var ret = ObjectPool<Box<T>>.Request();
+            var val = Exporter(reader);
+            ret.Value = val;
             return ret;
         }
     }

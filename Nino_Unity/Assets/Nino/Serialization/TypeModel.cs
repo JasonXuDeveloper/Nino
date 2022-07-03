@@ -1,6 +1,8 @@
 ﻿using System;
+using Nino.Shared.Util;
 using System.Reflection;
 using System.Collections.Generic;
+
 // ReSharper disable CognitiveComplexity
 
 namespace Nino.Serialization
@@ -25,51 +27,51 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Cached Models
 		/// </summary>
-		private static readonly Dictionary<Type, TypeModel> TypeModels = new Dictionary<Type, TypeModel>(10);
+		private static readonly Dictionary<int, TypeModel> TypeModels = new Dictionary<int, TypeModel>(10);
 
 		/// <summary>
 		/// Cached Models
 		/// </summary>
-		private static readonly Dictionary<Type, TypeCode> TypeCodes = new Dictionary<Type, TypeCode>(30)
+		private static readonly Dictionary<int, TypeCode> TypeCodes = new Dictionary<int, TypeCode>(30)
 		{
-			{ typeof(byte), TypeCode.Byte },
-			{ typeof(sbyte), TypeCode.SByte },
-			{ typeof(short), TypeCode.Int16 },
-			{ typeof(ushort), TypeCode.UInt16 },
-			{ typeof(int), TypeCode.Int32 },
-			{ typeof(uint), TypeCode.UInt32 },
-			{ typeof(long), TypeCode.Int64 },
-			{ typeof(ulong), TypeCode.UInt64 },
-			{ typeof(float), TypeCode.Single },
-			{ typeof(double), TypeCode.Double },
-			{ typeof(decimal), TypeCode.Decimal },
-			{ typeof(char), TypeCode.Char },
-			{ typeof(bool), TypeCode.Boolean },
-			{ typeof(string), TypeCode.String },
-			{ typeof(object), TypeCode.Object },
-			{ typeof(DateTime), TypeCode.DateTime },
+			{ typeof(byte).GetTypeHashCode(), TypeCode.Byte },
+			{ typeof(sbyte).GetTypeHashCode(), TypeCode.SByte },
+			{ typeof(short).GetTypeHashCode(), TypeCode.Int16 },
+			{ typeof(ushort).GetTypeHashCode(), TypeCode.UInt16 },
+			{ typeof(int).GetTypeHashCode(), TypeCode.Int32 },
+			{ typeof(uint).GetTypeHashCode(), TypeCode.UInt32 },
+			{ typeof(long).GetTypeHashCode(), TypeCode.Int64 },
+			{ typeof(ulong).GetTypeHashCode(), TypeCode.UInt64 },
+			{ typeof(float).GetTypeHashCode(), TypeCode.Single },
+			{ typeof(double).GetTypeHashCode(), TypeCode.Double },
+			{ typeof(decimal).GetTypeHashCode(), TypeCode.Decimal },
+			{ typeof(char).GetTypeHashCode(), TypeCode.Char },
+			{ typeof(bool).GetTypeHashCode(), TypeCode.Boolean },
+			{ typeof(string).GetTypeHashCode(), TypeCode.String },
+			{ typeof(object).GetTypeHashCode(), TypeCode.Object },
+			{ typeof(DateTime).GetTypeHashCode(), TypeCode.DateTime },
 		};
 
 		/// <summary>
 		/// Generated helpers
 		/// </summary>
-		private static readonly Dictionary<Type, object> GeneratedSerializationHelper = new Dictionary<Type, object>(50)
+		private static readonly Dictionary<int, object> GeneratedSerializationHelper = new Dictionary<int, object>(50)
 		{
-			{ typeof(byte), null },
-			{ typeof(sbyte), null },
-			{ typeof(short), null },
-			{ typeof(ushort), null },
-			{ typeof(int), null },
-			{ typeof(uint), null },
-			{ typeof(long), null },
-			{ typeof(ulong), null },
-			{ typeof(bool), null },
-			{ typeof(float), null },
-			{ typeof(double), null },
-			{ typeof(decimal), null },
-			{ typeof(char), null },
-			{ typeof(string), null },
-			{ typeof(DateTime), null },
+			{ typeof(byte).GetTypeHashCode(), null },
+			{ typeof(sbyte).GetTypeHashCode(), null },
+			{ typeof(short).GetTypeHashCode(), null },
+			{ typeof(ushort).GetTypeHashCode(), null },
+			{ typeof(int).GetTypeHashCode(), null },
+			{ typeof(uint).GetTypeHashCode(), null },
+			{ typeof(long).GetTypeHashCode(), null },
+			{ typeof(ulong).GetTypeHashCode(), null },
+			{ typeof(bool).GetTypeHashCode(), null },
+			{ typeof(float).GetTypeHashCode(), null },
+			{ typeof(double).GetTypeHashCode(), null },
+			{ typeof(decimal).GetTypeHashCode(), null },
+			{ typeof(char).GetTypeHashCode(), null },
+			{ typeof(string).GetTypeHashCode(), null },
+			{ typeof(DateTime).GetTypeHashCode(), null },
 		};
 
 		/// <summary>
@@ -96,23 +98,33 @@ namespace Nino.Serialization
 		/// <summary>
 		/// No compression types
 		/// </summary>
-		internal static readonly HashSet<Type> NoCompressionTypes = new HashSet<Type>()
+		internal static readonly HashSet<int> NoCompressionTypes = new HashSet<int>()
 		{
-			typeof(int),
-			typeof(uint),
-			typeof(long),
-			typeof(ulong),
-			typeof(byte),
-			typeof(sbyte),
-			typeof(short),
-			typeof(ushort),
-			typeof(bool),
-			typeof(char),
-			typeof(decimal),
-			typeof(double),
-			typeof(float),
-			typeof(DateTime),
+			typeof(int).GetTypeHashCode(),
+			typeof(uint).GetTypeHashCode(),
+			typeof(long).GetTypeHashCode(),
+			typeof(ulong).GetTypeHashCode(),
+			typeof(byte).GetTypeHashCode(),
+			typeof(sbyte).GetTypeHashCode(),
+			typeof(short).GetTypeHashCode(),
+			typeof(ushort).GetTypeHashCode(),
+			typeof(bool).GetTypeHashCode(),
+			typeof(char).GetTypeHashCode(),
+			typeof(decimal).GetTypeHashCode(),
+			typeof(double).GetTypeHashCode(),
+			typeof(float).GetTypeHashCode(),
+			typeof(DateTime).GetTypeHashCode(),
 		};
+		
+		/// <summary>
+		/// Whether or not the type is a non compress type
+		/// </summary>
+		/// <param name="type"></param>
+		/// <returns></returns>
+		internal static bool IsNonCompressibleType(Type type)
+		{
+			return NoCompressionTypes.Contains(type.GetTypeHashCode());
+		}
 
 		/// <summary>
 		/// Get a type code
@@ -121,11 +133,11 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static TypeCode GetTypeCode(Type type)
 		{
-			if (TypeCodes.TryGetValue(type, out var ret))
+			if (TypeCodes.TryGetValue(type.GetTypeHashCode(), out var ret))
 			{
 				return ret;
 			}
-			TypeCodes[type] = ret = Type.GetTypeCode(type);
+			TypeCodes[type.GetTypeHashCode()] = ret = Type.GetTypeCode(type);
 			return ret;
 		}
 		
@@ -137,12 +149,12 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static bool TryGetHelper(Type type, out object helper)
 		{
-			if (GeneratedSerializationHelper.TryGetValue(type, out helper)) return helper != null;
+			if (GeneratedSerializationHelper.TryGetValue(type.GetTypeHashCode(), out helper)) return helper != null;
 			
 			var field = type.GetField(HelperName, ReflectionFlags | BindingFlags.Static);
 			helper = field?.GetValue(null);
-			GeneratedSerializationHelper[type] = helper;
-			return GeneratedSerializationHelper[type] != null;
+			GeneratedSerializationHelper[type.GetTypeHashCode()] = helper;
+			return GeneratedSerializationHelper[type.GetTypeHashCode()] != null;
 		}
 		
 		/// <summary>
@@ -153,14 +165,14 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static void TryGetModel(Type type, out TypeModel model)
 		{
-			if (TypeModels.TryGetValue(type, out model)) return;
+			if (TypeModels.TryGetValue(type.GetTypeHashCode(), out model)) return;
 			object[] ns = type.GetCustomAttributes(typeof(NinoSerializeAttribute), false);
 			if (ns.Length != 0) return;
 			model = new TypeModel()
 			{
 				Valid = false
 			};
-			TypeModels.Add(type, model);
+			TypeModels.Add(type.GetTypeHashCode(), model);
 			throw new InvalidOperationException(
 				$"The type {type.FullName} does not have NinoSerialize attribute or custom importer/exporter");
 		}
@@ -300,7 +312,7 @@ namespace Nino.Serialization
 				model.Valid = false;
 			}
 
-			TypeModels.Add(type, model);
+			TypeModels.Add(type.GetTypeHashCode(), model);
 			return model;
 		}
 	}

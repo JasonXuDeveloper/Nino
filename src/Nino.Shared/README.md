@@ -13,4 +13,7 @@ A useful library that contains various high performance approaches with high com
     - 高性能动态扩容Buffer（易用、高效，低GC）
     - 可动态修改Buffer流（包含不需要分配io_buffer去read/write的方法）
 - Mgr
+    
     - 压缩解压助手
+- Util
+    - HashCode计算工具

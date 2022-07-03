@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Text;
 using Nino.Shared.Mgr;
-using Nino.Shared.Util;
 using System.Reflection;
 using System.Collections;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 // ReSharper disable UnusedMember.Local
@@ -20,15 +18,9 @@ namespace Nino.Serialization
 		private static readonly Encoding DefaultEncoding = Encoding.UTF8;
 
 		/// <summary>
-		/// Custom importer
-		/// </summary>
-		internal static readonly Dictionary<Type, ImporterDelegate> CustomImporter =
-			new Dictionary<Type, ImporterDelegate>(5);
-
-		/// <summary>
 		/// Custom importer delegate that writes object to writer
 		/// </summary>
-		internal delegate void ImporterDelegate(object val, Writer writer);
+		internal delegate void ImporterDelegate<in T>(T val, Writer writer);
 
 		/// <summary>
 		/// Add custom importer of all type T objects
@@ -38,13 +30,17 @@ namespace Nino.Serialization
 		public static void AddCustomImporter<T>(Action<T, Writer> action)
 		{
 			var type = typeof(T);
-			if (CustomImporter.ContainsKey(type))
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
-				Logger.W($"already added custom importer for: {type}");
+				((GenericWrapper<T>)wrapper).Importer = action.Invoke;
 				return;
 			}
 
-			CustomImporter.Add(typeof(T), (val, writer) => { action.Invoke((T)val, writer); });
+			GenericWrapper<T> genericWrapper = new GenericWrapper<T>
+			{
+				Importer = action.Invoke
+			};
+			WrapperManifest.AddWrapper(typeof(T), genericWrapper);
 		}
 
 		/// <summary>
@@ -60,10 +56,10 @@ namespace Nino.Serialization
 			Writer writer = new Writer(encoding ?? DefaultEncoding);
 
 			//basic type
-			if (WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
 				((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
-				if (TypeModel.NoCompressionTypes.Contains(type))
+				if (TypeModel.IsNonCompressibleType(type))
 				{
 					//don't compress it
 					var noCompression = writer.ToBytes();
@@ -136,10 +132,10 @@ namespace Nino.Serialization
 			}
 
 			//basic type
-			if (!skipBasicCheck && WrapperManifest.Wrappers.TryGetValue(type, out var wrapper))
+			if (!skipBasicCheck && WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
 				wrapper.Serialize(value, writer);
-				if (TypeModel.NoCompressionTypes.Contains(type))
+				if (TypeModel.IsNonCompressibleType(type))
 				{
 					//don't compress it
 					var noCompression = returnValue ? writer.ToBytes() : ConstMgr.Null;

@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Text;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
@@ -15,6 +14,11 @@ namespace Nino.Serialization
 	// ReSharper disable CognitiveComplexity
 	public class Reader : IDisposable
 	{
+		/// <summary>
+		/// block size when creating buffer
+		/// </summary>
+		private const int BufferBlockSize = 1024 * 2;
+		
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
@@ -57,7 +61,15 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public Reader(byte[] data, int outputLength, Encoding encoding)
 		{
-			_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+			var peak = ObjectPool<ExtensibleBuffer<byte>>.Peak();
+			if (peak != null && peak.ExpandSize == BufferBlockSize)
+			{
+				_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+			}
+			else
+			{
+				_buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
+			}
 			_buffer.CopyFrom(data, 0, 0, outputLength);
 			_buffer.ReadOnly = true;
 			_encoding = encoding;
@@ -87,21 +99,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public int ReadLength()
 		{
-			switch (GetCompressType())
-			{
-				case CompressType.Byte:
-					return ReadByte();
-				case CompressType.SByte:
-					return ReadSByte();
-				case CompressType.Int16:
-					return ReadInt16();
-				case CompressType.UInt16:
-					return ReadUInt16();
-				case CompressType.Int32:
-					return ReadInt32();
-			}
-
-			return 0;
+			return (int)DecompressAndReadNumber();
 		}
 
 		/// <summary>
@@ -146,114 +144,50 @@ namespace Nino.Serialization
 			// ReSharper restore CognitiveComplexity
 		{
 			result = true;
-			switch (TypeModel.GetTypeCode(type))
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
-				case TypeCode.Byte:
-					return ReadByte();
-				case TypeCode.SByte:
-					return ReadSByte();
-				case TypeCode.Int16:
-					return ReadInt16();
-				case TypeCode.UInt16:
-					return ReadUInt16();
-				case TypeCode.Int32:
-					return (int)DecompressAndReadNumber();
-				case TypeCode.UInt32:
-					return (uint)DecompressAndReadNumber();
-				case TypeCode.Int64:
-					return (long)DecompressAndReadNumber();
-				case TypeCode.UInt64:
-					return DecompressAndReadNumber();
-				case TypeCode.String:
-					return ReadString();
-				case TypeCode.Boolean:
-					return ReadBool();
-				case TypeCode.Double:
-					return ReadDouble();
-				case TypeCode.Single:
-					return ReadSingle();
-				case TypeCode.Decimal:
-					return ReadDecimal();
-				case TypeCode.Char:
-					return ReadChar();
-				case TypeCode.DateTime:
-					return ReadDateTime();
-				default:
-					//basic type
-					//看看有没有注册委托，没的话有概率不行
-					if (!Deserializer.CustomExporter.ContainsKey(type))
-					{
-						//比如泛型，只能list和dict
-						if (type.IsGenericType)
-						{
-							var genericDefType = type.GetGenericTypeDefinition();
-							//不是list和dict就再见了
-							if (genericDefType == ConstMgr.ListDefType)
-							{
-								return ReadList(type);
-							}
-
-							if (genericDefType == ConstMgr.DictDefType)
-							{
-								return ReadDictionary(type);
-							}
-
-							result = false;
-							return null;
-						}
-
-						//其他类型也不行
-						if (type.IsArray)
-						{
-#if !ILRuntime
-							if (type.GetArrayRank() > 1)
-							{
-								throw new NotSupportedException(
-									"can not deserialize multidimensional array, use jagged array instead");
-							}
-#endif
-							return ReadArray(type);
-						}
-
-						if (type.IsEnum)
-						{
-							//try decompress and read
-#if ILRuntime
-							switch (Type.GetTypeCode(type))
-							{
-								case TypeCode.Byte:
-									return ReadByte();
-								case TypeCode.SByte:
-									return ReadSByte();
-								case TypeCode.Int16:
-									return ReadInt16();
-								case TypeCode.UInt16:
-									return ReadUInt16();
-								//need to consider compress
-								case TypeCode.Int32:
-									return (int)DecompressAndReadNumber();
-								case TypeCode.UInt32:
-									return (uint)DecompressAndReadNumber();
-								case TypeCode.Int64:
-									return (long)DecompressAndReadNumber();
-								case TypeCode.UInt64:
-									return DecompressAndReadNumber();
-							}
-#endif
-							return Enum.ToObject(type, DecompressAndReadEnum(Enum.GetUnderlyingType(type)));
-						}
-					}
-					else
-					{
-						if (Deserializer.CustomExporter.TryGetValue(type, out var exporterDelegate))
-						{
-							return exporterDelegate.Invoke(this);
-						}
-					}
-
-					result = false;
-					return null;
+				return wrapper.Deserialize(this);
 			}
+			
+			if (type.IsEnum)
+			{
+				return DecompressAndReadEnum(type);
+			}
+			
+			//比如泛型，只能list和dict
+			if (type.IsGenericType)
+			{
+				var genericDefType = type.GetGenericTypeDefinition();
+				//不是list和dict就再见了
+				if (genericDefType == ConstMgr.ListDefType)
+				{
+					return ReadList(type);
+				}
+
+				if (genericDefType == ConstMgr.DictDefType)
+				{
+					return ReadDictionary(type);
+				}
+
+				result = false;
+				return null;
+			}
+
+			//其他类型也不行
+			if (type.IsArray)
+			{
+#if !ILRuntime
+				if (type.GetArrayRank() > 1)
+				{
+					throw new NotSupportedException(
+						"can not deserialize multidimensional array, use jagged array instead");
+				}
+#endif
+				return ReadArray(type);
+			}
+					
+			result = false;
+			return null;
 		}
 
 		/// <summary>
@@ -269,6 +203,12 @@ namespace Nino.Serialization
 			var ret = AttemptReadBasicType(type, out bool result);
 			if (result)
 			{
+#if !ILRuntime
+				if (type.IsEnum)
+				{
+					return Enum.ToObject(type, ret);
+				}
+#endif
 				return ret;
 			}
 
@@ -350,7 +290,17 @@ namespace Nino.Serialization
 		{
 			T result;
 			byte* ptr = (byte*)&result;
-			_buffer.CopyTo(ptr, _position, len);
+			//mono can not guarantee overlapped memory copy 
+			if (ConstMgr.IsMono)
+			{
+				byte* temp = stackalloc byte[len];
+				_buffer.CopyTo(temp, _position, len);
+				Buffer.MemoryCopy(temp, ptr, len, len);
+			}
+			else
+			{
+				_buffer.CopyTo(ptr, _position, len);
+			}
 			_position += len;
 			return result;
 		}
@@ -519,281 +469,7 @@ namespace Nino.Serialization
 			var ret = ReadByte();
 			return *((bool*)&ret);
 		}
-
-		/// <summary>
-		/// Try get basic type arr
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="len"></param>
-		/// <param name="result"></param>
-		/// <returns></returns>
-		internal Array TryGetBasicTypeArray(Type type, int len, out bool result)
-		{
-			result = true;
-			switch (TypeModel.GetTypeCode(type))
-			{
-				case TypeCode.Byte:
-					return ReadBytes(len);
-				case TypeCode.SByte:
-					var sByteArr = new sbyte[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						sByteArr[i] = ReadSByte();
-					}
-
-					return sByteArr;
-				case TypeCode.Int16:
-					var shortArr = new short[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						shortArr[i] = ReadInt16();
-					}
-
-					return shortArr;
-				case TypeCode.UInt16:
-					var ushortArr = new ushort[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						ushortArr[i] = ReadUInt16();
-					}
-
-					return ushortArr;
-				case TypeCode.Int32:
-					var intArr = new int[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						intArr[i] = (int)DecompressAndReadNumber();
-					}
-
-					return intArr;
-				case TypeCode.UInt32:
-					var uintArr = new uint[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						uintArr[i] = (uint)DecompressAndReadNumber();
-					}
-
-					return uintArr;
-				case TypeCode.Int64:
-					var longArr = new long[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						longArr[i] = (long)DecompressAndReadNumber();
-					}
-
-					return longArr;
-				case TypeCode.UInt64:
-					var ulongArr = new ulong[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						ulongArr[i] = DecompressAndReadNumber();
-					}
-
-					return ulongArr;
-				case TypeCode.String:
-					var strArr = new string[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						strArr[i] = ReadString();
-					}
-
-					return strArr;
-				case TypeCode.Boolean:
-					var boolArr = new bool[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						boolArr[i] = ReadBool();
-					}
-
-					return boolArr;
-				case TypeCode.Double:
-					var doubleArr = new double[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						doubleArr[i] = ReadDouble();
-					}
-
-					return doubleArr;
-				case TypeCode.Single:
-					var floatArr = new float[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						floatArr[i] = ReadSingle();
-					}
-
-					return floatArr;
-				case TypeCode.Decimal:
-					var decimalArr = new decimal[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						decimalArr[i] = ReadDecimal();
-					}
-
-					return decimalArr;
-				case TypeCode.Char:
-					var charArr = new char[len];
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						charArr[i] = ReadChar();
-					}
-
-					return charArr;
-			}
-
-			result = false;
-			return null;
-		}
-
-		/// <summary>
-		/// Try get basic type list
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="len"></param>
-		/// <param name="result"></param>
-		/// <returns></returns>
-		internal IList TryGetBasicTypeList(Type type, int len, out bool result)
-		{
-			result = true;
-			switch (TypeModel.GetTypeCode(type))
-			{
-				case TypeCode.Byte:
-					return ReadBytes(len).ToList();
-				case TypeCode.SByte:
-					var sByteArr = new System.Collections.Generic.List<sbyte>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						sByteArr.Add(ReadSByte());
-					}
-
-					return sByteArr;
-				case TypeCode.Int16:
-					var shortArr = new System.Collections.Generic.List<short>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						shortArr.Add(ReadInt16());
-					}
-
-					return shortArr;
-				case TypeCode.UInt16:
-					var ushortArr = new System.Collections.Generic.List<ushort>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						ushortArr.Add(ReadUInt16());
-					}
-
-					return ushortArr;
-				case TypeCode.Int32:
-					var intArr = new System.Collections.Generic.List<int>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						intArr.Add((int)DecompressAndReadNumber());
-					}
-
-					return intArr;
-				case TypeCode.UInt32:
-					var uintArr = new System.Collections.Generic.List<uint>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						uintArr.Add((uint)DecompressAndReadNumber());
-					}
-
-					return uintArr;
-				case TypeCode.Int64:
-					var longArr = new System.Collections.Generic.List<long>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						longArr.Add((long)DecompressAndReadNumber());
-					}
-
-					return longArr;
-				case TypeCode.UInt64:
-					var ulongArr = new System.Collections.Generic.List<ulong>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						ulongArr.Add(DecompressAndReadNumber());
-					}
-
-					return ulongArr;
-				case TypeCode.String:
-					var strArr = new System.Collections.Generic.List<string>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						strArr.Add(ReadString());
-					}
-
-					return strArr;
-				case TypeCode.Boolean:
-					var boolArr = new System.Collections.Generic.List<bool>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						boolArr.Add(ReadBool());
-					}
-
-					return boolArr;
-				case TypeCode.Double:
-					var doubleArr = new System.Collections.Generic.List<double>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						doubleArr.Add(ReadDouble());
-					}
-
-					return doubleArr;
-				case TypeCode.Single:
-					var floatArr = new System.Collections.Generic.List<float>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						floatArr.Add(ReadSingle());
-					}
-
-					return floatArr;
-				case TypeCode.Decimal:
-					var decimalArr = new System.Collections.Generic.List<decimal>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						decimalArr.Add(ReadDecimal());
-					}
-
-					return decimalArr;
-				case TypeCode.Char:
-					var charArr = new System.Collections.Generic.List<char>(len);
-					//read item
-					for (int i = 0; i < len; i++)
-					{
-						charArr.Add(ReadChar());
-					}
-
-					return charArr;
-			}
-
-			result = false;
-			return null;
-		}
-
+		
 		/// <summary>
 		/// Read Array
 		/// </summary>
@@ -802,8 +478,12 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public Array ReadArray(Type type)
 		{
-			//read len
-			int len = ReadLength();
+			//basic type
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
+			{
+				var ret = wrapper.Deserialize(this);
+				return (Array)ret;
+			}
 
 			//other type
 			var elemType = type.GetElementType();
@@ -812,13 +492,10 @@ namespace Nino.Serialization
 				throw new NullReferenceException("element type is null, can not make array");
 			}
 
-			var arr = TryGetBasicTypeArray(elemType, len, out bool result);
-			if (result)
-			{
-				return arr;
-			}
+			//read len
+			int len = ReadLength();
 
-			arr = Array.CreateInstance(elemType, len);
+			Array arr = Array.CreateInstance(elemType, len);
 			//read item
 			for (int i = 0; i < len; i++)
 			{
@@ -826,8 +503,9 @@ namespace Nino.Serialization
 #if ILRuntime
 				arr.SetValue(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj), i);
 				continue;
-#endif
+#else
 				arr.SetValue(obj, i);
+#endif
 			}
 
 			return arr;
@@ -841,8 +519,12 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public IList ReadList(Type type)
 		{
-			//read len
-			int len = ReadLength();
+			//basic type
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
+			{
+				var ret = wrapper.Deserialize(this);
+				return (IList)ret;
+			}
 
 			//other
 			var elemType = type.GenericTypeArguments[0];
@@ -852,14 +534,11 @@ namespace Nino.Serialization
 				elemType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
 			}
 #endif
-
-			var arr = TryGetBasicTypeList(elemType, len, out bool result);
-			if (result)
-			{
-				return arr;
-			}
-
-			arr = Activator.CreateInstance(type, ConstMgr.EmptyParam) as IList;
+			
+			//read len
+			int len = ReadLength();
+			
+			IList arr = Activator.CreateInstance(type, ConstMgr.EmptyParam) as IList;
 			//read item
 			for (int i = 0; i < len; i++)
 			{
@@ -867,8 +546,9 @@ namespace Nino.Serialization
 #if ILRuntime
 				arr?.Add(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj));
 				continue;
-#endif
+#else
 				arr?.Add(obj);
+#endif
 			}
 
 			return arr;
@@ -917,8 +597,9 @@ namespace Nino.Serialization
 				dict?.Add(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(keyType, key),
 							ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(valueType, val));
 				continue;
-#endif
+#else
 				dict?.Add(key, val);
+#endif
 			}
 
 			return dict;

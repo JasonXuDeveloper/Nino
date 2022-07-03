@@ -34,9 +34,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<float[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (float[])reader.TryGetBasicTypeArray(typeof(float), len, out _)
-                : Array.Empty<float>();
+            var arr = new float[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadSingle();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -56,7 +60,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<float>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<float>)reader.TryGetBasicTypeList(typeof(float), len, out _);
+            var arr = new List<float>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadSingle());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -91,9 +101,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<double[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (double[])reader.TryGetBasicTypeArray(typeof(double), len, out _)
-                : Array.Empty<double>();
+            var arr = new double[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadDouble();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -113,7 +127,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<double>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<double>)reader.TryGetBasicTypeList(typeof(double), len, out _);
+            var arr = new List<double>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadDouble());
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -148,9 +168,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<decimal[]>>.Request();
             int len = reader.ReadLength();
-            ret.Value = len != 0
-                ? (decimal[])reader.TryGetBasicTypeArray(typeof(decimal), len, out _)
-                : Array.Empty<decimal>();
+            var arr = new decimal[len];
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr[i] = reader.ReadDecimal();
+            }
+            ret.Value = arr;
             return ret;
         }
     }
@@ -170,7 +194,13 @@ namespace Nino.Serialization
         {
             var ret = ObjectPool<Box<List<decimal>>>.Request();
             int len = reader.ReadLength();
-            ret.Value = (List<decimal>)reader.TryGetBasicTypeList(typeof(decimal), len, out _);
+            var arr = new List<decimal>(len);
+            //read item
+            for (int i = 0; i < len; i++)
+            {
+                arr.Add(reader.ReadDecimal());
+            }
+            ret.Value = arr;
             return ret;
         }
     }

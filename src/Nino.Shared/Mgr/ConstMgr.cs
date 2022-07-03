@@ -16,6 +16,10 @@ namespace Nino.Shared.Mgr
         /// </summary>
         public static string AssetPath => System.IO.Directory.GetCurrentDirectory();
 #endif
+        /// <summary>
+        /// Whether is mono or not
+        /// </summary>
+        public static readonly bool IsMono = Type.GetType("Mono.Runtime") != null;
 
         /// <summary>
         /// Null value

@@ -92,9 +92,9 @@ namespace Nino.Serialization
 		/// Write basic type to writer
 		/// </summary>
 		/// <param name="val"></param>
-		/// <typeparam name="T"></typeparam>
+		/// <param name="type"></param>
 		// ReSharper disable CognitiveComplexity
-		internal bool AttemptWriteBasicType<T>(T val)
+		internal bool AttemptWriteBasicType(Type type, object val)
 			// ReSharper restore CognitiveComplexity
 		{
 			switch (val)
@@ -147,7 +147,12 @@ namespace Nino.Serialization
 					Write(dt);
 					return true;
 				default:
-					var type = typeof(T);
+					if (val == null) return false;
+					if (WrapperManifest.TryGetWrapper(type, out var wrapper))
+					{
+						wrapper.Serialize(val,this);
+						return true;
+					}
 					if (type == ConstMgr.ObjectType)
 					{
 						//unbox
@@ -158,59 +163,46 @@ namespace Nino.Serialization
 					}
 
 					//basic type
-					//看看有没有注册委托，没的话有概率不行
-					if (!Serializer.CustomImporter.ContainsKey(type))
+					//比如泛型，只能list和dict
+					if (type.IsGenericType)
 					{
-						//比如泛型，只能list和dict
-						if (type.IsGenericType)
+						var genericDefType = type.GetGenericTypeDefinition();
+						//不是list和dict就再见了
+						if (genericDefType == ConstMgr.ListDefType)
 						{
-							var genericDefType = type.GetGenericTypeDefinition();
-							//不是list和dict就再见了
-							if (genericDefType == ConstMgr.ListDefType)
-							{
-								Write((ICollection)val);
-								return true;
-							}
-
-							if (genericDefType == ConstMgr.DictDefType)
-							{
-								Write((IDictionary)val);
-								return true;
-							}
-
-							return false;
-						}
-
-						//其他类型也不行
-						if (type.IsArray)
-						{
-#if !ILRuntime
-							if (type.GetArrayRank() > 1)
-							{
-								throw new NotSupportedException(
-									"can not serialize multidimensional array, use jagged array instead");
-							}
-#endif
-							Write(val as Array);
+							Write((ICollection)val);
 							return true;
 						}
 
-						if (type.IsEnum)
+						if (genericDefType == ConstMgr.DictDefType)
 						{
-							//have to box enum
-							CompressAndWriteEnum(type, val);
+							Write((IDictionary)val);
 							return true;
 						}
 
 						return false;
 					}
-					else
+
+					//其他类型也不行
+					if (type.IsArray)
 					{
-						if (Serializer.CustomImporter.TryGetValue(type, out var importerDelegate))
+#if !ILRuntime
+						if (type.GetArrayRank() > 1)
 						{
-							importerDelegate.Invoke(val, this);
-							return true;
+							throw new NotSupportedException(
+								"can not serialize multidimensional array, use jagged array instead");
 						}
+#endif
+						Write(val as Array);
+						return true;
+					}
+
+					//因为这里不是typecode，所以enum要单独检测
+					if (type.IsEnum)
+					{
+						//have to box enum
+						CompressAndWriteEnum(type, val);
+						return true;
 					}
 
 					return false;
@@ -228,9 +220,9 @@ namespace Nino.Serialization
 		public void WriteCommonVal(Type type, object val)
 			// ReSharper restore CognitiveComplexity
 		{
-			if (!AttemptWriteBasicType(val))
+			if (!AttemptWriteBasicType(type, val))
 			{
-				Serializer.Serialize(type, val, _encoding, this, false, true, false, true, true);
+				Serializer.Serialize(type, val, _encoding, this, false, false, false, true, true);
 			}
 		}
 
@@ -266,7 +258,17 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private unsafe void Write(byte* data, int len)
 		{
-			_buffer.CopyFrom(data, 0, _position, len);
+			//mono can not guarantee overlapped memory copy 
+			if (ConstMgr.IsMono)
+			{
+				byte* temp = stackalloc byte[len];
+				Buffer.MemoryCopy(data, temp, len, len);
+				_buffer.CopyFrom(temp, 0, _position, len);
+			}
+			else
+			{
+				_buffer.CopyFrom(data, 0, _position, len);
+			}
 			_position += len;
 			_length += len;
 		}

@@ -257,7 +257,6 @@ namespace Nino.Shared.IO
                 fixed (T* ptr = Data.items[dstIndex >> powerOf2])
                 {
                     Buffer.MemoryCopy(src + srcIndex, ptr + GetCurBlockIndex(dstIndex), length, length);
-
                 }
             }
             //separate blocks
@@ -291,7 +290,6 @@ namespace Nino.Shared.IO
                 fixed (T* ptr = Data.items[index])
                 {
                     Buffer.MemoryCopy(src + srcIndex, ptr + dstIndex, length, length);
-
                 }
             }
         }

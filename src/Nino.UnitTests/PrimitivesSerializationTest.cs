@@ -197,6 +197,16 @@ namespace Nino.UnitTests
             Assert.AreEqual(val, result);
             Assert.AreEqual(new DateTime(2000, 1, 1), val);
         }
+
+        [TestMethod]
+        public void TestEnumArr()
+        {
+            TestEnumVal[] val = new[] { TestEnumVal.A, TestEnumVal.B };
+            byte[] buf = Serialization.Serializer.Serialize(val);
+            TestEnumVal[] result = Serialization.Deserializer.Deserialize<TestEnumVal[]>(buf);
+            Assert.IsTrue(val.SequenceEqual(result));
+            Assert.IsTrue(result.SequenceEqual(new[] { TestEnumVal.A, TestEnumVal.B }));
+        }
         
         [TestMethod]
         public void TestByteArr()
@@ -336,6 +346,16 @@ namespace Nino.UnitTests
             DateTime[] result = Serialization.Deserializer.Deserialize<DateTime[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { DateTime.Today, DateTime.Today.AddDays(-1234) }));
+        }
+
+        [TestMethod]
+        public void TestEnumList()
+        {
+            System.Collections.Generic.List<TestEnumVal> val = new System.Collections.Generic.List<TestEnumVal>() { TestEnumVal.A, TestEnumVal.B};
+            byte[] buf = Serialization.Serializer.Serialize(val);
+            System.Collections.Generic.List<TestEnumVal> result = Serialization.Deserializer.Deserialize<System.Collections.Generic.List<TestEnumVal>>(buf);
+            Assert.IsTrue(val.SequenceEqual(result));
+            Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<TestEnumVal>() { TestEnumVal.A, TestEnumVal.B}));
         }
 
         [TestMethod]
