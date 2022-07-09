@@ -47,7 +47,6 @@ namespace Nino.Serialization
 		public Reader(ExtensibleBuffer<byte> data, int outputLength, Encoding encoding)
 		{
 			_buffer = data;
-			_buffer.ReadOnly = true;
 			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
@@ -71,7 +70,6 @@ namespace Nino.Serialization
 				_buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
 			}
 			_buffer.CopyFrom(data, 0, 0, outputLength);
-			_buffer.ReadOnly = true;
 			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;

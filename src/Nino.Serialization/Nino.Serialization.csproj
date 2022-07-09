@@ -18,13 +18,11 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.8</PackageVersion>
+        <PackageVersion>1.0.9</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.8
-- [optimization] better code gen
-- [optimization] less memory consumption
-- [optimization] more efficient for primitive arrays
-- [optimization] faster code gen and faster custom importer exporter</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.9
+- [optimization] leap GC optimization
+- [optimization] enhance performance for primitives</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType> 
     </PropertyGroup>
 

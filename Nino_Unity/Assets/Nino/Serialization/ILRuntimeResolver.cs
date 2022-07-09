@@ -302,7 +302,7 @@ namespace Nino.Serialization
                 }
             }
 
-            public override Nino.Serialization.Box<ILRuntime.Runtime.Intepreter.ILTypeInstance> Deserialize(Nino.Serialization.Reader reader)
+            public override ILRuntime.Runtime.Intepreter.ILTypeInstance Deserialize(Nino.Serialization.Reader reader)
             {
                 if (read == null)
                 {
@@ -315,7 +315,7 @@ namespace Nino.Serialization
                     ctx.PushObject(instance);
                     ctx.PushObject(reader);
                     ctx.Invoke();
-                    return ctx.ReadObject<Nino.Serialization.Box<ILRuntime.Runtime.Intepreter.ILTypeInstance>>();
+                    return ctx.ReadObject<ILRuntime.Runtime.Intepreter.ILTypeInstance>();
                 }
             }
 

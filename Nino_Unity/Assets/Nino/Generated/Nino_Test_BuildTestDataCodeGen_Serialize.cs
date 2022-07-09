@@ -125,7 +125,7 @@ namespace Nino.Test
                 }
             }
 
-            public override Nino.Serialization.Box<BuildTestDataCodeGen> Deserialize(Nino.Serialization.Reader reader)
+            public override BuildTestDataCodeGen Deserialize(Nino.Serialization.Reader reader)
             {
                 BuildTestDataCodeGen value = new BuildTestDataCodeGen();
                 value.a = reader.ReadByte();
@@ -151,14 +151,14 @@ namespace Nino.Test
                 value.p = new System.Collections.Generic.List<Nino.Test.NotIncludeAllClass>(reader.ReadLength());
                 for(int i = 0, cnt = value.p.Capacity; i < cnt; i++)
                 {
-                    var value_p_i = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_p_i = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     value.p.Add(value_p_i);
                 }
                 value.q = reader.ReadBytes(reader.ReadLength());
                 value.r = new Nino.Test.NotIncludeAllClass[reader.ReadLength()];
                 for(int i = 0, cnt = value.r.Length; i < cnt; i++)
                 {
-                    var value_r_i = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_r_i = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     value.r[i] = value_r_i;
                 }
                 var value_s_len = reader.ReadLength();
@@ -166,14 +166,14 @@ namespace Nino.Test
                 for(int i = 0; i < value_s_len; i++)
                 {
                     var value_s_key = reader.ReadString();
-                    var value_s_val = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_s_val = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     value.s[value_s_key] = value_s_val;
                 }
                 var value_t_len = reader.ReadLength();
                 value.t = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,System.Int32>(value_t_len);
                 for(int i = 0; i < value_t_len; i++)
                 {
-                    var value_t_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_t_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     var value_t_val =  (System.Int32)reader.DecompressAndReadNumber();
                     value.t[value_t_key] = value_t_val;
                 }
@@ -189,13 +189,11 @@ namespace Nino.Test
                 value.v = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,Nino.Test.NotIncludeAllClass>(value_v_len);
                 for(int i = 0; i < value_v_len; i++)
                 {
-                    var value_v_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
-                    var value_v_val = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_v_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
+                    var value_v_val = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     value.v[value_v_key] = value_v_val;
                 }
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.BuildTestDataCodeGen>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

@@ -3,7 +3,7 @@ namespace Nino.Serialization
     internal interface INinoWrapper<T>
     {
         void Serialize(T val, Writer writer);
-        Box<T> Deserialize(Reader reader);
+        T Deserialize(Reader reader);
     }
 
     internal interface INinoWrapper

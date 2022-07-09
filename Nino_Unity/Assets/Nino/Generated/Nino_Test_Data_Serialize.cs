@@ -20,7 +20,7 @@ namespace Nino.Test
                 writer.Write(value.name);
             }
 
-            public override Nino.Serialization.Box<Data> Deserialize(Nino.Serialization.Reader reader)
+            public override Data Deserialize(Nino.Serialization.Reader reader)
             {
                 Data value = new Data();
                 value.x =  (System.Int32)reader.DecompressAndReadNumber();
@@ -32,9 +32,7 @@ namespace Nino.Test
                 value.bo = reader.ReadBool();
                 value.en = (Nino.Test.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
                 value.name = reader.ReadString();
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.Data>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

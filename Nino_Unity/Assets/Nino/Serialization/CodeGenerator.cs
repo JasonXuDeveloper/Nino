@@ -104,7 +104,7 @@ namespace Nino.Serialization
 {members}
             }
 
-            public override Nino.Serialization.Box<{type}> Deserialize(Nino.Serialization.Reader reader)
+            public override {type} Deserialize(Nino.Serialization.Reader reader)
             {
                 {type} value = new {type}();
 {fields}
@@ -327,7 +327,7 @@ namespace Nino.Serialization
                     sb.Append("                {\n");
                     //if nino serialize class => loop call method
                     string valStr = GetValidNinoClass(elemType, false)
-                        ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn()"
+                        ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.Deserialize(reader)"
                         : GetDeserializeBasicTypeStatement(elemType, $"value_{members[key].Name}_i","                \t");
                     
                     if (elemType != null && !(elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
@@ -370,7 +370,7 @@ namespace Nino.Serialization
 
                     //read key
                     string valStr = GetValidNinoClass(keyType, false)
-                        ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn()"
+                        ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.Deserialize(reader)"
                         : GetDeserializeBasicTypeStatement(keyType, $"value_{members[key].Name}_key","                \t");
                     if (!(keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
                     {
@@ -385,7 +385,7 @@ namespace Nino.Serialization
 
                     //read value
                     valStr = GetValidNinoClass(valueType, false)
-                        ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn()"
+                        ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.Deserialize(reader)"
                         : GetDeserializeBasicTypeStatement(valueType, $"value_{members[key].Name}_val","                \t");
                     if (!(valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
                     {
@@ -409,9 +409,7 @@ namespace Nino.Serialization
                     sb.Append($"                value.{members[key].Name} = {GetDeserializeBasicTypeStatement(mt)};\n");
                 }
             }
-            sb.Append($"                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<{BeautifulLongTypeName(type)}>>.Request();\n");
-            sb.Append("                ret.Value = value;\n");
-            sb.Append("                return ret;\n");
+            sb.Append("                return value;\n");
             //remove comma at the end
             sb.Remove(sb.Length - 1, 1);
 
@@ -484,7 +482,7 @@ namespace Nino.Serialization
                         default:
                             if (GetValidNinoClass(mt, false))
                             {
-                                return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn()";
+                                return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.Deserialize(reader)";
                             }
                             if (mt.IsArray ||
                                 (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
@@ -524,7 +522,7 @@ namespace Nino.Serialization
                                 builder.Append(space).Append("{\n");
                                 //if nino serialize class => loop call method
                                 string valStr = GetValidNinoClass(elemType, false)
-                                    ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn()"
+                                    ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.Deserialize(reader)"
                                     : GetDeserializeBasicTypeStatement(elemType, $"value_{val}_i",$"{space}\t");
 
                                 if (elemType != null && !(elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
@@ -566,7 +564,7 @@ namespace Nino.Serialization
 
                                 //read key
                                 string valStr = GetValidNinoClass(keyType, false)
-                                    ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn()"
+                                    ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.Deserialize(reader)"
                                     : GetDeserializeBasicTypeStatement(keyType, $"{val}_key",$"{space}\t");
                                 if (!(keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
                                 {
@@ -580,7 +578,7 @@ namespace Nino.Serialization
                     
                                 //read value
                                 valStr = GetValidNinoClass(valueType, false)
-                                    ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn()"
+                                    ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.Deserialize(reader)"
                                     : GetDeserializeBasicTypeStatement(valueType, $"{val}_val",$"{space}\t");
                                 if (!(valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
                                 {

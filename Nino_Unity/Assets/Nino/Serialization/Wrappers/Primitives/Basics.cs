@@ -1,5 +1,4 @@
 using System;
-using Nino.Shared.IO;
 using System.Collections.Generic;
 
 namespace Nino.Serialization
@@ -11,11 +10,9 @@ namespace Nino.Serialization
             writer.Write(val);
         }
 
-        public override Box<bool> Deserialize(Reader reader)
+        public override bool Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<bool>>.Request();
-            ret.Value = reader.ReadBool();
-            return ret;
+            return reader.ReadBool();
         }
     }
 
@@ -34,9 +31,8 @@ namespace Nino.Serialization
             }
         }
 
-        public override unsafe Box<bool[]> Deserialize(Reader reader)
+        public override unsafe bool[] Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<bool[]>>.Request();
             int len = reader.ReadLength();
             bool[] arr;
             if (len == 0)
@@ -51,8 +47,8 @@ namespace Nino.Serialization
                     reader.ReadToBuffer((byte*)arrPtr, len);
                 }
             }
-            ret.Value = arr;
-            return ret;
+
+            return arr;
         }
     }
 
@@ -67,9 +63,8 @@ namespace Nino.Serialization
             }
         }
 
-        public override Box<List<bool>> Deserialize(Reader reader)
+        public override List<bool> Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<List<bool>>>.Request();
             int len = reader.ReadLength();
             var arr = new List<bool>(len);
             //read item
@@ -78,8 +73,7 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadBool());
             }
-            ret.Value = arr;
-            return ret;
+            return arr;
         }
     }
 
@@ -90,11 +84,9 @@ namespace Nino.Serialization
             writer.Write(val);
         }
 
-        public override Box<char> Deserialize(Reader reader)
+        public override char Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<char>>.Request();
-            ret.Value = reader.ReadChar();
-            return ret;
+            return reader.ReadChar();
         }
     }
 
@@ -113,9 +105,8 @@ namespace Nino.Serialization
             }
         }
 
-        public override unsafe Box<char[]> Deserialize(Reader reader)
+        public override unsafe char[] Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<char[]>>.Request();
             int len = reader.ReadLength();
             char[] arr;
             if (len == 0)
@@ -130,8 +121,7 @@ namespace Nino.Serialization
                     reader.ReadToBuffer((byte*)arrPtr, len * 2);
                 }
             }
-            ret.Value = arr;
-            return ret;
+            return arr;
         }
     }
 
@@ -146,9 +136,8 @@ namespace Nino.Serialization
             }
         }
 
-        public override Box<List<char>> Deserialize(Reader reader)
+        public override List<char> Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<List<char>>>.Request();
             int len = reader.ReadLength();
             var arr = new List<char>(len);
             //read item
@@ -157,8 +146,7 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadChar());
             }
-            ret.Value = arr;
-            return ret;
+            return arr;
         }
     }
 
@@ -169,11 +157,9 @@ namespace Nino.Serialization
             writer.Write(val);
         }
 
-        public override Box<string> Deserialize(Reader reader)
+        public override string Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<string>>.Request();
-            ret.Value = reader.ReadString();
-            return ret;
+            return reader.ReadString();
         }
     }
 
@@ -188,9 +174,8 @@ namespace Nino.Serialization
             }
         }
 
-        public override Box<string[]> Deserialize(Reader reader)
+        public override string[] Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<string[]>>.Request();
             int len = reader.ReadLength();
             var arr = new string[len];
             int i = 0;
@@ -198,8 +183,7 @@ namespace Nino.Serialization
             {
                 arr[i++] = reader.ReadString();
             }
-            ret.Value = arr;
-            return ret;
+            return arr;
         }
     }
 
@@ -214,9 +198,8 @@ namespace Nino.Serialization
             }
         }
 
-        public override Box<List<string>> Deserialize(Reader reader)
+        public override List<string> Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<List<string>>>.Request();
             int len = reader.ReadLength();
             var arr = new List<string>(len);
             //read item
@@ -225,8 +208,7 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadString());
             }
-            ret.Value = arr;
-            return ret;
+            return arr;
         }
     }
 
@@ -237,11 +219,9 @@ namespace Nino.Serialization
             writer.Write(val);
         }
 
-        public override Box<DateTime> Deserialize(Reader reader)
+        public override DateTime Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<DateTime>>.Request();
-            ret.Value = reader.ReadDateTime();
-            return ret;
+            return reader.ReadDateTime();
         }
     }
 
@@ -256,9 +236,8 @@ namespace Nino.Serialization
             }
         }
 
-        public override Box<DateTime[]> Deserialize(Reader reader)
+        public override DateTime[] Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<DateTime[]>>.Request();
             int len = reader.ReadLength();
             var arr = new DateTime[len];
             int i = 0;
@@ -266,8 +245,7 @@ namespace Nino.Serialization
             {
                 arr[i++] = reader.ReadDateTime();
             }
-            ret.Value = arr;
-            return ret;
+            return arr;
         }
     }
 
@@ -282,9 +260,8 @@ namespace Nino.Serialization
             }
         }
 
-        public override Box<List<DateTime>> Deserialize(Reader reader)
+        public override List<DateTime> Deserialize(Reader reader)
         {
-            var ret = ObjectPool<Box<List<DateTime>>>.Request();
             int len = reader.ReadLength();
             var arr = new List<DateTime>(len);
             int i = 0;
@@ -292,8 +269,7 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadDateTime());
             }
-            ret.Value = arr;
-            return ret;
+            return arr;
         }
     }
 
@@ -309,14 +285,11 @@ namespace Nino.Serialization
             Importer(val, writer);
         }
 
-        public override Box<T> Deserialize(Reader reader)
+        public override T Deserialize(Reader reader)
         {
             if(Exporter == null)
                 throw new InvalidOperationException($"Exporter is null for type: {typeof(T)}");
-            var ret = ObjectPool<Box<T>>.Request();
-            var val = Exporter(reader);
-            ret.Value = val;
-            return ret;
+            return Exporter(reader);
         }
     }
 }

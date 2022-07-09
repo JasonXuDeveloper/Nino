@@ -24,19 +24,17 @@ namespace Nino.Benchmark.Models
                 }
             }
 
-            public override Nino.Serialization.Box<NestedData> Deserialize(Nino.Serialization.Reader reader)
+            public override NestedData Deserialize(Nino.Serialization.Reader reader)
             {
                 NestedData value = new NestedData();
                 value.Name = reader.ReadString();
                 value.Ps = new Nino.Benchmark.Models.Data[reader.ReadLength()];
                 for(int i = 0, cnt = value.Ps.Length; i < cnt; i++)
                 {
-                    var value_Ps_i = Nino.Benchmark.Models.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_Ps_i = Nino.Benchmark.Models.Data.NinoSerializationHelper.Deserialize(reader);
                     value.Ps[i] = value_Ps_i;
                 }
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.NestedData>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

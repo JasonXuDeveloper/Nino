@@ -16,7 +16,7 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.Link);
             }
 
-            public override Nino.Serialization.Box<Badge> Deserialize(Nino.Serialization.Reader reader)
+            public override Badge Deserialize(Nino.Serialization.Reader reader)
             {
                 Badge value = new Badge();
                 value.BadgeId =  (System.Int32)reader.DecompressAndReadNumber();
@@ -24,9 +24,7 @@ namespace Nino.Benchmark.Models
                 value.Description = reader.ReadString();
                 value.AwardCount =  (System.Int32)reader.DecompressAndReadNumber();
                 value.Link = reader.ReadString();
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.Badge>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

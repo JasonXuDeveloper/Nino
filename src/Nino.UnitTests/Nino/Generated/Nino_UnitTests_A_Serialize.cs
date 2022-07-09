@@ -12,13 +12,11 @@ namespace Nino.UnitTests
                 writer.CompressAndWrite(value.Val);
             }
 
-            public override Nino.Serialization.Box<A> Deserialize(Nino.Serialization.Reader reader)
+            public override A Deserialize(Nino.Serialization.Reader reader)
             {
                 A value = new A();
                 value.Val =  (System.Int32)reader.DecompressAndReadNumber();
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.UnitTests.A>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

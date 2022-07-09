@@ -20,7 +20,7 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.Upvoted);
             }
 
-            public override Nino.Serialization.Box<Comment> Deserialize(Nino.Serialization.Reader reader)
+            public override Comment Deserialize(Nino.Serialization.Reader reader)
             {
                 Comment value = new Comment();
                 value.CommentId =  (System.Int32)reader.DecompressAndReadNumber();
@@ -32,9 +32,7 @@ namespace Nino.Benchmark.Models
                 value.Link = reader.ReadString();
                 value.BodyMarkdown = reader.ReadString();
                 value.Upvoted = reader.ReadBool();
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.Comment>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

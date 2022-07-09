@@ -68,10 +68,9 @@ namespace Nino.Serialization
 			}
 			else
 			{
-				_buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
+				_buffer = new ExtensibleBuffer<byte>(50, BufferBlockSize);
 			}
 
-			_buffer.ReadOnly = false;
 			_encoding = encoding;
 			_length = 0;
 			_position = 0;

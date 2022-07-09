@@ -15,16 +15,14 @@ namespace Nino.Test
                 writer.Write(value.d);
             }
 
-            public override Nino.Serialization.Box<IncludeAllClassCodeGen> Deserialize(Nino.Serialization.Reader reader)
+            public override IncludeAllClassCodeGen Deserialize(Nino.Serialization.Reader reader)
             {
                 IncludeAllClassCodeGen value = new IncludeAllClassCodeGen();
                 value.a =  (System.Int32)reader.DecompressAndReadNumber();
                 value.b =  (System.Int64)reader.DecompressAndReadNumber();
                 value.c = reader.ReadSingle();
                 value.d = reader.ReadDouble();
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.IncludeAllClassCodeGen>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

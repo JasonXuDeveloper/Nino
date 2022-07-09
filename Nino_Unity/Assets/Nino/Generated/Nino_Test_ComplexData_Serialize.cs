@@ -300,7 +300,7 @@ namespace Nino.Test
                 }
             }
 
-            public override Nino.Serialization.Box<ComplexData> Deserialize(Nino.Serialization.Reader reader)
+            public override ComplexData Deserialize(Nino.Serialization.Reader reader)
             {
                 ComplexData value = new ComplexData();
                 value.a = new System.Int32[reader.ReadLength()][];
@@ -388,7 +388,7 @@ namespace Nino.Test
                     var value_f_i = new Nino.Test.Data[reader.ReadLength()];
                 	for(int value_f_i_i = 0, value_f_i_cnt = value_f_i.Length; value_f_i_i < value_f_i_cnt; value_f_i_i++)
                 	{
-                		var value_value_f_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                		var value_value_f_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                 		value_f_i[value_f_i_i] = value_value_f_i_i;
                 	}
                     value.f[i] = value_f_i;
@@ -399,7 +399,7 @@ namespace Nino.Test
                     var value_g_i = new Nino.Test.Data[reader.ReadLength()];
                 	for(int value_g_i_i = 0, value_g_i_cnt = value_g_i.Length; value_g_i_i < value_g_i_cnt; value_g_i_i++)
                 	{
-                		var value_value_g_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                		var value_value_g_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                 		value_g_i[value_g_i_i] = value_value_g_i_i;
                 	}
                     value.g.Add(value_g_i);
@@ -413,7 +413,7 @@ namespace Nino.Test
                 		var value_value_h_i_i = new Nino.Test.Data[reader.ReadLength()];
                 		for(int value_value_h_i_i_i = 0, value_value_h_i_i_cnt = value_value_h_i_i.Length; value_value_h_i_i_i < value_value_h_i_i_cnt; value_value_h_i_i_i++)
                 		{
-                			var value_value_value_h_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                			var value_value_value_h_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                 			value_value_h_i_i[value_value_h_i_i_i] = value_value_value_h_i_i_i;
                 		}
                 		value_h_i[value_h_i_i] = value_value_h_i_i;
@@ -426,7 +426,7 @@ namespace Nino.Test
                     var value_i_i = new System.Collections.Generic.List<Nino.Test.Data>(reader.ReadLength());
                 	for(int value_i_i_i = 0, value_i_i_cnt = value_i_i.Capacity; value_i_i_i < value_i_i_cnt; value_i_i_i++)
                 	{
-                		var value_value_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                		var value_value_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                 		value_i_i.Add(value_value_i_i_i);
                 	}
                     value.i[i] = value_i_i;
@@ -440,16 +440,14 @@ namespace Nino.Test
                 		var value_value_j_i_i = new Nino.Test.Data[reader.ReadLength()];
                 		for(int value_value_j_i_i_i = 0, value_value_j_i_i_cnt = value_value_j_i_i.Length; value_value_j_i_i_i < value_value_j_i_i_cnt; value_value_j_i_i_i++)
                 		{
-                			var value_value_value_j_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                			var value_value_value_j_i_i_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                 			value_value_j_i_i[value_value_j_i_i_i] = value_value_value_j_i_i_i;
                 		}
                 		value_j_i.Add(value_value_j_i_i);
                 	}
                     value.j[i] = value_j_i;
                 }
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.ComplexData>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

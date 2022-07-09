@@ -14,15 +14,13 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.MergeDate);
             }
 
-            public override Nino.Serialization.Box<AccountMerge> Deserialize(Nino.Serialization.Reader reader)
+            public override AccountMerge Deserialize(Nino.Serialization.Reader reader)
             {
                 AccountMerge value = new AccountMerge();
                 value.OldAccountId =  (System.Int32)reader.DecompressAndReadNumber();
                 value.NewAccountId =  (System.Int32)reader.DecompressAndReadNumber();
                 value.MergeDate = reader.ReadDateTime();
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.AccountMerge>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

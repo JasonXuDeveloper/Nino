@@ -44,36 +44,31 @@ namespace Nino.Serialization
 		}
 		
 		/// <summary>
-		/// Add custom importer of all objects
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="action"></param>
-		internal static void AddCustomImporter(Type type, Action<object, Writer> action)
-		{
-			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
-			{
-				((GenericWrapper<object>)wrapper).Importer = action.Invoke;
-				return;
-			}
-
-			GenericWrapper<object> genericWrapper = new GenericWrapper<object>
-			{
-				Importer = action.Invoke
-			};
-			WrapperManifest.AddWrapper(type, genericWrapper);
-		}
-
-		/// <summary>
 		/// Serialize a NinoSerialize object
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public static byte[] Serialize<T>(T val, Encoding encoding = null)
 		{
+			encoding = encoding ?? DefaultEncoding;
+			Writer writer = new Writer(encoding);
+			return Serialize(val, encoding, writer);
+		}
+		
+		/// <summary>
+		/// Serialize a NinoSerialize object
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="val"></param>
+		/// <param name="encoding"></param>
+		/// <param name="writer"></param>
+		/// <returns></returns>
+		private static byte[] Serialize<T>(T val, Encoding encoding, Writer writer)
+		{
 			Type type = typeof(T);
-			Writer writer = new Writer(encoding ?? DefaultEncoding);
 
 			//basic type
 			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
@@ -97,17 +92,14 @@ namespace Nino.Serialization
 			if (TypeModel.TryGetWrapper(type, out var wrapperObj))
 			{
 				wrapper = (NinoWrapperBase<T>)wrapperObj;
-				if (wrapper != null)
-				{
-					//add wrapper
-					WrapperManifest.AddWrapper(type, wrapper);
-					//start serialize
-					((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
-					//compress it
-					var ret = writer.ToCompressedBytes();
-					writer.Dispose();
-					return ret;
-				}
+				//add wrapper
+				WrapperManifest.AddWrapper(type, wrapper);
+				//start serialize
+				((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
+				//compress it
+				var ret = writer.ToCompressedBytes();
+				writer.Dispose();
+				return ret;
 			}
 
 			//reflection type
@@ -135,9 +127,6 @@ namespace Nino.Serialization
 				bool skipGenericCheck = false, bool skipEnumCheck = false)
 			// ReSharper restore CognitiveComplexity
 		{
-			//prevent null encoding
-			encoding = encoding ?? DefaultEncoding;
-
 			//ILRuntime
 #if ILRuntime
 			if(value is ILRuntime.Runtime.Intepreter.ILTypeInstance ins)
@@ -147,11 +136,6 @@ namespace Nino.Serialization
 
 			type = type.ResolveRealType();
 #endif
-
-			if (writer == null)
-			{
-				writer = new Writer(encoding);
-			}
 
 			//basic type
 			if (!skipBasicCheck && WrapperManifest.TryGetWrapper(type, out var wrapper))
@@ -184,17 +168,14 @@ namespace Nino.Serialization
 			if (!skipCodeGenCheck && TypeModel.TryGetWrapper(type, out var wrapperObj))
 			{
 				wrapper = (INinoWrapper)wrapperObj;
-				if (wrapper != null)
-				{
-					//add wrapper
-					WrapperManifest.AddWrapper(type, wrapper);
-					//start serialize
-					wrapper.Serialize(value, writer);
-					var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
-					if (returnValue)
-						writer.Dispose();
-					return ret;
-				}
+				//add wrapper
+				WrapperManifest.AddWrapper(type, wrapper);
+				//start serialize
+				wrapper.Serialize(value, writer);
+				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+				if (returnValue)
+					writer.Dispose();
+				return ret;
 			}
 
 			//array
@@ -258,10 +239,14 @@ namespace Nino.Serialization
 					writer.CompressAndWrite(model.Members.Count);
 				}
 
-				for (; min <= max; min++)
+				while(min <= max)
 				{
 					//prevent index not exist
-					if (!model.Types.ContainsKey(min)) continue;
+					if (!model.Types.ContainsKey(min))
+					{
+						min++;
+						continue;
+					}
 					//get type of that member
 					type = model.Types[min];
 					//try code gen, if no code gen then reflection
@@ -276,13 +261,12 @@ namespace Nino.Serialization
 						     type.GetGenericTypeDefinition() == ConstMgr.DictDefType))
 						{
 							writer.CompressAndWrite(0);
+							min++;
 							continue;
 						}
-						else
-						{
-							throw new NullReferenceException(
-								$"{type.FullName}.{model.Members[min].Name} is null, cannot serialize");
-						}
+
+						throw new NullReferenceException(
+							$"{type.FullName}.{model.Members[min].Name} is null, cannot serialize");
 					}
 
 					//only include all model need this
@@ -294,6 +278,7 @@ namespace Nino.Serialization
 					}
 
 					writer.WriteCommonVal(type, val);
+					min++;
 				}
 			}
 

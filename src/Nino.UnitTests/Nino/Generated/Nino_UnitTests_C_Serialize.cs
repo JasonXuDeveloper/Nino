@@ -24,19 +24,17 @@ namespace Nino.UnitTests
                 }
             }
 
-            public override Nino.Serialization.Box<C> Deserialize(Nino.Serialization.Reader reader)
+            public override C Deserialize(Nino.Serialization.Reader reader)
             {
                 C value = new C();
                 value.Name = reader.ReadString();
                 value.As = new System.Collections.Generic.List<Nino.UnitTests.A>(reader.ReadLength());
                 for(int i = 0, cnt = value.As.Capacity; i < cnt; i++)
                 {
-                    var value_As_i = Nino.UnitTests.A.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_As_i = Nino.UnitTests.A.NinoSerializationHelper.Deserialize(reader);
                     value.As.Add(value_As_i);
                 }
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.UnitTests.C>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

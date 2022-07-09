@@ -12,15 +12,15 @@
 
 体积方面，Nino最小，MsgPack其次，其他库不尽人意
 
-序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection基本与Protobuf-net一致，其他库不尽人意
+序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection基本与Protobuf-net一致，其他库不尽人意（序列化小体积的数据，可能会比MsgPack略慢）
 
-反序列化速度方面，Nino Code Gen最快，MsgPack略慢一筹，Nino Reflection略快于Protobuf-net，略微逊色于MongoDB.Bson，BinaryFormatter最糟糕
+**反序列化速度方面，Nino Code Gen最快**，MsgPack略慢一筹，Nino Reflection略快于Protobuf-net，略微逊色于MongoDB.Bson，BinaryFormatter最糟糕
 
-GC方面，Nino Code Gen和MsgPack碾压全部其他库，一览众山小，第一次序列化数据时产生的GC是其他序列化库的几分之一，甚至几十分之一！第二次开始序列化的时候会复用对象池内的数据，使得产生的GC仅仅只是其他序列化库的几百甚至几千分之一！
+**GC方面，Nino Code Gen碾压全部其他库**，一览众山小，序列化的GC比其他库低几百到上千倍，反序列化的GC与MsgPack持平，是其他库的几十到几百分之一！
 
-> 序列化下，Nino Code Gen和MsgPack的GC基本只有写入二进制数据时创建的二进制Buffer所造成的GC，无任何额外GC
+> 序列化下，Nino Code Gen的GC基本只有扩容和转二进制返回值时的GC，其他GC全无
 >
-> 反序列化下，Nino Code Gen和MsgPack的GC基本只有new对象的GC，转字符串的GC，以及解压的GC，无任何额外GC
+> 反序列化下，Nino Code Gen和MsgPack基本持平，GC基本只有new对象的GC，转字符串的GC，以及解压的GC，无任何额外GC
 
 ### 易用性
 
@@ -28,7 +28,7 @@ Nino、BinaryFormatter、可以轻松用于Unity或其他C#平台（Mono以及IL
 
 MsgPack需要在IL2CPP平台（Unity和Xamarin）进行额外处理（防止AOT问题，需要预生成代码，不然会导致无法使用），该操作十分繁琐
 
-Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典会无法使用，因为是AOT问题，暂时没找到解决方案
+Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典无法使用，这个是AOT问题，暂时没找到解决方案
 
 ### 备注
 
@@ -40,7 +40,7 @@ Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典会无法使用，因�
 ### 为什么Nino又小又快、还能易用且低GC
 
 - GC优化
-  - Nino实现了高性能动态扩容数组，通过这个功能可以**极大幅度**降低GC（20M降到5M，甚至搭配对象池可以降到100K）
+  - Nino实现了高性能动态扩容数组，通过这个功能可以**极大幅度**降低GC（可以从20MB降到100KB）
   - Nino底层用了对象池，实现了包括但不限于数据流、缓冲区等内容的复用，杜绝重复创建造成的开销
   - Nino在生成代码后，通过生成的代码，避免了装箱拆箱、反射字段造成的大额GC
   - Nino在序列化和反序列化的时候，会调用不造成高额GC的方法写入数据（例如不用Decimal.GetBits去取Decimall的二进制，这个每次请求会产生一个int数组的GC）
@@ -80,7 +80,7 @@ Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典会无法使用，因�
 
 
 
-## 非Unity平台性能测试
+## 非Unity平台性能测试（数据待更新）
 
 ``` ini
 BenchmarkDotNet=v0.12.1, OS=macOS 12.0.1 (21A559) [Darwin 21.1.0]

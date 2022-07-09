@@ -26,7 +26,7 @@ namespace Nino.Benchmark.Models
                 }
             }
 
-            public override Nino.Serialization.Box<AccessToken> Deserialize(Nino.Serialization.Reader reader)
+            public override AccessToken Deserialize(Nino.Serialization.Reader reader)
             {
                 AccessToken value = new AccessToken();
                 value.Token = reader.ReadString();
@@ -38,9 +38,7 @@ namespace Nino.Benchmark.Models
                     var value_Scope_i = reader.ReadString();
                     value.Scope.Add(value_Scope_i);
                 }
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.AccessToken>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

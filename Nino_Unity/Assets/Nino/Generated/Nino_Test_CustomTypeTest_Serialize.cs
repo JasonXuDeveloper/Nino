@@ -53,7 +53,7 @@ namespace Nino.Test
                 }
             }
 
-            public override Nino.Serialization.Box<CustomTypeTest> Deserialize(Nino.Serialization.Reader reader)
+            public override CustomTypeTest Deserialize(Nino.Serialization.Reader reader)
             {
                 CustomTypeTest value = new CustomTypeTest();
                 value.v3 = (UnityEngine.Vector3)reader.ReadCommonVal(typeof(UnityEngine.Vector3));
@@ -79,12 +79,10 @@ namespace Nino.Test
                 for(int i = 0; i < value_dict2_len; i++)
                 {
                     var value_dict2_key = reader.ReadString();
-                    var value_dict2_val = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_dict2_val = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                     value.dict2[value_dict2_key] = value_dict2_val;
                 }
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Test.CustomTypeTest>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }

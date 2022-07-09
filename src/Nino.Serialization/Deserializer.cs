@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Text;
-using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Reflection;
 using System.Collections.Generic;
@@ -43,26 +42,6 @@ namespace Nino.Serialization
 			};
 			WrapperManifest.AddWrapper(typeof(T), genericWrapper);
 		}
-		
-		/// <summary>
-		/// Add custom Exporter of all type objects
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="func"></param>
-		internal static void AddCustomExporter(Type type, Func<Reader, object> func)
-		{
-			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
-			{
-				((GenericWrapper<object>)wrapper).Exporter = func.Invoke;
-				return;
-			}
-
-			GenericWrapper<object> genericWrapper = new GenericWrapper<object>
-			{
-				Exporter = func.Invoke
-			};
-			WrapperManifest.AddWrapper(type, genericWrapper);
-		}
 
 		/// <summary>
 		/// Deserialize a NinoSerialize object
@@ -91,8 +70,7 @@ namespace Nino.Serialization
 
 				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(basicReader);
 				basicReader.Dispose();
-				var retVal = ret.RetrieveValueAndReturn();
-				return retVal;
+				return ret;
 			}
 
 			Reader reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
@@ -107,8 +85,7 @@ namespace Nino.Serialization
 					//start Deserialize
 					var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
 					reader.Dispose();
-					var retVal = ret.RetrieveValueAndReturn();
-					return retVal;
+					return ret;
 				}
 			}
 
@@ -269,10 +246,14 @@ namespace Nino.Serialization
 					}
 
 					//set elements
-					for (; min <= max; min++)
+					while(min <= max)
 					{
 						//prevent index not exist
-						if (!model.Types.ContainsKey(min)) continue;
+						if (!model.Types.ContainsKey(min))
+						{
+							min++;
+							continue;
+						}
 						//get the member
 						var member = model.Members[min];
 						//member type
@@ -297,16 +278,26 @@ namespace Nino.Serialization
 
 							SetMember(model.Members[min], val, ret);
 						}
+
+						min++;
 					}
 				}
 				else
 				{
-					for (; min <= max; min++)
+					while(min <= max)
 					{
 						//if end, skip
-						if (reader.EndOfReader) continue;
+						if (reader.EndOfReader)
+						{
+							min++;
+							continue;
+						}
 						//prevent index not exist
-						if (!model.Types.ContainsKey(min)) continue;
+						if (!model.Types.ContainsKey(min))
+						{
+							min++;
+							continue;
+						}
 						//get type of that member
 						type = model.Types[min];
 						//try code gen, if no code gen then reflection
@@ -317,18 +308,12 @@ namespace Nino.Serialization
 #if !ILRuntime
 						if (ret.GetType() != type)
 						{
-							if (type.IsEnum)
-							{
-								ret = Enum.ToObject(type, ret);
-							}
-							else
-							{
-								ret = Convert.ChangeType(ret, type);
-							}
+							ret = type.IsEnum ? Enum.ToObject(type, ret) : Convert.ChangeType(ret, type);
 						}
 #endif
 
 						SetMember(model.Members[min], val, ret);
+						min++;
 					}
 				}
 			}

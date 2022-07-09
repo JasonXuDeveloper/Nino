@@ -55,7 +55,7 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.ShareLink);
             }
 
-            public override Nino.Serialization.Box<Answer> Deserialize(Nino.Serialization.Reader reader)
+            public override Answer Deserialize(Nino.Serialization.Reader reader)
             {
                 Answer value = new Answer();
                 value.QuestionId =  (System.Int32)reader.DecompressAndReadNumber();
@@ -74,7 +74,7 @@ namespace Nino.Benchmark.Models
                 value.Comments = new System.Collections.Generic.List<Nino.Benchmark.Models.Comment>(reader.ReadLength());
                 for(int i = 0, cnt = value.Comments.Capacity; i < cnt; i++)
                 {
-                    var value_Comments_i = Nino.Benchmark.Models.Comment.NinoSerializationHelper.Deserialize(reader).RetrieveValueAndReturn();
+                    var value_Comments_i = Nino.Benchmark.Models.Comment.NinoSerializationHelper.Deserialize(reader);
                     value.Comments.Add(value_Comments_i);
                 }
                 value.Link = reader.ReadString();
@@ -90,9 +90,7 @@ namespace Nino.Benchmark.Models
                 value.CommentCount =  (System.Int32)reader.DecompressAndReadNumber();
                 value.BodyMarkdown = reader.ReadString();
                 value.ShareLink = reader.ReadString();
-                var ret = Nino.Shared.IO.ObjectPool<Nino.Serialization.Box<Nino.Benchmark.Models.Answer>>.Request();
-                ret.Value = value;
-                return ret;
+                return value;
             }
             #endregion
         }
