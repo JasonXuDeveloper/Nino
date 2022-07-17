@@ -117,17 +117,14 @@ namespace Nino.Shared.IO
             PowerOf2 = Shared.PowerOf2.GetPower(size);
             sizeOfT = (byte)sizeof(T);
             ExpandSize = size;
-            extensibleData = new UncheckedList<IntPtr>(capacity);
+            extensibleData = new UncheckedList<IntPtr>(capacity) { Marshal.AllocHGlobal(sizeOfT * ExpandSize) };
             if (initialData != null)
             {
                 fixed(T* ptr = initialData)
                 {
                     extensibleData.Add((IntPtr)ptr);
+                    CopyFrom(ptr, 0, 0, initialData.Length);
                 }
-            }
-            else
-            {
-                extensibleData.Add(Marshal.AllocHGlobal(sizeOfT * ExpandSize));
             }
             blockLength = 1;
         }

@@ -8,7 +8,8 @@ namespace Nino.Benchmark
         {
 #if !DEBUG
             //BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
-            BenchmarkRunner.Run<SerializationBenchmark>();
+            BenchmarkRunner.Run<ExtensibleBufferBenchmark>();
+            // BenchmarkRunner.Run<SerializationBenchmark>();
 #else
             BenchmarkRunner.Run<SerializationBenchmark>(new BenchmarkDotNet.Configs.DebugInProcessConfig());
 #endif

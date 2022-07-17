@@ -135,4 +135,16 @@ namespace Nino.Benchmark
             }
         }
     }
+    public class BenchmarkConfig2 : ManualConfig
+    {
+        public BenchmarkConfig2()
+        { 
+            // run quickly:)
+            Job baseConfig = Job.ShortRun.WithIterationCount(1).WithWarmupCount(1);
+            this.AddJob(baseConfig.WithRuntime(CoreRuntime.Core50).WithPlatform(Platform.AnyCpu));
+            this.AddExporter(MarkdownExporter.GitHub);
+            this.AddExporter(CsvExporter.Default);
+            this.AddDiagnoser(MemoryDiagnoser.Default);
+        }
+    }
 }

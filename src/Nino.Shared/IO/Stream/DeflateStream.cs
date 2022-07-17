@@ -495,19 +495,14 @@ namespace Nino.Shared.IO
 		private unsafe int UnmanagedRead(IntPtr buffer, int length)
 		{
 			int count = Math.Min(length, BufferSize);
-			byte* buf = stackalloc byte[count];
 			int num;
 			try
 			{
-				num = baseStream.Read(buf, 0, count);
+				num = baseStream.Read((byte*)buffer, 0, count);
 			}
 			catch
 			{
 				return -12;
-			}
-			if (num > 0)
-			{
-				Buffer.MemoryCopy(buf, buffer.ToPointer(), num, num);
 			}
 			return num;
 		}
@@ -525,7 +520,7 @@ namespace Nino.Shared.IO
 		[MonoPInvokeCallback]
 		private unsafe int UnmanagedWrite(IntPtr buffer, int length)
 		{
-			baseStream.Write((byte*)buffer.ToPointer(), 0, length);
+			baseStream.Write((byte*)buffer, 0, length);
 			return length;
 		}
 
