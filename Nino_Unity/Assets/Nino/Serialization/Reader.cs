@@ -5,6 +5,7 @@ using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Serialization
 {
@@ -12,12 +13,12 @@ namespace Nino.Serialization
 	/// A read that Reads serialization Data
 	/// </summary>
 	// ReSharper disable CognitiveComplexity
-	public class Reader : IDisposable
+	public class Reader
 	{
 		/// <summary>
 		/// block size when creating buffer
 		/// </summary>
-		private const int BufferBlockSize = 1024 * 2;
+		private const ushort BufferBlockSize = 1024 * 2;
 		
 		/// <summary>
 		/// Buffer that stores data
@@ -27,15 +28,29 @@ namespace Nino.Serialization
 		/// <summary>
 		/// encoding for string
 		/// </summary>
-		private readonly Encoding _encoding;
+		private Encoding _encoding;
 
 		/// <summary>
-		/// Dispose the read
+		/// Position of the current buffer
 		/// </summary>
-		public void Dispose()
+		private int _position;
+
+		/// <summary>
+		/// Position of the current buffer
+		/// </summary>
+		private int _length;
+
+		/// <summary>
+		/// End of Reader
+		/// </summary>
+		public bool EndOfReader => _position == _length;
+
+		/// <summary>
+		/// Create an empty reader, need to set up values
+		/// </summary>
+		public Reader()
 		{
-			ObjectPool<ExtensibleBuffer<byte>>.Return(_buffer);
-			_buffer = null;
+			
 		}
 
 		/// <summary>
@@ -45,6 +60,17 @@ namespace Nino.Serialization
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
 		public Reader(ExtensibleBuffer<byte> data, int outputLength, Encoding encoding)
+		{
+			Init(data, outputLength, encoding);
+		}
+
+		/// <summary>
+		/// Create a nino read
+		/// </summary>
+		/// <param name="data"></param>
+		/// <param name="outputLength"></param>
+		/// <param name="encoding"></param>
+		public void Init(ExtensibleBuffer<byte> data, int outputLength, Encoding encoding)
 		{
 			_buffer = data;
 			_encoding = encoding;
@@ -58,7 +84,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
-		public Reader(byte[] data, int outputLength, Encoding encoding)
+		public void Init(byte[] data, int outputLength, Encoding encoding)
 		{
 			var peak = ObjectPool<ExtensibleBuffer<byte>>.Peak();
 			if (peak != null && peak.ExpandSize == BufferBlockSize)
@@ -76,19 +102,12 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-		/// Position of the current buffer
+		/// Return buffer
 		/// </summary>
-		private int _position;
-
-		/// <summary>
-		/// Position of the current buffer
-		/// </summary>
-		private readonly int _length;
-
-		/// <summary>
-		/// End of Reader
-		/// </summary>
-		public bool EndOfReader => _position == _length;
+		public void ReturnBuffer()
+		{
+			ObjectPool<ExtensibleBuffer<byte>>.Return(_buffer);
+		}
 
 		/// <summary>
 		/// Get Length
@@ -465,6 +484,15 @@ namespace Nino.Serialization
 			//Read directly
 			var buf = stackalloc byte[len];
 			_buffer.CopyTo(buf, _position, len);
+
+#if !NETSTANDARD && !NET461 && !UNITY_2017_1_OR_NEWER
+			if (Equals(_encoding, Encoding.UTF8))
+			{
+				_position += len;
+				return Marshal.PtrToStringUTF8((IntPtr)buf, len);
+			}
+#endif
+			
 			var ret = _encoding.GetString(buf, len);
 			_position += len;
 			return ret;

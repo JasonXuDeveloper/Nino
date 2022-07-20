@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Reflection;
 using System.Collections;
@@ -54,7 +55,8 @@ namespace Nino.Serialization
 		public static byte[] Serialize<T>(T val, Encoding encoding = null)
 		{
 			encoding = encoding ?? DefaultEncoding;
-			Writer writer = new Writer(encoding);
+			Writer writer = ObjectPool<Writer>.Request();
+			writer.Init(encoding);
 			return Serialize(val, encoding, writer);
 		}
 		
@@ -77,15 +79,15 @@ namespace Nino.Serialization
 				if (TypeModel.IsNonCompressibleType(type))
 				{
 					//don't compress it
-					var noCompression = writer.ToBytes();
-					writer.Dispose();
-					return noCompression;
+					var ret = writer.ToBytes();
+					ObjectPool<Writer>.Return(writer);
+					return ret;
 				}
 
 				//compress it
-				var ret = writer.ToCompressedBytes();
-				writer.Dispose();
-				return ret;
+				var c = writer.ToCompressedBytes();
+				ObjectPool<Writer>.Return(writer);
+				return c;
 			}
 
 			//code generated type
@@ -98,7 +100,7 @@ namespace Nino.Serialization
 				((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
 				//compress it
 				var ret = writer.ToCompressedBytes();
-				writer.Dispose();
+				ObjectPool<Writer>.Return(writer);
 				return ret;
 			}
 
@@ -137,6 +139,12 @@ namespace Nino.Serialization
 			type = type.ResolveRealType();
 #endif
 
+			if (writer == null)
+			{
+				writer = ObjectPool<Writer>.Request();
+				writer.Init(encoding);
+			}
+
 			//basic type
 			if (!skipBasicCheck && WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
@@ -146,14 +154,14 @@ namespace Nino.Serialization
 					//don't compress it
 					var noCompression = returnValue ? writer.ToBytes() : ConstMgr.Null;
 					if (returnValue)
-						writer.Dispose();
+						ObjectPool<Writer>.Return(writer);
 					return noCompression;
 				}
 
 				//compress it
 				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
 				if (returnValue)
-					writer.Dispose();
+					ObjectPool<Writer>.Return(writer);
 				return ret;
 			}
 
@@ -174,7 +182,7 @@ namespace Nino.Serialization
 				wrapper.Serialize(value, writer);
 				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
 				if (returnValue)
-					writer.Dispose();
+					ObjectPool<Writer>.Return(writer);
 				return ret;
 			}
 
@@ -184,7 +192,7 @@ namespace Nino.Serialization
 				writer.Write((Array)value);
 				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
 				if (returnValue)
-					writer.Dispose();
+					ObjectPool<Writer>.Return(writer);
 				return ret;
 			}
 
@@ -198,7 +206,7 @@ namespace Nino.Serialization
 					writer.Write((IList)value);
 					var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
 					if (returnValue)
-						writer.Dispose();
+						ObjectPool<Writer>.Return(writer);
 					return ret;
 				}
 
@@ -207,7 +215,7 @@ namespace Nino.Serialization
 					writer.Write((IDictionary)value);
 					var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
 					if (returnValue)
-						writer.Dispose();
+						ObjectPool<Writer>.Return(writer);
 					return ret;
 				}
 			}
@@ -218,6 +226,7 @@ namespace Nino.Serialization
 			//invalid model
 			if (model != null && !model.Valid)
 			{
+				ObjectPool<Writer>.Return(writer);
 				return ConstMgr.Null;
 			}
 
@@ -285,7 +294,7 @@ namespace Nino.Serialization
 			Write();
 			var buf = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
 			if (returnValue)
-				writer.Dispose();
+				ObjectPool<Writer>.Return(writer);
 			return buf;
 		}
 

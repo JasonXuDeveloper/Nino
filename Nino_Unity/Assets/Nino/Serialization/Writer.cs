@@ -11,12 +11,12 @@ namespace Nino.Serialization
 	/// <summary>
 	/// A writer that writes serialization Data
 	/// </summary>
-	public class Writer : IDisposable
+	public class Writer
 	{
 		/// <summary>
 		/// block size when creating buffer
 		/// </summary>
-		private const int BufferBlockSize = 1024 * 2;
+		private const ushort BufferBlockSize = 1024 * 2;
 
 		/// <summary>
 		/// Buffer that stores data
@@ -26,7 +26,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// encoding for string
 		/// </summary>
-		private readonly Encoding _encoding;
+		private Encoding encoding;
 
 		/// <summary>
 		/// Convert writer to byte
@@ -45,14 +45,13 @@ namespace Nino.Serialization
 		{
 			return CompressMgr.Compress(_buffer, _length);
 		}
-
+		
 		/// <summary>
-		/// Dispose the writer
+		/// Create a writer (needs to set up values)
 		/// </summary>
-		public void Dispose()
+		public Writer()
 		{
-			ObjectPool<ExtensibleBuffer<byte>>.Return(_buffer);
-			_buffer = null;
+			
 		}
 
 		/// <summary>
@@ -61,17 +60,29 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public Writer(Encoding encoding)
 		{
-			var peak = ObjectPool<ExtensibleBuffer<byte>>.Peak();
-			if (peak != null && peak.ExpandSize == BufferBlockSize)
+			Init(encoding);
+		}
+
+		/// <summary>
+		/// Init writer
+		/// </summary>
+		/// <param name="encoding"></param>
+		public void Init(Encoding encoding)
+		{
+			if (_buffer == null)
 			{
-				_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
-			}
-			else
-			{
-				_buffer = new ExtensibleBuffer<byte>(50, BufferBlockSize);
+				var peak = ObjectPool<ExtensibleBuffer<byte>>.Peak();
+				if (peak != null && peak.ExpandSize == BufferBlockSize)
+				{
+					_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+				}
+				else
+				{
+					_buffer = new ExtensibleBuffer<byte>(50, BufferBlockSize);
+				}
 			}
 
-			_encoding = encoding;
+			this.encoding = encoding;
 			_length = 0;
 			_position = 0;
 		}
@@ -170,7 +181,7 @@ namespace Nino.Serialization
 		{
 			if (!AttemptWriteBasicType(type, val))
 			{
-				Serializer.Serialize(type, val, _encoding, this, false, true, false, true, true);
+				Serializer.Serialize(type, val, encoding, this, false, true, false, true, true);
 			}
 		}
 
@@ -278,11 +289,11 @@ namespace Nino.Serialization
 				return;
 			}
 
-			int bufferSize = _encoding.GetMaxByteCount(val.Length);
+			int bufferSize = encoding.GetMaxByteCount(val.Length);
 			byte* buffer = stackalloc byte[bufferSize];
 			fixed (char* pValue = val)
 			{
-				int byteCount = _encoding.GetBytes(pValue, val.Length, buffer, bufferSize);
+				int byteCount = encoding.GetBytes(pValue, val.Length, buffer, bufferSize);
 				CompressAndWrite(byteCount);
 				Write(buffer, byteCount);
 			}

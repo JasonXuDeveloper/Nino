@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Text;
+using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Reflection;
 using System.Collections.Generic;
@@ -57,23 +58,25 @@ namespace Nino.Serialization
 			//basic type
 			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
-				Reader basicReader;
+				Reader basicReader = ObjectPool<Reader>.Request();
 				if (TypeModel.IsNonCompressibleType(type))
 				{
-					basicReader = new Reader(data, data.Length, encoding ?? DefaultEncoding);
+					basicReader.Init(data, data.Length, encoding ?? DefaultEncoding);
 				}
 				else
 				{
-					basicReader = new Reader(CompressMgr.Decompress(data, out var length), length,
+					basicReader.Init(CompressMgr.Decompress(data, out var len), len,
 						encoding ?? DefaultEncoding);
 				}
 
 				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(basicReader);
-				basicReader.Dispose();
+				basicReader.ReturnBuffer();
+				ObjectPool<Reader>.Return(basicReader);
 				return ret;
 			}
 
-			Reader reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
+			Reader reader = ObjectPool<Reader>.Request();
+			reader.Init(CompressMgr.Decompress(data, out var length), length, encoding ?? DefaultEncoding);
 			//code generated type
 			if (TypeModel.TryGetWrapper(type, out var wrapperObj))
 			{
@@ -84,7 +87,8 @@ namespace Nino.Serialization
 					WrapperManifest.AddWrapper(type, wrapper);
 					//start Deserialize
 					var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
-					reader.Dispose();
+					reader.ReturnBuffer();
+					ObjectPool<Reader>.Return(reader);
 					return ret;
 				}
 			}
@@ -120,26 +124,30 @@ namespace Nino.Serialization
 			//basic type
 			if (!skipBasicCheck && WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
-				Reader basicReader;
+				Reader basicReader = ObjectPool<Reader>.Request();
 				if (TypeModel.IsNonCompressibleType(type))
 				{
-					basicReader = new Reader(data, data.Length, encoding ?? DefaultEncoding);
+					basicReader.Init(data, data.Length, encoding ?? DefaultEncoding);
 				}
 				else
 				{
-					basicReader = new Reader(CompressMgr.Decompress(data, out var length), length,
+					basicReader.Init(CompressMgr.Decompress(data, out var len), len,
 						encoding ?? DefaultEncoding);
 				}
 
 				var ret = wrapper.Deserialize(basicReader);
 				if (returnDispose)
-					basicReader.Dispose();
+				{
+					basicReader.ReturnBuffer();
+					ObjectPool<Reader>.Return(basicReader);
+				}
 				return ret;
 			}
 
 			if (reader == null)
 			{
-				reader = new Reader(CompressMgr.Decompress(data, out var len), len, encoding);
+				reader = ObjectPool<Reader>.Request();
+				reader.Init(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
 			}
 
 			//enum
@@ -164,7 +172,10 @@ namespace Nino.Serialization
 					//start Deserialize
 					var ret = wrapper.Deserialize(reader);
 					if (returnDispose)
-						reader.Dispose();
+					{
+						reader.ReturnBuffer();
+						ObjectPool<Reader>.Return(reader);
+					}
 					return ret;
 				}
 			}
@@ -174,7 +185,10 @@ namespace Nino.Serialization
 			{
 				var ret = reader.ReadArray(type);
 				if (returnDispose)
-					reader.Dispose();
+				{
+					reader.ReturnBuffer();
+					ObjectPool<Reader>.Return(reader);
+				}
 				return ret;
 			}
 
@@ -187,7 +201,10 @@ namespace Nino.Serialization
 				{
 					var ret = reader.ReadList(type);
 					if (returnDispose)
-						reader.Dispose();
+					{
+						reader.ReturnBuffer();
+						ObjectPool<Reader>.Return(reader);
+					}
 					return ret;
 				}
 
@@ -195,7 +212,10 @@ namespace Nino.Serialization
 				{
 					var ret = reader.ReadDictionary(type);
 					if (returnDispose)
-						reader.Dispose();
+					{
+						reader.ReturnBuffer();
+						ObjectPool<Reader>.Return(reader);
+					}
 					return ret;
 				}
 			}
@@ -321,7 +341,10 @@ namespace Nino.Serialization
 			//start Deserialize
 			Read();
 			if (returnDispose)
-				reader.Dispose();
+			{
+				reader.ReturnBuffer();
+				ObjectPool<Reader>.Return(reader);
+			}
 			return val;
 		}
 

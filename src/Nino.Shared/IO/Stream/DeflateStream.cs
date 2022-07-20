@@ -233,6 +233,15 @@ namespace Nino.Shared.IO
 			}
 		}
 		
+		public unsafe void Write(byte* array, int offset, int count)
+		{
+			if (count != 0)
+			{
+				IntPtr buffer = new IntPtr(array + offset);
+				native.WriteZStream(buffer, count);
+			}
+		}
+		
 		public override void Write(byte[] array, int offset, int count)
 		{
 			if (disposed)

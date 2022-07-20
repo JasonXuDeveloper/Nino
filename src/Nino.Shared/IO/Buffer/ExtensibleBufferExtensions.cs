@@ -1,4 +1,6 @@
+using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace Nino.Shared.IO
 {
@@ -35,5 +37,35 @@ namespace Nino.Shared.IO
             }
             BufferPool.ReturnBuffer(bytes);
         }
+        
+        /// <summary>
+        /// Write data to stream
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="stream"></param>
+        /// <param name="length"></param>
+        public static unsafe void WriteToStream(this ExtensibleBuffer<byte> buffer, Nino.Shared.IO.DeflateStream stream, int length)
+        {
+            byte* bytes = (byte*)Marshal.AllocHGlobal(length);
+            buffer.CopyTo(bytes, 0, length);
+            stream.Write(bytes, 0, length);
+            Marshal.FreeHGlobal((IntPtr)bytes);
+        }
+
+#if !NETSTANDARD && !NET461 && !UNITY_2017_1_OR_NEWER
+        /// <summary>
+        /// Write data to stream
+        /// </summary>
+        /// <param name="buffer"></param>
+        /// <param name="stream"></param>
+        /// <param name="length"></param>
+        public static unsafe void WriteToStream(this ExtensibleBuffer<byte> buffer, System.IO.Compression.DeflateStream stream, int length)
+        {
+            byte* bytes = (byte*)Marshal.AllocHGlobal(length);
+            buffer.CopyTo(bytes, 0, length);
+            stream.Write(new ReadOnlySpan<byte>(bytes,length));
+            Marshal.FreeHGlobal((IntPtr)bytes);
+        }
+#endif
     }
 }
