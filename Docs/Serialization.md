@@ -180,6 +180,7 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
+- **如果开启了自动收集字段和属性，生成代码和没生成代码，序列化的结果是不一样的，因此在导表读表的使用场景里，如果使用了自动收集，那么在生成代码后需要重新再导出一次文件（强烈建议不要开启自动收集，建议手动标记顺序）**
 
 > 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上，可以在性能对比的时候用这个（例如[这个真机测试](../Nino_Unity/Assets/Nino/Test/BuildTest.cs)）
 
