@@ -26,7 +26,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// encoding for string
 		/// </summary>
-		private Encoding encoding;
+		private Encoding writerEncoding;
 
 		/// <summary>
 		/// Convert writer to byte
@@ -82,7 +82,7 @@ namespace Nino.Serialization
 				}
 			}
 
-			this.encoding = encoding;
+			writerEncoding = encoding;
 			_length = 0;
 			_position = 0;
 		}
@@ -181,7 +181,7 @@ namespace Nino.Serialization
 		{
 			if (!AttemptWriteBasicType(type, val))
 			{
-				Serializer.Serialize(type, val, encoding, this, false, true, false, true, true);
+				Serializer.Serialize(type, val, writerEncoding, this, false, true, false, true, true);
 			}
 		}
 
@@ -289,11 +289,11 @@ namespace Nino.Serialization
 				return;
 			}
 
-			int bufferSize = encoding.GetMaxByteCount(val.Length);
+			int bufferSize = writerEncoding.GetMaxByteCount(val.Length);
 			byte* buffer = stackalloc byte[bufferSize];
 			fixed (char* pValue = val)
 			{
-				int byteCount = encoding.GetBytes(pValue, val.Length, buffer, bufferSize);
+				int byteCount = writerEncoding.GetBytes(pValue, val.Length, buffer, bufferSize);
 				CompressAndWrite(byteCount);
 				Write(buffer, byteCount);
 			}

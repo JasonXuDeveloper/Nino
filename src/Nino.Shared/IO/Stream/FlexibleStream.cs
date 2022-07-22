@@ -28,12 +28,21 @@ namespace Nino.Shared.IO
 
         public void ChangeBuffer(byte[] data)
         {
+            Reset();
             internalBuffer = data;
-            position = 0;
-            origin = 0;
             length = data.Length;
+            capacity = length;
         }
         
+        public void Reset()
+        {
+            position = 0;
+            origin = 0;
+            length = 0;
+            isOpen = true;
+            expandable = true;
+        }
+
         public FlexibleStream(): this(ConstMgr.Null)
         {
             //for object pool to be able to call

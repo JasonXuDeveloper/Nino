@@ -5,7 +5,6 @@ using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Nino.Serialization
 {
@@ -93,7 +92,8 @@ namespace Nino.Serialization
 			}
 			else
 			{
-				_buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
+				int count = outputLength / BufferBlockSize + 1;
+				_buffer = new ExtensibleBuffer<byte>(count > 10 ? count : 10, BufferBlockSize);
 			}
 			_buffer.CopyFrom(data, 0, 0, outputLength);
 			_encoding = encoding;
@@ -157,7 +157,7 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="result"></param>
 		// ReSharper disable CognitiveComplexity
-		internal object AttemptReadBasicType(Type type, out bool result)
+		private object AttemptReadBasicType(Type type, out bool result)
 			// ReSharper restore CognitiveComplexity
 		{
 			result = true;
@@ -328,18 +328,7 @@ namespace Nino.Serialization
 		{
 			T result;
 			byte* ptr = (byte*)&result;
-			//mono can not guarantee overlapped memory copy 
-			if (ConstMgr.IsMono)
-			{
-				byte* temp = stackalloc byte[len];
-				_buffer.CopyTo(temp, _position, len);
-				Unsafe.CopyBlockUnaligned(ptr, temp, (uint)len);
-			}
-			else
-			{
-				_buffer.CopyTo(ptr, _position, len);
-			}
-			_position += len;
+			ReadToBuffer(ptr, len);
 			return result;
 		}
 
@@ -489,7 +478,7 @@ namespace Nino.Serialization
 			if (Equals(_encoding, Encoding.UTF8))
 			{
 				_position += len;
-				return Marshal.PtrToStringUTF8((IntPtr)buf, len);
+				return System.Runtime.InteropServices.Marshal.PtrToStringUTF8((IntPtr)buf, len);
 			}
 #endif
 			

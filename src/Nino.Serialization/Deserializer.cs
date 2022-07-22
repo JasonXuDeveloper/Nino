@@ -310,7 +310,7 @@ namespace Nino.Serialization
 						if (reader.EndOfReader)
 						{
 							min++;
-							continue;
+							break;
 						}
 						//prevent index not exist
 						if (!model.Types.ContainsKey(min))

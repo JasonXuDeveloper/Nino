@@ -248,12 +248,24 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         private static byte[] DecompressOnNative(byte[] data)
         {
-            using (var compressedStream = new MemoryStream(data))
-            using (var zipStream = new System.IO.Compression.DeflateStream(compressedStream, CompressionMode.Decompress))
-            using (var resultStream = new MemoryStream())
+            FlexibleStream result = ObjectPool<FlexibleStream>.Request();
+            result.Reset();
+            FlexibleStream compressedStream;
+            if (ObjectPool<FlexibleStream>.Peak() != null)
             {
-                zipStream.CopyTo(resultStream);
-                return resultStream.ToArray();
+                compressedStream = ObjectPool<FlexibleStream>.Request();
+                compressedStream.ChangeBuffer(data);
+            }
+            else
+            {
+                compressedStream = new FlexibleStream(data);
+            }
+
+            using (var zipStream = new System.IO.Compression.DeflateStream(compressedStream, CompressionMode.Decompress))
+            {
+                zipStream.CopyTo(result);
+                ObjectPool<FlexibleStream>.Return(compressedStream);
+                return result.ToArray();
             }
         }
 
