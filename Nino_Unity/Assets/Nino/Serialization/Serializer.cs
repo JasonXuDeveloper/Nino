@@ -258,6 +258,15 @@ namespace Nino.Serialization
 					}
 					//get type of that member
 					type = model.Types[min];
+
+					//only include all model need this
+					if (model.IncludeAll)
+					{
+						var needToStore = model.Members[min];
+						writer.Write(needToStore.Name);
+						writer.Write(type.FullName);
+					}
+					
 					//try code gen, if no code gen then reflection
 					object val = GetVal(model.Members[min], value);
 					//string/list/dict can be null, other cannot
@@ -276,14 +285,6 @@ namespace Nino.Serialization
 
 						throw new NullReferenceException(
 							$"{type.FullName}.{model.Members[min].Name} is null, cannot serialize");
-					}
-
-					//only include all model need this
-					if (model.IncludeAll)
-					{
-						var needToStore = model.Members[min];
-						writer.Write(needToStore.Name);
-						writer.Write(type.FullName);
 					}
 
 					writer.WriteCommonVal(type, val);
