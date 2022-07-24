@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace Nino.Shared.IO
 {
@@ -17,23 +16,23 @@ namespace Nino.Shared.IO
         /// <param name="length"></param>
         public static void WriteToStream(this ExtensibleBuffer<byte> buffer, Stream stream, int length)
         {
-            byte[] bytes = BufferPool.RequestBuffer(buffer.ExpandSize);
-            if (length <= buffer.ExpandSize)
+            byte[] bytes = BufferPool.RequestBuffer(4096);
+            if (length <= 4096)
             {
-                buffer.CopyBlockTo(ref bytes, 0);
+                buffer.CopyTo(ref bytes, 0, length);
                 stream.Write(bytes, 0, length);
                 BufferPool.ReturnBuffer(bytes);
                 return;
             }
 
-            int endIndex = length >> buffer.PowerOf2;
-            int startIndex = -1;
-            while(startIndex++ <= endIndex)
+            int wrote = 0;
+            while(length > 0)
             {
-                int sizeToWrite = length <= buffer.ExpandSize ? length : buffer.ExpandSize;
-                buffer.CopyBlockTo(ref bytes, startIndex);
+                int sizeToWrite = length <= 4096 ? length : 4096;
+                buffer.CopyTo(ref bytes, wrote, sizeToWrite);
                 stream.Write(bytes, 0, sizeToWrite);
                 length -= sizeToWrite;
+                wrote += sizeToWrite;
             }
             BufferPool.ReturnBuffer(bytes);
         }
@@ -46,10 +45,7 @@ namespace Nino.Shared.IO
         /// <param name="length"></param>
         public static unsafe void WriteToStream(this ExtensibleBuffer<byte> buffer, Nino.Shared.IO.DeflateStream stream, int length)
         {
-            byte* bytes = (byte*)Marshal.AllocHGlobal(length);
-            buffer.CopyTo(bytes, 0, length);
-            stream.Write(bytes, 0, length);
-            Marshal.FreeHGlobal((IntPtr)bytes);
+            stream.Write((byte*)buffer.Data.ToPointer(), 0, length);
         }
 
 #if !NETSTANDARD && !NET461 && !UNITY_2017_1_OR_NEWER
@@ -61,10 +57,7 @@ namespace Nino.Shared.IO
         /// <param name="length"></param>
         public static unsafe void WriteToStream(this ExtensibleBuffer<byte> buffer, System.IO.Compression.DeflateStream stream, int length)
         {
-            byte* bytes = (byte*)Marshal.AllocHGlobal(length);
-            buffer.CopyTo(bytes, 0, length);
-            stream.Write(new ReadOnlySpan<byte>(bytes,length));
-            Marshal.FreeHGlobal((IntPtr)bytes);
+            stream.Write(new ReadOnlySpan<byte>((byte*)buffer.Data.ToPointer(),length));
         }
 #endif
     }

@@ -111,20 +111,27 @@ namespace Nino.Shared.IO
 		/// Get decompressed bytes
 		/// </summary>
 		/// <param name="length"></param>
+		/// <param name="minLen"></param>
 		/// <returns></returns>
-		public unsafe ExtensibleBuffer<byte> GetDecompressedBytes(out int length)
+		public unsafe IntPtr GetDecompressedBytes(out int length, int minLen)
 		{
 			int read;
 			length = 0;
-			int block = 0;
-			ExtensibleBuffer<byte> buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
-			var readBuffer = stackalloc byte[buffer.ExpandSize];
+			var expandSize = minLen * 10;
+			IntPtr buffer = Marshal.AllocHGlobal(expandSize);
+			int maxLen = minLen * 5;
 			//开始写
-			while ((read = Read(readBuffer, 0, buffer.ExpandSize)) != 0)
+			while ((read = Read((byte*)buffer, length, expandSize)) != 0)
 			{
-				buffer.OverrideBlock(block++, readBuffer);
 				length += read;
+				//如果目前读取的长度达到了buffer的一半，就需要扩容
+				if (length >= maxLen)
+				{
+					maxLen += expandSize;
+					buffer = Marshal.ReAllocHGlobal(buffer, new IntPtr(maxLen + expandSize));
+				}
 			}
+
 			return buffer;
 		}
 
@@ -354,6 +361,12 @@ namespace Nino.Shared.IO
 	
 	internal class DeflateStreamNative
 	{
+#if UNITY_2017_1_OR_NEWER
+		private const string DllName = "MonoPosixHelper";
+#else 
+		private const string DllName = "Deflate";
+#endif
+		
 		[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
 		private delegate int UnmanagedReadOrWrite(IntPtr buffer, int length, IntPtr data);
 
@@ -572,19 +585,19 @@ namespace Nino.Shared.IO
 			throw new IOException( R() + " " + where);
 		}
 
-		[DllImport("MonoPosixHelper", CallingConvention = CallingConvention.Cdecl)]
+		[DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
 		private static extern SafeDeflateStreamHandle CreateZStream(CompressionMode compress, bool gzip, UnmanagedReadOrWrite feeder, IntPtr data);
 
-		[DllImport("MonoPosixHelper", CallingConvention = CallingConvention.Cdecl)]
+		[DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
 		private static extern int CloseZStream(IntPtr stream);
 
-		[DllImport("MonoPosixHelper", CallingConvention = CallingConvention.Cdecl)]
+		[DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
 		private static extern int Flush(SafeDeflateStreamHandle stream);
 
-		[DllImport("MonoPosixHelper", CallingConvention = CallingConvention.Cdecl)]
+		[DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
 		private static extern int ReadZStream(SafeDeflateStreamHandle stream, IntPtr buffer, int length);
 
-		[DllImport("MonoPosixHelper", CallingConvention = CallingConvention.Cdecl)]
+		[DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
 		private static extern int WriteZStream(SafeDeflateStreamHandle stream, IntPtr buffer, int length);
 	}
 }

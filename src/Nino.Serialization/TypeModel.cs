@@ -118,11 +118,12 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static TypeCode GetTypeCode(Type type)
 		{
-			if (TypeCodes.TryGetValue(type.GetTypeHashCode(), out var ret))
+			var hash = type.GetTypeHashCode();
+			if (TypeCodes.TryGetValue(hash, out var ret))
 			{
 				return ret;
 			}
-			TypeCodes[type.GetTypeHashCode()] = ret = Type.GetTypeCode(type);
+			TypeCodes[hash] = ret = Type.GetTypeCode(type);
 			return ret;
 		}
 		
@@ -134,11 +135,12 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static bool TryGetWrapper(Type type, out object helper)
 		{
-			if (GeneratedWrapper.TryGetValue(type.GetTypeHashCode(), out helper)) return helper != null;
+			var hash = type.GetTypeHashCode();
+			if (GeneratedWrapper.TryGetValue(hash, out helper)) return helper != null;
 			
 			var field = type.GetField(HelperName, StaticReflectionFlags);
 			helper = field?.GetValue(null);
-			GeneratedWrapper.Add(type.GetTypeHashCode(), helper);
+			GeneratedWrapper[hash] = helper;
 			return helper != null;
 		}
 		
@@ -150,14 +152,15 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static void TryGetModel(Type type, out TypeModel model)
 		{
-			if (TypeModels.TryGetValue(type.GetTypeHashCode(), out model)) return;
+			var hash = type.GetTypeHashCode();
+			if (TypeModels.TryGetValue(hash, out model)) return;
 			object[] ns = type.GetCustomAttributes(_ninoSerializeType, false);
 			if (ns.Length != 0) return;
 			model = new TypeModel()
 			{
 				Valid = false
 			};
-			TypeModels.Add(type.GetTypeHashCode(), model);
+			TypeModels.Add(hash, model);
 			throw new InvalidOperationException(
 				$"The type {type.FullName} does not have NinoSerialize attribute or custom importer/exporter");
 		}

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;net6.0;netcoreapp3.1;netstandard2.0</TargetFrameworks>
@@ -17,12 +17,13 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
-        <PackageReleaseNotes>v1.0.7
-- [optimization] optimize deflateStream write and extensibleBuffer write</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.8
+- [optimization] faster extensibleBuffer and less gc
+- [optimization] optimize compress and decompress gc</PackageReleaseNotes>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-        <PackageVersion>1.0.7</PackageVersion> 
+        <PackageVersion>1.0.8</PackageVersion> 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild> 
-        <RepositoryType>git</RepositoryType>
+        <RepositoryType>git</RepositoryType> 
     </PropertyGroup>
 
     <ItemGroup>
@@ -30,6 +31,30 @@
       <PackageReference Include="System.Memory" Version="4.5.5" />
       <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
       <PackageReference Include="System.Threading.Tasks.Extensions" Version="4.5.4" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="libDeflate.dylib">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        
+        <!--<Content Include="libDeflate.dylib">
+            <Pack>true</Pack>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>-->
+
+        <!--<Content Include="libDeflate.so">
+            <Pack>true</Pack>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>-->
+
+        <!--<Content Include="Deflate.dll">
+            <Pack>true</Pack>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>-->
     </ItemGroup>
 
 </Project>

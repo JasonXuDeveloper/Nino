@@ -1,5 +1,21 @@
 # 序列化模块使用方法
 
+## 非Unity平台
+
+非Unity平台使用Nino，可以**根据需求开启**原生压缩解压代码，**开启后序列化和反序列化时的GC会变得非常的低（KB级别甚至Bytes级别）**
+
+只需要使用前设置```Nino.Shared.Mgr.ConstMgr.EnableNativeDeflate = true;```即可
+
+**使用该功能需要编译C++代码**，如果使用时报错DLLNotFound（Windows和Linux下应该会出现这个，因为Nino只自带了Mac下的dylib），需要用CMake编译一下```Native/deflate```内的C++代码即可，编译出来的```dll```、```so```或```dylib```文件放入```Nino.Shared```目录内即可，记得在IDE内配置一下编译时复制该文件
+
+> 在非Mac平台下编译原生DLL，可能需要手动修改CMake文件，使其在make的时候包含zlib代码（Cmake文件内有注释）
+>
+> 在M1的Mac平台下可能需要重新编译DLL，用cmake编译出libDeflate.dylib后放入指定目录即可
+>
+> 在Windows平台下编译能用的原生DLL有些难度，建议有经验的用户再去使用，编译出来的Deflate.dll放入指定目录即可
+>
+> 在某些Linux平台下编译原生DLL，可能需要定义一些东西（比如z_size_t），具体参考```Native/deflate/library.h```内的注释，编译出来的libDeflate.so放入指定目录即可
+
 ## 定义可序列化类型
 
 - 给需要Nino序列化/反序列化的类或结构体，打上```[NinoSerialize]```标签，如果**需要自动收集全部字段和属性，则该标签内部加入个true参数**，如```[NinoSerialize(true)]```

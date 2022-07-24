@@ -55,6 +55,17 @@ namespace Nino.Benchmark
                 Name = "Test",
                 Ps = dt
             };
+
+            //enable native deflate attempt
+            try
+            {
+                Nino.Shared.Mgr.ConstMgr.EnableNativeDeflate = true;
+                Nino.Serialization.Serializer.Serialize(NestedDataInput);
+            }
+            catch
+            {
+                Nino.Shared.Mgr.ConstMgr.EnableNativeDeflate = false;
+            }
         }
 
         // primitives
@@ -126,7 +137,6 @@ namespace Nino.Benchmark
             this._accountMergeOutput = this.Serializer.Serialize(AccountMergeInput);
             this._answerOutput = this.Serializer.Serialize(AnswerInput);
             this._badgeOutput = this.Serializer.Serialize(BadgeInput);
-            this._commentOutput = this.Serializer.Serialize(CommentInput);
             this._commentOutput = this.Serializer.Serialize(CommentInput);
             this._nestedDataOutput = this.Serializer.Serialize(NestedDataInput);
         }

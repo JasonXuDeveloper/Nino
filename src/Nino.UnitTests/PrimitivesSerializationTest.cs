@@ -528,6 +528,18 @@ namespace Nino.UnitTests
         }
         
         [TestMethod]
+        public void TestBoolList()
+        {
+            System.Collections.Generic.List<bool> val = new System.Collections.Generic.List<bool>
+                { true, false };
+            byte[] buf = Serialization.Serializer.Serialize(val);
+            System.Collections.Generic.List<bool> result =
+                Serialization.Deserializer.Deserialize<System.Collections.Generic.List<bool>>(buf);
+            Assert.IsTrue(val.SequenceEqual(result));
+            Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<bool> { true, false }));
+        }
+        
+        [TestMethod]
         public void TestDateTimeList()
         {
             System.Collections.Generic.List<DateTime> val = new System.Collections.Generic.List<DateTime>

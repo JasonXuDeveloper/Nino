@@ -4,6 +4,7 @@ using System.Text;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
+using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
@@ -78,7 +79,7 @@ namespace Nino.Serialization
 				}
 				else
 				{
-					_buffer = new ExtensibleBuffer<byte>(50, BufferBlockSize);
+					_buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
 				}
 			}
 
@@ -217,18 +218,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		internal unsafe void Write(byte* data, int len)
 		{
-			//mono can not guarantee overlapped memory copy 
-			if (ConstMgr.IsMono)
-			{
-				byte* temp = stackalloc byte[len];
-				Unsafe.CopyBlockUnaligned(temp, data, (uint)len);
-				_buffer.CopyFrom(temp, 0, _position, len);
-			}
-			else
-			{
-				_buffer.CopyFrom(data, 0, _position, len);
-			}
-
+			_buffer.CopyFrom(data, 0, _position, len);
 			_position += len;
 			_length += len;
 		}
@@ -241,8 +231,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private unsafe void Write<T>(T val, int len) where T : unmanaged
 		{
-			byte* ptr = (byte*)&val;
-			Write(ptr, len);
+			Write((byte*)&val, len);
 		}
 
 		/// <summary>
@@ -252,7 +241,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe void Write(double value)
 		{
-			Write(*(ulong*)&value);
+			Write((byte*)(ulong*)&value, ConstMgr.SizeOfULong);
 		}
 
 		/// <summary>
@@ -262,7 +251,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe void Write(float value)
 		{
-			Write(*(uint*)&value);
+			Write((byte*)(uint*)&value, ConstMgr.SizeOfUInt);
 		}
 
 		/// <summary>
@@ -290,12 +279,28 @@ namespace Nino.Serialization
 			}
 
 			int bufferSize = writerEncoding.GetMaxByteCount(val.Length);
-			byte* buffer = stackalloc byte[bufferSize];
-			fixed (char* pValue = val)
+			if (bufferSize < 1024)
 			{
-				int byteCount = writerEncoding.GetBytes(pValue, val.Length, buffer, bufferSize);
-				CompressAndWrite(byteCount);
-				Write(buffer, byteCount);
+				byte* buffer = stackalloc byte[bufferSize];
+				fixed (char* pValue = val)
+				{
+					int byteCount = writerEncoding.GetBytes(pValue, val.Length, buffer, bufferSize);
+					CompressAndWrite(byteCount);
+					Write(buffer, byteCount);
+				}
+			}
+			else
+			{
+				byte* buff = (byte*)Marshal.AllocHGlobal(bufferSize);
+				fixed (char* pValue = val)
+				{
+					// ReSharper disable AssignNullToNotNullAttribute
+					int byteCount = writerEncoding.GetBytes(pValue, val.Length, buff, bufferSize);
+					// ReSharper restore AssignNullToNotNullAttribute
+					CompressAndWrite(byteCount);
+					Write(buff, byteCount);
+				}
+				Marshal.FreeHGlobal((IntPtr)buff);	
 			}
 		}
 
@@ -345,9 +350,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(sbyte num)
+		public unsafe void Write(sbyte num)
 		{
-			_buffer[_position] = (byte)num;
+			_buffer[_position] = *(byte*)&num;
 			_position += 1;
 			_length += 1;
 		}
@@ -657,26 +662,23 @@ namespace Nino.Serialization
 		public void Write(Array arr)
 		{
 			//empty
-			if (arr == null)
+			if (arr == null || arr.Length == 0)
 			{
 				//write len
 				CompressAndWrite(0);
 				return;
 			}
 
-			var type = arr.GetType();
-
-			//other type
-			var elemType = type.GetElementType();
 			//write len
 			int len = arr.Length;
 			CompressAndWrite(len);
-			var lst = ((IList)arr);
+			//other type
+			var elemType = arr.GetValue(0).GetType();
 			//write item
 			int i = 0;
 			while (i < len)
 			{
-				WriteCommonVal(elemType, lst[i++]);
+				WriteCommonVal(elemType, arr.GetValue(i++));
 			}
 		}
 
@@ -684,24 +686,15 @@ namespace Nino.Serialization
 		public void Write(IList arr)
 		{
 			//empty
-			if (arr == null)
+			if (arr == null || arr.Count == 0)
 			{
 				//write len
 				CompressAndWrite(0);
 				return;
 			}
 
-			var type = arr.GetType();
-
 			//other
-			var elemType = type.GenericTypeArguments[0];
-#if ILRuntime
-			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
-			{
-				elemType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
-			}
-#endif
-
+			var elemType = arr[0].GetType();
 			//write len
 			CompressAndWrite(arr.Count);
 			//write item
@@ -715,39 +708,32 @@ namespace Nino.Serialization
 		public void Write(IDictionary dictionary)
 		{
 			//empty
-			if (dictionary == null)
+			if (dictionary == null || dictionary.Count == 0)
 			{
 				//write len
 				CompressAndWrite(0);
 				return;
 			}
 
-			var type = dictionary.GetType();
-			//parse dict type
-			var args = type.GetGenericArguments();
-			Type keyType = args[0];
-#if ILRuntime
-			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
-			{
-				keyType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
-			}
-#endif
-			Type valueType = args[1];
-#if ILRuntime
-			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt2)
-			{
-				valueType = wt2?.CLRType.GenericArguments[1].Value.ReflectionType;
-			}
-#endif
-
 			//write len
 			int len = dictionary.Count;
 			CompressAndWrite(len);
 			//record keys
 			var keys = dictionary.Keys;
+			Type keyType, valueType;
+			keyType = valueType = null;
 			//write items
 			foreach (var c in keys)
 			{
+				if (keyType == null)
+				{
+					keyType = c.GetType();
+				}
+				if (valueType == null)
+				{
+					valueType = dictionary[c].GetType();
+				}
+				
 				//write key
 				WriteCommonVal(keyType, c);
 				//write val

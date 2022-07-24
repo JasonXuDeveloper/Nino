@@ -35,9 +35,8 @@ namespace Nino.Benchmark
         [Arguments(100000000)]
         public void ByteExtensibleBufferInsertV2(int testCount)
         {
-            ushort size = testCount < ushort.MaxValue ? (ushort)testCount : ushort.MaxValue;
             ExtensibleBuffer<byte> buffer =
-                new ExtensibleBuffer<byte>(testCount / size, size);
+                new ExtensibleBuffer<byte>(testCount);
             for (int i = 0; i < testCount; i++)
             {
                 buffer[i] = (byte)i;
@@ -60,7 +59,7 @@ namespace Nino.Benchmark
                 buffer.Add((byte)i);
             }
         }
-
+        
         [Benchmark]
         [Arguments(100)]
         [Arguments(1000)]
@@ -105,15 +104,14 @@ namespace Nino.Benchmark
         [Arguments(100000000)]
         public void IntExtensibleBufferInsertV2(int testCount)
         {
-            ushort size = testCount < ushort.MaxValue ? (ushort)testCount : ushort.MaxValue;
             ExtensibleBuffer<int> buffer =
-                new ExtensibleBuffer<int>(testCount / size, size);
+                new ExtensibleBuffer<int>(testCount);
             for (int i = 0; i < testCount; i++)
             {
                 buffer[i] = i;
             }
         }
-
+        
         [Benchmark]
         [Arguments(100)]
         [Arguments(1000)]
@@ -130,7 +128,7 @@ namespace Nino.Benchmark
                 buffer.Add(i);
             }
         }
-
+        
         [Benchmark]
         [Arguments(100)]
         [Arguments(1000)]

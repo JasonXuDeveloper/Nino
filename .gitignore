@@ -407,3 +407,4 @@ Performance.xlsx
 Nino_Unity/.vsconfig
 Nino_Unity/.config/dotnet-tools.json
 Nino_Unity/Assets/ThirdParty/ILRuntime/*
+Native/src/*

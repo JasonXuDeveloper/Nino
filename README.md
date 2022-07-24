@@ -77,6 +77,7 @@ Definitely useful and high performance modules for C# projects, especially for U
 
 - Docs，文档
 - src，Nino源码
+- Native，C++代码（用于部分功能）
 - Nino_Unity，Nino Unity 2019及以上版本的工程，包含源码和测试代码
 - Performance，性能报告
 
@@ -101,11 +102,11 @@ Definitely useful and high performance modules for C# projects, especially for U
   NuGet里搜Nino就好，目前有```Nino.Shared```和```Nino.Serialization```
 
   ```bash
-  PM> Install-Package Nino.Shared -Version 1.0.7
+  PM> Install-Package Nino.Shared -Version 1.0.8
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.0.10
+  PM> Install-Package Nino.Serialization -Version 1.0.11
   ```
 
 - 使用src下的代码（复制进自己项目即可）

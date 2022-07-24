@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;net6.0;netcoreapp3.1;netstandard2.0</TargetFrameworks>
@@ -18,11 +18,12 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.10</PackageVersion>
+        <PackageVersion>1.0.11</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.10
+        <PackageReleaseNotes>v1.0.11
+- [optimization] faster reader and writer
 - [optimization] optimize gc</PackageReleaseNotes>
-        <RepositoryType>git</RepositoryType> 
+        <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 
     <ItemGroup>

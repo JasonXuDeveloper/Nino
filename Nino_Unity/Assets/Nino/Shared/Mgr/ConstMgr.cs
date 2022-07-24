@@ -10,11 +10,28 @@ namespace Nino.Shared.Mgr
         /// Asset path
         /// </summary>
         public static string AssetPath => UnityEngine.Application.dataPath;
+
+        /// <summary>
+        /// Whether or not enable native deflate (no gc compress/decompress)
+        /// </summary>
+        public static bool EnableNativeDeflate
+        {
+            get => true;
+            set
+            {
+                //ignore
+            }
+        }
 #else
         /// <summary>
         /// Asset path
         /// </summary>
         public static string AssetPath => System.IO.Directory.GetCurrentDirectory();
+
+        /// <summary>
+        /// Whether or not enable native deflate (no gc compress/decompress)
+        /// </summary>
+        public static bool EnableNativeDeflate = false;
 #endif
         /// <summary>
         /// Whether is mono or not

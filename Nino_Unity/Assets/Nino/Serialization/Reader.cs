@@ -1,10 +1,10 @@
 using System;
 using System.IO;
 using System.Text;
-using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Serialization
 {
@@ -15,14 +15,9 @@ namespace Nino.Serialization
 	public class Reader
 	{
 		/// <summary>
-		/// block size when creating buffer
-		/// </summary>
-		private const ushort BufferBlockSize = 1024 * 2;
-		
-		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
-		private ExtensibleBuffer<byte> _buffer;
+		private IntPtr _buffer;
 
 		/// <summary>
 		/// encoding for string
@@ -42,7 +37,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// End of Reader
 		/// </summary>
-		public bool EndOfReader => _position == _length;
+		public bool EndOfReader => _position >= _length;
 
 		/// <summary>
 		/// Create an empty reader, need to set up values
@@ -58,7 +53,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
-		public Reader(ExtensibleBuffer<byte> data, int outputLength, Encoding encoding)
+		public Reader(IntPtr data, int outputLength, Encoding encoding)
 		{
 			Init(data, outputLength, encoding);
 		}
@@ -69,7 +64,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
-		public void Init(ExtensibleBuffer<byte> data, int outputLength, Encoding encoding)
+		public void Init(IntPtr data, int outputLength, Encoding encoding)
 		{
 			_buffer = data;
 			_encoding = encoding;
@@ -85,17 +80,8 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public void Init(byte[] data, int outputLength, Encoding encoding)
 		{
-			var peak = ObjectPool<ExtensibleBuffer<byte>>.Peak();
-			if (peak != null && peak.ExpandSize == BufferBlockSize)
-			{
-				_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
-			}
-			else
-			{
-				int count = outputLength / BufferBlockSize + 1;
-				_buffer = new ExtensibleBuffer<byte>(count > 10 ? count : 10, BufferBlockSize);
-			}
-			_buffer.CopyFrom(data, 0, 0, outputLength);
+			_buffer = Marshal.AllocHGlobal(outputLength);
+			Marshal.Copy(data, 0, _buffer, outputLength);
 			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
@@ -106,7 +92,7 @@ namespace Nino.Serialization
 		/// </summary>
 		public void ReturnBuffer()
 		{
-			ObjectPool<ExtensibleBuffer<byte>>.Return(_buffer);
+			Marshal.FreeHGlobal(_buffer);
 		}
 
 		/// <summary>
@@ -280,9 +266,9 @@ namespace Nino.Serialization
 		/// Read a byte
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public byte ReadByte()
+		public unsafe byte ReadByte()
 		{
-			return _buffer[_position++];
+			return *(byte*)(_buffer + _position++);
 		}
 
 		/// <summary>
@@ -293,29 +279,19 @@ namespace Nino.Serialization
 		public byte[] ReadBytes(int len)
 		{
 			byte[] ret = new byte[len];
-			_buffer.CopyTo(ref ret, _position, len);
+			Marshal.Copy(_buffer + _position, ret, 0, len);
 			_position += len;
 			return ret;
 		}
-		
+
 		/// <summary>
 		/// Copy buffer to a buffer, usually buffer allocated with stackalloc
 		/// </summary>
 		/// <param name="ptr"></param>
 		/// <param name="len"></param>
-		internal unsafe void ReadToBuffer(byte* ptr, int len)
+		public unsafe void ReadToBuffer(byte* ptr, int len)
 		{
-			//overlap memory copy
-			if (ConstMgr.IsMono)
-			{
-				byte* temp = stackalloc byte[len];
-				_buffer.CopyTo(temp, _position, len);
-				Unsafe.CopyBlockUnaligned(ptr, temp, (uint)len);
-			}
-			else
-			{
-				_buffer.CopyTo(ptr, _position, len);
-			}
+			Unsafe.CopyBlockUnaligned(ptr, (byte*)_buffer + _position, (uint)len);
 			_position += len;
 		}
 
@@ -337,19 +313,18 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <returns></returns>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public sbyte ReadSByte()
+		public unsafe sbyte ReadSByte()
 		{
-			return (sbyte)(_buffer[_position++]);
+			return *(sbyte*)(_buffer + _position++);
 		}
 
 		/// <summary>
 		/// Read char
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe char ReadChar()
+		public char ReadChar()
 		{
-			ushort tmpBuffer = ReadUInt16();
-			return *((char*)&tmpBuffer);
+			return Read<char>(ConstMgr.SizeOfUShort);
 		}
 
 		/// <summary>
@@ -427,10 +402,9 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		[System.Security.SecuritySafeCritical]
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe float ReadSingle()
+		public float ReadSingle()
 		{
-			uint tmpBuffer = ReadUInt32();
-			return *((float*)&tmpBuffer);
+			return Read<float>(ConstMgr.SizeOfUInt);
 		}
 
 		/// <summary>
@@ -450,10 +424,9 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		[System.Security.SecuritySafeCritical]
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe double ReadDouble()
+		public double ReadDouble()
 		{
-			ulong tmpBuffer = ReadUInt64();
-			return *((double*)&tmpBuffer);
+			return Read<double>(ConstMgr.SizeOfULong);
 		}
 
 		/// <summary>
@@ -471,19 +444,17 @@ namespace Nino.Serialization
 			}
 
 			//Read directly
-			var buf = stackalloc byte[len];
-			_buffer.CopyTo(buf, _position, len);
-
-#if !NETSTANDARD && !NET461 && !UNITY_2017_1_OR_NEWER
-			if (Equals(_encoding, Encoding.UTF8))
+			if (len < 1024)
 			{
-				_position += len;
-				return System.Runtime.InteropServices.Marshal.PtrToStringUTF8((IntPtr)buf, len);
+				byte* buf = stackalloc byte[len];
+				ReadToBuffer(buf, len);
+				return _encoding.GetString(buf, len);
 			}
-#endif
-			
-			var ret = _encoding.GetString(buf, len);
-			_position += len;
+
+			byte* buff = (byte*)Marshal.AllocHGlobal(len);
+			ReadToBuffer(buff, len);
+			var ret = _encoding.GetString(buff, len);
+			Marshal.FreeHGlobal((IntPtr)buff);
 			return ret;
 		}
 
@@ -502,8 +473,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe bool ReadBool()
 		{
-			var ret = ReadByte();
-			return *((bool*)&ret);
+			return *(bool*)(_buffer + _position++);
 		}
 		
 		/// <summary>
