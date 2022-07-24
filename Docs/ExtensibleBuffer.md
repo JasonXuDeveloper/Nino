@@ -2,7 +2,7 @@
 
 ### 须知
 
-目前```ExtensibleBuffer```仅支持非托管类型，及（[来源](https://docs.microsoft.com/zh-cn/dotnet/csharp/language-reference/builtin-types/unmanaged-types)）：
+目前```ExtensibleBuffer```仅支持非托管类型，即（[来源](https://docs.microsoft.com/zh-cn/dotnet/csharp/language-reference/builtin-types/unmanaged-types)）：
 
 - `sbyte`、`byte`、`short`、`ushort`、`int`、`uint`、`long`、`ulong`、`char`、`float`、`double`、`decimal` 或 `bool`
 - 任何[枚举](https://docs.microsoft.com/zh-cn/dotnet/csharp/language-reference/builtin-types/enum)类型
