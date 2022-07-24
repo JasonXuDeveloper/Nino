@@ -1,5 +1,5 @@
 # Nino
-Definitely useful and high performance modules for C# projects, especially for Unity.
+Definite useful and high performance modules for C# projects, especially for Unity. 
 
 实用的高性能C#模块，尤其在Unity平台能带来令人难以置信的效益。
 
@@ -20,7 +20,7 @@ Definitely useful and high performance modules for C# projects, especially for U
     - 基础对象池（线程安全）
     - 二进制流对象池（线程安全）
     - 高性能动态扩容Buffer（易用、高效，低GC）
-    - 可动态修改Buffer流（包含不需要分配io_buffer去read/write的方法）[性能报告](Performance/ExtensibleBuffer.md)
+    - 可动态修改Buffer流（包含不需要分配io_buffer去read/write的方法）[性能报告](Performance/ExtensibleBuffer.md) [使用教程](Docs/ExtensibleBuffer.md)
   - Collections
     - 无检查List
     - 无检查Stack

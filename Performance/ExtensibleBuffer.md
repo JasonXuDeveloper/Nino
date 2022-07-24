@@ -8,7 +8,7 @@
 >
 > 在插入次数**大于等于1000**次时，**任何类型的插入性能均接近List的性能或者更快**，ElementType所占用的**字节越多**，ExtensibleBuffer快的**速度越多**（测试结果表明可以快1~5倍），同时**GC比List少50~上百万倍**
 >
-> 注意，ExtensibleBuffer目前仅支持非托管ElementType（byte/short/int/long等基础类型）
+> 注意，ExtensibleBuffer目前仅支持非托管ElementType（byte/short/int/long等类型，详见使用说明）
 
 ``` ini
 BenchmarkDotNet=v0.13.1, OS=macOS Monterey 12.0.1 (21A559) [Darwin 21.1.0]

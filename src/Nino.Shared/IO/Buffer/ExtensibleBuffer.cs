@@ -30,7 +30,7 @@ namespace Nino.Shared.IO
         /// <summary>
         /// Total length of the buffer
         /// </summary>
-        public int TotalLength;
+        public int TotalLength { get; private set; }
 
         /// <summary>
         /// Init buffer
@@ -126,6 +126,8 @@ namespace Nino.Shared.IO
         /// <returns></returns>
         public unsafe Span<T> AsSpan(int startIndex, int length)
         {
+            //size check
+            EnsureCapacity(startIndex + length);
             return new Span<T>((T*)Data + startIndex, length);
         }
 
