@@ -82,7 +82,7 @@ Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典无法使用，这个�
 
 ## 非Unity平台性能测试
 
-> 注，此测试定义了```ENABLE_NATIVE_DEFLATE```宏
+> 注，此测试开启了原生压缩解压
 
 ``` ini
 BenchmarkDotNet=v0.13.1, OS=macOS Monterey 12.0.1 (21A559) [Darwin 21.1.0]

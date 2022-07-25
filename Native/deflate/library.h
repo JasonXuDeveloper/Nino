@@ -3,16 +3,16 @@
 
 #include <stdint.h>
 
-#ifdef _WIN32
-#define MODULE_API_EXPORTS
-#  ifdef MODULE_API_EXPORTS
-#    define MODULE_API __declspec(dllexport)
-#  else
-#    define MODULE_API __declspec(dllimport)
-#  endif
+#if defined(__CYGWIN32__)
+#define MODULE_API __declspec(dllexport)
+#elif defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(_WIN64) || defined(WINAPI_FAMILY)
+#define MODULE_API __declspec(dllexport)
+#elif defined(__MACH__) || defined(__ANDROID__) || defined(__linux__) || defined(__QNX__)
+#define MODULE_API
 #else
-#  define MODULE_API
+#define MODULE_API
 #endif
+
 
 //LINUX MIGHT NEED THIS (if can not cmake and outputs z_size_t is undefined, you can uncomment the below code
 //#ifdef Z_SOLO

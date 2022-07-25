@@ -6,7 +6,7 @@
 
 只需要使用前设置```Nino.Shared.Mgr.ConstMgr.EnableNativeDeflate = true;```即可
 
-**使用该功能需要编译C++代码**，如果使用时报错DLLNotFound（Windows和Linux下应该会出现这个，因为Nino只自带了Mac下的dylib），需要用CMake编译一下```Native/deflate```内的C++代码即可，编译出来的```dll```、```so```或```dylib```文件放入```Nino.Shared```目录内即可，记得在IDE内配置一下编译时复制该文件
+**使用该功能需要编译C++代码**，如果使用时报错DLLNotFound（因为Nino只自带了x64的Mac下的dylib以及x64的windows的dll），需要用CMake编译一下```Native/deflate```内的C++代码即可，编译出来的```dll```、```so```或```dylib```文件放入```Nino.Shared```目录内即可，记得在IDE内配置一下编译时复制该文件
 
 > 在非Mac平台下编译原生DLL，可能需要手动修改CMake文件，使其在make的时候包含zlib代码（Cmake文件内有注释）
 >

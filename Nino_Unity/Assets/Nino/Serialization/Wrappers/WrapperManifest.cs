@@ -62,7 +62,7 @@ namespace Nino.Serialization
 
         public static void AddWrapper(Type type, INinoWrapper wrapper)
         {
-            Wrappers.Add(type.GetTypeHashCode(), wrapper);
+            Wrappers[type.GetTypeHashCode()] = wrapper;
         }
     }
 }
