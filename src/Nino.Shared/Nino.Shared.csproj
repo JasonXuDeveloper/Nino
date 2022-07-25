@@ -37,6 +37,15 @@
         <None Update="Deflate.dll">
           <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
+        
+        <None Update="zlib1.dll">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+
+        <None Update="zlibd1.dll">
+          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        
         <None Update="libDeflate.dylib">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
