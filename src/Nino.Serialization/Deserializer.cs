@@ -78,19 +78,15 @@ namespace Nino.Serialization
 			Reader reader = ObjectPool<Reader>.Request();
 			reader.Init(CompressMgr.Decompress(data, out var length), length, encoding ?? DefaultEncoding);
 			//code generated type
-			if (TypeModel.TryGetWrapper(type, out var wrapperObj))
+			if (TypeModel.TryGetWrapper(type, out wrapper))
 			{
-				wrapper = (NinoWrapperBase<T>)wrapperObj;
-				if (wrapper != null)
-				{
-					//add wrapper
-					WrapperManifest.AddWrapper(type, wrapper);
-					//start Deserialize
-					var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
-					reader.ReturnBuffer();
-					ObjectPool<Reader>.Return(reader);
-					return ret;
-				}
+				//add wrapper
+				WrapperManifest.AddWrapper(type, wrapper);
+				//start Deserialize
+				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
+				reader.ReturnBuffer();
+				ObjectPool<Reader>.Return(reader);
+				return ret;
 			}
 
 			return (T)Deserialize(type, null, data, encoding ?? DefaultEncoding, reader, true, true, true);
@@ -162,22 +158,18 @@ namespace Nino.Serialization
 			}
 
 			//code generated type
-			if (!skipCodeGenCheck && TypeModel.TryGetWrapper(type, out var wrapperObj))
+			if (!skipCodeGenCheck && TypeModel.TryGetWrapper(type, out wrapper))
 			{
-				wrapper = (INinoWrapper)wrapperObj;
-				if (wrapper != null)
+				//add wrapper
+				WrapperManifest.AddWrapper(type, wrapper);
+				//start Deserialize
+				var ret = wrapper.Deserialize(reader);
+				if (returnDispose)
 				{
-					//add wrapper
-					WrapperManifest.AddWrapper(type, wrapper);
-					//start Deserialize
-					var ret = wrapper.Deserialize(reader);
-					if (returnDispose)
-					{
-						reader.ReturnBuffer();
-						ObjectPool<Reader>.Return(reader);
-					}
-					return ret;
+					reader.ReturnBuffer();
+					ObjectPool<Reader>.Return(reader);
 				}
+				return ret;
 			}
 
 			//array

@@ -91,9 +91,8 @@ namespace Nino.Serialization
 			}
 
 			//code generated type
-			if (TypeModel.TryGetWrapper(type, out var wrapperObj))
+			if (TypeModel.TryGetWrapper(type, out wrapper))
 			{
-				wrapper = (NinoWrapperBase<T>)wrapperObj;
 				//add wrapper
 				WrapperManifest.AddWrapper(type, wrapper);
 				//start serialize
@@ -173,16 +172,18 @@ namespace Nino.Serialization
 			}
 
 			//code generated type
-			if (!skipCodeGenCheck && TypeModel.TryGetWrapper(type, out var wrapperObj))
+			if (!skipCodeGenCheck && TypeModel.TryGetWrapper(type, out wrapper))
 			{
-				wrapper = (INinoWrapper)wrapperObj;
 				//add wrapper
 				WrapperManifest.AddWrapper(type, wrapper);
 				//start serialize
 				wrapper.Serialize(value, writer);
-				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+				byte[] ret = ConstMgr.Null;
 				if (returnValue)
+				{
+					ret = writer.ToCompressedBytes();
 					ObjectPool<Writer>.Return(writer);
+				}
 				return ret;
 			}
 
@@ -190,9 +191,12 @@ namespace Nino.Serialization
 			if (!skipGenericCheck && type.IsArray)
 			{
 				writer.Write((Array)value);
-				var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+				byte[] ret = ConstMgr.Null;
 				if (returnValue)
+				{
+					ret = writer.ToCompressedBytes();
 					ObjectPool<Writer>.Return(writer);
+				}
 				return ret;
 			}
 
@@ -204,18 +208,24 @@ namespace Nino.Serialization
 				if (genericDefType == ConstMgr.ListDefType)
 				{
 					writer.Write((IList)value);
-					var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+					byte[] ret = ConstMgr.Null;
 					if (returnValue)
+					{
+						ret = writer.ToCompressedBytes();
 						ObjectPool<Writer>.Return(writer);
+					}
 					return ret;
 				}
 
 				if (genericDefType == ConstMgr.DictDefType)
 				{
 					writer.Write((IDictionary)value);
-					var ret = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+					byte[] ret = ConstMgr.Null;
 					if (returnValue)
+					{
+						ret = writer.ToCompressedBytes();
 						ObjectPool<Writer>.Return(writer);
+					}
 					return ret;
 				}
 			}
@@ -293,9 +303,12 @@ namespace Nino.Serialization
 			}
 
 			Write();
-			var buf = returnValue ? writer.ToCompressedBytes() : ConstMgr.Null;
+			byte[] buf = ConstMgr.Null;
 			if (returnValue)
+			{
+				buf = writer.ToCompressedBytes();
 				ObjectPool<Writer>.Return(writer);
+			}
 			return buf;
 		}
 
