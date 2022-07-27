@@ -17,11 +17,10 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
-        <PackageReleaseNotes>v1.0.8
-- [optimization] faster extensibleBuffer and less gc
-- [optimization] optimize compress and decompress gc</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.9
+- [optimization] faster extensibleBuffer</PackageReleaseNotes>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-        <PackageVersion>1.0.8</PackageVersion> 
+        <PackageVersion>1.0.9</PackageVersion> 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild> 
         <RepositoryType>git</RepositoryType> 
     </PropertyGroup>

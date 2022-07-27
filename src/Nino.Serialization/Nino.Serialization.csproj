@@ -18,10 +18,11 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.11</PackageVersion>
+        <PackageVersion>1.0.12</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.11
-- [optimization] faster reader and writer
+        <PackageReleaseNotes>v1.0.12
+- [optimization] faster reader
+- [optimization] faster serializer and deserializer
 - [optimization] optimize gc</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>

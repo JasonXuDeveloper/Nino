@@ -12,12 +12,12 @@ namespace Nino.Serialization
 	/// A read that Reads serialization Data
 	/// </summary>
 	// ReSharper disable CognitiveComplexity
-	public class Reader
+	public unsafe class Reader
 	{
 		/// <summary>
 		/// Buffer that stores data
 		/// </summary>
-		private IntPtr _buffer;
+		private byte* _buffer;
 
 		/// <summary>
 		/// encoding for string
@@ -66,7 +66,7 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public void Init(IntPtr data, int outputLength, Encoding encoding)
 		{
-			_buffer = data;
+			_buffer = (byte*)data;
 			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
@@ -80,8 +80,8 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public void Init(byte[] data, int outputLength, Encoding encoding)
 		{
-			_buffer = Marshal.AllocHGlobal(outputLength);
-			Marshal.Copy(data, 0, _buffer, outputLength);
+			_buffer = (byte*)Marshal.AllocHGlobal(outputLength);
+			Marshal.Copy(data, 0, (IntPtr)_buffer, outputLength);
 			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
@@ -92,7 +92,7 @@ namespace Nino.Serialization
 		/// </summary>
 		public void ReturnBuffer()
 		{
-			Marshal.FreeHGlobal(_buffer);
+			Marshal.FreeHGlobal((IntPtr)_buffer);
 		}
 
 		/// <summary>
@@ -266,9 +266,9 @@ namespace Nino.Serialization
 		/// Read a byte
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe byte ReadByte()
+		public byte ReadByte()
 		{
-			return *(byte*)(_buffer + _position++);
+			return *(_buffer + _position++);
 		}
 
 		/// <summary>
@@ -279,7 +279,7 @@ namespace Nino.Serialization
 		public byte[] ReadBytes(int len)
 		{
 			byte[] ret = new byte[len];
-			Marshal.Copy(_buffer + _position, ret, 0, len);
+			Marshal.Copy((IntPtr)_buffer + _position, ret, 0, len);
 			_position += len;
 			return ret;
 		}
@@ -289,9 +289,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="ptr"></param>
 		/// <param name="len"></param>
-		public unsafe void ReadToBuffer(byte* ptr, int len)
+		public void ReadToBuffer(byte* ptr, int len)
 		{
-			Unsafe.CopyBlockUnaligned(ptr, (byte*)_buffer + _position, (uint)len);
+			Unsafe.CopyBlockUnaligned(ptr, _buffer + _position, (uint)len);
 			_position += len;
 		}
 
@@ -300,12 +300,10 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private unsafe T Read<T>(int len) where T : unmanaged
+		private T Read<T>(int len) where T : unmanaged
 		{
-			T result;
-			byte* ptr = (byte*)&result;
-			ReadToBuffer(ptr, len);
-			return result;
+			_position += len;
+			return *(T*)(_buffer + _position - len);
 		}
 
 		/// <summary>
@@ -313,7 +311,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <returns></returns>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe sbyte ReadSByte()
+		public sbyte ReadSByte()
 		{
 			return *(sbyte*)(_buffer + _position++);
 		}
@@ -433,7 +431,7 @@ namespace Nino.Serialization
 		/// Read string
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe string ReadString()
+		public string ReadString()
 		{
 			int len = (int)DecompressAndReadNumber();
 			
@@ -471,9 +469,9 @@ namespace Nino.Serialization
 		/// Read bool
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe bool ReadBool()
+		public bool ReadBool()
 		{
-			return *(bool*)(_buffer + _position++);
+			return *(_buffer + _position++) == 1;
 		}
 		
 		/// <summary>
