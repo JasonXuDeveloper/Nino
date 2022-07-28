@@ -216,7 +216,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal unsafe void Write(byte* data, int len)
+		internal unsafe void Write(byte* data, ref int len)
 		{
 			if (len <= 8)
 			{
@@ -239,9 +239,12 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private unsafe void Write<T>(T val, int len) where T : unmanaged
+		private unsafe void Write<T>(ref T val, int len) where T : unmanaged
 		{
-			Write((byte*)&val, len);
+			fixed (T* ptr = &val)
+			{
+				Write((byte*)ptr, ref len);
+			}
 		}
 
 		/// <summary>
@@ -251,7 +254,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(double value)
 		{
-			Write(value, ConstMgr.SizeOfULong);
+			Write(ref value, ConstMgr.SizeOfULong);
 		}
 
 		/// <summary>
@@ -261,7 +264,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(float value)
 		{
-			Write(value, ConstMgr.SizeOfUInt);
+			Write(ref value, ConstMgr.SizeOfUInt);
 		}
 
 		/// <summary>
@@ -296,7 +299,7 @@ namespace Nino.Serialization
 				{
 					int byteCount = writerEncoding.GetBytes(pValue, val.Length, buffer, bufferSize);
 					CompressAndWrite(byteCount);
-					Write(buffer, byteCount);
+					Write(buffer, ref byteCount);
 				}
 			}
 			else
@@ -308,7 +311,7 @@ namespace Nino.Serialization
 					int byteCount = writerEncoding.GetBytes(pValue, val.Length, buff, bufferSize);
 					// ReSharper restore AssignNullToNotNullAttribute
 					CompressAndWrite(byteCount);
-					Write(buff, byteCount);
+					Write(buff, ref byteCount);
 				}
 				Marshal.FreeHGlobal((IntPtr)buff);	
 			}
@@ -321,7 +324,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(decimal d)
 		{
-			Write(d, ConstMgr.SizeOfDecimal);
+			Write(ref d, ConstMgr.SizeOfDecimal);
 		}
 
 		/// <summary>
@@ -374,7 +377,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(int num)
 		{
-			Write(num, ConstMgr.SizeOfInt);
+			Write(ref num, ConstMgr.SizeOfInt);
 		}
 
 		/// <summary>
@@ -384,7 +387,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(uint num)
 		{
-			Write(num, ConstMgr.SizeOfUInt);
+			Write(ref num, ConstMgr.SizeOfUInt);
 		}
 
 		/// <summary>
@@ -394,7 +397,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(short num)
 		{
-			Write(num, ConstMgr.SizeOfShort);
+			Write(ref num, ConstMgr.SizeOfShort);
 		}
 
 		/// <summary>
@@ -404,7 +407,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ushort num)
 		{
-			Write(num, ConstMgr.SizeOfUShort);
+			Write(ref num, ConstMgr.SizeOfUShort);
 		}
 
 		/// <summary>
@@ -414,7 +417,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(long num)
 		{
-			Write(num, ConstMgr.SizeOfLong);
+			Write(ref num, ConstMgr.SizeOfLong);
 		}
 
 		/// <summary>
@@ -424,7 +427,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(ulong num)
 		{
-			Write(num, ConstMgr.SizeOfULong);
+			Write(ref num, ConstMgr.SizeOfULong);
 		}
 
 		#endregion

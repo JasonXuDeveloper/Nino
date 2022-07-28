@@ -60,7 +60,7 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public Reader(IntPtr data, int outputLength, Encoding encoding)
 		{
-			Init(data, ref outputLength, encoding, true);
+			Init(data, ref outputLength, encoding);
 		}
 		
 		/// <summary>
@@ -78,6 +78,7 @@ namespace Nino.Serialization
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
 		/// <param name="unmanaged"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Init(IntPtr data, ref int outputLength, Encoding encoding, bool unmanaged = true)
 		{
 			_buffer = (byte*)data;
@@ -95,6 +96,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Init(byte[] data, int outputLength, Encoding encoding)
 		{
 			fixed (byte* ptr = data)
@@ -106,6 +108,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Return buffer
 		/// </summary>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void ReturnBuffer()
 		{
 			if (_unmanaged)
@@ -131,10 +134,10 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public ulong DecompressAndReadNumber()
 		{
-			var i = GetCompressType();
-			switch (i)
+			switch (GetCompressType())
 			{
 				case CompressType.Byte:
 					return ReadByte();
@@ -157,13 +160,13 @@ namespace Nino.Serialization
 			}
 		}
 
-
 		/// <summary>
 		/// Read basic type from reader
 		/// </summary>
 		/// <param name="type"></param>
 		/// <param name="result"></param>
 		// ReSharper disable CognitiveComplexity
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private object AttemptReadBasicType(Type type, out bool result)
 			// ReSharper restore CognitiveComplexity
 		{
@@ -277,7 +280,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private CompressType GetCompressType()
 		{
-			return (CompressType)ReadByte();
+			return *(CompressType*)(&_buffer[_position++]);
 		}
 
 		/// <summary>
@@ -286,7 +289,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public byte ReadByte()
 		{
-			return *(_buffer + _position++);
+			return _buffer[_position++];
 		}
 
 		/// <summary>
@@ -301,7 +304,7 @@ namespace Nino.Serialization
 			byte[] ret = new byte[l];
 			fixed (byte* ptr = ret)
 			{
-				Unsafe.CopyBlockUnaligned(ptr, _buffer + p, (uint)l);
+				Unsafe.CopyBlockUnaligned(ptr, &_buffer[p], (uint)l);
 				p += l;
 			}
 			return ret;
@@ -312,11 +315,12 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="ptr"></param>
 		/// <param name="len"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void ReadToBuffer(byte* ptr, int len)
 		{
-			ref var l = ref len;
 			ref var p = ref _position;
-			Unsafe.CopyBlockUnaligned(ptr, _buffer + p, (uint)l);
+			ref var l = ref len;
+			Unsafe.CopyBlockUnaligned(ptr, &_buffer[p], (uint)l);
 			p += l;
 		}
 
@@ -330,7 +334,7 @@ namespace Nino.Serialization
 			ref var p = ref _position;
 			ref var l = ref len;
 			p += l;
-			return *(T*)(_buffer + p - l);
+			return *(T*)(&_buffer[p - l]);
 		}
 
 		/// <summary>
@@ -340,7 +344,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public sbyte ReadSByte()
 		{
-			return *(sbyte*)(_buffer + _position++);
+			return *(sbyte*)(&_buffer[_position++]);
 		}
 
 		/// <summary>
@@ -498,7 +502,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public bool ReadBool()
 		{
-			return *(_buffer + _position++) == 1;
+			return _buffer[_position++] == 1;
 		}
 		
 		/// <summary>

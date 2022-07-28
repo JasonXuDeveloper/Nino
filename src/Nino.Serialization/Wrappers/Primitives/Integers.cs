@@ -75,7 +75,7 @@ namespace Nino.Serialization
             {
                 fixed (sbyte* ptr = val)
                 {
-                    writer.Write((byte*)ptr, len);
+                    writer.Write((byte*)ptr, ref len);
                 }
             }
         }
@@ -147,9 +147,10 @@ namespace Nino.Serialization
             writer.CompressAndWrite(len);
             if (len > 0)
             {
+                len *= 2;
                 fixed (short* ptr = val)
                 {
-                    writer.Write((byte*)ptr, len * 2);
+                    writer.Write((byte*)ptr, ref len);
                 }
             }
         }
@@ -220,9 +221,10 @@ namespace Nino.Serialization
             writer.CompressAndWrite(len);
             if (len > 0)
             {
+                len *= 2;
                 fixed (ushort* ptr = val)
                 {
-                    writer.Write((byte*)ptr, len * 2);
+                    writer.Write((byte*)ptr, ref len);
                 }
             }
         }
