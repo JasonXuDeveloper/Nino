@@ -30,9 +30,14 @@ namespace Nino.Serialization
 		private int _position;
 
 		/// <summary>
-		/// Position of the current buffer
+		/// Length of the current reader
 		/// </summary>
 		private int _length;
+
+		/// <summary>
+		/// Whether or not is unmanaged
+		/// </summary>
+		private bool _unmanaged;
 
 		/// <summary>
 		/// End of Reader
@@ -55,7 +60,7 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public Reader(IntPtr data, int outputLength, Encoding encoding)
 		{
-			Init(data, outputLength, encoding);
+			Init(data, ref outputLength, encoding, true);
 		}
 		
 		/// <summary>
@@ -72,13 +77,16 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
-		public void Init(IntPtr data, int outputLength, Encoding encoding)
+		/// <param name="unmanaged"></param>
+		public void Init(IntPtr data, ref int outputLength, Encoding encoding, bool unmanaged = true)
 		{
 			_buffer = (byte*)data;
 			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
-			GC.AddMemoryPressure(outputLength);
+			_unmanaged = unmanaged;
+			if(_unmanaged)
+				GC.AddMemoryPressure(outputLength);
 		}
 
 		/// <summary>
@@ -89,9 +97,10 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public void Init(byte[] data, int outputLength, Encoding encoding)
 		{
-			var tmp = Marshal.AllocHGlobal(outputLength);
-			Marshal.Copy(data, 0, tmp, outputLength);
-			Init(tmp, outputLength, encoding);
+			fixed (byte* ptr = data)
+			{
+				Init((IntPtr)ptr, ref outputLength, encoding, false);
+			}
 		}
 
 		/// <summary>
@@ -99,8 +108,11 @@ namespace Nino.Serialization
 		/// </summary>
 		public void ReturnBuffer()
 		{
-			Marshal.FreeHGlobal((IntPtr)_buffer);
-			GC.RemoveMemoryPressure(_length);
+			if (_unmanaged)
+			{
+				Marshal.FreeHGlobal((IntPtr)_buffer);
+				GC.RemoveMemoryPressure(_length);
+			}
 			_buffer = null;
 		}
 
@@ -249,11 +261,8 @@ namespace Nino.Serialization
 					return ReadUInt16();
 				//need to consider compress
 				case TypeCode.Int32:
-					return (ulong)(int)DecompressAndReadNumber();
 				case TypeCode.UInt32:
-					return (uint)DecompressAndReadNumber();
 				case TypeCode.Int64:
-					return (ulong)(long)DecompressAndReadNumber();
 				case TypeCode.UInt64:
 					return DecompressAndReadNumber();
 			}
@@ -287,9 +296,14 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public byte[] ReadBytes(int len)
 		{
-			byte[] ret = new byte[len];
-			Marshal.Copy((IntPtr)_buffer + _position, ret, 0, len);
-			_position += len;
+			ref var p = ref _position;
+			ref var l = ref len;
+			byte[] ret = new byte[l];
+			fixed (byte* ptr = ret)
+			{
+				Unsafe.CopyBlockUnaligned(ptr, _buffer + p, (uint)l);
+				p += l;
+			}
 			return ret;
 		}
 
@@ -300,8 +314,10 @@ namespace Nino.Serialization
 		/// <param name="len"></param>
 		public void ReadToBuffer(byte* ptr, int len)
 		{
-			Unsafe.CopyBlockUnaligned(ptr, _buffer + _position, (uint)len);
-			_position += len;
+			ref var l = ref len;
+			ref var p = ref _position;
+			Unsafe.CopyBlockUnaligned(ptr, _buffer + p, (uint)l);
+			p += l;
 		}
 
 		/// <summary>
@@ -311,8 +327,10 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private T Read<T>(int len) where T : unmanaged
 		{
-			_position += len;
-			return *(T*)(_buffer + _position - len);
+			ref var p = ref _position;
+			ref var l = ref len;
+			p += l;
+			return *(T*)(_buffer + p - l);
 		}
 
 		/// <summary>

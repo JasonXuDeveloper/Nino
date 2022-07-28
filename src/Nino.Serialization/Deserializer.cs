@@ -65,7 +65,7 @@ namespace Nino.Serialization
 				}
 				else
 				{
-					basicReader.Init(CompressMgr.Decompress(data, out var len), len,
+					basicReader.Init(CompressMgr.Decompress(data, out var len), ref len,
 						encoding ?? DefaultEncoding);
 				}
 
@@ -79,7 +79,7 @@ namespace Nino.Serialization
 			if (TypeModel.TryGetWrapper(type, out wrapper))
 			{
 				Reader reader = ObjectPool<Reader>.Request();
-				reader.Init(CompressMgr.Decompress(data, out var length), length, encoding ?? DefaultEncoding);
+				reader.Init(CompressMgr.Decompress(data, out var length), ref length, encoding ?? DefaultEncoding);
 				//add wrapper
 				WrapperManifest.AddWrapper(type, wrapper);
 				//start Deserialize
@@ -127,7 +127,7 @@ namespace Nino.Serialization
 				}
 				else
 				{
-					basicReader.Init(CompressMgr.Decompress(data, out var len), len,
+					basicReader.Init(CompressMgr.Decompress(data, out var len), ref len,
 						encoding ?? DefaultEncoding);
 				}
 
@@ -153,7 +153,7 @@ namespace Nino.Serialization
 			if (reader == null)
 			{
 				reader = ObjectPool<Reader>.Request();
-				reader.Init(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
+				reader.Init(CompressMgr.Decompress(data, out var len), ref len, encoding ?? DefaultEncoding);
 			}
 
 			//code generated type

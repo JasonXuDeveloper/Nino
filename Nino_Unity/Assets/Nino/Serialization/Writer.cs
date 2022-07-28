@@ -218,6 +218,16 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		internal unsafe void Write(byte* data, int len)
 		{
+			if (len <= 8)
+			{
+				while (len-- > 0)
+				{
+					_buffer[_position++] = *data++;
+					_length++;
+				}
+
+				return;
+			}
 			_buffer.CopyFrom(data, 0, _position, len);
 			_position += len;
 			_length += len;
@@ -239,9 +249,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe void Write(double value)
+		public void Write(double value)
 		{
-			Write((byte*)(ulong*)&value, ConstMgr.SizeOfULong);
+			Write(value, ConstMgr.SizeOfULong);
 		}
 
 		/// <summary>
@@ -249,9 +259,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe void Write(float value)
+		public void Write(float value)
 		{
-			Write((byte*)(uint*)&value, ConstMgr.SizeOfUInt);
+			Write(value, ConstMgr.SizeOfUInt);
 		}
 
 		/// <summary>
