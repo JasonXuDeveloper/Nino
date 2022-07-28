@@ -57,6 +57,14 @@ namespace Nino.Serialization
 		{
 			Init(data, outputLength, encoding);
 		}
+		
+		/// <summary>
+		/// Deconstructor
+		/// </summary>
+		~Reader()
+		{
+			ReturnBuffer();
+		}
 
 		/// <summary>
 		/// Create a nino read
@@ -70,6 +78,7 @@ namespace Nino.Serialization
 			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
+			GC.AddMemoryPressure(outputLength);
 		}
 
 		/// <summary>
@@ -80,11 +89,9 @@ namespace Nino.Serialization
 		/// <param name="encoding"></param>
 		public void Init(byte[] data, int outputLength, Encoding encoding)
 		{
-			_buffer = (byte*)Marshal.AllocHGlobal(outputLength);
-			Marshal.Copy(data, 0, (IntPtr)_buffer, outputLength);
-			_encoding = encoding;
-			_position = 0;
-			_length = outputLength;
+			var tmp = Marshal.AllocHGlobal(outputLength);
+			Marshal.Copy(data, 0, tmp, outputLength);
+			Init(tmp, outputLength, encoding);
 		}
 
 		/// <summary>
@@ -93,6 +100,8 @@ namespace Nino.Serialization
 		public void ReturnBuffer()
 		{
 			Marshal.FreeHGlobal((IntPtr)_buffer);
+			GC.RemoveMemoryPressure(_length);
+			_buffer = null;
 		}
 
 		/// <summary>

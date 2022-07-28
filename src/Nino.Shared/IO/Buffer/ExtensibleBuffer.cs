@@ -67,6 +67,7 @@ namespace Nino.Shared.IO
             }
 
             TotalLength = ExpandSize;
+            GC.AddMemoryPressure(sizeOfT * ExpandSize);
         }
 
         /// <summary>
@@ -93,6 +94,7 @@ namespace Nino.Shared.IO
             while (index >= TotalLength)
             {
                 TotalLength += ExpandSize;
+                GC.AddMemoryPressure(sizeOfT * ExpandSize);
             }
             Extend();
         }
@@ -207,6 +209,7 @@ namespace Nino.Shared.IO
         ~ExtensibleBuffer()
         {
             Marshal.FreeHGlobal(Data);
+            GC.RemoveMemoryPressure(sizeOfT * TotalLength);
         }
     }
 }

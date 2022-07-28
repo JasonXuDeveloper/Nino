@@ -74,12 +74,12 @@ namespace Nino.Serialization
 				ObjectPool<Reader>.Return(basicReader);
 				return ret;
 			}
-
-			Reader reader = ObjectPool<Reader>.Request();
-			reader.Init(CompressMgr.Decompress(data, out var length), length, encoding ?? DefaultEncoding);
+			
 			//code generated type
 			if (TypeModel.TryGetWrapper(type, out wrapper))
 			{
+				Reader reader = ObjectPool<Reader>.Request();
+				reader.Init(CompressMgr.Decompress(data, out var length), length, encoding ?? DefaultEncoding);
 				//add wrapper
 				WrapperManifest.AddWrapper(type, wrapper);
 				//start Deserialize
@@ -89,7 +89,7 @@ namespace Nino.Serialization
 				return ret;
 			}
 
-			return (T)Deserialize(type, null, data, encoding ?? DefaultEncoding, reader, true, true, true);
+			return (T)Deserialize(type, null, data, encoding ?? DefaultEncoding, null, true, true, true);
 		}
 
 		/// <summary>
@@ -139,22 +139,21 @@ namespace Nino.Serialization
 				}
 				return ret;
 			}
-
-			if (reader == null)
-			{
-				reader = ObjectPool<Reader>.Request();
-				reader.Init(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
-			}
-
 			//enum
 			if (!skipEnumCheck && type.IsEnum)
 			{
 
-				var ret = Deserialize(Enum.GetUnderlyingType(type), null, data, encoding, reader, returnDispose);
+				var ret = Deserialize(Enum.GetUnderlyingType(type), null, data, encoding, null, returnDispose);
 #if !ILRuntime
 				ret = Enum.ToObject(type, ret);
 #endif
 				return ret;
+			}
+			
+			if (reader == null)
+			{
+				reader = ObjectPool<Reader>.Request();
+				reader.Init(CompressMgr.Decompress(data, out var len), len, encoding ?? DefaultEncoding);
 			}
 
 			//code generated type

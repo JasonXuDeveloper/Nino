@@ -74,12 +74,12 @@ namespace Nino.Shared.Mgr
 
         #endregion
 
-        public static readonly byte SizeOfUInt = sizeof(uint);
-        public static readonly byte SizeOfInt = sizeof(int);
-        public static readonly byte SizeOfUShort = sizeof(ushort);
-        public static readonly byte SizeOfShort = sizeof(short);
-        public static readonly byte SizeOfULong = sizeof(ulong);
-        public static readonly byte SizeOfLong = sizeof(long);
-        public static readonly byte SizeOfDecimal = sizeof(decimal);
+        public const byte SizeOfUInt = sizeof(uint);
+        public const byte SizeOfInt = sizeof(int);
+        public const byte SizeOfUShort = sizeof(ushort);
+        public const byte SizeOfShort = sizeof(short);
+        public const byte SizeOfULong = sizeof(ulong);
+        public const byte SizeOfLong = sizeof(long);
+        public const byte SizeOfDecimal = sizeof(decimal);
     }
 }

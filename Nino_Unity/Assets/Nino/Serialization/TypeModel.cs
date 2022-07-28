@@ -108,7 +108,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static bool IsNonCompressibleType(Type type)
 		{
-			return NoCompressionTypes.Contains(type.GetTypeHashCode());
+			return NoCompressionTypes.Contains(type.GetTypeHashCode()) || type.IsEnum;
 		}
 
 		/// <summary>

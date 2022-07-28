@@ -39,11 +39,11 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestEnum()
         {
-            TestEnumVal val = TestEnumVal.A;
+            TestEnumVal val = TestEnumVal.B;
             byte[] buf = Serialization.Serializer.Serialize(val);
             TestEnumVal val2 = Serialization.Deserializer.Deserialize<TestEnumVal>(buf);
             Assert.AreEqual(val, val2);
-            Assert.AreEqual(TestEnumVal.A, val2);
+            Assert.AreEqual(TestEnumVal.B, val2);
         }
 
         [TestMethod]
