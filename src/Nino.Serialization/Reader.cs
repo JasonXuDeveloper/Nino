@@ -356,8 +356,15 @@ namespace Nino.Serialization
 		private T Read<T>(int len) where T : unmanaged
 		{
 			ref var l = ref len;
-			_position += l;
-			return *(T*)(&_buffer[_position - l]);
+			ref var p = ref _position;
+			//on 32 bits has to make a copy, otherwise if cast pointer to T straight ahead, will cause crash
+			T ret = default;
+			byte i = 0;
+			while (l-- > 0)
+			{
+				((byte*)&ret)[i++] = _buffer[p++];
+			}
+			return ret;
 		}
 
 		/// <summary>
