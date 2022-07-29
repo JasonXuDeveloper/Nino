@@ -318,10 +318,9 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void ReadToBuffer(byte* ptr, int len)
 		{
-			ref var p = ref _position;
 			ref var l = ref len;
-			Unsafe.CopyBlockUnaligned(ptr, &_buffer[p], (uint)l);
-			p += l;
+			Unsafe.CopyBlockUnaligned(ptr, &_buffer[_position], (uint)l);
+			_position += l;
 		}
 
 		/// <summary>
@@ -331,10 +330,9 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private T Read<T>(int len) where T : unmanaged
 		{
-			ref var p = ref _position;
 			ref var l = ref len;
-			p += l;
-			return *(T*)(&_buffer[p - l]);
+			_position += l;
+			return *(T*)(&_buffer[_position - l]);
 		}
 
 		/// <summary>

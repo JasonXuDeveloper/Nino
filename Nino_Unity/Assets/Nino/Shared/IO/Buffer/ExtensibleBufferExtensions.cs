@@ -43,9 +43,11 @@ namespace Nino.Shared.IO
         /// <param name="buffer"></param>
         /// <param name="stream"></param>
         /// <param name="length"></param>
+        // ReSharper disable RedundantNameQualifier
         public static unsafe void WriteToStream(this ExtensibleBuffer<byte> buffer, Nino.Shared.IO.DeflateStream stream, int length)
+            // ReSharper restore RedundantNameQualifier
         {
-            stream.Write((byte*)buffer.Data.ToPointer(), 0, length);
+            stream.Write(buffer.Data, 0, length);
         }
 
 #if !NETSTANDARD && !NET461 && !UNITY_2017_1_OR_NEWER
@@ -57,7 +59,7 @@ namespace Nino.Shared.IO
         /// <param name="length"></param>
         public static unsafe void WriteToStream(this ExtensibleBuffer<byte> buffer, System.IO.Compression.DeflateStream stream, int length)
         {
-            stream.Write(new ReadOnlySpan<byte>((byte*)buffer.Data.ToPointer(),length));
+            stream.Write(new ReadOnlySpan<byte>(buffer.Data,length));
         }
 #endif
     }
