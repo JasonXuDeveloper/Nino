@@ -35,7 +35,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToBytes()
 		{
-			return _buffer.ToArray(0, _length);
+			return _buffer.ToArray(0, _position);
 		}
 
 		/// <summary>
@@ -44,7 +44,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToCompressedBytes()
 		{
-			return CompressMgr.Compress(_buffer, _length);
+			return CompressMgr.Compress(_buffer, _position);
 		}
 		
 		/// <summary>
@@ -84,14 +84,8 @@ namespace Nino.Serialization
 			}
 
 			writerEncoding = encoding;
-			_length = 0;
 			_position = 0;
 		}
-
-		/// <summary>
-		/// Length of the buffer
-		/// </summary>
-		private int _length;
 
 		/// <summary>
 		/// Position of the current buffer
@@ -207,7 +201,6 @@ namespace Nino.Serialization
 		{
 			_buffer.CopyFrom(data, 0, _position, len);
 			_position += len;
-			_length += len;
 		}
 
 		/// <summary>
@@ -223,14 +216,12 @@ namespace Nino.Serialization
 				while (len-- > 0)
 				{
 					_buffer[_position++] = *data++;
-					_length++;
 				}
 
 				return;
 			}
 			_buffer.CopyFrom(data, 0, _position, len);
 			_position += len;
-			_length += len;
 		}
 
 		/// <summary>
@@ -355,7 +346,6 @@ namespace Nino.Serialization
 		{
 			_buffer[_position] = num;
 			_position += 1;
-			_length += 1;
 		}
 
 		/// <summary>
@@ -367,7 +357,6 @@ namespace Nino.Serialization
 		{
 			_buffer[_position] = *(byte*)&num;
 			_position += 1;
-			_length += 1;
 		}
 
 		/// <summary>
@@ -686,7 +675,7 @@ namespace Nino.Serialization
 			int len = arr.Length;
 			CompressAndWrite(len);
 			//other type
-			var elemType = arr.GetValue(0).GetType();
+			var elemType = arr.GetValue(0)?.GetType() ?? arr.GetType().GetElementType();
 			//write item
 			int i = 0;
 			while (i < len)
