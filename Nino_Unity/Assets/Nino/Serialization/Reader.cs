@@ -20,6 +20,13 @@ namespace Nino.Serialization
 		private byte* _buffer;
 
 		/// <summary>
+		/// cache of managed bytes
+		/// </summary>
+		// ReSharper disable NotAccessedField.Local
+		private byte[] _managedCache;
+		// ReSharper restore NotAccessedField.Local
+
+		/// <summary>
 		/// encoding for string
 		/// </summary>
 		private Encoding _encoding;
@@ -35,9 +42,9 @@ namespace Nino.Serialization
 		private int _length;
 
 		/// <summary>
-		/// Whether or not is unmanaged
+		/// compress option
 		/// </summary>
-		private bool _unmanaged;
+		private CompressOption _option;
 
 		/// <summary>
 		/// End of Reader
@@ -49,7 +56,7 @@ namespace Nino.Serialization
 		/// </summary>
 		public Reader()
 		{
-			
+
 		}
 
 		/// <summary>
@@ -58,11 +65,12 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
-		public Reader(IntPtr data, int outputLength, Encoding encoding)
+		/// <param name="option"></param>
+		public Reader(byte[] data, int outputLength, Encoding encoding, CompressOption option = CompressOption.Zlib)
 		{
-			Init(data, ref outputLength, encoding);
+			Init(data, outputLength, encoding, option);
 		}
-		
+
 		/// <summary>
 		/// Deconstructor
 		/// </summary>
@@ -77,16 +85,16 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
-		/// <param name="unmanaged"></param>
+		/// <param name="option"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Init(IntPtr data, ref int outputLength, Encoding encoding, bool unmanaged = true)
+		private void Init(IntPtr data, ref int outputLength, Encoding encoding, CompressOption option)
 		{
 			_buffer = (byte*)data;
 			_encoding = encoding;
 			_position = 0;
 			_length = outputLength;
-			_unmanaged = unmanaged;
-			if(_unmanaged)
+			_option = option;
+			if (_option == CompressOption.Zlib)
 				GC.AddMemoryPressure(outputLength);
 		}
 
@@ -96,12 +104,25 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
 		/// <param name="encoding"></param>
+		/// <param name="compressOption"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Init(byte[] data, int outputLength, Encoding encoding)
+		public void Init(byte[] data, int outputLength, Encoding encoding, CompressOption compressOption)
 		{
-			fixed (byte* ptr = data)
+			switch (compressOption)
 			{
-				Init((IntPtr)ptr, ref outputLength, encoding, false);
+				case CompressOption.NoCompression:
+					_managedCache = data;
+					fixed (byte* ptr = data)
+					{
+						Init((IntPtr)ptr, ref outputLength, encoding, compressOption);
+					}
+
+					break;
+				case CompressOption.Lz4:
+					throw new NotSupportedException("not support lz4 yet");
+				case CompressOption.Zlib:
+					Init(CompressMgr.Decompress(data, out var length), ref length, encoding, compressOption);
+					break;
 			}
 		}
 
@@ -111,11 +132,13 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void ReturnBuffer()
 		{
-			if (_unmanaged)
+			if (_option == CompressOption.Zlib)
 			{
 				Marshal.FreeHGlobal((IntPtr)_buffer);
 				GC.RemoveMemoryPressure(_length);
 			}
+
+			_managedCache = null;
 			_buffer = null;
 		}
 
@@ -175,12 +198,12 @@ namespace Nino.Serialization
 			{
 				return wrapper.Deserialize(this);
 			}
-			
+
 			if (type.IsEnum)
 			{
 				return DecompressAndReadEnum(type);
 			}
-			
+
 			//比如泛型，只能list和dict
 			if (type.IsGenericType)
 			{
@@ -212,7 +235,7 @@ namespace Nino.Serialization
 #endif
 				return ReadArray(type);
 			}
-					
+
 			result = false;
 			return null;
 		}
@@ -239,7 +262,8 @@ namespace Nino.Serialization
 				return ret;
 			}
 
-			return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this, false, true, false,
+			return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, _encoding, this, _option, false, true,
+				false,
 				true, true);
 		}
 
@@ -307,6 +331,7 @@ namespace Nino.Serialization
 				Unsafe.CopyBlockUnaligned(ptr, &_buffer[p], (uint)l);
 				p += l;
 			}
+
 			return ret;
 		}
 
@@ -463,7 +488,7 @@ namespace Nino.Serialization
 		public string ReadString()
 		{
 			int len = (int)DecompressAndReadNumber();
-			
+
 			//empty string -> no gc
 			if (len == 0)
 			{
@@ -502,7 +527,7 @@ namespace Nino.Serialization
 		{
 			return _buffer[_position++] == 1;
 		}
-		
+
 		/// <summary>
 		/// Read Array
 		/// </summary>
@@ -531,7 +556,7 @@ namespace Nino.Serialization
 			Array arr = Array.CreateInstance(elemType, len);
 			//read item
 			int i = 0;
-			while(i < len)
+			while (i < len)
 			{
 				var obj = ReadCommonVal(elemType);
 #if ILRuntime
@@ -568,14 +593,14 @@ namespace Nino.Serialization
 				elemType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
 			}
 #endif
-			
+
 			//read len
 			int len = ReadLength();
-			
+
 			IList arr = Activator.CreateInstance(type, ConstMgr.EmptyParam) as IList;
 			//read item
 			int i = 0;
-			while(i++ < len)
+			while (i++ < len)
 			{
 				var obj = ReadCommonVal(elemType);
 #if ILRuntime
@@ -621,7 +646,7 @@ namespace Nino.Serialization
 
 			//read item
 			int i = 0;
-			while(i++ < len)
+			while (i++ < len)
 			{
 				//read key
 				var key = ReadCommonVal(keyType);

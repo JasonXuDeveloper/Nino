@@ -15,19 +15,21 @@ namespace Nino.Benchmark
 
         public IEnumerable<SerializerBase> Serializers => new SerializerBase[]
         {
-            new MessagePack_v2(),
-            new ProtobufNetSerializer(),
-            new JsonNetSerializer(),
-            new BinaryFormatterSerializer(),
-            new DataContractSerializer(),
-            new HyperionSerializer(),
-            new JilSerializer(),
-            new SpanJsonSerializer(),
-            new Utf8JsonSerializer(),
-            new FsPicklerSerializer(),
-            new CerasSerializer(),
-            new OdinSerializer_(),
-            new NinoSerializer()
+            new MessagePack_Lz4(),
+            new MessagePack_NoCompression(),
+            // new ProtobufNetSerializer(),
+            // new JsonNetSerializer(),
+            // new BinaryFormatterSerializer(),
+            // new DataContractSerializer(),
+            // new HyperionSerializer(),
+            // new JilSerializer(),
+            // new SpanJsonSerializer(),
+            // new Utf8JsonSerializer(),
+            // new FsPicklerSerializer(),
+            // new CerasSerializer(),
+            // new OdinSerializer_(),
+            new NinoSerializer_ZLib(),
+            new NinoSerializer_NoCompression()
         };
 
         static SerializationBenchmark()

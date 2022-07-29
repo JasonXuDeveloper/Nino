@@ -200,6 +200,22 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 
 > 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上，可以在性能对比的时候用这个（例如[这个真机测试](../Nino_Unity/Assets/Nino/Test/BuildTest.cs)）
 
+
+
+## 压缩方式
+
+Nino支持以下三种压缩方式：
+
+- Zlib(高压缩率低性能)
+- Lz4(平均压缩率高性能)
+- 无压缩(高性能但体积很大)
+
+
+
+> 序列化和反序列化的时候可以选择压缩方式，但是需要注意反序列化数据的时候，需要用和序列化时相同的压缩方式去反序列化
+
+
+
 ## 序列化
 
 ```csharp
@@ -210,9 +226,15 @@ Nino.Serialization.Serializer.Serialize<T>(T val);
 Nino.Serialization.Serializer.Serialize<T>(T val, Encoding encoding);
 ```
 
-> 同时如果没有指定的编码的话，会使用UTF8
+```csharp
+Nino.Serialization.Serializer.Serialize<T>(T val, Encoding encoding, CompressOption option);
+```
+
+> 如果没有指定的编码的话，会使用UTF8
 >
-> 需要注意的是，涉及到字符串时，请确保序列化和反序列化的时候用的是同样的编码
+> 如果没有指定的压缩模式，会使用Zlib
+>
+> 需要注意的是，涉及到字符串时，请确保序列化和反序列化的时候用的是同样的编码和同样的压缩方式
 
 示范：
 
@@ -232,9 +254,17 @@ Nino.Serialization.Deserializer.Deserialize<T>(byte[] data);
 Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding);
 ```
 
-> 同时如果没有指定的编码的话，会使用UTF8
+```csharp
+Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding, CompressOption option);
+```
+
+
+
+> 如果没有指定的编码的话，会使用UTF8
 >
-> 需要注意编码问题，并且反序列化的对象需要能够创建（包含无参数的构造函数）
+> 如果没有指定的压缩模式，会使用Zlib
+>
+> 需要注意编码和压缩模式问题，并且反序列化的对象需要能够创建（包含无参数的构造函数）
 
 示范：
 

@@ -28,7 +28,17 @@ namespace Nino.Serialization
 		/// <summary>
 		/// encoding for string
 		/// </summary>
-		private Encoding writerEncoding;
+		private Encoding _encoding;
+
+		/// <summary>
+		/// compress option
+		/// </summary>
+		private CompressOption _option;
+
+		/// <summary>
+		/// Position of the current buffer
+		/// </summary>
+		private int _position;
 
 		/// <summary>
 		/// Convert writer to byte
@@ -36,40 +46,43 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToBytes()
 		{
-			return _buffer.ToArray(0, _position);
+			switch (_option)
+			{
+				case CompressOption.Zlib:
+					return CompressMgr.Compress(_buffer, _position);
+				case CompressOption.Lz4:
+					throw new NotSupportedException("not support lz4 yet");
+				case CompressOption.NoCompression:
+					return _buffer.ToArray(0, _position);
+			}
+
+			return ConstMgr.Null;
 		}
 
-		/// <summary>
-		/// Convert writer to compressed byte
-		/// </summary>
-		/// <returns></returns>
-		public byte[] ToCompressedBytes()
-		{
-			return CompressMgr.Compress(_buffer, _position);
-		}
-		
 		/// <summary>
 		/// Create a writer (needs to set up values)
 		/// </summary>
 		public Writer()
 		{
-			
+
 		}
 
 		/// <summary>
 		/// Create a nino writer
 		/// </summary>
 		/// <param name="encoding"></param>
-		public Writer(Encoding encoding)
+		/// <param name="option"></param>
+		public Writer(Encoding encoding, CompressOption option = CompressOption.Zlib)
 		{
-			Init(encoding);
+			Init(encoding, option);
 		}
 
 		/// <summary>
 		/// Init writer
 		/// </summary>
 		/// <param name="encoding"></param>
-		public void Init(Encoding encoding)
+		/// <param name="compressOption"></param>
+		public void Init(Encoding encoding, CompressOption compressOption)
 		{
 			if (_buffer == null)
 			{
@@ -84,14 +97,10 @@ namespace Nino.Serialization
 				}
 			}
 
-			writerEncoding = encoding;
+			_encoding = encoding;
 			_position = 0;
+			_option = compressOption;
 		}
-
-		/// <summary>
-		/// Position of the current buffer
-		/// </summary>
-		private int _position;
 
 		/// <summary>
 		/// Write basic type to writer
@@ -177,7 +186,7 @@ namespace Nino.Serialization
 		{
 			if (!AttemptWriteBasicType(type, val))
 			{
-				Serializer.Serialize(type, val, writerEncoding, this, false, true, false, true, true);
+				Serializer.Serialize(type, val, _encoding, this, _option, false, true, false, true, true);
 			}
 		}
 
@@ -221,6 +230,7 @@ namespace Nino.Serialization
 
 				return;
 			}
+
 			_buffer.CopyFrom(data, 0, _position, len);
 			_position += len;
 		}
@@ -283,13 +293,13 @@ namespace Nino.Serialization
 				return;
 			}
 
-			int bufferSize = writerEncoding.GetMaxByteCount(val.Length);
+			int bufferSize = _encoding.GetMaxByteCount(val.Length);
 			if (bufferSize < 1024)
 			{
 				byte* buffer = stackalloc byte[bufferSize];
 				fixed (char* pValue = val)
 				{
-					int byteCount = writerEncoding.GetBytes(pValue, val.Length, buffer, bufferSize);
+					int byteCount = _encoding.GetBytes(pValue, val.Length, buffer, bufferSize);
 					CompressAndWrite(byteCount);
 					Write(buffer, ref byteCount);
 				}
@@ -300,12 +310,13 @@ namespace Nino.Serialization
 				fixed (char* pValue = val)
 				{
 					// ReSharper disable AssignNullToNotNullAttribute
-					int byteCount = writerEncoding.GetBytes(pValue, val.Length, buff, bufferSize);
+					int byteCount = _encoding.GetBytes(pValue, val.Length, buff, bufferSize);
 					// ReSharper restore AssignNullToNotNullAttribute
 					CompressAndWrite(byteCount);
 					Write(buff, ref byteCount);
 				}
-				Marshal.FreeHGlobal((IntPtr)buff);	
+
+				Marshal.FreeHGlobal((IntPtr)buff);
 			}
 		}
 
@@ -590,6 +601,7 @@ namespace Nino.Serialization
 			_buffer[_position++] = (byte)CompressType.Int32;
 			Write(ref num, ConstMgr.SizeOfInt);
 		}
+
 		#endregion
 
 		/// <summary>
@@ -737,11 +749,12 @@ namespace Nino.Serialization
 				{
 					keyType = c.GetType();
 				}
+
 				if (valueType == null)
 				{
 					valueType = dictionary[c].GetType();
 				}
-				
+
 				//write key
 				WriteCommonVal(keyType, c);
 				//write val

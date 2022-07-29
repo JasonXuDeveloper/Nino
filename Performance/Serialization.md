@@ -59,6 +59,8 @@ Protobuf-net以及MongoDB.Bson在IL2CPP平台下，字典无法使用，这个�
 
 ![i1](https://s1.ax1x.com/2022/06/15/XowpM4.png)
 
+> 使用的是Zlib压缩模式
+>
 > Nino < MsgPack (LZ4 Compress) < Protobuf-net < BinaryFormatter < MongoDB.Bson
 >
 > 体积方面可以忽略是否预热

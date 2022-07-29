@@ -92,12 +92,13 @@ namespace Nino.Serialization
             }
 
             var args = new Type[] { typeof(ILRuntime.Runtime.Intepreter.ILTypeInstance) };
+            var ps = new Type[] { args[0], typeof(System.Text.Encoding), typeof(Nino.Serialization.CompressOption) };
             if (genericMethods.TryGetValue("Serialize", out lst))
             {
                 foreach (var m in lst)
                 {
                     if (ILRuntime.Runtime.Extensions.MatchGenericParameters(m, args, typeof(System.Byte[]),
-                        args[0], typeof(System.Text.Encoding)))
+                        ps))
                     {
                         method = m.MakeGenericMethod(args);
                         appDomain.RegisterCLRMethodRedirection(method, Serialize_0);
@@ -149,16 +150,23 @@ namespace Nino.Serialization
             ILRuntime.CLR.Method.CLRMethod method, bool isNewObj)
         {
             var domain = intp.AppDomain;
-            var ret = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 2);
+            var ret = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 3);
 
             var ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 1);
+            var @option = (Nino.Serialization.CompressOption)ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(
+                typeof(Nino.Serialization.CompressOption),
+                ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
+                (ILRuntime.CLR.Utils.Extensions.TypeFlags)20);
+            intp.Free(ptrOfThisMethod);
+
+            ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 2);
             var @encoding = (System.Text.Encoding)ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(
                 typeof(System.Text.Encoding),
                 ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
                 0);
             intp.Free(ptrOfThisMethod);
 
-            ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 2);
+            ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 3);
             var @data = (System.Byte[])ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(typeof(System.Byte[]),
                 ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
                 0);
@@ -179,7 +187,7 @@ namespace Nino.Serialization
 
             var resultOfThisMethod =
                 Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, r, @data,
-                    @encoding ?? Encoding.UTF8, null);
+                    @encoding ?? Encoding.UTF8, null, option);
 
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);
         }
@@ -199,9 +207,16 @@ namespace Nino.Serialization
             ILRuntime.CLR.Method.CLRMethod method, bool isNewObj)
         {
             var domain = intp.AppDomain;
-            var ret = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 2);
+            var ret = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 3);
 
             var ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 1);
+            var @option = (Nino.Serialization.CompressOption)ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(
+                typeof(Nino.Serialization.CompressOption),
+                ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
+                (ILRuntime.CLR.Utils.Extensions.TypeFlags)20);
+            intp.Free(ptrOfThisMethod);
+
+            ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 2);
             var @encoding = (System.Text.Encoding)ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(
                 typeof(System.Text.Encoding),
                 ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
@@ -211,7 +226,7 @@ namespace Nino.Serialization
             //获取泛型参数<T>的实际类型
             var genericArguments = method.GenericArguments;
             var t = genericArguments[0];
-            ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 2);
+            ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 3);
             var val = ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(
                 t.ReflectionType,
                 ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
@@ -219,7 +234,7 @@ namespace Nino.Serialization
             intp.Free(ptrOfThisMethod);
 
             var resultOfThisMethod =
-                Nino.Serialization.Serializer.Serialize(t.ReflectionType, @val, @encoding ?? Encoding.UTF8, null);
+                Nino.Serialization.Serializer.Serialize(t.ReflectionType, @val, @encoding ?? Encoding.UTF8, null, option);
 
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);
         }

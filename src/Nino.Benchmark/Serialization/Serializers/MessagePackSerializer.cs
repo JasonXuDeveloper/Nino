@@ -8,7 +8,7 @@ using MessagePack.Formatters;
 
 namespace Nino.Benchmark.Serializers
 {
-    public class MessagePack_v2 : SerializerBase
+    public class MessagePack_Lz4 : SerializerBase
     {
         public override T Deserialize<T>(object input)
         {
@@ -24,48 +24,24 @@ namespace Nino.Benchmark.Serializers
 
         public override string ToString()
         {
-            return "MessagePack_v2";
+            return "MessagePack_Lz4";
         }
     }
-
-    public class OptimizedResolver : MessagePack.IFormatterResolver
+    public class MessagePack_NoCompression : SerializerBase
     {
-        public static readonly MessagePack.IFormatterResolver Instance = new OptimizedResolver();
-
-        // configure your custom resolvers.
-        private static readonly MessagePack.IFormatterResolver[] Resolvers = new MessagePack.IFormatterResolver[]
+        public override T Deserialize<T>(object input)
         {
-            MessagePack.Resolvers.NativeGuidResolver.Instance, MessagePack.Resolvers.NativeDecimalResolver.Instance,
-            MessagePack.Resolvers.NativeDateTimeResolver.Instance, MessagePack.Resolvers.StandardResolver.Instance,
-        };
-
-        private OptimizedResolver()
-        {
+            return MessagePack.MessagePackSerializer.Deserialize<T>((byte[])input);
         }
 
-        public IMessagePackFormatter<T>? GetFormatter<T>()
+        public override object Serialize<T>(T input)
         {
-            return Cache<T>.Formatter;
+            return MessagePack.MessagePackSerializer.Serialize(input);
         }
 
-        private static class Cache<T>
+        public override string ToString()
         {
-            #pragma warning disable SA1401 // Fields should be private
-            public static IMessagePackFormatter<T>? Formatter;
-            #pragma warning restore SA1401 // Fields should be private
-
-            static Cache()
-            {
-                foreach (var resolver in Resolvers)
-                {
-                    var f = resolver.GetFormatter<T>();
-                    if (f != null)
-                    {
-                        Formatter = f;
-                        return;
-                    }
-                }
-            }
+            return "MessagePack_NoCompression";
         }
     }
 }
