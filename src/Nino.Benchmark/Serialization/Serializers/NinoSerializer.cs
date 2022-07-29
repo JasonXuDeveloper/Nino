@@ -34,7 +34,7 @@ namespace Nino.Benchmark.Serializers
 
         public override string ToString()
         {
-            return "NinoSerializer_NoCompression";
+            return "Nino_NoComp";
         }
     }
 }
