@@ -18,7 +18,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// block size when creating buffer
 		/// </summary>
-		private const ushort BufferBlockSize = 1024 * 2;
+		private const ushort BufferBlockSize = ushort.MaxValue;
 
 		/// <summary>
 		/// Buffer that stores data
@@ -26,19 +26,39 @@ namespace Nino.Serialization
 		private ExtensibleBuffer<byte> _buffer;
 
 		/// <summary>
+		/// Buffer that stores data
+		/// </summary>
+		private ref ExtensibleBuffer<byte> Buffer => ref _buffer;
+
+		/// <summary>
 		/// encoding for string
 		/// </summary>
 		private Encoding _encoding;
 
 		/// <summary>
+		/// encoding for string
+		/// </summary>
+		private ref Encoding Encoding => ref _encoding;
+
+		/// <summary>
 		/// compress option
 		/// </summary>
 		private CompressOption _option;
+		
+		/// <summary>
+		/// compress option
+		/// </summary>
+		private ref CompressOption Option => ref _option;
 
 		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
 		private int _position;
+		
+		/// <summary>
+		/// Position of the current buffer
+		/// </summary>
+		private ref int Position => ref _position;
 
 		/// <summary>
 		/// Convert writer to byte
@@ -46,14 +66,14 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		public byte[] ToBytes()
 		{
-			switch (_option)
+			switch (Option)
 			{
 				case CompressOption.Zlib:
-					return CompressMgr.Compress(_buffer, _position);
+					return CompressMgr.Compress(Buffer, Position);
 				case CompressOption.Lz4:
 					throw new NotSupportedException("not support lz4 yet");
 				case CompressOption.NoCompression:
-					return _buffer.ToArray(0, _position);
+					return Buffer.ToArray(0, Position);
 			}
 
 			return ConstMgr.Null;
@@ -84,22 +104,22 @@ namespace Nino.Serialization
 		/// <param name="compressOption"></param>
 		public void Init(Encoding encoding, CompressOption compressOption)
 		{
-			if (_buffer == null)
+			if (Buffer == null)
 			{
 				var peak = ObjectPool<ExtensibleBuffer<byte>>.Peak();
 				if (peak != null && peak.ExpandSize == BufferBlockSize)
 				{
-					_buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
+					Buffer = ObjectPool<ExtensibleBuffer<byte>>.Request();
 				}
 				else
 				{
-					_buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
+					Buffer = new ExtensibleBuffer<byte>(BufferBlockSize);
 				}
 			}
 
-			_encoding = encoding;
-			_position = 0;
-			_option = compressOption;
+			Encoding = encoding;
+			Position = 0;
+			Option = compressOption;
 		}
 
 		/// <summary>
@@ -186,7 +206,7 @@ namespace Nino.Serialization
 		{
 			if (!AttemptWriteBasicType(type, val))
 			{
-				Serializer.Serialize(type, val, _encoding, this, _option, false, true, false, true, true);
+				Serializer.Serialize(type, val, Encoding, this, Option, false, true, false, true, true);
 			}
 		}
 
@@ -209,8 +229,8 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private void Write(byte[] data, int len)
 		{
-			_buffer.CopyFrom(data, 0, _position, len);
-			_position += len;
+			Buffer.CopyFrom(data, 0, Position, len);
+			Position += len;
 		}
 
 		/// <summary>
@@ -225,14 +245,14 @@ namespace Nino.Serialization
 			{
 				while (len-- > 0)
 				{
-					_buffer[_position++] = *data++;
+					Buffer[Position++] = *data++;
 				}
 
 				return;
 			}
 
-			_buffer.CopyFrom(data, 0, _position, len);
-			_position += len;
+			Buffer.CopyFrom(data, 0, Position, len);
+			Position += len;
 		}
 
 		/// <summary>
@@ -293,13 +313,13 @@ namespace Nino.Serialization
 				return;
 			}
 
-			int bufferSize = _encoding.GetMaxByteCount(val.Length);
+			int bufferSize = Encoding.GetMaxByteCount(val.Length);
 			if (bufferSize < 1024)
 			{
 				byte* buffer = stackalloc byte[bufferSize];
 				fixed (char* pValue = val)
 				{
-					int byteCount = _encoding.GetBytes(pValue, val.Length, buffer, bufferSize);
+					int byteCount = Encoding.GetBytes(pValue, val.Length, buffer, bufferSize);
 					CompressAndWrite(byteCount);
 					Write(buffer, ref byteCount);
 				}
@@ -310,7 +330,7 @@ namespace Nino.Serialization
 				fixed (char* pValue = val)
 				{
 					// ReSharper disable AssignNullToNotNullAttribute
-					int byteCount = _encoding.GetBytes(pValue, val.Length, buff, bufferSize);
+					int byteCount = Encoding.GetBytes(pValue, val.Length, buff, bufferSize);
 					// ReSharper restore AssignNullToNotNullAttribute
 					CompressAndWrite(byteCount);
 					Write(buff, ref byteCount);
@@ -356,7 +376,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(byte num)
 		{
-			_buffer[_position++] = num;
+			Buffer[Position++] = num;
 		}
 
 		/// <summary>
@@ -366,7 +386,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe void Write(sbyte num)
 		{
-			_buffer[_position++] = *(byte*)&num;
+			Buffer[Position++] = *(byte*)&num;
 		}
 
 		/// <summary>
@@ -443,22 +463,22 @@ namespace Nino.Serialization
 				{
 					if (n <= byte.MaxValue)
 					{
-						_buffer[_position++] = (byte)CompressType.Byte;
+						Buffer[Position++] = (byte)CompressType.Byte;
 						Write(ref *(byte*)&num, 1);
 						return;
 					}
 
-					_buffer[_position++] = (byte)CompressType.UInt16;
+					Buffer[Position++] = (byte)CompressType.UInt16;
 					Write(ref *(ushort*)&num, ConstMgr.SizeOfUShort);
 					return;
 				}
 
-				_buffer[_position++] = (byte)CompressType.UInt32;
+				Buffer[Position++] = (byte)CompressType.UInt32;
 				Write(ref *(uint*)&num, ConstMgr.SizeOfUInt);
 				return;
 			}
 
-			_buffer[_position++] = (byte)CompressType.UInt64;
+			Buffer[Position++] = (byte)CompressType.UInt64;
 			Write(ref num, ConstMgr.SizeOfULong);
 		}
 
@@ -470,17 +490,17 @@ namespace Nino.Serialization
 			{
 				if (n <= byte.MaxValue)
 				{
-					_buffer[_position++] = (byte)CompressType.Byte;
+					Buffer[Position++] = (byte)CompressType.Byte;
 					Write(ref *(byte*)&num, 1);
 					return;
 				}
 
-				_buffer[_position++] = (byte)CompressType.UInt16;
+				Buffer[Position++] = (byte)CompressType.UInt16;
 				Write(ref *(ushort*)&num, ConstMgr.SizeOfUShort);
 				return;
 			}
 
-			_buffer[_position++] = (byte)CompressType.UInt32;
+			Buffer[Position++] = (byte)CompressType.UInt32;
 			Write(ref num, ConstMgr.SizeOfUInt);
 		}
 
@@ -500,22 +520,22 @@ namespace Nino.Serialization
 					{
 						if (n >= sbyte.MinValue)
 						{
-							_buffer[_position++] = (byte)CompressType.SByte;
+							Buffer[Position++] = (byte)CompressType.SByte;
 							Write(ref *(sbyte*)&num, 1);
 							return;
 						}
 
-						_buffer[_position++] = (byte)CompressType.Int16;
+						Buffer[Position++] = (byte)CompressType.Int16;
 						Write(ref *(short*)&num, ConstMgr.SizeOfShort);
 						return;
 					}
 
-					_buffer[_position++] = (byte)CompressType.Int32;
+					Buffer[Position++] = (byte)CompressType.Int32;
 					Write(ref *(int*)&num, ConstMgr.SizeOfInt);
 					return;
 				}
 
-				_buffer[_position++] = (byte)CompressType.Int64;
+				Buffer[Position++] = (byte)CompressType.Int64;
 				Write(ref num, ConstMgr.SizeOfLong);
 				return;
 			}
@@ -526,29 +546,29 @@ namespace Nino.Serialization
 				{
 					if (n <= sbyte.MaxValue)
 					{
-						_buffer[_position++] = (byte)CompressType.SByte;
+						Buffer[Position++] = (byte)CompressType.SByte;
 						Write(ref *(sbyte*)&num, 1);
 						return;
 					}
 
 					if (n <= byte.MaxValue)
 					{
-						_buffer[_position++] = (byte)CompressType.Byte;
+						Buffer[Position++] = (byte)CompressType.Byte;
 						Write(ref *(byte*)&num, 1);
 						return;
 					}
 
-					_buffer[_position++] = (byte)CompressType.Int16;
+					Buffer[Position++] = (byte)CompressType.Int16;
 					Write(ref *(short*)&num, ConstMgr.SizeOfShort);
 					return;
 				}
 
-				_buffer[_position++] = (byte)CompressType.Int32;
+				Buffer[Position++] = (byte)CompressType.Int32;
 				Write(ref *(int*)&num, ConstMgr.SizeOfInt);
 				return;
 			}
 
-			_buffer[_position++] = (byte)CompressType.Int64;
+			Buffer[Position++] = (byte)CompressType.Int64;
 			Write(ref num, ConstMgr.SizeOfLong);
 		}
 
@@ -562,17 +582,17 @@ namespace Nino.Serialization
 				{
 					if (n >= sbyte.MinValue)
 					{
-						_buffer[_position++] = (byte)CompressType.SByte;
+						Buffer[Position++] = (byte)CompressType.SByte;
 						Write(ref *(sbyte*)&num, 1);
 						return;
 					}
 
-					_buffer[_position++] = (byte)CompressType.Int16;
+					Buffer[Position++] = (byte)CompressType.Int16;
 					Write(ref *(short*)&num, ConstMgr.SizeOfShort);
 					return;
 				}
 
-				_buffer[_position++] = (byte)CompressType.Int32;
+				Buffer[Position++] = (byte)CompressType.Int32;
 				Write(ref num, ConstMgr.SizeOfInt);
 				return;
 			}
@@ -581,24 +601,24 @@ namespace Nino.Serialization
 			{
 				if (n <= sbyte.MaxValue)
 				{
-					_buffer[_position++] = (byte)CompressType.SByte;
+					Buffer[Position++] = (byte)CompressType.SByte;
 					Write(ref *(sbyte*)&num, 1);
 					return;
 				}
 
 				if (n <= byte.MaxValue)
 				{
-					_buffer[_position++] = (byte)CompressType.Byte;
+					Buffer[Position++] = (byte)CompressType.Byte;
 					Write(ref *(byte*)&num, 1);
 					return;
 				}
 
-				_buffer[_position++] = (byte)CompressType.Int16;
+				Buffer[Position++] = (byte)CompressType.Int16;
 				Write(ref *(short*)&num, ConstMgr.SizeOfShort);
 				return;
 			}
 
-			_buffer[_position++] = (byte)CompressType.Int32;
+			Buffer[Position++] = (byte)CompressType.Int32;
 			Write(ref num, ConstMgr.SizeOfInt);
 		}
 

@@ -6,7 +6,7 @@ namespace Nino.Serialization
 {
     internal static class WrapperManifest
     {
-        private static readonly Dictionary<int, INinoWrapper> Wrappers = new Dictionary<int, INinoWrapper>()
+        private static readonly Dictionary<int, INinoWrapper> Wrappers = new Dictionary<int, INinoWrapper>(300)
         {
             { typeof(byte).GetTypeHashCode(), new ByteWrapper() },
             { typeof(byte[]).GetTypeHashCode(), new ByteArrWrapper() },
