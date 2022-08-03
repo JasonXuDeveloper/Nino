@@ -285,6 +285,7 @@ namespace Nino.Serialization
 				{
 					return Enum.ToObject(type, ret);
 				}
+				return ret;
 			}
 
 			return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, Encoding, this, _option, false, true,
