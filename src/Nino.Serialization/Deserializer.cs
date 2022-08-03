@@ -136,9 +136,13 @@ namespace Nino.Serialization
 			{
 
 				var ret = Deserialize(Enum.GetUnderlyingType(type), null, data, encoding, null, option, returnDispose);
-#if !ILRuntime
-				ret = Enum.ToObject(type, ret);
+#if ILRuntime
+				if (type is ILRuntime.Reflection.ILRuntimeType)
+				{
+					return ret;
+				}
 #endif
+				ret = Enum.ToObject(type, ret);
 				return ret;
 			}
 

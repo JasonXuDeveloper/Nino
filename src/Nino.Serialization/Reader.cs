@@ -275,13 +275,16 @@ namespace Nino.Serialization
 			var ret = AttemptReadBasicType(type, out bool result);
 			if (result)
 			{
-#if !ILRuntime
+#if ILRuntime
+				if (type is ILRuntime.Reflection.ILRuntimeType)
+				{
+					return ret;
+				}
+#endif
 				if (type.IsEnum)
 				{
 					return Enum.ToObject(type, ret);
 				}
-#endif
-				return ret;
 			}
 
 			return Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, Encoding, this, _option, false, true,
