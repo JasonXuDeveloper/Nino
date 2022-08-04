@@ -275,21 +275,22 @@ namespace Nino.Serialization
 			var ret = AttemptReadBasicType(type, out bool result);
 			if (result)
 			{
-#if ILRuntime
-				if (type is ILRuntime.Reflection.ILRuntimeType)
-				{
-					var baseType = Enum.GetUnderlyingType(type);
-					if (baseType == typeof(long)
-					    || baseType == typeof(uint)
-					    || baseType == typeof(ulong))
-						return Convert.ChangeType(ret, typeof(Int64));
-					return Convert.ChangeType(ret, typeof(Int32));
-				}
-#endif
 				if (type.IsEnum)
 				{
+#if ILRuntime
+					if (type is ILRuntime.Reflection.ILRuntimeType)
+					{
+						var baseType = Enum.GetUnderlyingType(type);
+						if (baseType == typeof(long)
+						    || baseType == typeof(uint)
+						    || baseType == typeof(ulong))
+							return Convert.ChangeType(ret, typeof(Int64));
+						return Convert.ChangeType(ret, typeof(Int32));
+					}
+#endif
 					return Enum.ToObject(type, ret);
 				}
+				
 				return ret;
 			}
 
