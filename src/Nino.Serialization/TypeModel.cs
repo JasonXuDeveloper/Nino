@@ -118,6 +118,12 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static TypeCode GetTypeCode(Type type)
 		{
+#if ILRuntime
+			if (type.IsEnum && type is ILRuntime.Reflection.ILRuntimeType)
+			{
+				type = Enum.GetUnderlyingType(type);
+			}
+#endif
 			var hash = type.GetTypeHashCode();
 			if (TypeCodes.TryGetValue(hash, out var ret))
 			{

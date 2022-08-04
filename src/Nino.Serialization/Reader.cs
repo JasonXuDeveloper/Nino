@@ -278,7 +278,8 @@ namespace Nino.Serialization
 #if ILRuntime
 				if (type is ILRuntime.Reflection.ILRuntimeType)
 				{
-					return ret;
+					var baseType = Enum.GetUnderlyingType(type);
+					return Convert.ChangeType(ret, baseType);
 				}
 #endif
 				if (type.IsEnum)
@@ -295,11 +296,11 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Compress and write enum
 		/// </summary>
-		/// <param name="underlyingType"></param>
+		/// <param name="enumType"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public ulong DecompressAndReadEnum(Type underlyingType)
+		public ulong DecompressAndReadEnum(Type enumType)
 		{
-			switch (TypeModel.GetTypeCode(underlyingType))
+			switch (TypeModel.GetTypeCode(enumType))
 			{
 				case TypeCode.Byte:
 					return ReadByte();
