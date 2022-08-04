@@ -100,6 +100,11 @@ namespace Nino.Serialization
 			typeof(float).GetTypeHashCode(),
 			typeof(DateTime).GetTypeHashCode(),
 		};
+
+		/// <summary>
+		/// Cached Models
+		/// </summary>
+		private static readonly Dictionary<Type, bool> IsEnumTypeCache = new Dictionary<Type, bool>(30);
 		
 		/// <summary>
 		/// Whether or not the type is a non compress type
@@ -108,7 +113,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		internal static bool IsNonCompressibleType(Type type)
 		{
-			return NoCompressionTypes.Contains(type.GetTypeHashCode()) || type.IsEnum;
+			return NoCompressionTypes.Contains(type.GetTypeHashCode()) || IsEnum(type);
 		}
 
 		/// <summary>
@@ -119,7 +124,7 @@ namespace Nino.Serialization
 		internal static TypeCode GetTypeCode(Type type)
 		{
 #if ILRuntime
-			if (type.IsEnum && type is ILRuntime.Reflection.ILRuntimeType)
+			if (IsEnum(type) && type is ILRuntime.Reflection.ILRuntimeType)
 			{
 				type = Enum.GetUnderlyingType(type);
 			}
@@ -130,6 +135,18 @@ namespace Nino.Serialization
 				return ret;
 			}
 			TypeCodes[hash] = ret = Type.GetTypeCode(type);
+			return ret;
+		}
+
+		/// <summary>
+		/// Get whether or not a type is enum
+		/// </summary>
+		/// <param name="type"></param>
+		/// <returns></returns>
+		internal static bool IsEnum(Type type)
+		{
+			if (IsEnumTypeCache.TryGetValue(type, out var ret)) return ret;
+			IsEnumTypeCache[type] = ret = type.IsEnum;
 			return ret;
 		}
 		

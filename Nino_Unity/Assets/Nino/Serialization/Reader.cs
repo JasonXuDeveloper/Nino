@@ -221,7 +221,7 @@ namespace Nino.Serialization
 				return wrapper.Deserialize(this);
 			}
 
-			if (type.IsEnum)
+			if (TypeModel.IsEnum(type))
 			{
 				return DecompressAndReadEnum(type);
 			}
@@ -275,16 +275,22 @@ namespace Nino.Serialization
 			var ret = AttemptReadBasicType(type, out bool result);
 			if (result)
 			{
+				if (TypeModel.IsEnum(type))
+				{
 #if ILRuntime
-				if (type is ILRuntime.Reflection.ILRuntimeType)
-				{
-					return ret;
-				}
+					if (type is ILRuntime.Reflection.ILRuntimeType)
+					{
+						var baseType = Enum.GetUnderlyingType(type);
+						if (baseType == typeof(long)
+						    || baseType == typeof(uint)
+						    || baseType == typeof(ulong))
+							return Convert.ChangeType(ret, typeof(Int64));
+						return Convert.ChangeType(ret, typeof(Int32));
+					}
 #endif
-				if (type.IsEnum)
-				{
 					return Enum.ToObject(type, ret);
 				}
+				
 				return ret;
 			}
 
@@ -295,11 +301,11 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Compress and write enum
 		/// </summary>
-		/// <param name="underlyingType"></param>
+		/// <param name="enumType"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public ulong DecompressAndReadEnum(Type underlyingType)
+		public ulong DecompressAndReadEnum(Type enumType)
 		{
-			switch (TypeModel.GetTypeCode(underlyingType))
+			switch (TypeModel.GetTypeCode(enumType))
 			{
 				case TypeCode.Byte:
 					return ReadByte();

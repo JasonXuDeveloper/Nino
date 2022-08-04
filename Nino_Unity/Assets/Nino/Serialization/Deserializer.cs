@@ -132,7 +132,7 @@ namespace Nino.Serialization
 			}
 
 			//enum
-			if (!skipEnumCheck && type.IsEnum)
+			if (!skipEnumCheck && TypeModel.IsEnum(type))
 			{
 
 				var ret = Deserialize(Enum.GetUnderlyingType(type), null, data, encoding, null, option, returnDispose);
@@ -271,7 +271,7 @@ namespace Nino.Serialization
 #if !ILRuntime
 							if (ret.GetType() != type)
 							{
-								if (type.IsEnum)
+								if (TypeModel.IsEnum(type))
 								{
 									ret = Enum.ToObject(type, ret);
 								}
@@ -314,9 +314,13 @@ namespace Nino.Serialization
 						var ret = reader.ReadCommonVal(type);
 						//type check
 #if !ILRuntime
-						if (ret.GetType() != type)
+						if (TypeModel.IsEnum(type))
 						{
-							ret = type.IsEnum ? Enum.ToObject(type, ret) : Convert.ChangeType(ret, type);
+							ret = Enum.ToObject(type, ret);
+						}
+						else
+						{
+							ret = Convert.ChangeType(ret, type);
 						}
 #endif
 

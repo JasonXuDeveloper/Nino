@@ -148,7 +148,7 @@ namespace Nino.Serialization
 			}
 
 			//因为这里不是typecode，所以enum要单独检测
-			if (type.IsEnum)
+			if (TypeModel.IsEnum(type))
 			{
 				//have to box enum
 				CompressAndWriteEnum(type, val);

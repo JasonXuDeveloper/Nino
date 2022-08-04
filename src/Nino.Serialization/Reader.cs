@@ -221,7 +221,7 @@ namespace Nino.Serialization
 				return wrapper.Deserialize(this);
 			}
 
-			if (type.IsEnum)
+			if (TypeModel.IsEnum(type))
 			{
 				return DecompressAndReadEnum(type);
 			}
@@ -275,7 +275,7 @@ namespace Nino.Serialization
 			var ret = AttemptReadBasicType(type, out bool result);
 			if (result)
 			{
-				if (type.IsEnum)
+				if (TypeModel.IsEnum(type))
 				{
 #if ILRuntime
 					if (type is ILRuntime.Reflection.ILRuntimeType)

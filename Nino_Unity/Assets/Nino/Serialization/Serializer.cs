@@ -156,7 +156,7 @@ namespace Nino.Serialization
 			}
 
 			//enum			
-			if (!skipEnumCheck && type.IsEnum)
+			if (!skipEnumCheck && TypeModel.IsEnum(type))
 			{
 				type = Enum.GetUnderlyingType(type);
 				return Serialize(type, value, encoding, writer, option, returnValue);
