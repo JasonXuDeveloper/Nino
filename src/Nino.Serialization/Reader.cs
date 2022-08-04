@@ -279,7 +279,11 @@ namespace Nino.Serialization
 				if (type is ILRuntime.Reflection.ILRuntimeType)
 				{
 					var baseType = Enum.GetUnderlyingType(type);
-					return Convert.ChangeType(ret, baseType);
+					if (baseType == typeof(long)
+					    || baseType == typeof(uint)
+					    || baseType == typeof(ulong))
+						return Convert.ChangeType(ret, typeof(Int64));
+					return Convert.ChangeType(ret, typeof(Int32));
 				}
 #endif
 				if (type.IsEnum)
