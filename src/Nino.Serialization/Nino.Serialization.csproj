@@ -18,11 +18,11 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.13</PackageVersion>
+        <PackageVersion>1.0.15</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.13
-- [optimization] faster serialization and deserialization
-- [feat] custom compression option</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.15
+- [feat] support multi thread
+- [fix] bug fix</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 

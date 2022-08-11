@@ -65,7 +65,6 @@ namespace Nino.Serialization
 			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
 				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
-				reader.ReturnBuffer();
 				ObjectPool<Reader>.Return(reader);
 				return ret;
 			}
@@ -77,7 +76,6 @@ namespace Nino.Serialization
 				WrapperManifest.AddWrapper(type, wrapper);
 				//start Deserialize
 				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
-				reader.ReturnBuffer();
 				ObjectPool<Reader>.Return(reader);
 				return ret;
 			}
@@ -124,7 +122,6 @@ namespace Nino.Serialization
 				var ret = wrapper.Deserialize(reader);
 				if (returnDispose)
 				{
-					reader.ReturnBuffer();
 					ObjectPool<Reader>.Return(reader);
 				}
 
@@ -155,7 +152,6 @@ namespace Nino.Serialization
 				var ret = wrapper.Deserialize(reader);
 				if (returnDispose)
 				{
-					reader.ReturnBuffer();
 					ObjectPool<Reader>.Return(reader);
 				}
 
@@ -168,7 +164,6 @@ namespace Nino.Serialization
 				var ret = reader.ReadArray(type);
 				if (returnDispose)
 				{
-					reader.ReturnBuffer();
 					ObjectPool<Reader>.Return(reader);
 				}
 
@@ -185,7 +180,6 @@ namespace Nino.Serialization
 					var ret = reader.ReadList(type);
 					if (returnDispose)
 					{
-						reader.ReturnBuffer();
 						ObjectPool<Reader>.Return(reader);
 					}
 
@@ -197,7 +191,6 @@ namespace Nino.Serialization
 					var ret = reader.ReadDictionary(type);
 					if (returnDispose)
 					{
-						reader.ReturnBuffer();
 						ObjectPool<Reader>.Return(reader);
 					}
 
@@ -334,7 +327,6 @@ namespace Nino.Serialization
 			Read();
 			if (returnDispose)
 			{
-				reader.ReturnBuffer();
 				ObjectPool<Reader>.Return(reader);
 			}
 

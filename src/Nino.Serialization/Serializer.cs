@@ -281,8 +281,8 @@ namespace Nino.Serialization
 					{
 						if (type == ConstMgr.StringType ||
 						    (type.IsGenericType &&
-						     type.GetGenericTypeDefinition() == ConstMgr.ListDefType ||
-						     type.GetGenericTypeDefinition() == ConstMgr.DictDefType))
+						     (type.GetGenericTypeDefinition() == ConstMgr.ListDefType ||
+						      type.GetGenericTypeDefinition() == ConstMgr.DictDefType)))
 						{
 							writer.CompressAndWrite(0);
 							min++;

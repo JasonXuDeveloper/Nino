@@ -31,7 +31,7 @@ Definite useful and high performance modules for C# projects, especially for Uni
   
 - 序列化模块，[使用教程](Docs/Serialization.md) [![nino.serialization.nuget](https://img.shields.io/nuget/v/Nino.Serialization?label=Nino.Serialization)](https://www.nuget.org/packages/Nino.Serialization)
 
-  > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，优势是更小体积，更高性能
+  > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，优势是更小体积，更高性能，支持多线程
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行序列化和反序列化，无法跨语言使用
   - 测试案例
@@ -102,11 +102,11 @@ Definite useful and high performance modules for C# projects, especially for Uni
   NuGet里搜Nino就好，目前有```Nino.Shared```和```Nino.Serialization```
 
   ```bash
-  PM> Install-Package Nino.Shared -Version 1.0.10
+  PM> Install-Package Nino.Shared -Version 1.0.12
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.0.13
+  PM> Install-Package Nino.Serialization -Version 1.0.15
   ```
 
 - 使用src下的代码（复制进自己项目即可）

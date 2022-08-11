@@ -28,22 +28,22 @@ namespace Nino.Shared.Mgr
             zipStream = new DeflateStream(compressedStream, CompressionMode.Decompress, true);
             DecompressStreams.Push(zipStream);
         }
-        
+
         /// <summary>
         /// compress stream pool (deflateStream compress + flexibleStream)
         /// </summary>
         private static readonly UncheckedStack<DeflateStream> CompressStreams = new UncheckedStack<DeflateStream>();
-        
+
         /// <summary>
         /// decompress stream pool (deflateStream decompress + flexibleStream)
         /// </summary>
         private static readonly UncheckedStack<DeflateStream> DecompressStreams = new UncheckedStack<DeflateStream>();
-        
+
         /// <summary>
         /// lock compressed streams
         /// </summary>
         private static readonly object CompressedLock = new object();
-        
+
 
         /// <summary>
         /// lock decompressed streams
@@ -68,13 +68,17 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         public static byte[] Compress(byte[] data, int length)
         {
-            if (!ConstMgr.EnableNativeDeflate)
+            lock (CompressedLock)
             {
-                return CompressOnNative(data, length);
+                if (!ConstMgr.EnableNativeDeflate)
+                {
+                    return CompressOnNative(data, length);
+                }
+
+                GetCompressInformation(out var zipStream, out var compressedStream);
+                zipStream.Write(data, 0, length);
+                return GetCompressBytes(zipStream, compressedStream);
             }
-            GetCompressInformation(out var zipStream, out var compressedStream);
-            zipStream.Write(data, 0, length);
-            return GetCompressBytes(zipStream, compressedStream);
         }
 
         /// <summary>
@@ -85,14 +89,19 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         public static byte[] Compress(ExtensibleBuffer<byte> data, int length)
         {
-            if (!ConstMgr.EnableNativeDeflate)
+            lock (CompressedLock)
             {
-                return CompressOnNative(data, length);
+                if (!ConstMgr.EnableNativeDeflate)
+                {
+                    return CompressOnNative(data, length);
+                }
+
+                GetCompressInformation(out var zipStream, out var compressedStream);
+                data.WriteToStream(zipStream, length);
+                return GetCompressBytes(zipStream, compressedStream);
             }
-            GetCompressInformation(out var zipStream, out var compressedStream);
-            data.WriteToStream(zipStream, length);
-            return GetCompressBytes(zipStream, compressedStream);
         }
+
 
         /// <summary>
         /// Get compressed data
@@ -102,13 +111,10 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         private static byte[] GetCompressBytes(DeflateStream zipStream, FlexibleStream compressedStream)
         {
-            lock (CompressedLock)
-            {
-                zipStream.Finish();
-                //push
-                CompressStreams.Push(zipStream);
-                return compressedStream.ToArray();
-            }
+            zipStream.Finish();
+            //push
+            CompressStreams.Push(zipStream);
+            return compressedStream.ToArray();
         }
 
         /// <summary>
@@ -144,12 +150,13 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         public static IntPtr Decompress(byte[] data, out int outputLength)
         {
-            if (!ConstMgr.EnableNativeDeflate)
-            {
-                return DecompressOnNative(data, out outputLength);
-            }
             lock (DecompressedLock)
             {
+                if (!ConstMgr.EnableNativeDeflate)
+                {
+                    return DecompressOnNative(data, out outputLength);
+                }
+
                 GetDecompressInformation(out var zipStream, ref data);
                 var ret = zipStream.GetDecompressedBytes(out outputLength, data.Length);
                 //push
@@ -165,15 +172,16 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         public static byte[] Decompress(byte[] data)
         {
-            if (!ConstMgr.EnableNativeDeflate)
-            {
-                var ptr = DecompressOnNative(data, out var length);
-                byte[] buf = new byte[length];
-                Marshal.Copy(ptr, buf, 0, length);
-                return buf;
-            }
             lock (DecompressedLock)
             {
+                if (!ConstMgr.EnableNativeDeflate)
+                {
+                    var ptr = DecompressOnNative(data, out var length);
+                    byte[] buf = new byte[length];
+                    Marshal.Copy(ptr, buf, 0, length);
+                    return buf;
+                }
+
                 GetDecompressInformation(out var zipStream, ref data);
                 var ret = zipStream.GetDecompressedBytes(out var len, data.Length);
                 //push
@@ -211,7 +219,7 @@ namespace Nino.Shared.Mgr
                 }
             }
         }
-        
+
         #region NON_UNITY
 
         /// <summary>
@@ -269,7 +277,8 @@ namespace Nino.Shared.Mgr
                 compressedStream = new FlexibleStream(data);
             }
 
-            using (var zipStream = new System.IO.Compression.DeflateStream(compressedStream, CompressionMode.Decompress))
+            using (var zipStream =
+                new System.IO.Compression.DeflateStream(compressedStream, CompressionMode.Decompress))
             {
                 zipStream.CopyTo(result);
                 ObjectPool<FlexibleStream>.Return(compressedStream);

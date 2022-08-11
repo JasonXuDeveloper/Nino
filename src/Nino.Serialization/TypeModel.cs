@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using Nino.Shared.Util;
 using System.Reflection;
 using System.Collections.Generic;
+using System.Threading;
 
 // ReSharper disable CognitiveComplexity
 
@@ -105,7 +107,7 @@ namespace Nino.Serialization
 		/// Cached Models
 		/// </summary>
 		private static readonly Dictionary<Type, bool> IsEnumTypeCache = new Dictionary<Type, bool>(30);
-		
+
 		/// <summary>
 		/// Whether or not the type is a non compress type
 		/// </summary>
@@ -134,6 +136,7 @@ namespace Nino.Serialization
 			{
 				return ret;
 			}
+
 			TypeCodes[hash] = ret = Type.GetTypeCode(type);
 			return ret;
 		}
@@ -149,7 +152,7 @@ namespace Nino.Serialization
 			IsEnumTypeCache[type] = ret = type.IsEnum;
 			return ret;
 		}
-		
+
 		/// <summary>
 		/// Get whether or not a type is a code gen type
 		/// </summary>
@@ -160,13 +163,13 @@ namespace Nino.Serialization
 		{
 			var hash = type.GetTypeHashCode();
 			if (GeneratedWrapper.TryGetValue(hash, out helper)) return helper != null;
-			
+
 			var field = type.GetField(HelperName, StaticReflectionFlags);
 			helper = (INinoWrapper)field?.GetValue(null);
 			GeneratedWrapper[hash] = helper;
 			return helper != null;
 		}
-		
+
 		/// <summary>
 		/// Try get cached model
 		/// </summary>
@@ -189,6 +192,11 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
+		/// Thread safe lock
+		/// </summary>
+		private static SpinLock _createLock = new SpinLock();
+
+		/// <summary>
 		/// Create a typeModel using given type
 		/// </summary>
 		/// <param name="type"></param>
@@ -197,47 +205,56 @@ namespace Nino.Serialization
 		internal static TypeModel CreateModel(Type type)
 			// ReSharper restore CognitiveComplexity
 		{
-			var model = new TypeModel
+			TypeModel model;
+			//thread safe
+			bool lockTaken = false;
+			try
 			{
-				Min = ushort.MaxValue,
-				Max = ushort.MinValue,
-				Valid = true,
-				//fetch members
-				Members = new Dictionary<ushort, MemberInfo>(10),
-				//fetch types
-				Types = new Dictionary<ushort, Type>(10)
-			};
-			
-			//include all or not
-			object[] ns = type.GetCustomAttributes(_ninoSerializeType, false);
-			model.IncludeAll = ((NinoSerializeAttribute)ns[0]).IncludeAll;
-
-			//store temp attr
-			object[] sps;
-			//flag
-			ushort index;
-
-			//fetch fields (only public and private fields that declared in the type)
-			FieldInfo[] fs = type.GetFields(DeclaredOnlyReflectionFlags);
-			//iterate fields
-			foreach (var f in fs)
-			{
-				if (model.IncludeAll)
+				_createLock.Enter(ref lockTaken);
+				TryGetModel(type, out model);
+				if (model != null) return model;
+				model = new TypeModel
 				{
-					//skip nino ignore
-					var ig = f.GetCustomAttributes(_ninoIgnoreType, false);
-					if (ig.Length > 0) continue;
-					index = (ushort)model.Members.Count;
-				}
-				else
+					Min = ushort.MaxValue,
+					Max = ushort.MinValue,
+					Valid = true,
+					//fetch members
+					Members = new Dictionary<ushort, MemberInfo>(10),
+					//fetch types
+					Types = new Dictionary<ushort, Type>(10)
+				};
+
+				//include all or not
+				object[] ns = type.GetCustomAttributes(_ninoSerializeType, false);
+				model.IncludeAll = ((NinoSerializeAttribute)ns[0]).IncludeAll;
+
+				//store temp attr
+				object[] sps;
+				//flag
+				ushort index;
+
+				//fetch fields (only public and private fields that declared in the type)
+				FieldInfo[] fs = type.GetFields(DeclaredOnlyReflectionFlags);
+				//iterate fields
+				foreach (var f in fs)
 				{
-					sps = f.GetCustomAttributes(_ninoMemberType, false);
-					//not fetch all and no attribute => skip this member
-					if (sps.Length != 1) continue;
-					index = ((NinoMemberAttribute)sps[0]).Index;
-				}
-				//record field
-				model.Members.Add(index, f);
+					if (model.IncludeAll)
+					{
+						//skip nino ignore
+						var ig = f.GetCustomAttributes(_ninoIgnoreType, false);
+						if (ig.Length > 0) continue;
+						index = (ushort)model.Members.Count;
+					}
+					else
+					{
+						sps = f.GetCustomAttributes(_ninoMemberType, false);
+						//not fetch all and no attribute => skip this member
+						if (sps.Length != 1) continue;
+						index = ((NinoMemberAttribute)sps[0]).Index;
+					}
+
+					//record field
+					model.Members.Add(index, f);
 #if ILRuntime
 				var t = f.FieldType;
 				if (t.IsGenericType)
@@ -249,48 +266,49 @@ namespace Nino.Serialization
 					model.Types.Add(index, t.ResolveRealType());
 				}
 #else
-				model.Types.Add(index, f.FieldType);
+					model.Types.Add(index, f.FieldType);
 #endif
-				//record min/max
-				if (index < model.Min)
-				{
-					model.Min = index;
+					//record min/max
+					if (index < model.Min)
+					{
+						model.Min = index;
+					}
+
+					if (index > model.Max)
+					{
+						model.Max = index;
+					}
 				}
 
-				if (index > model.Max)
+				//fetch properties (only public and private properties that declared in the type)
+				PropertyInfo[] ps = type.GetProperties(DeclaredOnlyReflectionFlags);
+				//iterate properties
+				foreach (var p in ps)
 				{
-					model.Max = index;
-				}
-			}
+					//has to have getter and setter
+					if (!(p.CanRead && p.CanWrite))
+					{
+						throw new InvalidOperationException(
+							$"Cannot read or write property {p.Name} in {type.FullName}, cannot Serialize or Deserialize this property");
+					}
 
-			//fetch properties (only public and private properties that declared in the type)
-			PropertyInfo[] ps = type.GetProperties(DeclaredOnlyReflectionFlags);
-			//iterate properties
-			foreach (var p in ps)
-			{
-				//has to have getter and setter
-				if (!(p.CanRead && p.CanWrite))
-				{
-					throw new InvalidOperationException(
-						$"Cannot read or write property {p.Name} in {type.FullName}, cannot Serialize or Deserialize this property");
-				}
-				
-				if (model.IncludeAll)
-				{
-					//skip nino ignore
-					var ig = p.GetCustomAttributes(_ninoIgnoreType, false);
-					if (ig.Length > 0) continue;
-					index = (ushort)model.Members.Count;
-				}
-				else
-				{
-					sps = p.GetCustomAttributes(_ninoMemberType, false);
-					//not fetch all and no attribute => skip this member
-					if (sps.Length != 1) continue;
-					index = ((NinoMemberAttribute)sps[0]).Index;
-				}
-				//record property
-				model.Members.Add(index, p);
+					if (model.IncludeAll)
+					{
+						//skip nino ignore
+						var ig = p.GetCustomAttributes(_ninoIgnoreType, false);
+						if (ig.Length > 0) continue;
+						index = (ushort)model.Members.Count;
+					}
+					else
+					{
+						sps = p.GetCustomAttributes(_ninoMemberType, false);
+						//not fetch all and no attribute => skip this member
+						if (sps.Length != 1) continue;
+						index = ((NinoMemberAttribute)sps[0]).Index;
+					}
+
+					//record property
+					model.Members.Add(index, p);
 #if ILRuntime
 				var t = p.PropertyType;
 				if (t.IsArray || t.IsGenericType)
@@ -302,26 +320,31 @@ namespace Nino.Serialization
 					model.Types.Add(index, t.ResolveRealType());
 				}
 #else
-				model.Types.Add(index, p.PropertyType);
+					model.Types[index] = p.PropertyType;
 #endif
-				//record min/max
-				if (index < model.Min)
-				{
-					model.Min = index;
+					//record min/max
+					if (index < model.Min)
+					{
+						model.Min = index;
+					}
+
+					if (index > model.Max)
+					{
+						model.Max = index;
+					}
 				}
 
-				if (index > model.Max)
+				if (model.Members.Count == 0)
 				{
-					model.Max = index;
+					model.Valid = false;
 				}
+
+				TypeModels[type.GetTypeHashCode()] = model;
 			}
-			
-			if (model.Members.Count == 0)
+			finally
 			{
-				model.Valid = false;
+				if (lockTaken) _createLock.Exit(false);
 			}
-
-			TypeModels.Add(type.GetTypeHashCode(), model);
 			return model;
 		}
 	}
