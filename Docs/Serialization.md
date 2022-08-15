@@ -16,6 +16,8 @@
 >
 > 在某些Linux平台下编译原生DLL，可能需要定义一些东西（比如z_size_t），具体参考```Native/deflate/library.h```内的注释，编译出来的libDeflate.so放入指定目录即可
 
+注意，nuget下载nino的用户需要把编译的dll放到项目根目录，并且配置生成项目时自动复制
+
 ## 定义可序列化类型
 
 - 给需要Nino序列化/反序列化的类或结构体，打上```[NinoSerialize]```标签，如果**需要自动收集全部字段和属性，则该标签内部加入个true参数**，如```[NinoSerialize(true)]```
@@ -62,7 +64,7 @@ public partial class NotIncludeAllClass
 >
 > 推荐```NotIncludeAllClass```的写法，给每个字段或属性单独打```NinoMember```标签，这样性能最好，体积最小
 >
-> **```IncludeAllClass```的写法（自动收集），会导致生成出来的体积较大，序列化反序列化速度慢，但是可以通过生成代码优化**
+> **```IncludeAllClass```的写法（自动收集），会导致生成出来的体积较大，序列化反序列化速度慢，但是可以通过生成代码优化**（非ILRuntime下）
 >
 > **自动收集的类型或结构体，强烈建议通过生成代码来提高性能，以及优化体积，但是需要注意，每次更新字段或属性后需要重新生成代码来更新**
 
@@ -116,9 +118,11 @@ Nino支持ILRuntime的使用，但需要初始化ILRuntime：
 
 5. 热更工程引用Library/ScriptAssemblies/Nino.Serialization.dll和Library/ScriptAssemblies/Nino.Shared.dll
 
-6. 如果需要给热更工程生成代码，打开```Nino_Unity/Assets/Nino/Editor/SerializationHelper.cs```，修改```ExternalDLLPath```字段内的```Assets/Nino/Test/Editor/Serialization/Test11.bytes```，变为你的热更工程的DLL文件的路径，记得带后缀，修改生效后，在菜单栏点击```Nino/Generator/Serialization Code```即可给热更工程的Nino序列化类型生成代码
+6. ILRuntime下**非常不建议**给热更工程的结构体生成静态性能优化代码，**因为原理限制会产生负优化！！！**，如果执意要生产代码，请参考后续步骤，反之可以忽略后面的步骤
 
-7. 生成热更工程的代码后，需要把生成的热更序列化类型的代码从Unity工程移到热更工程，并且在Unity工程删掉会报错的热更类型代码
+7. 如果需要给热更工程生成代码，打开```Nino_Unity/Assets/Nino/Editor/SerializationHelper.cs```，修改```ExternalDLLPath```字段内的```Assets/Nino/Test/Editor/Serialization/Test11.bytes```，变为你的热更工程的DLL文件的路径，记得带后缀，修改生效后，在菜单栏点击```Nino/Generator/Serialization Code```即可给热更工程的Nino序列化类型生成代码
+
+8. 生成热更工程的代码后，需要把生成的热更序列化类型的代码从Unity工程移到热更工程，并且在Unity工程删掉会报错的热更类型代码
 
 > 如果用的是assembly definition来生成热更库的，需要把生成的热更代码放到assembly definition的目录内，把外部会报错的代码挪进去就好
 >
@@ -126,11 +130,57 @@ Nino支持ILRuntime的使用，但需要初始化ILRuntime：
 
 
 
-## 注册序列化委托
+## 注册自定义包装器
+
+包装器是Nino提供的一个基类，内部需要实现序列化和反序列化，实现后，全局给该类型序列化或反序列化时，会调用这里的代码
+
+需要注意的是，不需要同时注册自定义包装器和自定义委托，如果同时注册了这两个东西，只有最后注册的那个会生效
+
+使用方法：
+
+- 创建一个类型，并继承```NinoWrapperBase<T>```，T是你需要序列化/反序列化的类型，也可以用泛型代替，可以自由发挥
+- 实现```public override void Serialize(T val, Writer writer)```，自行根据```Nino.Serialization.Writer```的公共接口来序列化T类型的数据即可
+- 实现```public override T Deserialize(Reader reader)```，自行根据```Nino.Serialization.Reader```的公共接口来实现反序列化T类型的数据即可
+- 调用```WrapperManifest.AddWrapper(typeof(T), new NinoWrapperBase<T>());```以注册接口包装器
+
+示例：
+
+```csharp
+internal class DateTimeListWrapper : NinoWrapperBase<List<DateTime>>
+{
+  public override void Serialize(List<DateTime> val, Writer writer)
+  {
+    writer.CompressAndWrite(val.Count);
+    foreach (var v in val)
+    {
+      writer.Write(v);
+    }
+  }
+
+  public override List<DateTime> Deserialize(Reader reader)
+  {
+    int len = reader.ReadLength();
+    var arr = new List<DateTime>(len);
+    int i = 0;
+    while (i++ < len)
+    {
+      arr.Add(reader.ReadDateTime());
+    }
+    return arr;
+  }
+}
+
+//别忘了在某个地方调用下面的代码：
+WrapperManifest.AddWrapper(typeof(DateTimeListWrapper), new DateTimeListWrapper());
+```
+
+
+
+## 注册自定义序列化委托
 
 给指定类型注册该委托后，全局序列化的时候遇到该类型会直接使用委托方法写入二进制数据
 
-需要注意的是，不支持注册底层自带支持的类型的委托
+需要注意的是，不支持注册底层自带支持的类型的委托，**并且注册委托的方式处理值类型会产生GC和装箱开销，可以通过注册自定义包装器避免这个问题**
 
 使用方法：
 
@@ -161,11 +211,11 @@ Serializer.AddCustomImporter<UnityEngine.Vector3>((val, writer) =>
 >
 > 写入Enum也要使用对应压缩接口，需要声明enum对应的数值类型，并且给enum的值转为ulong，例如writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) value.En);
 
-## 注册反序列化委托
+## 注册自定义反序列化委托
 
 给指定类型注册该委托后，全局翻序列化的时候遇到该类型会直接使用委托方法读取二进制数据并转为对象
 
-需要注意的是，不支持注册底层自带支持的类型的委托
+需要注意的是，不支持注册底层自带支持的类型的委托，**并且注册委托的方式处理值类型会产生GC和拆箱开销，可以通过注册自定义包装器避免这个问题**
 
 使用方法：
 
@@ -192,7 +242,7 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 
 ## 代码生成
 
-不生成代码也不会影响使用，但是生成后性能快很多很多很多（ILRuntime下不会快特别多）
+不生成代码也不会影响使用，但是生成后性能快很多很多很多（ILRuntime反而会慢很多很多，因为原理问题）
 
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
