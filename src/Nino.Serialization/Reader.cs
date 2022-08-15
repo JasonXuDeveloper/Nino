@@ -377,7 +377,7 @@ namespace Nino.Serialization
 		{
 			if (EndOfReader) return default;
 
-			if (Environment.Is64BitProcess)
+			if (Environment.Is64BitProcess && sizeof(T) == len)
 			{
 				Position += len;
 				return *(T*)&Buffer.Data[Position - len];
@@ -392,6 +392,36 @@ namespace Nino.Serialization
 			}
 
 			return ret;
+		}
+
+		/// <summary>
+		/// Read unmanaged type
+		/// </summary>
+		/// <param name="val"></param>
+		/// <param name="len"></param>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		// ReSharper disable UnusedMember.Local
+		public void Read<T>(ref T val, int len) where T : unmanaged
+		// ReSharper restore UnusedMember.Local
+		{
+			if (EndOfReader)
+			{
+				return;
+			}
+
+			if (Environment.Is64BitProcess && sizeof(T) == len)
+			{
+				Position += len;
+				val = *(T*)&Buffer.Data[Position - len];
+				return;
+			}
+
+			//on 32 bits has to make a copy, otherwise if cast pointer to T straight ahead, will cause crash
+			byte* ptr = (byte*)Unsafe.AsPointer(ref val);
+			while (len-- > 0)
+			{
+				*ptr++ = Buffer[Position++];
+			}
 		}
 
 		/// <summary>

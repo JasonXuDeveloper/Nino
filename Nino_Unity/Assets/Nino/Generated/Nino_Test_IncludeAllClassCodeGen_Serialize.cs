@@ -20,8 +20,8 @@ namespace Nino.Test
                 IncludeAllClassCodeGen value = new IncludeAllClassCodeGen();
                 value.a =  (System.Int32)reader.DecompressAndReadNumber();
                 value.b =  (System.Int64)reader.DecompressAndReadNumber();
-                value.c = reader.ReadSingle();
-                value.d = reader.ReadDouble();
+                reader.Read<System.Single>(ref value.c, Nino.Shared.Mgr.ConstMgr.SizeOfUInt);
+                reader.Read<System.Double>(ref value.d, Nino.Shared.Mgr.ConstMgr.SizeOfULong);
                 return value;
             }
             #endregion

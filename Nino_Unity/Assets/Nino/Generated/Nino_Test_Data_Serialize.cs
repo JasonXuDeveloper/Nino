@@ -24,12 +24,12 @@ namespace Nino.Test
             {
                 Data value = new Data();
                 value.x =  (System.Int32)reader.DecompressAndReadNumber();
-                value.y = reader.ReadInt16();
+                reader.Read<System.Int16>(ref value.y, Nino.Shared.Mgr.ConstMgr.SizeOfShort);
                 value.z =  (System.Int64)reader.DecompressAndReadNumber();
-                value.f = reader.ReadSingle();
-                value.d = reader.ReadDecimal();
-                value.db = reader.ReadDouble();
-                value.bo = reader.ReadBool();
+                reader.Read<System.Single>(ref value.f, Nino.Shared.Mgr.ConstMgr.SizeOfUInt);
+                reader.Read<System.Decimal>(ref value.d, Nino.Shared.Mgr.ConstMgr.SizeOfDecimal);
+                reader.Read<System.Double>(ref value.db, Nino.Shared.Mgr.ConstMgr.SizeOfULong);
+                reader.Read<System.Boolean>(ref value.bo, 1);
                 value.en = (Nino.Test.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
                 value.name = reader.ReadString();
                 return value;

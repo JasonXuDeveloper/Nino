@@ -128,19 +128,19 @@ namespace Nino.Test
             public override BuildTestDataCodeGen Deserialize(Nino.Serialization.Reader reader)
             {
                 BuildTestDataCodeGen value = new BuildTestDataCodeGen();
-                value.a = reader.ReadByte();
-                value.b = reader.ReadSByte();
-                value.c = reader.ReadInt16();
-                value.d = reader.ReadUInt16();
+                reader.Read<System.Byte>(ref value.a, 1);
+                reader.Read<System.SByte>(ref value.b, 1);
+                reader.Read<System.Int16>(ref value.c, Nino.Shared.Mgr.ConstMgr.SizeOfShort);
+                reader.Read<System.UInt16>(ref value.d, Nino.Shared.Mgr.ConstMgr.SizeOfUShort);
                 value.e =  (System.Int32)reader.DecompressAndReadNumber();
                 value.f =  (System.UInt32)reader.DecompressAndReadNumber();
                 value.g =  (System.Int64)reader.DecompressAndReadNumber();
                 value.h =  (System.UInt64)reader.DecompressAndReadNumber();
-                value.i = reader.ReadSingle();
-                value.j = reader.ReadDouble();
-                value.k = reader.ReadDecimal();
-                value.l = reader.ReadBool();
-                value.m = reader.ReadChar();
+                reader.Read<System.Single>(ref value.i, Nino.Shared.Mgr.ConstMgr.SizeOfUInt);
+                reader.Read<System.Double>(ref value.j, Nino.Shared.Mgr.ConstMgr.SizeOfULong);
+                reader.Read<System.Decimal>(ref value.k, Nino.Shared.Mgr.ConstMgr.SizeOfDecimal);
+                reader.Read<System.Boolean>(ref value.l, 1);
+                reader.Read<System.Char>(ref value.m, Nino.Shared.Mgr.ConstMgr.SizeOfUShort);
                 value.n = reader.ReadString();
                 value.o = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
                 for(int i = 0, cnt = value.o.Capacity; i < cnt; i++)

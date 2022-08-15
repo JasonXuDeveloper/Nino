@@ -341,7 +341,7 @@ namespace Nino.Test
                 for(int i = 0; i < value_d_len; i++)
                 {
                     var value_d_key = reader.ReadString();
-                	var value_d_val_len = reader.ReadLength();
+                 	var value_d_val_len = reader.ReadLength();
                 	var value_d_val = new System.Collections.Generic.Dictionary<System.String,System.Int32>(value_d_val_len);
                 	for(int value_d_val_i = 0; value_d_val_i < value_d_val_len; value_d_val_i++)
                 	{
@@ -359,7 +359,7 @@ namespace Nino.Test
                 	for(int value_e_i_i = 0; value_e_i_i < value_e_i_len; value_e_i_i++)
                 	{
                 		var value_e_i_key = reader.ReadString();
-                		var value_e_i_val_len = reader.ReadLength();
+                 		var value_e_i_val_len = reader.ReadLength();
                 		var value_e_i_val = new System.Collections.Generic.Dictionary<System.String,System.Int32[][]>(value_e_i_val_len);
                 		for(int value_e_i_val_i = 0; value_e_i_val_i < value_e_i_val_len; value_e_i_val_i++)
                 		{
@@ -377,7 +377,6 @@ namespace Nino.Test
                 			}
                 			value_e_i_val[value_e_i_val_key] = value_e_i_val_val;
                 		}
-
                 		value_e_i[value_e_i_key] = value_e_i_val;
                 	}
                     value.e[i] = value_e_i;
