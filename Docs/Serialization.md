@@ -280,6 +280,12 @@ Nino.Serialization.Serializer.Serialize<T>(T val, Encoding encoding);
 Nino.Serialization.Serializer.Serialize<T>(T val, Encoding encoding, CompressOption option);
 ```
 
+```csharp
+Nino.Serialization.Serializer.Serialize(object val, Encoding encoding, CompressOption option);
+```
+
+
+
 > 如果没有指定的编码的话，会使用UTF8
 >
 > 如果没有指定的压缩模式，会使用Zlib
@@ -306,6 +312,10 @@ Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding);
 
 ```csharp
 Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding, CompressOption option);
+```
+
+```csharp
+Nino.Serialization.Deserializer.Deserialize(Type type, byte[] data, Encoding encoding, CompressOption option);
 ```
 
 

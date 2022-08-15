@@ -64,6 +64,22 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Serialize a NinoSerialize object
 		/// </summary>
+		/// <param name="val"></param>
+		/// <param name="encoding"></param>
+		/// <param name="option"></param>
+		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public static byte[] Serialize(object val, Encoding encoding = null, CompressOption option = CompressOption.Zlib)
+		{
+			encoding = encoding ?? DefaultEncoding;
+			Writer writer = ObjectPool<Writer>.Request();
+			writer.Init(encoding, option);
+			return Serialize(val, encoding, writer, option);
+		}
+
+		/// <summary>
+		/// Serialize a NinoSerialize object
+		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="val"></param>
 		/// <param name="encoding"></param>
@@ -73,6 +89,7 @@ namespace Nino.Serialization
 		private static byte[] Serialize<T>(T val, Encoding encoding, Writer writer, CompressOption option)
 		{
 			Type type = typeof(T);
+			if (type == typeof(Object)) type = val.GetType();
 
 			//basic type
 			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
