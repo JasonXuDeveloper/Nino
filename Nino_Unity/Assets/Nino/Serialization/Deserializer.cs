@@ -87,6 +87,43 @@ namespace Nino.Serialization
 		/// Deserialize a NinoSerialize object
 		/// </summary>
 		/// <param name="type"></param>
+		/// <param name="data"></param>
+		/// <param name="encoding"></param>
+		/// <param name="option"></param>
+		/// <returns></returns>
+		public static object Deserialize(Type type, byte[] data, Encoding encoding = null,
+			CompressOption option = CompressOption.Zlib)
+		{
+			Reader reader = ObjectPool<Reader>.Request();
+			reader.Init(data, data.Length, encoding ?? DefaultEncoding,
+				TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
+
+			//basic type
+			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
+			{
+				var ret = wrapper.Deserialize(reader);
+				ObjectPool<Reader>.Return(reader);
+				return ret;
+			}
+
+			//code generated type
+			if (TypeModel.TryGetWrapper(type, out wrapper))
+			{
+				//add wrapper
+				WrapperManifest.AddWrapper(type, wrapper);
+				//start Deserialize
+				var ret = wrapper.Deserialize(reader);
+				ObjectPool<Reader>.Return(reader);
+				return ret;
+			}
+
+			return Deserialize(type, null, data, encoding ?? DefaultEncoding, reader, option, true, true, true);
+		}
+
+		/// <summary>
+		/// Deserialize a NinoSerialize object
+		/// </summary>
+		/// <param name="type"></param>
 		/// <param name="val"></param>
 		/// <param name="data"></param>
 		/// <param name="encoding"></param>

@@ -377,7 +377,7 @@ namespace Nino.Serialization
 		{
 			if (EndOfReader) return default;
 
-			if (Environment.Is64BitProcess)
+			if (Environment.Is64BitProcess && sizeof(T) == len)
 			{
 				Position += len;
 				return *(T*)&Buffer.Data[Position - len];

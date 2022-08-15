@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace Nino.Serialization
 {
-    internal static class WrapperManifest
+    public static class WrapperManifest
     {
         private static readonly Dictionary<int, INinoWrapper> Wrappers = new Dictionary<int, INinoWrapper>(300)
         {

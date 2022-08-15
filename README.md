@@ -106,7 +106,7 @@ Definite useful and high performance modules for C# projects, especially for Uni
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.0.15
+  PM> Install-Package Nino.Serialization -Version 1.0.16
   ```
 
 - 使用src下的代码（复制进自己项目即可）

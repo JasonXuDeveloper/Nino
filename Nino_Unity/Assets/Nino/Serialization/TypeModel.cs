@@ -106,7 +106,8 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Cached Models
 		/// </summary>
-		private static readonly Dictionary<Type, bool> IsEnumTypeCache = new Dictionary<Type, bool>(30);
+		private static readonly ConcurrentDictionary<Type, bool> IsEnumTypeCache =
+			new ConcurrentDictionary<Type, bool>(3, 30);
 
 		/// <summary>
 		/// Whether or not the type is a non compress type
@@ -194,7 +195,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Thread safe lock
 		/// </summary>
-		private static SpinLock _createLock = new SpinLock();
+		private static SpinLock _createLock;
 
 		/// <summary>
 		/// Create a typeModel using given type
