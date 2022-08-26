@@ -89,13 +89,25 @@ namespace Nino.Serialization
 		private static byte[] Serialize<T>(T val, Encoding encoding, Writer writer, CompressOption option)
 		{
 			Type type = typeof(T);
-			if (type == typeof(Object)) type = val.GetType();
+			bool boxed = false;
+			if (type == typeof(Object))
+			{
+				type = val.GetType();
+				boxed = true;
+			}
 
 			//basic type
 			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
 				writer.Init(encoding, TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
-				((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
+				if (boxed)
+				{
+					wrapper.Serialize(val, writer);
+				}
+				else
+				{
+					((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
+				}
 				var ret = writer.ToBytes();
 				ObjectPool<Writer>.Return(writer);
 				return ret;
@@ -107,7 +119,14 @@ namespace Nino.Serialization
 				//add wrapper
 				WrapperManifest.AddWrapper(type, wrapper);
 				//start serialize
-				((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
+				if (boxed)
+				{
+					wrapper.Serialize(val, writer);
+				}
+				else
+				{
+					((NinoWrapperBase<T>)wrapper).Serialize(val, writer);
+				}
 				//compress it
 				var ret = writer.ToBytes();
 				ObjectPool<Writer>.Return(writer);

@@ -108,6 +108,39 @@ namespace Nino.UnitTests
     public class ComplexSerializationTest
     {
         [TestMethod]
+        public void TestNonGenericNoCodeGen()
+        {
+            Data dt = new Data()
+            {
+                X = short.MaxValue,
+                Y = byte.MaxValue,
+                Z = short.MaxValue,
+                F = 1234.56789f,
+                D = 66.66666666m,
+                Db = 999.999999999999,
+                Bo = true,
+                En = TestEnum.A,
+                Name = "aasdfghjhgtrewqwerftg"
+            };
+
+            var buf = Serializer.Serialize((object)dt);
+            var dt2 = Deserializer.Deserialize(typeof(Data), buf);
+            Assert.IsTrue(dt.ToString() == dt2.ToString());
+        }
+        [TestMethod]
+        public void TestNonGenericCodeGen()
+        {
+            A dt = new A()
+            {
+                Val = 1
+            };
+
+            var buf = Serializer.Serialize((object)dt);
+            var dt2 = Deserializer.Deserialize(typeof(A), buf);
+            Assert.IsTrue(dt.ToString() == dt2.ToString());
+        }
+        
+        [TestMethod]
         public void TestNestedData()
         {
             //nested data
