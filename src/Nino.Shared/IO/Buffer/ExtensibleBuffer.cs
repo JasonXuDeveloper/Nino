@@ -33,12 +33,7 @@ namespace Nino.Shared.IO
         /// <summary>
         /// Total length of the buffer
         /// </summary>
-        private int _totalLength;
-
-        /// <summary>
-        /// Total length of the buffer
-        /// </summary>
-        public ref int TotalLength => ref _totalLength;
+        public int TotalLength { get; private set; }
 
         /// <summary>
         /// Init buffer

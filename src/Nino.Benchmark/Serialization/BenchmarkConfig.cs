@@ -141,7 +141,7 @@ namespace Nino.Benchmark
         { 
             // run quickly:)
             Job baseConfig = Job.ShortRun.WithIterationCount(1).WithWarmupCount(1);
-            this.AddJob(baseConfig.WithRuntime(CoreRuntime.Core50).WithPlatform(Platform.AnyCpu));
+            this.AddJob(baseConfig.WithRuntime(CoreRuntime.Core60).WithPlatform(Platform.AnyCpu));
             this.AddExporter(MarkdownExporter.GitHub);
             this.AddExporter(CsvExporter.Default);
             this.AddDiagnoser(MemoryDiagnoser.Default);
