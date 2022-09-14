@@ -42,33 +42,16 @@ namespace Nino.Shared.IO
         {
 
         }
-
-        /// <summary>
-        /// Init buffer
-        /// </summary>
-        public ExtensibleBuffer(int expandSize) : this(expandSize, null)
-        {
-
-        }
         
         /// <summary>
         /// Init extensible buffer with a capacity
         /// </summary>
         /// <param name="size"></param>
-        /// <param name="initialData"></param>
-        private ExtensibleBuffer(int size, T[] initialData)
+        public ExtensibleBuffer(int size = DefaultBufferSize)
         {
             sizeOfT = (byte)sizeof(T);
             ExpandSize = size;
             Data = (T*)Marshal.AllocHGlobal(sizeOfT * ExpandSize);
-            if (initialData != null)
-            {
-                fixed(T* ptr = initialData)
-                {
-                    CopyFrom(ptr, 0, 0, initialData.Length);
-                }
-            }
-
             TotalLength = ExpandSize;
             GC.AddMemoryPressure(sizeOfT * ExpandSize);
         }
