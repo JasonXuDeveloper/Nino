@@ -23,7 +23,7 @@ namespace Nino.UnitTests
                 }
             };
             byte[] buf = Array.Empty<byte>();
-            int tests = 1000;
+            int tests = 100;
 
             void Test()
             {
@@ -54,7 +54,7 @@ namespace Nino.UnitTests
                 }
             };
             byte[] buf = Array.Empty<byte>();
-            int tests = 1000;
+            int tests = 100;
 
             void Test()
             {
@@ -87,7 +87,7 @@ namespace Nino.UnitTests
             };
             byte[] buf = Serializer.Serialize(c);
 
-            int tests = 1000;
+            int tests = 100;
             C c2 = new C();
 
             void Test()
@@ -119,7 +119,7 @@ namespace Nino.UnitTests
             };
             byte[] buf = Serializer.Serialize(d);
 
-            int tests = 1000;
+            int tests = 100;
             D d2 = new D();
 
             void Test()

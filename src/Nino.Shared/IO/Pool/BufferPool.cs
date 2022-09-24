@@ -45,19 +45,6 @@ namespace Nino.Shared.IO
                 return ret;
             }
         }
-
-        /// <summary>
-        /// Preview next cache buffer's length
-        /// </summary>
-        /// <returns></returns>
-        public static int PreviewNextCacheBufferLength()
-        {
-            lock (Lock)
-            {
-                if (Buffers.Count == 0) return 0;
-                return Buffers.Peek().Length;
-            }
-        }
         
         /// <summary>
         /// Request a buffer from a source
