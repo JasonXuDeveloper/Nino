@@ -17,10 +17,10 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
-        <PackageReleaseNotes>v1.0.12
-- [feat] support multi thread compress/decompress</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.13
+- [fix] fixed bugs with ExtensibleBuffer</PackageReleaseNotes>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-        <PackageVersion>1.0.12</PackageVersion> 
+        <PackageVersion>1.0.13</PackageVersion> 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild> 
         <RepositoryType>git</RepositoryType> 
     </PropertyGroup>

@@ -253,12 +253,10 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private unsafe void Write<T>(ref T val, int len) where T : unmanaged
+		private void Write<T>(ref T val, int len) where T : unmanaged
 		{
-			fixed (T* ptr = &val)
-			{
-				Write((byte*)ptr, ref len);
-			}
+			Unsafe.As<byte, T>(ref Buffer.AsSpan(_position, len).GetPinnableReference()) = val;
+			Position += len;
 		}
 
 		/// <summary>

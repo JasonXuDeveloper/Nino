@@ -18,11 +18,11 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.16</PackageVersion>
+        <PackageVersion>1.0.17</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.16
-- [feat] support register custom wrapper
-- [feat] support non generic serialize/deserialize</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.17
+- [feat] support deserialize with ArraySegment&lt;byte&gt;
+- [optimization] faster write</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 

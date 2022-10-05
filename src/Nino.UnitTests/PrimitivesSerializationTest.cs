@@ -41,7 +41,8 @@ namespace Nino.UnitTests
         {
             TestEnumVal val = TestEnumVal.B;
             byte[] buf = Serialization.Serializer.Serialize(val);
-            TestEnumVal val2 = Serialization.Deserializer.Deserialize<TestEnumVal>(buf);
+            TestEnumVal val2 =
+                Serialization.Deserializer.Deserialize<TestEnumVal>(new ArraySegment<byte>(buf, 0, buf.Length));
             Assert.AreEqual(val, val2);
             Assert.AreEqual(TestEnumVal.B, val2);
         }
