@@ -71,7 +71,15 @@ namespace Nino.Serialization
                 if (t.FullName != null) IlRuntimeTypes[t.FullName] = t;
             }
             
-            appDomain.RegisterCrossBindingAdaptor(new SerializationHelper1ILTypeInstanceAdapter());
+            try
+            {
+                appDomain.RegisterCrossBindingAdaptor(new SerializationHelper1ILTypeInstanceAdapter());
+            }
+            catch
+            {
+                //ignore
+            }
+
             //reg redirections
             MethodBase method;
             var type = typeof(Nino.Serialization.Serializer);
