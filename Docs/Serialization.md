@@ -93,7 +93,6 @@ public partial class NotIncludeAllClass
 ## 限制
 
 - 不支持给非partial或Nested类型和结构体生成代码
-- 不支持在继承的情况下，序列化父类的可序列化成员
 - 暂时不支持给泛型序列化类型和结构体生成代码
 
 
