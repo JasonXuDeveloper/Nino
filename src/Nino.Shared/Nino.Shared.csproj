@@ -17,10 +17,10 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Description>A useful library that contains various high performance approaches with high compatability.</Description>
-        <PackageReleaseNotes>v1.0.13
-- [fix] fixed bugs with ExtensibleBuffer</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.14
+- [feat] support compress and decompress using ArraySegment</PackageReleaseNotes>
         <PublishRepositoryUrl>true</PublishRepositoryUrl> 
-        <PackageVersion>1.0.13</PackageVersion> 
+        <PackageVersion>1.0.14</PackageVersion> 
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild> 
         <RepositoryType>git</RepositoryType> 
     </PropertyGroup>
