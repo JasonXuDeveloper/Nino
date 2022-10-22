@@ -4,6 +4,11 @@ using System.Linq;
 using Nino.Shared.Mgr;
 using System.Reflection;
 using System.Collections.Generic;
+#if DEBUG && !DISABLE_ILRUNTIME_DEBUG
+using AutoList = System.Collections.Generic.List<object>;
+#else
+using AutoList = ILRuntime.Other.UncheckedList<object>;
+#endif
 
 // ReSharper disable CognitiveComplexity
 // ReSharper disable RedundantNameQualifier
@@ -70,7 +75,7 @@ namespace Nino.Serialization
             {
                 if (t.FullName != null) IlRuntimeTypes[t.FullName] = t;
             }
-            
+
             try
             {
                 appDomain.RegisterCrossBindingAdaptor(new SerializationHelper1ILTypeInstanceAdapter());
@@ -79,7 +84,7 @@ namespace Nino.Serialization
             {
                 //ignore
             }
-
+            
             //reg redirections
             MethodBase method;
             var type = typeof(Nino.Serialization.Serializer);
@@ -154,7 +159,7 @@ namespace Nino.Serialization
         /// <returns></returns>
         private static unsafe ILRuntime.Runtime.Stack.StackObject* Deserialize_0(
             ILRuntime.Runtime.Intepreter.ILIntepreter intp, ILRuntime.Runtime.Stack.StackObject* esp,
-            IList<object> mStack,
+            AutoList mStack,
             ILRuntime.CLR.Method.CLRMethod method, bool isNewObj)
         {
             var domain = intp.AppDomain;
@@ -175,9 +180,7 @@ namespace Nino.Serialization
             intp.Free(ptrOfThisMethod);
 
             ptrOfThisMethod = ILRuntime.Runtime.Intepreter.ILIntepreter.Minus(esp, 3);
-            var @data = (System.Byte[])ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(typeof(System.Byte[]),
-                ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack),
-                0);
+            var @data = ILRuntime.Runtime.Stack.StackObject.ToObject(ptrOfThisMethod, domain, mStack);
             intp.Free(ptrOfThisMethod);
 
             //获取泛型参数<T>的实际类型
@@ -193,9 +196,19 @@ namespace Nino.Serialization
                 r = ((ILRuntime.CLR.TypeSystem.ILType)t).Instantiate();
             }
 
-            var resultOfThisMethod =
-                Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, r, @data,
-                    @encoding ?? Encoding.UTF8, null, option);
+            object resultOfThisMethod = null;
+            if (@data is byte[] buf)
+            {
+                resultOfThisMethod =
+                    Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, r, buf,
+                        @encoding ?? Encoding.UTF8, null, option);
+            }
+            else if (@data is ArraySegment<byte> seg)
+            {
+                resultOfThisMethod =
+                    Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, r, seg,
+                        @encoding ?? Encoding.UTF8, null, option);
+            }
 
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);
         }
@@ -211,7 +224,7 @@ namespace Nino.Serialization
         /// <returns></returns>
         private static unsafe ILRuntime.Runtime.Stack.StackObject* Serialize_0(
             ILRuntime.Runtime.Intepreter.ILIntepreter intp, ILRuntime.Runtime.Stack.StackObject* esp,
-            IList<object> mStack,
+            AutoList mStack,
             ILRuntime.CLR.Method.CLRMethod method, bool isNewObj)
         {
             var domain = intp.AppDomain;
