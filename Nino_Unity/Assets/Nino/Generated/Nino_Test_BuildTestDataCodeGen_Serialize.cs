@@ -13,10 +13,10 @@ namespace Nino.Test
                 writer.Write(value.b);
                 writer.Write(value.c);
                 writer.Write(value.d);
-                writer.CompressAndWrite(value.e);
-                writer.CompressAndWrite(value.f);
-                writer.CompressAndWrite(value.g);
-                writer.CompressAndWrite(value.h);
+                writer.CompressAndWrite(ref value.e);
+                writer.CompressAndWrite(ref value.f);
+                writer.CompressAndWrite(ref value.g);
+                writer.CompressAndWrite(ref value.h);
                 writer.Write(value.i);
                 writer.Write(value.j);
                 writer.Write(value.k);

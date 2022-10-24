@@ -9,9 +9,9 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(Data value, Nino.Serialization.Writer writer)
             {
-                writer.CompressAndWrite(value.x);
+                writer.CompressAndWrite(ref value.x);
                 writer.Write(value.y);
-                writer.CompressAndWrite(value.z);
+                writer.CompressAndWrite(ref value.z);
                 writer.Write(value.f);
                 writer.Write(value.d);
                 writer.Write(value.db);

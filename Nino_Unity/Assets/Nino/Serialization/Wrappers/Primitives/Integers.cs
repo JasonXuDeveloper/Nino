@@ -70,7 +70,7 @@ namespace Nino.Serialization
         public override unsafe void Serialize(sbyte[] val, Writer writer)
         {
             int len = val.Length;
-            writer.CompressAndWrite(len);
+            writer.CompressAndWrite(ref len);
             if (len > 0)
             {
                 fixed (sbyte* ptr = val)
@@ -144,7 +144,7 @@ namespace Nino.Serialization
         public override unsafe void Serialize(short[] val, Writer writer)
         {
             int len = val.Length;
-            writer.CompressAndWrite(len);
+            writer.CompressAndWrite(ref len);
             if (len > 0)
             {
                 len *= 2;
@@ -218,7 +218,7 @@ namespace Nino.Serialization
         public override unsafe void Serialize(ushort[] val, Writer writer)
         {
             int len = val.Length;
-            writer.CompressAndWrite(len);
+            writer.CompressAndWrite(ref len);
             if (len > 0)
             {
                 len *= 2;
@@ -278,7 +278,7 @@ namespace Nino.Serialization
     {
         public override void Serialize(int val, Writer writer)
         {
-            writer.CompressAndWrite(val);
+            writer.CompressAndWrite(ref val);
         }
 
         public override int Deserialize(Reader reader)
@@ -341,7 +341,7 @@ namespace Nino.Serialization
     {
         public override void Serialize(uint val, Writer writer)
         {
-            writer.CompressAndWrite(val);
+            writer.CompressAndWrite(ref val);
         }
 
         public override uint Deserialize(Reader reader)
@@ -404,7 +404,7 @@ namespace Nino.Serialization
     {
         public override void Serialize(long val, Writer writer)
         {
-            writer.CompressAndWrite(val);
+            writer.CompressAndWrite(ref val);
         }
 
         public override long Deserialize(Reader reader)
@@ -467,7 +467,7 @@ namespace Nino.Serialization
     {
         public override void Serialize(ulong val, Writer writer)
         {
-            writer.CompressAndWrite(val);
+            writer.CompressAndWrite(ref val);
         }
 
         public override ulong Deserialize(Reader reader)

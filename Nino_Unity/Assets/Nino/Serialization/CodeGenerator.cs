@@ -189,15 +189,15 @@ namespace Nino.Serialization
                     if (elemType.IsArray || (elemType.IsGenericType &&
                                              elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
                     {
-                        sb.Append($"{GetSerializeBasicTypeStatement(elemType, "entry")}");
+                        sb.Append($"{GetSerializeBasicTypeStatement(elemType, "entry", true)}");
                     }
                     else if (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                     {
-                        sb.Append($"{GetSerializeBasicTypeStatement(elemType, "entry")}");
+                        sb.Append($"{GetSerializeBasicTypeStatement(elemType, "entry", true)}");
                     }
                     else
                     {
-                        sb.Append($"                        {GetSerializeBasicTypeStatement(elemType, "entry")};\n");
+                        sb.Append($"                        {GetSerializeBasicTypeStatement(elemType, "entry", true)};\n");
                     }
 
                     sb.Append("                    }\n");
@@ -228,31 +228,31 @@ namespace Nino.Serialization
                     if (keyType.IsArray || (keyType.IsGenericType &&
                                             keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
                     {
-                        sb.Append($"{GetSerializeBasicTypeStatement(keyType, "entry.Key")}");
+                        sb.Append($"{GetSerializeBasicTypeStatement(keyType, "entry.Key", true)}");
                     }
                     else if (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                     {
-                        sb.Append($"{GetSerializeBasicTypeStatement(keyType, "entry.Key")}");
+                        sb.Append($"{GetSerializeBasicTypeStatement(keyType, "entry.Key", true)}");
                     }
                     else
                     {
-                        sb.Append($"                        {GetSerializeBasicTypeStatement(keyType, "entry.Key")};\n");
+                        sb.Append($"                        {GetSerializeBasicTypeStatement(keyType, "entry.Key", true)};\n");
                     }
 
                     //write value
                     if (valueType.IsArray || (valueType.IsGenericType &&
                                               valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
                     {
-                        sb.Append($"{GetSerializeBasicTypeStatement(valueType, "entry.Value")}");
+                        sb.Append($"{GetSerializeBasicTypeStatement(valueType, "entry.Value", true)}");
                     }
                     else if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                     {
-                        sb.Append($"{GetSerializeBasicTypeStatement(valueType, "entry.Value")}");
+                        sb.Append($"{GetSerializeBasicTypeStatement(valueType, "entry.Value", true)}");
                     }
                     else
                     {
                         sb.Append(
-                            $"                        {GetSerializeBasicTypeStatement(valueType, "entry.Value")};\n");
+                            $"                        {GetSerializeBasicTypeStatement(valueType, "entry.Value", true)};\n");
                     }
 
                     sb.Append("                    }\n");
@@ -267,7 +267,7 @@ namespace Nino.Serialization
                 //basic type
                 else
                 {
-                    sb.Append($"                {GetSerializeBasicTypeStatement(mt, $"value.{members[key].Name}")};\n");
+                    sb.Append($"                {GetSerializeBasicTypeStatement(mt, $"value.{members[key].Name}", members[key] is PropertyInfo)};\n");
                 }
             }
 
@@ -732,7 +732,7 @@ namespace Nino.Serialization
         }
 
         // ReSharper disable CognitiveComplexity
-        private static string GetSerializeBasicTypeStatement(Type mt, string val, int indent = 0,
+        private static string GetSerializeBasicTypeStatement(Type mt, string val, bool isProperty, int indent = 0,
                 string space = "                        ")
             // ReSharper restore CognitiveComplexity
         {
@@ -742,7 +742,7 @@ namespace Nino.Serialization
                 case TypeCode.UInt32:
                 case TypeCode.Int64:
                 case TypeCode.UInt64:
-                    return $"writer.CompressAndWrite({val})";
+                    return isProperty ? $"writer.CompressAndWrite({val})" : $"writer.CompressAndWrite(ref {val})";
                 case TypeCode.Byte:
                 case TypeCode.SByte:
                 case TypeCode.Int16:
@@ -785,17 +785,17 @@ namespace Nino.Serialization
                                                  elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
                         {
                             builder.Append(
-                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", indent + 1, $"{space}\t")}");
+                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", true, indent + 1, $"{space}\t")}");
                         }
                         else if (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                         {
                             builder.Append(
-                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", indent + 1, $"{space}\t")}");
+                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", true, indent + 1, $"{space}\t")}");
                         }
                         else
                         {
                             builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
-                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", indent, space)};\n");
+                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", true, indent, space)};\n");
                         }
 
                         builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("}\n");
@@ -832,17 +832,17 @@ namespace Nino.Serialization
                                                 keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
                         {
                             builder.Append(
-                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}", indent + 1, $"{space}\t")}");
+                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}", true, indent + 1, $"{space}\t")}");
                         }
                         else if (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                         {
                             builder.Append(
-                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}", indent + 1, $"{space}\t")}");
+                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}", true, indent + 1, $"{space}\t")}");
                         }
                         else
                         {
                             builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
-                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}.Key", indent, space)};\n");
+                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}.Key", true, indent, space)};\n");
                         }
 
                         //write value
@@ -850,18 +850,18 @@ namespace Nino.Serialization
                                                   valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
                         {
                             builder.Append(
-                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", indent + 1, $"{space}\t")}");
+                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", true, indent + 1, $"{space}\t")}");
                         }
                         else if (valueType.IsGenericType &&
                                  valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                         {
                             builder.Append(
-                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", indent + 1, $"{space}\t")}");
+                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", true, indent + 1, $"{space}\t")}");
                         }
                         else
                         {
                             builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
-                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", indent, space)};\n");
+                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", true, indent, space)};\n");
                         }
 
                         builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("}\n");
