@@ -4,10 +4,12 @@ using System.Linq;
 using Nino.Shared.Mgr;
 using System.Reflection;
 using System.Collections.Generic;
+#if ILRuntime
 #if DEBUG && !DISABLE_ILRUNTIME_DEBUG
 using AutoList = System.Collections.Generic.List<object>;
 #else
 using AutoList = ILRuntime.Other.UncheckedList<object>;
+#endif
 #endif
 
 // ReSharper disable CognitiveComplexity

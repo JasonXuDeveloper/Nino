@@ -18,11 +18,10 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.17</PackageVersion>
+        <PackageVersion>1.0.18</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.17
-- [feat] support deserialize with ArraySegment&lt;byte&gt;
-- [optimization] faster write</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.18
+- [fix] fixed auto collect serialize bug when collecting type from other assembly</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 

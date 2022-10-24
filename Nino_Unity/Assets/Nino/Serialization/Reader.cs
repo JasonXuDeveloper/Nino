@@ -404,10 +404,10 @@ namespace Nino.Serialization
 		{
 			if (EndOfReader) return default;
 
-			if (Environment.Is64BitProcess && sizeof(T) == len)
+			if (Environment.Is64BitProcess)
 			{
 				Position += len;
-				return *(T*)&Buffer.Data[Position - len];
+				return Unsafe.As<byte, T>(ref Buffer.AsSpan(Position - len, len).GetPinnableReference());
 			}
 
 			//on 32 bits has to make a copy, otherwise if cast pointer to T straight ahead, will cause crash
@@ -436,10 +436,10 @@ namespace Nino.Serialization
 				return;
 			}
 
-			if (Environment.Is64BitProcess && sizeof(T) == len)
+			if (Environment.Is64BitProcess)
 			{
 				Position += len;
-				val = *(T*)&Buffer.Data[Position - len];
+				val = Unsafe.As<byte, T>(ref Buffer.AsSpan(Position -  len, len).GetPinnableReference());
 				return;
 			}
 
