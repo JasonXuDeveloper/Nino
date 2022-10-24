@@ -151,7 +151,7 @@ namespace Nino.Serialization
 			if (TypeModel.IsEnum(type))
 			{
 				//have to box enum
-				CompressAndWriteEnum(type, val);
+				CompressAndWriteEnum(val);
 				return true;
 			}
 
@@ -615,38 +615,79 @@ namespace Nino.Serialization
 		#endregion
 
 		/// <summary>
-		/// Compress and write enum (no boxing)
+		/// Compress and write enum
 		/// </summary>
-		/// <param name="type"></param>
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWriteEnum(Type type, object val)
+		public unsafe void CompressAndWriteEnum<T>(T val)
 		{
+			var type = typeof(T);
+			if (type == ConstMgr.ObjectType)
+			{
+				type = val.GetType();
+				switch (TypeModel.GetTypeCode(type))
+				{
+					case TypeCode.Byte:
+						Buffer[_position++] = Unsafe.Unbox<byte>(val);
+						return;
+					case TypeCode.SByte:
+						Buffer[_position++] = *(byte*)Unsafe.Unbox<sbyte>(val);
+						return;
+					case TypeCode.Int16:
+						Unsafe.As<byte, short>(ref Buffer.AsSpan(_position, 2).GetPinnableReference()) =
+							Unsafe.Unbox<short>(val);
+						Position += 2;
+						return;
+					case TypeCode.UInt16:
+						Unsafe.As<byte, ushort>(ref Buffer.AsSpan(_position, 2).GetPinnableReference()) =
+							Unsafe.Unbox<ushort>(val);
+						Position += 2;
+						return;
+					case TypeCode.Int32:
+						CompressAndWrite(Unsafe.Unbox<int>(val));
+						return;
+					case TypeCode.UInt32:
+						CompressAndWrite(Unsafe.Unbox<uint>(val));
+						return;
+					case TypeCode.Int64:
+						CompressAndWrite(Unsafe.Unbox<long>(val));
+						return;
+					case TypeCode.UInt64:
+						CompressAndWrite(Unsafe.Unbox<ulong>(val));
+						return;
+				}
+				return;
+			}
+
 			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
-					Write((byte)val);
+					Buffer[_position++] = *(byte*)Unsafe.AsPointer(ref val);
 					return;
 				case TypeCode.SByte:
-					Write((sbyte)val);
+					Buffer[_position++] = *(byte*)Unsafe.AsPointer(ref val);
 					return;
 				case TypeCode.Int16:
-					Write((short)val);
+					Unsafe.As<byte, short>(ref Buffer.AsSpan(_position, 2).GetPinnableReference()) =
+						*(short*)Unsafe.AsPointer(ref val);
+					Position += 2;
 					return;
 				case TypeCode.UInt16:
-					Write((ushort)val);
+					Unsafe.As<byte, ushort>(ref Buffer.AsSpan(_position, 2).GetPinnableReference()) =
+						*(ushort*)Unsafe.AsPointer(ref val);
+					Position += 2;
 					return;
 				case TypeCode.Int32:
-					CompressAndWrite((int)val);
+					CompressAndWrite(*(int*)Unsafe.AsPointer(ref val));
 					return;
 				case TypeCode.UInt32:
-					CompressAndWrite((uint)val);
+					CompressAndWrite(*(uint*)Unsafe.AsPointer(ref val));
 					return;
 				case TypeCode.Int64:
-					CompressAndWrite((long)val);
+					CompressAndWrite(*(long*)Unsafe.AsPointer(ref val));
 					return;
 				case TypeCode.UInt64:
-					CompressAndWrite((ulong)val);
+					CompressAndWrite(*(ulong*)Unsafe.AsPointer(ref val));
 					return;
 			}
 		}
@@ -657,6 +698,7 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		[Obsolete("Please re-generate nino serialize code to use the latest api")]
 		public void CompressAndWriteEnum(Type type, ulong val)
 		{
 			switch (TypeModel.GetTypeCode(type))

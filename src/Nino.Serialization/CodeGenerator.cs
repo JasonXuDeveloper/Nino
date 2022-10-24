@@ -170,7 +170,7 @@ namespace Nino.Serialization
                 if (mt.IsEnum)
                 {
                     sb.Append(
-                        $"                writer.CompressAndWriteEnum(typeof({(Enum.GetUnderlyingType(mt).FullName)}), (ulong) value.{members[key].Name});\n");
+                        $"                writer.CompressAndWriteEnum<{BeautifulLongTypeName(mt)}>(value.{members[key].Name});\n");
                 }
                 //array/list
                 else if (mt.IsArray || (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))

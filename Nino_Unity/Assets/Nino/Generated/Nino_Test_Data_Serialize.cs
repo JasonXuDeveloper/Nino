@@ -16,7 +16,7 @@ namespace Nino.Test
                 writer.Write(value.d);
                 writer.Write(value.db);
                 writer.Write(value.bo);
-                writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) value.en);
+                writer.CompressAndWriteEnum<Nino.Test.TestEnum>(value.en);
                 writer.Write(value.name);
             }
 

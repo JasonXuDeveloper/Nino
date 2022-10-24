@@ -16,7 +16,7 @@ namespace Nino.Benchmark.Models
                 writer.Write(value.D);
                 writer.Write(value.Db);
                 writer.Write(value.Bo);
-                writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) value.En);
+                writer.CompressAndWriteEnum(value.En);
                 writer.Write(value.Name);
             }
 
