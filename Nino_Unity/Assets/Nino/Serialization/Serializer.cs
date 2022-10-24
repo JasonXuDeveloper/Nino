@@ -306,7 +306,7 @@ namespace Nino.Serialization
 					{
 						var needToStore = model.Members[min];
 						writer.Write(needToStore.Name);
-						writer.Write(type.FullName);
+						writer.Write(type.AssemblyQualifiedName);
 					}
 
 					//try code gen, if no code gen then reflection
