@@ -478,7 +478,7 @@ namespace Nino.Serialization
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		// ReSharper disable UnusedMember.Local
-		public void Read<T>(ref T val, int len) where T : unmanaged
+		public void Read<T>(ref T val, [In] int len) where T : unmanaged
 		// ReSharper restore UnusedMember.Local
 		{
 			if (EndOfReader)
