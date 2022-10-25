@@ -18,8 +18,8 @@ namespace Nino.Test
             public override NotIncludeAllClass Deserialize(Nino.Serialization.Reader reader)
             {
                 NotIncludeAllClass value = new NotIncludeAllClass();
-                value.a =  (System.Int32)reader.DecompressAndReadNumber();
-                value.b =  (System.Int64)reader.DecompressAndReadNumber();
+                reader.DecompressAndReadNumber<System.Int32>(ref value.a);
+                reader.DecompressAndReadNumber<System.Int64>(ref value.b);
                 reader.Read<System.Single>(ref value.c, Nino.Shared.Mgr.ConstMgr.SizeOfUInt);
                 reader.Read<System.Double>(ref value.d, Nino.Shared.Mgr.ConstMgr.SizeOfULong);
                 return value;

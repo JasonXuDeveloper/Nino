@@ -181,7 +181,7 @@ namespace Nino.Serialization
 		{
 			if (EndOfReader) return default;
 			
-			return (int)DecompressAndReadNumber();
+			return DecompressAndReadNumber<int>();
 		}
 
 		/// <summary>
@@ -190,6 +190,7 @@ namespace Nino.Serialization
 		/// <returns></returns>
 		/// <exception cref="InvalidOperationException"></exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		[Obsolete("use generic method instead")]
 		public ulong DecompressAndReadNumber()
 		{
 			if (EndOfReader) return default;
@@ -213,6 +214,65 @@ namespace Nino.Serialization
 					return (ulong)ReadInt64();
 				case CompressType.UInt64:
 					return ReadUInt64();
+				default:
+					throw new InvalidOperationException("invalid compress type");
+			}
+		}
+		
+		/// <summary>
+		/// Decompress number for int32, int64, uint32, uint64
+		/// </summary>
+		/// <returns></returns>
+		/// <exception cref="InvalidOperationException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public T DecompressAndReadNumber<T>() where T : unmanaged
+		{
+			T result = default;
+			DecompressAndReadNumber(ref result);
+			return result;
+		}
+
+		/// <summary>
+		/// Decompress number for int32, int64, uint32, uint64
+		/// </summary>
+		/// <returns></returns>
+		/// <exception cref="InvalidOperationException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void DecompressAndReadNumber<T>(ref T result) where T: unmanaged
+		{
+			if (EndOfReader)
+			{
+				result = default;
+				return;
+			}
+			
+			ref var type = ref GetCompressType();
+			switch (type)
+			{
+				case CompressType.Byte:
+					Unsafe.As<T, byte>(ref result) = ReadByte();
+					return;
+				case CompressType.SByte:
+					Unsafe.As<T, sbyte>(ref result) = ReadSByte();
+					return;
+				case CompressType.Int16:
+					Unsafe.As<T, short>(ref result) = ReadInt16();
+					return;
+				case CompressType.UInt16:
+					Unsafe.As<T, ushort>(ref result) = ReadUInt16();
+					return;
+				case CompressType.Int32:
+					Unsafe.As<T, int>(ref result) = ReadInt32();
+					return;
+				case CompressType.UInt32:
+					Unsafe.As<T, uint>(ref result) = ReadUInt32();
+					return;
+				case CompressType.Int64:
+					Unsafe.As<T, long>(ref result) = ReadInt64();
+					return;
+				case CompressType.UInt64:
+					Unsafe.As<T, ulong>(ref result) = ReadUInt64();
+					return;
 				default:
 					throw new InvalidOperationException("invalid compress type");
 			}
@@ -332,10 +392,13 @@ namespace Nino.Serialization
 					return ReadUInt16();
 				//need to consider compress
 				case TypeCode.Int32:
+					return (ulong)DecompressAndReadNumber<int>();
 				case TypeCode.UInt32:
+					return DecompressAndReadNumber<uint>();
 				case TypeCode.Int64:
+					return (ulong)DecompressAndReadNumber<long>();
 				case TypeCode.UInt64:
-					return DecompressAndReadNumber();
+					return DecompressAndReadNumber<ulong>();
 			}
 
 			return 0;
@@ -367,7 +430,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public byte[] ReadBytes(int len)
+		public byte[] ReadBytes([In] int len)
 		{
 			if (EndOfReader) return default;
 
@@ -388,7 +451,7 @@ namespace Nino.Serialization
 		/// <param name="ptr"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void ReadToBuffer(byte* ptr, int len)
+		public void ReadToBuffer([In] byte* ptr, [In] int len)
 		{
 			ref var l = ref len;
 			Buffer.CopyTo(ptr, _position, l);
@@ -400,25 +463,12 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private T Read<T>(int len) where T : unmanaged
+		private T Read<T>([In] int len) where T : unmanaged
 		{
 			if (EndOfReader) return default;
 
-			if (Environment.Is64BitProcess)
-			{
-				Position += len;
-				return Unsafe.As<byte, T>(ref Buffer.AsSpan(Position - len, len).GetPinnableReference());
-			}
-
-			//on 32 bits has to make a copy, otherwise if cast pointer to T straight ahead, will cause crash
-			T ret = default;
-			byte* ptr = (byte*)&ret;
-			while (len-- > 0)
-			{
-				*ptr++ = Buffer[Position++];
-			}
-
-			return ret;
+			Position += len;
+			return Unsafe.ReadUnaligned<T>(ref Buffer.AsSpan(Position - len, len).GetPinnableReference());
 		}
 
 		/// <summary>
@@ -436,19 +486,8 @@ namespace Nino.Serialization
 				return;
 			}
 
-			if (Environment.Is64BitProcess)
-			{
-				Position += len;
-				val = Unsafe.As<byte, T>(ref Buffer.AsSpan(Position -  len, len).GetPinnableReference());
-				return;
-			}
-
-			//on 32 bits has to make a copy, otherwise if cast pointer to T straight ahead, will cause crash
-			byte* ptr = (byte*)Unsafe.AsPointer(ref val);
-			while (len-- > 0)
-			{
-				*ptr++ = Buffer[Position++];
-			}
+			Position += len;
+			val = Unsafe.ReadUnaligned<T>(ref Buffer.AsSpan(Position - len, len).GetPinnableReference());
 		}
 
 		/// <summary>
@@ -458,7 +497,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public sbyte ReadSByte()
 		{
-			return *(sbyte*)(&Buffer.Data[Position++]);
+			return Unsafe.As<byte, sbyte>(ref Buffer.Data[Position++]);
 		}
 
 		/// <summary>
@@ -582,7 +621,7 @@ namespace Nino.Serialization
 		{
 			if (EndOfReader) return default;
 
-			int len = (int)DecompressAndReadNumber();
+			int len = DecompressAndReadNumber<int>();
 			ref var l = ref len;
 			//empty string -> no gc
 			if (l == 0)

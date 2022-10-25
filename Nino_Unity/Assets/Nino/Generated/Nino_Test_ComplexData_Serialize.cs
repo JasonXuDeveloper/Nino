@@ -309,7 +309,7 @@ namespace Nino.Test
                     var value_a_i = new System.Int32[reader.ReadLength()];
                 	for(int value_a_i_i = 0, value_a_i_cnt = value_a_i.Length; value_a_i_i < value_a_i_cnt; value_a_i_i++)
                 	{
-                		var value_value_a_i_i =  (System.Int32)reader.DecompressAndReadNumber();
+                		var value_value_a_i_i = reader.DecompressAndReadNumber<System.Int32>();
                 		value_a_i[value_a_i_i] = value_value_a_i_i;
                 	}
                     value.a[i] = value_a_i;
@@ -320,7 +320,7 @@ namespace Nino.Test
                     var value_b_i = new System.Int32[reader.ReadLength()];
                 	for(int value_b_i_i = 0, value_b_i_cnt = value_b_i.Length; value_b_i_i < value_b_i_cnt; value_b_i_i++)
                 	{
-                		var value_value_b_i_i =  (System.Int32)reader.DecompressAndReadNumber();
+                		var value_value_b_i_i = reader.DecompressAndReadNumber<System.Int32>();
                 		value_b_i[value_b_i_i] = value_value_b_i_i;
                 	}
                     value.b.Add(value_b_i);
@@ -331,7 +331,7 @@ namespace Nino.Test
                     var value_c_i = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
                 	for(int value_c_i_i = 0, value_c_i_cnt = value_c_i.Capacity; value_c_i_i < value_c_i_cnt; value_c_i_i++)
                 	{
-                		var value_value_c_i_i =  (System.Int32)reader.DecompressAndReadNumber();
+                		var value_value_c_i_i = reader.DecompressAndReadNumber<System.Int32>();
                 		value_c_i.Add(value_value_c_i_i);
                 	}
                     value.c[i] = value_c_i;
@@ -346,7 +346,7 @@ namespace Nino.Test
                 	for(int value_d_val_i = 0; value_d_val_i < value_d_val_len; value_d_val_i++)
                 	{
                 		var value_d_val_key = reader.ReadString();
-                		var value_d_val_val =  (System.Int32)reader.DecompressAndReadNumber();
+                		var value_d_val_val = reader.DecompressAndReadNumber<System.Int32>();
                 		value_d_val[value_d_val_key] = value_d_val_val;
                 	}
                     value.d[value_d_key] = value_d_val;
@@ -370,7 +370,7 @@ namespace Nino.Test
                 				var value_value_e_i_val_val_i = new System.Int32[reader.ReadLength()];
                 				for(int value_value_e_i_val_val_i_i = 0, value_value_e_i_val_val_i_cnt = value_value_e_i_val_val_i.Length; value_value_e_i_val_val_i_i < value_value_e_i_val_val_i_cnt; value_value_e_i_val_val_i_i++)
                 				{
-                					var value_value_value_e_i_val_val_i_i =  (System.Int32)reader.DecompressAndReadNumber();
+                					var value_value_value_e_i_val_val_i_i = reader.DecompressAndReadNumber<System.Int32>();
                 					value_value_e_i_val_val_i[value_value_e_i_val_val_i_i] = value_value_value_e_i_val_val_i_i;
                 				}
                 				value_e_i_val_val[value_e_i_val_val_i] = value_value_e_i_val_val_i;

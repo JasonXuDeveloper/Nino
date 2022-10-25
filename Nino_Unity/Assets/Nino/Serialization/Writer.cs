@@ -128,7 +128,7 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <param name="type"></param>
 		// ReSharper disable CognitiveComplexity
-		internal bool AttemptWriteBasicType<T>(Type type, T val)
+		internal bool AttemptWriteBasicType<T>(Type type, [In] T val)
 			// ReSharper restore CognitiveComplexity
 		{
 			if (type == ConstMgr.ObjectType)
@@ -201,7 +201,7 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidDataException"></exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		// ReSharper disable CognitiveComplexity
-		public void WriteCommonVal<T>(Type type, T val)
+		public void WriteCommonVal<T>(Type type, [In] T val)
 			// ReSharper restore CognitiveComplexity
 		{
 			if (!AttemptWriteBasicType(type, val))
@@ -215,7 +215,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="data"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe void Write(byte[] data)
+		public unsafe void Write([In] byte[] data)
 		{
 			var len = data.Length;
 			CompressAndWrite(len);
@@ -231,7 +231,7 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal unsafe void Write(byte* data, ref int len)
+		internal unsafe void Write([In] byte* data, ref int len)
 		{
 			if (len <= 8)
 			{
@@ -253,9 +253,9 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void Write<T>(ref T val, byte len) where T : unmanaged
+		private void Write<T>(ref T val, [In] byte len) where T : unmanaged
 		{
-			Unsafe.As<byte, T>(ref Buffer.AsSpan(_position, len).GetPinnableReference()) = val;
+			Unsafe.WriteUnaligned(ref Buffer.AsSpan(_position, len).GetPinnableReference(), val);
 			Position += len;
 		}
 
@@ -264,7 +264,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(double value)
+		public void Write([In] double value)
 		{
 			Write(ref value, ConstMgr.SizeOfULong);
 		}
@@ -274,7 +274,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(float value)
+		public void Write([In] float value)
 		{
 			Write(ref value, ConstMgr.SizeOfUInt);
 		}
@@ -284,7 +284,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(DateTime value)
+		public void Write([In] DateTime value)
 		{
 			Write(value.ToOADate());
 		}
@@ -294,7 +294,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="d"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(decimal d)
+		public void Write([In] decimal d)
 		{
 			Write(ref d, ConstMgr.SizeOfDecimal);
 		}
@@ -305,13 +305,13 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(bool value)
+		public void Write([In] bool value)
 		{
 			Buffer[Position++] = Unsafe.As<bool, byte>(ref value);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(char value)
+		public void Write([In] char value)
 		{
 			Write(ref value, ConstMgr.SizeOfUShort);
 		}
@@ -364,7 +364,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(byte num)
+		public void Write([In] byte num)
 		{
 			Buffer[Position++] = num;
 		}
@@ -374,7 +374,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(sbyte num)
+		public void Write([In] sbyte num)
 		{
 			Buffer[Position++] = Unsafe.As<sbyte, byte>(ref num);
 		}
@@ -384,7 +384,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(int num)
+		public void Write([In] int num)
 		{
 			Write(ref num, ConstMgr.SizeOfInt);
 		}
@@ -394,7 +394,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(uint num)
+		public void Write([In] uint num)
 		{
 			Write(ref num, ConstMgr.SizeOfUInt);
 		}
@@ -404,7 +404,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(short num)
+		public void Write([In] short num)
 		{
 			Write(ref num, ConstMgr.SizeOfShort);
 		}
@@ -414,7 +414,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(ushort num)
+		public void Write([In] ushort num)
 		{
 			Write(ref num, ConstMgr.SizeOfUShort);
 		}
@@ -424,7 +424,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(long num)
+		public void Write([In] long num)
 		{
 			Write(ref num, ConstMgr.SizeOfLong);
 		}
@@ -434,7 +434,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write(ulong num)
+		public void Write([In] ulong num)
 		{
 			Write(ref num, ConstMgr.SizeOfULong);
 		}
@@ -493,14 +493,14 @@ namespace Nino.Serialization
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWrite(ulong num)
+		public void CompressAndWrite([In] ulong num)
 		{
 			ref var n = ref num;
 			CompressAndWrite(ref n);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWrite(uint num)
+		public void CompressAndWrite([In] uint num)
 		{
 			ref var n = ref num;
 			CompressAndWrite(ref n);
@@ -623,14 +623,14 @@ namespace Nino.Serialization
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWrite(long num)
+		public void CompressAndWrite([In] long num)
 		{
 			ref var n = ref num;
 			CompressAndWrite(ref n);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWrite(int num)
+		public void CompressAndWrite([In] int num)
 		{
 			ref var n = ref num;
 			CompressAndWrite(ref n);
@@ -643,7 +643,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe void CompressAndWriteEnum<T>(T val)
+		public unsafe void CompressAndWriteEnum<T>([In] T val)
 		{
 			var type = typeof(T);
 			if (type == ConstMgr.ObjectType)
@@ -686,19 +686,12 @@ namespace Nino.Serialization
 			switch (TypeModel.GetTypeCode(type))
 			{
 				case TypeCode.Byte:
-					Buffer[_position++] = Unsafe.As<T, byte>(ref val);
-					return;
 				case TypeCode.SByte:
-					Buffer[_position++] = Unsafe.As<T, byte>(ref val);
+					Unsafe.WriteUnaligned(Buffer.Data + _position++, val);
 					return;
 				case TypeCode.Int16:
-					Unsafe.As<byte, short>(ref Buffer.AsSpan(_position, 2).GetPinnableReference()) =
-						Unsafe.As<T, short>(ref val);
-					Position += 2;
-					return;
 				case TypeCode.UInt16:
-					Unsafe.As<byte, ushort>(ref Buffer.AsSpan(_position, 2).GetPinnableReference()) =
-						Unsafe.As<T, ushort>(ref val);
+					Unsafe.WriteUnaligned(ref Buffer.AsSpan(_position, 2).GetPinnableReference(), val);
 					Position += 2;
 					return;
 				case TypeCode.Int32:
@@ -723,7 +716,7 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		[Obsolete("Please re-generate nino serialize code to use the latest api")]
-		public void CompressAndWriteEnum(Type type, ulong val)
+		public void CompressAndWriteEnum(Type type, [In] ulong val)
 		{
 			switch (TypeModel.GetTypeCode(type))
 			{

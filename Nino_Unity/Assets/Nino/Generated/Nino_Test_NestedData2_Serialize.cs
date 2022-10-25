@@ -49,7 +49,7 @@ namespace Nino.Test
                 value.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
                 for(int i = 0, cnt = value.vs.Capacity; i < cnt; i++)
                 {
-                    var value_vs_i =  (System.Int32)reader.DecompressAndReadNumber();
+                    var value_vs_i = reader.DecompressAndReadNumber<System.Int32>();
                     value.vs.Add(value_vs_i);
                 }
                 return value;

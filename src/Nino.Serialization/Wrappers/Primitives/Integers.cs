@@ -283,7 +283,7 @@ namespace Nino.Serialization
 
         public override int Deserialize(Reader reader)
         {
-            return (int)reader.DecompressAndReadNumber();
+            return reader.DecompressAndReadNumber<int>();
         }
     }
 
@@ -306,7 +306,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i < len)
             {
-                arr[i++] = (int)reader.DecompressAndReadNumber();
+                reader.DecompressAndReadNumber(ref arr[i++]);
             }
             return arr;
         }
@@ -331,7 +331,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i++ < len)
             {
-                arr.Add((int)reader.DecompressAndReadNumber());
+                arr.Add(reader.DecompressAndReadNumber<int>());
             }
             return arr;
         }
@@ -346,7 +346,7 @@ namespace Nino.Serialization
 
         public override uint Deserialize(Reader reader)
         {
-            return (uint)reader.DecompressAndReadNumber();
+            return reader.DecompressAndReadNumber<uint>();
         }
     }
 
@@ -369,7 +369,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i < len)
             {
-                arr[i++] = (uint)reader.DecompressAndReadNumber();
+                reader.DecompressAndReadNumber(ref arr[i++]);
             }
             return arr;
         }
@@ -394,7 +394,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i++ < len)
             {
-                arr.Add((uint)reader.DecompressAndReadNumber());
+                arr.Add(reader.DecompressAndReadNumber<uint>());
             }
             return arr;
         }
@@ -409,7 +409,7 @@ namespace Nino.Serialization
 
         public override long Deserialize(Reader reader)
         {
-            return (long)reader.DecompressAndReadNumber();
+            return reader.DecompressAndReadNumber<long>();
         }
     }
 
@@ -432,7 +432,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i < len)
             {
-                arr[i++] = (long)reader.DecompressAndReadNumber();
+                reader.DecompressAndReadNumber(ref arr[i++]);
             }
             return arr;
         }
@@ -457,7 +457,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i++ < len)
             {
-                arr.Add((long)reader.DecompressAndReadNumber());
+                arr.Add(reader.DecompressAndReadNumber<long>());
             }
             return arr;
         }
@@ -472,7 +472,7 @@ namespace Nino.Serialization
 
         public override ulong Deserialize(Reader reader)
         {
-            return reader.DecompressAndReadNumber();
+            return reader.DecompressAndReadNumber<ulong>();
         }
     }
 
@@ -495,7 +495,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i < len)
             {
-                arr[i++] = reader.DecompressAndReadNumber();
+                reader.DecompressAndReadNumber(ref arr[i++]);
             }
             return arr;
         }
@@ -520,7 +520,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i++ < len)
             {
-                arr.Add(reader.DecompressAndReadNumber());
+                arr.Add(reader.DecompressAndReadNumber<ulong>());
             }
             return arr;
         }

@@ -23,9 +23,9 @@ namespace Nino.Test
             public override Data Deserialize(Nino.Serialization.Reader reader)
             {
                 Data value = new Data();
-                value.x =  (System.Int32)reader.DecompressAndReadNumber();
+                reader.DecompressAndReadNumber<System.Int32>(ref value.x);
                 reader.Read<System.Int16>(ref value.y, Nino.Shared.Mgr.ConstMgr.SizeOfShort);
-                value.z =  (System.Int64)reader.DecompressAndReadNumber();
+                reader.DecompressAndReadNumber<System.Int64>(ref value.z);
                 reader.Read<System.Single>(ref value.f, Nino.Shared.Mgr.ConstMgr.SizeOfUInt);
                 reader.Read<System.Decimal>(ref value.d, Nino.Shared.Mgr.ConstMgr.SizeOfDecimal);
                 reader.Read<System.Double>(ref value.db, Nino.Shared.Mgr.ConstMgr.SizeOfULong);

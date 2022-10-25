@@ -132,10 +132,10 @@ namespace Nino.Test
                 reader.Read<System.SByte>(ref value.b, 1);
                 reader.Read<System.Int16>(ref value.c, Nino.Shared.Mgr.ConstMgr.SizeOfShort);
                 reader.Read<System.UInt16>(ref value.d, Nino.Shared.Mgr.ConstMgr.SizeOfUShort);
-                value.e =  (System.Int32)reader.DecompressAndReadNumber();
-                value.f =  (System.UInt32)reader.DecompressAndReadNumber();
-                value.g =  (System.Int64)reader.DecompressAndReadNumber();
-                value.h =  (System.UInt64)reader.DecompressAndReadNumber();
+                reader.DecompressAndReadNumber<System.Int32>(ref value.e);
+                reader.DecompressAndReadNumber<System.UInt32>(ref value.f);
+                reader.DecompressAndReadNumber<System.Int64>(ref value.g);
+                reader.DecompressAndReadNumber<System.UInt64>(ref value.h);
                 reader.Read<System.Single>(ref value.i, Nino.Shared.Mgr.ConstMgr.SizeOfUInt);
                 reader.Read<System.Double>(ref value.j, Nino.Shared.Mgr.ConstMgr.SizeOfULong);
                 reader.Read<System.Decimal>(ref value.k, Nino.Shared.Mgr.ConstMgr.SizeOfDecimal);
@@ -145,7 +145,7 @@ namespace Nino.Test
                 value.o = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
                 for(int i = 0, cnt = value.o.Capacity; i < cnt; i++)
                 {
-                    var value_o_i =  (System.Int32)reader.DecompressAndReadNumber();
+                    var value_o_i = reader.DecompressAndReadNumber<System.Int32>();
                     value.o.Add(value_o_i);
                 }
                 value.p = new System.Collections.Generic.List<Nino.Test.NotIncludeAllClass>(reader.ReadLength());
@@ -174,7 +174,7 @@ namespace Nino.Test
                 for(int i = 0; i < value_t_len; i++)
                 {
                     var value_t_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
-                    var value_t_val =  (System.Int32)reader.DecompressAndReadNumber();
+                    var value_t_val = reader.DecompressAndReadNumber<System.Int32>();
                     value.t[value_t_key] = value_t_val;
                 }
                 var value_u_len = reader.ReadLength();
@@ -182,7 +182,7 @@ namespace Nino.Test
                 for(int i = 0; i < value_u_len; i++)
                 {
                     var value_u_key = reader.ReadString();
-                    var value_u_val =  (System.Int32)reader.DecompressAndReadNumber();
+                    var value_u_val = reader.DecompressAndReadNumber<System.Int32>();
                     value.u[value_u_key] = value_u_val;
                 }
                 var value_v_len = reader.ReadLength();

@@ -342,7 +342,7 @@ namespace Nino.Serialization
                     //if nino serialize class => loop call method
                     string valStr = GetValidNinoClass(elemType, false)
                         ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.Deserialize(reader)"
-                        : GetDeserializeBasicTypeStatement(elemType, members[key] is PropertyInfo,
+                        : GetDeserializeBasicTypeStatement(elemType, true,
                             $"value_{members[key].Name}_i", "                \t");
 
                     if (elemType != null && !FullDeserializeStatement(elemType, false))
@@ -395,7 +395,7 @@ namespace Nino.Serialization
                     //read key
                     string valStr = GetValidNinoClass(keyType, false)
                         ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.Deserialize(reader)"
-                        : GetDeserializeBasicTypeStatement(keyType, false, $"value_{members[key].Name}_key",
+                        : GetDeserializeBasicTypeStatement(keyType, true, $"value_{members[key].Name}_key",
                             "                \t");
                     if (!FullDeserializeStatement(keyType, false))
                     {
@@ -420,7 +420,7 @@ namespace Nino.Serialization
                     //read value
                     valStr = GetValidNinoClass(valueType, false)
                         ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.Deserialize(reader)"
-                        : GetDeserializeBasicTypeStatement(valueType, false, $"value_{members[key].Name}_val",
+                        : GetDeserializeBasicTypeStatement(valueType, true, $"value_{members[key].Name}_val",
                             "                \t");
                     if (!FullDeserializeStatement(valueType, false))
                     {
@@ -452,13 +452,19 @@ namespace Nino.Serialization
                 {
                     string val = GetDeserializeBasicTypeStatement(mt, members[key] is PropertyInfo,
                         $"value.{members[key].Name}");
-                    if (FullDeserializeStatement(mt, members[key] is PropertyInfo))
+                    switch (Type.GetTypeCode(mt))
                     {
-                        sb.Append($"                {val}\n");
-                    }
-                    else
-                    {
-                        sb.Append($"                value.{members[key].Name} = {val};\n");
+                        case TypeCode.Int32:
+                        case TypeCode.UInt32:
+                        case TypeCode.Int64:
+                        case TypeCode.UInt64:
+                            sb.Append($"                {val}\n");
+                            break;
+                        default:
+                            sb.Append(FullDeserializeStatement(mt, members[key] is PropertyInfo)
+                                ? $"                {val}\n"
+                                : $"                value.{members[key].Name} = {val};\n");
+                            break;
                     }
                 }
             }
@@ -536,7 +542,9 @@ namespace Nino.Serialization
                 case TypeCode.UInt32:
                 case TypeCode.Int64:
                 case TypeCode.UInt64:
-                    return $" ({BeautifulLongTypeName(mt)})reader.DecompressAndReadNumber()";
+                    return isProperty
+                        ? $"reader.DecompressAndReadNumber<{BeautifulLongTypeName(mt)}>()"
+                        : $"reader.DecompressAndReadNumber<{BeautifulLongTypeName(mt)}>(ref {val});";
                 case TypeCode.Byte:
                     return isProperty ? "reader.ReadByte()" : $"reader.Read<System.Byte>(ref {val}, 1);";
                 case TypeCode.SByte:
@@ -624,7 +632,7 @@ namespace Nino.Serialization
                         //if nino serialize class => loop call method
                         string valStr = GetValidNinoClass(elemType, false)
                             ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.Deserialize(reader)"
-                            : GetDeserializeBasicTypeStatement(elemType, false, $"value_{val}_i", $"{space}\t");
+                            : GetDeserializeBasicTypeStatement(elemType, true, $"value_{val}_i", $"{space}\t");
 
                         if (elemType != null && !FullDeserializeStatement(elemType, false))
                         {
@@ -677,7 +685,7 @@ namespace Nino.Serialization
                         //read key
                         string valStr = GetValidNinoClass(keyType, false)
                             ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.Deserialize(reader)"
-                            : GetDeserializeBasicTypeStatement(keyType, false, $"{val}_key", $"{space}\t");
+                            : GetDeserializeBasicTypeStatement(keyType, true, $"{val}_key", $"{space}\t");
                         if (!FullDeserializeStatement(keyType, false))
                         {
                             builder.Append(space).Append('\t').Append($"var {val}_key = {valStr}" +
@@ -700,7 +708,7 @@ namespace Nino.Serialization
                         //read value
                         valStr = GetValidNinoClass(valueType, false)
                             ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.Deserialize(reader)"
-                            : GetDeserializeBasicTypeStatement(valueType, false, $"{val}_val", $"{space}\t");
+                            : GetDeserializeBasicTypeStatement(valueType, true, $"{val}_val", $"{space}\t");
                         if (!FullDeserializeStatement(valueType, false))
                         {
                             builder.Append(space).Append('\t').Append($"var {val}_val = {valStr}" +

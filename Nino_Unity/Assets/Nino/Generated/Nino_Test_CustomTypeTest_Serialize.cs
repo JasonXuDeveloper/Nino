@@ -71,7 +71,7 @@ namespace Nino.Test
                 for(int i = 0; i < value_dict_len; i++)
                 {
                     var value_dict_key = reader.ReadString();
-                    var value_dict_val =  (System.Int32)reader.DecompressAndReadNumber();
+                    var value_dict_val = reader.DecompressAndReadNumber<System.Int32>();
                     value.dict[value_dict_key] = value_dict_val;
                 }
                 var value_dict2_len = reader.ReadLength();
