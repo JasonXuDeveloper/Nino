@@ -30,7 +30,7 @@ namespace Nino.Test
                 reader.Read<System.Decimal>(ref value.d, Nino.Shared.Mgr.ConstMgr.SizeOfDecimal);
                 reader.Read<System.Double>(ref value.db, Nino.Shared.Mgr.ConstMgr.SizeOfULong);
                 reader.Read<System.Boolean>(ref value.bo, 1);
-                value.en = (Nino.Test.TestEnum)reader.DecompressAndReadEnum(typeof(System.Byte));
+                reader.DecompressAndReadEnum<Nino.Test.TestEnum>(ref value.en);
                 value.name = reader.ReadString();
                 return value;
             }

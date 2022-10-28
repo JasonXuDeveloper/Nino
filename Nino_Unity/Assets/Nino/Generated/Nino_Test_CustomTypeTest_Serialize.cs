@@ -56,16 +56,16 @@ namespace Nino.Test
             public override CustomTypeTest Deserialize(Nino.Serialization.Reader reader)
             {
                 CustomTypeTest value = new CustomTypeTest();
-                value.v3 = (UnityEngine.Vector3)reader.ReadCommonVal(typeof(UnityEngine.Vector3));
+                value.v3 = reader.ReadCommonVal<UnityEngine.Vector3>();
                 value.dt = reader.ReadDateTime();
-                value.ni = (System.Nullable<System.Int32>)reader.ReadCommonVal(typeof(System.Nullable<System.Int32>));
+                value.ni = reader.ReadCommonVal<System.Nullable<System.Int32>>();
                 value.qs = new System.Collections.Generic.List<UnityEngine.Quaternion>(reader.ReadLength());
                 for(int i = 0, cnt = value.qs.Capacity; i < cnt; i++)
                 {
-                    var value_qs_i = (UnityEngine.Quaternion)reader.ReadCommonVal(typeof(UnityEngine.Quaternion));
+                    var value_qs_i = reader.ReadCommonVal<UnityEngine.Quaternion>();
                     value.qs.Add(value_qs_i);
                 }
-                value.m = (UnityEngine.Matrix4x4)reader.ReadCommonVal(typeof(UnityEngine.Matrix4x4));
+                value.m = reader.ReadCommonVal<UnityEngine.Matrix4x4>();
                 var value_dict_len = reader.ReadLength();
                 value.dict = new System.Collections.Generic.Dictionary<System.String,System.Int32>(value_dict_len);
                 for(int i = 0; i < value_dict_len; i++)

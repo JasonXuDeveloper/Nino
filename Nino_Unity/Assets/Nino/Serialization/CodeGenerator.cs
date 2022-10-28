@@ -292,9 +292,16 @@ namespace Nino.Serialization
                 //enum
                 if (mt.IsEnum)
                 {
-                    var t = BeautifulLongTypeName(Enum.GetUnderlyingType(mt));
-                    sb.Append(
-                        $"                value.{members[key].Name} = ({BeautifulLongTypeName(mt)})reader.DecompressAndReadEnum(typeof({t}));\n");
+                    if (members[key] is PropertyInfo)
+                    {
+                        sb.Append(
+                            $"                value.{members[key].Name} = reader.DecompressAndReadEnum<{BeautifulLongTypeName(mt)}>();\n");
+                    }
+                    else
+                    {
+                        sb.Append(
+                            $"                reader.DecompressAndReadEnum<{BeautifulLongTypeName(mt)}>(ref value.{members[key].Name});\n");
+                    }
                 }
                 //array/list
                 else if (mt.IsArray || (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
@@ -584,6 +591,14 @@ namespace Nino.Serialization
                     {
                         return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.Deserialize(reader)";
                     }
+                    
+                    //enum
+                    if (mt.IsEnum)
+                    {
+                        return isProperty
+                            ? $"reader.DecompressAndReadEnum<{BeautifulLongTypeName(mt)}>()"
+                            : $"reader.DecompressAndReadEnum<{BeautifulLongTypeName(mt)}>(ref {val});";
+                    }
 
                     if (mt.IsArray ||
                         (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
@@ -735,7 +750,7 @@ namespace Nino.Serialization
                         return builder.ToString();
                     }
 
-                    return $"({BeautifulLongTypeName(mt)})reader.ReadCommonVal(typeof({BeautifulLongTypeName(mt)}))";
+                    return $"reader.ReadCommonVal<{BeautifulLongTypeName(mt)}>()";
             }
         }
 
