@@ -18,10 +18,10 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.18</PackageVersion>
+        <PackageVersion>1.0.19</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>v1.0.18
-- [fix] fixed auto collect serialize bug when collecting type from other assembly</PackageReleaseNotes>
+        <PackageReleaseNotes>v1.0.19
+- [optimization] significantly optimized serialize and deserialize performance</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 

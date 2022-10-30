@@ -102,11 +102,11 @@ Definite useful and high performance modules for C# projects, especially for Uni
   NuGet里搜Nino就好，目前有```Nino.Shared```和```Nino.Serialization```
 
   ```bash
-  PM> Install-Package Nino.Shared -Version 1.0.12
+  PM> Install-Package Nino.Shared -Version 1.0.14
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.0.16
+  PM> Install-Package Nino.Serialization -Version 1.0.19
   ```
 
 - 使用src下的代码（复制进自己项目即可）

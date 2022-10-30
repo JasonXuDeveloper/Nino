@@ -185,10 +185,10 @@ namespace Nino.Serialization
 		/// Compress and write enum
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		[Obsolete("use generic method instead")]
 		// ReSharper disable CognitiveComplexity
 		public T ReadCommonVal<T>() =>
-			Deserializer.Deserialize<T>(buffer.AsSpan(position, _length - position), readerEncoding, this, _option, false);
+			Deserializer.Deserialize<T>(buffer.AsSpan(position, _length - position), readerEncoding, this, _option,
+				false);
 
 		/// <summary>
 		/// Decompress number for int32, int64, uint32, uint64
@@ -621,7 +621,8 @@ namespace Nino.Serialization
 			int i = 0;
 			while (i < len)
 			{
-				var obj = Deserializer.Deserialize(elemType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this, _option,
+				var obj = Deserializer.Deserialize(elemType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this,
+					_option,
 					false);
 #if ILRuntime
 				arr.SetValue(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj), i++);
@@ -673,7 +674,8 @@ namespace Nino.Serialization
 			int i = 0;
 			while (i++ < len)
 			{
-				var obj = Deserializer.Deserialize(elemType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this, _option,
+				var obj = Deserializer.Deserialize(elemType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this,
+					_option,
 					false);
 #if ILRuntime
 				arr?.Add(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj));
@@ -736,7 +738,8 @@ namespace Nino.Serialization
 				var key = Deserializer.Deserialize(keyType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this, _option,
 					false);
 				//read value
-				var val = Deserializer.Deserialize(valueType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this, _option,
+				var val = Deserializer.Deserialize(valueType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this,
+					_option,
 					false);
 
 				//add

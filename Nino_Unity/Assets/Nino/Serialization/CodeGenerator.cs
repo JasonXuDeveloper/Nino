@@ -899,7 +899,7 @@ namespace Nino.Serialization
                         return builder.ToString();
                     }
 
-                    return $"writer.WriteCommonVal(typeof({BeautifulLongTypeName(mt)}), {val})";
+                    return $"writer.WriteCommonVal<{BeautifulLongTypeName(mt)}>({val})";
             }
         }
 

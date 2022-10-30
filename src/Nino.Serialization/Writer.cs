@@ -39,7 +39,7 @@ namespace Nino.Serialization
 		/// Position of the current buffer
 		/// </summary>
 		private int position;
-		
+
 		/// <summary>
 		/// Convert writer to byte
 		/// </summary>
@@ -72,7 +72,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="encoding"></param>
 		/// <param name="option"></param>
-		public Writer(Encoding encoding, CompressOption option = CompressOption.Zlib)
+		public Writer(Encoding encoding, [In] CompressOption option = CompressOption.Zlib)
 		{
 			Init(encoding, option);
 		}
@@ -82,7 +82,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="encoding"></param>
 		/// <param name="compressOption"></param>
-		public void Init(Encoding encoding, CompressOption compressOption)
+		public void Init(Encoding encoding, [In] CompressOption compressOption)
 		{
 			if (buffer == null)
 			{
@@ -103,92 +103,24 @@ namespace Nino.Serialization
 		}
 
 		/// <summary>
-		/// Write basic type to writer
-		/// </summary>
-		/// <param name="val"></param>
-		/// <param name="type"></param>
-		// ReSharper disable CognitiveComplexity
-		internal bool AttemptWriteBasicType<T>(Type type, [In] T val)
-			// ReSharper restore CognitiveComplexity
-		{
-			if (type == ConstMgr.ObjectType)
-			{
-				if (val == null) return false;
-				//unbox
-				type = val.GetType();
-				//failed to unbox
-				if (type == ConstMgr.ObjectType)
-					return false;
-			}
-
-			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
-			{
-				wrapper.Serialize(val, this);
-				return true;
-			}
-
-			//因为这里不是typecode，所以enum要单独检测
-			if (TypeModel.IsEnum(type))
-			{
-				//have to box enum
-				CompressAndWriteEnum(val);
-				return true;
-			}
-
-			//basic type
-			//比如泛型，只能list和dict
-			if (type.IsGenericType)
-			{
-				var genericDefType = type.GetGenericTypeDefinition();
-				//不是list和dict就再见了
-				if (genericDefType == ConstMgr.ListDefType)
-				{
-					Write((IList)val);
-					return true;
-				}
-
-				if (genericDefType == ConstMgr.DictDefType)
-				{
-					Write((IDictionary)val);
-					return true;
-				}
-
-				return false;
-			}
-
-			//其他类型也不行
-			if (type.IsArray)
-			{
-#if !ILRuntime
-				if (type.GetArrayRank() > 1)
-				{
-					throw new NotSupportedException(
-						"can not serialize multidimensional array, use jagged array instead");
-				}
-#endif
-				Write(val as Array);
-				return true;
-			}
-
-			return false;
-		}
-
-		/// <summary>
 		/// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
 		/// </summary>
 		/// <param name="type"></param>
 		/// <param name="val"></param>
 		/// <exception cref="InvalidDataException"></exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		// ReSharper disable CognitiveComplexity
-		public void WriteCommonVal<T>(Type type, [In] T val)
-			// ReSharper restore CognitiveComplexity
-		{
-			if (!AttemptWriteBasicType(type, val))
-			{
-				Serializer.Serialize(type, val, writerEncoding, this, option, false, true, false, true, true);
-			}
-		}
+		[Obsolete("use generic method instead")]
+		public void WriteCommonVal(Type type, [In] object val) =>
+			Serializer.Serialize(val, writerEncoding, this, option, false);
+
+		/// <summary>
+		/// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
+		/// </summary>
+		/// <param name="val"></param>
+		/// <exception cref="InvalidDataException"></exception>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public void WriteCommonVal<T>([In] T val) =>
+			Serializer.Serialize(val, writerEncoding, this, option, false);
 
 		/// <summary>
 		/// Write byte[]
@@ -295,7 +227,7 @@ namespace Nino.Serialization
 		{
 			Write(ref value, ConstMgr.SizeOfUShort);
 		}
-		
+
 		/// <summary>
 		/// Write string
 		/// </summary>
@@ -646,6 +578,7 @@ namespace Nino.Serialization
 						CompressAndWrite(ref Unsafe.Unbox<ulong>(val));
 						return;
 				}
+
 				return;
 			}
 
@@ -727,13 +660,11 @@ namespace Nino.Serialization
 			//write len
 			int len = arr.Length;
 			CompressAndWrite(ref len);
-			//other type
-			var elemType = arr.GetValue(0)?.GetType() ?? arr.GetType().GetElementType();
 			//write item
 			int i = 0;
 			while (i < len)
 			{
-				WriteCommonVal(elemType, arr.GetValue(i++));
+				WriteCommonVal(arr.GetValue(i++));
 			}
 		}
 
@@ -748,14 +679,12 @@ namespace Nino.Serialization
 				return;
 			}
 
-			//other
-			var elemType = arr[0].GetType();
 			//write len
 			CompressAndWrite(arr.Count);
 			//write item
 			foreach (var c in arr)
 			{
-				WriteCommonVal(elemType, c);
+				WriteCommonVal(c);
 			}
 		}
 
@@ -775,25 +704,13 @@ namespace Nino.Serialization
 			CompressAndWrite(ref len);
 			//record keys
 			var keys = dictionary.Keys;
-			Type valueType;
-			var keyType = valueType = null;
 			//write items
 			foreach (var c in keys)
 			{
-				if (keyType == null)
-				{
-					keyType = c.GetType();
-				}
-
-				if (valueType == null)
-				{
-					valueType = dictionary[c].GetType();
-				}
-
 				//write key
-				WriteCommonVal(keyType, c);
+				WriteCommonVal(c);
 				//write val
-				WriteCommonVal(valueType, dictionary[c]);
+				WriteCommonVal(dictionary[c]);
 			}
 		}
 	}

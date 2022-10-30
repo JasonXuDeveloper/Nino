@@ -9,22 +9,22 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(CustomTypeTest value, Nino.Serialization.Writer writer)
             {
-                writer.WriteCommonVal(typeof(UnityEngine.Vector3), value.v3);
+                writer.WriteCommonVal<UnityEngine.Vector3>(value.v3);
                 writer.Write(value.dt);
-                writer.WriteCommonVal(typeof(System.Nullable<System.Int32>), value.ni);
+                writer.WriteCommonVal<System.Nullable<System.Int32>>(value.ni);
                 if(value.qs != null)
                 {
                     writer.CompressAndWrite(value.qs.Count);
                     foreach (var entry in value.qs)
                     {
-                        writer.WriteCommonVal(typeof(UnityEngine.Quaternion), entry);
+                        writer.WriteCommonVal<UnityEngine.Quaternion>(entry);
                     }
                 }
                 else
                 {
                     writer.CompressAndWrite(0);
                 }
-                writer.WriteCommonVal(typeof(UnityEngine.Matrix4x4), value.m);
+                writer.WriteCommonVal<UnityEngine.Matrix4x4>(value.m);
                 if(value.dict != null)
                 {
                     writer.CompressAndWrite(value.dict.Count);
