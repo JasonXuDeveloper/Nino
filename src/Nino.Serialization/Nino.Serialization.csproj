@@ -18,7 +18,7 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.19</PackageVersion>
+        <PackageVersion>1.0.19.2</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <PackageReleaseNotes>v1.0.19
 - [optimization] significantly optimized serialize and deserialize performance</PackageReleaseNotes>

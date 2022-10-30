@@ -367,8 +367,7 @@ namespace Nino.Serialization
                         else
                         {
                             sb.Append(
-                                $"                    {BeautifulLongTypeName(elemType)} value_{members[key].Name}_i = default;\n" +
-                                $"                    {valStr}");
+                                $"                    {BeautifulLongTypeName(elemType)} value_{members[key].Name}_i = {valStr};\n");
                         }
                     }
 
@@ -419,8 +418,7 @@ namespace Nino.Serialization
                         else
                         {
                             sb.Append(
-                                $"                    {BeautifulLongTypeName(keyType)} value_{members[key].Name}_key = default;\n" +
-                                $"                    {valStr}");
+                                $"                    {BeautifulLongTypeName(keyType)} value_{members[key].Name}_key = {valStr};\n");
                         }
                     }
 
@@ -444,8 +442,7 @@ namespace Nino.Serialization
                         else
                         {
                             sb.Append(
-                                $"                    {BeautifulLongTypeName(valueType)} value_{members[key].Name}_val = default;\n" +
-                                $"                    {valStr}");
+                                $"                    {BeautifulLongTypeName(valueType)} value_{members[key].Name}_val = {valStr};\n");
                         }
                     }
 
@@ -663,8 +660,7 @@ namespace Nino.Serialization
                             else
                             {
                                 builder.Append(
-                                    $"                    {BeautifulLongTypeName(elemType)} value_{val}_i = default;\n" +
-                                    $"                    {valStr}");
+                                    $"                    {BeautifulLongTypeName(elemType)} value_{val}_i = {valStr};\n");
                             }
                         }
 
@@ -715,8 +711,7 @@ namespace Nino.Serialization
                             else
                             {
                                 builder.Append(
-                                    $"                    {BeautifulLongTypeName(keyType)} value_{val}_i = default;\n" +
-                                    $"                    {valStr}");
+                                    $"                    {BeautifulLongTypeName(keyType)} value_{val}_i = {valStr};\n");
                             }
                         }
 
@@ -739,8 +734,7 @@ namespace Nino.Serialization
                             else
                             {
                                 builder.Append(
-                                    $"                    {BeautifulLongTypeName(valueType)} value_{val}_i = default;\n" +
-                                    $"                    {valStr}");
+                                    $"                    {BeautifulLongTypeName(valueType)} value_{val}_i = {valStr};\n");
                             }
                         }
 

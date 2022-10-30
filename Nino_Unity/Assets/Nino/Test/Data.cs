@@ -10,6 +10,16 @@ using MongoDB.Bson.Serialization.Options;
 
 namespace Nino.Test
 {
+    [NinoSerialize()]
+    public partial class CollectionTest
+    {
+        [NinoMember(0)] public List<int> a = new List<int>();
+        [NinoMember(1)] public List<string> b = new List<string>();
+        [NinoMember(2)] public Dictionary<int, bool> c = new Dictionary<int, bool>();
+        [NinoMember(3)] public Dictionary<string, bool> d = new Dictionary<string, bool>();
+        [NinoMember(4)] public Dictionary<byte, string> e = new Dictionary<byte, string>();
+    }
+    
     [NinoSerialize]
     public partial class ComplexData
     {
