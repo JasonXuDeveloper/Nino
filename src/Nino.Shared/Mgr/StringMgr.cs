@@ -1,46 +1,62 @@
 using System;
-using System.Collections.Generic;
 
 namespace Nino.Shared.Mgr
 {
     public static class StringMgr
     {
-        public static List<string> Split(this ReadOnlySpan<char> str, char separator, StringSplitOptions options = StringSplitOptions.None)
+        /// <summary>
+        /// Use Span to optimize string split
+        /// Useless since .net core 6.0, but useful for .net framework
+        /// </summary>
+        /// <param name="str"></param>
+        /// <param name="separator"></param>
+        /// <returns></returns>
+        public static unsafe string[] Split(this ReadOnlySpan<char> str, char separator)
         {
             if (str == null) return null;
-            List<string> ret = new List<string>();
             if (str.IsEmpty)
             {
-                return ret;
+                return Array.Empty<string>();
             }
-            int start = 0;
-            int pos = -1;
-            while (++pos < str.Length)
+            
+            var indexes = stackalloc int[str.Length];
+            var index = 0;
+            for (int i = 0; i < str.Length; i++)
             {
-                if (str[pos] == separator)
+                if (str[i] == separator)
                 {
-                    var end = pos;
-                    if (start < str.Length && end < str.Length && end > start)
-                    {
-                        ret.Add(str.Slice(start, end - start).ToString());
-                    }
-                    else if(options != StringSplitOptions.RemoveEmptyEntries)
-                    {
-                        ret.Add(string.Empty);
-                    }
-                        
-                    start = pos + 1;
+                    indexes[index++] = i;
                 }
             }
 
-            if (start == str.Length)
+            var entries = index + 1;
+            string[] ret = new string[entries];
+            
+            int start = 0;
+            index = 0;
+
+            for (int i = 0; i < entries - 1; i++)
             {
-                if (options == StringSplitOptions.RemoveEmptyEntries)
+                var len = indexes[i] - start;
+                if(start >= str.Length || len == 0)
                 {
-                    return ret;
+                    ret[index++] = string.Empty;
+                    start = indexes[i] + 1;
+                    continue;
                 }
+                ret[index++] = str.Slice(start, len).ToString();
+                start = indexes[i] + 1;
             }
-            ret.Add(str.Slice(start).ToString());
+
+            if (start < str.Length)
+            {
+                ret[index] = str.Slice(start).ToString();
+            }
+            else
+            {
+                ret[index] = string.Empty;
+            }
+            
             return ret;
         }
     }

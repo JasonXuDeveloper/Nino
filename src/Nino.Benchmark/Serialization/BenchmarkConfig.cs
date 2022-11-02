@@ -147,4 +147,17 @@ namespace Nino.Benchmark
             this.AddDiagnoser(MemoryDiagnoser.Default);
         }
     }
+    public class StrMgrBenchmarkConfig : ManualConfig
+    {
+        public StrMgrBenchmarkConfig()
+        { 
+            // run quickly:)
+            Job baseConfig = Job.ShortRun.WithIterationCount(1).WithWarmupCount(1);
+            this.AddJob(baseConfig.WithRuntime(CoreRuntime.Core60).WithPlatform(Platform.AnyCpu));
+            this.AddJob(baseConfig.WithRuntime(ClrRuntime.Net461).WithPlatform(Platform.AnyCpu));
+            this.AddExporter(MarkdownExporter.GitHub);
+            this.AddExporter(CsvExporter.Default);
+            this.AddDiagnoser(MemoryDiagnoser.Default);
+        }
+    }
 }
