@@ -1,4 +1,5 @@
 using System;
+using Nino.Shared.IO;
 
 namespace Nino.Shared.Mgr
 {
@@ -13,42 +14,47 @@ namespace Nino.Shared.Mgr
         /// <returns></returns>
         public static unsafe string[] Split(this ReadOnlySpan<char> str, char separator)
         {
-            if (str == null) return null;
             if (str.IsEmpty)
             {
                 return Array.Empty<string>();
             }
-            
-            var indexes = stackalloc int[str.Length];
+
+            var indexes = ObjectPool<ExtensibleBuffer<int>>.Request();
             var index = 0;
-            for (int i = 0; i < str.Length; i++)
+            int i = 0;
+            int max = str.Length;
+            fixed (char* ptr = &str.GetPinnableReference())
             {
-                if (str[i] == separator)
+                var cPtr = ptr;
+                while (i < max)
                 {
-                    indexes[index++] = i;
+                    if (*cPtr++ == separator)
+                    {
+                        indexes[index++] = i;
+                    }
+
+                    i++;
                 }
             }
-
-            var entries = index + 1;
-            string[] ret = new string[entries];
             
+            string[] ret = new string[index + 1];
             int start = 0;
-            index = 0;
 
-            for (int i = 0; i < entries - 1; i++)
+            for (i = 0; i < index; i++)
             {
-                var len = indexes[i] - start;
-                if(start >= str.Length || len == 0)
+                ref int end = ref indexes.Data[i];
+                if(start >= max || start == end)
                 {
-                    ret[index++] = string.Empty;
-                    start = indexes[i] + 1;
-                    continue;
+                    ret[i] = string.Empty;
                 }
-                ret[index++] = str.Slice(start, len).ToString();
-                start = indexes[i] + 1;
+                else
+                {
+                    ret[i] = str.Slice(start, end - start).ToString();
+                }
+                start = end + 1;
             }
 
-            if (start < str.Length)
+            if (start < max)
             {
                 ret[index] = str.Slice(start).ToString();
             }
@@ -57,6 +63,7 @@ namespace Nino.Shared.Mgr
                 ret[index] = string.Empty;
             }
             
+            ObjectPool<ExtensibleBuffer<int>>.Return(indexes);
             return ret;
         }
     }

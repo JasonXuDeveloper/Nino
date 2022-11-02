@@ -1,5 +1,5 @@
-
 using System;
+using System.Text;
 using BenchmarkDotNet.Attributes;
 using Nino.Shared.Mgr;
 
@@ -8,8 +8,20 @@ namespace Nino.Benchmark
     [Config(typeof(StrMgrBenchmarkConfig))]
     public class StringMgrBenchmark
     {
-        private const string Str = "asd|12|3ed|sdf|dcvge|er34|3454gv|dwcrf|3435tx|edfw|2zr|3e2r|dqw|";
+        private string Str
+        {
+            get
+            {
+                var sb = new StringBuilder();
+                for (int i = 0; i < 10000; i++)
+                {
+                    sb.Append(i).Append('|');
+                }
 
+                return sb.ToString();
+            }
+        }
+        
         [Benchmark(Baseline = true)]
         public void SystemSplit() => Str.Split('|');
         

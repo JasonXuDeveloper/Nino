@@ -55,5 +55,20 @@ namespace Nino.UnitTests
             Assert.AreEqual("c789", arr[3]);
             Assert.AreEqual("", arr[4]);
         }
+        
+        [TestMethod]
+        public void TestStringSplit5()
+        {
+            string txt = "||a123|b456|c789||";
+            var arr = txt.AsSpan().Split('|');
+            Assert.AreEqual(7, arr.Length);
+            Assert.AreEqual("", arr[0]);
+            Assert.AreEqual("", arr[1]);
+            Assert.AreEqual("a123", arr[2]);
+            Assert.AreEqual("b456", arr[3]);
+            Assert.AreEqual("c789", arr[4]);
+            Assert.AreEqual("", arr[5]);
+            Assert.AreEqual("", arr[6]);
+        }
     }
 }
