@@ -35,36 +35,38 @@ namespace Nino.Shared.Mgr
 
                     i++;
                 }
-            }
             
-            string[] ret = new string[index + 1];
-            int start = 0;
-
-            for (i = 0; i < index; i++)
-            {
-                ref int end = ref indexes.Data[i];
-                if(start >= max || start == end)
+                string[] ret = new string[index + 1];
+                var retSpan = ret.AsSpan();
+                
+                int start = 0;
+                
+                for (i = 0; i < index; i++)
                 {
-                    ret[i] = string.Empty;
+                    ref int end = ref indexes.Data[i];
+                    if(start >= max || start == end)
+                    {
+                        retSpan[i] = string.Empty;
+                    }
+                    else
+                    {
+                        retSpan[i] = new string(ptr, start, end - start);
+                    }
+                    start = end + 1;
+                }
+
+                if (start < max)
+                {
+                    retSpan[index] = new string(ptr, start, max - start);
                 }
                 else
                 {
-                    ret[i] = str.Slice(start, end - start).ToString();
+                    retSpan[index] = string.Empty;
                 }
-                start = end + 1;
-            }
-
-            if (start < max)
-            {
-                ret[index] = str.Slice(start).ToString();
-            }
-            else
-            {
-                ret[index] = string.Empty;
-            }
             
-            ObjectPool<ExtensibleBuffer<int>>.Return(indexes);
-            return ret;
+                ObjectPool<ExtensibleBuffer<int>>.Return(indexes);
+                return ret;
+            }
         }
     }
 }
