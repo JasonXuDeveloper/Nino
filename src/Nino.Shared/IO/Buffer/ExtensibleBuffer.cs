@@ -60,14 +60,14 @@ namespace Nino.Shared.IO
         /// Get element at index
         /// </summary>
         /// <param name="index"></param>
-        public T this[[In] int index]
+        public T this[in int index]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => Data[index];
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             set
             {
-                EnsureCapacity(ref index);
+                EnsureCapacity(in index);
                 Data[index] = value;
             }
         }
@@ -76,15 +76,16 @@ namespace Nino.Shared.IO
         /// Ensure index exists
         /// </summary>
         /// <param name="index"></param>
-        private void EnsureCapacity(ref int index)
+        private void EnsureCapacity(in int index)
         {
             if (index < TotalLength) return;
+            GC.RemoveMemoryPressure(TotalLength * sizeOfT);
             while (index >= TotalLength)
             {
                 TotalLength += ExpandSize;
-                GC.AddMemoryPressure(sizeOfT * ExpandSize);
             }
             Extend();
+            GC.AddMemoryPressure(TotalLength * sizeOfT);
         }
 
         /// <summary>
@@ -119,7 +120,7 @@ namespace Nino.Shared.IO
         {
             var l = startIndex + length;
             //size check
-            EnsureCapacity(ref l);
+            EnsureCapacity(in l);
             return new Span<T>(Data + startIndex, length);
         }
 
@@ -159,7 +160,7 @@ namespace Nino.Shared.IO
         {
             var l = dstIndex + length;
             //size check
-            EnsureCapacity(ref l);
+            EnsureCapacity(in l);
             //copy
             Unsafe.CopyBlockUnaligned(Data + dstIndex, src + srcIndex, (uint)length);
         }
@@ -190,7 +191,7 @@ namespace Nino.Shared.IO
         {
             var l = srcIndex + length;
             //size check
-            EnsureCapacity(ref l);
+            EnsureCapacity(in l);
             //copy
             Unsafe.CopyBlockUnaligned(dst, Data + srcIndex, (uint)length);
         }
