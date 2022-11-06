@@ -428,9 +428,9 @@ namespace Nino.Serialization
 				return default;
 			}
 
-			var span = buffer.AsSpan(position, len);
+			ref var pin = ref *(buffer.Data + position);
 			position += len;
-			return Unsafe.ReadUnaligned<T>(ref span.GetPinnableReference());
+			return Unsafe.ReadUnaligned<T>(ref pin);
 		}
 
 		/// <summary>
@@ -448,7 +448,7 @@ namespace Nino.Serialization
 				return;
 			}
 
-			val = Unsafe.ReadUnaligned<T>(ref buffer.AsSpan(position, len).GetPinnableReference());
+			val = Unsafe.ReadUnaligned<T>(ref *(buffer.Data + position));
 			position += len;
 		}
 

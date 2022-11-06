@@ -63,12 +63,12 @@ namespace Nino.Shared.IO
         public T this[in int index]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Data[index];
+            get => *(Data + index);
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             set
             {
                 EnsureCapacity(in index);
-                Data[index] = value;
+                *(Data + index) = value;
             }
         }
 
