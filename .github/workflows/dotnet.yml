@@ -19,6 +19,7 @@ jobs:
         dotnet-version: |
           3.1.x
           6.0.x
+          7.0.x
     - name: Restore dependencies
       run: dotnet restore src/Nino.sln
     - name: Build
