@@ -30,7 +30,6 @@
       </ItemGroup>
       <ItemGroup>
         <ProjectReference Include="..\Nino.Serialization\Nino.Serialization.csproj" />
-        <ProjectReference Include="..\Nino.Tcp\Nino.Tcp.csproj" />
       </ItemGroup>
       <ItemGroup>
         <Folder Include="Serialization\Nino\Generated" />
