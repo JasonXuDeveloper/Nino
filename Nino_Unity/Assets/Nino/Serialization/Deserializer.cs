@@ -345,6 +345,46 @@ namespace Nino.Serialization
 			//prevent null encoding
 			encoding = encoding ?? DefaultEncoding;
 			
+			//array
+			if (!skipGenericCheck && type.IsArray)
+			{
+				var ret = reader.ReadArray(type);
+				if (returnDispose)
+				{
+					ObjectPool<Reader>.Return(reader);
+				}
+
+				return ret;
+			}
+
+			//list, dict
+			if (!skipGenericCheck && type.IsGenericType)
+			{
+				var genericDefType = type.GetGenericTypeDefinition();
+				//不是list和dict就再见了
+				if (genericDefType == ConstMgr.ListDefType)
+				{
+					var ret = reader.ReadList(type);
+					if (returnDispose)
+					{
+						ObjectPool<Reader>.Return(reader);
+					}
+
+					return ret;
+				}
+
+				if (genericDefType == ConstMgr.DictDefType)
+				{
+					var ret = reader.ReadDictionary(type);
+					if (returnDispose)
+					{
+						ObjectPool<Reader>.Return(reader);
+					}
+
+					return ret;
+				}
+			}
+			
 #if ILRuntime
 			type = type.ResolveRealType();			
 #endif
@@ -394,46 +434,6 @@ namespace Nino.Serialization
 				}
 
 				return ret;
-			}
-
-			//array
-			if (!skipGenericCheck && type.IsArray)
-			{
-				var ret = reader.ReadArray(type);
-				if (returnDispose)
-				{
-					ObjectPool<Reader>.Return(reader);
-				}
-
-				return ret;
-			}
-
-			//list, dict
-			if (!skipGenericCheck && type.IsGenericType)
-			{
-				var genericDefType = type.GetGenericTypeDefinition();
-				//不是list和dict就再见了
-				if (genericDefType == ConstMgr.ListDefType)
-				{
-					var ret = reader.ReadList(type);
-					if (returnDispose)
-					{
-						ObjectPool<Reader>.Return(reader);
-					}
-
-					return ret;
-				}
-
-				if (genericDefType == ConstMgr.DictDefType)
-				{
-					var ret = reader.ReadDictionary(type);
-					if (returnDispose)
-					{
-						ObjectPool<Reader>.Return(reader);
-					}
-
-					return ret;
-				}
 			}
 
 			//create type
