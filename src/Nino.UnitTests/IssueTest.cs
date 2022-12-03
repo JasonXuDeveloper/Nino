@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Serialization;
@@ -8,6 +9,83 @@ namespace Nino.UnitTests
     [TestClass]
     public class IssueTest
     {
+        [TestClass]
+        public class Issue41
+        {
+            [NinoSerialize]
+            public partial class NinoTestData
+            {
+                public enum Sex
+                {
+                    Male,
+                    Female
+                }
+
+                [NinoMember(1)] public string name;
+                [NinoMember(2)] public int id;
+                [NinoMember(3)] public bool isHasPet;
+                [NinoMember(4)] public Sex sex;
+            }
+
+            [TestMethod]
+            public void RunTest()
+            {
+                var list = new List<NinoTestData>();
+                list.Add(new NinoTestData
+                {
+                    sex = NinoTestData.Sex.Male,
+                    name = "A",
+                    id = -1,
+                    isHasPet = false
+                });
+                list.Add(new NinoTestData
+                {
+                    sex = NinoTestData.Sex.Female,
+                    name = "B",
+                    id = 1,
+                    isHasPet = true
+                });
+
+                var buf = Serializer.Serialize(list);
+                var list2 = Deserializer.Deserialize<List<NinoTestData>>(buf);
+                Assert.IsTrue(list2.Count == list.Count);
+                for (int i = 0; i < list.Count; i++)
+                {
+                    Assert.IsTrue(list2[i].name == list[i].name);
+                    Assert.IsTrue(list2[i].id == list[i].id);
+                    Assert.IsTrue(list2[i].isHasPet == list[i].isHasPet);
+                    Assert.IsTrue(list2[i].sex == list[i].sex);
+                }
+
+                var arr = new NinoTestData[2];
+                arr[0] = new NinoTestData
+                {
+                    sex = NinoTestData.Sex.Male,
+                    name = "C",
+                    id = 2,
+                    isHasPet = true
+                };
+                arr[1] = new NinoTestData
+                {
+                    sex = NinoTestData.Sex.Male,
+                    name = "D",
+                    id = 3,
+                    isHasPet = false
+                };
+
+                buf = Serializer.Serialize(arr);
+                var arr2 = Deserializer.Deserialize<NinoTestData[]>(buf);
+                Assert.IsTrue(arr2.Length == arr.Length);
+                for (int i = 0; i < arr.Length; i++)
+                {
+                    Assert.IsTrue(arr2[i].name == arr[i].name);
+                    Assert.IsTrue(arr2[i].id == arr[i].id);
+                    Assert.IsTrue(arr2[i].isHasPet == arr[i].isHasPet);
+                    Assert.IsTrue(arr2[i].sex == arr[i].sex);
+                }
+            }
+        }
+        
         [TestClass]
         public class Issue33
         {
