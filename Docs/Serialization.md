@@ -20,7 +20,7 @@
 
 ## 注意事项
 
-```Nino.Serialization v1.0.21```与之前的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！
+```Nino.Serialization v1.0.21```与之前的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
 
 从这个版本开始，```序列化```和```反序列化```时不再需要提供```Encoding```参数！！！
 

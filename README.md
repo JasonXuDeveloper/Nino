@@ -35,7 +35,7 @@ Definite useful and high performance modules for C# projects, especially for Uni
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行序列化和反序列化，无法跨语言使用
   >
-  > ```Nino.Serialization v1.0.21```与之前的**所有版本**都**不兼容**，详细请查看使用教程
+  > ```Nino.Serialization v1.0.21.2```与之前的**所有版本**都**不兼容**，详细请查看使用教程（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
   - 测试案例
     - [Test1](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test1.cs) Nino VS Protobuf-net 序列化
   

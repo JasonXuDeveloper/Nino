@@ -1,5 +1,4 @@
 using System;
-using System.Text;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
@@ -243,7 +242,6 @@ namespace Nino.Serialization
 			}
 
 			ref var type = ref GetCompressType();
-			Console.WriteLine(type);
 			fixed (T* ptr = &result)
 			{
 				switch (type)

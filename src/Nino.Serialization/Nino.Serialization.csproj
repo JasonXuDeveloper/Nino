@@ -18,9 +18,9 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.0.21</PackageVersion>
+        <PackageVersion>1.0.21.2</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>Nino.Serialization v1.0.21
+        <PackageReleaseNotes>Nino.Serialization v1.0.21.2
 - [fix] fixed uncompressing unsigned value to signed value error
 - [optimization] use utf16 string to achieve faster read/write with no allocations
 - [important] this version of Nino.Serialization is incompatible with any if the previous versions, old data files are required to regenerate otherwise won't be able to deserialize, more information please visit migration guide in the documentation</PackageReleaseNotes>
