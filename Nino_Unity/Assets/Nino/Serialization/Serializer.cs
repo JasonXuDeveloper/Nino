@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Text;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Reflection;
@@ -13,11 +12,6 @@ namespace Nino.Serialization
 	// ReSharper disable UnusedParameter.Local
 	public static class Serializer
 	{
-		/// <summary>
-		/// Default Encoding
-		/// </summary>
-		private static readonly Encoding DefaultEncoding = Encoding.UTF8;
-
 		/// <summary>
 		/// Custom importer delegate that writes object to writer
 		/// </summary>
@@ -49,33 +43,28 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="val"></param>
-		/// <param name="encoding"></param>
 		/// <param name="option"></param>
 		/// <returns></returns>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static byte[] Serialize<T>(T val, Encoding encoding = null, CompressOption option = CompressOption.Zlib)
+		public static byte[] Serialize<T>(T val, CompressOption option = CompressOption.Zlib)
 		{
-			encoding = encoding ?? DefaultEncoding;
 			Writer writer = ObjectPool<Writer>.Request();
-			writer.Init(encoding, option);
-			return Serialize(val, encoding, writer, option);
+			writer.Init(option);
+			return Serialize(val, writer, option);
 		}
 
 		/// <summary>
 		/// Serialize a NinoSerialize object
 		/// </summary>
 		/// <param name="val"></param>
-		/// <param name="encoding"></param>
 		/// <param name="option"></param>
 		/// <returns></returns>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public static byte[] Serialize(object val, Encoding encoding = null,
-			CompressOption option = CompressOption.Zlib)
+		public static byte[] Serialize(object val, CompressOption option = CompressOption.Zlib)
 		{
-			encoding = encoding ?? DefaultEncoding;
 			Writer writer = ObjectPool<Writer>.Request();
-			writer.Init(encoding, option);
-			return Serialize(val, encoding, writer, option);
+			writer.Init(option);
+			return Serialize(val, writer, option);
 		}
 
 		/// <summary>
@@ -83,13 +72,11 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <typeparam name="T"></typeparam>
 		/// <param name="val"></param>
-		/// <param name="encoding"></param>
 		/// <param name="writer"></param>
 		/// <param name="option"></param>
 		/// <param name="returnValue"></param>
 		/// <returns></returns>
-		internal static byte[] Serialize<T>(T val, Encoding encoding, Writer writer, CompressOption option,
-			bool returnValue = true)
+		internal static byte[] Serialize<T>(T val, Writer writer, CompressOption option, bool returnValue = true)
 		{
 			Type type = typeof(T);
 			bool boxed = false;
@@ -109,8 +96,7 @@ namespace Nino.Serialization
 			{
 				if (returnValue)
 				{
-					writer.Init(encoding,
-						TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
+					writer.Init(TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
 				}
 
 				if (boxed)
@@ -159,7 +145,7 @@ namespace Nino.Serialization
 			}
 
 			//reflection type
-			return Serialize(type, val, encoding ?? DefaultEncoding, writer, option, returnValue, true, true);
+			return Serialize(type, val, writer, option, returnValue, true, true);
 		}
 
 		/// <summary>
@@ -167,7 +153,6 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="type"></param>
 		/// <param name="value"></param>
-		/// <param name="encoding"></param>
 		/// <param name="writer"></param>
 		/// <param name="option"></param>
 		/// <param name="returnValue"></param>
@@ -179,9 +164,8 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidOperationException"></exception>
 		/// <exception cref="NullReferenceException"></exception>
 		// ReSharper disable CognitiveComplexity
-		internal static byte[] Serialize<T>(Type type, T value, Encoding encoding, Writer writer,
-				CompressOption option = CompressOption.Zlib, bool returnValue = true, bool skipBasicCheck = false,
-				bool skipCodeGenCheck = false,
+		internal static byte[] Serialize<T>(Type type, T value, Writer writer, CompressOption option = CompressOption.Zlib,
+				bool returnValue = true, bool skipBasicCheck = false, bool skipCodeGenCheck = false,
 				bool skipGenericCheck = false, bool skipEnumCheck = false)
 			// ReSharper restore CognitiveComplexity
 		{
@@ -207,8 +191,7 @@ namespace Nino.Serialization
 
 				if (returnValue)
 				{
-					writer.Init(encoding,
-						TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
+					writer.Init(TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
 				}
 
 				if (boxed)
@@ -233,14 +216,14 @@ namespace Nino.Serialization
 			if (writer == null)
 			{
 				writer = ObjectPool<Writer>.Request();
-				writer.Init(encoding, option);
+				writer.Init(option);
 			}
 
 			//enum			
 			if (!skipEnumCheck && TypeModel.IsEnum(type))
 			{
 				type = Enum.GetUnderlyingType(type);
-				return Serialize(type, value, encoding, writer, option, returnValue);
+				return Serialize(type, value, writer, option, returnValue);
 			}
 
 			//code generated type
@@ -378,7 +361,7 @@ namespace Nino.Serialization
 							$"{type.FullName}.{model.Members[min].Name} is null, cannot serialize");
 					}
 
-					Serialize(val, encoding, writer, option, false);
+					Serialize(val, writer, option, false);
 					min++;
 				}
 			}

@@ -25,11 +25,6 @@ namespace Nino.Serialization
 		private ExtensibleBuffer<byte> buffer;
 
 		/// <summary>
-		/// encoding for string
-		/// </summary>
-		private Encoding readerEncoding;
-
-		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
 		private int position;
@@ -62,11 +57,10 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
-		/// <param name="encoding"></param>
 		/// <param name="option"></param>
-		public Reader(byte[] data, int outputLength, Encoding encoding, CompressOption option = CompressOption.Zlib)
+		public Reader(byte[] data, int outputLength, CompressOption option = CompressOption.Zlib)
 		{
-			Init(data, outputLength, encoding, option);
+			Init(data, outputLength, option);
 		}
 
 		/// <summary>
@@ -74,10 +68,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
-		/// <param name="encoding"></param>
 		/// <param name="option"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void Init(IntPtr data, ref int outputLength, Encoding encoding, CompressOption option)
+		private void Init(IntPtr data, ref int outputLength, CompressOption option)
 		{
 			if (buffer == null)
 			{
@@ -93,7 +86,6 @@ namespace Nino.Serialization
 			}
 
 			buffer.CopyFrom((byte*)data, 0, 0, outputLength);
-			readerEncoding = encoding;
 			position = 0;
 			_length = outputLength;
 			_option = option;
@@ -108,24 +100,23 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
-		/// <param name="encoding"></param>
 		/// <param name="compressOption"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Init(Span<byte> data, int outputLength, Encoding encoding, CompressOption compressOption)
+		public void Init(Span<byte> data, int outputLength, CompressOption compressOption)
 		{
 			switch (compressOption)
 			{
 				case CompressOption.NoCompression:
 					fixed (byte* ptr = &data.GetPinnableReference())
 					{
-						Init((IntPtr)ptr, ref outputLength, encoding, compressOption);
+						Init((IntPtr)ptr, ref outputLength, compressOption);
 					}
 
 					break;
 				case CompressOption.Lz4:
 					throw new NotSupportedException("not support lz4 yet");
 				case CompressOption.Zlib:
-					Init(CompressMgr.Decompress(data.ToArray(), out var length), ref length, encoding, compressOption);
+					Init(CompressMgr.Decompress(data.ToArray(), out var length), ref length, compressOption);
 					break;
 			}
 		}
@@ -135,24 +126,23 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="data"></param>
 		/// <param name="outputLength"></param>
-		/// <param name="encoding"></param>
 		/// <param name="compressOption"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Init(byte[] data, int outputLength, Encoding encoding, CompressOption compressOption)
+		public void Init(byte[] data, int outputLength, CompressOption compressOption)
 		{
 			switch (compressOption)
 			{
 				case CompressOption.NoCompression:
 					fixed (byte* ptr = data)
 					{
-						Init((IntPtr)ptr, ref outputLength, encoding, compressOption);
+						Init((IntPtr)ptr, ref outputLength, compressOption);
 					}
 
 					break;
 				case CompressOption.Lz4:
 					throw new NotSupportedException("not support lz4 yet");
 				case CompressOption.Zlib:
-					Init(CompressMgr.Decompress(data, out var length), ref length, encoding, compressOption);
+					Init(CompressMgr.Decompress(data, out var length), ref length, compressOption);
 					break;
 			}
 		}
@@ -178,7 +168,7 @@ namespace Nino.Serialization
 		[Obsolete("use generic method instead")]
 		// ReSharper disable CognitiveComplexity
 		public object ReadCommonVal(Type type) =>
-			Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, readerEncoding, this, _option, false);
+			Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, this, _option, false);
 
 		/// <summary>
 		/// Read primitive value from binary writer, DO NOT USE THIS FOR CUSTOM EXPORTER
@@ -187,7 +177,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		// ReSharper disable CognitiveComplexity
 		public T ReadCommonVal<T>() =>
-			Deserializer.Deserialize<T>(buffer.AsSpan(position, _length - position), readerEncoding, this, _option,
+			Deserializer.Deserialize<T>(buffer.AsSpan(position, _length - position), this, _option,
 				false);
 
 		/// <summary>
@@ -253,45 +243,42 @@ namespace Nino.Serialization
 			}
 
 			ref var type = ref GetCompressType();
-			switch (type)
+			Console.WriteLine(type);
+			fixed (T* ptr = &result)
 			{
-				case CompressType.Byte:
-					Unsafe.As<T, byte>(ref result) = ReadByte();
-					return;
-				case CompressType.SByte:
-					switch (result)
-					{
-						case int _:
-							var temp = (int)ReadSByte();
-							Unsafe.As<T, int>(ref result) = temp;
-							return;
-						case long _:
-							var temp2 = (long)ReadSByte();
-							Unsafe.As<T, long>(ref result) = temp2;
-							return;
-						default:
-							throw new InvalidOperationException("invalid compress type");
-					}
-				case CompressType.Int16:
-					Unsafe.As<T, short>(ref result) = ReadInt16();
-					return;
-				case CompressType.UInt16:
-					Unsafe.As<T, ushort>(ref result) = ReadUInt16();
-					return;
-				case CompressType.Int32:
-					Unsafe.As<T, int>(ref result) = ReadInt32();
-					return;
-				case CompressType.UInt32:
-					Unsafe.As<T, uint>(ref result) = ReadUInt32();
-					return;
-				case CompressType.Int64:
-					Unsafe.As<T, long>(ref result) = ReadInt64();
-					return;
-				case CompressType.UInt64:
-					Unsafe.As<T, ulong>(ref result) = ReadUInt64();
-					return;
-				default:
-					throw new InvalidOperationException("invalid compress type");
+				switch (type)
+				{
+					case CompressType.Byte:
+						Unsafe.As<T, byte>(ref result) = ReadByte();
+						return;
+					case CompressType.SByte:
+						Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
+						Unsafe.As<T, sbyte>(ref result) = ReadSByte();
+						return;
+					case CompressType.Int16:
+						Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
+						Unsafe.As<T, short>(ref result) = ReadInt16();
+						return;
+					case CompressType.UInt16:
+						Unsafe.As<T, ushort>(ref result) = ReadUInt16();
+						return;
+					case CompressType.Int32:
+						Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
+						Unsafe.As<T, int>(ref result) = ReadInt32();
+						return;
+					case CompressType.UInt32:
+						Unsafe.As<T, uint>(ref result) = ReadUInt32();
+						return;
+					case CompressType.Int64:
+						Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
+						Unsafe.As<T, long>(ref result) = ReadInt64();
+						return;
+					case CompressType.UInt64:
+						Unsafe.As<T, ulong>(ref result) = ReadUInt64();
+						return;
+					default:
+						throw new InvalidOperationException("invalid compress type");
+				}
 			}
 		}
 
@@ -585,19 +572,10 @@ namespace Nino.Serialization
 				return String.Empty;
 			}
 
-			//Read directly
-			if (len < 1024)
-			{
-				byte* buf = stackalloc byte[len];
-				ReadToBuffer(buf, len);
-				return readerEncoding.GetString(buf, len);
-			}
-
-			byte* buff = (byte*)Marshal.AllocHGlobal(len);
-			ReadToBuffer(buff, len);
-			var ret = readerEncoding.GetString(buff, len);
-			Marshal.FreeHGlobal((IntPtr)buff);
-			return ret;
+			byte* ptr = buffer.Data + position;
+			position += len;
+			char* chars = (char*)ptr;
+			return new string(chars, 0, len / ConstMgr.SizeOfUShort);
 		}
 
 		/// <summary>
@@ -632,9 +610,7 @@ namespace Nino.Serialization
 			int i = 0;
 			while (i < len)
 			{
-				var obj = Deserializer.Deserialize(elemType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this,
-					_option,
-					false);
+				var obj = Deserializer.Deserialize(elemType, ConstMgr.Null, ConstMgr.Null, this, _option, false);
 #if ILRuntime
 				arr.SetValue(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj), i++);
 				continue;
@@ -685,9 +661,7 @@ namespace Nino.Serialization
 			int i = 0;
 			while (i++ < len)
 			{
-				var obj = Deserializer.Deserialize(elemType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this,
-					_option,
-					false);
+				var obj = Deserializer.Deserialize(elemType, ConstMgr.Null, ConstMgr.Null, this, _option, false);
 #if ILRuntime
 				arr?.Add(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj));
 				continue;
@@ -746,12 +720,9 @@ namespace Nino.Serialization
 			while (i++ < len)
 			{
 				//read key
-				var key = Deserializer.Deserialize(keyType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this, _option,
-					false);
+				var key = Deserializer.Deserialize(keyType, ConstMgr.Null, ConstMgr.Null, this, _option, false);
 				//read value
-				var val = Deserializer.Deserialize(valueType, ConstMgr.Null, ConstMgr.Null, readerEncoding, this,
-					_option,
-					false);
+				var val = Deserializer.Deserialize(valueType, ConstMgr.Null, ConstMgr.Null, this, _option, false);
 
 				//add
 #if ILRuntime

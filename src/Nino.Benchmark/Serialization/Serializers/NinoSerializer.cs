@@ -7,12 +7,12 @@ namespace Nino.Benchmark.Serializers
     {
         public override T Deserialize<T>(object input)
         {
-            return Deserializer.Deserialize<T>((byte[])input, Encoding.UTF8);
+            return Deserializer.Deserialize<T>((byte[])input);
         }
 
         public override object Serialize<T>(T input)
         {
-            return Serializer.Serialize(input, Encoding.UTF8);
+            return Serializer.Serialize(input);
         }
 
         public override string ToString()
@@ -24,12 +24,12 @@ namespace Nino.Benchmark.Serializers
     {
         public override T Deserialize<T>(object input)
         {
-            return Deserializer.Deserialize<T>((byte[])input, Encoding.UTF8, CompressOption.NoCompression);
+            return Deserializer.Deserialize<T>((byte[])input, CompressOption.NoCompression);
         }
 
         public override object Serialize<T>(T input)
         {
-            return Serializer.Serialize(input, Encoding.UTF8, CompressOption.NoCompression);
+            return Serializer.Serialize(input, CompressOption.NoCompression);
         }
 
         public override string ToString()

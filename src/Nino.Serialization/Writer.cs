@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
@@ -24,11 +23,6 @@ namespace Nino.Serialization
 		/// Buffer that stores data
 		/// </summary>
 		private ExtensibleBuffer<byte> buffer;
-
-		/// <summary>
-		/// encoding for string
-		/// </summary>
-		private Encoding writerEncoding;
 
 		/// <summary>
 		/// compress option
@@ -70,19 +64,17 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Create a nino writer
 		/// </summary>
-		/// <param name="encoding"></param>
 		/// <param name="option"></param>
-		public Writer(Encoding encoding, [In] CompressOption option = CompressOption.Zlib)
+		public Writer([In] CompressOption option = CompressOption.Zlib)
 		{
-			Init(encoding, option);
+			Init(option);
 		}
 
 		/// <summary>
 		/// Init writer
 		/// </summary>
-		/// <param name="encoding"></param>
 		/// <param name="compressOption"></param>
-		public void Init(Encoding encoding, [In] CompressOption compressOption)
+		public void Init([In] CompressOption compressOption)
 		{
 			if (buffer == null)
 			{
@@ -97,7 +89,6 @@ namespace Nino.Serialization
 				}
 			}
 
-			writerEncoding = encoding;
 			position = 0;
 			option = compressOption;
 		}
@@ -111,7 +102,7 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		[Obsolete("use generic method instead")]
 		public void WriteCommonVal(Type type, [In] object val) =>
-			Serializer.Serialize(val, writerEncoding, this, option, false);
+			Serializer.Serialize(val, this, option, false);
 
 		/// <summary>
 		/// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
@@ -120,7 +111,7 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidDataException"></exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void WriteCommonVal<T>([In] T val) =>
-			Serializer.Serialize(val, writerEncoding, this, option, false);
+			Serializer.Serialize(val, this, option, false);
 
 		/// <summary>
 		/// Write byte[]
@@ -242,30 +233,12 @@ namespace Nino.Serialization
 				return;
 			}
 
-			int bufferSize = writerEncoding.GetMaxByteCount(val.Length);
-			if (bufferSize < 1024)
+			var strSpan = val.AsSpan(); // 2*len, utf16 str
+			int len = strSpan.Length * ConstMgr.SizeOfUShort;
+			fixed (char* first = &strSpan.GetPinnableReference())
 			{
-				byte* charBuffer = stackalloc byte[bufferSize];
-				fixed (char* pValue = val)
-				{
-					int byteCount = writerEncoding.GetBytes(pValue, val.Length, charBuffer, bufferSize);
-					CompressAndWrite(byteCount);
-					Write(charBuffer, ref byteCount);
-				}
-			}
-			else
-			{
-				byte* buff = (byte*)Marshal.AllocHGlobal(bufferSize);
-				fixed (char* pValue = val)
-				{
-					// ReSharper disable AssignNullToNotNullAttribute
-					int byteCount = writerEncoding.GetBytes(pValue, val.Length, buff, bufferSize);
-					// ReSharper restore AssignNullToNotNullAttribute
-					CompressAndWrite(byteCount);
-					Write(buff, ref byteCount);
-				}
-
-				Marshal.FreeHGlobal((IntPtr)buff);
+				CompressAndWrite(len);
+				Write((byte*)first, ref len);
 			}
 		}
 
@@ -464,17 +437,17 @@ namespace Nino.Serialization
 						return;
 					}
 
-					buffer[position++] = (byte)CompressType.Int16;
+					buffer[position++] = (byte)CompressType.UInt16;
 					Write(ref num, ConstMgr.SizeOfShort);
 					return;
 				}
 
-				buffer[position++] = (byte)CompressType.Int32;
+				buffer[position++] = (byte)CompressType.UInt32;
 				Write(ref num, ConstMgr.SizeOfInt);
 				return;
 			}
 
-			buffer[position++] = (byte)CompressType.Int64;
+			buffer[position++] = (byte)CompressType.UInt64;
 			Write(ref num, ConstMgr.SizeOfLong);
 		}
 
@@ -511,12 +484,12 @@ namespace Nino.Serialization
 					return;
 				}
 
-				buffer[position++] = (byte)CompressType.Int16;
+				buffer[position++] = (byte)CompressType.UInt16;
 				Write(ref num, ConstMgr.SizeOfShort);
 				return;
 			}
 
-			buffer[position++] = (byte)CompressType.Int32;
+			buffer[position++] = (byte)CompressType.UInt32;
 			Write(ref num, ConstMgr.SizeOfInt);
 		}
 

@@ -10,6 +10,56 @@ namespace Nino.UnitTests
     public class IssueTest
     {
         [TestClass]
+        public class Issue52
+        {
+            [NinoSerialize]
+            public partial class NinoTestData
+            {
+                [NinoMember(1)] public int X;
+                [NinoMember(2)] public long Y;
+            }
+
+            [TestMethod]
+            public void RunTest()
+            {
+                var dt = new NinoTestData()
+                {
+                    X = -136, Y = 8
+                };
+                
+                var buf = Serializer.Serialize(dt);
+                var dt2 = Deserializer.Deserialize<NinoTestData>(buf);
+                
+                Assert.IsTrue(dt.X == dt2.X);
+                Assert.IsTrue(dt.Y == dt2.Y);
+
+                dt = new NinoTestData()
+                {
+                    X = sbyte.MinValue,
+                    Y = short.MinValue
+                };
+                
+                buf = Serializer.Serialize(dt);
+                dt2 = Deserializer.Deserialize<NinoTestData>(buf);
+                
+                Assert.IsTrue(dt.X == dt2.X);
+                Assert.IsTrue(dt.Y == dt2.Y);
+                
+                dt = new NinoTestData()
+                {
+                    X = int.MinValue,
+                    Y = long.MinValue
+                };
+                
+                buf = Serializer.Serialize(dt);
+                dt2 = Deserializer.Deserialize<NinoTestData>(buf);
+                
+                Assert.IsTrue(dt.X == dt2.X);
+                Assert.IsTrue(dt.Y == dt2.Y);
+            }
+        }
+        
+        [TestClass]
         public class Issue41
         {
             [NinoSerialize]
