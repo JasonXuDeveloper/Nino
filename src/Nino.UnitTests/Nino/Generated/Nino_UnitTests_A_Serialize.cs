@@ -9,13 +9,21 @@ namespace Nino.UnitTests
             #region NINO_CODEGEN
             public override void Serialize(A value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 writer.CompressAndWrite(value.Val);
             }
 
             public override A Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 A value = new A();
-                value.Val =  (System.Int32)reader.DecompressAndReadNumber();
+                value.Val = reader.DecompressAndReadNumber<System.Int32>();
                 return value;
             }
             #endregion

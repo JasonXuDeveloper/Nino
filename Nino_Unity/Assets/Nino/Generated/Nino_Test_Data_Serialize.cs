@@ -9,6 +9,12 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(Data value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 writer.CompressAndWrite(ref value.x);
                 writer.Write(value.y);
                 writer.CompressAndWrite(ref value.z);
@@ -22,6 +28,8 @@ namespace Nino.Test
 
             public override Data Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 Data value = new Data();
                 reader.DecompressAndReadNumber<System.Int32>(ref value.x);
                 reader.Read<System.Int16>(ref value.y, Nino.Shared.Mgr.ConstMgr.SizeOfShort);

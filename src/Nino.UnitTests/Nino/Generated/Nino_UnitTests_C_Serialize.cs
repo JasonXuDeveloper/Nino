@@ -9,9 +9,16 @@ namespace Nino.UnitTests
             #region NINO_CODEGEN
             public override void Serialize(C value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 writer.Write(value.Name);
                 if(value.As != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.As.Count);
                     foreach (var entry in value.As)
                     {
@@ -20,20 +27,22 @@ namespace Nino.UnitTests
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
             }
 
             public override C Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 C value = new C();
                 value.Name = reader.ReadString();
-                value.As = new System.Collections.Generic.List<Nino.UnitTests.A>(reader.ReadLength());
+                if(reader.ReadBool()){value.As = new System.Collections.Generic.List<Nino.UnitTests.A>(reader.ReadLength());
                 for(int i = 0, cnt = value.As.Capacity; i < cnt; i++)
                 {
                     var value_As_i = Nino.UnitTests.A.NinoSerializationHelper.Deserialize(reader);
                     value.As.Add(value_As_i);
-                }
+                }}
                 return value;
             }
             #endregion

@@ -167,6 +167,12 @@ namespace Nino.UnitTests
                     #region NINO_CODEGEN
                     public override void Serialize(GamePatcher2 value, Nino.Serialization.Writer writer)
                     {
+                        if(value == null)
+                        {
+                            writer.Write(false);
+                            return;
+                        }
+                        writer.Write(true);
                         writer.Write(value.StaticValidityDateTime);
                         writer.CompressAndWrite(ref value.CCC);
                         writer.Write(value.Key);
@@ -174,6 +180,8 @@ namespace Nino.UnitTests
 
                     public override GamePatcher2 Deserialize(Nino.Serialization.Reader reader)
                     {
+                        if(!reader.ReadBool())
+                            return null;
                         GamePatcher2 value = new GamePatcher2();
                         value.StaticValidityDateTime = reader.ReadDateTime();
                         reader.DecompressAndReadNumber<System.Int32>(ref value.CCC);

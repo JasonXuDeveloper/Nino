@@ -562,6 +562,7 @@ namespace Nino.Serialization
 		public string ReadString()
 		{
 			if (EndOfReader) return default;
+			if (!ReadBool()) return null;
 
 			int len = DecompressAndReadNumber<int>();
 			//empty string -> no gc
@@ -594,6 +595,8 @@ namespace Nino.Serialization
 			}
 
 			//other type
+			//check null
+			if (!ReadBool()) return null;
 			var elemType = type.GetElementType();
 			if (elemType == null)
 			{
@@ -638,6 +641,8 @@ namespace Nino.Serialization
 			}
 
 			//other
+			//check null
+			if (!ReadBool()) return null;
 			var elemType = type.GenericTypeArguments[0];
 #if ILRuntime
 			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
@@ -680,6 +685,7 @@ namespace Nino.Serialization
 		public IDictionary ReadDictionary(Type type)
 		{
 			if (EndOfReader) return default;
+			if (!ReadBool()) return null;
 
 			//parse dict type
 			var args = type.GetGenericArguments();

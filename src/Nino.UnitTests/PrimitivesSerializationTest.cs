@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Nino.Serialization;
 
 namespace Nino.UnitTests
 {
@@ -13,28 +14,22 @@ namespace Nino.UnitTests
     [TestClass]
     public class PrimitivesSerializationTest
     {
-        /*
-         types for unit test
-            public static readonly Type ByteType = typeof(byte);
-            public static readonly Type SByteType = typeof(sbyte);
-            public static readonly Type ShortType = typeof(short);
-            public static readonly Type UShortType = typeof(ushort);
-            public static readonly Type IntType = typeof(int);
-            public static readonly Type UIntType = typeof(uint);
-            public static readonly Type LongType = typeof(long);
-            public static readonly Type ULongType = typeof(ulong);
-            public static readonly Type StringType = typeof(string);
-            public static readonly Type BoolType = typeof(bool);
-            public static readonly Type DecimalType = typeof(decimal);
-            public static readonly Type DoubleType = typeof(double);
-            public static readonly Type FloatType = typeof(float);
-            public static readonly Type CharType = typeof(char);
-            public static readonly Type DateTimeType = typeof(DateTime);
+        [NinoSerialize]
+        public struct EmptyStruct
+        {
             
-            Array of the above types
-            List of the above types
-            Dictionary of some of the above types
-         */
+        }
+        
+        [TestMethod]
+        public void TestEmptyStruct()
+        {
+            var val = new EmptyStruct();
+            byte[] buf = Serialization.Serializer.Serialize(val, CompressOption.NoCompression);
+            EmptyStruct val2 =
+                Serialization.Deserializer.Deserialize<EmptyStruct>(new ArraySegment<byte>(buf, 0, buf.Length), CompressOption.NoCompression);
+            Assert.AreEqual(val, val2);
+        }
+        
 
         [TestMethod]
         public void TestEnum()

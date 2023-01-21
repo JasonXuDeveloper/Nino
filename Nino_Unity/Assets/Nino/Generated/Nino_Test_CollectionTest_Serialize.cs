@@ -9,8 +9,15 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(CollectionTest value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 if(value.a != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.a.Count);
                     foreach (var entry in value.a)
                     {
@@ -19,10 +26,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.b != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.b.Count);
                     foreach (var entry in value.b)
                     {
@@ -31,10 +39,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.c != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.c.Count);
                     foreach (var entry in value.c)
                     {
@@ -44,10 +53,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.d != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.d.Count);
                     foreach (var entry in value.d)
                     {
@@ -57,10 +67,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.e != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.e.Count);
                     foreach (var entry in value.e)
                     {
@@ -70,49 +81,51 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
             }
 
             public override CollectionTest Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 CollectionTest value = new CollectionTest();
-                value.a = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
+                if(reader.ReadBool()){value.a = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
                 for(int i = 0, cnt = value.a.Capacity; i < cnt; i++)
                 {
-                    var value_a_i = reader.DecompressAndReadNumber<System.Int32>();
+                    var value_a_i = reader.DecompressAndReadNumber<System.Int32>();;
                     value.a.Add(value_a_i);
-                }
-                value.b = new System.Collections.Generic.List<System.String>(reader.ReadLength());
+                }}
+                if(reader.ReadBool()){value.b = new System.Collections.Generic.List<System.String>(reader.ReadLength());
                 for(int i = 0, cnt = value.b.Capacity; i < cnt; i++)
                 {
                     var value_b_i = reader.ReadString();
                     value.b.Add(value_b_i);
-                }
-                var value_c_len = reader.ReadLength();
+                }}
+                if(reader.ReadBool()){                var value_c_len = reader.ReadLength();
                 value.c = new System.Collections.Generic.Dictionary<System.Int32,System.Boolean>(value_c_len);
                 for(int i = 0; i < value_c_len; i++)
                 {
-                    var value_c_key = reader.DecompressAndReadNumber<System.Int32>();
+                    var value_c_key = reader.DecompressAndReadNumber<System.Int32>();;
                     System.Boolean value_c_val = reader.ReadBool();
                     value.c[value_c_key] = value_c_val;
-                }
-                var value_d_len = reader.ReadLength();
+                }}
+                if(reader.ReadBool()){                var value_d_len = reader.ReadLength();
                 value.d = new System.Collections.Generic.Dictionary<System.String,System.Boolean>(value_d_len);
                 for(int i = 0; i < value_d_len; i++)
                 {
                     var value_d_key = reader.ReadString();
                     System.Boolean value_d_val = reader.ReadBool();
                     value.d[value_d_key] = value_d_val;
-                }
-                var value_e_len = reader.ReadLength();
+                }}
+                if(reader.ReadBool()){                var value_e_len = reader.ReadLength();
                 value.e = new System.Collections.Generic.Dictionary<System.Byte,System.String>(value_e_len);
                 for(int i = 0; i < value_e_len; i++)
                 {
                     System.Byte value_e_key = reader.ReadByte();
                     var value_e_val = reader.ReadString();
                     value.e[value_e_key] = value_e_val;
-                }
+                }}
                 return value;
             }
             #endregion

@@ -9,9 +9,16 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(NestedData2 value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 writer.Write(value.name);
                 if(value.ps != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.ps.Length);
                     foreach (var entry in value.ps)
                     {
@@ -20,10 +27,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.vs != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.vs.Count);
                     foreach (var entry in value.vs)
                     {
@@ -32,26 +40,28 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
             }
 
             public override NestedData2 Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 NestedData2 value = new NestedData2();
                 value.name = reader.ReadString();
-                value.ps = new Nino.Test.Data[reader.ReadLength()];
+                if(reader.ReadBool()){value.ps = new Nino.Test.Data[reader.ReadLength()];
                 for(int i = 0, cnt = value.ps.Length; i < cnt; i++)
                 {
                     var value_ps_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                     value.ps[i] = value_ps_i;
-                }
-                value.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
+                }}
+                if(reader.ReadBool()){value.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
                 for(int i = 0, cnt = value.vs.Capacity; i < cnt; i++)
                 {
-                    var value_vs_i = reader.DecompressAndReadNumber<System.Int32>();
+                    var value_vs_i = reader.DecompressAndReadNumber<System.Int32>();;
                     value.vs.Add(value_vs_i);
-                }
+                }}
                 return value;
             }
             #endregion

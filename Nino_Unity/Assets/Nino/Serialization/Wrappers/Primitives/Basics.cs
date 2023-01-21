@@ -20,6 +20,12 @@ namespace Nino.Serialization
     {
         public override unsafe void Serialize(bool[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             int len = val.Length;
             writer.CompressAndWrite(ref len);
             if (len > 0)
@@ -33,6 +39,7 @@ namespace Nino.Serialization
 
         public override unsafe bool[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             bool[] arr;
             if (len == 0)
@@ -56,6 +63,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<bool> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -65,6 +78,7 @@ namespace Nino.Serialization
 
         public override List<bool> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<bool>(len);
             //read item
@@ -94,6 +108,12 @@ namespace Nino.Serialization
     {
         public override unsafe void Serialize(char[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             int len = val.Length;
             writer.CompressAndWrite(ref len);
             if (len > 0)
@@ -108,6 +128,7 @@ namespace Nino.Serialization
 
         public override unsafe char[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             char[] arr;
             if (len == 0)
@@ -130,6 +151,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<char> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -139,6 +166,7 @@ namespace Nino.Serialization
 
         public override List<char> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<char>(len);
             //read item
@@ -168,6 +196,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(string[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Length);
             foreach (var v in val)
             {
@@ -177,6 +211,7 @@ namespace Nino.Serialization
 
         public override string[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new string[len];
             int i = 0;
@@ -192,6 +227,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<string> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -201,6 +242,7 @@ namespace Nino.Serialization
 
         public override List<string> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<string>(len);
             //read item
@@ -230,6 +272,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(DateTime[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Length);
             foreach (var v in val)
             {
@@ -239,6 +287,7 @@ namespace Nino.Serialization
 
         public override DateTime[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new DateTime[len];
             int i = 0;
@@ -254,6 +303,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<DateTime> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -263,6 +318,7 @@ namespace Nino.Serialization
 
         public override List<DateTime> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<DateTime>(len);
             int i = 0;
@@ -281,6 +337,12 @@ namespace Nino.Serialization
         
         public override void Serialize(T val, Writer writer)
         {
+            if (val == null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             if(Importer == null)
                 throw new InvalidOperationException($"Importer is null for type: {typeof(T)}");
             Importer(val, writer);
@@ -288,6 +350,7 @@ namespace Nino.Serialization
 
         public override T Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return default;
             if(Exporter == null)
                 throw new InvalidOperationException($"Exporter is null for type: {typeof(T)}");
             return Exporter(reader);

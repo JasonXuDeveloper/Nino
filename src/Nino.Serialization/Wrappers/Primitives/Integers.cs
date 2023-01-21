@@ -20,11 +20,18 @@ namespace Nino.Serialization
     {
         public override void Serialize(byte[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.Write(val);
         }
 
         public override byte[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             return len != 0 ? reader.ReadBytes(len) : Array.Empty<byte>();
         }
@@ -39,6 +46,7 @@ namespace Nino.Serialization
 
         public override List<byte> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<byte>(len);
             //read item
@@ -69,6 +77,12 @@ namespace Nino.Serialization
     {
         public override unsafe void Serialize(sbyte[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             int len = val.Length;
             writer.CompressAndWrite(ref len);
             if (len > 0)
@@ -82,6 +96,7 @@ namespace Nino.Serialization
 
         public override unsafe sbyte[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             sbyte[] arr;
             if (len == 0)
@@ -105,6 +120,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<sbyte> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -114,6 +135,7 @@ namespace Nino.Serialization
 
         public override List<sbyte> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<sbyte>(len);
             //read item
@@ -143,6 +165,12 @@ namespace Nino.Serialization
     {
         public override unsafe void Serialize(short[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             int len = val.Length;
             writer.CompressAndWrite(ref len);
             if (len > 0)
@@ -157,6 +185,7 @@ namespace Nino.Serialization
 
         public override unsafe short[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             short[] arr;
             if (len == 0)
@@ -179,6 +208,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<short> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -188,6 +223,7 @@ namespace Nino.Serialization
 
         public override List<short> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<short>(len);
             //read item
@@ -217,6 +253,12 @@ namespace Nino.Serialization
     {
         public override unsafe void Serialize(ushort[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             int len = val.Length;
             writer.CompressAndWrite(ref len);
             if (len > 0)
@@ -231,6 +273,7 @@ namespace Nino.Serialization
 
         public override unsafe ushort[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             ushort[] arr;
             if (len == 0)
@@ -253,6 +296,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<ushort> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -262,6 +311,7 @@ namespace Nino.Serialization
 
         public override List<ushort> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<ushort>(len);
             //read item
@@ -291,6 +341,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(int[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Length);
             foreach (var v in val)
             {
@@ -300,6 +356,7 @@ namespace Nino.Serialization
 
         public override int[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new int[len];
             //read item
@@ -316,6 +373,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<int> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -325,6 +388,7 @@ namespace Nino.Serialization
 
         public override List<int> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<int>(len);
             //read item
@@ -354,6 +418,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(uint[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Length);
             foreach (var v in val)
             {
@@ -363,6 +433,7 @@ namespace Nino.Serialization
 
         public override uint[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new uint[len];
             //read item
@@ -379,6 +450,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<uint> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -388,6 +465,7 @@ namespace Nino.Serialization
 
         public override List<uint> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<uint>(len);
             //read item
@@ -417,6 +495,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(long[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Length);
             foreach (var v in val)
             {
@@ -426,6 +510,7 @@ namespace Nino.Serialization
 
         public override long[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new long[len];
             //read item
@@ -442,6 +527,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<long> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -451,6 +542,7 @@ namespace Nino.Serialization
 
         public override List<long> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<long>(len);
             //read item
@@ -480,6 +572,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(ulong[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Length);
             foreach (var v in val)
             {
@@ -489,6 +587,7 @@ namespace Nino.Serialization
 
         public override ulong[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new ulong[len];
             //read item
@@ -505,6 +604,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<ulong> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -514,6 +619,7 @@ namespace Nino.Serialization
 
         public override List<ulong> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<ulong>(len);
             //read item

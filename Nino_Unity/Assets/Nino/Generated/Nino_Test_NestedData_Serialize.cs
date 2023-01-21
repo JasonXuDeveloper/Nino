@@ -9,9 +9,16 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(NestedData value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 writer.Write(value.name);
                 if(value.ps != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.ps.Length);
                     foreach (var entry in value.ps)
                     {
@@ -20,20 +27,22 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
             }
 
             public override NestedData Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 NestedData value = new NestedData();
                 value.name = reader.ReadString();
-                value.ps = new Nino.Test.Data[reader.ReadLength()];
+                if(reader.ReadBool()){value.ps = new Nino.Test.Data[reader.ReadLength()];
                 for(int i = 0, cnt = value.ps.Length; i < cnt; i++)
                 {
                     var value_ps_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                     value.ps[i] = value_ps_i;
-                }
+                }}
                 return value;
             }
             #endregion

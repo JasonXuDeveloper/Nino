@@ -32,7 +32,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
-		private int position;
+		internal int position;
 
 		/// <summary>
 		/// Convert writer to byte
@@ -226,7 +226,14 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public unsafe void Write(string val)
 		{
-			if (string.IsNullOrEmpty(val))
+			if (val is null)
+			{
+				Write(false);
+				return;
+			}
+			Write(true);
+
+			if (val == string.Empty)
 			{
 				Write((byte)CompressType.Byte);
 				Write((byte)0);
@@ -622,8 +629,15 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(Array arr)
 		{
+			//null
+			if (arr == null)
+			{
+				Write(false);
+				return;
+			}
+			Write(true);
 			//empty
-			if (arr == null || arr.Length == 0)
+			if (arr.Length == 0)
 			{
 				//write len
 				CompressAndWrite(0);
@@ -644,8 +658,15 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(IList arr)
 		{
+			//null
+			if (arr == null)
+			{
+				Write(false);
+				return;
+			}
+			Write(true);
 			//empty
-			if (arr == null || arr.Count == 0)
+			if (arr.Count == 0)
 			{
 				//write len
 				CompressAndWrite(0);
@@ -664,8 +685,15 @@ namespace Nino.Serialization
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(IDictionary dictionary)
 		{
+			//null
+			if (dictionary == null)
+			{
+				Write(false);
+				return;
+			}
+			Write(true);
 			//empty
-			if (dictionary == null || dictionary.Count == 0)
+			if (dictionary.Count == 0)
 			{
 				//write len
 				CompressAndWrite(0);

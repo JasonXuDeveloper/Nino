@@ -9,11 +9,18 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(CustomTypeTest value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 writer.WriteCommonVal<UnityEngine.Vector3>(value.v3);
                 writer.Write(value.dt);
                 writer.WriteCommonVal<System.Nullable<System.Int32>>(value.ni);
                 if(value.qs != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.qs.Count);
                     foreach (var entry in value.qs)
                     {
@@ -22,11 +29,12 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 writer.WriteCommonVal<UnityEngine.Matrix4x4>(value.m);
                 if(value.dict != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.dict.Count);
                     foreach (var entry in value.dict)
                     {
@@ -36,10 +44,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.dict2 != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.dict2.Count);
                     foreach (var entry in value.dict2)
                     {
@@ -49,39 +58,41 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
             }
 
             public override CustomTypeTest Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 CustomTypeTest value = new CustomTypeTest();
                 value.v3 = reader.ReadCommonVal<UnityEngine.Vector3>();
                 value.dt = reader.ReadDateTime();
                 value.ni = reader.ReadCommonVal<System.Nullable<System.Int32>>();
-                value.qs = new System.Collections.Generic.List<UnityEngine.Quaternion>(reader.ReadLength());
+                if(reader.ReadBool()){value.qs = new System.Collections.Generic.List<UnityEngine.Quaternion>(reader.ReadLength());
                 for(int i = 0, cnt = value.qs.Capacity; i < cnt; i++)
                 {
                     var value_qs_i = reader.ReadCommonVal<UnityEngine.Quaternion>();
                     value.qs.Add(value_qs_i);
-                }
+                }}
                 value.m = reader.ReadCommonVal<UnityEngine.Matrix4x4>();
-                var value_dict_len = reader.ReadLength();
+                if(reader.ReadBool()){                var value_dict_len = reader.ReadLength();
                 value.dict = new System.Collections.Generic.Dictionary<System.String,System.Int32>(value_dict_len);
                 for(int i = 0; i < value_dict_len; i++)
                 {
                     var value_dict_key = reader.ReadString();
-                    var value_dict_val = reader.DecompressAndReadNumber<System.Int32>();
+                    var value_dict_val = reader.DecompressAndReadNumber<System.Int32>();;
                     value.dict[value_dict_key] = value_dict_val;
-                }
-                var value_dict2_len = reader.ReadLength();
+                }}
+                if(reader.ReadBool()){                var value_dict2_len = reader.ReadLength();
                 value.dict2 = new System.Collections.Generic.Dictionary<System.String,Nino.Test.Data>(value_dict2_len);
                 for(int i = 0; i < value_dict2_len; i++)
                 {
                     var value_dict2_key = reader.ReadString();
                     var value_dict2_val = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
                     value.dict2[value_dict2_key] = value_dict2_val;
-                }
+                }}
                 return value;
             }
             #endregion

@@ -170,7 +170,7 @@ namespace Nino.Serialization
 			// ReSharper restore CognitiveComplexity
 		{
 			bool boxed = typeof(T) != type;
-
+			
 			//ILRuntime
 #if ILRuntime
 			if(value is ILRuntime.Runtime.Intepreter.ILTypeInstance ins)
@@ -252,6 +252,21 @@ namespace Nino.Serialization
 				return ret;
 			}
 
+			//null check
+			if (value == null)
+			{
+				writer.Write(false);
+				byte[] ret = ConstMgr.Null;
+				if (returnValue)
+				{
+					ret = writer.ToBytes();
+					ObjectPool<Writer>.Return(writer);
+				}
+
+				return ret;
+			}
+			
+			
 			//array
 			if (!skipGenericCheck)
 			{
@@ -314,6 +329,9 @@ namespace Nino.Serialization
 
 			void Write()
 			{
+				//not null
+				writer.Write(true);
+				
 				//only include all model need this
 				if (model.IncludeAll)
 				{
@@ -343,25 +361,7 @@ namespace Nino.Serialization
 
 					//try code gen, if no code gen then reflection
 					object val = GetVal(model.Members[min], value);
-					//string/list/dict can be null, other cannot
-					//nullable need to register custom importer
-					if (val == null)
-					{
-						if (type == ConstMgr.StringType ||
-						    (type.IsGenericType &&
-						     (type.GetGenericTypeDefinition() == ConstMgr.ListDefType ||
-						      type.GetGenericTypeDefinition() == ConstMgr.DictDefType)))
-						{
-							writer.CompressAndWrite(0);
-							min++;
-							continue;
-						}
-
-						throw new NullReferenceException(
-							$"{type.FullName}.{model.Members[min].Name} is null, cannot serialize");
-					}
-
-					Serialize(val, writer, option, false);
+					Serialize(type, val, writer, option, false);
 					min++;
 				}
 			}

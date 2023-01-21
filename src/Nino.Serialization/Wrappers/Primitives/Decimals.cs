@@ -20,6 +20,12 @@ namespace Nino.Serialization
     {
         public override unsafe void Serialize(float[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             int len = val.Length;
             writer.CompressAndWrite(ref len);
             if (len > 0)
@@ -34,6 +40,7 @@ namespace Nino.Serialization
 
         public override unsafe float[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             float[] arr;
             if (len == 0)
@@ -56,6 +63,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<float> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -65,6 +78,7 @@ namespace Nino.Serialization
 
         public override List<float> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<float>(len);
             //read item
@@ -93,6 +107,12 @@ namespace Nino.Serialization
     {
         public override unsafe void Serialize(double[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             int len = val.Length;
             writer.CompressAndWrite(ref len);
             if (len > 0)
@@ -107,6 +127,7 @@ namespace Nino.Serialization
 
         public override unsafe double[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             double[] arr;
             if (len == 0)
@@ -129,6 +150,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<double> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -138,6 +165,7 @@ namespace Nino.Serialization
 
         public override List<double> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<double>(len);
             //read item
@@ -166,6 +194,12 @@ namespace Nino.Serialization
     {
         public override unsafe void Serialize(decimal[] val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             int len = val.Length;
             writer.CompressAndWrite(ref len);
             if (len > 0)
@@ -180,6 +214,7 @@ namespace Nino.Serialization
 
         public override unsafe decimal[] Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             decimal[] arr;
             if (len == 0)
@@ -202,6 +237,12 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<decimal> val, Writer writer)
         {
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
             writer.CompressAndWrite(val.Count);
             foreach (var v in val)
             {
@@ -211,6 +252,7 @@ namespace Nino.Serialization
 
         public override List<decimal> Deserialize(Reader reader)
         {
+            if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
             var arr = new List<decimal>(len);
             //read item

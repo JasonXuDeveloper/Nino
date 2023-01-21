@@ -182,28 +182,19 @@ namespace Nino.Serialization
             //获取泛型参数<T>的实际类型
             var genericArguments = method.GenericArguments;
             var t = genericArguments[0];
-            object r;
-            if (t is ILRuntime.CLR.TypeSystem.CLRType)
-            {
-                r = Activator.CreateInstance(t.ReflectionType);
-            }
-            else
-            {
-                r = ((ILRuntime.CLR.TypeSystem.ILType)t).Instantiate();
-            }
 
             object resultOfThisMethod = null;
             if (@data is byte[] buf)
             {
                 resultOfThisMethod =
-                    Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, r, buf, null, option);
+                    Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, buf, option);
             }
             else if (@data is ArraySegment<byte> seg)
             {
                 resultOfThisMethod =
-                    Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, r, seg, null, option);
+                    Nino.Serialization.Deserializer.Deserialize(t.ReflectionType, seg, option);
             }
-
+            
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);
         }
 
@@ -242,7 +233,7 @@ namespace Nino.Serialization
             intp.Free(ptrOfThisMethod);
 
             var resultOfThisMethod =
-                Nino.Serialization.Serializer.Serialize(t.ReflectionType, @val, null, option);
+                Nino.Serialization.Serializer.Serialize(val, option);
 
             return ILRuntime.Runtime.Intepreter.ILIntepreter.PushObject(ret, mStack, resultOfThisMethod);
         }

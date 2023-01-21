@@ -35,7 +35,9 @@ Definite useful and high performance modules for C# projects, especially for Uni
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行序列化和反序列化，无法跨语言使用
   >
-  > ```Nino.Serialization v1.0.21.2```与之前的**所有版本**都**不兼容**，详细请查看使用教程（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
+  > ```Nino.Serialization v1.1.0```与其前面的**所有版本**都**不兼容**，详细请查看使用教程
+  >
+  > ```Nino.Serialization v1.0.21.2```与其前面的**所有版本**都**不兼容**，详细请查看使用教程（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
   - 测试案例
     - [Test1](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test1.cs) Nino VS Protobuf-net 序列化
   
@@ -104,11 +106,11 @@ Definite useful and high performance modules for C# projects, especially for Uni
   NuGet里搜Nino就好，目前有```Nino.Shared```和```Nino.Serialization```
 
   ```bash
-  PM> Install-Package Nino.Shared -Version 1.0.14
+  PM> Install-Package Nino.Shared -Version 1.0.15
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.0.19.2
+  PM> Install-Package Nino.Serialization -Version 1.1.0
   ```
 
 - 使用src下的代码（复制进自己项目即可）

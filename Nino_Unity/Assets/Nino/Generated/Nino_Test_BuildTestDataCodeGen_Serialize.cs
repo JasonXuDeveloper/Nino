@@ -9,6 +9,12 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(BuildTestDataCodeGen value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 writer.Write(value.a);
                 writer.Write(value.b);
                 writer.Write(value.c);
@@ -25,6 +31,7 @@ namespace Nino.Test
                 writer.Write(value.n);
                 if(value.o != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.o.Count);
                     foreach (var entry in value.o)
                     {
@@ -33,10 +40,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.p != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.p.Count);
                     foreach (var entry in value.p)
                     {
@@ -45,10 +53,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.q != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.q.Length);
                     foreach (var entry in value.q)
                     {
@@ -57,10 +66,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.r != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.r.Length);
                     foreach (var entry in value.r)
                     {
@@ -69,10 +79,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.s != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.s.Count);
                     foreach (var entry in value.s)
                     {
@@ -82,10 +93,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.t != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.t.Count);
                     foreach (var entry in value.t)
                     {
@@ -95,10 +107,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.u != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.u.Count);
                     foreach (var entry in value.u)
                     {
@@ -108,10 +121,11 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
                 if(value.v != null)
                 {
+                    writer.Write(true);
                     writer.CompressAndWrite(value.v.Count);
                     foreach (var entry in value.v)
                     {
@@ -121,12 +135,14 @@ namespace Nino.Test
                 }
                 else
                 {
-                    writer.CompressAndWrite(0);
+                    writer.Write(false);
                 }
             }
 
             public override BuildTestDataCodeGen Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 BuildTestDataCodeGen value = new BuildTestDataCodeGen();
                 reader.Read<System.Byte>(ref value.a, 1);
                 reader.Read<System.SByte>(ref value.b, 1);
@@ -142,57 +158,57 @@ namespace Nino.Test
                 reader.Read<System.Boolean>(ref value.l, 1);
                 reader.Read<System.Char>(ref value.m, Nino.Shared.Mgr.ConstMgr.SizeOfUShort);
                 value.n = reader.ReadString();
-                value.o = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
+                if(reader.ReadBool()){value.o = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
                 for(int i = 0, cnt = value.o.Capacity; i < cnt; i++)
                 {
-                    var value_o_i = reader.DecompressAndReadNumber<System.Int32>();
+                    var value_o_i = reader.DecompressAndReadNumber<System.Int32>();;
                     value.o.Add(value_o_i);
-                }
-                value.p = new System.Collections.Generic.List<Nino.Test.NotIncludeAllClass>(reader.ReadLength());
+                }}
+                if(reader.ReadBool()){value.p = new System.Collections.Generic.List<Nino.Test.NotIncludeAllClass>(reader.ReadLength());
                 for(int i = 0, cnt = value.p.Capacity; i < cnt; i++)
                 {
                     var value_p_i = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     value.p.Add(value_p_i);
-                }
-                value.q = reader.ReadBytes(reader.ReadLength());
-                value.r = new Nino.Test.NotIncludeAllClass[reader.ReadLength()];
+                }}
+                if(reader.ReadBool()) value.q = reader.ReadBytes(reader.ReadLength());
+                if(reader.ReadBool()){value.r = new Nino.Test.NotIncludeAllClass[reader.ReadLength()];
                 for(int i = 0, cnt = value.r.Length; i < cnt; i++)
                 {
                     var value_r_i = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     value.r[i] = value_r_i;
-                }
-                var value_s_len = reader.ReadLength();
+                }}
+                if(reader.ReadBool()){                var value_s_len = reader.ReadLength();
                 value.s = new System.Collections.Generic.Dictionary<System.String,Nino.Test.NotIncludeAllClass>(value_s_len);
                 for(int i = 0; i < value_s_len; i++)
                 {
                     var value_s_key = reader.ReadString();
                     var value_s_val = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     value.s[value_s_key] = value_s_val;
-                }
-                var value_t_len = reader.ReadLength();
+                }}
+                if(reader.ReadBool()){                var value_t_len = reader.ReadLength();
                 value.t = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,System.Int32>(value_t_len);
                 for(int i = 0; i < value_t_len; i++)
                 {
                     var value_t_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
-                    var value_t_val = reader.DecompressAndReadNumber<System.Int32>();
+                    var value_t_val = reader.DecompressAndReadNumber<System.Int32>();;
                     value.t[value_t_key] = value_t_val;
-                }
-                var value_u_len = reader.ReadLength();
+                }}
+                if(reader.ReadBool()){                var value_u_len = reader.ReadLength();
                 value.u = new System.Collections.Generic.Dictionary<System.String,System.Int32>(value_u_len);
                 for(int i = 0; i < value_u_len; i++)
                 {
                     var value_u_key = reader.ReadString();
-                    var value_u_val = reader.DecompressAndReadNumber<System.Int32>();
+                    var value_u_val = reader.DecompressAndReadNumber<System.Int32>();;
                     value.u[value_u_key] = value_u_val;
-                }
-                var value_v_len = reader.ReadLength();
+                }}
+                if(reader.ReadBool()){                var value_v_len = reader.ReadLength();
                 value.v = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,Nino.Test.NotIncludeAllClass>(value_v_len);
                 for(int i = 0; i < value_v_len; i++)
                 {
                     var value_v_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     var value_v_val = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
                     value.v[value_v_key] = value_v_val;
-                }
+                }}
                 return value;
             }
             #endregion

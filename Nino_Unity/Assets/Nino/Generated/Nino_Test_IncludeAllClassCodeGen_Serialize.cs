@@ -9,6 +9,12 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public override void Serialize(IncludeAllClassCodeGen value, Nino.Serialization.Writer writer)
             {
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
+                writer.Write(true);
                 writer.CompressAndWrite(ref value.a);
                 writer.CompressAndWrite(ref value.b);
                 writer.Write(value.c);
@@ -17,6 +23,8 @@ namespace Nino.Test
 
             public override IncludeAllClassCodeGen Deserialize(Nino.Serialization.Reader reader)
             {
+                if(!reader.ReadBool())
+                    return null;
                 IncludeAllClassCodeGen value = new IncludeAllClassCodeGen();
                 reader.DecompressAndReadNumber<System.Int32>(ref value.a);
                 reader.DecompressAndReadNumber<System.Int64>(ref value.b);

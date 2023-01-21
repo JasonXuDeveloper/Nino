@@ -46,6 +46,27 @@ namespace Nino.Serialization
 		/// <param name="option"></param>
 		/// <returns></returns>
 		public static T Deserialize<T>(byte[] data, CompressOption option = CompressOption.Zlib)
+			=> Deserialize<T>(new Span<byte>(data), option);
+
+		/// <summary>
+		/// Deserialize a NinoSerialize object
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="data"></param>
+		/// <param name="option"></param>
+		/// <returns></returns>
+		public static T Deserialize<T>(ArraySegment<byte> data, CompressOption option = CompressOption.Zlib)
+			=> Deserialize<T>(new Span<byte>(data.Array, data.Offset, data.Count), option);
+
+
+		/// <summary>
+		/// Deserialize a NinoSerialize object
+		/// </summary>
+		/// <typeparam name="T"></typeparam>
+		/// <param name="data"></param>
+		/// <param name="option"></param>
+		/// <returns></returns>
+		public static T Deserialize<T>(Span<byte> data, CompressOption option = CompressOption.Zlib)
 		{
 			Type type = typeof(T);
 
@@ -72,28 +93,55 @@ namespace Nino.Serialization
 				return ret;
 			}
 
-			return (T)Deserialize(type, null, data, reader, option, true, true, true);
+			//has to be an object or custom type
+			var result = Deserialize(type, null, data, reader, option, true, true, true);
+			if (result == null)
+			{
+				ObjectPool<Reader>.Return(reader);
+				return default;
+			}
+			return (T)result;
 		}
 
 		/// <summary>
 		/// Deserialize a NinoSerialize object
 		/// </summary>
-		/// <typeparam name="T"></typeparam>
+		/// <param name="type"></param>
 		/// <param name="data"></param>
 		/// <param name="option"></param>
 		/// <returns></returns>
-		public static T Deserialize<T>(ArraySegment<byte> data, CompressOption option = CompressOption.Zlib)
-		{
-			Type type = typeof(T);
+		public static object Deserialize(Type type, byte[] data, CompressOption option = CompressOption.Zlib)
+			=> Deserialize(type, new Span<byte>(data), option);
 
+		/// <summary>
+		/// Deserialize a NinoSerialize object
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="data"></param>
+		/// <param name="option"></param>
+		/// <returns></returns>
+		public static object Deserialize(Type type, ArraySegment<byte> data,
+			CompressOption option = CompressOption.Zlib)
+			=> Deserialize(type, new Span<byte>(data.Array, data.Offset, data.Count), option);
+
+		/// <summary>
+		/// Deserialize a NinoSerialize object
+		/// </summary>
+		/// <param name="type"></param>
+		/// <param name="data"></param>
+		/// <param name="option"></param>
+		/// <returns></returns>
+		public static object Deserialize(Type type, Span<byte> data,
+			CompressOption option = CompressOption.Zlib)
+		{
 			Reader reader = ObjectPool<Reader>.Request();
-			reader.Init(data, data.Count,
+			reader.Init(data, data.Length,
 				TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
 
 			//basic type
 			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
 			{
-				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
+				var ret = wrapper.Deserialize(reader);
 				ObjectPool<Reader>.Return(reader);
 				return ret;
 			}
@@ -104,12 +152,18 @@ namespace Nino.Serialization
 				//add wrapper
 				WrapperManifest.AddWrapper(type, wrapper);
 				//start Deserialize
-				var ret = ((NinoWrapperBase<T>)wrapper).Deserialize(reader);
+				var ret = wrapper.Deserialize(reader);
 				ObjectPool<Reader>.Return(reader);
 				return ret;
 			}
 
-			return (T)Deserialize(type, null, data, reader, option, true, true, true);
+			var result = Deserialize(type, null, data, reader, option, true, true, true);
+			if (result == null)
+			{
+				ObjectPool<Reader>.Return(reader);
+				return null;
+			}
+			return result;
 		}
 
 		/// <summary>
@@ -160,77 +214,6 @@ namespace Nino.Serialization
 
 			return (T)Deserialize(type, null, data, reader, option, returnDispose,
 				skipBasicCheck, skipCodeGenCheck, skipGenericCheck, skipEnumCheck);
-		}
-
-		/// <summary>
-		/// Deserialize a NinoSerialize object
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="data"></param>
-		/// <param name="option"></param>
-		/// <returns></returns>
-		public static object Deserialize(Type type, byte[] data, CompressOption option = CompressOption.Zlib)
-		{
-			Reader reader = ObjectPool<Reader>.Request();
-			reader.Init(data, data.Length,
-				TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
-
-			//basic type
-			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
-			{
-				var ret = wrapper.Deserialize(reader);
-				ObjectPool<Reader>.Return(reader);
-				return ret;
-			}
-
-			//code generated type
-			if (TypeModel.TryGetWrapper(type, out wrapper))
-			{
-				//add wrapper
-				WrapperManifest.AddWrapper(type, wrapper);
-				//start Deserialize
-				var ret = wrapper.Deserialize(reader);
-				ObjectPool<Reader>.Return(reader);
-				return ret;
-			}
-
-			return Deserialize(type, null, data, reader, option, true, true, true);
-		}
-
-		/// <summary>
-		/// Deserialize a NinoSerialize object
-		/// </summary>
-		/// <param name="type"></param>
-		/// <param name="data"></param>
-		/// <param name="option"></param>
-		/// <returns></returns>
-		public static object Deserialize(Type type, ArraySegment<byte> data,
-			CompressOption option = CompressOption.Zlib)
-		{
-			Reader reader = ObjectPool<Reader>.Request();
-			reader.Init(data, data.Count,
-				TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
-
-			//basic type
-			if (WrapperManifest.TryGetWrapper(type, out var wrapper))
-			{
-				var ret = wrapper.Deserialize(reader);
-				ObjectPool<Reader>.Return(reader);
-				return ret;
-			}
-
-			//code generated type
-			if (TypeModel.TryGetWrapper(type, out wrapper))
-			{
-				//add wrapper
-				WrapperManifest.AddWrapper(type, wrapper);
-				//start Deserialize
-				var ret = wrapper.Deserialize(reader);
-				ObjectPool<Reader>.Return(reader);
-				return ret;
-			}
-
-			return Deserialize(type, null, data, reader, option, true, true, true);
 		}
 
 		/// <summary>
@@ -411,6 +394,15 @@ namespace Nino.Serialization
 
 				return ret;
 			}
+			
+			if (!reader.ReadBool())
+			{
+				if (returnDispose)
+				{
+					ObjectPool<Reader>.Return(reader);
+				}
+				return null;
+			}
 
 			//create type
 			if (val == null || val == ConstMgr.Null)
@@ -428,7 +420,7 @@ namespace Nino.Serialization
 			//invalid model
 			if (model != null && !model.Valid)
 			{
-				return null;
+				return val;
 			}
 
 			//generate model
@@ -519,7 +511,7 @@ namespace Nino.Serialization
 						//try code gen, if no code gen then reflection
 
 						//read basic values
-						var ret = Deserialize(type, ConstMgr.Null, ConstMgr.Null, reader, option, false);
+						var ret = Deserialize(type, ConstMgr.Null, Span<byte>.Empty, reader, option, false);
 						//type check
 #if !ILRuntime
 						if (TypeModel.IsEnum(type))

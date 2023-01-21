@@ -59,6 +59,7 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestCodeGen()
         {
+            // CodeGenerator.GenerateSerializationCodeForAllTypePossible();
             C c = new C()
             {
                 Name = "test",
