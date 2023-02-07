@@ -6,7 +6,7 @@
 
         <IsPackable>false</IsPackable>
 
-        <TargetFrameworks>net461;net6.0;netcoreapp3.1</TargetFrameworks>
+        <TargetFrameworks>net461;net6.0;net7.0;netcoreapp3.1</TargetFrameworks>
 
         <LangVersion>7.3</LangVersion>
     </PropertyGroup>

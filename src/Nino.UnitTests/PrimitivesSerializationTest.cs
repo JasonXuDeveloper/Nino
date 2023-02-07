@@ -1,7 +1,6 @@
 using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Nino.Serialization;
 
 namespace Nino.UnitTests
 {
@@ -14,7 +13,7 @@ namespace Nino.UnitTests
     [TestClass]
     public class PrimitivesSerializationTest
     {
-        [NinoSerialize]
+        [Serialization.NinoSerialize]
         public struct EmptyStruct
         {
             
@@ -24,12 +23,11 @@ namespace Nino.UnitTests
         public void TestEmptyStruct()
         {
             var val = new EmptyStruct();
-            byte[] buf = Serialization.Serializer.Serialize(val, CompressOption.NoCompression);
+            byte[] buf = Serialization.Serializer.Serialize(val, Serialization.CompressOption.NoCompression);
             EmptyStruct val2 =
-                Serialization.Deserializer.Deserialize<EmptyStruct>(new ArraySegment<byte>(buf, 0, buf.Length), CompressOption.NoCompression);
+                Serialization.Deserializer.Deserialize<EmptyStruct>(new ArraySegment<byte>(buf, 0, buf.Length), Serialization.CompressOption.NoCompression);
             Assert.AreEqual(val, val2);
         }
-        
 
         [TestMethod]
         public void TestEnum()
