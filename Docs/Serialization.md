@@ -99,10 +99,11 @@ public partial class NotIncludeAllClass
 - Dictionary<Nino支持类型,Nino支持类型>
 - Dictionary<注册委托类型,注册委托类型>
 - 可Nino序列化类型
+- null
 
 不支持序列化的成员类型（可以通过注册自定义委托实现）：
 
-- 任何非上述类型（HashSet, Nullable, Vector3等）
+- 任何非上述类型（HashSet, Nullable【即将支持】, Vector3等）
 
 **针对某个类型注册自定义序列化委托后，记得注册该类型的自定义反序列化委托，不然会导致反序列化出错**
 
@@ -274,7 +275,7 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 Nino支持以下三种压缩方式：
 
 - Zlib(高压缩率低性能)
-- Lz4(平均压缩率高性能)
+- Lz4(平均压缩率高性能)【正在开发】
 - 无压缩(高性能但体积很大)
 
 
@@ -286,28 +287,20 @@ Nino支持以下三种压缩方式：
 ## 序列化
 
 ```csharp
-Nino.Serialization.Serializer.Serialize<T>(T val);
+Nino.Serialization.Serializer.Serialize<T>(T val, CompressOption option = CompressOption.Zlib);
 ```
 
 ```csharp
-Nino.Serialization.Serializer.Serialize<T>(T val, Encoding encoding);
-```
-
-```csharp
-Nino.Serialization.Serializer.Serialize<T>(T val, Encoding encoding, CompressOption option);
-```
-
-```csharp
-Nino.Serialization.Serializer.Serialize(object val, Encoding encoding, CompressOption option);
+Nino.Serialization.Serializer.Serialize(object val, CompressOption option = CompressOption.Zlib);
 ```
 
 
 
-> 如果没有指定的编码的话，会使用UTF8
->
 > 如果没有指定的压缩模式，会使用Zlib
 >
 > 需要注意的是，涉及到字符串时，请确保序列化和反序列化的时候用的是同样的编码和同样的压缩方式
+>
+> 老版本（1.1.0以下），需要指定Encoding参数，默认是UTF8
 
 示范：
 
@@ -320,19 +313,11 @@ byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);
 ## 反序列化
 
 ```csharp
-Nino.Serialization.Deserializer.Deserialize<T>(byte[] data);
+Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, CompressOption option = CompressOption.Zlib);
 ```
 
 ```csharp
-Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding);
-```
-
-```csharp
-Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, Encoding encoding, CompressOption option);
-```
-
-```csharp
-Nino.Serialization.Deserializer.Deserialize(Type type, byte[] data, Encoding encoding, CompressOption option);
+Nino.Serialization.Deserializer.Deserialize(Type type, byte[] data, CompressOption option = CompressOption.Zlib);
 ```
 
 
@@ -341,7 +326,9 @@ Nino.Serialization.Deserializer.Deserialize(Type type, byte[] data, Encoding enc
 >
 > 如果没有指定的压缩模式，会使用Zlib
 >
-> 需要注意编码和压缩模式问题，并且反序列化的对象需要能够创建（包含无参数的构造函数）
+> 需要注意压缩模式问题，并且反序列化的对象需要能够创建（包含无参数的构造函数）
+>
+> 老版本（1.1.0以下），需要指定Encoding参数，默认是UTF8
 
 示范：
 

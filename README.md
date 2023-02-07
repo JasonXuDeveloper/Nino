@@ -71,8 +71,10 @@ Definite useful and high performance modules for C# projects, especially for Uni
   
   - RoadMap
   
-    - IL Emit -> 非IL2CPP环境
-    - ExpressionTree -> 非IL2CPP环境
+    - 多态
+    - ILRuntime针对性优化（直接操作ILTypeInstance的成员而不是用反射）
+    - ~~IL Emit -> 非IL2CPP环境~~
+    - ~~ExpressionTree -> 非IL2CPP环境~~
     - analyser -> 全局
 
 
@@ -110,7 +112,7 @@ Definite useful and high performance modules for C# projects, especially for Uni
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.1.0
+  PM> Install-Package Nino.Serialization -Version 1.1.1
   ```
 
 - 使用src下的代码（复制进自己项目即可）
