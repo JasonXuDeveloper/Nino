@@ -4,6 +4,7 @@ using Nino.Shared.Util;
 using System.Reflection;
 using System.Collections.Generic;
 using System.Threading;
+using Nino.Shared.IO;
 
 // ReSharper disable CognitiveComplexity
 
@@ -21,14 +22,11 @@ namespace Nino.Serialization
 		
 		private const BindingFlags StaticReflectionFlags = ReflectionFlags | BindingFlags.Static;
 		private const BindingFlags FlattenHierarchyReflectionFlags = ReflectionFlags | BindingFlags.FlattenHierarchy;
-		private static Type _ninoSerializeType = typeof(NinoSerializeAttribute);
-		private static Type _ninoMemberType = typeof(NinoMemberAttribute);
-		private static Type _ninoIgnoreType = typeof(NinoIgnoreAttribute);
+		private static readonly Type NinoSerializeType = typeof(NinoSerializeAttribute);
+		private static readonly Type NinoMemberType = typeof(NinoMemberAttribute);
+		private static readonly Type NinoIgnoreType = typeof(NinoIgnoreAttribute);
 
-		public Dictionary<ushort, MemberInfo> Members;
-		public Dictionary<ushort, Type> Types;
-		public ushort Min;
-		public ushort Max;
+		public HashSet<MemberInfo> Members;
 		public bool Valid;
 		public bool IncludeAll;
 
@@ -85,7 +83,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// No compression types
 		/// </summary>
-		internal static readonly HashSet<int> NoCompressionTypes = new HashSet<int>()
+		private static readonly HashSet<int> NoCompressionTypes = new HashSet<int>()
 		{
 			typeof(int).GetTypeHashCode(),
 			typeof(uint).GetTypeHashCode(),
@@ -181,7 +179,7 @@ namespace Nino.Serialization
 		{
 			var hash = type.GetTypeHashCode();
 			if (TypeModels.TryGetValue(hash, out model)) return;
-			object[] ns = type.GetCustomAttributes(_ninoSerializeType, false);
+			object[] ns = type.GetCustomAttributes(NinoSerializeType, false);
 			if (ns.Length != 0) return;
 			model = new TypeModel()
 			{
@@ -216,23 +214,20 @@ namespace Nino.Serialization
 				if (model != null) return model;
 				model = new TypeModel
 				{
-					Min = ushort.MaxValue,
-					Max = ushort.MinValue,
 					Valid = true,
 					//fetch members
-					Members = new Dictionary<ushort, MemberInfo>(10),
-					//fetch types
-					Types = new Dictionary<ushort, Type>(10)
+					Members = new HashSet<MemberInfo>(),
 				};
 
 				//include all or not
-				object[] ns = type.GetCustomAttributes(_ninoSerializeType, true);
+				object[] ns = type.GetCustomAttributes(NinoSerializeType, true);
 				model.IncludeAll = ((NinoSerializeAttribute)ns[0]).IncludeAll;
 
-				//store temp attr
-				object[] sps;
 				//flag
-				ushort index;
+				ushort index = 0;
+				//dict
+				SortedDictionary<uint, MemberInfo> dict = ObjectPool<SortedDictionary<uint, MemberInfo>>.Request();
+				dict.Clear();
 
 				//fetch fields (only public and private fields that declared in the type)
 				FieldInfo[] fs = type.GetFields(FlattenHierarchyReflectionFlags);
@@ -242,43 +237,20 @@ namespace Nino.Serialization
 					if (model.IncludeAll)
 					{
 						//skip nino ignore
-						var ig = f.GetCustomAttributes(_ninoIgnoreType, true);
+						var ig = f.GetCustomAttributes(NinoIgnoreType, true);
 						if (ig.Length > 0) continue;
-						index = (ushort)model.Members.Count;
+						index++;
 					}
 					else
 					{
-						sps = f.GetCustomAttributes(_ninoMemberType, true);
+						ns = f.GetCustomAttributes(NinoMemberType, true);
 						//not fetch all and no attribute => skip this member
-						if (sps.Length != 1) continue;
-						index = ((NinoMemberAttribute)sps[0]).Index;
+						if (ns.Length != 1) continue;
+						index = ((NinoMemberAttribute)ns[0]).Index;
 					}
 
 					//record field
-					model.Members.Add(index, f);
-#if ILRuntime
-					var t = f.FieldType;
-					if (t.IsGenericType)
-					{
-						model.Types.Add(index, t);
-					}
-					else
-					{
-						model.Types.Add(index, t.ResolveRealType());
-					}
-#else
-					model.Types.Add(index, f.FieldType);
-#endif
-					//record min/max
-					if (index < model.Min)
-					{
-						model.Min = index;
-					}
-
-					if (index > model.Max)
-					{
-						model.Max = index;
-					}
+					dict.Add(index, f);
 				}
 
 				//fetch properties (only public and private properties that declared in the type)
@@ -296,44 +268,31 @@ namespace Nino.Serialization
 					if (model.IncludeAll)
 					{
 						//skip nino ignore
-						var ig = p.GetCustomAttributes(_ninoIgnoreType, true);
+						var ig = p.GetCustomAttributes(NinoIgnoreType, true);
 						if (ig.Length > 0) continue;
-						index = (ushort)model.Members.Count;
+						index++;
 					}
 					else
 					{
-						sps = p.GetCustomAttributes(_ninoMemberType, true);
+						ns = p.GetCustomAttributes(NinoMemberType, true);
 						//not fetch all and no attribute => skip this member
-						if (sps.Length != 1) continue;
-						index = ((NinoMemberAttribute)sps[0]).Index;
+						if (ns.Length != 1) continue;
+						index = ((NinoMemberAttribute)ns[0]).Index;
 					}
 
 					//record property
-					model.Members.Add(index, p);
-#if ILRuntime
-				var t = p.PropertyType;
-				if (t.IsArray || t.IsGenericType)
+					dict.Add(index, p);
+				}
+				
+				//add members to model
+				foreach (var pair in dict)
 				{
-					model.Types.Add(index, t);
+					model.Members.Add(pair.Value);
 				}
-				else
-				{
-					model.Types.Add(index, t.ResolveRealType());
-				}
-#else
-					model.Types[index] = p.PropertyType;
-#endif
-					//record min/max
-					if (index < model.Min)
-					{
-						model.Min = index;
-					}
-
-					if (index > model.Max)
-					{
-						model.Max = index;
-					}
-				}
+				
+				//release dict
+				dict.Clear();
+				ObjectPool<SortedDictionary<uint, MemberInfo>>.Return(dict);
 
 				if (model.Members.Count == 0)
 				{

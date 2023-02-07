@@ -18,12 +18,10 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.1.0</PackageVersion>
+        <PackageVersion>1.1.1</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>Nino.Serialization v1.1.0
-- [fix] fixed unable to serialize/deserialize empty sturct/class
-- [feat] support null value serialization/deserialization
-- [important] this version of Nino.Serialization is incompatible with any if the previous versions, old data files are required to regenerate otherwise won't be able to deserialize, more information please visit migration guide in the documentation</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v1.1.1
+- [optimization] optimized serializer + typemodel</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 

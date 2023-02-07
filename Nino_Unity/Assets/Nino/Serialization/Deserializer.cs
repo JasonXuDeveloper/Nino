@@ -429,10 +429,7 @@ namespace Nino.Serialization
             {
                 model = TypeModel.CreateModel(type);
             }
-
-            //min, max index
-            ushort min = model.Min, max = model.Max;
-
+            
             //start Deserialize
             //only include all model need this
             if (model.IncludeAll)
@@ -451,23 +448,13 @@ namespace Nino.Serialization
                 }
 
                 //set elements
-                while (min <= max)
+                foreach (var member in model.Members)
                 {
-                    //prevent index not exist
-                    if (!model.Types.ContainsKey(min))
-                    {
-                        min++;
-                        continue;
-                    }
-
-                    //get the member
-                    var member = model.Members[min];
-                    //member type
-                    type = model.Types[min];
                     //try get same member and set it
                     if (values.TryGetValue(member.Name, out var ret))
                     {
                         //type check
+                        type = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
 #if !ILRuntime
                         if (ret.GetType() != type)
                         {
@@ -475,15 +462,13 @@ namespace Nino.Serialization
                         }
 #endif
 
-                        SetMember(model.Members[min], val, ret);
+                        SetMember(member, val, ret);
                     }
-
-                    min++;
                 }
             }
             else
             {
-                while (min <= max)
+                foreach (var member in model.Members)
                 {
                     //if end, skip
                     if (reader.EndOfReader)
@@ -491,16 +476,7 @@ namespace Nino.Serialization
                         break;
                     }
 
-                    //prevent index not exist
-                    if (!model.Types.ContainsKey(min))
-                    {
-                        min++;
-                        continue;
-                    }
-
-                    //get type of that member
-                    type = model.Types[min];
-                    //try code gen, if no code gen then reflection
+                    type = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
 
                     //read basic values
                     var ret = Deserialize(type, ConstMgr.Null, Span<byte>.Empty, reader, option, false);
@@ -508,9 +484,7 @@ namespace Nino.Serialization
 #if !ILRuntime
                     ret = TypeModel.IsEnum(type) ? Enum.ToObject(type, ret) : Convert.ChangeType(ret, type);
 #endif
-
-                    SetMember(model.Members[min], val, ret);
-                    min++;
+                    SetMember(member, val, ret);
                 }
             }
 

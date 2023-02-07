@@ -36,7 +36,7 @@ namespace Nino.Serialization
             {
                 Importer = action.Invoke
             };
-            WrapperManifest.AddWrapper(typeof(T), genericWrapper);
+            WrapperManifest.AddWrapper(type, genericWrapper);
         }
 
         /// <summary>
@@ -76,18 +76,12 @@ namespace Nino.Serialization
         /// <param name="writer"></param>
         /// <param name="option"></param>
         /// <param name="returnValue"></param>
-        /// <param name="skipBasicCheck"></param>
-        /// <param name="skipCodeGenCheck"></param>
-        /// <param name="skipGenericCheck"></param>
-        /// <param name="skipEnumCheck"></param>
         /// <returns></returns>
         /// <exception cref="InvalidOperationException"></exception>
         /// <exception cref="NullReferenceException"></exception>
         // ReSharper disable CognitiveComplexity
         internal static byte[] Serialize<T>(Type type, T value, Writer writer,
-                CompressOption option = CompressOption.Zlib,
-                bool returnValue = true, bool skipBasicCheck = false, bool skipCodeGenCheck = false,
-                bool skipGenericCheck = false, bool skipEnumCheck = false)
+                CompressOption option = CompressOption.Zlib, [MarshalAs(UnmanagedType.U1)] bool returnValue = true)
             // ReSharper restore CognitiveComplexity
         {
             bool boxed = false;
@@ -112,106 +106,60 @@ namespace Nino.Serialization
 			type = type.ResolveRealType();
 #endif
 
-            //basic type
-            if (!skipBasicCheck && WrapperManifest.TryGetWrapper(type, out var wrapper))
-            {
-                if (writer == null)
-                {
-                    writer = ObjectPool<Writer>.Request();
-                }
-
-                if (returnValue)
-                {
-                    writer.Init(TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
-                }
-
-                if (boxed)
-                {
-                    wrapper.Serialize(value, writer);
-                }
-                else
-                {
-                    ((NinoWrapperBase<T>)wrapper).Serialize(value, writer);
-                }
-
-                return Return(returnValue, writer);
-            }
-
             if (writer == null)
             {
                 writer = ObjectPool<Writer>.Request();
             }
 
-            //enum			
-            if (!skipEnumCheck && TypeModel.IsEnum(type))
+            if (returnValue)
             {
-                type = Enum.GetUnderlyingType(type);
-                //use basic type wrapper
-                if (!skipBasicCheck && WrapperManifest.TryGetWrapper(type, out wrapper))
-                {
-                    if (returnValue)
-                    {
-                        writer.Init(TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
-                    }
-
-                    writer.CompressAndWriteEnum(value);
-                    return Return(returnValue, writer);
-                }
-
-                throw new InvalidCastException("Failed to cast enum to basic type");
+                writer.Init(TypeModel.IsNonCompressibleType(type) ? CompressOption.NoCompression : option);
             }
 
-            //code generated type
-            if (!skipCodeGenCheck && TypeModel.TryGetWrapper(type, out wrapper))
+            /*
+             * HARD-CODED SERIALIZATION
+             */
+
+            if (TrySerializeWrapperType(type, value, writer, boxed, returnValue, out var ret))
             {
-                //add wrapper
-                WrapperManifest.AddWrapper(type, wrapper);
-                //start serialize
-
-                if (boxed)
-                {
-                    wrapper.Serialize(value, writer);
-                }
-                else
-                {
-                    ((NinoWrapperBase<T>)wrapper).Serialize(value, writer);
-                }
-
-                return Return(returnValue, writer);
+                return ret;
             }
 
-            //null check
-            if (value == null)
+            if (TrySerializeEnumType(type, value, writer, boxed, returnValue, out ret))
             {
-                writer.Write(false);
-                return Return(returnValue, writer);
+                return ret;
             }
 
-            //array
-            if (!skipGenericCheck)
+            if (TrySerializeCodeGenType(type, value, writer, boxed, returnValue, out ret))
             {
-                //array
-                if (value is Array arr)
+                return ret;
+            }
+
+            if (TrySerializeArray(type, value, writer, returnValue, out ret))
+            {
+                return ret;
+            }
+
+            //generic
+            if (type.IsGenericType)
+            {
+                if (TrySerializeList(type, value, writer, returnValue, out ret))
                 {
-                    writer.Write(arr);
-                    return Return(returnValue, writer);
+                    return ret;
                 }
 
-                //list, dict
-                if (type.IsGenericType)
+                if (TrySerializeDict(type, value, writer, returnValue, out ret))
                 {
-                    switch (value)
-                    {
-                        case IList lst:
-                            writer.Write(lst);
-                            break;
-                        case IDictionary dict:
-                            writer.Write(dict);
-                            break;
-                    }
-
-                    return Return(returnValue, writer);
+                    return ret;
                 }
+            }
+
+            /*
+             * CUSTOM STRUCT/CLASS SERIALIZATION
+             */
+            if (WriteNullCheck(type, value, writer, returnValue, out ret))
+            {
+                return ret;
             }
 
             //Get Attribute that indicates a class/struct to be serialized
@@ -230,12 +178,6 @@ namespace Nino.Serialization
                 model = TypeModel.CreateModel(type);
             }
 
-            //min, max index
-            ushort min = model.Min, max = model.Max;
-
-            //not null
-            writer.Write(true);
-
             //only include all model need this
             if (model.IncludeAll)
             {
@@ -243,35 +185,233 @@ namespace Nino.Serialization
                 writer.CompressAndWrite(model.Members.Count);
             }
 
-            while (min <= max)
+            //serialize all recorded members
+            foreach (var member in model.Members)
             {
-                //prevent index not exist
-                if (!model.Types.ContainsKey(min))
+                object obj;
+                switch (member)
                 {
-                    min++;
-                    continue;
+                    case FieldInfo fo:
+                        type = fo.FieldType;
+                        obj = fo.GetValue(value);
+                        break;
+                    case PropertyInfo po:
+                        type = po.PropertyType;
+                        obj = po.GetValue(value);
+                        break;
+                    default:
+                        return null;
                 }
-
-                //get type of that member
-                type = model.Types[min];
 
                 //only include all model need this
                 if (model.IncludeAll)
                 {
-                    var needToStore = model.Members[min];
-                    writer.Write(needToStore.Name);
+                    writer.Write(member.Name);
                     writer.Write(type.AssemblyQualifiedName);
                 }
 
-                //try code gen, if no code gen then reflection
-                object val = GetVal(model.Members[min], value);
-                Serialize(type, val, writer, option, false);
-                min++;
+                Serialize(type, obj, writer, option, false);
             }
 
             return Return(returnValue, writer);
         }
 
+        /// <summary>
+        /// Attempt to serialize hard-coded types + code gen types + custom delegate types
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="value"></param>
+        /// <param name="writer"></param>
+        /// <param name="boxed"></param>
+        /// <param name="returnValue"></param>
+        /// <param name="ret"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TrySerializeWrapperType<T>(Type type, T value, Writer writer,
+            [MarshalAs(UnmanagedType.U1)] bool boxed, [MarshalAs(UnmanagedType.U1)] bool returnValue,
+            out byte[] ret)
+        {
+            ret = ConstMgr.Null;
+            //basic type
+            if (!WrapperManifest.TryGetWrapper(type, out var wrapper)) return false;
+            if (boxed)
+            {
+                wrapper.Serialize(value, writer);
+            }
+            else
+            {
+                ((NinoWrapperBase<T>)wrapper).Serialize(value, writer);
+            }
+
+            ret = Return(returnValue, writer);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempt to serialize enum
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="value"></param>
+        /// <param name="writer"></param>
+        /// <param name="boxed"></param>
+        /// <param name="returnValue"></param>
+        /// <param name="ret"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TrySerializeEnumType<T>(Type type, T value, Writer writer,
+            [MarshalAs(UnmanagedType.U1)] bool boxed, [MarshalAs(UnmanagedType.U1)] bool returnValue,
+            out byte[] ret)
+        {
+            ret = ConstMgr.Null;
+
+            //enum
+            if (!TypeModel.IsEnum(type)) return false;
+            writer.CompressAndWriteEnum(value);
+            ret = Return(returnValue, writer);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempt to serialize code gen type (first time only)
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="value"></param>
+        /// <param name="writer"></param>
+        /// <param name="boxed"></param>
+        /// <param name="returnValue"></param>
+        /// <param name="ret"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TrySerializeCodeGenType<T>(Type type, T value, Writer writer,
+            [MarshalAs(UnmanagedType.U1)] bool boxed, [MarshalAs(UnmanagedType.U1)] bool returnValue,
+            out byte[] ret)
+        {
+            ret = ConstMgr.Null;
+
+            //code generated type
+            if (!TypeModel.TryGetWrapper(type, out var wrapper)) return false;
+            //add wrapper
+            WrapperManifest.AddWrapper(type, wrapper);
+
+            //start serialize
+            if (boxed)
+            {
+                wrapper.Serialize(value, writer);
+            }
+            else
+            {
+                ((NinoWrapperBase<T>)wrapper).Serialize(value, writer);
+            }
+
+            ret = Return(returnValue, writer);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempt to serialize array
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="value"></param>
+        /// <param name="writer"></param>
+        /// <param name="returnValue"></param>
+        /// <param name="ret"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TrySerializeArray<T>(Type type, T value, Writer writer,
+            [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
+        {
+            ret = ConstMgr.Null;
+
+            //array
+            if (!(value is Array arr)) return false;
+            writer.Write(arr);
+            ret = Return(returnValue, writer);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempt to serialize list
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="value"></param>
+        /// <param name="writer"></param>
+        /// <param name="returnValue"></param>
+        /// <param name="ret"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TrySerializeList<T>(Type type, T value, Writer writer,
+            [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
+        {
+            ret = ConstMgr.Null;
+
+            if (!(value is IList lst)) return false;
+            writer.Write(lst);
+            ret = Return(returnValue, writer);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempt to serialize dict
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="value"></param>
+        /// <param name="writer"></param>
+        /// <param name="returnValue"></param>
+        /// <param name="ret"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TrySerializeDict<T>(Type type, T value, Writer writer,
+            [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
+        {
+            ret = ConstMgr.Null;
+
+            if (!(value is IDictionary dict)) return false;
+            writer.Write(dict);
+            ret = Return(returnValue, writer);
+            return true;
+        }
+
+        /// <summary>
+        /// Check for null
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="value"></param>
+        /// <param name="writer"></param>
+        /// <param name="returnValue"></param>
+        /// <param name="ret"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns>true when null</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool WriteNullCheck<T>(Type type, T value, Writer writer,
+            [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
+        {
+            ret = ConstMgr.Null;
+
+            //null check
+            if (value == null)
+            {
+                writer.Write(false); // if null -> write false
+                ret = Return(returnValue, writer);
+                return true;
+            }
+
+            writer.Write(true); // if not null -> write true
+
+            return false;
+        }
+
+        /// <summary>
+        /// Get return value
+        /// </summary>
+        /// <param name="returnValue"></param>
+        /// <param name="writer"></param>
+        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static byte[] Return([MarshalAs(UnmanagedType.U1)] bool returnValue, Writer writer)
         {
@@ -283,26 +423,6 @@ namespace Nino.Serialization
             }
 
             return ret;
-        }
-
-        /// <summary>
-        /// Get value from MemberInfo
-        /// </summary>
-        /// <param name="info"></param>
-        /// <param name="instance"></param>
-        /// <returns></returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static object GetVal(MemberInfo info, object instance)
-        {
-            switch (info)
-            {
-                case FieldInfo fo:
-                    return fo.GetValue(instance);
-                case PropertyInfo po:
-                    return po.GetValue(instance);
-                default:
-                    return null;
-            }
         }
     }
     // ReSharper restore UnusedParameter.Local
