@@ -136,7 +136,7 @@ namespace Nino.Serialization
         /// <exception cref="InvalidOperationException"></exception>
         /// <exception cref="NullReferenceException"></exception>
         internal static object Deserialize(Type type, object val, Span<byte> data, Reader reader,
-                CompressOption option = CompressOption.Zlib, [MarshalAs(UnmanagedType.U1)] bool returnDispose = true)
+            CompressOption option = CompressOption.Zlib, [MarshalAs(UnmanagedType.U1)] bool returnDispose = true)
         {
             if (reader == null)
             {
@@ -187,7 +187,7 @@ namespace Nino.Serialization
             {
                 return codeGenRet;
             }
-            
+
             /*
              * CUSTOM STRUCT/CLASS SERIALIZATION
              */
@@ -233,7 +233,7 @@ namespace Nino.Serialization
                 for (int i = 0; i < len; i++)
                 {
                     var key = reader.ReadString();
-                    var typeFullName = reader.ReadString(); // TODO 换成HashCode，搞个双向字典，HashCode(int)<->Type
+                    var typeFullName = reader.ReadString();
                     var value = Deserialize(Type.GetType(typeFullName), ConstMgr.Null, ConstMgr.Null, reader,
                         option, false);
                     values.Add(key, value);

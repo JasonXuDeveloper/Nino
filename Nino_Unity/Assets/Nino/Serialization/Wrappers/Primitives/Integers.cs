@@ -18,7 +18,7 @@ namespace Nino.Serialization
 
     internal class ByteArrWrapper : NinoWrapperBase<byte[]>
     {
-        public override void Serialize(byte[] val, Writer writer)
+        public override unsafe void Serialize(byte[] val, Writer writer)
         {
             if (val is null)
             {
@@ -26,7 +26,15 @@ namespace Nino.Serialization
                 return;
             }
             writer.Write(true);
-            writer.Write(val);
+            int len = val.Length;
+            writer.CompressAndWrite(ref len);
+            if (len > 0)
+            {
+                fixed (byte* ptr = val)
+                {
+                    writer.Write(ptr, ref len);
+                }
+            }
         }
 
         public override byte[] Deserialize(Reader reader)
@@ -41,7 +49,17 @@ namespace Nino.Serialization
     {
         public override void Serialize(List<byte> val, Writer writer)
         {
-            writer.Write(val);
+            if (val is null)
+            {
+                writer.Write(false);
+                return;
+            }
+            writer.Write(true);
+            writer.CompressAndWrite(val.Count);
+            foreach (var v in val)
+            {
+                writer.Write(v);
+            }
         }
 
         public override List<byte> Deserialize(Reader reader)

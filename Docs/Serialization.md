@@ -20,7 +20,13 @@
 
 ## 注意事项
 
-```Nino.Serialization v1.1.0```与其之前的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！
+```Nino.Serialization v1.1.2```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！
+
+> 这个版本开始支持了多态了，所以Array/List/HashSet/Queue/Stack等集合类型的二进制格式有变化
+
+
+
+```Nino.Serialization v1.1.0```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！
 
 > 这个版本开始支持了null对象，所以二进制格式有变化
 
@@ -28,7 +34,7 @@
 
 
 
-```Nino.Serialization v1.0.21```与其之前的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
+```Nino.Serialization v1.0.21```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
 
 从这个版本开始，```序列化```和```反序列化```时不再需要提供```Encoding```参数！！！
 
@@ -108,12 +114,48 @@ public partial class NotIncludeAllClass
 
 **针对某个类型注册自定义序列化委托后，记得注册该类型的自定义反序列化委托，不然会导致反序列化出错**
 
-
+**支持多态！！！**
 
 ## 限制
 
 - 不支持给非partial或Nested类型和结构体生成代码
 - 暂时不支持给泛型序列化类型和结构体生成代码
+
+
+
+## 多态规则
+
+**支持：**
+
+- 同类型序列化/反序列化
+
+  ```csharp
+  class A{}
+  class B: A{}
+  
+  ...
+  var buf = Serializer.Serialize<A>((A)new B());
+  var insOfA = Deserializer.Deserialize<A>(buf);
+  ```
+
+  > 注意，这样操作会丢失全部B类型内的成员
+
+- 数组/List/HashSet/Queue/Stack/字典
+
+  ```csharp
+  class A{}
+  class B: A{}
+  
+  ...
+  var buf = Serializer.Serialize<List<A>>(new List<A>(){new B()});
+  var insOfLstA = Deserializer.DeserializeList<A>(buf);
+  ```
+
+  > 注意，这样操作不会丢失```List<A>```内的B对象的B类型成员数据
+  >
+  > 数组/HashSet/Queue/Stack/字典在这里同理
+  >
+  > HashSet/Queue/Stack记得用泛型方法去序列化和反序列化，不然不支持
 
 
 
@@ -146,6 +188,8 @@ Nino支持ILRuntime的使用，但需要初始化ILRuntime：
 > 如果用的是assembly definition来生成热更库的，需要把生成的热更代码放到assembly definition的目录内，把外部会报错的代码挪进去就好
 >
 > 需要注意的是，ILRuntime下生成与不生成代码的差距不是特别大
+>
+> ILRuntime下也支持多态！
 
 
 

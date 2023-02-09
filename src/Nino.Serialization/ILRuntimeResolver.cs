@@ -76,7 +76,11 @@ namespace Nino.Serialization
             var allTypes = domain.LoadedTypes.Values.Select(x => x.ReflectionType).ToArray();
             foreach (var t in allTypes)
             {
-                if (t.FullName != null) IlRuntimeTypes[t.FullName] = t;
+                if (t.FullName != null)
+                {
+                    IlRuntimeTypes[t.FullName] = t;
+                    TypeModel.AllTypes[t.GetHashCode()] = t;
+                }
             }
 
             try

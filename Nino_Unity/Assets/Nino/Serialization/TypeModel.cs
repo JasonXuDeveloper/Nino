@@ -38,6 +38,24 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Cached Models
 		/// </summary>
+		internal static Dictionary<int, Type> AllTypes = new Dictionary<int, Type>(100);
+
+		static TypeModel()
+		{
+			var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+			foreach (var assembly in assemblies)
+			{
+				var types = assembly.GetTypes();
+				foreach (var type in types)
+				{
+					AllTypes[type.GetHashCode()] = type;
+				}
+			}
+		}
+
+		/// <summary>
+		/// Cached Models
+		/// </summary>
 		private static readonly Dictionary<int, TypeCode> TypeCodes = new Dictionary<int, TypeCode>(30)
 		{
 			{ typeof(byte).GetTypeHashCode(), TypeCode.Byte },

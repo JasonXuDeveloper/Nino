@@ -134,7 +134,6 @@ namespace Nino.Serialization
             }
         }
 
-
         /// <summary>
         /// Read unmanaged type
         /// </summary>
@@ -206,7 +205,8 @@ namespace Nino.Serialization
             int i = 0;
             while (i < len)
             {
-                arr[i++] = ReadCommonVal<T>();
+                arr[i++] = (T)ReadCommonVal(
+                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(T));
             }
 
             return arr;
@@ -228,8 +228,8 @@ namespace Nino.Serialization
             //read item
             while (len-- > 0)
             {
-                var obj = ReadCommonVal<T>();
-                lst.Add(obj);
+                lst.Add((T)ReadCommonVal(
+                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(T)));
             }
 
             return lst;
@@ -251,8 +251,8 @@ namespace Nino.Serialization
             //read item
             while (len-- > 0)
             {
-                var obj = ReadCommonVal<T>();
-                lst.Add(obj);
+                lst.Add((T)ReadCommonVal(
+                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(T)));
             }
 
             return lst;
@@ -274,8 +274,8 @@ namespace Nino.Serialization
             //read item
             while (len-- > 0)
             {
-                var obj = ReadCommonVal<T>();
-                lst.Enqueue(obj);
+                lst.Enqueue((T)ReadCommonVal(
+                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(T)));
             }
 
             return lst;
@@ -295,10 +295,10 @@ namespace Nino.Serialization
             {
                 return null;
             }
-            
+
             Array.Reverse(arr);
             var lst = new Stack<T>(arr);
-            
+
             return lst;
         }
 
@@ -317,8 +317,10 @@ namespace Nino.Serialization
             //read item
             while (len-- > 0)
             {
-                var key = ReadCommonVal<TKey>();
-                var val = ReadCommonVal<TValue>();
+                var key = (TKey)ReadCommonVal(
+                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(TKey));
+                var val = (TValue)ReadCommonVal(
+                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out type) ? type : typeof(TValue));
                 dic.Add(key, val);
             }
 

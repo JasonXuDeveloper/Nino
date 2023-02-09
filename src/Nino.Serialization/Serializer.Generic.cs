@@ -31,7 +31,7 @@ namespace Nino.Serialization
             writer.Write(val);
             return Return(true, writer);
         }
-        
+
         /// <summary>
         /// Serialize a nullable of NinoSerialize struct
         /// </summary>
@@ -40,7 +40,7 @@ namespace Nino.Serialization
         /// <param name="option"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] Serialize<T>(T? val, CompressOption option = CompressOption.Zlib) where T: struct
+        public static byte[] Serialize<T>(T? val, CompressOption option = CompressOption.Zlib) where T : struct
         {
             Writer writer = ObjectPool<Writer>.Request();
             writer.Init(option);

@@ -105,7 +105,7 @@ namespace Nino.UnitTests
     }
 
     [TestClass]
-    public class ComplexSerializationTest
+    public partial class ComplexSerializationTest
     {
         [TestMethod]
         public void TestNonGenericNoCodeGen()
@@ -411,6 +411,54 @@ namespace Nino.UnitTests
             var data2 = Deserializer.Deserialize<ComplexData>(buf);
             Assert.AreEqual(data.ToString(), data2.ToString());
             Console.WriteLine(data2);
+        }
+    }
+
+    [NinoSerialize()]
+    public class Base
+    {
+        [NinoMember(0)]
+        public int A;
+    }
+    
+    [NinoSerialize()]
+    public class Derived : Base
+    {
+        [NinoMember(1)]
+        public int B;
+    }
+
+    public partial class ComplexSerializationTest
+    {
+        [TestMethod]
+        public void TestPolymorphism()
+        {
+            var data = new Derived()
+            {
+                A = 123,
+                B = 456
+            };
+            var buf = Serializer.Serialize((Base)data);
+            var data2 = Deserializer.Deserialize<Base>(buf);
+            Assert.AreEqual(data.A, data2.A);
+
+            var lst = new List<Base>()
+            {
+                new Base()
+                {
+                    A = 111,
+                },
+                new Derived()
+                {
+                    A = 999,
+                    B = 456
+                }
+            };
+            var buf2 = Serializer.Serialize(lst);
+            var lst2 = Deserializer.Deserialize<List<Base>>(buf2);
+            Assert.AreEqual(lst[0].A, lst2[0].A);
+            Assert.AreEqual(lst[1].A, lst2[1].A);
+            Assert.AreEqual(((Derived)lst[1]).B, ((Derived)lst2[1]).B);
         }
     }
 }

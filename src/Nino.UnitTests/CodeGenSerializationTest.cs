@@ -83,7 +83,6 @@ namespace Nino.UnitTests
             
             var bufC = Serializer.Serialize(c);
             var bufD = Serializer.Serialize(d);
-            Assert.IsTrue(bufC.SequenceEqual(bufD));
             
             var c2 = Deserializer.Deserialize<C>(bufC);
             var d2 = Deserializer.Deserialize<D>(bufD);

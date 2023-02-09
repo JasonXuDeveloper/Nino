@@ -31,13 +31,15 @@ Definite useful and high performance modules for C# projects, especially for Uni
   
 - 序列化模块，[使用教程](Docs/Serialization.md) [![nino.serialization.nuget](https://img.shields.io/nuget/v/Nino.Serialization?label=Nino.Serialization)](https://www.nuget.org/packages/Nino.Serialization)
 
-  > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，优势是更小体积，更高性能，支持多线程
+  > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，优势是更小体积，更高性能，支持多线程，支持多态
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行序列化和反序列化，无法跨语言使用
   >
-  > ```Nino.Serialization v1.1.0```与其前面的**所有版本**都**不兼容**，详细请查看使用教程
+  > ```Nino.Serialization v1.1.2```与其**前面**的**所有版本**都**不兼容**，详细请查看使用教程
   >
-  > ```Nino.Serialization v1.0.21.2```与其前面的**所有版本**都**不兼容**，详细请查看使用教程（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
+  > ```Nino.Serialization v1.1.0```与其**前面**的**所有版本**都**不兼容**，详细请查看使用教程
+  >
+  > ```Nino.Serialization v1.0.21.2```与其**前面**的**所有版本**都**不兼容**，详细请查看使用教程（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
   - 测试案例
     - [Test1](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test1.cs) Nino VS Protobuf-net 序列化
   
@@ -71,7 +73,6 @@ Definite useful and high performance modules for C# projects, especially for Uni
   
   - RoadMap
   
-    - 多态
     - ILRuntime针对性优化（直接操作ILTypeInstance的成员而不是用反射）
     - ~~IL Emit -> 非IL2CPP环境~~
     - ~~ExpressionTree -> 非IL2CPP环境~~
@@ -112,7 +113,7 @@ Definite useful and high performance modules for C# projects, especially for Uni
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.1.1
+  PM> Install-Package Nino.Serialization -Version 1.1.2
   ```
 
 - 使用src下的代码（复制进自己项目即可）

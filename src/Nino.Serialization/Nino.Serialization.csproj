@@ -18,10 +18,13 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.1.1</PackageVersion>
+        <PackageVersion>1.1.2</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>Nino.Serialization v1.1.1
-- [optimization] optimized serializer + typemodel</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v1.1.2
+- [optimization] optimized serializer/deserializer/writer/reader
+- [feat] support nullable/hashset/queue/stack
+- [feat] support Polymorphism for array/list/hashset/queue/stack/dictionary
+- [IMPORTANT] this version is not compatible with past versions</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 
