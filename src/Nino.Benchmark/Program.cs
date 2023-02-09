@@ -9,8 +9,8 @@ namespace Nino.Benchmark
 #if !DEBUG
             //BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
             // BenchmarkRunner.Run<ExtensibleBufferBenchmark>();
-            // BenchmarkRunner.Run<SerializationBenchmark>();
-            BenchmarkRunner.Run<StringMgrBenchmark>();
+            BenchmarkRunner.Run<SerializationBenchmark>();
+            // BenchmarkRunner.Run<StringMgrBenchmark>();
 #else
             BenchmarkRunner.Run<SerializationBenchmark>(new BenchmarkDotNet.Configs.DebugInProcessConfig());
 #endif

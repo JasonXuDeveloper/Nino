@@ -27,7 +27,7 @@ namespace Nino.Benchmark
             Job baseConfig = Job.ShortRun.WithIterationCount(1).WithWarmupCount(1);
 
             // Add(baseConfig.With(Runtime.Clr).With(Jit.RyuJit).With(Platform.X64));
-            this.AddJob(baseConfig.WithRuntime(CoreRuntime.Core50).WithPlatform(Platform.AnyCpu));
+            this.AddJob(baseConfig.WithRuntime(CoreRuntime.Core60).WithPlatform(Platform.AnyCpu));
             //this.AddJob(baseConfig.WithRuntime(ClrRuntime.Net48).WithPlatform(Platform.AnyCpu));
             //this.AddJob(baseConfig.WithJit(Jit.LegacyJit).WithRuntime(MonoRuntime.Default).WithPlatform(Platform.AnyCpu));
             //this.AddJob(baseConfig.WithJit(Jit.LegacyJit).WithPlatform(Platform.AnyCpu).WithRuntime(ClrRuntime.Net461));
