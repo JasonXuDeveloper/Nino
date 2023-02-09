@@ -6,11 +6,8 @@ using System.Collections;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 
-// ReSharper disable UnusedMember.Local
-
 namespace Nino.Serialization
 {
-    // ReSharper disable UnusedParameter.Local
     public static class Serializer
     {
         /// <summary>
@@ -85,7 +82,8 @@ namespace Nino.Serialization
             // ReSharper restore CognitiveComplexity
         {
             bool boxed = false;
-            if (type != typeof(T) || typeof(T) == ConstMgr.ObjectType)
+            Type tType = typeof(T);
+            if (type != tType || tType == ConstMgr.ObjectType)
             {
                 if (value == null)
                 {
@@ -125,7 +123,7 @@ namespace Nino.Serialization
                 return ret;
             }
 
-            if (TrySerializeEnumType(type, value, writer, boxed, returnValue, out ret))
+            if (TrySerializeEnumType(type, value, writer, returnValue, out ret))
             {
                 return ret;
             }
@@ -135,7 +133,7 @@ namespace Nino.Serialization
                 return ret;
             }
 
-            if (TrySerializeArray(type, value, writer, returnValue, out ret))
+            if (TrySerializeArray(value, writer, returnValue, out ret))
             {
                 return ret;
             }
@@ -143,12 +141,12 @@ namespace Nino.Serialization
             //generic
             if (type.IsGenericType)
             {
-                if (TrySerializeList(type, value, writer, returnValue, out ret))
+                if (TrySerializeList(value, writer, returnValue, out ret))
                 {
                     return ret;
                 }
 
-                if (TrySerializeDict(type, value, writer, returnValue, out ret))
+                if (TrySerializeDict(value, writer, returnValue, out ret))
                 {
                     return ret;
                 }
@@ -157,7 +155,7 @@ namespace Nino.Serialization
             /*
              * CUSTOM STRUCT/CLASS SERIALIZATION
              */
-            if (WriteNullCheck(type, value, writer, returnValue, out ret))
+            if (WriteNullCheck(value, writer, returnValue, out ret))
             {
                 return ret;
             }
@@ -232,9 +230,13 @@ namespace Nino.Serialization
             [MarshalAs(UnmanagedType.U1)] bool boxed, [MarshalAs(UnmanagedType.U1)] bool returnValue,
             out byte[] ret)
         {
-            ret = ConstMgr.Null;
             //basic type
-            if (!WrapperManifest.TryGetWrapper(type, out var wrapper)) return false;
+            if (!WrapperManifest.TryGetWrapper(type, out var wrapper))
+            {
+                ret = ConstMgr.Null;
+                return false;
+            }
+
             if (boxed)
             {
                 wrapper.Serialize(value, writer);
@@ -254,20 +256,21 @@ namespace Nino.Serialization
         /// <param name="type"></param>
         /// <param name="value"></param>
         /// <param name="writer"></param>
-        /// <param name="boxed"></param>
         /// <param name="returnValue"></param>
         /// <param name="ret"></param>
         /// <typeparam name="T"></typeparam>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TrySerializeEnumType<T>(Type type, T value, Writer writer,
-            [MarshalAs(UnmanagedType.U1)] bool boxed, [MarshalAs(UnmanagedType.U1)] bool returnValue,
-            out byte[] ret)
+        private static bool TrySerializeEnumType<T>(Type type, T value, Writer writer, 
+            [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
         {
-            ret = ConstMgr.Null;
-
             //enum
-            if (!TypeModel.IsEnum(type)) return false;
+            if (!TypeModel.IsEnum(type))
+            {
+                ret = ConstMgr.Null;
+                return false;
+            }
+
             writer.CompressAndWriteEnum(value);
             ret = Return(returnValue, writer);
             return true;
@@ -289,10 +292,13 @@ namespace Nino.Serialization
             [MarshalAs(UnmanagedType.U1)] bool boxed, [MarshalAs(UnmanagedType.U1)] bool returnValue,
             out byte[] ret)
         {
-            ret = ConstMgr.Null;
-
             //code generated type
-            if (!TypeModel.TryGetWrapper(type, out var wrapper)) return false;
+            if (!TypeModel.TryGetWrapper(type, out var wrapper))
+            {
+                ret = ConstMgr.Null;
+                return false;
+            }
+
             //add wrapper
             WrapperManifest.AddWrapper(type, wrapper);
 
@@ -313,7 +319,6 @@ namespace Nino.Serialization
         /// <summary>
         /// Attempt to serialize array
         /// </summary>
-        /// <param name="type"></param>
         /// <param name="value"></param>
         /// <param name="writer"></param>
         /// <param name="returnValue"></param>
@@ -321,13 +326,16 @@ namespace Nino.Serialization
         /// <typeparam name="T"></typeparam>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TrySerializeArray<T>(Type type, T value, Writer writer,
+        private static bool TrySerializeArray<T>(T value, Writer writer,
             [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
         {
-            ret = ConstMgr.Null;
-
             //array
-            if (!(value is Array arr)) return false;
+            if (!(value is Array arr))
+            {
+                ret = ConstMgr.Null;
+                return false;
+            }
+
             writer.Write(arr);
             ret = Return(returnValue, writer);
             return true;
@@ -336,7 +344,6 @@ namespace Nino.Serialization
         /// <summary>
         /// Attempt to serialize list
         /// </summary>
-        /// <param name="type"></param>
         /// <param name="value"></param>
         /// <param name="writer"></param>
         /// <param name="returnValue"></param>
@@ -344,12 +351,15 @@ namespace Nino.Serialization
         /// <typeparam name="T"></typeparam>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TrySerializeList<T>(Type type, T value, Writer writer,
+        private static bool TrySerializeList<T>(T value, Writer writer,
             [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
         {
-            ret = ConstMgr.Null;
+            if (!(value is IList lst))
+            {
+                ret = ConstMgr.Null;
+                return false;
+            }
 
-            if (!(value is IList lst)) return false;
             writer.Write(lst);
             ret = Return(returnValue, writer);
             return true;
@@ -358,7 +368,6 @@ namespace Nino.Serialization
         /// <summary>
         /// Attempt to serialize dict
         /// </summary>
-        /// <param name="type"></param>
         /// <param name="value"></param>
         /// <param name="writer"></param>
         /// <param name="returnValue"></param>
@@ -366,12 +375,15 @@ namespace Nino.Serialization
         /// <typeparam name="T"></typeparam>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool TrySerializeDict<T>(Type type, T value, Writer writer,
+        private static bool TrySerializeDict<T>(T value, Writer writer,
             [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
         {
-            ret = ConstMgr.Null;
+            if (!(value is IDictionary dict))
+            {
+                ret = ConstMgr.Null;
+                return false;
+            }
 
-            if (!(value is IDictionary dict)) return false;
             writer.Write(dict);
             ret = Return(returnValue, writer);
             return true;
@@ -380,7 +392,6 @@ namespace Nino.Serialization
         /// <summary>
         /// Check for null
         /// </summary>
-        /// <param name="type"></param>
         /// <param name="value"></param>
         /// <param name="writer"></param>
         /// <param name="returnValue"></param>
@@ -388,11 +399,9 @@ namespace Nino.Serialization
         /// <typeparam name="T"></typeparam>
         /// <returns>true when null</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool WriteNullCheck<T>(Type type, T value, Writer writer,
+        private static bool WriteNullCheck<T>(T value, Writer writer,
             [MarshalAs(UnmanagedType.U1)] bool returnValue, out byte[] ret)
         {
-            ret = ConstMgr.Null;
-
             //null check
             if (value == null)
             {
@@ -402,7 +411,7 @@ namespace Nino.Serialization
             }
 
             writer.Write(true); // if not null -> write true
-
+            ret = ConstMgr.Null;
             return false;
         }
 
@@ -425,5 +434,4 @@ namespace Nino.Serialization
             return ret;
         }
     }
-    // ReSharper restore UnusedParameter.Local
 }

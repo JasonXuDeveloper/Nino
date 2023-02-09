@@ -10,7 +10,6 @@ namespace Nino.Serialization
 	/// <summary>
 	/// A read that Reads serialization Data
 	/// </summary>
-	// ReSharper disable CognitiveComplexity
 	public unsafe class Reader
 	{
 		/// <summary>
@@ -69,7 +68,7 @@ namespace Nino.Serialization
 		/// <param name="outputLength"></param>
 		/// <param name="option"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void Init(IntPtr data, ref int outputLength, CompressOption option)
+		private void Init(IntPtr data, int outputLength, CompressOption option)
 		{
 			if (buffer == null)
 			{
@@ -108,14 +107,14 @@ namespace Nino.Serialization
 				case CompressOption.NoCompression:
 					fixed (byte* ptr = &data.GetPinnableReference())
 					{
-						Init((IntPtr)ptr, ref outputLength, compressOption);
+						Init((IntPtr)ptr, outputLength, compressOption);
 					}
 
 					break;
 				case CompressOption.Lz4:
 					throw new NotSupportedException("not support lz4 yet");
 				case CompressOption.Zlib:
-					Init(CompressMgr.Decompress(data.ToArray(), out var length), ref length, compressOption);
+					Init(CompressMgr.Decompress(data.ToArray(), out var length), length, compressOption);
 					break;
 			}
 		}
@@ -134,14 +133,14 @@ namespace Nino.Serialization
 				case CompressOption.NoCompression:
 					fixed (byte* ptr = data)
 					{
-						Init((IntPtr)ptr, ref outputLength, compressOption);
+						Init((IntPtr)ptr, outputLength, compressOption);
 					}
 
 					break;
 				case CompressOption.Lz4:
 					throw new NotSupportedException("not support lz4 yet");
 				case CompressOption.Zlib:
-					Init(CompressMgr.Decompress(data, out var length), ref length, compressOption);
+					Init(CompressMgr.Decompress(data, out var length), length, compressOption);
 					break;
 			}
 		}
@@ -165,7 +164,6 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		[Obsolete("use generic method instead")]
-		// ReSharper disable CognitiveComplexity
 		public object ReadCommonVal(Type type) =>
 			Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, this, _option, false);
 
@@ -174,7 +172,6 @@ namespace Nino.Serialization
 		/// Compress and write enum
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		// ReSharper disable CognitiveComplexity
 		public T ReadCommonVal<T>() =>
 			Deserializer.Deserialize<T>(buffer.AsSpan(position, _length - position), this, _option,
 				false);
@@ -295,7 +292,6 @@ namespace Nino.Serialization
 		/// Compress and write enum
 		/// </summary>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		[Obsolete("use generic method instead")]
 		public ulong DecompressAndReadEnum(Type enumType)
 		{
 			if (EndOfReader) return default;
@@ -386,7 +382,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public byte[] ReadBytes([In] int len)
+		public byte[] ReadBytes(int len)
 		{
 			if (EndOfReader) return default;
 
@@ -406,7 +402,7 @@ namespace Nino.Serialization
 		/// <param name="ptr"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void ReadToBuffer([In] byte* ptr, [In] int len)
+		public void ReadToBuffer(byte* ptr, int len)
 		{
 			buffer.CopyTo(ptr, position, len);
 			position += len;
@@ -417,7 +413,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private T Read<T>([In] int len) where T : unmanaged
+		private T Read<T>(int len) where T : unmanaged
 		{
 			if (EndOfReader)
 			{
@@ -436,7 +432,7 @@ namespace Nino.Serialization
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		// ReSharper disable UnusedMember.Local
-		public void Read<T>(ref T val, [In] int len) where T : unmanaged
+		public void Read<T>(ref T val, int len) where T : unmanaged
 		// ReSharper restore UnusedMember.Local
 		{
 			if (EndOfReader)
@@ -741,5 +737,4 @@ namespace Nino.Serialization
 			return dict;
 		}
 	}
-	// ReSharper restore CognitiveComplexity
 }

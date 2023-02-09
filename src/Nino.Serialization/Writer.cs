@@ -3,9 +3,7 @@ using System.IO;
 using Nino.Shared.IO;
 using Nino.Shared.Mgr;
 using System.Collections;
-using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
-// ReSharper disable CognitiveComplexity
 
 namespace Nino.Serialization
 {
@@ -32,7 +30,7 @@ namespace Nino.Serialization
 		/// <summary>
 		/// Position of the current buffer
 		/// </summary>
-		internal int Position;
+		private int position;
 
 		/// <summary>
 		/// Convert writer to byte
@@ -43,11 +41,11 @@ namespace Nino.Serialization
 			switch (option)
 			{
 				case CompressOption.Zlib:
-					return CompressMgr.Compress(buffer, Position);
+					return CompressMgr.Compress(buffer, position);
 				case CompressOption.Lz4:
 					throw new NotSupportedException("not support lz4 yet");
 				case CompressOption.NoCompression:
-					return buffer.ToArray(0, Position);
+					return buffer.ToArray(0, position);
 			}
 
 			return ConstMgr.Null;
@@ -65,7 +63,7 @@ namespace Nino.Serialization
 		/// Create a nino writer
 		/// </summary>
 		/// <param name="option"></param>
-		public Writer([In] CompressOption option = CompressOption.Zlib)
+		public Writer(CompressOption option = CompressOption.Zlib)
 		{
 			Init(option);
 		}
@@ -74,7 +72,7 @@ namespace Nino.Serialization
 		/// Init writer
 		/// </summary>
 		/// <param name="compressOption"></param>
-		public void Init([In] CompressOption compressOption)
+		public void Init(CompressOption compressOption)
 		{
 			if (buffer == null)
 			{
@@ -89,7 +87,7 @@ namespace Nino.Serialization
 				}
 			}
 
-			Position = 0;
+			position = 0;
 			option = compressOption;
 		}
 
@@ -101,7 +99,7 @@ namespace Nino.Serialization
 		/// <exception cref="InvalidDataException"></exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		[Obsolete("use generic method instead")]
-		public void WriteCommonVal(Type type, [In] object val) =>
+		public void WriteCommonVal(Type type, object val) =>
 			Serializer.Serialize(type, val, this, option, false);
 
 		/// <summary>
@@ -110,7 +108,7 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <exception cref="InvalidDataException"></exception>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void WriteCommonVal<T>([In] T val) =>
+		public void WriteCommonVal<T>(T val) =>
 			Serializer.Serialize(typeof(T), val, this, option, false);
 
 		/// <summary>
@@ -118,7 +116,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="data"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe void Write([In] byte[] data)
+		public unsafe void Write(byte[] data)
 		{
 			var len = data.Length;
 			CompressAndWrite(len);
@@ -134,20 +132,20 @@ namespace Nino.Serialization
 		/// <param name="data"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		internal unsafe void Write([In] byte* data, ref int len)
+		internal unsafe void Write(byte* data, ref int len)
 		{
 			if (len <= 8)
 			{
 				while (len-- > 0)
 				{
-					buffer[Position++] = *data++;
+					buffer[position++] = *data++;
 				}
 
 				return;
 			}
 
-			buffer.CopyFrom(data, 0, Position, len);
-			Position += len;
+			buffer.CopyFrom(data, 0, position, len);
+			position += len;
 		}
 
 		/// <summary>
@@ -156,10 +154,10 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		/// <param name="len"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void Write<T>(ref T val, [In] byte len) where T : unmanaged
+		private void Write<T>(ref T val, byte len) where T : unmanaged
 		{
-			Unsafe.WriteUnaligned(ref buffer.AsSpan(Position, len).GetPinnableReference(), val);
-			Position += len;
+			Unsafe.WriteUnaligned(ref buffer.AsSpan(position, len).GetPinnableReference(), val);
+			position += len;
 		}
 
 		/// <summary>
@@ -167,7 +165,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] double value)
+		public void Write(double value)
 		{
 			Write(ref value, ConstMgr.SizeOfULong);
 		}
@@ -177,7 +175,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] float value)
+		public void Write(float value)
 		{
 			Write(ref value, ConstMgr.SizeOfUInt);
 		}
@@ -187,7 +185,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] DateTime value)
+		public void Write(DateTime value)
 		{
 			Write(value.ToOADate());
 		}
@@ -197,7 +195,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="d"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] decimal d)
+		public void Write(decimal d)
 		{
 			Write(ref d, ConstMgr.SizeOfDecimal);
 		}
@@ -208,13 +206,13 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="value"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] bool value)
+		public void Write(bool value)
 		{
-			buffer[Position++] = Unsafe.As<bool, byte>(ref value);
+			buffer[position++] = Unsafe.As<bool, byte>(ref value);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] char value)
+		public void Write(char value)
 		{
 			Write(ref value, ConstMgr.SizeOfUShort);
 		}
@@ -256,9 +254,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] byte num)
+		public void Write(byte num)
 		{
-			buffer[Position++] = num;
+			buffer[position++] = num;
 		}
 
 		/// <summary>
@@ -266,9 +264,9 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] sbyte num)
+		public void Write(sbyte num)
 		{
-			buffer[Position++] = Unsafe.As<sbyte, byte>(ref num);
+			buffer[position++] = Unsafe.As<sbyte, byte>(ref num);
 		}
 
 		/// <summary>
@@ -276,7 +274,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] int num)
+		public void Write(int num)
 		{
 			Write(ref num, ConstMgr.SizeOfInt);
 		}
@@ -286,7 +284,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] uint num)
+		public void Write(uint num)
 		{
 			Write(ref num, ConstMgr.SizeOfUInt);
 		}
@@ -296,7 +294,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] short num)
+		public void Write(short num)
 		{
 			Write(ref num, ConstMgr.SizeOfShort);
 		}
@@ -306,7 +304,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] ushort num)
+		public void Write(ushort num)
 		{
 			Write(ref num, ConstMgr.SizeOfUShort);
 		}
@@ -316,7 +314,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] long num)
+		public void Write(long num)
 		{
 			Write(ref num, ConstMgr.SizeOfLong);
 		}
@@ -326,7 +324,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="num"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void Write([In] ulong num)
+		public void Write(ulong num)
 		{
 			Write(ref num, ConstMgr.SizeOfULong);
 		}
@@ -344,22 +342,22 @@ namespace Nino.Serialization
 				{
 					if (num <= byte.MaxValue)
 					{
-						buffer[Position++] = (byte)CompressType.Byte;
+						buffer[position++] = (byte)CompressType.Byte;
 						Write(ref num, 1);
 						return;
 					}
 
-					buffer[Position++] = (byte)CompressType.UInt16;
+					buffer[position++] = (byte)CompressType.UInt16;
 					Write(ref num, ConstMgr.SizeOfUShort);
 					return;
 				}
 
-				buffer[Position++] = (byte)CompressType.UInt32;
+				buffer[position++] = (byte)CompressType.UInt32;
 				Write(ref num, ConstMgr.SizeOfUInt);
 				return;
 			}
 
-			buffer[Position++] = (byte)CompressType.UInt64;
+			buffer[position++] = (byte)CompressType.UInt64;
 			Write(ref num, ConstMgr.SizeOfULong);
 		}
 
@@ -370,29 +368,29 @@ namespace Nino.Serialization
 			{
 				if (num <= byte.MaxValue)
 				{
-					buffer[Position++] = (byte)CompressType.Byte;
+					buffer[position++] = (byte)CompressType.Byte;
 					Write(ref num, 1);
 					return;
 				}
 
-				buffer[Position++] = (byte)CompressType.UInt16;
+				buffer[position++] = (byte)CompressType.UInt16;
 				Write(ref num, ConstMgr.SizeOfUShort);
 				return;
 			}
 
-			buffer[Position++] = (byte)CompressType.UInt32;
+			buffer[position++] = (byte)CompressType.UInt32;
 			Write(ref num, ConstMgr.SizeOfUInt);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWrite([In] ulong num)
+		public void CompressAndWrite(ulong num)
 		{
 			ref var n = ref num;
 			CompressAndWrite(ref n);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWrite([In] uint num)
+		public void CompressAndWrite(uint num)
 		{
 			ref var n = ref num;
 			CompressAndWrite(ref n);
@@ -413,22 +411,22 @@ namespace Nino.Serialization
 					{
 						if (num >= sbyte.MinValue)
 						{
-							buffer[Position++] = (byte)CompressType.SByte;
+							buffer[position++] = (byte)CompressType.SByte;
 							Write(ref num, 1);
 							return;
 						}
 
-						buffer[Position++] = (byte)CompressType.Int16;
+						buffer[position++] = (byte)CompressType.Int16;
 						Write(ref num, ConstMgr.SizeOfShort);
 						return;
 					}
 
-					buffer[Position++] = (byte)CompressType.Int32;
+					buffer[position++] = (byte)CompressType.Int32;
 					Write(ref num, ConstMgr.SizeOfInt);
 					return;
 				}
 
-				buffer[Position++] = (byte)CompressType.Int64;
+				buffer[position++] = (byte)CompressType.Int64;
 				Write(ref num, ConstMgr.SizeOfLong);
 				return;
 			}
@@ -439,22 +437,22 @@ namespace Nino.Serialization
 				{
 					if (num <= byte.MaxValue)
 					{
-						buffer[Position++] = (byte)CompressType.Byte;
+						buffer[position++] = (byte)CompressType.Byte;
 						Write(ref num, 1);
 						return;
 					}
 
-					buffer[Position++] = (byte)CompressType.UInt16;
+					buffer[position++] = (byte)CompressType.UInt16;
 					Write(ref num, ConstMgr.SizeOfShort);
 					return;
 				}
 
-				buffer[Position++] = (byte)CompressType.UInt32;
+				buffer[position++] = (byte)CompressType.UInt32;
 				Write(ref num, ConstMgr.SizeOfInt);
 				return;
 			}
 
-			buffer[Position++] = (byte)CompressType.UInt64;
+			buffer[position++] = (byte)CompressType.UInt64;
 			Write(ref num, ConstMgr.SizeOfLong);
 		}
 
@@ -467,17 +465,17 @@ namespace Nino.Serialization
 				{
 					if (num >= sbyte.MinValue)
 					{
-						buffer[Position++] = (byte)CompressType.SByte;
+						buffer[position++] = (byte)CompressType.SByte;
 						Write(ref num, 1);
 						return;
 					}
 
-					buffer[Position++] = (byte)CompressType.Int16;
+					buffer[position++] = (byte)CompressType.Int16;
 					Write(ref num, ConstMgr.SizeOfShort);
 					return;
 				}
 
-				buffer[Position++] = (byte)CompressType.Int32;
+				buffer[position++] = (byte)CompressType.Int32;
 				Write(ref num, ConstMgr.SizeOfInt);
 				return;
 			}
@@ -486,29 +484,29 @@ namespace Nino.Serialization
 			{
 				if (num <= byte.MaxValue)
 				{
-					buffer[Position++] = (byte)CompressType.Byte;
+					buffer[position++] = (byte)CompressType.Byte;
 					Write(ref num, 1);
 					return;
 				}
 
-				buffer[Position++] = (byte)CompressType.UInt16;
+				buffer[position++] = (byte)CompressType.UInt16;
 				Write(ref num, ConstMgr.SizeOfShort);
 				return;
 			}
 
-			buffer[Position++] = (byte)CompressType.UInt32;
+			buffer[position++] = (byte)CompressType.UInt32;
 			Write(ref num, ConstMgr.SizeOfInt);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWrite([In] long num)
+		public void CompressAndWrite(long num)
 		{
 			ref var n = ref num;
 			CompressAndWrite(ref n);
 		}
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void CompressAndWrite([In] int num)
+		public void CompressAndWrite(int num)
 		{
 			ref var n = ref num;
 			CompressAndWrite(ref n);
@@ -521,7 +519,7 @@ namespace Nino.Serialization
 		/// </summary>
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe void CompressAndWriteEnum<T>([In] T val)
+		public unsafe void CompressAndWriteEnum<T>(T val)
 		{
 			var type = typeof(T);
 			if (type == ConstMgr.ObjectType)
@@ -530,20 +528,20 @@ namespace Nino.Serialization
 				switch (TypeModel.GetTypeCode(type))
 				{
 					case TypeCode.Byte:
-						buffer[Position++] = Unsafe.Unbox<byte>(val);
+						buffer[position++] = Unsafe.Unbox<byte>(val);
 						return;
 					case TypeCode.SByte:
-						buffer[Position++] = *(byte*)Unsafe.Unbox<sbyte>(val);
+						buffer[position++] = *(byte*)Unsafe.Unbox<sbyte>(val);
 						return;
 					case TypeCode.Int16:
-						Unsafe.As<byte, short>(ref buffer.AsSpan(Position, 2).GetPinnableReference()) =
+						Unsafe.As<byte, short>(ref buffer.AsSpan(position, 2).GetPinnableReference()) =
 							Unsafe.Unbox<short>(val);
-						Position += 2;
+						position += 2;
 						return;
 					case TypeCode.UInt16:
-						Unsafe.As<byte, ushort>(ref buffer.AsSpan(Position, 2).GetPinnableReference()) =
+						Unsafe.As<byte, ushort>(ref buffer.AsSpan(position, 2).GetPinnableReference()) =
 							Unsafe.Unbox<ushort>(val);
-						Position += 2;
+						position += 2;
 						return;
 					case TypeCode.Int32:
 						CompressAndWrite(ref Unsafe.Unbox<int>(val));
@@ -566,12 +564,12 @@ namespace Nino.Serialization
 			{
 				case TypeCode.Byte:
 				case TypeCode.SByte:
-					Unsafe.WriteUnaligned(buffer.Data + Position++, val);
+					Unsafe.WriteUnaligned(buffer.Data + position++, val);
 					return;
 				case TypeCode.Int16:
 				case TypeCode.UInt16:
-					Unsafe.WriteUnaligned(ref buffer.AsSpan(Position, 2).GetPinnableReference(), val);
-					Position += 2;
+					Unsafe.WriteUnaligned(ref buffer.AsSpan(position, 2).GetPinnableReference(), val);
+					position += 2;
 					return;
 				case TypeCode.Int32:
 					CompressAndWrite(ref Unsafe.As<T, int>(ref val));
@@ -595,7 +593,7 @@ namespace Nino.Serialization
 		/// <param name="val"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		[Obsolete("Please re-generate nino serialize code to use the latest api")]
-		public void CompressAndWriteEnum(Type type, [In] ulong val)
+		public void CompressAndWriteEnum(Type type, ulong val)
 		{
 			switch (TypeModel.GetTypeCode(type))
 			{
