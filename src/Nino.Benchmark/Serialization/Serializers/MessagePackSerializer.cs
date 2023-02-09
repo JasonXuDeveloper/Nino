@@ -4,7 +4,6 @@
 #pragma warning disable SA1649 // File name should match first type name
 
 using MessagePack;
-using MessagePack.Formatters;
 
 namespace Nino.Benchmark.Serializers
 {

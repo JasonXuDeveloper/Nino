@@ -16,32 +16,8 @@ namespace Nino.Test
                 }
                 writer.Write(true);
                 writer.Write(value.name);
-                if(value.ps != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.ps.Length);
-                    foreach (var entry in value.ps)
-                    {
-                        Nino.Test.Data.NinoSerializationHelper.Serialize(entry, writer);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
-                if(value.vs != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.vs.Count);
-                    foreach (var entry in value.vs)
-                    {
-                        writer.CompressAndWrite(entry);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
+                writer.Write(value.ps);
+                writer.Write(value.vs);
             }
 
             public override NestedData2 Deserialize(Nino.Serialization.Reader reader)
@@ -50,18 +26,8 @@ namespace Nino.Test
                     return null;
                 NestedData2 value = new NestedData2();
                 value.name = reader.ReadString();
-                if(reader.ReadBool()){value.ps = new Nino.Test.Data[reader.ReadLength()];
-                for(int i = 0, cnt = value.ps.Length; i < cnt; i++)
-                {
-                    var value_ps_i = Nino.Test.Data.NinoSerializationHelper.Deserialize(reader);
-                    value.ps[i] = value_ps_i;
-                }}
-                if(reader.ReadBool()){value.vs = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
-                for(int i = 0, cnt = value.vs.Capacity; i < cnt; i++)
-                {
-                    var value_vs_i = reader.DecompressAndReadNumber<System.Int32>();;
-                    value.vs.Add(value_vs_i);
-                }}
+                value.ps = reader.ReadArray<Nino.Test.Data>();
+                value.vs = reader.ReadList<System.Int32>();
                 return value;
             }
             #endregion

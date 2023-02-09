@@ -9,7 +9,7 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
 {
-    public static class Deserializer
+    public static partial class Deserializer
     {
         /// <summary>
         /// Custom Exporter delegate that reads bytes to object
@@ -233,7 +233,7 @@ namespace Nino.Serialization
                 for (int i = 0; i < len; i++)
                 {
                     var key = reader.ReadString();
-                    var typeFullName = reader.ReadString();
+                    var typeFullName = reader.ReadString(); // TODO 换成HashCode，搞个双向字典，HashCode(int)<->Type
                     var value = Deserialize(Type.GetType(typeFullName), ConstMgr.Null, ConstMgr.Null, reader,
                         option, false);
                     values.Add(key, value);
@@ -245,15 +245,6 @@ namespace Nino.Serialization
                     //try get same member and set it
                     if (values.TryGetValue(member.Name, out var ret))
                     {
-                        //type check
-                        type = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
-#if !ILRuntime
-                        if (ret.GetType() != type)
-                        {
-                            ret = TypeModel.IsEnum(type) ? Enum.ToObject(type, ret) : Convert.ChangeType(ret, type);
-                        }
-#endif
-
                         SetMember(member, val, ret);
                     }
                 }
@@ -321,7 +312,6 @@ namespace Nino.Serialization
             ret = default;
             return false;
         }
-
 
         /// <summary>
         /// Try deserialize code generated type (first time only)

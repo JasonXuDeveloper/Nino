@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
 {
-    public static class Serializer
+    public static partial class Serializer
     {
         /// <summary>
         /// Custom importer delegate that writes object to writer
@@ -342,7 +342,7 @@ namespace Nino.Serialization
         }
 
         /// <summary>
-        /// Attempt to serialize list
+        /// Attempt to serialize list (boxed)
         /// </summary>
         /// <param name="value"></param>
         /// <param name="writer"></param>
@@ -364,7 +364,7 @@ namespace Nino.Serialization
             ret = Return(returnValue, writer);
             return true;
         }
-
+        
         /// <summary>
         /// Attempt to serialize dict
         /// </summary>

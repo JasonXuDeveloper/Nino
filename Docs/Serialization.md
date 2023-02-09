@@ -93,9 +93,10 @@ public partial class NotIncludeAllClass
 支持序列化的成员类型（底层自带支持）：
 
 - byte, sbyte, short, ushort, int, uint, long, ulong, double, float, decimal, char, string, bool, enum, DateTime
-- List<上述类型>，上述类型[]
-- List<可Nino序列化类型>，可Nino序列化类型[]
-- List<注册委托类型>，注册委托类型[]
+- Nullable<任意支持Nino序列化的struct>
+- List<上述类型>，HashSet<上述类型>，Queue<上述类型>，Stack<上述类型>，上述类型[]
+- List<可Nino序列化类型>，HashSet<可Nino序列化类型>，Queue<可Nino序列化类型>，Stack<可Nino序列化类型>，可Nino序列化类型[]
+- List<注册委托类型>，HashSet<注册委托类型>，Queue<注册委托类型>，Stack<注册委托类型>，注册委托类型[]
 - Dictionary<Nino支持类型,Nino支持类型>
 - Dictionary<注册委托类型,注册委托类型>
 - 可Nino序列化类型
@@ -103,7 +104,7 @@ public partial class NotIncludeAllClass
 
 不支持序列化的成员类型（可以通过注册自定义委托实现）：
 
-- 任何非上述类型（HashSet, Nullable【即将支持】, Vector3等）
+- 任何非上述类型（ConcurrentQueue等）
 
 **针对某个类型注册自定义序列化委托后，记得注册该类型的自定义反序列化委托，不然会导致反序列化出错**
 
@@ -314,6 +315,12 @@ byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);
 
 ```csharp
 Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, CompressOption option = CompressOption.Zlib);
+Nino.Serialization.Deserializer.DeserializeArray<T>(byte[] data, CompressOption option = CompressOption.Zlib);
+Nino.Serialization.Deserializer.DeserializeNullable<T>(byte[] data, CompressOption option = CompressOption.Zlib);
+Nino.Serialization.Deserializer.DeserializeList<T>(byte[] data, CompressOption option = CompressOption.Zlib);
+Nino.Serialization.Deserializer.DeserializeHashSet<T>(byte[] data, CompressOption option = CompressOption.Zlib);
+Nino.Serialization.Deserializer.DeserializeQueue<T>(byte[] data, CompressOption option = CompressOption.Zlib);
+Nino.Serialization.Deserializer.DeserializeStack<T>(byte[] data, CompressOption option = CompressOption.Zlib);
 ```
 
 ```csharp
@@ -322,7 +329,7 @@ Nino.Serialization.Deserializer.Deserialize(Type type, byte[] data, CompressOpti
 
 
 
-> 如果没有指定的编码的话，会使用UTF8
+> data可以传```byte[]```或```ArraySegment<byte>```或```Span<byte>```
 >
 > 如果没有指定的压缩模式，会使用Zlib
 >

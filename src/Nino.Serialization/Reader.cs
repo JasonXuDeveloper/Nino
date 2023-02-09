@@ -10,7 +10,7 @@ namespace Nino.Serialization
 	/// <summary>
 	/// A read that Reads serialization Data
 	/// </summary>
-	public unsafe class Reader
+	public unsafe partial class Reader
 	{
 		/// <summary>
 		/// block size when creating buffer
@@ -166,16 +166,7 @@ namespace Nino.Serialization
 		[Obsolete("use generic method instead")]
 		public object ReadCommonVal(Type type) =>
 			Deserializer.Deserialize(type, ConstMgr.Null, ConstMgr.Null, this, _option, false);
-
-		/// <summary>
-		/// Read primitive value from binary writer, DO NOT USE THIS FOR CUSTOM EXPORTER
-		/// Compress and write enum
-		/// </summary>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public T ReadCommonVal<T>() =>
-			Deserializer.Deserialize<T>(buffer.AsSpan(position, _length - position), this, _option,
-				false);
-
+		
 		/// <summary>
 		/// Decompress number for int32, int64, uint32, uint64
 		/// </summary>
@@ -210,84 +201,7 @@ namespace Nino.Serialization
 					throw new InvalidOperationException("invalid compress type");
 			}
 		}
-
-		/// <summary>
-		/// Decompress number for int32, int64, uint32, uint64
-		/// </summary>
-		/// <returns></returns>
-		/// <exception cref="InvalidOperationException"></exception>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public T DecompressAndReadNumber<T>() where T : unmanaged
-		{
-			T result = default;
-			DecompressAndReadNumber(ref result);
-			return result;
-		}
-
-		/// <summary>
-		/// Decompress number for int32, int64, uint32, uint64
-		/// </summary>
-		/// <returns></returns>
-		/// <exception cref="InvalidOperationException"></exception>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void DecompressAndReadNumber<T>(ref T result) where T : unmanaged
-		{
-			if (EndOfReader)
-			{
-				result = default;
-				return;
-			}
-
-			ref var type = ref GetCompressType();
-			fixed (T* ptr = &result)
-			{
-				switch (type)
-				{
-					case CompressType.Byte:
-						Unsafe.As<T, byte>(ref result) = ReadByte();
-						return;
-					case CompressType.SByte:
-						Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
-						Unsafe.As<T, sbyte>(ref result) = ReadSByte();
-						return;
-					case CompressType.Int16:
-						Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
-						Unsafe.As<T, short>(ref result) = ReadInt16();
-						return;
-					case CompressType.UInt16:
-						Unsafe.As<T, ushort>(ref result) = ReadUInt16();
-						return;
-					case CompressType.Int32:
-						Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
-						Unsafe.As<T, int>(ref result) = ReadInt32();
-						return;
-					case CompressType.UInt32:
-						Unsafe.As<T, uint>(ref result) = ReadUInt32();
-						return;
-					case CompressType.Int64:
-						Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
-						Unsafe.As<T, long>(ref result) = ReadInt64();
-						return;
-					case CompressType.UInt64:
-						Unsafe.As<T, ulong>(ref result) = ReadUInt64();
-						return;
-					default:
-						throw new InvalidOperationException("invalid compress type");
-				}
-			}
-		}
-
-		/// <summary>
-		/// Compress and write enum
-		/// </summary>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public T DecompressAndReadEnum<T>()
-		{
-			T val = default;
-			DecompressAndReadEnum(ref val);
-			return val;
-		}
-
+		
 		/// <summary>
 		/// Compress and write enum
 		/// </summary>
@@ -318,45 +232,6 @@ namespace Nino.Serialization
 			}
 
 			return 0;
-		}
-
-		/// <summary>
-		/// Compress and write enum
-		/// </summary>
-		/// <param name="val"></param>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void DecompressAndReadEnum<T>(ref T val)
-		{
-			if (EndOfReader) return;
-
-			switch (TypeModel.GetTypeCode(typeof(T)))
-			{
-				case TypeCode.Byte:
-					Unsafe.As<T, byte>(ref val) = ReadByte();
-					return;
-				case TypeCode.SByte:
-					Unsafe.As<T, sbyte>(ref val) = ReadSByte();
-					return;
-				case TypeCode.Int16:
-					Unsafe.As<T, short>(ref val) = ReadInt16();
-					return;
-				case TypeCode.UInt16:
-					Unsafe.As<T, ushort>(ref val) = ReadUInt16();
-					return;
-				//need to consider compress
-				case TypeCode.Int32:
-					Unsafe.As<T, int>(ref val) = DecompressAndReadNumber<int>();
-					return;
-				case TypeCode.UInt32:
-					Unsafe.As<T, uint>(ref val) = DecompressAndReadNumber<uint>();
-					return;
-				case TypeCode.Int64:
-					Unsafe.As<T, long>(ref val) = DecompressAndReadNumber<long>();
-					return;
-				case TypeCode.UInt64:
-					Unsafe.As<T, ulong>(ref val) = DecompressAndReadNumber<ulong>();
-					return;
-			}
 		}
 
 		/// <summary>
@@ -407,43 +282,7 @@ namespace Nino.Serialization
 			buffer.CopyTo(ptr, position, len);
 			position += len;
 		}
-
-		/// <summary>
-		/// Read unmanaged type
-		/// </summary>
-		/// <param name="len"></param>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private T Read<T>(int len) where T : unmanaged
-		{
-			if (EndOfReader)
-			{
-				return default;
-			}
-
-			ref var pin = ref *(buffer.Data + position);
-			position += len;
-			return Unsafe.ReadUnaligned<T>(ref pin);
-		}
-
-		/// <summary>
-		/// Read unmanaged type
-		/// </summary>
-		/// <param name="val"></param>
-		/// <param name="len"></param>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		// ReSharper disable UnusedMember.Local
-		public void Read<T>(ref T val, int len) where T : unmanaged
-		// ReSharper restore UnusedMember.Local
-		{
-			if (EndOfReader)
-			{
-				return;
-			}
-
-			val = Unsafe.ReadUnaligned<T>(ref *(buffer.Data + position));
-			position += len;
-		}
-
+		
 		/// <summary>
 		/// Read sbyte
 		/// </summary>

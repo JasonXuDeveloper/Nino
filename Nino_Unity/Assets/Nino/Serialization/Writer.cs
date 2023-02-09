@@ -10,7 +10,7 @@ namespace Nino.Serialization
 	/// <summary>
 	/// A writer that writes serialization Data
 	/// </summary>
-	public class Writer
+	public partial class Writer
 	{
 		/// <summary>
 		/// block size when creating buffer
@@ -101,16 +101,7 @@ namespace Nino.Serialization
 		[Obsolete("use generic method instead")]
 		public void WriteCommonVal(Type type, object val) =>
 			Serializer.Serialize(type, val, this, option, false);
-
-		/// <summary>
-		/// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
-		/// </summary>
-		/// <param name="val"></param>
-		/// <exception cref="InvalidDataException"></exception>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public void WriteCommonVal<T>(T val) =>
-			Serializer.Serialize(typeof(T), val, this, option, false);
-
+		
 		/// <summary>
 		/// Write byte[]
 		/// </summary>
@@ -145,18 +136,6 @@ namespace Nino.Serialization
 			}
 
 			buffer.CopyFrom(data, 0, position, len);
-			position += len;
-		}
-
-		/// <summary>
-		/// Write unmanaged type
-		/// </summary>
-		/// <param name="val"></param>
-		/// <param name="len"></param>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		private void Write<T>(ref T val, byte len) where T : unmanaged
-		{
-			Unsafe.WriteUnaligned(ref buffer.AsSpan(position, len).GetPinnableReference(), val);
 			position += len;
 		}
 
@@ -515,78 +494,6 @@ namespace Nino.Serialization
 		#endregion
 
 		/// <summary>
-		/// Compress and write enum
-		/// </summary>
-		/// <param name="val"></param>
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		public unsafe void CompressAndWriteEnum<T>(T val)
-		{
-			var type = typeof(T);
-			if (type == ConstMgr.ObjectType)
-			{
-				type = val.GetType();
-				switch (TypeModel.GetTypeCode(type))
-				{
-					case TypeCode.Byte:
-						buffer[position++] = Unsafe.Unbox<byte>(val);
-						return;
-					case TypeCode.SByte:
-						buffer[position++] = *(byte*)Unsafe.Unbox<sbyte>(val);
-						return;
-					case TypeCode.Int16:
-						Unsafe.As<byte, short>(ref buffer.AsSpan(position, 2).GetPinnableReference()) =
-							Unsafe.Unbox<short>(val);
-						position += 2;
-						return;
-					case TypeCode.UInt16:
-						Unsafe.As<byte, ushort>(ref buffer.AsSpan(position, 2).GetPinnableReference()) =
-							Unsafe.Unbox<ushort>(val);
-						position += 2;
-						return;
-					case TypeCode.Int32:
-						CompressAndWrite(ref Unsafe.Unbox<int>(val));
-						return;
-					case TypeCode.UInt32:
-						CompressAndWrite(ref Unsafe.Unbox<uint>(val));
-						return;
-					case TypeCode.Int64:
-						CompressAndWrite(ref Unsafe.Unbox<long>(val));
-						return;
-					case TypeCode.UInt64:
-						CompressAndWrite(ref Unsafe.Unbox<ulong>(val));
-						return;
-				}
-
-				return;
-			}
-
-			switch (TypeModel.GetTypeCode(type))
-			{
-				case TypeCode.Byte:
-				case TypeCode.SByte:
-					Unsafe.WriteUnaligned(buffer.Data + position++, val);
-					return;
-				case TypeCode.Int16:
-				case TypeCode.UInt16:
-					Unsafe.WriteUnaligned(ref buffer.AsSpan(position, 2).GetPinnableReference(), val);
-					position += 2;
-					return;
-				case TypeCode.Int32:
-					CompressAndWrite(ref Unsafe.As<T, int>(ref val));
-					return;
-				case TypeCode.UInt32:
-					CompressAndWrite(ref Unsafe.As<T, uint>(ref val));
-					return;
-				case TypeCode.Int64:
-					CompressAndWrite(ref Unsafe.As<T, long>(ref val));
-					return;
-				case TypeCode.UInt64:
-					CompressAndWrite(ref Unsafe.As<T, ulong>(ref val));
-					return;
-			}
-		}
-
-		/// <summary>
 		/// Compress and write enum (no boxing)
 		/// </summary>
 		/// <param name="type"></param>
@@ -624,6 +531,10 @@ namespace Nino.Serialization
 			}
 		}
 
+		/// <summary>
+		/// Write array
+		/// </summary>
+		/// <param name="arr"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(Array arr)
 		{
@@ -652,7 +563,11 @@ namespace Nino.Serialization
 				WriteCommonVal(arr.GetValue(i++));
 			}
 		}
-
+		
+		/// <summary>
+		/// Write list
+		/// </summary>
+		/// <param name="arr"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(IList arr)
 		{
@@ -680,6 +595,10 @@ namespace Nino.Serialization
 			}
 		}
 
+		/// <summary>
+		/// Write dictionary
+		/// </summary>
+		/// <param name="dictionary"></param>
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		public void Write(IDictionary dictionary)
 		{

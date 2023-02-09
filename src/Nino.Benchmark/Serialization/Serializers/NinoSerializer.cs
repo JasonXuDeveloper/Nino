@@ -1,5 +1,4 @@
-﻿using System.Text;
-using Nino.Serialization;
+﻿using Nino.Serialization;
 
 namespace Nino.Benchmark.Serializers
 {

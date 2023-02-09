@@ -29,114 +29,14 @@ namespace Nino.Test
                 writer.Write(value.l);
                 writer.Write(value.m);
                 writer.Write(value.n);
-                if(value.o != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.o.Count);
-                    foreach (var entry in value.o)
-                    {
-                        writer.CompressAndWrite(entry);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
-                if(value.p != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.p.Count);
-                    foreach (var entry in value.p)
-                    {
-                        Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Serialize(entry, writer);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
-                if(value.q != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.q.Length);
-                    foreach (var entry in value.q)
-                    {
-                        writer.Write(entry);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
-                if(value.r != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.r.Length);
-                    foreach (var entry in value.r)
-                    {
-                        Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Serialize(entry, writer);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
-                if(value.s != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.s.Count);
-                    foreach (var entry in value.s)
-                    {
-                        writer.Write(entry.Key);
-                        Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Serialize(entry.Value, writer);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
-                if(value.t != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.t.Count);
-                    foreach (var entry in value.t)
-                    {
-                        Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Serialize(entry.Key, writer);
-                        writer.CompressAndWrite(entry.Value);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
-                if(value.u != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.u.Count);
-                    foreach (var entry in value.u)
-                    {
-                        writer.Write(entry.Key);
-                        writer.CompressAndWrite(entry.Value);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
-                if(value.v != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.v.Count);
-                    foreach (var entry in value.v)
-                    {
-                        Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Serialize(entry.Key, writer);
-                        Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Serialize(entry.Value, writer);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
+                writer.Write(value.o);
+                writer.Write(value.p);
+                writer.Write(value.q);
+                writer.Write(value.r);
+                writer.Write(value.s);
+                writer.Write(value.t);
+                writer.Write(value.u);
+                writer.Write(value.v);
             }
 
             public override BuildTestDataCodeGen Deserialize(Nino.Serialization.Reader reader)
@@ -158,57 +58,14 @@ namespace Nino.Test
                 reader.Read<System.Boolean>(ref value.l, 1);
                 reader.Read<System.Char>(ref value.m, Nino.Shared.Mgr.ConstMgr.SizeOfUShort);
                 value.n = reader.ReadString();
-                if(reader.ReadBool()){value.o = new System.Collections.Generic.List<System.Int32>(reader.ReadLength());
-                for(int i = 0, cnt = value.o.Capacity; i < cnt; i++)
-                {
-                    var value_o_i = reader.DecompressAndReadNumber<System.Int32>();;
-                    value.o.Add(value_o_i);
-                }}
-                if(reader.ReadBool()){value.p = new System.Collections.Generic.List<Nino.Test.NotIncludeAllClass>(reader.ReadLength());
-                for(int i = 0, cnt = value.p.Capacity; i < cnt; i++)
-                {
-                    var value_p_i = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
-                    value.p.Add(value_p_i);
-                }}
-                if(reader.ReadBool()) value.q = reader.ReadBytes(reader.ReadLength());
-                if(reader.ReadBool()){value.r = new Nino.Test.NotIncludeAllClass[reader.ReadLength()];
-                for(int i = 0, cnt = value.r.Length; i < cnt; i++)
-                {
-                    var value_r_i = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
-                    value.r[i] = value_r_i;
-                }}
-                if(reader.ReadBool()){                var value_s_len = reader.ReadLength();
-                value.s = new System.Collections.Generic.Dictionary<System.String,Nino.Test.NotIncludeAllClass>(value_s_len);
-                for(int i = 0; i < value_s_len; i++)
-                {
-                    var value_s_key = reader.ReadString();
-                    var value_s_val = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
-                    value.s[value_s_key] = value_s_val;
-                }}
-                if(reader.ReadBool()){                var value_t_len = reader.ReadLength();
-                value.t = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,System.Int32>(value_t_len);
-                for(int i = 0; i < value_t_len; i++)
-                {
-                    var value_t_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
-                    var value_t_val = reader.DecompressAndReadNumber<System.Int32>();;
-                    value.t[value_t_key] = value_t_val;
-                }}
-                if(reader.ReadBool()){                var value_u_len = reader.ReadLength();
-                value.u = new System.Collections.Generic.Dictionary<System.String,System.Int32>(value_u_len);
-                for(int i = 0; i < value_u_len; i++)
-                {
-                    var value_u_key = reader.ReadString();
-                    var value_u_val = reader.DecompressAndReadNumber<System.Int32>();;
-                    value.u[value_u_key] = value_u_val;
-                }}
-                if(reader.ReadBool()){                var value_v_len = reader.ReadLength();
-                value.v = new System.Collections.Generic.Dictionary<Nino.Test.NotIncludeAllClass,Nino.Test.NotIncludeAllClass>(value_v_len);
-                for(int i = 0; i < value_v_len; i++)
-                {
-                    var value_v_key = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
-                    var value_v_val = Nino.Test.NotIncludeAllClass.NinoSerializationHelper.Deserialize(reader);
-                    value.v[value_v_key] = value_v_val;
-                }}
+                value.o = reader.ReadList<System.Int32>();
+                value.p = reader.ReadList<Nino.Test.NotIncludeAllClass>();
+                value.q = reader.ReadArray<System.Byte>();
+                value.r = reader.ReadArray<Nino.Test.NotIncludeAllClass>();
+                value.s = reader.ReadDictionary<System.String,Nino.Test.NotIncludeAllClass>();
+                value.t = reader.ReadDictionary<Nino.Test.NotIncludeAllClass,System.Int32>();
+                value.u = reader.ReadDictionary<System.String,System.Int32>();
+                value.v = reader.ReadDictionary<Nino.Test.NotIncludeAllClass,Nino.Test.NotIncludeAllClass>();
                 return value;
             }
             #endregion

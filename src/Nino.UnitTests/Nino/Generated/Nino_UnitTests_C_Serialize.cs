@@ -16,19 +16,7 @@ namespace Nino.UnitTests
                 }
                 writer.Write(true);
                 writer.Write(value.Name);
-                if(value.As != null)
-                {
-                    writer.Write(true);
-                    writer.CompressAndWrite(value.As.Count);
-                    foreach (var entry in value.As)
-                    {
-                        Nino.UnitTests.A.NinoSerializationHelper.Serialize(entry, writer);
-                    }
-                }
-                else
-                {
-                    writer.Write(false);
-                }
+                writer.Write(value.As);
             }
 
             public override C Deserialize(Nino.Serialization.Reader reader)
@@ -37,12 +25,7 @@ namespace Nino.UnitTests
                     return null;
                 C value = new C();
                 value.Name = reader.ReadString();
-                if(reader.ReadBool()){value.As = new System.Collections.Generic.List<Nino.UnitTests.A>(reader.ReadLength());
-                for(int i = 0, cnt = value.As.Capacity; i < cnt; i++)
-                {
-                    var value_As_i = Nino.UnitTests.A.NinoSerializationHelper.Deserialize(reader);
-                    value.As.Add(value_As_i);
-                }}
+                value.As = reader.ReadList<Nino.UnitTests.A>();
                 return value;
             }
             #endregion

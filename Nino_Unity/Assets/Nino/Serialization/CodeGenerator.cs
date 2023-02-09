@@ -11,6 +11,7 @@ namespace Nino.Serialization
 {
     /// <summary>
     /// Nino code generator
+    /// TODO support nullable, hashset, queue, stack
     /// </summary>
     public static class CodeGenerator
     {
@@ -182,98 +183,12 @@ namespace Nino.Serialization
                 //array/list
                 else if (mt.IsArray || (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))
                 {
-                    Type elemType = mt.IsGenericType ? mt.GenericTypeArguments[0] : mt.GetElementType();
-                    //if nino serialize class => loop call method
-                    //check null
-                    sb.Append($"                if(value.{member.Name} != null)\n");
-                    sb.Append("                {\n");
-                    //write not null
-                    sb.Append("                    writer.Write(true);\n");
-                    //write len
-                    sb.Append(
-                        $"                    writer.CompressAndWrite(value.{member.Name}.{(mt.IsArray ? "Length" : "Count")});\n");
-                    //write item
-                    sb.Append($"                    foreach (var entry in value.{member.Name})\n");
-                    sb.Append("                    {\n");
-                    if (elemType.IsArray || (elemType.IsGenericType &&
-                                             elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
-                    {
-                        sb.Append($"{GetSerializeBasicTypeStatement(elemType, "entry", true)}");
-                    }
-                    else if (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-                    {
-                        sb.Append($"{GetSerializeBasicTypeStatement(elemType, "entry", true)}");
-                    }
-                    else
-                    {
-                        sb.Append($"                        {GetSerializeBasicTypeStatement(elemType, "entry", true)};\n");
-                    }
-
-                    sb.Append("                    }\n");
-                    sb.Append("                }\n");
-                    //if null then write 0 len
-                    sb.Append("                else\n");
-                    sb.Append("                {\n");
-                    //write is null
-                    sb.Append("                    writer.Write(false);\n");
-                    sb.Append("                }\n");
+                    sb.Append($"                writer.Write(value.{member.Name});\n");
                 }
                 //dict
                 else if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                 {
-                    var args = mt.GetGenericArguments();
-                    Type keyType = args[0];
-                    Type valueType = args[1];
-                    //if nino serialize class => loop call method
-                    //check null
-                    sb.Append($"                if(value.{member.Name} != null)\n");
-                    sb.Append("                {\n");
-                    //write not null
-                    sb.Append("                    writer.Write(true);\n");
-                    //write len
-                    sb.Append($"                    writer.CompressAndWrite(value.{member.Name}.Count);\n");
-                    //write item
-                    sb.Append($"                    foreach (var entry in value.{member.Name})\n");
-                    sb.Append("                    {\n");
-                    //write key
-                    if (keyType.IsArray || (keyType.IsGenericType &&
-                                            keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
-                    {
-                        sb.Append($"{GetSerializeBasicTypeStatement(keyType, "entry.Key", true)}");
-                    }
-                    else if (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-                    {
-                        sb.Append($"{GetSerializeBasicTypeStatement(keyType, "entry.Key", true)}");
-                    }
-                    else
-                    {
-                        sb.Append($"                        {GetSerializeBasicTypeStatement(keyType, "entry.Key", true)};\n");
-                    }
-
-                    //write value
-                    if (valueType.IsArray || (valueType.IsGenericType &&
-                                              valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
-                    {
-                        sb.Append($"{GetSerializeBasicTypeStatement(valueType, "entry.Value", true)}");
-                    }
-                    else if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-                    {
-                        sb.Append($"{GetSerializeBasicTypeStatement(valueType, "entry.Value", true)}");
-                    }
-                    else
-                    {
-                        sb.Append(
-                            $"                        {GetSerializeBasicTypeStatement(valueType, "entry.Value", true)};\n");
-                    }
-
-                    sb.Append("                    }\n");
-                    sb.Append("                }\n");
-                    //if null then write 0 len
-                    sb.Append("                else\n");
-                    sb.Append("                {\n");
-                    //write is null
-                    sb.Append("                    writer.Write(false);\n");
-                    sb.Append("                }\n");
+                    sb.Append($"                writer.Write(value.{member.Name});\n");
                 }
                 //basic type
                 else
@@ -318,15 +233,7 @@ namespace Nino.Serialization
                 {
                     Type elemType = mt.IsGenericType ? mt.GenericTypeArguments[0] : mt.GetElementType();
 
-                    if (elemType == ConstMgr.ByteType)
-                    {
-                        sb.Append(
-                            $"                if(reader.ReadBool()) value.{member.Name} = reader.ReadBytes(reader.ReadLength());\n");
-                        continue;
-                    }
-
                     //create field
-                    string arr = String.Empty;
                     if (mt.IsArray)
                     {
                         //multidimensional array
@@ -335,66 +242,15 @@ namespace Nino.Serialization
                             throw new NotSupportedException(
                                 "can not serialize multidimensional array, use jagged array instead");
                         }
-
-                        //jagged
-                        //wrong -> value.e = new System.Collections.Generic.Dictionary<System.String,System.Collections.Generic.Dictionary<System.String,System.Int32[reader.ReadLength()][]>>[];
-                        //correct -> value.e = new System.Collections.Generic.Dictionary<System.String,System.Collections.Generic.Dictionary<System.String,System.Int32[][]>>[reader.ReadLength()];
-                        var et = $"{BeautifulLongTypeName(elemType)}[]";
-                        int pos = et.Length - 1;
-                        while (et[pos] == '[' || et[pos] == ']')
-                        {
-                            pos--;
-                        }
-
-                        var sub = et.Substring(pos, 2);
-                        arr = $"{et.Replace(sub, $"{sub}reader.ReadLength()")}";
-                    }
-
-                    sb.Append(
-                        "                if(reader.ReadBool()){" +
-                        $"value.{member.Name} = new {(mt.IsArray ? arr : $"{BeautifulLongTypeName(mt)}(reader.ReadLength())")};\n");
-                    //write items
-                    sb.Append(
-                        $"                for(int i = 0, cnt = value.{member.Name}.{(mt.IsArray ? "Length" : "Capacity")}; i < cnt; i++)\n");
-                    sb.Append("                {\n");
-                    //if nino serialize class => loop call method
-                    string valStr = GetValidNinoClass(elemType, false)
-                        ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.Deserialize(reader)"
-                        : GetDeserializeBasicTypeStatement(elemType, true,
-                            $"value_{member.Name}_i", "                \t");
-
-                    if (elemType != null && !FullDeserializeStatement(elemType, false))
-                    {
+                        
                         sb.Append(
-                            $"                    var value_{member.Name}_i = {valStr}".Replace(
-                                $"value_{member.Name}_i = value_{member.Name}_i =", $"value_{member.Name}_i =") +
-                            $"{((elemType.IsArray || (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType)) ? "" : ";")}\n");
-                    }
-                    else
-                    {
-                        if ((elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
-                        {
-                            sb.Append($" {valStr}");
-                        }
-                        else
-                        {
-                            sb.Append(
-                                $"                    {BeautifulLongTypeName(elemType)} value_{member.Name}_i = {valStr};\n");
-                        }
-                    }
-
-                    if (mt.IsArray)
-                    {
-                        sb.Append(
-                            $"                    value.{member.Name}[i] = value_{member.Name}_i;\n");
+                            $"                value.{member.Name} = reader.ReadArray<{BeautifulLongTypeName(elemType)}>();\n");
                     }
                     else
                     {
                         sb.Append(
-                            $"                    value.{member.Name}.Add(value_{member.Name}_i);\n");
+                            $"                value.{member.Name} = reader.ReadList<{BeautifulLongTypeName(elemType)}>();\n");
                     }
-
-                    sb.Append("                }}\n");
                 }
                 //dict
                 else if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
@@ -402,70 +258,9 @@ namespace Nino.Serialization
                     var args = mt.GetGenericArguments();
                     Type keyType = args[0];
                     Type valueType = args[1];
-                    //create field
-                    sb.Append(
-                        "                if(reader.ReadBool()){" +
-                        $"                var value_{member.Name}_len = reader.ReadLength();\n");
-                    sb.Append(
-                        $"                value.{member.Name} = new {BeautifulLongTypeName(mt)}(value_{member.Name}_len);\n");
-                    //write items
-                    sb.Append($"                for(int i = 0; i < value_{member.Name}_len; i++)\n");
-                    sb.Append("                {\n");
-
-                    //read key
-                    string valStr = GetValidNinoClass(keyType, false)
-                        ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.Deserialize(reader)"
-                        : GetDeserializeBasicTypeStatement(keyType, true, $"value_{member.Name}_key",
-                            "                \t");
-                    if (!FullDeserializeStatement(keyType, false))
-                    {
-                        sb.Append(
-                            $"                    var value_{member.Name}_key = {valStr}".Replace(
-                                $"value_{member.Name}_key = value_{member.Name}_key =", $"value_{member.Name}_key =") +
-                            $"{((keyType.IsArray || (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType)) ? "" : ";")}\n");
-                    }
-                    else
-                    {
-                        if ((keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
-                        {
-                            sb.Append($" {valStr}");
-                        }
-                        else
-                        {
-                            sb.Append(
-                                $"                    {BeautifulLongTypeName(keyType)} value_{member.Name}_key = {valStr};\n");
-                        }
-                    }
-
-                    //read value
-                    valStr = GetValidNinoClass(valueType, false)
-                        ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.Deserialize(reader)"
-                        : GetDeserializeBasicTypeStatement(valueType, true, $"value_{member.Name}_val",
-                            "                \t");
-                    if (!FullDeserializeStatement(valueType, false))
-                    {
-                        sb.Append(
-                            $"                    var value_{member.Name}_val = {valStr}".Replace(
-                                $"value_{member.Name}_val = value_{member.Name}_val =", $"value_{member.Name}_val =") +
-                            $"{((valueType.IsArray || (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType)) ? "" : ";")}\n");
-                    }
-                    else
-                    {
-                        if ((valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
-                        {
-                            sb.Append($" {valStr}");
-                        }
-                        else
-                        {
-                            sb.Append(
-                                $"                    {BeautifulLongTypeName(valueType)} value_{member.Name}_val = {valStr};\n");
-                        }
-                    }
 
                     sb.Append(
-                        $"                    value.{member.Name}[value_{member.Name}_key] = value_{member.Name}_val;\n");
-
-                    sb.Append("                }}\n");
+                        $"                value.{member.Name} = reader.ReadDictionary<{BeautifulLongTypeName(keyType)},{BeautifulLongTypeName(valueType)}>();\n");
                 }
                 //not enum -> basic type
                 else
@@ -618,14 +413,6 @@ namespace Nino.Serialization
                     {
                         Type elemType = mt.IsGenericType ? mt.GenericTypeArguments[0] : mt.GetElementType();
                         StringBuilder builder = new StringBuilder();
-                        if (elemType == ConstMgr.ByteType)
-                        {
-                            builder.Append("if(reader.ReadBool()) reader.ReadBytes(reader.ReadLength());\n");
-                            return builder.ToString();
-                        }
-
-                        //create field
-                        string arr = String.Empty;
                         if (mt.IsArray)
                         {
                             //multidimensional array
@@ -634,64 +421,15 @@ namespace Nino.Serialization
                                 throw new NotSupportedException(
                                     "can not serialize multidimensional array, use jagged array instead");
                             }
-
-                            //jagged
-                            //wrong -> value.e = new System.Collections.Generic.Dictionary<System.String,System.Collections.Generic.Dictionary<System.String,System.Int32[reader.ReadLength()][]>>[];
-                            //correct -> value.e = new System.Collections.Generic.Dictionary<System.String,System.Collections.Generic.Dictionary<System.String,System.Int32[][]>>[reader.ReadLength()];
-                            var et = $"{BeautifulLongTypeName(elemType)}[]";
-                            int pos = et.Length - 1;
-                            while (et[pos] == '[' || et[pos] == ']')
-                            {
-                                pos--;
-                            }
-
-                            var sub = et.Substring(pos, 2);
-                            arr = $"{et.Replace(sub, $"{sub}reader.ReadLength()")}";
-                        }
-
-                        builder.Append(
-                            $"!reader.ReadBool() ? null : new {(mt.IsArray ? arr : $"{BeautifulLongTypeName(mt)}(reader.ReadLength())")};\n");
-                        //write items
-                        builder.Append(space)
-                            .Append(
-                                $"if({val}"+"!=null){"+$"for(int {val}_i = 0, {val}_cnt = {val}.{(mt.IsArray ? "Length" : "Capacity")}; {val}_i < {val}_cnt; {val}_i++)\n");
-                        builder.Append(space).Append("{\n");
-                        //if nino serialize class => loop call method
-                        string valStr = GetValidNinoClass(elemType, false)
-                            ? $"{BeautifulLongTypeName(elemType)}.NinoSerializationHelper.Deserialize(reader)"
-                            : GetDeserializeBasicTypeStatement(elemType, true, $"value_{val}_i", $"{space}\t");
-
-                        if (elemType != null && !FullDeserializeStatement(elemType, false))
-                        {
-                            builder.Append(space).Append('\t').Append($"var value_{val}_i = {valStr}".Replace(
-                                                                          $"value_{val}_i = value_{val}_i =", $"value_{val}_i =") +
-                                                                      $"{((elemType.IsArray || (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType)) ? "" : ";")}\n");
+                            
+                            builder.Append(
+                                $"reader.ReadArray<{BeautifulLongTypeName(elemType)}>();\n");
                         }
                         else
                         {
-                            if ((elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
-                            {
-                                builder.Append($" {valStr}");
-                            }
-                            else
-                            {
-                                builder.Append(
-                                    $"                    {BeautifulLongTypeName(elemType)} value_{val}_i = {valStr};\n");
-                            }
+                            builder.Append(
+                                $"reader.ReadList<{BeautifulLongTypeName(elemType)}>();\n");
                         }
-
-                        if (mt.IsArray)
-                        {
-                            builder.Append(space).Append('\t').Append(
-                                $"{val}[{val}_i] = value_{val}_i;\n");
-                        }
-                        else
-                        {
-                            builder.Append(space).Append('\t').Append(
-                                $"{val}.Add(value_{val}_i);\n");
-                        }
-
-                        builder.Append(space).Append("}}");
                         return builder.ToString();
                     }
 
@@ -703,64 +441,7 @@ namespace Nino.Serialization
                         Type valueType = args[1];
                         //create field
                         builder.Append(space).Append(
-                            $"{BeautifulLongTypeName(mt)} {val} = null;\n");
-                        builder.Append(space).Append("if(reader.ReadBool()){"+$"var {val}_len = reader.ReadLength();\n");
-                        builder.Append(space).Append(
-                            $"{val} = new {BeautifulLongTypeName(mt)}({val}_len);\n");
-                        //write items
-                        builder.Append(space).Append($"for(int {val}_i = 0; {val}_i < {val}_len; {val}_i++)\n");
-                        builder.Append(space).Append("{\n");
-
-                        //read key
-                        string valStr = GetValidNinoClass(keyType, false)
-                            ? $"{BeautifulLongTypeName(keyType)}.NinoSerializationHelper.Deserialize(reader)"
-                            : GetDeserializeBasicTypeStatement(keyType, true, $"{val}_key", $"{space}\t");
-                        if (!FullDeserializeStatement(keyType, false))
-                        {
-                            builder.Append(space).Append('\t').Append($"var {val}_key = {valStr}".Replace(
-                                                                          $"{val}_key = {val}_key =", $"{val}_key =") +
-                                                                      $"{((keyType.IsArray || (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType)) ? "" : ";")}\n");
-                        }
-                        else
-                        {
-                            if ((keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
-                            {
-                                builder.Append($" {valStr}");
-                            }
-                            else
-                            {
-                                builder.Append(
-                                    $"                    {BeautifulLongTypeName(keyType)} value_{val}_i = {valStr};\n");
-                            }
-                        }
-
-                        //read value
-                        valStr = GetValidNinoClass(valueType, false)
-                            ? $"{BeautifulLongTypeName(valueType)}.NinoSerializationHelper.Deserialize(reader)"
-                            : GetDeserializeBasicTypeStatement(valueType, true, $"{val}_val", $"{space}\t");
-                        if (!FullDeserializeStatement(valueType, false))
-                        {
-                            builder.Append(space).Append('\t').Append($"var {val}_val = {valStr}".Replace(
-                                                                          $"{val}_val = {val}_val =", $"{val}_val =") +
-                                                                      $"{((valueType.IsArray || (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType)) ? "" : ";")}\n");
-                        }
-                        else
-                        {
-                            if ((valueType.IsGenericType &&
-                                 valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType))
-                            {
-                                builder.Append($" {valStr}");
-                            }
-                            else
-                            {
-                                builder.Append(
-                                    $"                    {BeautifulLongTypeName(valueType)} value_{val}_i = {valStr};\n");
-                            }
-                        }
-
-                        builder.Append(space).Append('\t').Append($"{val}[{val}_key] = {val}_val;\n");
-
-                        builder.Append(space).Append("}}\n");
+                            $"{BeautifulLongTypeName(mt)} {val} = reader.ReadDictionary<{BeautifulLongTypeName(keyType)},{BeautifulLongTypeName(valueType)}>();\n");
                         return builder.ToString();
                     }
 
@@ -807,115 +488,16 @@ namespace Nino.Serialization
                             throw new InvalidOperationException("Invalid array type");
                         }
 
-                        //if nino serialize class => loop call method
-                        //check null
-                        builder.Append(space).Append(Repeat("    ", indent)).Append($"if({val} != null)\n");
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("{\n");
-                        //write not null
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent))
-                            .Append("writer.Write(true);\n");
-                        //write len
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent))
-                            .Append($"writer.CompressAndWrite({val}.{(mt.IsArray ? "Length" : "Count")});\n");
-                        //write item
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent))
-                            .Append($"foreach (var entry{indent} in {val})\n");
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("{\n");
-                        if (elemType.IsArray || (elemType.IsGenericType &&
-                                                 elemType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
-                        {
-                            builder.Append(
-                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", true, indent + 1, $"{space}\t")}");
-                        }
-                        else if (elemType.IsGenericType && elemType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-                        {
-                            builder.Append(
-                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", true, indent + 1, $"{space}\t")}");
-                        }
-                        else
-                        {
-                            builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
-                                $"{GetSerializeBasicTypeStatement(elemType, $"entry{indent}", true, indent, space)};\n");
-                        }
-
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("}\n");
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("}\n");
-                        //if null then write 0 len
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("else\n");
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("{\n");
-                        //write is null
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent))
-                            .Append("writer.Write(false);\n");
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("}\n");
+                        builder.Append(space).Append(Repeat("    ", indent))
+                            .Append($"writer.Write({val});\n");
                         return builder.ToString();
                     }
 
                     if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
                     {
                         StringBuilder builder = new StringBuilder();
-                        var args = mt.GetGenericArguments();
-                        Type keyType = args[0];
-                        Type valueType = args[1];
-                        //check null
-                        builder.Append(space).Append(Repeat("    ", indent)).Append($"if({val} != null)\n");
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("{\n");
-                        //write not null
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent))
-                            .Append("writer.Write(true);\n");
-                        //write len
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent))
-                            .Append($"writer.CompressAndWrite({val}.Count);\n");
-                        //write item
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent))
-                            .Append($"foreach (var entry{indent} in {val})\n");
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("{\n");
-
-                        //write key
-                        if (keyType.IsArray || (keyType.IsGenericType &&
-                                                keyType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
-                        {
-                            builder.Append(
-                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}", true, indent + 1, $"{space}\t")}");
-                        }
-                        else if (keyType.IsGenericType && keyType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-                        {
-                            builder.Append(
-                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}", true, indent + 1, $"{space}\t")}");
-                        }
-                        else
-                        {
-                            builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
-                                $"{GetSerializeBasicTypeStatement(keyType, $"entry{indent}.Key", true, indent, space)};\n");
-                        }
-
-                        //write value
-                        if (valueType.IsArray || (valueType.IsGenericType &&
-                                                  valueType.GetGenericTypeDefinition() == ConstMgr.ListDefType))
-                        {
-                            builder.Append(
-                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", true, indent + 1, $"{space}\t")}");
-                        }
-                        else if (valueType.IsGenericType &&
-                                 valueType.GetGenericTypeDefinition() == ConstMgr.DictDefType)
-                        {
-                            builder.Append(
-                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", true, indent + 1, $"{space}\t")}");
-                        }
-                        else
-                        {
-                            builder.Append(space).Append('\t').Append('\t').Append(Repeat("    ", indent)).Append(
-                                $"{GetSerializeBasicTypeStatement(valueType, $"entry{indent}.Value", true, indent, space)};\n");
-                        }
-
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent)).Append("}\n");
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("}\n");
-                        //if null then write 0 len
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("else\n");
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("{\n");
-                        //write len
-                        builder.Append(space).Append('\t').Append(Repeat("    ", indent))
-                            .Append("writer.Write(false);\n");
-                        builder.Append(space).Append(Repeat("    ", indent)).Append("}\n");
+                        builder.Append(space).Append(Repeat("    ", indent))
+                            .Append($"writer.Write({val});\n");
                         return builder.ToString();
                     }
 
