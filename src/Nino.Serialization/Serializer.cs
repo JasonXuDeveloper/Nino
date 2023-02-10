@@ -85,13 +85,20 @@ namespace Nino.Serialization
             Type tType = typeof(T);
             if (type != tType || tType == ConstMgr.ObjectType)
             {
-                if (value == null)
+                if (type != ConstMgr.ObjectType)
                 {
-                    throw new InvalidOperationException("Failed to retrieve unbox type");
+                    boxed = true;
                 }
+                else
+                {
+                    if (value == null)
+                    {
+                        throw new InvalidOperationException("Failed to retrieve unbox type");
+                    }
 
-                type = value.GetType();
-                boxed = true;
+                    type = value.GetType();
+                    boxed = true;
+                }
             }
 
             //ILRuntime
