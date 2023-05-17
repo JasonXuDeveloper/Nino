@@ -276,6 +276,13 @@ namespace Nino.Serialization
 				//iterate properties
 				foreach (var p in ps)
 				{
+					if (model.IncludeAll)
+					{
+						//skip nino ignore
+						var ig = p.GetCustomAttributes(NinoIgnoreType, true);
+						if (ig.Length > 0) continue;
+					}
+					
 					//has to have getter and setter
 					if (!(p.CanRead && p.CanWrite))
 					{
@@ -285,9 +292,6 @@ namespace Nino.Serialization
 
 					if (model.IncludeAll)
 					{
-						//skip nino ignore
-						var ig = p.GetCustomAttributes(NinoIgnoreType, true);
-						if (ig.Length > 0) continue;
 						index++;
 					}
 					else

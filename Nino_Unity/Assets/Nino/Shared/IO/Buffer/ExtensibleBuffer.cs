@@ -162,7 +162,7 @@ namespace Nino.Shared.IO
             //size check
             EnsureCapacity(in l);
             //copy
-            Unsafe.CopyBlockUnaligned(Data + dstIndex, src + srcIndex, (uint)length);
+            Unsafe.CopyBlock(Data + dstIndex, src + srcIndex, (uint)length);
         }
 
         /// <summary>
@@ -193,7 +193,7 @@ namespace Nino.Shared.IO
             //size check
             EnsureCapacity(in l);
             //copy
-            Unsafe.CopyBlockUnaligned(dst, Data + srcIndex, (uint)length);
+            Unsafe.CopyBlock(dst, Data + srcIndex, (uint)length);
         }
         
         /// <summary>

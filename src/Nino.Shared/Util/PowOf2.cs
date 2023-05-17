@@ -11,7 +11,20 @@ namespace Nino.Shared
         /// <returns></returns>
         public static bool IsPowerOf2(int n)
         {
-            return (n & n - 1) != 0;
+            /*
+             * 4 -> 100
+             * 3 -> 011
+             * 4 & 3 -> 000
+             *
+             * 8 -> 1000
+             * 7 -> 0111
+             * 8 & 7 -> 0000
+             *
+             * 15 -> 1111
+             * 14 -> 1110
+             * 15 & 14 -> 1110
+             */
+            return (n & (n - 1)) == 0;
         }
 
         /// <summary>

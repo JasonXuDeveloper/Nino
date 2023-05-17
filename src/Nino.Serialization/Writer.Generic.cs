@@ -33,9 +33,9 @@ namespace Nino.Serialization
         /// <param name="val"></param>
         /// <param name="len"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void Write<T>(ref T val, byte len) where T : unmanaged
+        private unsafe void Write<T>(ref T val, byte len) where T : unmanaged
         {
-            Unsafe.WriteUnaligned(ref buffer.AsSpan(position, len).GetPinnableReference(), val);
+            Unsafe.Write(Unsafe.Add<byte>(buffer.Data, position), val);
             position += len;
         }
 
@@ -89,11 +89,11 @@ namespace Nino.Serialization
             {
                 case TypeCode.Byte:
                 case TypeCode.SByte:
-                    Unsafe.WriteUnaligned(buffer.Data + position++, val);
+                    Unsafe.Write(buffer.Data + position++, val);
                     return;
                 case TypeCode.Int16:
                 case TypeCode.UInt16:
-                    Unsafe.WriteUnaligned(ref buffer.AsSpan(position, 2).GetPinnableReference(), val);
+                    Unsafe.Write(buffer.Data + position, val);
                     position += 2;
                     return;
                 case TypeCode.Int32:
