@@ -281,17 +281,7 @@ namespace Nino.Serialization
 						//skip nino ignore
 						var ig = p.GetCustomAttributes(NinoIgnoreType, true);
 						if (ig.Length > 0) continue;
-					}
-					
-					//has to have getter and setter
-					if (!(p.CanRead && p.CanWrite))
-					{
-						throw new InvalidOperationException(
-							$"Cannot read or write property {p.Name} in {type.FullName}, cannot Serialize or Deserialize this property");
-					}
-
-					if (model.IncludeAll)
-					{
+						
 						index++;
 					}
 					else
@@ -301,7 +291,14 @@ namespace Nino.Serialization
 						if (ns.Length != 1) continue;
 						index = ((NinoMemberAttribute)ns[0]).Index;
 					}
-
+					
+					//has to have getter and setter
+					if (!(p.CanRead && p.CanWrite))
+					{
+						throw new InvalidOperationException(
+							$"Cannot read or write property {p.Name} in {type.FullName}, cannot Serialize or Deserialize this property");
+					}
+					
 					//record property
 					dict.Add(index, p);
 				}
