@@ -103,11 +103,7 @@ namespace Nino.Serialization
             #region NINO_CODEGEN
             public override void Serialize({type} value, Nino.Serialization.Writer writer)
             {
-                if(value == null)
-                {
-                    writer.Write(false);
-                    return;
-                }
+                {nullCheck}
                 writer.Write(true);
 {members}
             }
@@ -115,7 +111,7 @@ namespace Nino.Serialization
             public override {type} Deserialize(Nino.Serialization.Reader reader)
             {
                 if(!reader.ReadBool())
-                    return null;
+                    {returnNull}
                 {type} value = new {type}();
 {fields}
             }
@@ -126,6 +122,18 @@ namespace Nino.Serialization
             if (type.IsClass)
             {
                 template = template.Replace("struct", "class");
+                template = template.Replace("{nullCheck}", @"if(value == null)
+{
+    writer.Write(false);
+    return;
+}");
+                template = template.Replace("{returnNull}", "return null;");
+            }
+            else
+            {
+                template = template.Replace("{nullCheck}", @"");
+                template = template.Replace("{returnNull}", "return default;");
+                
             }
 
             //replace namespace
