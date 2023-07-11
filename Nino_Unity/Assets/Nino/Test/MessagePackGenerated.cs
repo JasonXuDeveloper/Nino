@@ -441,14 +441,8 @@ namespace MessagePack.Formatters.Nino.Test
 
         public void Serialize(ref global::MessagePack.MessagePackWriter writer, global::Nino.Test.Data value, global::MessagePack.MessagePackSerializerOptions options)
         {
-            if (value == null)
-            {
-                writer.WriteNil();
-                return;
-            }
-
             global::MessagePack.IFormatterResolver formatterResolver = options.Resolver;
-            writer.WriteArrayHeader(10);
+            writer.WriteArrayHeader(9);
             writer.WriteNil();
             writer.Write(value.x);
             writer.Write(value.y);
@@ -458,14 +452,13 @@ namespace MessagePack.Formatters.Nino.Test
             writer.Write(value.db);
             writer.Write(value.bo);
             formatterResolver.GetFormatterWithVerify<global::Nino.Test.TestEnum>().Serialize(ref writer, value.en, options);
-            formatterResolver.GetFormatterWithVerify<string>().Serialize(ref writer, value.name, options);
         }
 
         public global::Nino.Test.Data Deserialize(ref global::MessagePack.MessagePackReader reader, global::MessagePack.MessagePackSerializerOptions options)
         {
             if (reader.TryReadNil())
             {
-                return null;
+                throw new global::System.InvalidOperationException("typecode is null, struct not supported");
             }
 
             options.Security.DepthStep(ref reader);
@@ -500,9 +493,6 @@ namespace MessagePack.Formatters.Nino.Test
                         break;
                     case 8:
                         ____result.en = formatterResolver.GetFormatterWithVerify<global::Nino.Test.TestEnum>().Deserialize(ref reader, options);
-                        break;
-                    case 9:
-                        ____result.name = formatterResolver.GetFormatterWithVerify<string>().Deserialize(ref reader, options);
                         break;
                     default:
                         reader.Skip();

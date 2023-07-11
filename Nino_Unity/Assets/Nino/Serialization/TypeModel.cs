@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using Nino.Shared.Util;
 using System.Reflection;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Nino.Shared.IO;
 
@@ -34,24 +35,6 @@ namespace Nino.Serialization
 		/// Cached Models
 		/// </summary>
 		private static readonly Dictionary<int, TypeModel> TypeModels = new Dictionary<int, TypeModel>(10);
-
-		/// <summary>
-		/// Cached Models
-		/// </summary>
-		internal static Dictionary<int, Type> AllTypes = new Dictionary<int, Type>(100);
-
-		static TypeModel()
-		{
-			var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-			foreach (var assembly in assemblies)
-			{
-				var types = assembly.GetTypes();
-				foreach (var type in types)
-				{
-					AllTypes[type.GetHashCode()] = type;
-				}
-			}
-		}
 
 		/// <summary>
 		/// Cached Models
@@ -99,41 +82,10 @@ namespace Nino.Serialization
 		};
 
 		/// <summary>
-		/// No compression types
-		/// </summary>
-		private static readonly HashSet<int> NoCompressionTypes = new HashSet<int>()
-		{
-			typeof(int).GetTypeHashCode(),
-			typeof(uint).GetTypeHashCode(),
-			typeof(long).GetTypeHashCode(),
-			typeof(ulong).GetTypeHashCode(),
-			typeof(byte).GetTypeHashCode(),
-			typeof(sbyte).GetTypeHashCode(),
-			typeof(short).GetTypeHashCode(),
-			typeof(ushort).GetTypeHashCode(),
-			typeof(bool).GetTypeHashCode(),
-			typeof(char).GetTypeHashCode(),
-			typeof(decimal).GetTypeHashCode(),
-			typeof(double).GetTypeHashCode(),
-			typeof(float).GetTypeHashCode(),
-			typeof(DateTime).GetTypeHashCode(),
-		};
-
-		/// <summary>
 		/// Cached Models
 		/// </summary>
 		private static readonly ConcurrentDictionary<Type, bool> IsEnumTypeCache =
 			new ConcurrentDictionary<Type, bool>(3, 30);
-
-		/// <summary>
-		/// Whether or not the type is a non compress type
-		/// </summary>
-		/// <param name="type"></param>
-		/// <returns></returns>
-		internal static bool IsNonCompressibleType(Type type)
-		{
-			return NoCompressionTypes.Contains(type.GetTypeHashCode()) || IsEnum(type);
-		}
 
 		/// <summary>
 		/// Get a type code
@@ -157,12 +109,42 @@ namespace Nino.Serialization
 			TypeCodes[hash] = ret = Type.GetTypeCode(type);
 			return ret;
 		}
+		
+		private static readonly ConcurrentDictionary<Type, bool> IsManagedTypeCache = 
+			new ConcurrentDictionary<Type, bool>();
+
+		public static bool IsUnmanaged(Type type)
+		{
+			if (type.IsPrimitive || IsEnum(type)) return true;
+			if (!type.IsValueType) return false;
+			// check if we already know the answer
+			if (!IsManagedTypeCache.TryGetValue(type, out var ret))
+			{
+				ret = true;
+				// otherwise check recursively
+				var fields = type
+					.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+				foreach (var field in fields)
+				{
+					if (!IsUnmanaged(field.FieldType))
+					{
+						ret = false;
+						break;
+					}
+				}
+				
+				IsManagedTypeCache[type] = ret;
+			}
+
+			return ret;
+		}
 
 		/// <summary>
 		/// Get whether or not a type is enum
 		/// </summary>
 		/// <param name="type"></param>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		internal static bool IsEnum(Type type)
 		{
 			if (IsEnumTypeCache.TryGetValue(type, out var ret)) return ret;
@@ -176,6 +158,7 @@ namespace Nino.Serialization
 		/// <param name="type"></param>
 		/// <param name="helper"></param>
 		/// <returns></returns>
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		internal static bool TryGetWrapper(Type type, out INinoWrapper helper)
 		{
 			var hash = type.GetTypeHashCode();
@@ -281,7 +264,18 @@ namespace Nino.Serialization
 						//skip nino ignore
 						var ig = p.GetCustomAttributes(NinoIgnoreType, true);
 						if (ig.Length > 0) continue;
-						
+					}
+					
+					//has to have getter and setter
+					if (!(p.CanRead && p.CanWrite))
+					{
+						if (model.IncludeAll) continue;
+						throw new InvalidOperationException(
+							$"Cannot read or write property {p.Name} in {type.FullName}, cannot Serialize or Deserialize this property");
+					}
+
+					if (model.IncludeAll)
+					{
 						index++;
 					}
 					else
@@ -291,14 +285,7 @@ namespace Nino.Serialization
 						if (ns.Length != 1) continue;
 						index = ((NinoMemberAttribute)ns[0]).Index;
 					}
-					
-					//has to have getter and setter
-					if (!(p.CanRead && p.CanWrite))
-					{
-						throw new InvalidOperationException(
-							$"Cannot read or write property {p.Name} in {type.FullName}, cannot Serialize or Deserialize this property");
-					}
-					
+
 					//record property
 					dict.Add(index, p);
 				}
@@ -328,4 +315,3 @@ namespace Nino.Serialization
 		}
 	}
 }
-

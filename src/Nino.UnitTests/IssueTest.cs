@@ -165,7 +165,7 @@ namespace Nino.UnitTests
                 public class SerializationHelper: Nino.Serialization.NinoWrapperBase<GamePatcher2>
                 {
                     #region NINO_CODEGEN
-                    public override void Serialize(GamePatcher2 value, Nino.Serialization.Writer writer)
+                    public override void Serialize(GamePatcher2 value, ref Writer writer)
                     {
                         if(value == null)
                         {
@@ -174,7 +174,7 @@ namespace Nino.UnitTests
                         }
                         writer.Write(true);
                         writer.Write(value.StaticValidityDateTime);
-                        writer.CompressAndWrite(ref value.CCC);
+                        writer.Write(value.CCC);
                         writer.Write(value.Key);
                     }
 
@@ -184,9 +184,20 @@ namespace Nino.UnitTests
                             return null;
                         GamePatcher2 value = new GamePatcher2();
                         value.StaticValidityDateTime = reader.ReadDateTime();
-                        reader.DecompressAndReadNumber<System.Int32>(ref value.CCC);
+                        reader.Read(ref value.CCC, sizeof(int));
                         value.Key = reader.ReadString();
                         return value;
+                    }
+                    
+                    public override unsafe int GetSize(GamePatcher2 value)
+                    {
+                        if(value == null)
+                            return sizeof(bool);
+                        int size = sizeof(bool);
+                        size += sizeof(DateTime);
+                        size += sizeof(int);
+                        size += 1 + 4 + value.Key.Length * 2;
+                        return size;
                     }
                     #endregion
                 }
@@ -236,6 +247,7 @@ namespace Nino.UnitTests
 
 
                 var a = Nino.Serialization.Serializer.Serialize<MessagePackage>(package);
+                Console.WriteLine(string.Join(",", a));
                 var b = Nino.Serialization.Deserializer.Deserialize<MessagePackage>(a);
                 Assert.IsTrue(package.agreement == b.agreement);
                 Assert.IsTrue(package.move.id == b.move.id);

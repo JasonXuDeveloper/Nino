@@ -90,7 +90,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     },
                     new Data()
                     {
@@ -102,7 +101,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     }
                 },
                 new Data[]
@@ -117,7 +115,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     },
                     new Data()
                     {
@@ -129,7 +126,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     }
                 }
             };
@@ -147,7 +143,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     },
                     new Data()
                     {
@@ -159,7 +154,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     }
                 },
                 new Data[]
@@ -174,7 +168,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     },
                     new Data()
                     {
@@ -186,7 +179,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     }
                 },
             };
@@ -209,7 +201,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     }
                 },
                 new List<Data>()
@@ -224,7 +215,6 @@ namespace Nino.Test.Editor.Serialization
                         db = 999.999999999999,
                         bo = true,
                         en = TestEnum.A,
-                        name = "asdfhudjh"
                     }
                 }
             };

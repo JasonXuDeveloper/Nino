@@ -28,8 +28,7 @@ namespace Nino.Benchmark
             new FsPicklerSerializer(),
             new CerasSerializer(),
             new OdinSerializer_(),
-            new NinoSerializer_ZLib(),
-            new NinoSerializer_NoCompression()
+            new NinoSerializer(),
         };
 
         static SerializationBenchmark()
@@ -48,7 +47,6 @@ namespace Nino.Benchmark
                     Db = 999.999999999999,
                     Bo = true,
                     En = TestEnum.A,
-                    Name = GetString(20)
                 };
             }
 

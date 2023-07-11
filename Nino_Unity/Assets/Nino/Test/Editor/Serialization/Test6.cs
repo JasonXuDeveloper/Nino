@@ -1,3 +1,4 @@
+using System;
 using MessagePack;
 using System.Text;
 using Nino.Shared.Util;
@@ -10,7 +11,8 @@ namespace Nino.Test.Editor.Serialization
 {
     public class Test6
     {
-        private const string SerializationTest6 = "Nino/Test/Serialization/Test6 - Serialize and Deserialize (Nino vs MsgPack)";
+        private const string SerializationTest6 =
+            "Nino/Test/Serialization/Test6 - Serialize and Deserialize (Nino vs MsgPack)";
 
         private static string GetString(int len)
         {
@@ -20,7 +22,7 @@ namespace Nino.Test.Editor.Serialization
         }
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest6,priority=6)]
+        [UnityEditor.MenuItem(SerializationTest6, priority = 6)]
 #endif
         public static void Main()
         {
@@ -42,7 +44,7 @@ namespace Nino.Test.Editor.Serialization
             {
                 //ignore
             }
-            
+
             Logger.W("1/5");
             BeginSample("Array len of 10");
             DoTest(10);
@@ -80,7 +82,7 @@ namespace Nino.Test.Editor.Serialization
 #endif
             return;
         }
-        
+
         private static void DoTest(int max)
         {
             #region Test data
@@ -98,7 +100,6 @@ namespace Nino.Test.Editor.Serialization
                     db = 999.999999999999,
                     bo = true,
                     en = TestEnum.A,
-                    name = GetString(20)
                 };
             }
 
@@ -113,71 +114,132 @@ namespace Nino.Test.Editor.Serialization
             #region Test
 
             Logger.D("Serialization Test", $"<color=cyan>testing {max} objs</color>");
-            var sizeOfNestedData = Encoding.Default.GetByteCount(points.name) +
-                                   (sizeof(int) + sizeof(short) + sizeof(long) + sizeof(float) + sizeof(double) +
-                                    sizeof(decimal) + sizeof(bool) + sizeof(byte) +
-                                    Encoding.Default.GetByteCount(points.ps[0].name)) * points.ps.Length;
-            Logger.D("Serialization Test", $"marshal.sizeof struct: {sizeOfNestedData} bytes");
             Logger.D("Serialization Test", "======================================");
 
             //Nino
             var sw = new Stopwatch();
             BeginSample("Nino - Serialize");
             sw.Restart();
-            var bs = Nino.Serialization.Serializer.Serialize(points);
-            sw.Stop();
-            EndSample();
-            Logger.D("Serialization Test", $"Nino: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
-            long len = bs.Length;
-            var tm = sw.ElapsedMilliseconds;
+            int size = Nino.Serialization.Serializer.GetSize(points);
+            long len;
+            byte[] bs;
+            if (size <= 1024)
+            {
+                Span<byte> ret = stackalloc byte[size];
+                Nino.Serialization.Serializer.Serialize(ret, points);
+                sw.Stop();
+                EndSample();
+                Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                len = ret.Length;
+                var tm = sw.ElapsedMilliseconds;
+
+                //MsgPack
+                BeginSample("MsgPack - Serialize");
+                byte[] bs2;
+                sw.Restart();
+                var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
+                bs2 = MessagePackSerializer.Serialize(points, lz4Options);
+                sw.Stop();
+                EndSample();
+
+                Logger.D("Serialization Test", $"MsgPack: {bs2.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                //Logger.D("Serialization Test",string.Join(",", bs));
+
+                Logger.D("Serialization Test", "======================================");
+                Logger.D("Serialization Test", $"size diff (nino - MsgPack): {len - bs2.Length} bytes");
+                Logger.D("Serialization Test",
+                    $"size diff pct => diff/MsgPack : {((len - bs2.Length) * 100f / bs2.Length):F2}%");
+
+                Logger.D("Serialization Test", "======================================");
+                Logger.D("Serialization Test", $"time diff (nino - MsgPack): {tm - sw.ElapsedMilliseconds} ms");
+                Logger.D("Serialization Test",
+                    $"time diff pct => time/MsgPack : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+
+                BeginSample("Nino - Deserialize");
+                sw.Restart();
+                var d = Nino.Serialization.Deserializer.Deserialize<NestedData>(ret);
+                sw.Stop();
+                EndSample();
+                Logger.D("Deserialization Test", d);
+                Logger.D("Deserialization Test",
+                    $"Nino: extracted {len} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+                tm = sw.ElapsedMilliseconds;
+
+                //MsgPack
+                BeginSample("MsgPack - Deserialize");
+                sw.Restart();
+                d = MessagePackSerializer.Deserialize<NestedData>(bs2);
+                sw.Stop();
+                EndSample();
+                Logger.D("Deserialization Test", d);
+                Logger.D("Deserialization Test",
+                    $"MsgPack: extracted {bs2.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+
+                Logger.D("Deserialization Test", "======================================");
+                Logger.D("Deserialization Test", $"time diff (nino - MsgPack): {tm - sw.ElapsedMilliseconds} ms");
+                Logger.D("Deserialization Test",
+                    $"time diff pct => time/MsgPack : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+            }
+            else
+            {
+                byte[] ret = new byte[size];
+                Nino.Serialization.Serializer.Serialize(ret, points);
+                sw.Stop();
+                EndSample();
+                Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                len = ret.Length;
+                var tm = sw.ElapsedMilliseconds;
+
+                //MsgPack
+                BeginSample("MsgPack - Serialize");
+                byte[] bs2;
+                sw.Restart();
+                var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
+                bs2 = MessagePackSerializer.Serialize(points, lz4Options);
+                sw.Stop();
+                EndSample();
+
+                Logger.D("Serialization Test", $"MsgPack: {bs2.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                //Logger.D("Serialization Test",string.Join(",", bs));
+
+                Logger.D("Serialization Test", "======================================");
+                Logger.D("Serialization Test", $"size diff (nino - MsgPack): {len - bs2.Length} bytes");
+                Logger.D("Serialization Test",
+                    $"size diff pct => diff/MsgPack : {((len - bs2.Length) * 100f / bs2.Length):F2}%");
+
+                Logger.D("Serialization Test", "======================================");
+                Logger.D("Serialization Test", $"time diff (nino - MsgPack): {tm - sw.ElapsedMilliseconds} ms");
+                Logger.D("Serialization Test",
+                    $"time diff pct => time/MsgPack : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+
+                BeginSample("Nino - Deserialize");
+                sw.Restart();
+                var d = Nino.Serialization.Deserializer.Deserialize<NestedData>(ret);
+                sw.Stop();
+                EndSample();
+                Logger.D("Deserialization Test", d);
+                Logger.D("Deserialization Test",
+                    $"Nino: extracted {len} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+                tm = sw.ElapsedMilliseconds;
+
+                //MsgPack
+                BeginSample("MsgPack - Deserialize");
+                sw.Restart();
+                d = MessagePackSerializer.Deserialize<NestedData>(bs2);
+                sw.Stop();
+                EndSample();
+                Logger.D("Deserialization Test", d);
+                Logger.D("Deserialization Test",
+                    $"MsgPack: extracted {bs2.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+
+                Logger.D("Deserialization Test", "======================================");
+                Logger.D("Deserialization Test", $"time diff (nino - MsgPack): {tm - sw.ElapsedMilliseconds} ms");
+                Logger.D("Deserialization Test",
+                    $"time diff pct => time/MsgPack : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+            }
+
             //Logger.D("Serialization Test",string.Join(",", bs));
 
-            //MsgPack
-            BeginSample("MsgPack - Serialize");
-            byte[] bs2;
-            sw.Restart();
-            var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
-            bs2 = MessagePackSerializer.Serialize(points,lz4Options);
-            sw.Stop();
-            EndSample();
-
-            Logger.D("Serialization Test", $"MsgPack: {bs2.Length} bytes in {sw.ElapsedMilliseconds}ms");
-            //Logger.D("Serialization Test",string.Join(",", bs));
-
-            Logger.D("Serialization Test", "======================================");
-            Logger.D("Serialization Test", $"size diff (nino - MsgPack): {len - bs2.Length} bytes");
-            Logger.D("Serialization Test",
-                $"size diff pct => diff/MsgPack : {((len - bs2.Length) * 100f / bs2.Length):F2}%");
-
-            Logger.D("Serialization Test", "======================================");
-            Logger.D("Serialization Test", $"time diff (nino - MsgPack): {tm - sw.ElapsedMilliseconds} ms");
-            Logger.D("Serialization Test",
-                $"time diff pct => time/MsgPack : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
-            
-            BeginSample("Nino - Deserialize");
-            sw.Restart();
-            var d = Nino.Serialization.Deserializer.Deserialize<NestedData>(bs);
-            sw.Stop();
-            EndSample();
-            Logger.D("Deserialization Test", d);
-            Logger.D("Deserialization Test",
-                $"Nino: extracted {bs.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
-            tm = sw.ElapsedMilliseconds;
-
-            //MsgPack
-            BeginSample("MsgPack - Deserialize");
-            sw.Restart();
-            d = MessagePackSerializer.Deserialize<NestedData>(bs2);
-            sw.Stop();
-            EndSample();
-            Logger.D("Deserialization Test", d);
-            Logger.D("Deserialization Test",
-                $"MsgPack: extracted {bs2.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
-
-            Logger.D("Deserialization Test", "======================================");
-            Logger.D("Deserialization Test", $"time diff (nino - MsgPack): {tm - sw.ElapsedMilliseconds} ms");
-            Logger.D("Deserialization Test",
-                $"time diff pct => time/MsgPack : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
             #endregion
         }
     }

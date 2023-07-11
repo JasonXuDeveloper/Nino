@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Nino.UnitTests
 {
     [NinoSerialize]
-    public partial class A
+    public partial struct A
     {
         [NinoMember(0)]
         public int Val { get; set; }
@@ -16,7 +16,7 @@ namespace Nino.UnitTests
         
     [NinoSerialize]
     [CodeGenIgnore]
-    public partial class B
+    public partial struct B
     {
         [NinoMember(0)]
         public int Val { get; set; }

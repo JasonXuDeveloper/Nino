@@ -1,20 +1,104 @@
-using System;
-using Nino.Shared.Util;
 using Nino.Serialization;
 using System.Collections.Generic;
+using UnityEngine;
+using Logger = Nino.Shared.Util.Logger;
 
 // ReSharper disable RedundantTypeArgumentsOfMethod
 namespace Nino.Test.Editor.Serialization
 {
+    public class Vector3Wrapper : NinoWrapperBase<Vector3>
+    {
+        public override void Serialize(Vector3 val, ref Writer writer)
+        {
+            writer.Write(val.x);
+            writer.Write(val.y);
+            writer.Write(val.z);
+        }
+
+        public override Vector3 Deserialize(Reader reader)
+        {
+            return new Vector3(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4));
+        }
+
+        public override int GetSize(Vector3 val)
+        {
+            return 12;
+        }
+    }
+
+    public class QuaternionWrapper : NinoWrapperBase<Quaternion>
+    {
+        public override void Serialize(Quaternion val, ref Writer writer)
+        {
+            writer.Write(val.x);
+            writer.Write(val.y);
+            writer.Write(val.z);
+            writer.Write(val.w);
+        }
+
+        public override Quaternion Deserialize(Reader reader)
+        {
+            return new Quaternion(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4),
+                reader.Read<float>(4));
+        }
+
+        public override int GetSize(Quaternion val)
+        {
+            return 16;
+        }
+    }
+
+    public class Matrix4x4Wrapper : NinoWrapperBase<Matrix4x4>
+    {
+        public override void Serialize(Matrix4x4 val, ref Writer writer)
+        {
+            writer.Write(val.m00);
+            writer.Write(val.m01);
+            writer.Write(val.m02);
+            writer.Write(val.m03);
+            writer.Write(val.m10);
+            writer.Write(val.m11);
+            writer.Write(val.m12);
+            writer.Write(val.m13);
+            writer.Write(val.m20);
+            writer.Write(val.m21);
+            writer.Write(val.m22);
+            writer.Write(val.m23);
+            writer.Write(val.m30);
+            writer.Write(val.m31);
+            writer.Write(val.m32);
+            writer.Write(val.m33);
+        }
+
+        public override Matrix4x4 Deserialize(Reader reader)
+        {
+            return new Matrix4x4(
+                new Vector4(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4)),
+                new Vector4(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4)),
+                new Vector4(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4)),
+                new Vector4(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4),
+                    reader.Read<float>(4)));
+        }
+
+        public override int GetSize(Matrix4x4 val)
+        {
+            return 64;
+        }
+    }
+
     public class Test7
     {
         private const string SerializationTest7 = "Nino/Test/Serialization/Test7 - Custom Type Importer Exporter";
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest7,priority=7)]
+        [UnityEditor.MenuItem(SerializationTest7, priority = 7)]
 #endif
         public static void Main()
         {
+            //register wrappers
+            WrapperManifest.AddWrapper(typeof(Vector3), new Vector3Wrapper());
+            WrapperManifest.AddWrapper(typeof(Quaternion), new QuaternionWrapper());
+            WrapperManifest.AddWrapper(typeof(Matrix4x4), new Matrix4x4Wrapper());
             //custom type
             CustomTypeTest c = new CustomTypeTest()
             {
@@ -42,75 +126,9 @@ namespace Nino.Test.Editor.Serialization
                 }
             };
 
-            Serializer.AddCustomImporter<int?>((val, writer) =>
-            {
-                //write int
-                writer.Write(val.GetValueOrDefault());
-            });
-            Serializer.AddCustomImporter<UnityEngine.Vector3>((val, writer) =>
-            {
-                //write 3 float
-                writer.Write(val.x);
-                writer.Write(val.y);
-                writer.Write(val.z);
-            });
-            Serializer.AddCustomImporter<UnityEngine.Quaternion>((val, writer) =>
-            {
-                //write 4 float
-                writer.Write(val.x);
-                writer.Write(val.y);
-                writer.Write(val.z);
-                writer.Write(val.w);
-            });
-            Serializer.AddCustomImporter<UnityEngine.Matrix4x4>((val, writer) =>
-            {
-                void WriteV4(UnityEngine.Vector4 v)
-                {
-                    writer.Write(v.x);
-                    writer.Write(v.y);
-                    writer.Write(v.z);
-                    writer.Write(v.w);
-                }
-
-                //write 4 rows
-                WriteV4(val.GetRow(0));
-                WriteV4(val.GetRow(1));
-                WriteV4(val.GetRow(2));
-                WriteV4(val.GetRow(3));
-            });
             Logger.D($"will serialize c: {c}");
             var bs = Serializer.Serialize(c);
             Logger.D($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
-
-            //register exporter (custom way to export bytes to object)
-            //as when writing nullable<int>, we wrote int, here we read int
-            Deserializer.AddCustomExporter<int?>(reader => reader.ReadInt32());
-            //as we wrote 3 floats with vector3, now we read 3 floats and parse to vector
-            Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
-                new UnityEngine.Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()));
-            //read 4 floats and parse to Quaternion
-            Deserializer.AddCustomExporter<UnityEngine.Quaternion>(reader =>
-                new UnityEngine.Quaternion(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
-                    reader.ReadFloat()));
-            //read 4 rows and parse to matrix 4x4
-            Deserializer.AddCustomExporter<UnityEngine.Matrix4x4>(reader =>
-            {
-                UnityEngine.Vector4 ReadV4()
-                {
-                    return new UnityEngine.Vector4(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat(),
-                        reader.ReadFloat());
-                }
-
-                //result
-                var ret = new UnityEngine.Matrix4x4();
-                //read 4 rows
-                ret.SetRow(0, ReadV4());
-                ret.SetRow(1, ReadV4());
-                ret.SetRow(2, ReadV4());
-                ret.SetRow(3, ReadV4());
-                return ret;
-            });
-
             Logger.D("will deserialize");
             var cc = Deserializer.Deserialize<CustomTypeTest>(bs);
             Logger.D($"deserialized as cc: {cc}");

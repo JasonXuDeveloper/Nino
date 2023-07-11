@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Serialization
 {
@@ -15,83 +16,16 @@ namespace Nino.Serialization
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T ReadCommonVal<T>() =>
-            Deserializer.Deserialize<T>(buffer.AsSpan(position, _length - position), this, _option,
-                false);
-
-        /// <summary>
-        /// Decompress number for int32, int64, uint32, uint64
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T DecompressAndReadNumber<T>() where T : unmanaged
-        {
-            T result = default;
-            DecompressAndReadNumber(ref result);
-            return result;
-        }
-
-        /// <summary>
-        /// Decompress number for int32, int64, uint32, uint64
-        /// </summary>
-        /// <returns></returns>
-        /// <exception cref="InvalidOperationException"></exception>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DecompressAndReadNumber<T>(ref T result) where T : unmanaged
-        {
-            if (EndOfReader)
-            {
-                result = default;
-                return;
-            }
-
-            ref var type = ref GetCompressType();
-            fixed (T* ptr = &result)
-            {
-                switch (type)
-                {
-                    case CompressType.Byte:
-                        Unsafe.As<T, byte>(ref result) = ReadByte();
-                        return;
-                    case CompressType.SByte:
-                        Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
-                        Unsafe.As<T, sbyte>(ref result) = ReadSByte();
-                        return;
-                    case CompressType.Int16:
-                        Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
-                        Unsafe.As<T, short>(ref result) = ReadInt16();
-                        return;
-                    case CompressType.UInt16:
-                        Unsafe.As<T, ushort>(ref result) = ReadUInt16();
-                        return;
-                    case CompressType.Int32:
-                        Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
-                        Unsafe.As<T, int>(ref result) = ReadInt32();
-                        return;
-                    case CompressType.UInt32:
-                        Unsafe.As<T, uint>(ref result) = ReadUInt32();
-                        return;
-                    case CompressType.Int64:
-                        Unsafe.InitBlock(ptr, 255, (uint)sizeof(T));
-                        Unsafe.As<T, long>(ref result) = ReadInt64();
-                        return;
-                    case CompressType.UInt64:
-                        Unsafe.As<T, ulong>(ref result) = ReadUInt64();
-                        return;
-                    default:
-                        throw new InvalidOperationException("invalid compress type");
-                }
-            }
-        }
+            Deserializer.Deserialize<T>(buffer.AsSpan(position, _length - position), this, false);
 
         /// <summary>
         /// Compress and write enum
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T DecompressAndReadEnum<T>()
+        public T ReadEnum<T>()
         {
             T val = default;
-            DecompressAndReadEnum(ref val);
+            ReadEnum(ref val);
             return val;
         }
 
@@ -100,7 +34,7 @@ namespace Nino.Serialization
         /// </summary>
         /// <param name="val"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DecompressAndReadEnum<T>(ref T val)
+        public void ReadEnum<T>(ref T val)
         {
             if (EndOfReader) return;
 
@@ -118,18 +52,17 @@ namespace Nino.Serialization
                 case TypeCode.UInt16:
                     Unsafe.As<T, ushort>(ref val) = ReadUInt16();
                     return;
-                //need to consider compress
                 case TypeCode.Int32:
-                    Unsafe.As<T, int>(ref val) = DecompressAndReadNumber<int>();
+                    Unsafe.As<T, int>(ref val) = ReadInt32();
                     return;
                 case TypeCode.UInt32:
-                    Unsafe.As<T, uint>(ref val) = DecompressAndReadNumber<uint>();
+                    Unsafe.As<T, uint>(ref val) = ReadUInt32();
                     return;
                 case TypeCode.Int64:
-                    Unsafe.As<T, long>(ref val) = DecompressAndReadNumber<long>();
+                    Unsafe.As<T, long>(ref val) = ReadInt64();
                     return;
                 case TypeCode.UInt64:
-                    Unsafe.As<T, ulong>(ref val) = DecompressAndReadNumber<ulong>();
+                    Unsafe.As<T, ulong>(ref val) = ReadUInt64();
                     return;
             }
         }
@@ -139,16 +72,16 @@ namespace Nino.Serialization
         /// </summary>
         /// <param name="len"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private T Read<T>(int len) where T : unmanaged
+        public T Read<T>(int len) where T : unmanaged
         {
             if (EndOfReader)
             {
                 return default;
             }
 
-            var ptr = buffer.Data + position;
+            var ret = MemoryMarshal.Read<T>(buffer.AsSpan(position, sizeof(T)));
             position += len;
-            return Unsafe.Read<T>(ptr);
+            return ret;
         }
 
         /// <summary>
@@ -166,7 +99,7 @@ namespace Nino.Serialization
                 return;
             }
 
-            val = Unsafe.Read<T>(buffer.Data + position);
+            val = MemoryMarshal.Read<T>(buffer.AsSpan(position, sizeof(T)));
             position += len;
         }
 
@@ -205,8 +138,7 @@ namespace Nino.Serialization
             int i = 0;
             while (i < len)
             {
-                arr[i++] = (T)ReadCommonVal(
-                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(T));
+                arr[i++] = ReadCommonVal<T>();
             }
 
             return arr;
@@ -228,8 +160,7 @@ namespace Nino.Serialization
             //read item
             while (len-- > 0)
             {
-                lst.Add((T)ReadCommonVal(
-                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(T)));
+                lst.Add(ReadCommonVal<T>());
             }
 
             return lst;
@@ -251,8 +182,7 @@ namespace Nino.Serialization
             //read item
             while (len-- > 0)
             {
-                lst.Add((T)ReadCommonVal(
-                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(T)));
+                lst.Add(ReadCommonVal<T>());
             }
 
             return lst;
@@ -274,8 +204,7 @@ namespace Nino.Serialization
             //read item
             while (len-- > 0)
             {
-                lst.Enqueue((T)ReadCommonVal(
-                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(T)));
+                lst.Enqueue(ReadCommonVal<T>());
             }
 
             return lst;
@@ -317,10 +246,8 @@ namespace Nino.Serialization
             //read item
             while (len-- > 0)
             {
-                var key = (TKey)ReadCommonVal(
-                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out var type) ? type : typeof(TKey));
-                var val = (TValue)ReadCommonVal(
-                    TypeModel.AllTypes.TryGetValue(ReadInt32(), out type) ? type : typeof(TValue));
+                var key = ReadCommonVal<TKey>();
+                var val = ReadCommonVal<TValue>();
                 dic.Add(key, val);
             }
 

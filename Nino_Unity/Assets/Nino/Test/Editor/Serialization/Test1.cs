@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Text;
 using Nino.Shared.Util;
@@ -67,7 +68,6 @@ namespace Nino.Test.Editor.Serialization
                     db = 999.999999999999,
                     bo = true,
                     en = TestEnum.A,
-                    name = GetString(20)
                 };
             }
 
@@ -82,22 +82,32 @@ namespace Nino.Test.Editor.Serialization
             #region Test
 
             Logger.D("Serialization Test", $"<color=cyan>testing {max} objs</color>");
-            var sizeOfNestedData = Encoding.Default.GetByteCount(points.name) +
-                                   (sizeof(int) + sizeof(short) + sizeof(long) + sizeof(float) + sizeof(double) +
-                                    sizeof(decimal) + sizeof(bool) + sizeof(byte) +
-                                    Encoding.Default.GetByteCount(points.ps[0].name)) * points.ps.Length;
-            Logger.D("Serialization Test", $"marshal.sizeof struct: {sizeOfNestedData} bytes");
             Logger.D("Serialization Test", "======================================");
 
             //Nino
             var sw = new Stopwatch();
             BeginSample("Nino");
             sw.Restart();
-            var bs = Nino.Serialization.Serializer.Serialize(points);
-            sw.Stop();
-            EndSample();
-            Logger.D("Serialization Test", $"Nino: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
-            long len = bs.Length;
+            int size = Nino.Serialization.Serializer.GetSize(points);
+            long len;
+            if (size <= 1024)
+            {
+                Span<byte> ret = stackalloc byte[size];
+                Nino.Serialization.Serializer.Serialize(ret, points);
+                sw.Stop();
+                EndSample();
+                Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                len = ret.Length;
+            }
+            else
+            {
+                byte[] ret = new byte[size];
+                Nino.Serialization.Serializer.Serialize(ret, points);
+                sw.Stop();
+                EndSample();
+                Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                len = ret.Length;
+            }
             var tm = sw.ElapsedMilliseconds;
             //Logger.D("Serialization Test",string.Join(",", bs));
 
@@ -105,6 +115,7 @@ namespace Nino.Test.Editor.Serialization
             BeginSample("PB-net");
             sw.Restart();
             //we want byte[], pbnet returns stream
+            byte[] bs;
             //to be able to make it fair, we need to convert stream to byte[]
             using (var ms = new MemoryStream())
             {
