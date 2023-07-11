@@ -62,7 +62,6 @@ namespace Nino.Test
                     db = 999.999999999999,
                     bo = true,
                     en = TestEnum.A,
-                    name = "amnsdhfgurieksdjfhryeudjf"
                 };
             }
 

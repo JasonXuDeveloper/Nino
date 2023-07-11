@@ -1,6 +1,6 @@
 # 序列化模块使用方法
 
-## 非Unity平台
+## 非Unity平台（`v1.2.0`之前）
 
 非Unity平台使用Nino，可以**根据需求开启**原生压缩解压代码，**开启后序列化和反序列化时的GC会变得非常的低（KB级别甚至Bytes级别）**
 
@@ -19,6 +19,14 @@
 注意，nuget下载nino的用户需要把编译的dll放到项目根目录，并且配置生成项目时自动复制
 
 ## 注意事项
+
+```Nino.Serialization v1.2.0```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析，同时需要生成新的代码！！！
+
+> 这个版本去掉了多态，同时去掉了数字类型压缩，改造了代码生成
+
+
+
+
 
 ```Nino.Serialization v1.1.2```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！
 
@@ -86,11 +94,7 @@ public partial class NotIncludeAllClass
 
 > 建议每个需要Nino序列化/反序列化的类和结构体用partial定义，这样可以生成代码
 >
-> 推荐```NotIncludeAllClass```的写法，给每个字段或属性单独打```NinoMember```标签，这样性能最好，体积最小
->
-> **```IncludeAllClass```的写法（自动收集），会导致生成出来的体积较大，序列化反序列化速度慢，但是可以通过生成代码优化**（非ILRuntime下）
->
-> **自动收集的类型或结构体，强烈建议通过生成代码来提高性能，以及优化体积，但是需要注意，每次更新字段或属性后需要重新生成代码来更新**
+> **强烈建议通过生成代码来提高性能，但是需要注意，每次更新字段或属性后需要重新生成代码来更新**
 
 
 
@@ -100,62 +104,21 @@ public partial class NotIncludeAllClass
 
 - byte, sbyte, short, ushort, int, uint, long, ulong, double, float, decimal, char, string, bool, enum, DateTime
 - Nullable<任意支持Nino序列化的struct>
-- List<上述类型>，HashSet<上述类型>，Queue<上述类型>，Stack<上述类型>，上述类型[]
-- List<可Nino序列化类型>，HashSet<可Nino序列化类型>，Queue<可Nino序列化类型>，Stack<可Nino序列化类型>，可Nino序列化类型[]
-- List<注册委托类型>，HashSet<注册委托类型>，Queue<注册委托类型>，Stack<注册委托类型>，注册委托类型[]
-- Dictionary<Nino支持类型,Nino支持类型>
-- Dictionary<注册委托类型,注册委托类型>
+- List<可Nino序列化类型>，HashSet<可Nino序列化类型>，Queue<可Nino序列化类型>，Stack<可Nino序列化类型>，可Nino序列化类型[]， ICollection<可Nino序列化>
+- Dictionary<Nino支持类型,Nino支持类型>，IDictionary<可Nino序列化>
 - 可Nino序列化类型
 - null
 
-不支持序列化的成员类型（可以通过注册自定义委托实现）：
+不支持序列化的成员类型（可以通过注册自定义包装器实现）：
 
-- 任何非上述类型（ConcurrentQueue等）
+- 任何非上述类型
 
-**针对某个类型注册自定义序列化委托后，记得注册该类型的自定义反序列化委托，不然会导致反序列化出错**
-
-**支持多态！！！**
+**不支持多态！！！**
 
 ## 限制
 
 - 不支持给非partial或Nested类型和结构体生成代码
 - 暂时不支持给泛型序列化类型和结构体生成代码
-
-
-
-## 多态规则
-
-**支持：**
-
-- 同类型序列化/反序列化
-
-  ```csharp
-  class A{}
-  class B: A{}
-  
-  ...
-  var buf = Serializer.Serialize<A>((A)new B());
-  var insOfA = Deserializer.Deserialize<A>(buf);
-  ```
-
-  > 注意，这样操作会丢失全部B类型内的成员
-
-- 数组/List/HashSet/Queue/Stack/字典
-
-  ```csharp
-  class A{}
-  class B: A{}
-  
-  ...
-  var buf = Serializer.Serialize<List<A>>(new List<A>(){new B()});
-  var insOfLstA = Deserializer.DeserializeList<A>(buf);
-  ```
-
-  > 注意，这样操作不会丢失```List<A>```内的B对象的B类型成员数据
-  >
-  > 数组/HashSet/Queue/Stack/字典在这里同理
-  >
-  > HashSet/Queue/Stack记得用泛型方法去序列化和反序列化，不然不支持
 
 
 
@@ -189,7 +152,7 @@ Nino支持ILRuntime的使用，但需要初始化ILRuntime：
 >
 > 需要注意的是，ILRuntime下生成与不生成代码的差距不是特别大
 >
-> ILRuntime下也支持多态！
+> ILRuntime下也不支持多态！
 
 
 
@@ -202,106 +165,39 @@ Nino支持ILRuntime的使用，但需要初始化ILRuntime：
 使用方法：
 
 - 创建一个类型，并继承```NinoWrapperBase<T>```，T是你需要序列化/反序列化的类型，也可以用泛型代替，可以自由发挥
-- 实现```public override void Serialize(T val, Writer writer)```，自行根据```Nino.Serialization.Writer```的公共接口来序列化T类型的数据即可
+- 实现```public override void Serialize(T val, ref Writer writer)```，自行根据```Nino.Serialization.Writer```的公共接口来序列化T类型的数据即可
 - 实现```public override T Deserialize(Reader reader)```，自行根据```Nino.Serialization.Reader```的公共接口来实现反序列化T类型的数据即可
+- 实现`public overrid int GetSize(T val)`，自行返回该类型的长度即可
 - 调用```WrapperManifest.AddWrapper(typeof(T), new NinoWrapperBase<T>());```以注册接口包装器
 
 示例：
 
 ```csharp
-internal class DateTimeListWrapper : NinoWrapperBase<List<DateTime>>
+public class Vector3Wrapper : NinoWrapperBase<Vector3>
 {
-  public override void Serialize(List<DateTime> val, Writer writer)
+  public override void Serialize(Vector3 val, ref Writer writer)
   {
-    writer.CompressAndWrite(val.Count);
-    foreach (var v in val)
-    {
-      writer.Write(v);
-    }
+    writer.Write(val.x);
+    writer.Write(val.y);
+    writer.Write(val.z);
   }
 
-  public override List<DateTime> Deserialize(Reader reader)
+  public override Vector3 Deserialize(Reader reader)
   {
-    int len = reader.ReadLength();
-    var arr = new List<DateTime>(len);
-    int i = 0;
-    while (i++ < len)
-    {
-      arr.Add(reader.ReadDateTime());
-    }
-    return arr;
+    return new Vector3(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4));
+  }
+
+  public override int GetSize(Vector3 val)
+  {
+    return 12;
   }
 }
 
 //别忘了在某个地方调用下面的代码：
-WrapperManifest.AddWrapper(typeof(DateTimeListWrapper), new DateTimeListWrapper());
+WrapperManifest.AddWrapper(typeof(Vector3), new Vector3Wrapper());
 ```
 
 
-
-## 注册自定义序列化委托
-
-给指定类型注册该委托后，全局序列化的时候遇到该类型会直接使用委托方法写入二进制数据
-
-需要注意的是，不支持注册底层自带支持的类型的委托，**并且注册委托的方式处理值类型会产生GC和装箱开销，可以通过注册自定义包装器避免这个问题**
-
-使用方法：
-
-```csharp
-Serializer.AddCustomImporter<T>((val, writer) =>
-                                                  {
-                                                    //TODO use writer to write
-                                                  });
-```
-
-T是需要注册的类型的泛型参数，val是T的实例，writer是用来写二进制的工具
-
-示例：
-
-```csharp
-Serializer.AddCustomImporter<UnityEngine.Vector3>((val, writer) =>
-                                                  {
-                                                    //write 3 float
-                                                    writer.Write(val.x);
-                                                    writer.Write(val.y);
-                                                    writer.Write(val.z);
-                                                  });
-```
-
-这里我们写了个Vector3，将其x,y,z以float的方式写入
-
-> 写入(U)Int/(U)Long可以用Write(U)Int32/Write(U)Int64，但是建议用CompressAndWrite接口，可以有效压缩体积
->
-> 写入Enum也要使用对应压缩接口，需要声明enum对应的数值类型，并且给enum的值转为ulong，例如writer.CompressAndWriteEnum(typeof(System.Byte), (ulong) value.En);
-
-## 注册自定义反序列化委托
-
-给指定类型注册该委托后，全局翻序列化的时候遇到该类型会直接使用委托方法读取二进制数据并转为对象
-
-需要注意的是，不支持注册底层自带支持的类型的委托，**并且注册委托的方式处理值类型会产生GC和拆箱开销，可以通过注册自定义包装器避免这个问题**
-
-使用方法：
-
-```csharp
-Deserializer.AddCustomExporter<T>(reader =>
-                                  //TODO return T instance
-                                 );
-```
-
-T是需要注册的类型的泛型参数，reader是用来读二进制的工具
-
-示例：
-
-```csharp
-Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
-                                                    new UnityEngine.Vector3(reader.ReadFloat(), reader.ReadFloat(), reader.ReadFloat()));
-```
-
-这里我们读了3个float作为xyz（因为写入的时候写3个float，xyz），创建了Vector3并返回
-
->如果写入(U)Int/(U)Long时用了压缩接口，那么读的时候要用DecompressAndReadNumber接口读取，并且需要转换类型，如(int)reader.DecompressAndReadNumber()
->
->读取Enum要用DecompressAndReadEnum(enum声明类型)，enum默认是int类型的
 
 ## 代码生成
 
@@ -309,7 +205,7 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
-- **如果开启了自动收集字段和属性，生成代码和没生成代码，序列化的结果是不一样的，因此在导表读表的使用场景里，如果使用了自动收集，那么在生成代码后需要重新再导出一次文件（强烈建议不要开启自动收集，建议手动标记顺序）**
+- **开启了自动收集字段和属性，生成代码和没生成代码，序列化的结果是一样的**
 
 > 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上，可以在性能对比的时候用这个（例如[这个真机测试](../Nino_Unity/Assets/Nino/Test/BuildTest.cs)）
 
@@ -320,71 +216,114 @@ Deserializer.AddCustomExporter<UnityEngine.Vector3>(reader =>
 Nino支持以下三种压缩方式：
 
 - Zlib(高压缩率低性能)
-- Lz4(平均压缩率高性能)【正在开发】
+- Lz4(平均压缩率高性能)
 - 无压缩(高性能但体积很大)
 
 
 
 > 序列化和反序列化的时候可以选择压缩方式，但是需要注意反序列化数据的时候，需要用和序列化时相同的压缩方式去反序列化
+>
+> 注意，v1.2.0暂时仅支持无压缩
 
 
 
 ## 序列化
 
 ```csharp
-Nino.Serialization.Serializer.Serialize<T>(T val, CompressOption option = CompressOption.Zlib);
+byte[] Nino.Serialization.Serializer.Serialize<T>(T val);
+byte[] Nino.Serialization.Serializer.Serialize(object val);
 ```
 
 ```csharp
-Nino.Serialization.Serializer.Serialize(object val, CompressOption option = CompressOption.Zlib);
+int Nino.Serialization.Serializer.Serialize<T>(Span<byte> buffer, in T val);
+int Nino.Serialization.Serializer.Serialize(Span<byte> buffer, object val)
 ```
-
-
-
-> 如果没有指定的压缩模式，会使用Zlib
->
-> 需要注意的是，涉及到字符串时，请确保序列化和反序列化的时候用的是同样的编码和同样的压缩方式
->
-> 老版本（1.1.0以下），需要指定Encoding参数，默认是UTF8
 
 示范：
 
 ```csharp
+//懒人写法
 byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);
+
+//进阶写法：速度快且将近0GC的写法：
+
+//也可以搭配stackalloc使用
+Span<byte> stackMemory = stackalloc byte[1024];//请确保这个对象不可能超过1024字节
+int writtenSize = Nino.Serialization.Serializer.Serialize<ObjClass>(stackMemory, obj);
+//将stackMemory.Slice(writtenSize) 写入网络流之类的
+...
+//也可以搭配ArrayPool使用
+int size = Nino.Serialization.Serializer.GetSize<ObjClass>(obj);
+byte[] arr = ArrayPool<byte>.Shared.Rent(size);
+Nino.Serialization.Serializer.Serialize<ObjClass>(new Span<byte>(arr, 0, size), obj);
+//将arr的第0个到第size个字节写入流
+ArrayPool<byte>.Shared.Return(arr);
 ```
 
 传入需要序列化的类型作为泛型参数，以及该类型的实例，会返回二进制数组
 
+还有其他类型的序列化：
+
+```csharp
+Serialize<T>(T[] val);
+Serialize<T>(T? val);
+Serialize<T>(List<T> val);
+Serialize<T>(HashSet<T> val);
+Serialize<T>(Queue<T> val);
+Serialize<T>(Stack<T> val);
+Serialize<TKey, TValue>(Dictionary<TKey, TValue> val);
+```
+
+
+
 ## 反序列化
 
 ```csharp
-Nino.Serialization.Deserializer.Deserialize<T>(byte[] data, CompressOption option = CompressOption.Zlib);
-Nino.Serialization.Deserializer.DeserializeArray<T>(byte[] data, CompressOption option = CompressOption.Zlib);
-Nino.Serialization.Deserializer.DeserializeNullable<T>(byte[] data, CompressOption option = CompressOption.Zlib);
-Nino.Serialization.Deserializer.DeserializeList<T>(byte[] data, CompressOption option = CompressOption.Zlib);
-Nino.Serialization.Deserializer.DeserializeHashSet<T>(byte[] data, CompressOption option = CompressOption.Zlib);
-Nino.Serialization.Deserializer.DeserializeQueue<T>(byte[] data, CompressOption option = CompressOption.Zlib);
-Nino.Serialization.Deserializer.DeserializeStack<T>(byte[] data, CompressOption option = CompressOption.Zlib);
-```
-
-```csharp
-Nino.Serialization.Deserializer.Deserialize(Type type, byte[] data, CompressOption option = CompressOption.Zlib);
+Nino.Serialization.Deserializer.Deserialize<T>(byte[] data);
+Nino.Serialization.Deserializer.Deserialize(Type type, byte[] data);
+Nino.Serialization.Deserializer.DeserializeArray<T>(byte[] data);
+Nino.Serialization.Deserializer.DeserializeNullable<T>(byte[] data);
+Nino.Serialization.Deserializer.DeserializeList<T>(byte[] data);
+Nino.Serialization.Deserializer.DeserializeHashSet<T>(byte[] data);
+Nino.Serialization.Deserializer.DeserializeQueue<T>(byte[] data);
+Nino.Serialization.Deserializer.DeserializeStack<T>(byte[] data);
 ```
 
 
 
-> data可以传```byte[]```或```ArraySegment<byte>```或```Span<byte>```
+> data不仅可以传```byte[]```，还可以```ArraySegment<byte>```或```Span<byte>```
 >
-> 如果没有指定的压缩模式，会使用Zlib
->
-> 需要注意压缩模式问题，并且反序列化的对象需要能够创建（包含无参数的构造函数）
->
-> 老版本（1.1.0以下），需要指定Encoding参数，默认是UTF8
 
 示范：
 
 ```csharp
+//假设这里byteArr是byte[]
 var obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(byteArr);
+...
+//高级用法，假设网络层传来了数据（比如Pipeline），我们收到了ReadOnlySequence<byte>
+//这样写性能最最最最好
+ReadOnlySequence<byte> data = xxxxx;
+ObjClass obj;
+if(data.IsSingleSegment)
+{
+  Span<byte> dataSpan = data.FirstSpan;
+  obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(dataSpan);
+}
+else
+{
+  if(data.Length <= 1024)
+  {
+    Span<byte> stackMemory = stackalloc byte[(int)data.Length];
+    data.CopyTo(stackMemory);
+    obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(stackMemory);
+  }
+  else
+  {
+    byte[] arr = ArrayPool<byte>.Shared.Rent((int)data.Length);
+    obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(new Span<byte>(arr, 0, (int)data.Length));
+    ArrayPool<byte>.Shared.Return(arr);
+  }
+}
 ```
 
 传入需要反序列化的类型作为泛型参数，以及序列化结果的二进制数组，会返回反序列化出的对象实例

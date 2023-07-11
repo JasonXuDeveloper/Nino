@@ -69,7 +69,7 @@ namespace Nino.Test
     [ProtoContract]
     [NinoSerialize]
     [MessagePackObject]
-    public partial class Data
+    public partial struct Data
     {
         [ProtoMember(1)] [NinoMember(1)] [BsonElement] [Key(1)]
         public int x;
@@ -95,12 +95,9 @@ namespace Nino.Test
         [ProtoMember(8)] [NinoMember(8)] [BsonElement] [Key(8)]
         public TestEnum en;
 
-        [ProtoMember(9)] [NinoMember(9)] [BsonElement] [Key(9)]
-        public string name = "";
-
         public override string ToString()
         {
-            return $"{x},{y},{z},{f},{d},{db},{bo},{en},{name}";
+            return $"{x},{y},{z},{f},{d},{db},{bo},{en}";
         }
     }
 

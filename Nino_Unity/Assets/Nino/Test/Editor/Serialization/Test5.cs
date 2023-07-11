@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Text;
 using Nino.Shared.Util;
@@ -11,7 +12,8 @@ namespace Nino.Test.Editor.Serialization
 {
     public class Test5
     {
-        private const string SerializationTest5 = "Nino/Test/Serialization/Test5 - Serialize and Deserialize (Nino vs MongoDB.Bson)";
+        private const string SerializationTest5 =
+            "Nino/Test/Serialization/Test5 - Serialize and Deserialize (Nino vs MongoDB.Bson)";
 
         private static string GetString(int len)
         {
@@ -21,7 +23,7 @@ namespace Nino.Test.Editor.Serialization
         }
 
 #if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest5,priority=5)]
+        [UnityEditor.MenuItem(SerializationTest5, priority = 5)]
 #endif
         public static void Main()
         {
@@ -56,7 +58,7 @@ namespace Nino.Test.Editor.Serialization
 #endif
             return;
         }
-        
+
         private static void DoTest(int max)
         {
             #region Test data
@@ -74,7 +76,6 @@ namespace Nino.Test.Editor.Serialization
                     db = 999.999999999999,
                     bo = true,
                     en = TestEnum.A,
-                    name = GetString(20)
                 };
             }
 
@@ -89,83 +90,158 @@ namespace Nino.Test.Editor.Serialization
             #region Test
 
             Logger.D("Serialization Test", $"<color=cyan>testing {max} objs</color>");
-            var sizeOfNestedData = Encoding.Default.GetByteCount(points.name) +
-                                   (sizeof(int) + sizeof(short) + sizeof(long) + sizeof(float) + sizeof(double) +
-                                    sizeof(decimal) + sizeof(bool) + sizeof(byte) +
-                                    Encoding.Default.GetByteCount(points.ps[0].name)) * points.ps.Length;
-            Logger.D("Serialization Test", $"marshal.sizeof struct: {sizeOfNestedData} bytes");
             Logger.D("Serialization Test", "======================================");
 
             //Nino
             var sw = new Stopwatch();
             BeginSample("Nino - Serialize");
             sw.Restart();
-            var bs = Nino.Serialization.Serializer.Serialize(points);
-            sw.Stop();
-            EndSample();
-            Logger.D("Serialization Test", $"Nino: {bs.Length} bytes in {sw.ElapsedMilliseconds}ms");
-            long len = bs.Length;
-            var tm = sw.ElapsedMilliseconds;
-            //Logger.D("Serialization Test",string.Join(",", bs));
-
-            //MongoDB.Bson
-            BeginSample("MongoDB.Bson - Serialize");
-            byte[] bs2;
-            sw.Restart();
-            //we want byte[], MongoDB.Bson returns stream
-            //to be able to make it fair, we need to convert stream to byte[]
-            using (MemoryStream ms = new MemoryStream())
+            int size = Nino.Serialization.Serializer.GetSize(points);
+            long len;
+            byte[] bs;
+            if (size <= 1024)
             {
-                using (BsonBinaryWriter bsonWriter = new BsonBinaryWriter(ms, BsonBinaryWriterSettings.Defaults))
+                Span<byte> ret = stackalloc byte[size];
+                Nino.Serialization.Serializer.Serialize(ret, points);
+                sw.Stop();
+                EndSample();
+                Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                len = ret.Length;
+                var tm = sw.ElapsedMilliseconds;
+                //Logger.D("Serialization Test",string.Join(",", bs));
+
+                //MongoDB.Bson
+                BeginSample("MongoDB.Bson - Serialize");
+                byte[] bs2;
+                sw.Restart();
+                //we want byte[], MongoDB.Bson returns stream
+                //to be able to make it fair, we need to convert stream to byte[]
+                using (MemoryStream ms = new MemoryStream())
                 {
-                    BsonSerializationContext context = BsonSerializationContext.CreateRoot(bsonWriter);
-                    BsonSerializationArgs args = default;
-                    args.NominalType = typeof (object);
-                    IBsonSerializer serializer = BsonSerializer.LookupSerializer(args.NominalType);
-                    serializer.Serialize(context, args, points);
-                    bs2 = ms.ToArray();
+                    using (BsonBinaryWriter bsonWriter = new BsonBinaryWriter(ms, BsonBinaryWriterSettings.Defaults))
+                    {
+                        BsonSerializationContext context = BsonSerializationContext.CreateRoot(bsonWriter);
+                        BsonSerializationArgs args = default;
+                        args.NominalType = typeof(object);
+                        IBsonSerializer serializer = BsonSerializer.LookupSerializer(args.NominalType);
+                        serializer.Serialize(context, args, points);
+                        bs2 = ms.ToArray();
+                    }
                 }
+
+                sw.Stop();
+                EndSample();
+
+                Logger.D("Serialization Test", $"MongoDB.Bson: {bs2.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                //Logger.D("Serialization Test",string.Join(",", bs));
+
+                Logger.D("Serialization Test", "======================================");
+                Logger.D("Serialization Test", $"size diff (nino - MongoDB.Bson): {len - bs2.Length} bytes");
+                Logger.D("Serialization Test",
+                    $"size diff pct => diff/MongoDB.Bson : {((len - bs2.Length) * 100f / bs2.Length):F2}%");
+
+                Logger.D("Serialization Test", "======================================");
+                Logger.D("Serialization Test", $"time diff (nino - MongoDB.Bson): {tm - sw.ElapsedMilliseconds} ms");
+                Logger.D("Serialization Test",
+                    $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+
+                BeginSample("Nino - Deserialize");
+                sw.Restart();
+                var d = Nino.Serialization.Deserializer.Deserialize<NestedData>(ret);
+                sw.Stop();
+                EndSample();
+                Logger.D("Deserialization Test", d);
+                Logger.D("Deserialization Test",
+                    $"Nino: extracted {len} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+                tm = sw.ElapsedMilliseconds;
+
+                //MongoDB.Bson
+                BeginSample("MongoDB.Bson - Deserialize");
+                sw.Restart();
+                d = (NestedData)BsonSerializer.Deserialize(bs2, typeof(NestedData));
+                sw.Stop();
+                EndSample();
+                Logger.D("Deserialization Test", d);
+                Logger.D("Deserialization Test",
+                    $"MongoDB.Bson: extracted {bs2.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+
+                Logger.D("Deserialization Test", "======================================");
+                Logger.D("Deserialization Test", $"time diff (nino - MongoDB.Bson): {tm - sw.ElapsedMilliseconds} ms");
+                Logger.D("Deserialization Test",
+                    $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
             }
-            sw.Stop();
-            EndSample();
+            else
+            {
+                byte[] ret = new byte[size];
+                Nino.Serialization.Serializer.Serialize(ret, points);
+                sw.Stop();
+                EndSample();
+                Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                len = ret.Length;
+                var tm = sw.ElapsedMilliseconds;
+                //Logger.D("Serialization Test",string.Join(",", bs));
 
-            Logger.D("Serialization Test", $"MongoDB.Bson: {bs2.Length} bytes in {sw.ElapsedMilliseconds}ms");
-            //Logger.D("Serialization Test",string.Join(",", bs));
+                //MongoDB.Bson
+                BeginSample("MongoDB.Bson - Serialize");
+                byte[] bs2;
+                sw.Restart();
+                //we want byte[], MongoDB.Bson returns stream
+                //to be able to make it fair, we need to convert stream to byte[]
+                using (MemoryStream ms = new MemoryStream())
+                {
+                    using (BsonBinaryWriter bsonWriter = new BsonBinaryWriter(ms, BsonBinaryWriterSettings.Defaults))
+                    {
+                        BsonSerializationContext context = BsonSerializationContext.CreateRoot(bsonWriter);
+                        BsonSerializationArgs args = default;
+                        args.NominalType = typeof(object);
+                        IBsonSerializer serializer = BsonSerializer.LookupSerializer(args.NominalType);
+                        serializer.Serialize(context, args, points);
+                        bs2 = ms.ToArray();
+                    }
+                }
 
-            Logger.D("Serialization Test", "======================================");
-            Logger.D("Serialization Test", $"size diff (nino - MongoDB.Bson): {len - bs2.Length} bytes");
-            Logger.D("Serialization Test",
-                $"size diff pct => diff/MongoDB.Bson : {((len - bs2.Length) * 100f / bs2.Length):F2}%");
+                sw.Stop();
+                EndSample();
 
-            Logger.D("Serialization Test", "======================================");
-            Logger.D("Serialization Test", $"time diff (nino - MongoDB.Bson): {tm - sw.ElapsedMilliseconds} ms");
-            Logger.D("Serialization Test",
-                $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+                Logger.D("Serialization Test", $"MongoDB.Bson: {bs2.Length} bytes in {sw.ElapsedMilliseconds}ms");
+                //Logger.D("Serialization Test",string.Join(",", bs));
 
-            BeginSample("Nino - Deserialize");
-            sw.Restart();
-            var d = Nino.Serialization.Deserializer.Deserialize<NestedData>(bs);
-            sw.Stop();
-            EndSample();
-            Logger.D("Deserialization Test", d);
-            Logger.D("Deserialization Test",
-                $"Nino: extracted {bs.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
-            tm = sw.ElapsedMilliseconds;
+                Logger.D("Serialization Test", "======================================");
+                Logger.D("Serialization Test", $"size diff (nino - MongoDB.Bson): {len - bs2.Length} bytes");
+                Logger.D("Serialization Test",
+                    $"size diff pct => diff/MongoDB.Bson : {((len - bs2.Length) * 100f / bs2.Length):F2}%");
 
-            //MongoDB.Bson
-            BeginSample("MongoDB.Bson - Deserialize");
-            sw.Restart();
-            d = (NestedData)BsonSerializer.Deserialize(bs2, typeof(NestedData));
-            sw.Stop();
-            EndSample();
-            Logger.D("Deserialization Test", d);
-            Logger.D("Deserialization Test",
-                $"MongoDB.Bson: extracted {bs2.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+                Logger.D("Serialization Test", "======================================");
+                Logger.D("Serialization Test", $"time diff (nino - MongoDB.Bson): {tm - sw.ElapsedMilliseconds} ms");
+                Logger.D("Serialization Test",
+                    $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
 
-            Logger.D("Deserialization Test", "======================================");
-            Logger.D("Deserialization Test", $"time diff (nino - MongoDB.Bson): {tm - sw.ElapsedMilliseconds} ms");
-            Logger.D("Deserialization Test",
-                $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+                BeginSample("Nino - Deserialize");
+                sw.Restart();
+                var d = Nino.Serialization.Deserializer.Deserialize<NestedData>(ret);
+                sw.Stop();
+                EndSample();
+                Logger.D("Deserialization Test", d);
+                Logger.D("Deserialization Test",
+                    $"Nino: extracted {ret.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+                tm = sw.ElapsedMilliseconds;
+
+                //MongoDB.Bson
+                BeginSample("MongoDB.Bson - Deserialize");
+                sw.Restart();
+                d = (NestedData)BsonSerializer.Deserialize(bs2, typeof(NestedData));
+                sw.Stop();
+                EndSample();
+                Logger.D("Deserialization Test", d);
+                Logger.D("Deserialization Test",
+                    $"MongoDB.Bson: extracted {bs2.Length} bytes and deserialized {points.ps.Length} entries in {sw.ElapsedMilliseconds}ms");
+
+                Logger.D("Deserialization Test", "======================================");
+                Logger.D("Deserialization Test", $"time diff (nino - MongoDB.Bson): {tm - sw.ElapsedMilliseconds} ms");
+                Logger.D("Deserialization Test",
+                    $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+            }
+
             #endregion
         }
     }

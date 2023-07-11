@@ -5,7 +5,7 @@ namespace Nino.Serialization
 {
     internal class BoolWrapper : NinoWrapperBase<bool>
     {
-        public override void Serialize(bool val, Writer writer)
+        public override void Serialize(bool val, ref Writer writer)
         {
             writer.Write(val);
         }
@@ -14,27 +14,18 @@ namespace Nino.Serialization
         {
             return reader.ReadBool();
         }
+
+        public override int GetSize(bool val)
+        {
+            return 1;
+        }
     }
 
     internal class BoolArrWrapper : NinoWrapperBase<bool[]>
     {
-        public override unsafe void Serialize(bool[] val, Writer writer)
+        public override void Serialize(bool[] val, ref Writer writer)
         {
-            if (val is null)
-            {
-                writer.Write(false);
-                return;
-            }
-            writer.Write(true);
-            int len = val.Length;
-            writer.CompressAndWrite(ref len);
-            if (len > 0)
-            {
-                fixed (bool* ptr = val)
-                {
-                    writer.Write((byte*)ptr, ref len);
-                }
-            }
+            writer.Write(val.AsSpan());
         }
 
         public override unsafe bool[] Deserialize(Reader reader)
@@ -57,19 +48,26 @@ namespace Nino.Serialization
 
             return arr;
         }
+
+        public override int GetSize(bool[] val)
+        {
+            if (val is null) return 1;
+            return 1 + 4 + val.Length;
+        }
     }
 
     internal class BoolListWrapper : NinoWrapperBase<List<bool>>
     {
-        public override void Serialize(List<bool> val, Writer writer)
+        public override void Serialize(List<bool> val, ref Writer writer)
         {
             if (val is null)
             {
                 writer.Write(false);
                 return;
             }
+
             writer.Write(true);
-            writer.CompressAndWrite(val.Count);
+            writer.Write(val.Count);
             foreach (var v in val)
             {
                 writer.Write(v);
@@ -87,13 +85,20 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadBool());
             }
+
             return arr;
+        }
+
+        public override int GetSize(List<bool> val)
+        {
+            if (val is null) return 1;
+            return 1 + 4 + val.Count;
         }
     }
 
     internal class CharWrapper : NinoWrapperBase<char>
     {
-        public override void Serialize(char val, Writer writer)
+        public override void Serialize(char val, ref Writer writer)
         {
             writer.Write(val);
         }
@@ -102,28 +107,18 @@ namespace Nino.Serialization
         {
             return reader.ReadChar();
         }
+
+        public override int GetSize(char val)
+        {
+            return 2;
+        }
     }
 
     internal class CharArrWrapper : NinoWrapperBase<char[]>
     {
-        public override unsafe void Serialize(char[] val, Writer writer)
+        public override void Serialize(char[] val, ref Writer writer)
         {
-            if (val is null)
-            {
-                writer.Write(false);
-                return;
-            }
-            writer.Write(true);
-            int len = val.Length;
-            writer.CompressAndWrite(ref len);
-            if (len > 0)
-            {
-                len *= 2;
-                fixed (char* ptr = val)
-                {
-                    writer.Write((byte*)ptr, ref len);
-                }
-            }
+            writer.Write(val.AsSpan());
         }
 
         public override unsafe char[] Deserialize(Reader reader)
@@ -143,21 +138,29 @@ namespace Nino.Serialization
                     reader.ReadToBuffer((byte*)arrPtr, len * 2);
                 }
             }
+
             return arr;
+        }
+
+        public override int GetSize(char[] val)
+        {
+            if (val is null) return 1;
+            return 1 + 4 + val.Length * 2;
         }
     }
 
     internal class CharListWrapper : NinoWrapperBase<List<char>>
     {
-        public override void Serialize(List<char> val, Writer writer)
+        public override void Serialize(List<char> val, ref Writer writer)
         {
             if (val is null)
             {
                 writer.Write(false);
                 return;
             }
+
             writer.Write(true);
-            writer.CompressAndWrite(val.Count);
+            writer.Write(val.Count);
             foreach (var v in val)
             {
                 writer.Write(v);
@@ -175,13 +178,20 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadChar());
             }
+
             return arr;
+        }
+
+        public override int GetSize(List<char> val)
+        {
+            if (val is null) return 1;
+            return 1 + 4 + val.Count * 2;
         }
     }
 
     internal class StringWrapper : NinoWrapperBase<string>
     {
-        public override void Serialize(string val, Writer writer)
+        public override void Serialize(string val, ref Writer writer)
         {
             writer.Write(val);
         }
@@ -190,19 +200,26 @@ namespace Nino.Serialization
         {
             return reader.ReadString();
         }
+
+        public override int GetSize(string val)
+        {
+            if (val is null) return 1;
+            return 1 + 4 + val.Length * 2;
+        }
     }
 
     internal class StringArrWrapper : NinoWrapperBase<string[]>
     {
-        public override void Serialize(string[] val, Writer writer)
+        public override void Serialize(string[] val, ref Writer writer)
         {
             if (val is null)
             {
                 writer.Write(false);
                 return;
             }
+
             writer.Write(true);
-            writer.CompressAndWrite(val.Length);
+            writer.Write(val.Length);
             foreach (var v in val)
             {
                 writer.Write(v);
@@ -219,21 +236,35 @@ namespace Nino.Serialization
             {
                 arr[i++] = reader.ReadString();
             }
+
             return arr;
+        }
+
+        public override int GetSize(string[] val)
+        {
+            if (val is null) return 1;
+            int size = 1 + 4;
+            foreach (var v in val)
+            {
+                size += 1 + 4 + v.Length * 2;
+            }
+
+            return size;
         }
     }
 
     internal class StringListWrapper : NinoWrapperBase<List<string>>
     {
-        public override void Serialize(List<string> val, Writer writer)
+        public override void Serialize(List<string> val, ref Writer writer)
         {
             if (val is null)
             {
                 writer.Write(false);
                 return;
             }
+
             writer.Write(true);
-            writer.CompressAndWrite(val.Count);
+            writer.Write(val.Count);
             foreach (var v in val)
             {
                 writer.Write(v);
@@ -251,13 +282,26 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadString());
             }
+
             return arr;
+        }
+
+        public override int GetSize(List<string> val)
+        {
+            if (val is null) return 1;
+            int size = 1 + 4;
+            foreach (var v in val)
+            {
+                size += 1 + 4 + v.Length * 2;
+            }
+
+            return size;
         }
     }
 
     internal class DateTimeWrapper : NinoWrapperBase<DateTime>
     {
-        public override void Serialize(DateTime val, Writer writer)
+        public override void Serialize(DateTime val, ref Writer writer)
         {
             writer.Write(val);
         }
@@ -266,50 +310,60 @@ namespace Nino.Serialization
         {
             return reader.ReadDateTime();
         }
+
+        public override int GetSize(DateTime val)
+        {
+            return 8;
+        }
     }
 
     internal class DateTimeArrWrapper : NinoWrapperBase<DateTime[]>
     {
-        public override void Serialize(DateTime[] val, Writer writer)
+        public override void Serialize(DateTime[] val, ref Writer writer)
         {
-            if (val is null)
-            {
-                writer.Write(false);
-                return;
-            }
-            writer.Write(true);
-            writer.CompressAndWrite(val.Length);
-            foreach (var v in val)
-            {
-                writer.Write(v);
-            }
+            writer.Write(val.AsSpan());
         }
 
-        public override DateTime[] Deserialize(Reader reader)
+        public override unsafe DateTime[] Deserialize(Reader reader)
         {
             if (!reader.ReadBool()) return null;
             int len = reader.ReadLength();
-            var arr = new DateTime[len];
-            int i = 0;
-            while (i < len)
+            DateTime[] arr;
+            if (len == 0)
             {
-                arr[i++] = reader.ReadDateTime();
+                arr = Array.Empty<DateTime>();
             }
+            else
+            {
+                arr = new DateTime[len];
+                fixed (DateTime* arrPtr = arr)
+                {
+                    reader.ReadToBuffer((byte*)arrPtr, len * 8);
+                }
+            }
+
             return arr;
+        }
+
+        public override int GetSize(DateTime[] val)
+        {
+            if (val is null) return 1;
+            return 1 + 4 + val.Length * 8;
         }
     }
 
     internal class DateTimeListWrapper : NinoWrapperBase<List<DateTime>>
     {
-        public override void Serialize(List<DateTime> val, Writer writer)
+        public override void Serialize(List<DateTime> val, ref Writer writer)
         {
             if (val is null)
             {
                 writer.Write(false);
                 return;
             }
+
             writer.Write(true);
-            writer.CompressAndWrite(val.Count);
+            writer.Write(val.Count);
             foreach (var v in val)
             {
                 writer.Write(v);
@@ -326,34 +380,16 @@ namespace Nino.Serialization
             {
                 arr.Add(reader.ReadDateTime());
             }
+
             return arr;
         }
-    }
 
-    internal class GenericWrapper<T> : NinoWrapperBase<T>
-    {
-        public Serializer.ImporterDelegate<T> Importer;
-        public Deserializer.ExporterDelegate<T> Exporter;
-        
-        public override void Serialize(T val, Writer writer)
+        public override int GetSize(List<DateTime> val)
         {
-            if (val == null)
-            {
-                writer.Write(false);
-                return;
-            }
-            writer.Write(true);
-            if(Importer == null)
-                throw new InvalidOperationException($"Importer is null for type: {typeof(T)}");
-            Importer(val, writer);
-        }
+            if (val is null) return 1;
+            int size = 1 + 4 + val.Count * 8;
 
-        public override T Deserialize(Reader reader)
-        {
-            if (!reader.ReadBool()) return default;
-            if(Exporter == null)
-                throw new InvalidOperationException($"Exporter is null for type: {typeof(T)}");
-            return Exporter(reader);
+            return size;
         }
     }
 }

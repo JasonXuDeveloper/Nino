@@ -35,11 +35,13 @@ Definite useful and high performance modules for C# projects, especially for Uni
   >
   > **注意**，该模块的序列化数据，仅支持在C#平台使用该库进行序列化和反序列化，无法跨语言使用
   >
+  > ```Nino.Serialization v1.2.0```与其**前面**的**所有版本**都**不兼容**，详细请查看使用教程
+  >
   > ```Nino.Serialization v1.1.2```与其**前面**的**所有版本**都**不兼容**，详细请查看使用教程
   >
   > ```Nino.Serialization v1.1.0```与其**前面**的**所有版本**都**不兼容**，详细请查看使用教程
   >
-  > ```Nino.Serialization v1.0.21.2```与其**前面**的**所有版本**都**不兼容**，详细请查看使用教程（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
+  > ```Nino.Serialization v1.0.21.2```与其**前面**的**所有版本**都**不兼容**，详细请查看使用教程
   - 测试案例
     - [Test1](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test1.cs) Nino VS Protobuf-net 序列化
   
@@ -70,13 +72,6 @@ Definite useful and high performance modules for C# projects, especially for Uni
       > MsgPack在IL2CPP下不生成代码无法使用
     
   - [性能报告](Performance/Serialization.md)
-  
-  - RoadMap
-  
-    - ILRuntime针对性优化（直接操作ILTypeInstance的成员而不是用反射）
-    - ~~IL Emit -> 非IL2CPP环境~~
-    - ~~ExpressionTree -> 非IL2CPP环境~~
-    - analyser -> 全局
 
 
 
@@ -113,7 +108,7 @@ Definite useful and high performance modules for C# projects, especially for Uni
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.1.2
+  PM> Install-Package Nino.Serialization -Version 1.2.0
   ```
 
 - 使用src下的代码（复制进自己项目即可）

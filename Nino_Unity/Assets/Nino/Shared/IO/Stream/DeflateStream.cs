@@ -374,7 +374,12 @@ namespace Nino.Shared.IO
 		private sealed class SafeDeflateStreamHandle : SafeHandle
 			// ReSharper restore ClassNeverInstantiated.Local
 		{
+#if NET7_0_OR_GREATER
+			public override bool IsInvalid => handle.Equals(IntPtr.Zero);
+#else
 			public override bool IsInvalid => handle == IntPtr.Zero;
+#endif
+
 
 			// ReSharper disable UnusedMember.Local
 			private SafeDeflateStreamHandle()

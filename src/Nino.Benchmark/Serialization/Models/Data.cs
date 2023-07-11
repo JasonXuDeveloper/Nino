@@ -11,7 +11,7 @@ namespace Nino.Benchmark.Models
     [NinoSerialize]
     [MessagePackObject]
     [System.Runtime.Serialization.DataContract]
-    public partial class Data
+    public partial struct Data
     {
         [ProtoMember(1)]
         [NinoMember(1)]
@@ -62,15 +62,9 @@ namespace Nino.Benchmark.Models
         [System.Runtime.Serialization.EnumMember]
         public TestEnum En;
 
-        [ProtoMember(9)]
-        [NinoMember(9)]
-        [Key(9)]
-        [System.Runtime.Serialization.DataMember]
-        public string Name = "";
-
         public override string ToString()
         {
-            return $"{X},{Y},{Z},{F},{D},{Db},{Bo},{En},{Name}";
+            return $"{X},{Y},{Z},{F},{D},{Db},{Bo},{En}";
         }
     }
 

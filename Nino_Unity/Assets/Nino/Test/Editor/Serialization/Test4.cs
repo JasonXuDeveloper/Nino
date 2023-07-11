@@ -69,7 +69,6 @@ namespace Nino.Test.Editor.Serialization
                     db = 999.999999999999,
                     bo = true,
                     en = TestEnum.A,
-                    name = GetString(20)
                 };
             }
 
@@ -85,12 +84,6 @@ namespace Nino.Test.Editor.Serialization
             #region Test
 
             Logger.D("Deserialization Test", $"<color=cyan>testing {max} objs</color>");
-            var sizeOfNestedData = Encoding.Default.GetByteCount(points.name) +
-                                   (sizeof(int) + sizeof(short) + sizeof(long) + sizeof(float) + sizeof(double) +
-                                    sizeof(decimal) + sizeof(bool) + sizeof(byte) +
-                                    Encoding.Default.GetByteCount(points.ps[0].name)) * points.ps.Length+
-                                   5 * sizeof(int);
-            Logger.D("Deserialization Test", $"marshal.sizeof struct: {sizeOfNestedData} bytes");
             Logger.D("Deserialization Test", "======================================");
 
             NestedData2 d;

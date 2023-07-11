@@ -1,12 +1,13 @@
 using System;
 using System.IO;
-using Nino.Shared.Mgr;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using Nino.Shared.Mgr;
 
 namespace Nino.Serialization
 {
-    public partial class Writer
+    public ref partial struct Writer
     {
         /// <summary>
         /// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
@@ -14,8 +15,7 @@ namespace Nino.Serialization
         /// <param name="val"></param>
         /// <exception cref="InvalidDataException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteCommonVal<T>(T val) =>
-            Serializer.Serialize(typeof(T), val, this, option, false);
+        public void WriteCommonVal<T>(T val) => Position = Serializer.Serialize(typeof(T), val, null, buffer, Position);
 
         /// <summary>
         /// Write primitive values, DO NOT USE THIS FOR CUSTOM IMPORTER
@@ -25,7 +25,7 @@ namespace Nino.Serialization
         /// <exception cref="InvalidDataException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteCommonVal<T>(Type type, T val) =>
-            Serializer.Serialize(type, val, this, option, false);
+            Position = Serializer.Serialize(type, val, null, buffer, Position);
 
         /// <summary>
         /// Write unmanaged type
@@ -33,80 +33,108 @@ namespace Nino.Serialization
         /// <param name="val"></param>
         /// <param name="len"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private unsafe void Write<T>(ref T val, byte len) where T : unmanaged
+        public void Write<T>(ref T val, int len) where T : unmanaged
         {
-            Unsafe.Write(Unsafe.Add<byte>(buffer.Data, position), val);
-            position += len;
+            Unsafe.WriteUnaligned(ref buffer[Position], val);
+            Position += len;
         }
 
         /// <summary>
-        /// Compress and write enum
+        /// Write byte[]
         /// </summary>
-        /// <param name="val"></param>
+        /// <param name="data"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void CompressAndWriteEnum<T>(T val)
+        public unsafe void Write<T>(Span<T> data) where T : unmanaged
         {
-            var type = typeof(T);
-            if (type == ConstMgr.ObjectType)
+            if (data == null)
             {
-                type = val.GetType();
-                switch (TypeModel.GetTypeCode(type))
-                {
-                    case TypeCode.Byte:
-                        buffer[position++] = Unsafe.Unbox<byte>(val);
-                        return;
-                    case TypeCode.SByte:
-                        buffer[position++] = *(byte*)Unsafe.Unbox<sbyte>(val);
-                        return;
-                    case TypeCode.Int16:
-                        Unsafe.As<byte, short>(ref buffer.AsSpan(position, 2).GetPinnableReference()) =
-                            Unsafe.Unbox<short>(val);
-                        position += 2;
-                        return;
-                    case TypeCode.UInt16:
-                        Unsafe.As<byte, ushort>(ref buffer.AsSpan(position, 2).GetPinnableReference()) =
-                            Unsafe.Unbox<ushort>(val);
-                        position += 2;
-                        return;
-                    case TypeCode.Int32:
-                        CompressAndWrite(ref Unsafe.Unbox<int>(val));
-                        return;
-                    case TypeCode.UInt32:
-                        CompressAndWrite(ref Unsafe.Unbox<uint>(val));
-                        return;
-                    case TypeCode.Int64:
-                        CompressAndWrite(ref Unsafe.Unbox<long>(val));
-                        return;
-                    case TypeCode.UInt64:
-                        CompressAndWrite(ref Unsafe.Unbox<ulong>(val));
-                        return;
-                }
-
+                Write(false);
                 return;
             }
 
-            switch (TypeModel.GetTypeCode(type))
+            Write(true);
+            var len = data.Length;
+            Write(len);
+            len *= sizeof(T);
+            MemoryMarshal.AsBytes(data).CopyTo(buffer.Slice(Position, len));
+            Position += len;
+        }
+
+        /// <summary>
+        /// write enum
+        /// </summary>
+        /// <param name="val"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteEnum<T>(T val)
+        {
+            //boxed
+            if (typeof(T) == ConstMgr.ObjectType)
+            {
+                WriteEnum((object)val);
+                return;
+            }
+
+            ref byte p = ref MemoryMarshal.GetReference(buffer);
+            switch (TypeModel.GetTypeCode(typeof(T)))
             {
                 case TypeCode.Byte:
                 case TypeCode.SByte:
-                    Unsafe.Write(buffer.Data + position++, val);
-                    return;
                 case TypeCode.Int16:
                 case TypeCode.UInt16:
-                    Unsafe.Write(buffer.Data + position, val);
-                    position += 2;
-                    return;
                 case TypeCode.Int32:
-                    CompressAndWrite(ref Unsafe.As<T, int>(ref val));
-                    return;
                 case TypeCode.UInt32:
-                    CompressAndWrite(ref Unsafe.As<T, uint>(ref val));
+                    byte len = (byte)Unsafe.SizeOf<T>();
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref p, Position), val);
+                    Position += len;
                     return;
                 case TypeCode.Int64:
-                    CompressAndWrite(ref Unsafe.As<T, long>(ref val));
+                case TypeCode.UInt64:
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref p, Position), val);
+                    Position += 8;
+                    return;
+            }
+        }
+
+        /// <summary>
+        /// write enum
+        /// </summary>
+        /// <param name="val"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public unsafe void WriteEnum(object val)
+        {
+            var type = val.GetType();
+            ref byte p = ref MemoryMarshal.GetReference(buffer);
+            switch (TypeModel.GetTypeCode(type))
+            {
+                case TypeCode.Byte:
+                    buffer[Position++] = Unsafe.Unbox<byte>(val);
+                    return;
+                case TypeCode.SByte:
+                    buffer[Position++] = *(byte*)Unsafe.Unbox<sbyte>(val);
+                    return;
+                case TypeCode.Int16:
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref p, Position), Unsafe.Unbox<short>(val));
+                    Position += 2;
+                    return;
+                case TypeCode.UInt16:
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref p, Position), Unsafe.Unbox<ushort>(val));
+                    Position += 2;
+                    return;
+                case TypeCode.Int32:
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref p, Position), Unsafe.Unbox<int>(val));
+                    Position += 4;
+                    return;
+                case TypeCode.UInt32:
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref p, Position), Unsafe.Unbox<uint>(val));
+                    Position += 4;
+                    return;
+                case TypeCode.Int64:
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref p, Position), Unsafe.Unbox<long>(val));
+                    Position += 8;
                     return;
                 case TypeCode.UInt64:
-                    CompressAndWrite(ref Unsafe.As<T, ulong>(ref val));
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref p, Position), Unsafe.Unbox<ulong>(val));
+                    Position += 8;
                     return;
             }
         }
@@ -126,17 +154,18 @@ namespace Nino.Serialization
             }
 
             Write(true);
+            //write len
+            int len = arr.Length;
+
             //empty
-            if (arr.Length == 0)
+            if (len == 0)
             {
                 //write len
-                CompressAndWrite(0);
+                Write(0);
                 return;
             }
 
-            //write len
-            int len = arr.Length;
-            CompressAndWrite(ref len);
+            Write(len);
             //write item
             int i = 0;
             while (i < len)
@@ -149,7 +178,6 @@ namespace Nino.Serialization
 #else
                 var eType = obj.GetType();
 #endif
-                Write(eType.GetHashCode());
                 WriteCommonVal(eType, obj);
             }
         }
@@ -188,16 +216,15 @@ namespace Nino.Serialization
             }
 
             Write(true);
+            int len = lst.Count;
+            //write len
+            Write(lst.Count);
             //empty
-            if (lst.Count == 0)
+            if (len == 0)
             {
-                //write len
-                CompressAndWrite(0);
                 return;
             }
 
-            //write len
-            CompressAndWrite(lst.Count);
             //write item
             foreach (var c in lst)
             {
@@ -205,11 +232,10 @@ namespace Nino.Serialization
                 var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
                     ? ilIns.Type.ReflectionType
                     : c.GetType();
-#else
-                var eType = c.GetType();
-#endif
-                Write(eType.GetHashCode());
                 WriteCommonVal(eType, c);
+#else
+                WriteCommonVal(c);
+#endif
             }
         }
 
@@ -229,16 +255,16 @@ namespace Nino.Serialization
             }
 
             Write(true);
+            int len = lst.Count;
+            //write len
+            Write(len);
             //empty
-            if (lst.Count == 0)
+            if (len == 0)
             {
                 //write len
-                CompressAndWrite(0);
                 return;
             }
 
-            //write len
-            CompressAndWrite(lst.Count);
             //write item
             foreach (var c in lst)
             {
@@ -246,11 +272,10 @@ namespace Nino.Serialization
                 var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
                     ? ilIns.Type.ReflectionType
                     : c.GetType();
-#else
-                var eType = c.GetType();
-#endif
-                Write(eType.GetHashCode());
                 WriteCommonVal(eType, c);
+#else
+                WriteCommonVal(c);
+#endif
             }
         }
 
@@ -270,16 +295,16 @@ namespace Nino.Serialization
             }
 
             Write(true);
+            int len = lst.Count;
+            //write len
+            Write(len);
             //empty
-            if (lst.Count == 0)
+            if (len == 0)
             {
                 //write len
-                CompressAndWrite(0);
                 return;
             }
 
-            //write len
-            CompressAndWrite(lst.Count);
             //write item
             foreach (var c in lst)
             {
@@ -287,11 +312,10 @@ namespace Nino.Serialization
                 var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
                     ? ilIns.Type.ReflectionType
                     : c.GetType();
-#else
-                var eType = c.GetType();
-#endif
-                Write(eType.GetHashCode());
                 WriteCommonVal(eType, c);
+#else
+                WriteCommonVal(c);
+#endif
             }
         }
 
@@ -311,16 +335,16 @@ namespace Nino.Serialization
             }
 
             Write(true);
+            int len = lst.Count;
+            //write len
+            Write(len);
             //empty
-            if (lst.Count == 0)
+            if (len == 0)
             {
                 //write len
-                CompressAndWrite(0);
                 return;
             }
 
-            //write len
-            CompressAndWrite(lst.Count);
             //write item
             foreach (var c in lst)
             {
@@ -328,11 +352,10 @@ namespace Nino.Serialization
                 var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
                     ? ilIns.Type.ReflectionType
                     : c.GetType();
-#else
-                var eType = c.GetType();
-#endif
-                Write(eType.GetHashCode());
                 WriteCommonVal(eType, c);
+#else
+                WriteCommonVal(c);
+#endif
             }
         }
 
@@ -353,17 +376,16 @@ namespace Nino.Serialization
             }
 
             Write(true);
+            int len = dictionary.Count;
+            //write len
+            Write(len);
             //empty
-            if (dictionary.Count == 0)
+            if (len == 0)
             {
                 //write len
-                CompressAndWrite(0);
                 return;
             }
 
-            //write len
-            int len = dictionary.Count;
-            CompressAndWrite(ref len);
             //record keys
             var keys = dictionary.Keys;
             //write items
@@ -374,22 +396,20 @@ namespace Nino.Serialization
                 var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
                     ? ilIns.Type.ReflectionType
                     : c.GetType();
-#else
-                var eType = c.GetType();
-#endif
-                Write(eType.GetHashCode());
                 WriteCommonVal(eType, c);
+#else
+                WriteCommonVal(c);
+#endif
                 //write val
                 var val = dictionary[c];
 #if ILRuntime
                 eType = val is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns2
                     ? ilIns2.Type.ReflectionType
                     : val.GetType();
-#else
-                eType = val.GetType();
-#endif
-                Write(eType.GetHashCode());
                 WriteCommonVal(eType, val);
+#else
+                WriteCommonVal(val);
+#endif
             }
         }
     }

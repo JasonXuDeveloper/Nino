@@ -3,6 +3,7 @@ using System.Linq;
 using Nino.Serialization;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+
 #pragma warning disable 8618
 
 namespace Nino.UnitTests
@@ -45,11 +46,11 @@ namespace Nino.UnitTests
                    $"{string.Join(",\n", J.SelectMany(x => x).Select(x => x).SelectMany(x => x).Select(x => x))}\n";
         }
 
-        private string GetDictString<TK,TV>(Dictionary<TK,Dictionary<TK,TV>> ddd)
+        private string GetDictString<TK, TV>(Dictionary<TK, Dictionary<TK, TV>> ddd)
         {
             return $"{string.Join(",", ddd.Keys.ToList())},\n" +
-                   $"   {string.Join(",", ddd.Values.ToList().SelectMany(k=>k.Keys))},\n" +
-                   $"   {string.Join(",", ddd.Values.ToList().SelectMany(k=>k.Values))}";
+                   $"   {string.Join(",", ddd.Values.ToList().SelectMany(k => k.Keys))},\n" +
+                   $"   {string.Join(",", ddd.Values.ToList().SelectMany(k => k.Values))}";
         }
     }
 
@@ -80,17 +81,15 @@ namespace Nino.UnitTests
             return $"{X},{Y},{Z},{F},{D},{Db},{Bo},{En},{Name}";
         }
     }
-    
+
     [NinoSerialize]
     [CodeGenIgnore]
     public partial class NestedData
     {
-        [NinoMember(1)]
-        [System.Runtime.Serialization.DataMember]
+        [NinoMember(1)] [System.Runtime.Serialization.DataMember]
         public string Name = "";
 
-        [NinoMember(2)]
-        public Data[] Ps = Array.Empty<Data>();
+        [NinoMember(2)] public Data[] Ps = Array.Empty<Data>();
 
         public override string ToString()
         {
@@ -127,6 +126,7 @@ namespace Nino.UnitTests
             var dt2 = Deserializer.Deserialize(typeof(Data), buf);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
         }
+
         [TestMethod]
         public void TestNonGenericCodeGen()
         {
@@ -139,7 +139,7 @@ namespace Nino.UnitTests
             var dt2 = Deserializer.Deserialize(typeof(A), buf);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
         }
-        
+
         [TestMethod]
         public void TestNestedData()
         {
@@ -184,7 +184,7 @@ namespace Nino.UnitTests
                 Assert.AreEqual(nd.Ps[i].Name, nd2.Ps[i].Name);
             }
         }
-        
+
         [TestMethod]
         public void TestComplexData()
         {
@@ -410,55 +410,6 @@ namespace Nino.UnitTests
             var buf = Serializer.Serialize(data);
             var data2 = Deserializer.Deserialize<ComplexData>(buf);
             Assert.AreEqual(data.ToString(), data2.ToString());
-            Console.WriteLine(data2);
-        }
-    }
-
-    [NinoSerialize()]
-    public class Base
-    {
-        [NinoMember(0)]
-        public int A;
-    }
-    
-    [NinoSerialize()]
-    public class Derived : Base
-    {
-        [NinoMember(1)]
-        public int B;
-    }
-
-    public partial class ComplexSerializationTest
-    {
-        [TestMethod]
-        public void TestPolymorphism()
-        {
-            var data = new Derived()
-            {
-                A = 123,
-                B = 456
-            };
-            var buf = Serializer.Serialize((Base)data);
-            var data2 = Deserializer.Deserialize<Base>(buf);
-            Assert.AreEqual(data.A, data2.A);
-
-            var lst = new List<Base>()
-            {
-                new Base()
-                {
-                    A = 111,
-                },
-                new Derived()
-                {
-                    A = 999,
-                    B = 456
-                }
-            };
-            var buf2 = Serializer.Serialize(lst);
-            var lst2 = Deserializer.Deserialize<List<Base>>(buf2);
-            Assert.AreEqual(lst[0].A, lst2[0].A);
-            Assert.AreEqual(lst[1].A, lst2[1].A);
-            Assert.AreEqual(((Derived)lst[1]).B, ((Derived)lst2[1]).B);
         }
     }
 }

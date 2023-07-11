@@ -22,10 +22,9 @@ namespace Nino.UnitTests
         public void TestEmptyStruct()
         {
             var val = new EmptyStruct();
-            byte[] buf = Serialization.Serializer.Serialize(val, Serialization.CompressOption.NoCompression);
+            byte[] buf = Serialization.Serializer.Serialize(val);
             EmptyStruct val2 =
-                Serialization.Deserializer.Deserialize<EmptyStruct>(new ArraySegment<byte>(buf, 0, buf.Length),
-                    Serialization.CompressOption.NoCompression);
+                Serialization.Deserializer.Deserialize<EmptyStruct>(new ArraySegment<byte>(buf, 0, buf.Length));
             Assert.AreEqual(val, val2);
         }
 

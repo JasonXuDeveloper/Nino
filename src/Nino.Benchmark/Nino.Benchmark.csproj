@@ -16,11 +16,11 @@
         <PackageReference Include="MsgPack.Cli" Version="1.0.1" />
         <PackageReference Include="protobuf-net" Version="3.2.16" />
         <PackageReference Include="SpanJson" Version="4.0.0" />
-        <PackageReference Include="System.Text.Json" Version="7.0.2" />
+        <PackageReference Include="System.Text.Json" Version="7.0.3" />
         <PackageReference Include="Utf8Json" Version="1.3.7" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="Newtonsoft.Json.Bson" Version="1.0.2" />
-        <PackageReference Include="MessagePack" Version="2.5.108" />
+        <PackageReference Include="MessagePack" Version="2.5.124" />
         <PackageReference Include="Microsoft.NETCore.Runtime.CoreCLR" Version="2.0.8" />
       </ItemGroup>
       <ItemGroup>
