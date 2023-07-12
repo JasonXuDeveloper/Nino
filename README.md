@@ -79,7 +79,6 @@ Definite useful and high performance modules for C# projects, especially for Uni
 
 - Docs，文档
 - src，Nino源码
-- Native，C++代码（用于部分功能）
 - Nino_Unity，Nino Unity 2019及以上版本的工程，包含源码和测试代码
 - Performance，性能报告
 
@@ -108,7 +107,7 @@ Definite useful and high performance modules for C# projects, especially for Uni
   ```
 
   ```bash
-  PM> Install-Package Nino.Serialization -Version 1.2.0
+  PM> Install-Package Nino.Serialization -Version 1.2.1
   ```
 
 - 使用src下的代码（复制进自己项目即可）

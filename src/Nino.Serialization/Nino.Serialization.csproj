@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;net6.0;net7.0;netcoreapp3.1;netstandard2.0</TargetFrameworks>
+        <TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net6.0;net7.0;netcoreapp3.1;netstandard2.0;net461;net5.0;net8.0</TargetFrameworks>
         <TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
         <LangVersion>7.3</LangVersion>
         <Nullable>disable</Nullable>
@@ -18,13 +18,10 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.2.0</PackageVersion>
+        <PackageVersion>1.2.1</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>Nino.Serialization v1.2
-- [optimization] optimized serializer/deserializer/writer/reader
-- [fix] fixed issues i.e. crashes on 32 bits machines
-- [feat] support to serialize with stackalloc
-- [IMPORTANT] this version is not compatible with past versions</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v1.2.1
+- [optimization] better generator and better size computation </PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 
