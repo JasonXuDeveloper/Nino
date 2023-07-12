@@ -14,12 +14,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Set up .NET
-      uses: xt0rted/setup-dotnet@v1.0.0
+      uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: |
+        dotnet-version: | 
           3.1.x
           6.0.x
           7.0.x
+          8.0.x
+        dotnet-quality: 'preview'
     - name: Restore dependencies
       run: dotnet restore src/Nino.sln
     - name: Build
