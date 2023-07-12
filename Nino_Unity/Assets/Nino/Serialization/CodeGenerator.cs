@@ -313,7 +313,7 @@ using System.Runtime.CompilerServices;
             #region getsize
 
             sb.Clear();
-            if (TypeModel.IsUnmanaged(type))
+            if (TypeModel.IsFixedSizeType(type))
             {
                 sb.Append($"                return Nino.Serialization.Serializer.GetFixedSize<{BeautifulLongTypeName(type)}>();");
             }
@@ -336,7 +336,7 @@ using System.Runtime.CompilerServices;
             #region ctor
 
             sb.Clear();
-            if (TypeModel.IsUnmanaged(type))
+            if (TypeModel.IsFixedSizeType(type))
             {
                 sb.Append("                int ret = 1;\n");
                 foreach (var member in members)

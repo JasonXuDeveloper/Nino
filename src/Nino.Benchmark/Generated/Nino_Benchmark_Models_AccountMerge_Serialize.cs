@@ -11,7 +11,11 @@ namespace Nino.Benchmark.Models
             #region NINO_CODEGEN
             public SerializationHelper()
             {
-
+                int ret = 1;
+                ret += sizeof(System.Int32);
+                ret += sizeof(System.Int32);
+                ret += sizeof(System.DateTime);
+                Nino.Serialization.Serializer.SetFixedSize<Nino.Benchmark.Models.AccountMerge>(ret);
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -47,11 +51,7 @@ namespace Nino.Benchmark.Models
                 {
                     return 1;
                 }
-                int ret = 1;
-                ret += Nino.Serialization.Serializer.GetSize(value.OldAccountId);
-                ret += Nino.Serialization.Serializer.GetSize(value.NewAccountId);
-                ret += Nino.Serialization.Serializer.GetSize(value.MergeDate);
-                return ret;
+                return Nino.Serialization.Serializer.GetFixedSize<Nino.Benchmark.Models.AccountMerge>();
             }
             #endregion
         }

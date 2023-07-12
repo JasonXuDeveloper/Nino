@@ -11,7 +11,12 @@ namespace Nino.Test
             #region NINO_CODEGEN
             public SerializationHelper()
             {
-
+                int ret = 1;
+                ret += sizeof(System.Int32);
+                ret += sizeof(System.Int64);
+                ret += sizeof(System.Single);
+                ret += sizeof(System.Double);
+                Nino.Serialization.Serializer.SetFixedSize<Nino.Test.IncludeAllClassCodeGen>(ret);
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -49,12 +54,7 @@ namespace Nino.Test
                 {
                     return 1;
                 }
-                int ret = 1;
-                ret += Nino.Serialization.Serializer.GetSize(value.a);
-                ret += Nino.Serialization.Serializer.GetSize(value.b);
-                ret += Nino.Serialization.Serializer.GetSize(value.c);
-                ret += Nino.Serialization.Serializer.GetSize(value.d);
-                return ret;
+                return Nino.Serialization.Serializer.GetFixedSize<Nino.Test.IncludeAllClassCodeGen>();
             }
             #endregion
         }

@@ -9,6 +9,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Nino.Shared.Mgr;
 
 namespace Nino.Serialization
@@ -37,7 +38,8 @@ namespace Nino.Serialization
             { typeof(UIntPtr), 8 },
         };
 
-        public static int GetFixedSize<T>() where T : unmanaged
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int GetFixedSize<T>()
         {
             if (FixedSizeCache.TryGetValue(typeof(T), out var size))
             {
@@ -47,9 +49,76 @@ namespace Nino.Serialization
             return -1;
         }
         
-        public static void SetFixedSize<T>(int size) where T : unmanaged
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SetFixedSize<T>(int size)
         {
             FixedSizeCache[typeof(T)] = size;
+        }
+
+        public static int GetSize<T>(in T[] val = default, Dictionary<MemberInfo, object> members = null)
+        {
+            if (val == null) return 1;
+            var type = typeof(T);
+            int length = val.Length;
+            
+            if (!WrapperManifest.TryGetWrapper(type, out var wrapper))
+            {
+                if (TypeModel.TryGetWrapper(type, out wrapper))
+                {
+                    WrapperManifest.AddWrapper(type, wrapper);
+                }
+            }
+
+            if (FixedSizeCache.TryGetValue(type, out var size))
+            {
+                return 1 + 4 + length * size;
+            }
+
+            return GetSize(typeof(T[]), val, members);
+        }
+
+        public static int GetSize<T>(in List<T> val = default, Dictionary<MemberInfo, object> members = null)
+        {
+            if (val == null) return 1;
+            var type = typeof(T);
+            int length = val.Count;
+            
+            if (!WrapperManifest.TryGetWrapper(type, out var wrapper))
+            {
+                if (TypeModel.TryGetWrapper(type, out wrapper))
+                {
+                    WrapperManifest.AddWrapper(type, wrapper);
+                }
+            }
+        
+            if (FixedSizeCache.TryGetValue(type, out var size))
+            {
+                return 1 + 4 + length * size;
+            }
+        
+            return GetSize(typeof(List<T>), val, members);
+        }
+
+        public static int GetSize<T>(in T? val = default, Dictionary<MemberInfo, object> members = null)
+            where T : struct
+        {
+            if (val == null) return 1;
+            var type = typeof(T);
+
+            if (!WrapperManifest.TryGetWrapper(type, out var wrapper))
+            {
+                if (TypeModel.TryGetWrapper(type, out wrapper))
+                {
+                    WrapperManifest.AddWrapper(type, wrapper);
+                }
+            }
+
+            if (FixedSizeCache.TryGetValue(type, out var size))
+            {
+                return 1 + size;
+            }
+
+            return GetSize(typeof(T?), val, members);
         }
 
         public static int GetSize<T>(in T val = default, Dictionary<MemberInfo, object> members = null)

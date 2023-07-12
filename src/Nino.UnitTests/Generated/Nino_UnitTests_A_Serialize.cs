@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.UnitTests
 {
-    public partial struct A
+    public partial class A
     {
         public static A.SerializationHelper NinoSerializationHelper = new A.SerializationHelper();
         public unsafe class SerializationHelper: Nino.Serialization.NinoWrapperBase<A>
@@ -19,7 +19,11 @@ namespace Nino.UnitTests
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public override void Serialize(A value, ref Nino.Serialization.Writer writer)
             {
-                
+                if(value == null)
+                {
+                    writer.Write(false);
+                    return;
+                }
                 writer.Write(true);
                 writer.Write(value.Val);
             }
@@ -28,7 +32,7 @@ namespace Nino.UnitTests
             public override A Deserialize(Nino.Serialization.Reader reader)
             {
                 if(!reader.ReadBool())
-                    return default;
+                    return null;
                 A value = new A();
                 value.Val = reader.Read<System.Int32>(sizeof(System.Int32));
                 return value;
@@ -37,7 +41,10 @@ namespace Nino.UnitTests
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public override int GetSize(A value)
             {
-                
+                if(value == null)
+                {
+                    return 1;
+                }
                 return Nino.Serialization.Serializer.GetFixedSize<Nino.UnitTests.A>();
             }
             #endregion
