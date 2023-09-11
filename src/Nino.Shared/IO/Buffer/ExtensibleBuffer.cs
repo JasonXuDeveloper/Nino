@@ -14,7 +14,7 @@ namespace Nino.Shared.IO
         /// Default size of the buffer
         /// </summary>
         private const int DefaultBufferSize = 128;
-        
+
         /// <summary>
         /// Data that stores everything
         /// </summary>
@@ -24,7 +24,7 @@ namespace Nino.Shared.IO
         /// Size of T
         /// </summary>
         private readonly byte sizeOfT;
-        
+
         /// <summary>
         /// expand size for each block
         /// </summary>
@@ -40,9 +40,8 @@ namespace Nino.Shared.IO
         /// </summary>
         public ExtensibleBuffer() : this(DefaultBufferSize)
         {
-
         }
-        
+
         /// <summary>
         /// Init extensible buffer with a capacity
         /// </summary>
@@ -51,7 +50,11 @@ namespace Nino.Shared.IO
         {
             sizeOfT = (byte)sizeof(T);
             ExpandSize = size;
+#if NET6_0_OR_GREATER
+            Data = (T*)NativeMemory.Alloc((uint)(sizeOfT * ExpandSize), sizeOfT);
+#else
             Data = (T*)Marshal.AllocHGlobal(sizeOfT * ExpandSize);
+#endif
             Length = ExpandSize;
             GC.AddMemoryPressure(sizeOfT * ExpandSize);
         }
@@ -85,6 +88,7 @@ namespace Nino.Shared.IO
             {
                 Length += ExpandSize;
             }
+
             Extend();
             GC.AddMemoryPressure(Length * sizeOfT);
         }
@@ -102,6 +106,7 @@ namespace Nino.Shared.IO
             {
                 Length += ExpandSize;
             }
+
             Extend();
             GC.AddMemoryPressure(Length * sizeOfT);
         }
@@ -112,7 +117,11 @@ namespace Nino.Shared.IO
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Extend()
         {
+#if NET6_0_OR_GREATER
+            Data = (T*)NativeMemory.Realloc(Data, (uint)(sizeOfT * Length));
+#else
             Data = (T*)Marshal.ReAllocHGlobal((IntPtr)Data, new IntPtr(Length * sizeOfT));
+#endif
         }
 
         /// <summary>
@@ -220,13 +229,17 @@ namespace Nino.Shared.IO
             //copy
             Unsafe.CopyBlock(dst, Data + srcIndex, (uint)length);
         }
-        
+
         /// <summary>
         /// Free allocated memories
         /// </summary>
         ~ExtensibleBuffer()
         {
+#if NET6_0_OR_GREATER
+            NativeMemory.Free(Data);
+#else
             Marshal.FreeHGlobal((IntPtr)Data);
+#endif
             GC.RemoveMemoryPressure(sizeOfT * Length);
         }
     }
