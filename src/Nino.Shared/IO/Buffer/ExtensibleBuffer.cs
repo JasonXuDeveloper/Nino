@@ -33,7 +33,7 @@ namespace Nino.Shared.IO
         /// <summary>
         /// Total length of the buffer
         /// </summary>
-        public int TotalLength { get; private set; }
+        public int Length { get; private set; }
 
         /// <summary>
         /// Init buffer
@@ -47,12 +47,12 @@ namespace Nino.Shared.IO
         /// Init extensible buffer with a capacity
         /// </summary>
         /// <param name="size"></param>
-        public ExtensibleBuffer([In] int size = DefaultBufferSize)
+        public ExtensibleBuffer(int size = DefaultBufferSize)
         {
             sizeOfT = (byte)sizeof(T);
             ExpandSize = size;
             Data = (T*)Marshal.AllocHGlobal(sizeOfT * ExpandSize);
-            TotalLength = ExpandSize;
+            Length = ExpandSize;
             GC.AddMemoryPressure(sizeOfT * ExpandSize);
         }
 
@@ -60,14 +60,14 @@ namespace Nino.Shared.IO
         /// Get element at index
         /// </summary>
         /// <param name="index"></param>
-        public T this[in int index]
+        public T this[int index]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => *(Data + index);
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             set
             {
-                EnsureCapacity(in index);
+                EnsureIndex(index);
                 *(Data + index) = value;
             }
         }
@@ -76,16 +76,34 @@ namespace Nino.Shared.IO
         /// Ensure index exists
         /// </summary>
         /// <param name="index"></param>
-        private void EnsureCapacity(in int index)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void EnsureIndex(int index)
         {
-            if (index < TotalLength) return;
-            GC.RemoveMemoryPressure(TotalLength * sizeOfT);
-            while (index >= TotalLength)
+            if (index < Length) return;
+            GC.RemoveMemoryPressure(Length * sizeOfT);
+            while (index >= Length)
             {
-                TotalLength += ExpandSize;
+                Length += ExpandSize;
             }
             Extend();
-            GC.AddMemoryPressure(TotalLength * sizeOfT);
+            GC.AddMemoryPressure(Length * sizeOfT);
+        }
+
+        /// <summary>
+        /// Ensure capacity is big enough
+        /// </summary>
+        /// <param name="count"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void EnsureCapacity(int count)
+        {
+            if (count <= Length) return;
+            GC.RemoveMemoryPressure(Length * sizeOfT);
+            while (count > Length)
+            {
+                Length += ExpandSize;
+            }
+            Extend();
+            GC.AddMemoryPressure(Length * sizeOfT);
         }
 
         /// <summary>
@@ -94,7 +112,7 @@ namespace Nino.Shared.IO
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void Extend()
         {
-            Data = (T*)Marshal.ReAllocHGlobal((IntPtr)Data, new IntPtr(TotalLength * sizeOfT));
+            Data = (T*)Marshal.ReAllocHGlobal((IntPtr)Data, new IntPtr(Length * sizeOfT));
         }
 
         /// <summary>
@@ -103,7 +121,8 @@ namespace Nino.Shared.IO
         /// <param name="startIndex"></param>
         /// <param name="length"></param>
         /// <returns></returns>
-        public T[] ToArray([In] int startIndex, [In] int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T[] ToArray(int startIndex, int length)
         {
             T[] ret = new T[length];
             CopyTo(ref ret, startIndex, length);
@@ -116,11 +135,12 @@ namespace Nino.Shared.IO
         /// <param name="startIndex"></param>
         /// <param name="length"></param>
         /// <returns></returns>
-        public Span<T> AsSpan([In] int startIndex, [In] int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Span<T> AsSpan(int startIndex, int length)
         {
             var l = startIndex + length;
             //size check
-            EnsureCapacity(in l);
+            EnsureCapacity(l);
             return new Span<T>(Data + startIndex, length);
         }
 
@@ -129,7 +149,8 @@ namespace Nino.Shared.IO
         /// </summary>
         /// <param name="buffer"></param>
         /// <returns></returns>
-        public static implicit operator Span<T>(ExtensibleBuffer<T> buffer) => buffer.AsSpan(0, buffer.TotalLength);
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static implicit operator Span<T>(ExtensibleBuffer<T> buffer) => buffer.AsSpan(0, buffer.Length);
 
         /// <summary>
         /// Copy data to extensible buffer
@@ -139,7 +160,8 @@ namespace Nino.Shared.IO
         /// <param name="dstIndex"></param>
         /// <param name="length"></param>
         /// <exception cref="InvalidOperationException"></exception>
-        public void CopyFrom(T[] src, [In] int srcIndex, [In] int dstIndex, [In] int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void CopyFrom(T[] src, int srcIndex, int dstIndex, int length)
         {
             fixed (T* ptr = src)
             {
@@ -156,11 +178,12 @@ namespace Nino.Shared.IO
         /// <param name="dstIndex"></param>
         /// <param name="length"></param>
         /// <exception cref="InvalidOperationException"></exception>
-        public void CopyFrom([In] T* src, [In] int srcIndex, [In] int dstIndex, [In] int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void CopyFrom(T* src, int srcIndex, int dstIndex, int length)
         {
             var l = dstIndex + length;
             //size check
-            EnsureCapacity(in l);
+            EnsureIndex(l);
             //copy
             Unsafe.CopyBlock(Data + dstIndex, src + srcIndex, (uint)length);
         }
@@ -172,7 +195,8 @@ namespace Nino.Shared.IO
         /// <param name="srcIndex"></param>
         /// <param name="length"></param>
         /// <exception cref="OverflowException"></exception>
-        public void CopyTo(ref T[] dst, [In] int srcIndex, [In] int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void CopyTo(ref T[] dst, int srcIndex, int length)
         {
             fixed (T* ptr = dst)
             {
@@ -187,11 +211,12 @@ namespace Nino.Shared.IO
         /// <param name="srcIndex"></param>
         /// <param name="length"></param>
         /// <exception cref="OverflowException"></exception>
-        public void CopyTo([In] T* dst, [In] int srcIndex, [In] int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void CopyTo(T* dst, int srcIndex, int length)
         {
             var l = srcIndex + length;
             //size check
-            EnsureCapacity(in l);
+            EnsureIndex(l);
             //copy
             Unsafe.CopyBlock(dst, Data + srcIndex, (uint)length);
         }
@@ -202,7 +227,7 @@ namespace Nino.Shared.IO
         ~ExtensibleBuffer()
         {
             Marshal.FreeHGlobal((IntPtr)Data);
-            GC.RemoveMemoryPressure(sizeOfT * TotalLength);
+            GC.RemoveMemoryPressure(sizeOfT * Length);
         }
     }
 }
