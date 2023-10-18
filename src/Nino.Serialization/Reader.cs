@@ -360,12 +360,7 @@ namespace Nino.Serialization
             while (i < len)
             {
                 var obj = ReadCommonVal(elemType);
-#if ILRuntime
-				arr.SetValue(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj), i++);
-				continue;
-#else
                 arr.SetValue(obj, i++);
-#endif
             }
 
             return arr;
@@ -392,17 +387,6 @@ namespace Nino.Serialization
             //check null
             if (!ReadBool()) return null;
             var elemType = type.GenericTypeArguments[0];
-#if ILRuntime
-			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
-			{
-				elemType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
-			}
-
-			if(!elemType.IsGenericType)
-			{
-				elemType = elemType.ResolveRealType();
-			}
-#endif
 
             //read len
             int len = ReadLength();
@@ -413,12 +397,7 @@ namespace Nino.Serialization
             while (i++ < len)
             {
                 var obj = ReadCommonVal(elemType);
-#if ILRuntime
-				arr?.Add(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(elemType, obj));
-				continue;
-#else
                 arr?.Add(obj);
-#endif
             }
 
             return arr;
@@ -438,29 +417,7 @@ namespace Nino.Serialization
             //parse dict type
             var args = type.GetGenericArguments();
             Type keyType = args[0];
-#if ILRuntime
-			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt)
-			{
-				keyType = wt?.CLRType.GenericArguments[0].Value.ReflectionType;
-			}
-
-			if(!keyType.IsGenericType)
-			{
-				keyType = keyType.ResolveRealType();
-			}
-#endif
             Type valueType = args[1];
-#if ILRuntime
-			if (type is ILRuntime.Reflection.ILRuntimeWrapperType wt2)
-			{
-				valueType = wt2?.CLRType.GenericArguments[1].Value.ReflectionType;
-			}
-			
-			if(!valueType.IsGenericType)
-			{
-				valueType = valueType.ResolveRealType();
-			}
-#endif
 
             var dict = Activator.CreateInstance(type) as IDictionary;
 
@@ -477,13 +434,7 @@ namespace Nino.Serialization
                 var val = ReadCommonVal(valueType);
 
                 //add
-#if ILRuntime
-				dict?.Add(ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(keyType, key),
-							ILRuntime.CLR.Utils.Extensions.CheckCLRTypes(valueType, val));
-				continue;
-#else
                 dict?.Add(key, val);
-#endif
             }
 
             return dict;

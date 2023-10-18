@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.IO;
 using System.Linq;
 using UnityEngine;
@@ -217,16 +218,24 @@ namespace Nino.Test
                     //serialize
                     else
                     {
+                        if(ninoBuffer.Length == 0)
+                        {
+                            ninoBuffer = new byte[Nino.Serialization.Serializer.GetSize(d2)];
+                        }
                         sw.Reset();
                         sw.Start();
-                        ninoBuffer = Nino.Serialization.Serializer.Serialize<BuildTestDataCodeGen>(d2);
+                        Span<byte> arr = stackalloc byte[Nino.Serialization.Serializer.GetSize(d2)];
+                        Nino.Serialization.Serializer.Serialize<BuildTestDataCodeGen>(arr, d2);
                         sw.Stop();
+                        arr.CopyTo(ninoBuffer);
                         var m1 = sw.ElapsedTicks;
                         sw.Reset();
                         sw.Start();
                         //as everything are same, buffer has same length
-                        ninoBuffer = Nino.Serialization.Serializer.Serialize<BuildTestDataNoCodeGen>(d1);
+                        arr = stackalloc byte[Nino.Serialization.Serializer.GetSize(d1)];
+                        Nino.Serialization.Serializer.Serialize<BuildTestDataNoCodeGen>(arr, d1);
                         sw.Stop();
+                        arr.CopyTo(ninoBuffer);
                         var m2 = sw.ElapsedTicks;
                         ninoResultText.text =
                             $"Serialized BuildTestDataCodeGen as {ninoBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n" +
@@ -501,7 +510,8 @@ namespace Nino.Test
                     {
                         sw.Reset();
                         sw.Start();
-                        msgPackBuffer = MessagePackSerializer.Serialize(d2);
+                        var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
+                        msgPackBuffer = MessagePackSerializer.Serialize(d2, lz4Options);
 
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;

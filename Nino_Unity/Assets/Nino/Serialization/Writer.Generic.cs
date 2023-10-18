@@ -33,10 +33,179 @@ namespace Nino.Serialization
         /// <param name="val"></param>
         /// <param name="len"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void WriteAsUnmanaged<T>(ref T val, int len)
+        {
+            Unsafe.WriteUnaligned(ref buffer[Position], val);
+            Position += len;
+        }
+
+        /// <summary>
+        /// Write unmanaged type
+        /// </summary>
+        /// <param name="val"></param>
+        /// <param name="len"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(ref T val, int len) where T : unmanaged
         {
             Unsafe.WriteUnaligned(ref buffer[Position], val);
             Position += len;
+        }
+
+        /// <summary>
+        /// Write unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T1, T2>(ref T1 val1, int len1, ref T2 val2, int len2)
+            where T1 : unmanaged where T2 : unmanaged
+        {
+            Unsafe.WriteUnaligned(ref buffer[Position], val1);
+            Position += len1;
+            Unsafe.WriteUnaligned(ref buffer[Position], val2);
+            Position += len2;
+        }
+
+        /// <summary>
+        /// Write unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T1, T2, T3>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3, int len3)
+            where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged
+        {
+            Unsafe.WriteUnaligned(ref buffer[Position], val1);
+            Position += len1;
+            Unsafe.WriteUnaligned(ref buffer[Position], val2);
+            Position += len2;
+            Unsafe.WriteUnaligned(ref buffer[Position], val3);
+            Position += len3;
+        }
+
+        /// <summary>
+        /// Write unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T1, T2, T3, T4>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3, int len3,
+            ref T4 val4, int len4) where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged where T4 : unmanaged
+        {
+            Unsafe.WriteUnaligned(ref buffer[Position], val1);
+            Position += len1;
+            Unsafe.WriteUnaligned(ref buffer[Position], val2);
+            Position += len2;
+            Unsafe.WriteUnaligned(ref buffer[Position], val3);
+            Position += len3;
+            Unsafe.WriteUnaligned(ref buffer[Position], val4);
+            Position += len4;
+        }
+
+        /// <summary>
+        /// Write unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T1, T2, T3, T4, T5>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3, int len3,
+            ref T4 val4, int len4, ref T5 val5, int len5) where T1 : unmanaged
+            where T2 : unmanaged
+            where T3 : unmanaged
+            where T4 : unmanaged
+            where T5 : unmanaged
+        {
+            Unsafe.WriteUnaligned(ref buffer[Position], val1);
+            Position += len1;
+            Unsafe.WriteUnaligned(ref buffer[Position], val2);
+            Position += len2;
+            Unsafe.WriteUnaligned(ref buffer[Position], val3);
+            Position += len3;
+            Unsafe.WriteUnaligned(ref buffer[Position], val4);
+            Position += len4;
+            Unsafe.WriteUnaligned(ref buffer[Position], val5);
+            Position += len5;
+        }
+
+        /// <summary>
+        /// Write unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T1, T2, T3, T4, T5, T6>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3, int len3,
+            ref T4 val4, int len4, ref T5 val5, int len5, ref T6 val6, int len6) where T1 : unmanaged
+            where T2 : unmanaged
+            where T3 : unmanaged
+            where T4 : unmanaged
+            where T5 : unmanaged
+            where T6 : unmanaged
+        {
+            Unsafe.WriteUnaligned(ref buffer[Position], val1);
+            Position += len1;
+            Unsafe.WriteUnaligned(ref buffer[Position], val2);
+            Position += len2;
+            Unsafe.WriteUnaligned(ref buffer[Position], val3);
+            Position += len3;
+            Unsafe.WriteUnaligned(ref buffer[Position], val4);
+            Position += len4;
+            Unsafe.WriteUnaligned(ref buffer[Position], val5);
+            Position += len5;
+            Unsafe.WriteUnaligned(ref buffer[Position], val6);
+            Position += len6;
+        }
+
+        /// <summary>
+        /// Write unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T1, T2, T3, T4, T5, T6, T7>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3,
+            int len3, ref T4 val4, int len4, ref T5 val5, int len5, ref T6 val6, int len6, ref T7 val7, int len7)
+            where T1 : unmanaged
+            where T2 : unmanaged
+            where T3 : unmanaged
+            where T4 : unmanaged
+            where T5 : unmanaged
+            where T6 : unmanaged
+            where T7 : unmanaged
+        {
+            Unsafe.WriteUnaligned(ref buffer[Position], val1);
+            Position += len1;
+            Unsafe.WriteUnaligned(ref buffer[Position], val2);
+            Position += len2;
+            Unsafe.WriteUnaligned(ref buffer[Position], val3);
+            Position += len3;
+            Unsafe.WriteUnaligned(ref buffer[Position], val4);
+            Position += len4;
+            Unsafe.WriteUnaligned(ref buffer[Position], val5);
+            Position += len5;
+            Unsafe.WriteUnaligned(ref buffer[Position], val6);
+            Position += len6;
+            Unsafe.WriteUnaligned(ref buffer[Position], val7);
+            Position += len7;
+        }
+
+        /// <summary>
+        /// Write unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T1, T2, T3, T4, T5, T6, T7, T8>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3,
+            int len3, ref T4 val4, int len4, ref T5 val5, int len5, ref T6 val6, int len6, ref T7 val7, int len7,
+            ref T8 val8, int len8) where T1 : unmanaged
+            where T2 : unmanaged
+            where T3 : unmanaged
+            where T4 : unmanaged
+            where T5 : unmanaged
+            where T6 : unmanaged
+            where T7 : unmanaged
+            where T8 : unmanaged
+        {
+            Unsafe.WriteUnaligned(ref buffer[Position], val1);
+            Position += len1;
+            Unsafe.WriteUnaligned(ref buffer[Position], val2);
+            Position += len2;
+            Unsafe.WriteUnaligned(ref buffer[Position], val3);
+            Position += len3;
+            Unsafe.WriteUnaligned(ref buffer[Position], val4);
+            Position += len4;
+            Unsafe.WriteUnaligned(ref buffer[Position], val5);
+            Position += len5;
+            Unsafe.WriteUnaligned(ref buffer[Position], val6);
+            Position += len6;
+            Unsafe.WriteUnaligned(ref buffer[Position], val7);
+            Position += len7;
+            Unsafe.WriteUnaligned(ref buffer[Position], val8);
+            Position += len8;
         }
 
         /// <summary>
@@ -171,13 +340,7 @@ namespace Nino.Serialization
             while (i < len)
             {
                 var obj = arr[i++];
-#if ILRuntime
-                var eType = obj is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : obj.GetType();
-#else
                 var eType = obj.GetType();
-#endif
                 WriteCommonVal(eType, obj);
             }
         }
@@ -228,14 +391,7 @@ namespace Nino.Serialization
             //write item
             foreach (var c in lst)
             {
-#if ILRuntime
-                var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : c.GetType();
-                WriteCommonVal(eType, c);
-#else
                 WriteCommonVal(c);
-#endif
             }
         }
 
@@ -268,14 +424,7 @@ namespace Nino.Serialization
             //write item
             foreach (var c in lst)
             {
-#if ILRuntime
-                var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : c.GetType();
-                WriteCommonVal(eType, c);
-#else
                 WriteCommonVal(c);
-#endif
             }
         }
 
@@ -308,14 +457,7 @@ namespace Nino.Serialization
             //write item
             foreach (var c in lst)
             {
-#if ILRuntime
-                var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : c.GetType();
-                WriteCommonVal(eType, c);
-#else
                 WriteCommonVal(c);
-#endif
             }
         }
 
@@ -348,14 +490,7 @@ namespace Nino.Serialization
             //write item
             foreach (var c in lst)
             {
-#if ILRuntime
-                var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : c.GetType();
-                WriteCommonVal(eType, c);
-#else
                 WriteCommonVal(c);
-#endif
             }
         }
 
@@ -392,24 +527,10 @@ namespace Nino.Serialization
             foreach (var c in keys)
             {
                 //write key
-#if ILRuntime
-                var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : c.GetType();
-                WriteCommonVal(eType, c);
-#else
                 WriteCommonVal(c);
-#endif
                 //write val
                 var val = dictionary[c];
-#if ILRuntime
-                eType = val is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns2
-                    ? ilIns2.Type.ReflectionType
-                    : val.GetType();
-                WriteCommonVal(eType, val);
-#else
                 WriteCommonVal(val);
-#endif
             }
         }
     }

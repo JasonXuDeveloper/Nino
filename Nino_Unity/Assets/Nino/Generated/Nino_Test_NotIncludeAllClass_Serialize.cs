@@ -28,10 +28,7 @@ namespace Nino.Test
                     return;
                 }
                 writer.Write(true);
-                writer.Write(ref value.a, sizeof(System.Int32));
-                writer.Write(ref value.b, sizeof(System.Int64));
-                writer.Write(ref value.c, sizeof(System.Single));
-                writer.Write(ref value.d, sizeof(System.Double));
+                writer.Write(ref value.a, sizeof(System.Int32),ref value.b, sizeof(System.Int64),ref value.c, sizeof(System.Single),ref value.d, sizeof(System.Double));
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -40,10 +37,7 @@ namespace Nino.Test
                 if(!reader.ReadBool())
                     return null;
                 NotIncludeAllClass value = new NotIncludeAllClass();
-                reader.Read<System.Int32>(ref value.a, sizeof(System.Int32));
-                reader.Read<System.Int64>(ref value.b, sizeof(System.Int64));
-                reader.Read<System.Single>(ref value.c, sizeof(System.Single));
-                reader.Read<System.Double>(ref value.d, sizeof(System.Double));
+                reader.Read(ref value.a, sizeof(System.Int32),ref value.b, sizeof(System.Int64),ref value.c, sizeof(System.Single),ref value.d, sizeof(System.Double));
                 return value;
             }
 

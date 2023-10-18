@@ -47,6 +47,8 @@ public partial struct NotIncludeAllClass
 > **强烈建议通过生成代码来提高性能，但是需要注意，每次更新字段或属性后需要重新生成代码来更新**
 >
 > 如果不需要序列化`字符串`或`非固定长度的集合（例如string[]）`，则会生成非常高效的代码
+>
+> **强烈推荐使用自动收集，这样会最大限度的优化生成出来的代码**
 
 
 
@@ -54,6 +56,7 @@ public partial struct NotIncludeAllClass
 
 - 可以给已序列化的相同类型的字段/属性改名
 - 可以给已序列化的字段/属性改成相同大小的类型（`int`->`uint`，`int`->`float`，`List<long>`->`List<double`，`List<int[]>`->`List<float[]`）
+- 可以加入新的字段/属性（需要确保index在老字段/属性的后面，自动收集的话则将新的字段/属性确保是最后定义的即可）
 - **不可以**删除被收集的字段/属性
 - **不可以**添加收集字段/属性
 - **可以添加**不被收集的字段/属性
@@ -64,7 +67,7 @@ public partial struct NotIncludeAllClass
 
 支持序列化的成员类型（底层自带支持）：
 
-- byte, sbyte, short, ushort, int, uint, long, ulong, double, float, decimal, char, string, bool, enum, DateTime
+- byte, sbyte, short, ushort, int, uint, long, ulong, double, float, decimal, char, string, bool, enum, DateTime, [任意UnmanagedType](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/unmanaged-types)
 - Nullable<任意支持Nino序列化的struct>
 - List<可Nino序列化类型>，HashSet<可Nino序列化类型>，Queue<可Nino序列化类型>，Stack<可Nino序列化类型>，可Nino序列化类型[]， ICollection<可Nino序列化>
 - Dictionary<Nino支持类型,Nino支持类型>，IDictionary<可Nino序列化>
@@ -84,37 +87,11 @@ public partial struct NotIncludeAllClass
 
 
 
-## ILRuntime
+## 代码热更
 
-Nino支持ILRuntime的使用，但需要初始化ILRuntime：
+- 暂时因为**ILRuntime**原理限制，Nino无法支持**ILRuntime**
 
-1. 把ILRuntime导入Unity工程，并对ILRuntime目录生成assembly definition文件
-
-2. 进入Nino_Unity/Assets/Nino/Serialization，找到```Nino.Serialization.asmdef```，选中后在Inspector上添加对ILRuntime的assembly definition的引用，并apply变动
-
-3. 在PlayerSetting里Symbol区域添加```ILRuntime```（如果Symbol一栏不是空的，记得两个标签之间要用```;```隔开）
-
-4. 调用ILRuntime解析工具
-
-   ```csharp
-   Nino.Serialization.ILRuntimeResolver.RegisterILRuntimeClrRedirection(domain);
-   ```
-
-   domain是ILRuntime的AppDomain，该方法应该在domain.LoadAssembly后，进入热更代码前调用，参考Test11
-
-5. 热更工程引用Library/ScriptAssemblies/Nino.Serialization.dll和Library/ScriptAssemblies/Nino.Shared.dll
-
-6. ILRuntime下**非常不建议**给热更工程的结构体生成静态性能优化代码，**因为原理限制会产生负优化！！！**，如果执意要生产代码，请参考后续步骤，反之可以忽略后面的步骤
-
-7. 如果需要给热更工程生成代码，打开```Nino_Unity/Assets/Nino/Editor/SerializationHelper.cs```，修改```ExternalDLLPath```字段内的```Assets/Nino/Test/Editor/Serialization/Test11.bytes```，变为你的热更工程的DLL文件的路径，记得带后缀，修改生效后，在菜单栏点击```Nino/Generator/Serialization Code```即可给热更工程的Nino序列化类型生成代码
-
-8. 生成热更工程的代码后，需要把生成的热更序列化类型的代码从Unity工程移到热更工程，并且在Unity工程删掉会报错的热更类型代码
-
-> 如果用的是assembly definition来生成热更库的，需要把生成的热更代码放到assembly definition的目录内，把外部会报错的代码挪进去就好
->
-> 需要注意的是，ILRuntime下生成与不生成代码的差距不是特别大
->
-> ILRuntime下也不支持多态！
+- Nino支持**HybridCLR**
 
 
 
@@ -135,28 +112,71 @@ Nino支持ILRuntime的使用，但需要初始化ILRuntime：
 示例：
 
 ```csharp
-public class Vector3Wrapper : NinoWrapperBase<Vector3>
+[NinoSerialize(false)]
+public partial class CustomTypeTest
 {
-  public override void Serialize(Vector3 val, ref Writer writer)
+  [NinoMember(1)] public Vector3 v3;
+
+  [NinoMember(2)] private DateTime dt = DateTime.Now;
+
+  [NinoMember(3)] public int? ni { get; set; }
+
+  [NinoMember(4)] public List<Quaternion> qs;
+
+  [NinoMember(5)] public Matrix4x4 m;
+
+  [NinoMember(6)] public Dictionary<string, int> dict;
+
+  [NinoMember(7)] public Dictionary<string, Data> dict2;
+
+  public override string ToString()
   {
-    writer.Write(val.x);
-    writer.Write(val.y);
-    writer.Write(val.z);
+    return
+      $"{v3}, {dt}, {ni}, {String.Join(",", qs)}, {m.ToString()}\n" +
+      $"dict.keys: {string.Join(",", dict.Keys)},\ndict.values:{string.Join(",", dict.Values)}\n" +
+      $"dict2.keys: {string.Join(",", dict2.Keys)},\ndict2.values:{string.Join(",", dict2.Values)}\n";
+  }
+}
+
+public class CustomTypeTestWrapper : NinoWrapperBase<CustomTypeTest>
+{
+  public override void Serialize(CustomTypeTest val, ref Writer writer)
+  {
+    writer.Write(ref val.v3, sizeof(float) * 3);
+    writer.Write(ref val.m, sizeof(float) * 16);
+    writer.Write(val.ni);
+    writer.Write(val.qs);
+    writer.Write(val.dict);
+    writer.Write(val.dict2);
   }
 
-  public override Vector3 Deserialize(Reader reader)
+  public override CustomTypeTest Deserialize(Reader reader)
   {
-    return new Vector3(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4));
+    var ret = new CustomTypeTest();
+    reader.Read(ref ret.v3, sizeof(float) * 3);
+    reader.Read(ref ret.m, sizeof(float) * 16);
+    ret.ni = reader.ReadNullable<int>();
+    ret.qs = reader.ReadList<Quaternion>();
+    ret.dict = reader.ReadDictionary<string, int>();
+    ret.dict2 = reader.ReadDictionary<string, Data>();
+    return ret;
   }
 
-  public override int GetSize(Vector3 val)
+  public override int GetSize(CustomTypeTest val)
   {
-    return 12;
+    int ret = 1;
+    ret += sizeof(float) * 3;
+    ret += sizeof(float) * 16;
+    ret += Serializer.GetSize(val.ni);
+    ret += Serializer.GetSize(val.qs);
+    ret += Serializer.GetSize(val.dict);
+    ret += Serializer.GetSize(val.dict2);
+    return ret;
   }
 }
 
 //别忘了在某个地方调用下面的代码：
-WrapperManifest.AddWrapper(typeof(Vector3), new Vector3Wrapper());
+WrapperManifest.AddWrapper(typeof(CustomTypeTest), new CustomTypeTestWrapper());
 ```
 
 
@@ -167,7 +187,7 @@ WrapperManifest.AddWrapper(typeof(Vector3), new Vector3Wrapper());
 
 - Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
 - 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
-- **开启了自动收集字段和属性，生成代码和没生成代码，序列化的结果是一样的**
+- **开启了自动收集字段和属性，生成代码和没生成代码，序列化的结果是一样的，但是速度会快很多**
 
 > 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上，可以在性能对比的时候用这个（例如[这个真机测试](../Nino_Unity/Assets/Nino/Test/BuildTest.cs)）
 
@@ -185,7 +205,7 @@ Nino支持以下三种压缩方式：
 
 > 序列化和反序列化的时候可以选择压缩方式，但是需要注意反序列化数据的时候，需要用和序列化时相同的压缩方式去反序列化
 >
-> 注意，v1.2.0暂时仅支持无压缩
+> 注意，v1.2.0~1.2.2暂时仅支持无压缩
 
 
 

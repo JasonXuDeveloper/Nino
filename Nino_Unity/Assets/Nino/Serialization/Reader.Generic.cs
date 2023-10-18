@@ -91,6 +91,27 @@ namespace Nino.Serialization
         /// <param name="len"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         // ReSharper disable UnusedMember.Local
+        internal void ReadAsUnmanaged<T>(ref T val, int len)
+        // ReSharper restore UnusedMember.Local
+        {
+            if (EndOfReader)
+            {
+                return;
+            }
+
+            Span<byte> span = buffer.AsSpan(position, len);
+            var first = span[0];
+            val = Unsafe.ReadUnaligned<T>(ref first);
+            position += len;
+        }
+
+        /// <summary>
+        /// Read unmanaged type
+        /// </summary>
+        /// <param name="val"></param>
+        /// <param name="len"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        // ReSharper disable UnusedMember.Local
         public void Read<T>(ref T val, int len) where T : unmanaged
         // ReSharper restore UnusedMember.Local
         {
@@ -101,6 +122,197 @@ namespace Nino.Serialization
 
             val = MemoryMarshal.Read<T>(buffer.AsSpan(position, sizeof(T)));
             position += len;
+        }
+
+        /// <summary>
+        /// Read unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T1, T2>(ref T1 val1, int len1, ref T2 val2, int len2) where T1 : unmanaged where T2 : unmanaged
+        {
+            if (EndOfReader)
+            {
+                return;
+            }
+
+            val1 = MemoryMarshal.Read<T1>(buffer.AsSpan(position, sizeof(T1)));
+            position += len1;
+            val2 = MemoryMarshal.Read<T2>(buffer.AsSpan(position, sizeof(T2)));
+            position += len2;
+        }
+
+        /// <summary>
+        /// Read unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T1, T2, T3>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3, int len3)
+            where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged
+        {
+            if (EndOfReader)
+            {
+                return;
+            }
+
+            val1 = MemoryMarshal.Read<T1>(buffer.AsSpan(position, sizeof(T1)));
+            position += len1;
+            val2 = MemoryMarshal.Read<T2>(buffer.AsSpan(position, sizeof(T2)));
+            position += len2;
+            val3 = MemoryMarshal.Read<T3>(buffer.AsSpan(position, sizeof(T3)));
+            position += len3;
+        }
+
+        /// <summary>
+        /// Read unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T1, T2, T3, T4>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3, int len3,
+            ref T4 val4, int len4) where T1 : unmanaged where T2 : unmanaged where T3 : unmanaged where T4 : unmanaged
+        {
+            if (EndOfReader)
+            {
+                return;
+            }
+
+            val1 = MemoryMarshal.Read<T1>(buffer.AsSpan(position, sizeof(T1)));
+            position += len1;
+            val2 = MemoryMarshal.Read<T2>(buffer.AsSpan(position, sizeof(T2)));
+            position += len2;
+            val3 = MemoryMarshal.Read<T3>(buffer.AsSpan(position, sizeof(T3)));
+            position += len3;
+            val4 = MemoryMarshal.Read<T4>(buffer.AsSpan(position, sizeof(T4)));
+            position += len4;
+        }
+
+        /// <summary>
+        /// Read unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T1, T2, T3, T4, T5>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3, int len3,
+            ref T4 val4, int len4, ref T5 val5, int len5) where T1 : unmanaged
+            where T2 : unmanaged
+            where T3 : unmanaged
+            where T4 : unmanaged
+            where T5 : unmanaged
+        {
+            if (EndOfReader)
+            {
+                return;
+            }
+
+            val1 = MemoryMarshal.Read<T1>(buffer.AsSpan(position, sizeof(T1)));
+            position += len1;
+            val2 = MemoryMarshal.Read<T2>(buffer.AsSpan(position, sizeof(T2)));
+            position += len2;
+            val3 = MemoryMarshal.Read<T3>(buffer.AsSpan(position, sizeof(T3)));
+            position += len3;
+            val4 = MemoryMarshal.Read<T4>(buffer.AsSpan(position, sizeof(T4)));
+            position += len4;
+            val5 = MemoryMarshal.Read<T5>(buffer.AsSpan(position, sizeof(T5)));
+            position += len5;
+        }
+
+        /// <summary>
+        /// Read unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T1, T2, T3, T4, T5, T6>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3, int len3,
+            ref T4 val4, int len4, ref T5 val5, int len5, ref T6 val6, int len6) where T1 : unmanaged
+            where T2 : unmanaged
+            where T3 : unmanaged
+            where T4 : unmanaged
+            where T5 : unmanaged
+            where T6 : unmanaged
+        {
+            if (EndOfReader)
+            {
+                return;
+            }
+
+            val1 = MemoryMarshal.Read<T1>(buffer.AsSpan(position, sizeof(T1)));
+            position += len1;
+            val2 = MemoryMarshal.Read<T2>(buffer.AsSpan(position, sizeof(T2)));
+            position += len2;
+            val3 = MemoryMarshal.Read<T3>(buffer.AsSpan(position, sizeof(T3)));
+            position += len3;
+            val4 = MemoryMarshal.Read<T4>(buffer.AsSpan(position, sizeof(T4)));
+            position += len4;
+            val5 = MemoryMarshal.Read<T5>(buffer.AsSpan(position, sizeof(T5)));
+            position += len5;
+            val6 = MemoryMarshal.Read<T6>(buffer.AsSpan(position, sizeof(T6)));
+            position += len6;
+        }
+
+        /// <summary>
+        /// Read unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T1, T2, T3, T4, T5, T6, T7>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3,
+            int len3, ref T4 val4, int len4, ref T5 val5, int len5, ref T6 val6, int len6, ref T7 val7, int len7)
+            where T1 : unmanaged
+            where T2 : unmanaged
+            where T3 : unmanaged
+            where T4 : unmanaged
+            where T5 : unmanaged
+            where T6 : unmanaged
+            where T7 : unmanaged
+        {
+            if (EndOfReader)
+            {
+                return;
+            }
+
+            val1 = MemoryMarshal.Read<T1>(buffer.AsSpan(position, sizeof(T1)));
+            position += len1;
+            val2 = MemoryMarshal.Read<T2>(buffer.AsSpan(position, sizeof(T2)));
+            position += len2;
+            val3 = MemoryMarshal.Read<T3>(buffer.AsSpan(position, sizeof(T3)));
+            position += len3;
+            val4 = MemoryMarshal.Read<T4>(buffer.AsSpan(position, sizeof(T4)));
+            position += len4;
+            val5 = MemoryMarshal.Read<T5>(buffer.AsSpan(position, sizeof(T5)));
+            position += len5;
+            val6 = MemoryMarshal.Read<T6>(buffer.AsSpan(position, sizeof(T6)));
+            position += len6;
+            val7 = MemoryMarshal.Read<T7>(buffer.AsSpan(position, sizeof(T7)));
+            position += len7;
+        }
+
+        /// <summary>
+        /// Read unmanaged type
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T1, T2, T3, T4, T5, T6, T7, T8>(ref T1 val1, int len1, ref T2 val2, int len2, ref T3 val3,
+            int len3, ref T4 val4, int len4, ref T5 val5, int len5, ref T6 val6, int len6, ref T7 val7, int len7,
+            ref T8 val8, int len8) where T1 : unmanaged
+            where T2 : unmanaged
+            where T3 : unmanaged
+            where T4 : unmanaged
+            where T5 : unmanaged
+            where T6 : unmanaged
+            where T7 : unmanaged
+            where T8 : unmanaged
+        {
+            if (EndOfReader)
+            {
+                return;
+            }
+
+            val1 = MemoryMarshal.Read<T1>(buffer.AsSpan(position, sizeof(T1)));
+            position += len1;
+            val2 = MemoryMarshal.Read<T2>(buffer.AsSpan(position, sizeof(T2)));
+            position += len2;
+            val3 = MemoryMarshal.Read<T3>(buffer.AsSpan(position, sizeof(T3)));
+            position += len3;
+            val4 = MemoryMarshal.Read<T4>(buffer.AsSpan(position, sizeof(T4)));
+            position += len4;
+            val5 = MemoryMarshal.Read<T5>(buffer.AsSpan(position, sizeof(T5)));
+            position += len5;
+            val6 = MemoryMarshal.Read<T6>(buffer.AsSpan(position, sizeof(T6)));
+            position += len6;
+            val7 = MemoryMarshal.Read<T7>(buffer.AsSpan(position, sizeof(T7)));
+            position += len7;
+            val8 = MemoryMarshal.Read<T8>(buffer.AsSpan(position, sizeof(T8)));
+            position += len8;
         }
 
         /// <summary>

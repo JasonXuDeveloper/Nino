@@ -92,10 +92,22 @@ namespace Nino.Serialization
                 return ret;
             }
 
+            //enum
+            if (TryDeserializeEnum<T>(type, reader, returnDispose, out var e))
+            {
+                return e;
+            }
+
             //code generated type
             if (TryDeserializeCodeGenType(type, reader, false, returnDispose, out ret))
             {
                 return ret;
+            }
+
+            //unmanaged type
+            if (TryDeserializeUnmanagedType<T>(type,  reader, returnDispose, out var un))
+            {
+                return un;
             }
 
             /*
@@ -148,10 +160,6 @@ namespace Nino.Serialization
                 }
             }
 
-#if ILRuntime
-			type = type.ResolveRealType();
-#endif
-
             //basic type
             if (TryDeserializeWrapperType(type, reader, true, returnDispose, out object basicObj))
             {
@@ -163,11 +171,17 @@ namespace Nino.Serialization
             {
                 return e;
             }
-
+            
             //code generated type
             if (TryDeserializeCodeGenType(type, reader, true, returnDispose, out object codeGenRet))
             {
                 return codeGenRet;
+            }
+
+            //unmanaged type
+            if (TryDeserializeUnmanagedType(type,  reader, returnDispose, out var un))
+            {
+                return un;
             }
 
             /*
@@ -181,11 +195,7 @@ namespace Nino.Serialization
             //create type
             if (val == null || val == ConstMgr.Null)
             {
-#if ILRuntime
-				val = ILRuntimeResolver.CreateInstance(type);
-#else
                 val = Activator.CreateInstance(type);
-#endif
             }
 
             //Get Attribute that indicates a class/struct to be serialized
@@ -204,7 +214,7 @@ namespace Nino.Serialization
             }
 
             //start Deserialize
-            foreach (var member in model.Members)
+            foreach (var info in model.Members)
             {
                 //if end, skip
                 if (reader.EndOfReader)
@@ -212,10 +222,10 @@ namespace Nino.Serialization
                     break;
                 }
 
-                type = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
+                type = info.Type;
 
                 //read basic values
-                SetMember(member, val, Deserialize(type, ConstMgr.Null, Span<byte>.Empty, reader, false));
+                SetMember(info.Member, val, Deserialize(type, ConstMgr.Null, Span<byte>.Empty, reader, false));
             }
 
             if (returnDispose)
@@ -393,6 +403,33 @@ namespace Nino.Serialization
         /// <param name="obj"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryDeserializeEnum<T>(Type type, Reader reader,
+            [MarshalAs(UnmanagedType.U1)] bool returnDispose, out T obj)
+        {
+            obj = default;
+            if (TypeModel.IsEnum(type))
+            {
+                reader.ReadEnum(ref obj);
+                if (returnDispose)
+                {
+                    ObjectPool<Reader>.Return(reader);
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Try deserialize enum
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="reader"></param>
+        /// <param name="returnDispose"></param>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool TryDeserializeEnum(Type type, Reader reader,
             [MarshalAs(UnmanagedType.U1)] bool returnDispose, out object obj)
         {
@@ -400,16 +437,6 @@ namespace Nino.Serialization
             {
                 var underlyingType = Enum.GetUnderlyingType(type);
                 var ret = reader.ReadEnum(underlyingType);
-#if ILRuntime
-				if (type is ILRuntime.Reflection.ILRuntimeType)
-                {
-                    if (underlyingType == ConstMgr.LongType
-                        || underlyingType == ConstMgr.UIntType
-                        || underlyingType == ConstMgr.ULongType)
-                        obj = unchecked((long)ret);
-                    obj = unchecked((int)ret);
-                }
-#endif
                 obj = Enum.ToObject(type, ret);
                 if (returnDispose)
                 {
@@ -420,6 +447,58 @@ namespace Nino.Serialization
             }
 
             obj = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Try deserialize enum
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="reader"></param>
+        /// <param name="returnDispose"></param>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryDeserializeUnmanagedType<T>(Type type, Reader reader,
+            [MarshalAs(UnmanagedType.U1)] bool returnDispose, out T obj)
+        {
+            obj = default;
+            if (TypeModel.IsUnmanaged(type))
+            {
+                reader.ReadAsUnmanaged(ref obj, Marshal.SizeOf(type));
+                if (returnDispose)
+                {
+                    ObjectPool<Reader>.Return(reader);
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Try deserialize enum
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="reader"></param>
+        /// <param name="returnDispose"></param>
+        /// <param name="obj"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryDeserializeUnmanagedType(Type type, Reader reader,
+            [MarshalAs(UnmanagedType.U1)] bool returnDispose, out object obj)
+        {
+            obj = default;
+            if (TypeModel.IsUnmanaged(type))
+            {
+                reader.ReadAsUnmanaged(ref obj, Marshal.SizeOf(type));
+                if (returnDispose)
+                {
+                    ObjectPool<Reader>.Return(reader);
+                }
+                return true;
+            }
+
             return false;
         }
 

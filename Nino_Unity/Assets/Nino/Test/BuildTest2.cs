@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.IO;
 using System.Linq;
 using UnityEngine;
@@ -122,10 +123,17 @@ namespace Nino.Test
                     //serialize
                     else
                     {
+                        if(ninoBuffer.Length == 0)
+                        {
+                            ninoBuffer = new byte[Nino.Serialization.Serializer.GetSize(nd)];
+                        }
                         sw.Reset();
                         sw.Start();
-                        ninoBuffer = Nino.Serialization.Serializer.Serialize<NestedData>(nd);
+                        var arr = ArrayPool<byte>.Shared.Rent(Nino.Serialization.Serializer.GetSize(nd));
+                        Nino.Serialization.Serializer.Serialize<NestedData>(arr, nd);
                         sw.Stop();
+                        Array.Copy(arr, ninoBuffer, ninoBuffer.Length);
+                        ArrayPool<byte>.Shared.Return(arr);
                         var m1 = sw.ElapsedTicks;
                         ninoResultText.text =
                             $"Serialized NestedData as {ninoBuffer.Length} bytes in {((float)m1 / Stopwatch.Frequency) * 1000} ms,\n{string.Join(",", ninoBuffer.Take(200))}";
@@ -311,7 +319,9 @@ namespace Nino.Test
                     {
                         sw.Reset();
                         sw.Start();
-                        msgPackBuffer = MessagePackSerializer.Serialize(nd);
+                        
+                        var lz4Options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
+                        msgPackBuffer = MessagePackSerializer.Serialize(nd, lz4Options);
 
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;

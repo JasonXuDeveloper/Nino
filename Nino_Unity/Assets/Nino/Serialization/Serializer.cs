@@ -26,7 +26,13 @@ namespace Nino.Serialization
             }
 
             byte[] ret = new byte[length];
-            Serialize(ret.AsSpan(), in val, fields);
+            if (val == null)
+            {
+                ObjectPool<Dictionary<MemberInfo, object>>.Return(fields);
+                return ret;
+            }
+
+            Serialize(typeof(T), val, fields, ret.AsSpan(), 0);
             ObjectPool<Dictionary<MemberInfo, object>>.Return(fields);
             return ret;
         }
@@ -73,6 +79,7 @@ namespace Nino.Serialization
                 ObjectPool<Dictionary<MemberInfo, object>>.Return(fields);
                 return ret;
             }
+
             Serialize(val.GetType(), val, fields, ret.AsSpan(), 0);
             ObjectPool<Dictionary<MemberInfo, object>>.Return(fields);
             return ret;
@@ -96,18 +103,9 @@ namespace Nino.Serialization
             return Serialize(val.GetType(), val, null, buffer, 0);
         }
 
-        internal static int Serialize<T>(Type type, T value, Dictionary<MemberInfo,object> fields ,Span<byte> buffer, int pos)
+        internal static int Serialize<T>(Type type, T value, Dictionary<MemberInfo, object> fields, Span<byte> buffer,
+            int pos)
         {
-            //ILRuntime
-#if ILRuntime
-			if(value is ILRuntime.Runtime.Intepreter.ILTypeInstance ins)
-			{
-				type = ins.Type.ReflectionType;
-			}
-
-			type = type.ResolveRealType();
-#endif
-
             Writer writer = new Writer(buffer, pos);
 
             //null check
@@ -132,6 +130,11 @@ namespace Nino.Serialization
             }
 
             if (TrySerializeCodeGenType(type, ref value, ref writer))
+            {
+                return writer.Position;
+            }
+
+            if (TrySerializeUnmanagedType(type, ref value, ref writer))
             {
                 return writer.Position;
             }
@@ -176,27 +179,12 @@ namespace Nino.Serialization
             }
 
             //serialize all recorded members
-            foreach (var member in model.Members)
+            foreach (var info in model.Members)
             {
-                object obj;
-                switch (member)
+                type = info.Type;
+                if (fields == null || !fields.TryGetValue(info.Member, out var obj))
                 {
-                    case FieldInfo fo:
-                        type = fo.FieldType;
-                        if(fields == null || !fields.TryGetValue(fo, out obj))
-                        {
-                            obj = fo.GetValue(value);
-                        }
-                        break;
-                    case PropertyInfo po:
-                        type = po.PropertyType;
-                        if (fields == null || !fields.TryGetValue(po, out obj))
-                        {
-                            obj = po.GetValue(value);
-                        }
-                        break;
-                    default:
-                        return writer.Position;
+                    obj = info.GetValue(value);
                 }
 
                 writer.Position = Serialize(type, obj, null, buffer, writer.Position);

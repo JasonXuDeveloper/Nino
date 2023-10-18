@@ -1,12 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using Nino.Shared.Mgr;
 using Nino.Shared.Util;
 using System.Reflection;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 namespace Nino.Serialization
 {
@@ -194,15 +193,60 @@ using System.Runtime.CompilerServices;
                 model = TypeModel.CreateModel(type);
             }
 
-            HashSet<MemberInfo> members = model.Members;
+            var members = model.Members;
 
             #region serialize
 
             //build params
             StringBuilder sb = new StringBuilder();
-            foreach (var member in members)
+            List<TypeModel.NinoMember> unmanagedMembers = new List<TypeModel.NinoMember>();
+            for (int i = 0; i < members.Count; i++)
             {
-                var mt = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
+                var info = members[i];
+                var member = info.Member;
+                var mt = info.Type;
+
+                //try optimize
+                if (TypeModel.IsUnmanaged(mt) && member is FieldInfo)
+                {
+                    unmanagedMembers.Clear();
+                    unmanagedMembers.Add(info);
+                    for (int j = i + 1; j < members.Count; j++)
+                    {
+                        var info2 = members[j];
+                        var member2 = info2.Member;
+                        var mt2 = info2.Type;
+                        if (TypeModel.IsUnmanaged(mt2) && member2 is FieldInfo)
+                        {
+                            unmanagedMembers.Add(info2);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    i += unmanagedMembers.Count - 1;
+                    //batch write with batch size 8
+                    while (unmanagedMembers.Count > 0)
+                    {
+                        if (unmanagedMembers.Count <= 8)
+                        {
+                            sb.Append(
+                                $"                writer.Write({string.Join(",", unmanagedMembers.Select(x => $"ref value.{x.Member.Name}, sizeof({BeautifulLongTypeName(x.Type)})"))});\n");
+                            unmanagedMembers.Clear();
+                        }
+                        else
+                        {
+                            sb.Append(
+                                $"                writer.Write({string.Join(",", unmanagedMembers.Take(8).Select(x => $"ref value.{x.Member.Name}, sizeof({BeautifulLongTypeName(x.Type)})"))});\n");
+                            unmanagedMembers.RemoveRange(0, 8);
+                        }
+                    }
+                    
+                    continue;
+                }
+
                 //enum
                 if (mt.IsEnum)
                 {
@@ -216,6 +260,11 @@ using System.Runtime.CompilerServices;
                 }
                 //dict
                 else if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                {
+                    sb.Append($"                writer.Write(value.{member.Name});\n");
+                }
+                //nullable
+                else if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.NullableDefType)
                 {
                     sb.Append($"                writer.Write(value.{member.Name});\n");
                 }
@@ -241,9 +290,53 @@ using System.Runtime.CompilerServices;
             #region deserialize
 
             sb.Clear();
-            foreach (var member in members)
+            for (int i = 0; i < members.Count; i++)
             {
-                var mt = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
+                var info = members[i];
+                var member = info.Member;
+                var mt = info.Type;
+
+                //try optimize
+                if (TypeModel.IsUnmanaged(mt) && member is FieldInfo)
+                {
+                    unmanagedMembers.Clear();
+                    unmanagedMembers.Add(info);
+                    for (int j = i + 1; j < members.Count; j++)
+                    {
+                        var info2 = members[j];
+                        var member2 = info2.Member;
+                        var mt2 = info2.Type;
+                        if (TypeModel.IsUnmanaged(mt2) && member2 is FieldInfo)
+                        {
+                            unmanagedMembers.Add(info2);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    i += unmanagedMembers.Count - 1;
+                    //batch write with batch size 8
+                    while (unmanagedMembers.Count > 0)
+                    {
+                        if (unmanagedMembers.Count <= 8)
+                        {
+                            sb.Append(
+                                $"                reader.Read({string.Join(",", unmanagedMembers.Select(x => $"ref value.{x.Member.Name}, sizeof({BeautifulLongTypeName(x.Type)})"))});\n");
+                            unmanagedMembers.Clear();
+                        }
+                        else
+                        {
+                            sb.Append(
+                                $"                reader.Read({string.Join(",", unmanagedMembers.Take(8).Select(x => $"ref value.{x.Member.Name}, sizeof({BeautifulLongTypeName(x.Type)})"))});\n");
+                            unmanagedMembers.RemoveRange(0, 8);
+                        }
+                    }
+                    
+                    continue;
+                }
+
                 //enum
                 if (mt.IsEnum)
                 {
@@ -292,6 +385,15 @@ using System.Runtime.CompilerServices;
                     sb.Append(
                         $"                value.{member.Name} = reader.ReadDictionary<{BeautifulLongTypeName(keyType)},{BeautifulLongTypeName(valueType)}>();\n");
                 }
+                //nullable
+                else if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.NullableDefType)
+                {
+                    var args = mt.GetGenericArguments();
+                    Type keyType = args[0];
+
+                    sb.Append(
+                        $"                value.{member.Name} = reader.ReadNullable<{BeautifulLongTypeName(keyType)}>();\n");
+                }
                 //not enum -> basic type
                 else
                 {
@@ -315,16 +417,19 @@ using System.Runtime.CompilerServices;
             sb.Clear();
             if (TypeModel.IsFixedSizeType(type))
             {
-                sb.Append($"                return Nino.Serialization.Serializer.GetFixedSize<{BeautifulLongTypeName(type)}>();");
+                sb.Append(
+                    $"                return Nino.Serialization.Serializer.GetFixedSize<{BeautifulLongTypeName(type)}>();");
             }
             else
             {
                 sb.Append("                int ret = 1;\n");
-                foreach (var member in members)
+                foreach (var info in members)
                 {
+                    var member = info.Member;
                     sb.Append(
                         $"                ret += Nino.Serialization.Serializer.GetSize(value.{member.Name});\n");
                 }
+
                 sb.Append("                return ret;");
             }
 
@@ -339,13 +444,15 @@ using System.Runtime.CompilerServices;
             if (TypeModel.IsFixedSizeType(type))
             {
                 sb.Append("                int ret = 1;\n");
-                foreach (var member in members)
+                foreach (var info in members)
                 {
-                    var mt = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
+                    var mt = info.Type;
                     sb.Append(
                         $"                ret += sizeof({BeautifulLongTypeName(mt)});\n");
                 }
-                sb.Append($"                Nino.Serialization.Serializer.SetFixedSize<{BeautifulLongTypeName(type)}>(ret);");
+
+                sb.Append(
+                    $"                Nino.Serialization.Serializer.SetFixedSize<{BeautifulLongTypeName(type)}>(ret);");
             }
 
             //replace template fields
@@ -510,6 +617,14 @@ using System.Runtime.CompilerServices;
                     }
 
                     if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.DictDefType)
+                    {
+                        StringBuilder builder = new StringBuilder();
+                        builder.Append(space).Append(Repeat("    ", indent))
+                            .Append($"writer.Write({val});\n");
+                        return builder.ToString();
+                    }
+
+                    if (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.NullableDefType)
                     {
                         StringBuilder builder = new StringBuilder();
                         builder.Append(space).Append(Repeat("    ", indent))

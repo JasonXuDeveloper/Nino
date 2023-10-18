@@ -259,13 +259,7 @@ namespace Nino.Serialization
             while (i < len)
             {
                 var obj = arr.GetValue(i++);
-#if ILRuntime
-                var eType = obj is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : obj.GetType();
-#else
                 var eType = obj.GetType();
-#endif
                 WriteCommonVal(eType, obj);
             }
         }
@@ -297,13 +291,7 @@ namespace Nino.Serialization
             //write item
             foreach (var c in arr)
             {
-#if ILRuntime
-                var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : c.GetType();
-#else
                 var eType = c.GetType();
-#endif
                 WriteCommonVal(eType, c);
             }
         }
@@ -338,23 +326,11 @@ namespace Nino.Serialization
             foreach (var c in keys)
             {
                 //write key
-#if ILRuntime
-                var eType = c is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns
-                    ? ilIns.Type.ReflectionType
-                    : c.GetType();
-#else
                 var eType = c.GetType();
-#endif
                 WriteCommonVal(eType, c);
                 //write val
                 var val = dictionary[c];
-#if ILRuntime
-                eType = val is ILRuntime.Runtime.Intepreter.ILTypeInstance ilIns2
-                    ? ilIns2.Type.ReflectionType
-                    : val.GetType();
-#else
                 eType = val.GetType();
-#endif
                 WriteCommonVal(eType, val);
             }
         }

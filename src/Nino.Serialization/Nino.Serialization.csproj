@@ -18,10 +18,13 @@
         <PackageProjectUrl>https://github.com/JasonXuDeveloper/Nino</PackageProjectUrl>
         <NeutralLanguage>en-001</NeutralLanguage>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <PackageVersion>1.2.1</PackageVersion>
+        <PackageVersion>1.2.2</PackageVersion>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <PackageReleaseNotes>Nino.Serialization v1.2.1
-- [optimization] better generator and better size computation </PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v1.2.2
+- [optimization] better generator and better size computation 
+- [optimization] faster serialization/deserialization
+- [optimization] lowerge
+- [remove] no longer support ILRuntime</PackageReleaseNotes>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 

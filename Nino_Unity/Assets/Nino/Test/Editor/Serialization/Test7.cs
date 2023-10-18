@@ -6,83 +6,40 @@ using Logger = Nino.Shared.Util.Logger;
 // ReSharper disable RedundantTypeArgumentsOfMethod
 namespace Nino.Test.Editor.Serialization
 {
-    public class Vector3Wrapper : NinoWrapperBase<Vector3>
+    public class CustomTypeTestWrapper : NinoWrapperBase<CustomTypeTest>
     {
-        public override void Serialize(Vector3 val, ref Writer writer)
+        public override void Serialize(CustomTypeTest val, ref Writer writer)
         {
-            writer.Write(val.x);
-            writer.Write(val.y);
-            writer.Write(val.z);
+            writer.Write(ref val.v3, sizeof(float) * 3);
+            writer.Write(ref val.m, sizeof(float) * 16);
+            writer.Write(val.ni);
+            writer.Write(val.qs);
+            writer.Write(val.dict);
+            writer.Write(val.dict2);
         }
 
-        public override Vector3 Deserialize(Reader reader)
+        public override CustomTypeTest Deserialize(Reader reader)
         {
-            return new Vector3(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4));
+            var ret = new CustomTypeTest();
+            reader.Read(ref ret.v3, sizeof(float) * 3);
+            reader.Read(ref ret.m, sizeof(float) * 16);
+            ret.ni = reader.ReadNullable<int>();
+            ret.qs = reader.ReadList<Quaternion>();
+            ret.dict = reader.ReadDictionary<string, int>();
+            ret.dict2 = reader.ReadDictionary<string, Data>();
+            return ret;
         }
 
-        public override int GetSize(Vector3 val)
+        public override int GetSize(CustomTypeTest val)
         {
-            return 12;
-        }
-    }
-
-    public class QuaternionWrapper : NinoWrapperBase<Quaternion>
-    {
-        public override void Serialize(Quaternion val, ref Writer writer)
-        {
-            writer.Write(val.x);
-            writer.Write(val.y);
-            writer.Write(val.z);
-            writer.Write(val.w);
-        }
-
-        public override Quaternion Deserialize(Reader reader)
-        {
-            return new Quaternion(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4),
-                reader.Read<float>(4));
-        }
-
-        public override int GetSize(Quaternion val)
-        {
-            return 16;
-        }
-    }
-
-    public class Matrix4x4Wrapper : NinoWrapperBase<Matrix4x4>
-    {
-        public override void Serialize(Matrix4x4 val, ref Writer writer)
-        {
-            writer.Write(val.m00);
-            writer.Write(val.m01);
-            writer.Write(val.m02);
-            writer.Write(val.m03);
-            writer.Write(val.m10);
-            writer.Write(val.m11);
-            writer.Write(val.m12);
-            writer.Write(val.m13);
-            writer.Write(val.m20);
-            writer.Write(val.m21);
-            writer.Write(val.m22);
-            writer.Write(val.m23);
-            writer.Write(val.m30);
-            writer.Write(val.m31);
-            writer.Write(val.m32);
-            writer.Write(val.m33);
-        }
-
-        public override Matrix4x4 Deserialize(Reader reader)
-        {
-            return new Matrix4x4(
-                new Vector4(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4)),
-                new Vector4(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4)),
-                new Vector4(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4)),
-                new Vector4(reader.Read<float>(4), reader.Read<float>(4), reader.Read<float>(4),
-                    reader.Read<float>(4)));
-        }
-
-        public override int GetSize(Matrix4x4 val)
-        {
-            return 64;
+            int ret = 1;
+            ret += sizeof(float) * 3;
+            ret += sizeof(float) * 16;
+            ret += Serializer.GetSize(val.ni);
+            ret += Serializer.GetSize(val.qs);
+            ret += Serializer.GetSize(val.dict);
+            ret += Serializer.GetSize(val.dict2);
+            return ret;
         }
     }
 
@@ -96,9 +53,7 @@ namespace Nino.Test.Editor.Serialization
         public static void Main()
         {
             //register wrappers
-            WrapperManifest.AddWrapper(typeof(Vector3), new Vector3Wrapper());
-            WrapperManifest.AddWrapper(typeof(Quaternion), new QuaternionWrapper());
-            WrapperManifest.AddWrapper(typeof(Matrix4x4), new Matrix4x4Wrapper());
+            WrapperManifest.AddWrapper(typeof(CustomTypeTest), new CustomTypeTestWrapper());
             //custom type
             CustomTypeTest c = new CustomTypeTest()
             {

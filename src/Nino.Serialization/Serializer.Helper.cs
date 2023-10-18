@@ -10,6 +10,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Nino.Shared.Mgr;
 
 namespace Nino.Serialization
@@ -48,7 +49,7 @@ namespace Nino.Serialization
 
             return -1;
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetFixedSize<T>(int size)
         {
@@ -60,13 +61,18 @@ namespace Nino.Serialization
             if (val == null) return 1;
             var type = typeof(T);
             int length = val.Length;
-            
+
             if (!WrapperManifest.TryGetWrapper(type, out var wrapper))
             {
                 if (TypeModel.TryGetWrapper(type, out wrapper))
                 {
                     WrapperManifest.AddWrapper(type, wrapper);
                 }
+            }
+
+            if (TypeModel.IsUnmanaged(type))
+            {
+                return Unsafe.SizeOf<T>() * length + 1 + 4;
             }
 
             if (FixedSizeCache.TryGetValue(type, out var size))
@@ -82,7 +88,7 @@ namespace Nino.Serialization
             if (val == null) return 1;
             var type = typeof(T);
             int length = val.Count;
-            
+
             if (!WrapperManifest.TryGetWrapper(type, out var wrapper))
             {
                 if (TypeModel.TryGetWrapper(type, out wrapper))
@@ -90,12 +96,17 @@ namespace Nino.Serialization
                     WrapperManifest.AddWrapper(type, wrapper);
                 }
             }
-        
+
+            if (TypeModel.IsUnmanaged(type))
+            {
+                return Unsafe.SizeOf<T>() * length + 1 + 4;
+            }
+
             if (FixedSizeCache.TryGetValue(type, out var size))
             {
                 return 1 + 4 + length * size;
             }
-        
+
             return GetSize(typeof(List<T>), val, members);
         }
 
@@ -113,6 +124,11 @@ namespace Nino.Serialization
                 }
             }
 
+            if (TypeModel.IsUnmanaged(type))
+            {
+                return Unsafe.SizeOf<T>() + 1;
+            }
+
             if (FixedSizeCache.TryGetValue(type, out var size))
             {
                 return 1 + size;
@@ -126,7 +142,7 @@ namespace Nino.Serialization
             var type = typeof(T);
             int size = 0;
             if (TypeModel.IsEnum(type)) type = type.GetEnumUnderlyingType();
-
+            
             //nullable
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))
             {
@@ -140,7 +156,7 @@ namespace Nino.Serialization
             {
                 return size + size2;
             }
-            
+
             if (!WrapperManifest.TryGetWrapper(type, out var wrapper))
             {
                 //code generated type
@@ -161,13 +177,18 @@ namespace Nino.Serialization
                 return size + wrapper.GetSize(val);
             }
 
+            if (TypeModel.IsUnmanaged(type))
+            {
+                return Unsafe.SizeOf<T>();
+            }
+
             return GetSize(type, val, members);
         }
 
         public static int GetSize(Type type, object obj, Dictionary<MemberInfo, object> members = null)
         {
             if (TypeModel.IsEnum(type)) type = type.GetEnumUnderlyingType();
-
+            
             int size = 0;
             bool isGeneric = type.IsGenericType;
             Type genericTypeDef = null;
@@ -207,8 +228,13 @@ namespace Nino.Serialization
                 return size + wrapper.GetSize(obj);
             }
 
+            if (TypeModel.IsUnmanaged(type))
+            {
+                return Marshal.SizeOf(type);
+            }
+
             size = 1; //null indicator
-            
+
             if (type == ConstMgr.ObjectType)
             {
                 type = obj.GetType();
@@ -377,31 +403,16 @@ namespace Nino.Serialization
             }
 
             var isFixed = true;
-            foreach (var member in model.Members)
+            foreach (var info in model.Members)
             {
-                Type memberType;
-                object memberObj;
-                switch (member)
-                {
-                    case FieldInfo fi:
-                        memberType = fi.FieldType;
-                        memberObj = fi.GetValue(obj);
-                        break;
-                    case PropertyInfo pi:
-                        memberType = pi.PropertyType;
-                        memberObj = pi.GetValue(obj);
-                        break;
-                    default:
-                        throw new Exception("Invalid member type");
-                }
-
+                object memberObj = info.GetValue(obj);
                 if (members != null)
                 {
-                    members[member] = memberObj;
+                    members[info.Member] = memberObj;
                 }
 
-                size += GetSize(memberType, memberObj);
-                if (!FixedSizeCache.ContainsKey(memberType))
+                size += GetSize(info.Type, memberObj);
+                if (!FixedSizeCache.ContainsKey(info.Type))
                 {
                     isFixed = false;
                 }

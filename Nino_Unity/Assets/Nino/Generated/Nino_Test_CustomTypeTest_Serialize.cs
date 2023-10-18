@@ -23,11 +23,10 @@ namespace Nino.Test
                     return;
                 }
                 writer.Write(true);
-                writer.WriteCommonVal<UnityEngine.Vector3>(value.v3);
-                writer.Write(ref value.dt, sizeof(System.DateTime));
-                writer.WriteCommonVal<System.Nullable<System.Int32>>(value.ni);
+                writer.Write(ref value.v3, sizeof(UnityEngine.Vector3),ref value.dt, sizeof(System.DateTime));
+                writer.Write(value.ni);
                 writer.Write(value.qs);
-                writer.WriteCommonVal<UnityEngine.Matrix4x4>(value.m);
+                writer.Write(ref value.m, sizeof(UnityEngine.Matrix4x4));
                 writer.Write(value.dict);
                 writer.Write(value.dict2);
             }
@@ -38,11 +37,10 @@ namespace Nino.Test
                 if(!reader.ReadBool())
                     return null;
                 CustomTypeTest value = new CustomTypeTest();
-                value.v3 = reader.ReadCommonVal<UnityEngine.Vector3>();
-                reader.Read<System.DateTime>(ref value.dt, sizeof(System.DateTime));
-                value.ni = reader.ReadCommonVal<System.Nullable<System.Int32>>();
+                reader.Read(ref value.v3, sizeof(UnityEngine.Vector3),ref value.dt, sizeof(System.DateTime));
+                value.ni = reader.ReadNullable<System.Int32>();
                 value.qs = reader.ReadList<UnityEngine.Quaternion>();
-                value.m = reader.ReadCommonVal<UnityEngine.Matrix4x4>();
+                reader.Read(ref value.m, sizeof(UnityEngine.Matrix4x4));
                 value.dict = reader.ReadDictionary<System.String,System.Int32>();
                 value.dict2 = reader.ReadDictionary<System.String,Nino.Test.Data>();
                 return value;

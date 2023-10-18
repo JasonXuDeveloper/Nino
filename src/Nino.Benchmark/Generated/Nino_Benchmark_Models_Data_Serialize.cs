@@ -28,14 +28,7 @@ namespace Nino.Benchmark.Models
             {
                 
                 writer.Write(true);
-                writer.Write(ref value.X, sizeof(System.Int32));
-                writer.Write(ref value.Y, sizeof(System.Int16));
-                writer.Write(ref value.Z, sizeof(System.Int64));
-                writer.Write(ref value.F, sizeof(System.Single));
-                writer.Write(ref value.D, sizeof(System.Decimal));
-                writer.Write(ref value.Db, sizeof(System.Double));
-                writer.Write(ref value.Bo, sizeof(System.Boolean));
-                writer.WriteEnum<Nino.Benchmark.Models.TestEnum>(value.En);
+                writer.Write(ref value.X, sizeof(System.Int32),ref value.Y, sizeof(System.Int16),ref value.Z, sizeof(System.Int64),ref value.F, sizeof(System.Single),ref value.D, sizeof(System.Decimal),ref value.Db, sizeof(System.Double),ref value.Bo, sizeof(System.Boolean),ref value.En, sizeof(Nino.Benchmark.Models.TestEnum));
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -44,14 +37,7 @@ namespace Nino.Benchmark.Models
                 if(!reader.ReadBool())
                     return default;
                 Data value = new Data();
-                reader.Read<System.Int32>(ref value.X, sizeof(System.Int32));
-                reader.Read<System.Int16>(ref value.Y, sizeof(System.Int16));
-                reader.Read<System.Int64>(ref value.Z, sizeof(System.Int64));
-                reader.Read<System.Single>(ref value.F, sizeof(System.Single));
-                reader.Read<System.Decimal>(ref value.D, sizeof(System.Decimal));
-                reader.Read<System.Double>(ref value.Db, sizeof(System.Double));
-                reader.Read<System.Boolean>(ref value.Bo, sizeof(System.Boolean));
-                reader.ReadEnum<Nino.Benchmark.Models.TestEnum>(ref value.En);
+                reader.Read(ref value.X, sizeof(System.Int32),ref value.Y, sizeof(System.Int16),ref value.Z, sizeof(System.Int64),ref value.F, sizeof(System.Single),ref value.D, sizeof(System.Decimal),ref value.Db, sizeof(System.Double),ref value.Bo, sizeof(System.Boolean),ref value.En, sizeof(Nino.Benchmark.Models.TestEnum));
                 return value;
             }
 

@@ -144,7 +144,7 @@ namespace Nino.Test
         }
     }
 
-    [NinoSerialize]
+    [NinoSerialize(false)]
     public partial class CustomTypeTest
     {
         [NinoMember(1)] public Vector3 v3;

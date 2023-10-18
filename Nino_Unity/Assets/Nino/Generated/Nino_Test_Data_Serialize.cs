@@ -28,14 +28,7 @@ namespace Nino.Test
             {
                 
                 writer.Write(true);
-                writer.Write(ref value.x, sizeof(System.Int32));
-                writer.Write(ref value.y, sizeof(System.Int16));
-                writer.Write(ref value.z, sizeof(System.Int64));
-                writer.Write(ref value.f, sizeof(System.Single));
-                writer.Write(ref value.d, sizeof(System.Decimal));
-                writer.Write(ref value.db, sizeof(System.Double));
-                writer.Write(ref value.bo, sizeof(System.Boolean));
-                writer.WriteEnum<Nino.Test.TestEnum>(value.en);
+                writer.Write(ref value.x, sizeof(System.Int32),ref value.y, sizeof(System.Int16),ref value.z, sizeof(System.Int64),ref value.f, sizeof(System.Single),ref value.d, sizeof(System.Decimal),ref value.db, sizeof(System.Double),ref value.bo, sizeof(System.Boolean),ref value.en, sizeof(Nino.Test.TestEnum));
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -44,14 +37,7 @@ namespace Nino.Test
                 if(!reader.ReadBool())
                     return default;
                 Data value = new Data();
-                reader.Read<System.Int32>(ref value.x, sizeof(System.Int32));
-                reader.Read<System.Int16>(ref value.y, sizeof(System.Int16));
-                reader.Read<System.Int64>(ref value.z, sizeof(System.Int64));
-                reader.Read<System.Single>(ref value.f, sizeof(System.Single));
-                reader.Read<System.Decimal>(ref value.d, sizeof(System.Decimal));
-                reader.Read<System.Double>(ref value.db, sizeof(System.Double));
-                reader.Read<System.Boolean>(ref value.bo, sizeof(System.Boolean));
-                reader.ReadEnum<Nino.Test.TestEnum>(ref value.en);
+                reader.Read(ref value.x, sizeof(System.Int32),ref value.y, sizeof(System.Int16),ref value.z, sizeof(System.Int64),ref value.f, sizeof(System.Single),ref value.d, sizeof(System.Decimal),ref value.db, sizeof(System.Double),ref value.bo, sizeof(System.Boolean),ref value.en, sizeof(Nino.Test.TestEnum));
                 return value;
             }
 

@@ -27,8 +27,24 @@ namespace Nino.Serialization
         private static readonly Type NinoSerializeType = typeof(NinoSerializeAttribute);
         private static readonly Type NinoMemberType = typeof(NinoMemberAttribute);
         private static readonly Type NinoIgnoreType = typeof(NinoIgnoreAttribute);
+        private static readonly Type CompilerGeneratedType = typeof(CompilerGeneratedAttribute);
 
-        public HashSet<MemberInfo> Members;
+        public List<NinoMember> Members;
+
+        public struct NinoMember
+        {
+            public MemberInfo Member;
+            public Type Type;
+            public Func<object, object> GetValue;
+
+            public NinoMember(MemberInfo member, Type type, Func<object, object> getValue)
+            {
+                Member = member;
+                Type = type;
+                GetValue = getValue;
+            }
+        }
+
         public bool Valid;
         public bool IncludeAll;
 
@@ -95,12 +111,6 @@ namespace Nino.Serialization
         /// <returns></returns>
         internal static TypeCode GetTypeCode(Type type)
         {
-#if ILRuntime
-			if (IsEnum(type) && type is ILRuntime.Reflection.ILRuntimeType)
-			{
-				type = Enum.GetUnderlyingType(type);
-			}
-#endif
             var hash = type.GetTypeHashCode();
             if (TypeCodes.TryGetValue(hash, out var ret))
             {
@@ -155,10 +165,9 @@ namespace Nino.Serialization
                 }
 
                 // otherwise check recursively
-                foreach (var member in model.Members)
+                foreach (var info in model.Members)
                 {
-                    var mt = member is FieldInfo fi ? fi.FieldType : ((PropertyInfo)member).PropertyType;
-                    if (!IsFixedSizeType(mt))
+                    if (!IsFixedSizeType(info.Type))
                     {
                         ret = false;
                         break;
@@ -187,7 +196,8 @@ namespace Nino.Serialization
                     .GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
                 foreach (var field in fields)
                 {
-                    if (!IsUnmanaged(field.FieldType))
+                    if (field.GetCustomAttributes(CompilerGeneratedType, true).Length > 0 ||
+                        !IsUnmanaged(field.FieldType))
                     {
                         ret = false;
                         break;
@@ -278,7 +288,7 @@ namespace Nino.Serialization
                 {
                     Valid = true,
                     //fetch members
-                    Members = new HashSet<MemberInfo>(),
+                    Members = new List<NinoMember>(),
                 };
 
                 //include all or not
@@ -296,6 +306,11 @@ namespace Nino.Serialization
                 //iterate fields
                 foreach (var f in fs)
                 {
+                    if (f.GetCustomAttributes(CompilerGeneratedType, true).Length > 0)
+                    {
+                        continue;
+                    }
+
                     if (model.IncludeAll)
                     {
                         //skip nino ignore
@@ -354,7 +369,14 @@ namespace Nino.Serialization
                 //add members to model
                 foreach (var pair in dict)
                 {
-                    model.Members.Add(pair.Value);
+                    if (pair.Value is FieldInfo fi)
+                    {
+                        model.Members.Add(new NinoMember(fi, fi.FieldType, fi.GetValue));
+                    }
+                    else if (pair.Value is PropertyInfo pi)
+                    {
+                        model.Members.Add(new NinoMember(pi, pi.PropertyType, pi.GetValue));
+                    }
                 }
 
                 //release dict

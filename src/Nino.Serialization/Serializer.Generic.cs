@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Serialization
 {
@@ -54,6 +55,27 @@ namespace Nino.Serialization
             }
 
             writer.WriteEnum(value);
+            return true;
+        }
+
+        /// <summary>
+        /// Attempt to serialize unmanaged type
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="value"></param>
+        /// <param name="writer"></param>
+        /// <typeparam name="T"></typeparam>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TrySerializeUnmanagedType<T>(Type type, ref T value, ref Writer writer)
+        {
+            //enum
+            if (!TypeModel.IsUnmanaged(type))
+            {
+                return false;
+            }
+
+            writer.WriteAsUnmanaged(ref value, Marshal.SizeOf<T>());
             return true;
         }
 

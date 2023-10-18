@@ -23,19 +23,8 @@ namespace Nino.Test
                     return;
                 }
                 writer.Write(true);
-                writer.Write(ref value.a, sizeof(System.Byte));
-                writer.Write(ref value.b, sizeof(System.SByte));
-                writer.Write(ref value.c, sizeof(System.Int16));
-                writer.Write(ref value.d, sizeof(System.UInt16));
-                writer.Write(ref value.e, sizeof(System.Int32));
-                writer.Write(ref value.f, sizeof(System.UInt32));
-                writer.Write(ref value.g, sizeof(System.Int64));
-                writer.Write(ref value.h, sizeof(System.UInt64));
-                writer.Write(ref value.i, sizeof(System.Single));
-                writer.Write(ref value.j, sizeof(System.Double));
-                writer.Write(ref value.k, sizeof(System.Decimal));
-                writer.Write(ref value.l, sizeof(System.Boolean));
-                writer.Write(ref value.m, sizeof(System.Char));
+                writer.Write(ref value.a, sizeof(System.Byte),ref value.b, sizeof(System.SByte),ref value.c, sizeof(System.Int16),ref value.d, sizeof(System.UInt16),ref value.e, sizeof(System.Int32),ref value.f, sizeof(System.UInt32),ref value.g, sizeof(System.Int64),ref value.h, sizeof(System.UInt64));
+                writer.Write(ref value.i, sizeof(System.Single),ref value.j, sizeof(System.Double),ref value.k, sizeof(System.Decimal),ref value.l, sizeof(System.Boolean),ref value.m, sizeof(System.Char));
                 writer.Write(value.n);
                 writer.Write(value.o);
                 writer.Write(value.p);
@@ -53,19 +42,8 @@ namespace Nino.Test
                 if(!reader.ReadBool())
                     return null;
                 BuildTestDataCodeGen value = new BuildTestDataCodeGen();
-                reader.Read<System.Byte>(ref value.a, sizeof(System.Byte));
-                reader.Read<System.SByte>(ref value.b, sizeof(System.SByte));
-                reader.Read<System.Int16>(ref value.c, sizeof(System.Int16));
-                reader.Read<System.UInt16>(ref value.d, sizeof(System.UInt16));
-                reader.Read<System.Int32>(ref value.e, sizeof(System.Int32));
-                reader.Read<System.UInt32>(ref value.f, sizeof(System.UInt32));
-                reader.Read<System.Int64>(ref value.g, sizeof(System.Int64));
-                reader.Read<System.UInt64>(ref value.h, sizeof(System.UInt64));
-                reader.Read<System.Single>(ref value.i, sizeof(System.Single));
-                reader.Read<System.Double>(ref value.j, sizeof(System.Double));
-                reader.Read<System.Decimal>(ref value.k, sizeof(System.Decimal));
-                reader.Read<System.Boolean>(ref value.l, sizeof(System.Boolean));
-                reader.Read<System.Char>(ref value.m, sizeof(System.Char));
+                reader.Read(ref value.a, sizeof(System.Byte),ref value.b, sizeof(System.SByte),ref value.c, sizeof(System.Int16),ref value.d, sizeof(System.UInt16),ref value.e, sizeof(System.Int32),ref value.f, sizeof(System.UInt32),ref value.g, sizeof(System.Int64),ref value.h, sizeof(System.UInt64));
+                reader.Read(ref value.i, sizeof(System.Single),ref value.j, sizeof(System.Double),ref value.k, sizeof(System.Decimal),ref value.l, sizeof(System.Boolean),ref value.m, sizeof(System.Char));
                 value.n = reader.ReadString();
                 value.o = reader.ReadList<System.Int32>();
                 value.p = reader.ReadList<Nino.Test.NotIncludeAllClass>();
