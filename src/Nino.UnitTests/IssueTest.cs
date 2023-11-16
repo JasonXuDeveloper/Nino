@@ -6,9 +6,37 @@ using Nino.Serialization;
 
 namespace Nino.UnitTests
 {
+    [NinoSerialize]
+    public partial class IntRange
+    {
+        [NinoMember(0)]
+        public int _min;
+        [NinoMember(1)]
+        public int _max;
+    }
+
+    [NinoSerialize]
+    public partial class Item
+    {
+        [NinoMember(0)]
+        public IntRange Range;
+    }
+    
     [TestClass]
     public class IssueTest
     {
+        [TestClass]
+        public class Issue104
+        {
+            [TestMethod]
+            public void RunTest()
+            {
+                CodeGenerator.GenerateSerializationCode(typeof(IntRange));
+                CodeGenerator.GenerateSerializationCode(typeof(Item));
+                CodeGenerator.GenerateSerializationCodeForAllTypePossible();
+            }
+        }
+        
         [TestClass]
         public class Issue52
         {

@@ -3,10 +3,10 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.UnitTests
 {
-    public partial class A
+    public partial class IntRange
     {
-        public static A.SerializationHelper NinoSerializationHelper = new A.SerializationHelper();
-        public unsafe class SerializationHelper: Nino.Serialization.NinoWrapperBase<A>
+        public static IntRange.SerializationHelper NinoSerializationHelper = new IntRange.SerializationHelper();
+        public unsafe class SerializationHelper: Nino.Serialization.NinoWrapperBase<IntRange>
         {
             #region NINO_CODEGEN
             public SerializationHelper()
@@ -15,7 +15,7 @@ namespace Nino.UnitTests
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public override void Serialize(A value, ref Nino.Serialization.Writer writer)
+            public override void Serialize(IntRange value, ref Nino.Serialization.Writer writer)
             {
                 if(value == null)
                 {
@@ -23,28 +23,29 @@ namespace Nino.UnitTests
                     return;
                 }
                 writer.Write(true);
-                writer.Write(value.Val);
+                writer.Write(ref value._min, sizeof(System.Int32),ref value._max, sizeof(System.Int32));
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public override A Deserialize(Nino.Serialization.Reader reader)
+            public override IntRange Deserialize(Nino.Serialization.Reader reader)
             {
                 if(!reader.ReadBool())
                     return null;
-                A value = new A();
-                value.Val = reader.Read<System.Int32>(sizeof(System.Int32));
+                IntRange value = new IntRange();
+                reader.Read(ref value._min, sizeof(System.Int32),ref value._max, sizeof(System.Int32));
                 return value;
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public override int GetSize(A value)
+            public override int GetSize(IntRange value)
             {
                 if(value == null)
                 {
                     return 1;
                 }
                 int ret = 1;
-                ret += Nino.Serialization.Serializer.GetSize(value.Val);
+                ret += Nino.Serialization.Serializer.GetSize(value._min);
+                ret += Nino.Serialization.Serializer.GetSize(value._max);
                 return ret;
             }
             #endregion

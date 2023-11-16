@@ -55,17 +55,6 @@ namespace Nino.Benchmark
                 Name = "Test",
                 Ps = dt
             };
-
-            //enable native deflate attempt
-            try
-            {
-                Nino.Shared.Mgr.ConstMgr.EnableNativeDeflate = true;
-                Nino.Serialization.Serializer.Serialize(NestedDataInput);
-            }
-            catch
-            {
-                Nino.Shared.Mgr.ConstMgr.EnableNativeDeflate = false;
-            }
         }
 
         // primitives

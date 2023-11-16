@@ -517,7 +517,7 @@ using System.Runtime.CompilerServices;
                 default:
                     if (GetValidNinoClass(mt, false))
                     {
-                        return $"{val} = {BeautifulLongTypeName(mt)}.NinoSerializationHelper.Deserialize(reader)";
+                        return $"{val} = {BeautifulLongTypeName(mt)}.NinoSerializationHelper.Deserialize(reader);";
                     }
 
                     //enum
@@ -599,7 +599,7 @@ using System.Runtime.CompilerServices;
                 default:
                     if (GetValidNinoClass(mt, false))
                     {
-                        return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.Serialize({val}, writer)";
+                        return $"{BeautifulLongTypeName(mt)}.NinoSerializationHelper.Serialize({val}, ref writer)";
                     }
 
                     if (mt.IsArray || (mt.IsGenericType && mt.GetGenericTypeDefinition() == ConstMgr.ListDefType))

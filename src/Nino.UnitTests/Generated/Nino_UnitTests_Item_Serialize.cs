@@ -3,10 +3,10 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.UnitTests
 {
-    public partial class A
+    public partial class Item
     {
-        public static A.SerializationHelper NinoSerializationHelper = new A.SerializationHelper();
-        public unsafe class SerializationHelper: Nino.Serialization.NinoWrapperBase<A>
+        public static Item.SerializationHelper NinoSerializationHelper = new Item.SerializationHelper();
+        public unsafe class SerializationHelper: Nino.Serialization.NinoWrapperBase<Item>
         {
             #region NINO_CODEGEN
             public SerializationHelper()
@@ -15,7 +15,7 @@ namespace Nino.UnitTests
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public override void Serialize(A value, ref Nino.Serialization.Writer writer)
+            public override void Serialize(Item value, ref Nino.Serialization.Writer writer)
             {
                 if(value == null)
                 {
@@ -23,28 +23,28 @@ namespace Nino.UnitTests
                     return;
                 }
                 writer.Write(true);
-                writer.Write(value.Val);
+                Nino.UnitTests.IntRange.NinoSerializationHelper.Serialize(value.Range, ref writer);
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public override A Deserialize(Nino.Serialization.Reader reader)
+            public override Item Deserialize(Nino.Serialization.Reader reader)
             {
                 if(!reader.ReadBool())
                     return null;
-                A value = new A();
-                value.Val = reader.Read<System.Int32>(sizeof(System.Int32));
+                Item value = new Item();
+                value.Range = Nino.UnitTests.IntRange.NinoSerializationHelper.Deserialize(reader);
                 return value;
             }
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public override int GetSize(A value)
+            public override int GetSize(Item value)
             {
                 if(value == null)
                 {
                     return 1;
                 }
                 int ret = 1;
-                ret += Nino.Serialization.Serializer.GetSize(value.Val);
+                ret += Nino.Serialization.Serializer.GetSize(value.Range);
                 return ret;
             }
             #endregion

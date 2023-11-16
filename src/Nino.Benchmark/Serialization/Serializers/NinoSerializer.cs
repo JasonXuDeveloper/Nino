@@ -1,4 +1,5 @@
-﻿using Nino.Serialization;
+﻿using System;
+using Nino.Serialization;
 
 namespace Nino.Benchmark.Serializers
 {
@@ -11,7 +12,10 @@ namespace Nino.Benchmark.Serializers
 
         public override object Serialize<T>(T input)
         {
-            return Serializer.Serialize(input);
+            var size = Serializer.GetSize(input);
+            byte[] result = GC.AllocateUninitializedArray<byte>(size);
+            Serializer.Serialize(result, input);
+            return result;
         }
 
         public override string ToString()
