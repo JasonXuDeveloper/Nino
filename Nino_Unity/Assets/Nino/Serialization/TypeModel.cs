@@ -121,63 +121,10 @@ namespace Nino.Serialization
             return ret;
         }
 
-        private static readonly ConcurrentDictionary<Type, bool> IsFixedSizeTypeCache =
-            new ConcurrentDictionary<Type, bool>();
-
         public static bool IsFixedSizeType(Type type)
         {
-            // check if we already know the answer
-            if (IsFixedSizeTypeCache.TryGetValue(type, out var ret)) return ret;
-            if (IsUnmanaged(type))
-            {
-                ret = true;
-            }
-            //if string/array
-            else if (type == typeof(string) || type.IsArray)
-            {
-                ret = false;
-            }
-            else if (type.IsGenericType)
-            {
-                var genericType = type.GetGenericTypeDefinition();
-                if (genericType.GetInterface(nameof(IList)) != null ||
-                    genericType.GetInterface(nameof(IDictionary)) != null ||
-                    genericType.GetInterface(nameof(IEnumerable)) != null ||
-                    genericType.GetInterface(nameof(ICollection)) != null)
-                {
-                    ret = false;
-                }
-            }
-            else
-            {
-                ret = true;
-                TryGetModel(type, out var model);
-                //invalid model
-                if (model != null && !model.Valid)
-                {
-                    return false;
-                }
-
-                //generate model
-                if (model == null)
-                {
-                    model = CreateModel(type);
-                }
-
-                // otherwise check recursively
-                foreach (var info in model.Members)
-                {
-                    if (!IsFixedSizeType(info.Type))
-                    {
-                        ret = false;
-                        break;
-                    }
-                }
-            }
-
-            IsFixedSizeTypeCache[type] = ret;
-
-            return ret;
+            if (type.IsClass) return false;
+            return IsUnmanaged(type);
         }
 
         private static readonly ConcurrentDictionary<Type, bool> IsManagedTypeCache =

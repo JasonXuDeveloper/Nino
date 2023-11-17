@@ -426,8 +426,11 @@ using System.Runtime.CompilerServices;
                 foreach (var info in members)
                 {
                     var member = info.Member;
+                    var size = Serializer.GetFixedSize(info.Type);
                     sb.Append(
-                        $"                ret += Nino.Serialization.Serializer.GetSize(value.{member.Name});\n");
+                         size != -1
+                            ? $"                ret += {size}; // size for {member.Name}\n"
+                            : $"                ret += Nino.Serialization.Serializer.GetSize(value.{member.Name});\n");
                 }
 
                 sb.Append("                return ret;");

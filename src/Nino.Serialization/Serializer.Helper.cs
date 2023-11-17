@@ -51,6 +51,17 @@ namespace Nino.Serialization
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int GetFixedSize(Type type)
+        {
+            if (FixedSizeCache.TryGetValue(type, out var size))
+            {
+                return size;
+            }
+
+            return -1;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetFixedSize<T>(int size)
         {
             FixedSizeCache[typeof(T)] = size;
