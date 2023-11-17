@@ -26,6 +26,47 @@ namespace Nino.UnitTests
     public class IssueTest
     {
         [TestClass]
+        public class IssueIgnore
+        {
+            [NinoSerialize(false)]
+            public class Data
+            {
+                [NinoMember(0)]
+                public int A;
+                [NinoMember(1)]
+                public int B;
+                [NinoMember(2)]
+                public CompA CompA;
+            }
+
+            [NinoSerialize()]
+            public class CompA
+            {
+                public int Aa;
+                [NinoIgnore]public int Ba;
+            }
+            
+            [TestMethod]
+            public void RunTest()
+            {
+                Data data = new Data();
+                data.A = 10;
+                data.B = 20;
+                data.CompA = new CompA();
+                data.CompA.Aa = 30;
+                data.CompA.Ba = 40;
+                
+                var bufForData = Serializer.Serialize(data);
+                var data2 = Deserializer.Deserialize<Data>(bufForData);
+                
+                Assert.IsTrue(data.A == data2.A);
+                Assert.IsTrue(data.B == data2.B);
+                Assert.IsTrue(data.CompA.Aa == data2.CompA.Aa);
+                Assert.IsTrue(data2.CompA.Ba == 0);
+            }
+        }
+        
+        [TestClass]
         public class Issue104
         {
             [TestMethod]
