@@ -105,7 +105,7 @@ namespace Nino.Serialization
             }
 
             //unmanaged type
-            if (TryDeserializeUnmanagedType<T>(type,  reader, returnDispose, out var un))
+            if (TryDeserializeUnmanagedType<T>(type, reader, returnDispose, out var un))
             {
                 return un;
             }
@@ -171,7 +171,7 @@ namespace Nino.Serialization
             {
                 return e;
             }
-            
+
             //code generated type
             if (TryDeserializeCodeGenType(type, reader, true, returnDispose, out object codeGenRet))
             {
@@ -179,7 +179,7 @@ namespace Nino.Serialization
             }
 
             //unmanaged type
-            if (TryDeserializeUnmanagedType(type,  reader, returnDispose, out var un))
+            if (TryDeserializeUnmanagedType(type, reader, returnDispose, out var un))
             {
                 return un;
             }
@@ -195,7 +195,17 @@ namespace Nino.Serialization
             //create type
             if (val == null || val == ConstMgr.Null)
             {
-                val = Activator.CreateInstance(type);
+#if UNITY_2017_1_OR_NEWER
+                //see if type inherits MonoBehaviour
+                if (type.IsSubclassOf(typeof(UnityEngine.MonoBehaviour)))
+                {
+                    val = new UnityEngine.GameObject(type.AssemblyQualifiedName).AddComponent(type);
+                }
+                else
+#endif
+                {
+                    val = Activator.CreateInstance(type);
+                }
             }
 
             //Get Attribute that indicates a class/struct to be serialized
@@ -470,6 +480,7 @@ namespace Nino.Serialization
                 {
                     ObjectPool<Reader>.Return(reader);
                 }
+
                 return true;
             }
 
@@ -496,6 +507,7 @@ namespace Nino.Serialization
                 {
                     ObjectPool<Reader>.Return(reader);
                 }
+
                 return true;
             }
 

@@ -39,11 +39,12 @@ namespace Nino.UnitTests
                 public CompA CompA;
             }
 
-            [NinoSerialize()]
+            [NinoSerialize(false)]
             public class CompA
             {
+                [NinoMember(0)]
                 public int Aa;
-                [NinoIgnore]public int Ba;
+                public int Ba;
             }
             
             [TestMethod]

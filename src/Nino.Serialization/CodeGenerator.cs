@@ -121,7 +121,7 @@ using System.Runtime.CompilerServices;
             {
                 if(!reader.ReadBool())
                     {returnNull}
-                {type} value = new {type}();
+                {createObj}
 {fields}
             }
 
@@ -148,6 +148,18 @@ using System.Runtime.CompilerServices;
                 {
                     return 1;
                 }");
+                
+#if UNITY_2017_1_OR_NEWER
+                //see if type inherits MonoBehaviour
+                if (type.IsSubclassOf(typeof(UnityEngine.MonoBehaviour)))
+                {
+                    template = template.Replace("{createObj}", "{type} value = new UnityEngine.GameObject(\"{type}\").AddComponent<{type}>();");
+                }
+                else
+#endif
+                {
+                    template = template.Replace("{createObj}", "{type} value = new {type}();");
+                }
             }
             else
             {
