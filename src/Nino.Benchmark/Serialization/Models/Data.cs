@@ -1,14 +1,14 @@
 ﻿using System;
 using ProtoBuf;
 using MessagePack;
-using Nino.Serialization;
+using Nino.Core;
 
 namespace Nino.Benchmark.Models
 {
 
     [Serializable]
     [ProtoContract]
-    [NinoSerialize]
+    [NinoType]
     [MessagePackObject]
     [System.Runtime.Serialization.DataContract]
     public partial struct Data
@@ -79,7 +79,7 @@ namespace Nino.Benchmark.Models
 
     [Serializable]
     [ProtoContract]
-    [NinoSerialize]
+    [NinoType]
     [MessagePackObject]
     [System.Runtime.Serialization.DataContract]
     public partial class NestedData

@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using Nino.Serialization;
+using Nino.Core;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -8,30 +8,20 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Nino.UnitTests
 {
-    [NinoSerialize]
-    [CodeGenIgnore]
-    public partial class ComplexData
+    [NinoType(false)]
+    public class ComplexData
     {
-        [NinoMember(0)]
-        public int[][] A;
-        [NinoMember(1)]
-        public List<int[]> B;
-        [NinoMember(2)]
-        public List<int>[] C;
-        [NinoMember(3)]
-        public Dictionary<string,Dictionary<string, int>> D;
-        [NinoMember(4)]
-        public Dictionary<string,Dictionary<string, int[][]>>[] E;
-        [NinoMember(5)] 
-        public Data[][] F;
-        [NinoMember(6)]
-        public List<Data[]> G;
-        [NinoMember(7)]
-        public Data[][][] H;
-        [NinoMember(8)]
-        public List<Data>[] I;
-        [NinoMember(9)]
-        public List<Data[]>[] J;
+        [NinoMember(0)] public int[][] A;
+        [NinoMember(1)] public List<int[]> B;
+        [NinoMember(2)] public List<int>[] C;
+        [NinoMember(3)] public Dictionary<string, Dictionary<string, int>> D;
+        [NinoMember(4)] public Dictionary<string, Dictionary<string, int[][]>>[] E;
+        [NinoMember(5)] public Data[][] F;
+        [NinoMember(6)] public List<Data[]> G;
+        [NinoMember(7)] public Data[][][] H;
+        [NinoMember(8)] public List<Data>[] I;
+        [NinoMember(9)] public List<Data[]>[] J;
+
         public override string ToString()
         {
             return $"{string.Join(",", A.SelectMany(x => x).ToArray())},\n" +
@@ -46,7 +36,7 @@ namespace Nino.UnitTests
                    $"{string.Join(",\n", J.SelectMany(x => x).Select(x => x).SelectMany(x => x).Select(x => x))}\n";
         }
 
-        private string GetDictString<TK, TV>(Dictionary<TK, Dictionary<TK, TV>> ddd)
+        private string GetDictString<Tk, Tv>(Dictionary<Tk, Dictionary<Tk, Tv>> ddd)
         {
             return $"{string.Join(",", ddd.Keys.ToList())},\n" +
                    $"   {string.Join(",", ddd.Values.ToList().SelectMany(k => k.Keys))},\n" +
@@ -54,9 +44,8 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoSerialize]
-    [CodeGenIgnore]
-    public partial class Data
+    [NinoType(false)]
+    public class Data
     {
         [NinoMember(1)] public int X;
 
@@ -82,14 +71,13 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoSerialize]
-    [CodeGenIgnore]
-    public partial class NestedData
+    [NinoType]
+    public class NestedData
     {
-        [NinoMember(1)] [System.Runtime.Serialization.DataMember]
+        [System.Runtime.Serialization.DataMember]
         public string Name = "";
 
-        [NinoMember(2)] public Data[] Ps = Array.Empty<Data>();
+        public Data[] Ps = Array.Empty<Data>();
 
         public override string ToString()
         {
@@ -104,7 +92,7 @@ namespace Nino.UnitTests
     }
 
     [TestClass]
-    public partial class ComplexSerializationTest
+    public class ComplexSerializationTest
     {
         [TestMethod]
         public void TestNonGenericNoCodeGen()
@@ -122,8 +110,8 @@ namespace Nino.UnitTests
                 Name = "aasdfghjhgtrewqwerftg"
             };
 
-            var buf = Serializer.Serialize((object)dt);
-            var dt2 = Deserializer.Deserialize(typeof(Data), buf);
+            var buf = dt.Serialize();
+            Deserializer.Deserialize(buf, out Data dt2);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
         }
 
@@ -135,8 +123,8 @@ namespace Nino.UnitTests
                 Val = 1
             };
 
-            var buf = Serializer.Serialize((object)dt);
-            var dt2 = Deserializer.Deserialize(typeof(A), buf);
+            var buf = dt.Serialize();
+            Deserializer.Deserialize(buf, out A dt2);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
         }
 
@@ -167,8 +155,8 @@ namespace Nino.UnitTests
                 Ps = dt
             };
 
-            var buf = Serializer.Serialize(nd);
-            var nd2 = Deserializer.Deserialize<NestedData>(buf);
+            var buf = nd.Serialize();
+            Deserializer.Deserialize(buf, out NestedData nd2);
             Assert.AreEqual(nd.Name, nd2.Name);
             Assert.AreEqual(nd.Ps.Length, nd2.Ps.Length);
             for (int i = 0; i < nd.Ps.Length; i++)
@@ -408,7 +396,7 @@ namespace Nino.UnitTests
                 data.G,
             };
             var buf = Serializer.Serialize(data);
-            var data2 = Deserializer.Deserialize<ComplexData>(buf);
+            Deserializer.Deserialize(buf, out ComplexData data2);
             Assert.AreEqual(data.ToString(), data2.ToString());
         }
     }

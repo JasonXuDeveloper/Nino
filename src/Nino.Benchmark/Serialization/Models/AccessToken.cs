@@ -3,7 +3,7 @@
 using System;
 using System.Collections.Generic;
 using MessagePack;
-using Nino.Serialization;
+using Nino.Core;
 using ProtoBuf;
 #pragma warning disable 8618
 
@@ -11,7 +11,7 @@ namespace Nino.Benchmark.Models
 {
     [ProtoContract, System.Serializable, System.Runtime.Serialization.DataContract]
     [MessagePackObject]
-    [NinoSerialize]
+    [NinoType]
     public partial class AccessToken : IGenericEquality<AccessToken>
     {
         [System.Runtime.Serialization.DataMember, ProtoMember(1), Key(0), NinoMember(0)]

@@ -3,13 +3,14 @@
 
 using ProtoBuf;
 using MessagePack;
-using Nino.Serialization;
+using Nino.Core;
+
 #pragma warning disable 8618
 
 namespace Nino.Benchmark.Models
 {
     [ProtoContract, System.Serializable, System.Runtime.Serialization.DataContract, MessagePackObject]
-    [NinoSerialize]
+    [NinoType]
     public partial class Badge : IGenericEquality<Badge>
     {
         [System.Runtime.Serialization.DataMember, ProtoMember(1), Key(1 - 1), NinoMember(0)]

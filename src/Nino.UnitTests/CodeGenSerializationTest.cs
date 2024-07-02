@@ -1,34 +1,30 @@
 using System;
 using System.Linq;
-using Nino.Serialization;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Nino.Core;
+
 #pragma warning disable 8618
 
 namespace Nino.UnitTests
 {
-    [NinoSerialize]
-    public partial class A
+    [NinoType]
+    public class A
     {
-        [NinoMember(0)]
         public int Val { get; set; }
     }
-        
-    [NinoSerialize]
-    [CodeGenIgnore]
-    public partial struct B
+
+    [NinoType]
+    public struct B
     {
-        [NinoMember(0)]
         public int Val { get; set; }
     }
-        
-    [NinoSerialize]
-    public partial class C
+
+    [NinoType]
+    public class C
     {
-        [NinoMember(0)]
         public string Name { get; set; }
             
-        [NinoMember(1)]
         public List<A> As { get; set; }
 
         public override string ToString()
@@ -37,14 +33,11 @@ namespace Nino.UnitTests
         }
     }
         
-    [NinoSerialize]
-    [CodeGenIgnore]
-    public partial class D
+    [NinoType]
+    public class D
     {
-        [NinoMember(0)]
         public string Name { get; set; }
             
-        [NinoMember(1)]
         public List<B> Bs { get; set; }
             
         public override string ToString()
@@ -59,7 +52,6 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestCodeGen()
         {
-            // CodeGenerator.GenerateSerializationCodeForAllTypePossible();
             C c = new C()
             {
                 Name = "test",
@@ -81,11 +73,14 @@ namespace Nino.UnitTests
                 }
             };
             
-            var bufC = Serializer.Serialize(c);
-            var bufD = Serializer.Serialize(d);
+            var bufC = c.Serialize();
+            var bufD = d.Serialize();
             
-            var c2 = Deserializer.Deserialize<C>(bufC);
-            var d2 = Deserializer.Deserialize<D>(bufD);
+            Console.WriteLine(string.Join(", ", bufC));
+            Console.WriteLine(string.Join(", ", bufD));
+            
+            Deserializer.Deserialize(bufC, out C c2);
+            Deserializer.Deserialize(bufD, out D d2);
             
             Assert.AreEqual(c.ToString(), c.ToString());
             Assert.AreEqual(c.ToString(), d.ToString());

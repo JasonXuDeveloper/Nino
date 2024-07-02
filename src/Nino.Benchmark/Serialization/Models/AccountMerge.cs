@@ -4,12 +4,12 @@
 using System;
 using ProtoBuf;
 using MessagePack;
-using Nino.Serialization;
+using Nino.Core;
 
 namespace Nino.Benchmark.Models
 {
     [ProtoContract, System.Serializable, System.Runtime.Serialization.DataContract, MessagePackObject]
-    [NinoSerialize]
+    [NinoType]
     public partial class AccountMerge : IGenericEquality<AccountMerge>
     {
         [System.Runtime.Serialization.DataMember, ProtoMember(1), Key(1 - 1), NinoMember(0)]

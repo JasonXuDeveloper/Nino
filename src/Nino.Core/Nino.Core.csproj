@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <TargetFrameworks>net5.0;net6.0;net7.0;net8.0;netcoreapp3.1;netstandard2.0;net48</TargetFrameworks>
+        <LangVersion>9</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="System.Buffers" Version="4.5.1" />
+      <PackageReference Include="System.Memory" Version="4.5.5" />
+    </ItemGroup>
+
+</Project>

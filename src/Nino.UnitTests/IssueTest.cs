@@ -1,52 +1,34 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Nino.Serialization;
+using Nino.Core;
 
 namespace Nino.UnitTests
 {
-    [NinoSerialize]
-    public partial class IntRange
-    {
-        [NinoMember(0)]
-        public int _min;
-        [NinoMember(1)]
-        public int _max;
-    }
-
-    [NinoSerialize]
-    public partial class Item
-    {
-        [NinoMember(0)]
-        public IntRange Range;
-    }
-    
     [TestClass]
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    [SuppressMessage("ReSharper", "SpecifyACultureInStringConversionExplicitly")]
     public class IssueTest
     {
         [TestClass]
         public class IssueIgnore
         {
-            [NinoSerialize(false)]
+            [NinoType]
             public class Data
             {
-                [NinoMember(0)]
                 public int A;
-                [NinoMember(1)]
                 public int B;
-                [NinoMember(2)]
                 public CompA CompA;
             }
 
-            [NinoSerialize(false)]
+            [NinoType(false)]
             public class CompA
             {
-                [NinoMember(0)]
-                public int Aa;
+                [NinoMember(0)] public int Aa;
                 public int Ba;
             }
-            
+
             [TestMethod]
             public void RunTest()
             {
@@ -56,34 +38,22 @@ namespace Nino.UnitTests
                 data.CompA = new CompA();
                 data.CompA.Aa = 30;
                 data.CompA.Ba = 40;
-                
-                var bufForData = Serializer.Serialize(data);
-                var data2 = Deserializer.Deserialize<Data>(bufForData);
-                
+
+                var bufForData = data.Serialize();
+                Deserializer.Deserialize(bufForData, out Data data2);
+
                 Assert.IsTrue(data.A == data2.A);
                 Assert.IsTrue(data.B == data2.B);
                 Assert.IsTrue(data.CompA.Aa == data2.CompA.Aa);
                 Assert.IsTrue(data2.CompA.Ba == 0);
             }
         }
-        
-        [TestClass]
-        public class Issue104
-        {
-            [TestMethod]
-            public void RunTest()
-            {
-                CodeGenerator.GenerateSerializationCode(typeof(IntRange));
-                CodeGenerator.GenerateSerializationCode(typeof(Item));
-                CodeGenerator.GenerateSerializationCodeForAllTypePossible();
-            }
-        }
-        
+
         [TestClass]
         public class Issue52
         {
-            [NinoSerialize]
-            public partial class NinoTestData
+            [NinoType]
+            public class NinoTestData
             {
                 [NinoMember(1)] public int X;
                 [NinoMember(2)] public long Y;
@@ -96,10 +66,10 @@ namespace Nino.UnitTests
                 {
                     X = -136, Y = 8
                 };
-                
-                var buf = Serializer.Serialize(dt);
-                var dt2 = Deserializer.Deserialize<NinoTestData>(buf);
-                
+
+                var buf = dt.Serialize();
+                Deserializer.Deserialize(buf, out NinoTestData dt2);
+
                 Assert.IsTrue(dt.X == dt2.X);
                 Assert.IsTrue(dt.Y == dt2.Y);
 
@@ -108,32 +78,32 @@ namespace Nino.UnitTests
                     X = sbyte.MinValue,
                     Y = short.MinValue
                 };
-                
-                buf = Serializer.Serialize(dt);
-                dt2 = Deserializer.Deserialize<NinoTestData>(buf);
-                
+
+                buf = dt.Serialize();
+                Deserializer.Deserialize(buf, out dt2);
+
                 Assert.IsTrue(dt.X == dt2.X);
                 Assert.IsTrue(dt.Y == dt2.Y);
-                
+
                 dt = new NinoTestData()
                 {
                     X = int.MinValue,
                     Y = long.MinValue
                 };
-                
-                buf = Serializer.Serialize(dt);
-                dt2 = Deserializer.Deserialize<NinoTestData>(buf);
-                
+
+                buf = dt.Serialize();
+                Deserializer.Deserialize(buf, out dt2);
+
                 Assert.IsTrue(dt.X == dt2.X);
                 Assert.IsTrue(dt.Y == dt2.Y);
             }
         }
-        
+
         [TestClass]
         public class Issue41
         {
-            [NinoSerialize]
-            public partial class NinoTestData
+            [NinoType]
+            public class NinoTestData
             {
                 public enum Sex
                 {
@@ -166,8 +136,8 @@ namespace Nino.UnitTests
                     isHasPet = true
                 });
 
-                var buf = Serializer.Serialize(list);
-                var list2 = Deserializer.Deserialize<List<NinoTestData>>(buf);
+                var buf = list.Serialize();
+                Deserializer.Deserialize(buf, out List<NinoTestData> list2);
                 Assert.IsTrue(list2.Count == list.Count);
                 for (int i = 0; i < list.Count; i++)
                 {
@@ -193,8 +163,8 @@ namespace Nino.UnitTests
                     isHasPet = false
                 };
 
-                buf = Serializer.Serialize(arr);
-                var arr2 = Deserializer.Deserialize<NinoTestData[]>(buf);
+                buf = arr.Serialize();
+                Deserializer.Deserialize(buf, out NinoTestData[] arr2);
                 Assert.IsTrue(arr2.Length == arr.Length);
                 for (int i = 0; i < arr.Length; i++)
                 {
@@ -205,104 +175,7 @@ namespace Nino.UnitTests
                 }
             }
         }
-        
-        [TestClass]
-        public class Issue33
-        {
-            [NinoSerialize]
-            [CodeGenIgnore]
-            public partial class GamePatcher
-            {
 
-                [NinoMember(1)] public DateTime StaticValidityDateTime = DateTime.MinValue;
-                [NinoMember(2)] public int CCC= -1;
-                [NinoMember(3)] public string Key = "";
-            }
-            
-            [NinoSerialize]
-            public partial class GamePatcher2
-            {
-
-                [NinoMember(1)] public DateTime StaticValidityDateTime = DateTime.MinValue;
-                [NinoMember(2)] public int CCC= -1;
-                [NinoMember(3)] public string Key = "";
-            }
-            
-            //GENERATED CODE
-            public partial class GamePatcher2
-            {
-                public static GamePatcher2.SerializationHelper NinoSerializationHelper = new GamePatcher2.SerializationHelper();
-                public class SerializationHelper: Nino.Serialization.NinoWrapperBase<GamePatcher2>
-                {
-                    #region NINO_CODEGEN
-                    public override void Serialize(GamePatcher2 value, ref Writer writer)
-                    {
-                        if(value == null)
-                        {
-                            writer.Write(false);
-                            return;
-                        }
-                        writer.Write(true);
-                        writer.Write(value.StaticValidityDateTime);
-                        writer.Write(value.CCC);
-                        writer.Write(value.Key);
-                    }
-
-                    public override GamePatcher2 Deserialize(Nino.Serialization.Reader reader)
-                    {
-                        if(!reader.ReadBool())
-                            return null;
-                        GamePatcher2 value = new GamePatcher2();
-                        value.StaticValidityDateTime = reader.ReadDateTime();
-                        reader.Read(ref value.CCC, sizeof(int));
-                        value.Key = reader.ReadString();
-                        return value;
-                    }
-                    
-                    public override unsafe int GetSize(GamePatcher2 value)
-                    {
-                        if(value == null)
-                            return sizeof(bool);
-                        int size = sizeof(bool);
-                        size += sizeof(DateTime);
-                        size += sizeof(int);
-                        size += 1 + 4 + value.Key.Length * 2;
-                        return size;
-                    }
-                    #endregion
-                }
-            }
-
-            [TestMethod]
-            public void RunTest()
-            {
-                //no code gen
-                GamePatcher gp = new GamePatcher();
-                gp.CCC=10;
-                gp.Key="ajoaiewrnvo";
-
-                var a = Nino.Serialization.Serializer.Serialize<GamePatcher>(gp);
-                var b = Nino.Serialization.Deserializer.Deserialize<GamePatcher>(a);
-                Assert.AreEqual(gp.CCC, b.CCC);
-                Assert.AreEqual(gp.Key, b.Key);
-                
-                //code gen
-                GamePatcher2 gp2 = new GamePatcher2();
-                gp2.CCC=10;
-                gp2.Key="ajoaiewrnvo";
-
-                var aa = Nino.Serialization.Serializer.Serialize<GamePatcher2>(gp2);
-                
-                Assert.IsTrue(aa.SequenceEqual(a));
-                
-                var bb = Nino.Serialization.Deserializer.Deserialize<GamePatcher>(aa);
-                Assert.AreEqual(gp2.CCC, bb.CCC);
-                Assert.AreEqual(gp2.Key, bb.Key);
-                Assert.AreEqual(gp2.CCC, b.CCC);
-                Assert.AreEqual(gp2.Key, b.Key);
-            }
-        }
-        
         [TestClass]
         public class Issue32
         {
@@ -316,9 +189,9 @@ namespace Nino.UnitTests
                 };
 
 
-                var a = Nino.Serialization.Serializer.Serialize<MessagePackage>(package);
+                var a = package.Serialize();
                 Console.WriteLine(string.Join(",", a));
-                var b = Nino.Serialization.Deserializer.Deserialize<MessagePackage>(a);
+                Deserializer.Deserialize(a, out MessagePackage b);
                 Assert.IsTrue(package.agreement == b.agreement);
                 Assert.IsTrue(package.move.id == b.move.id);
                 Assert.IsTrue(package.move.x.ToString() == b.move.x.ToString());
@@ -328,8 +201,8 @@ namespace Nino.UnitTests
                 Assert.IsTrue(package.move.eulerY.ToString() == b.move.eulerY.ToString());
                 Assert.IsTrue(package.move.eulerZ.ToString() == b.move.eulerZ.ToString());
             }
-            
-            public enum AgreementType: byte
+
+            public enum AgreementType : byte
             {
                 Enter = 1,
                 EnemyEnter = 2,
@@ -346,15 +219,15 @@ namespace Nino.UnitTests
                 GetID = 12,
             }
 
-            [NinoSerialize(true)]
-            public partial class MessagePackage
+            [NinoType()]
+            public class MessagePackage
             {
                 public AgreementType agreement;
                 public Move move;
             }
 
-            [NinoSerialize]
-            public partial class Move
+            [NinoType]
+            public class Move
             {
                 [NinoMember(1)] public int id;
                 [NinoMember(2)] public float x;
@@ -366,9 +239,8 @@ namespace Nino.UnitTests
 
                 public Move()
                 {
-                    
                 }
-                
+
                 public Move(int id, float x, float y, float z, float eulerX, float eulerY, float eulerZ)
                 {
                     this.id = id;
@@ -379,7 +251,6 @@ namespace Nino.UnitTests
                     this.eulerY = eulerY;
                     this.eulerX = eulerZ;
                 }
-
             }
         }
     }

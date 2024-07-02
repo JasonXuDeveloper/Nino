@@ -2,15 +2,16 @@
 
 ## 定义可序列化类型
 
-- 给需要Nino序列化/反序列化的类或结构体，打上```[NinoSerialize]```标签，如果**需要自动收集全部字段和属性，则该标签内部加入个true参数**，如```[NinoSerialize(true)]```（默认是true），收集顺序是从第一个field开始到最后一个field，然后是第一个property到最后一个property
+- 给需要Nino序列化/反序列化的类或结构体，打上```[NinoType]```标签，会自动收集所有public字段和包含getter与setter的属性
+- 如果**不需要自动收集全部字段和属性，则该标签内部加入个false参数**，如```[NinoType(false)]```（默认是true）
 - 如果**没有自动收集全部字段和属性**，则需要给想序列化/反序列化的字段或属性，打上```[NinoMember()]```标签，标签内部需要传入一个数字参数，即序列化和反序列化时该成员的位置，如```[NinoMember(1)]```，收集顺序是按标签的数字从小到大排序的
 - 如果**开启了自动收集全部字段和属性**，且**需要略过某些字段或属性**，请将其打上```[NinoIgnore]```标签，需要注意的是，如果没开启自动收集，该标签会无效
 
 代码示范：
 
 ```csharp
-[NinoSerialize(true)]
-public partial struct IncludeAllClass
+[NinoType]
+public struct AutoCollectStruct
 {
   public int a;
   public long b;
@@ -23,8 +24,8 @@ public partial struct IncludeAllClass
   }
 }
 
-[NinoSerialize]
-public partial struct NotIncludeAllClass
+[NinoType(false)]
+public partial struct NotAutoCollectStruct
 {
   [NinoMember(1)]
   public int a;
@@ -42,243 +43,85 @@ public partial struct NotIncludeAllClass
 }
 ```
 
-> 建议每个需要Nino序列化/反序列化的类和结构体用partial定义，这样可以生成代码
->
-> **强烈建议通过生成代码来提高性能，但是需要注意，每次更新字段或属性后需要重新生成代码来更新**
->
-> 如果不需要序列化`字符串`或`非固定长度的集合（例如string[]）`，则会生成非常高效的代码
->
-> **强烈推荐使用自动收集，这样会最大限度的优化生成出来的代码**
-
-
+> 推荐使用字段而非属性，性能略好
 
 ## 版本兼容
 
 - 可以给已序列化的相同类型的字段/属性改名
-- 可以给已序列化的字段/属性改成相同大小的类型（`int`->`uint`，`int`->`float`，`List<long>`->`List<double`，`List<int[]>`->`List<float[]`）
+- 可以给已序列化的字段/属性改成相同内存大小的类型（`int`->`uint`，`int`->`float`，`List<long>`->`List<double`，`List<int[]>`->`List<float[]`）
 - 可以加入新的字段/属性（需要确保index在老字段/属性的后面，自动收集的话则将新的字段/属性确保是最后定义的即可）
 - **不可以**删除被收集的字段/属性
 - **不可以**添加收集字段/属性
 - **可以添加**不被收集的字段/属性
-
-
 
 ## 支持类型
 
 支持序列化的成员类型（底层自带支持）：
 
 - byte, sbyte, short, ushort, int, uint, long, ulong, double, float, decimal, char, string, bool, enum, DateTime, [任意UnmanagedType](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/unmanaged-types)
+- 标记了NinoType的类型
 - Nullable<任意支持Nino序列化的struct>
-- List<可Nino序列化类型>，HashSet<可Nino序列化类型>，Queue<可Nino序列化类型>，Stack<可Nino序列化类型>，可Nino序列化类型[]， ICollection<可Nino序列化>
+- List<可Nino序列化类型>，HashSet<可Nino序列化类型>，可Nino序列化类型[]， ICollection<可Nino序列化>
 - Dictionary<Nino支持类型,Nino支持类型>，IDictionary<可Nino序列化>
 - 可Nino序列化类型
 - null
 
-不支持序列化的成员类型（可以通过注册自定义包装器实现）：
+不支持序列化的成员类型：
 
 - 任何非上述类型
 
-**不支持多态！！！**
+**支持多态！！！**
 
 ## 限制
 
-- 不支持给非partial或Nested类型和结构体生成代码
-- 暂时不支持给泛型序列化类型和结构体生成代码
+- 需要搭配Source Generator使用
+- 不支持使用NinoType去修饰自定义泛型类型
+- 无泛型序列化/反序列化非托管类型的代码
+- 无法序列化/反序列化非public字段/属性
+- 需要有空参数的构造函数
+- 如果定义了不支持序列化的类型（如Queue）则会导致编译错误
+- 暂时需要序列化端和反序列化端需要使用Nino序列化的类型一一对应（即假设我在A项目里用了Nino去序列化，有10个NinoType类型，那么我在B项目里反序列化A项目生成的二进制时，需确保B项目里也不多不少只有这10个NinoType类型）
 
+## Unity支持
 
+计划八月推出，需要使用Roslyn Analyzer （需要Unity2021）
 
-## 代码热更
+## 代码热更（Unity）
 
-- 暂时因为**ILRuntime**原理限制，Nino无法支持**ILRuntime**
-
-- Nino支持**HybridCLR**
-
-
-
-## 注册自定义包装器
-
-包装器是Nino提供的一个基类，内部需要实现序列化和反序列化，实现后，全局给该类型序列化或反序列化时，会调用这里的代码
-
-需要注意的是，不需要同时注册自定义包装器和自定义委托，如果同时注册了这两个东西，只有最后注册的那个会生效
-
-使用方法：
-
-- 创建一个类型，并继承```NinoWrapperBase<T>```，T是你需要序列化/反序列化的类型，也可以用泛型代替，可以自由发挥
-- 实现```public override void Serialize(T val, ref Writer writer)```，自行根据```Nino.Serialization.Writer```的公共接口来序列化T类型的数据即可
-- 实现```public override T Deserialize(Reader reader)```，自行根据```Nino.Serialization.Reader```的公共接口来实现反序列化T类型的数据即可
-- 实现`public overrid int GetSize(T val)`，自行返回该类型的长度即可
-- 调用```WrapperManifest.AddWrapper(typeof(T), new NinoWrapperBase<T>());```以注册接口包装器
-
-示例：
-
-```csharp
-[NinoSerialize(false)]
-public partial class CustomTypeTest
-{
-  [NinoMember(1)] public Vector3 v3;
-
-  [NinoMember(2)] private DateTime dt = DateTime.Now;
-
-  [NinoMember(3)] public int? ni { get; set; }
-
-  [NinoMember(4)] public List<Quaternion> qs;
-
-  [NinoMember(5)] public Matrix4x4 m;
-
-  [NinoMember(6)] public Dictionary<string, int> dict;
-
-  [NinoMember(7)] public Dictionary<string, Data> dict2;
-
-  public override string ToString()
-  {
-    return
-      $"{v3}, {dt}, {ni}, {String.Join(",", qs)}, {m.ToString()}\n" +
-      $"dict.keys: {string.Join(",", dict.Keys)},\ndict.values:{string.Join(",", dict.Values)}\n" +
-      $"dict2.keys: {string.Join(",", dict2.Keys)},\ndict2.values:{string.Join(",", dict2.Values)}\n";
-  }
-}
-
-public class CustomTypeTestWrapper : NinoWrapperBase<CustomTypeTest>
-{
-  public override void Serialize(CustomTypeTest val, ref Writer writer)
-  {
-    writer.Write(ref val.v3, sizeof(float) * 3);
-    writer.Write(ref val.m, sizeof(float) * 16);
-    writer.Write(val.ni);
-    writer.Write(val.qs);
-    writer.Write(val.dict);
-    writer.Write(val.dict2);
-  }
-
-  public override CustomTypeTest Deserialize(Reader reader)
-  {
-    var ret = new CustomTypeTest();
-    reader.Read(ref ret.v3, sizeof(float) * 3);
-    reader.Read(ref ret.m, sizeof(float) * 16);
-    ret.ni = reader.ReadNullable<int>();
-    ret.qs = reader.ReadList<Quaternion>();
-    ret.dict = reader.ReadDictionary<string, int>();
-    ret.dict2 = reader.ReadDictionary<string, Data>();
-    return ret;
-  }
-
-  public override int GetSize(CustomTypeTest val)
-  {
-    int ret = 1;
-    ret += sizeof(float) * 3;
-    ret += sizeof(float) * 16;
-    ret += Serializer.GetSize(val.ni);
-    ret += Serializer.GetSize(val.qs);
-    ret += Serializer.GetSize(val.dict);
-    ret += Serializer.GetSize(val.dict2);
-    return ret;
-  }
-}
-
-//别忘了在某个地方调用下面的代码：
-WrapperManifest.AddWrapper(typeof(CustomTypeTest), new CustomTypeTestWrapper());
-```
-
-
-
-## 代码生成
-
-不生成代码也不会影响使用，但是生成后性能快很多很多很多（ILRuntime反而会慢一点，因为原理问题）
-
-- Unity下直接在菜单栏点击```Nino/Generator/Serialization Code```即可，代码会生成到```Assets/Nino/Generated```，也可以打开```Assets/Nino/Editor/SerializationHelper.cs```并修改内部的```ExportPath```参数
-- 非Unity下调用```CodeGenerator.GenerateSerializationCodeForAllTypePossible```接口即可
-- **开启了自动收集字段和属性，生成代码和没生成代码，序列化的结果是一样的，但是速度会快很多**
-
-> 不想生成代码的类或结构体可以打```[CodeGenIgnore]```标签到该类或结构体上，可以在性能对比的时候用这个（例如[这个真机测试](../Nino_Unity/Assets/Nino/Test/BuildTest.cs)）
-
-
-
-## 压缩方式
-
-Nino支持以下三种压缩方式：
-
-- Zlib(高压缩率低性能)
-- Lz4(平均压缩率高性能)
-- 无压缩(高性能但体积很大)
-
-
-
-> 序列化和反序列化的时候可以选择压缩方式，但是需要注意反序列化数据的时候，需要用和序列化时相同的压缩方式去反序列化
->
-> 注意，v1.2.0~1.2.2暂时仅支持无压缩
-
-
+- Nino支持**HybridCLR**与**ILRuntime**
 
 ## 序列化
 
 ```csharp
-byte[] Nino.Serialization.Serializer.Serialize<T>(T val);
-byte[] Nino.Serialization.Serializer.Serialize(object val);
-```
-
-```csharp
-int Nino.Serialization.Serializer.Serialize<T>(Span<byte> buffer, in T val);
-int Nino.Serialization.Serializer.Serialize(Span<byte> buffer, object val)
+byte[] Nino.Serializer.Serialize(可Nino序列化类型 val);
+void Nino.Serializer.Serialize(可Nino序列化类型 val, IBufferWriter<byte> bufferWriter);
 ```
 
 示范：
 
 ```csharp
 //懒人写法
-byte[] byteArr = Nino.Serialization.Serializer.Serialize<ObjClass>(obj);
+ObjClass obj = new ObjClass();
+byte[] byteArr = Nino.Serializer.Serialize(obj);
+//或
+byteArr = obj.Serialize();
 
-//进阶写法：速度快且将近0GC的写法：
-
-//也可以搭配stackalloc使用
-Span<byte> stackMemory = stackalloc byte[1024];//请确保这个对象不可能超过1024字节
-int writtenSize = Nino.Serialization.Serializer.Serialize<ObjClass>(stackMemory, obj);
-//将stackMemory.Slice(writtenSize) 写入网络流之类的
-...
-//也可以搭配ArrayPool使用
-int size = Nino.Serialization.Serializer.GetSize<ObjClass>(obj);
-byte[] arr = ArrayPool<byte>.Shared.Rent(size);
-Nino.Serialization.Serializer.Serialize<ObjClass>(new Span<byte>(arr, 0, size), obj);
-//将arr的第0个到第size个字节写入流
-ArrayPool<byte>.Shared.Return(arr);
+//进阶写法：速度快且将近0GC的写法：请自己根据用法封装个实现了IBufferWritter<byte>的类型，这样的话不一定需要在序列化结束后分配新的二进制数组
 ```
-
-传入需要序列化的类型作为泛型参数，以及该类型的实例，会返回二进制数组
-
-还有其他类型的序列化：
-
-```csharp
-byte[] Serialize<T>(T[] val);
-byte[] Serialize<T>(T? val);
-byte[] Serialize<T>(List<T> val);
-byte[] Serialize<T>(HashSet<T> val);
-byte[] Serialize<T>(Queue<T> val);
-byte[] Serialize<T>(Stack<T> val);
-byte[] Serialize<TKey, TValue>(Dictionary<TKey, TValue> val);
-```
-
-
 
 ## 反序列化
 
 ```csharp
-T Nino.Serialization.Deserializer.Deserialize<T>(byte[] data);
-object Nino.Serialization.Deserializer.Deserialize(Type type, byte[] data);
-T[] Nino.Serialization.Deserializer.DeserializeArray<T>(byte[] data);
-T? Nino.Serialization.Deserializer.DeserializeNullable<T>(byte[] data);
-List<T> Nino.Serialization.Deserializer.DeserializeList<T>(byte[] data);
-HashSet<T> Nino.Serialization.Deserializer.DeserializeHashSet<T>(byte[] data);
-Queue<T> Nino.Serialization.Deserializer.DeserializeQueue<T>(byte[] data);
-Stack<T> Nino.Serialization.Deserializer.DeserializeStack<T>(byte[] data);
+void Nino.Deserializer.Deserialize(ReadOnlySpan<byte> data, out 可Nino序列化类型 value);
 ```
 
 > data不仅可以传```byte[]```，还可以```ArraySegment<byte>```或```Span<byte>```
->
 
 示范：
 
 ```csharp
 //假设这里byteArr是byte[]
-var obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(byteArr);
+Nino.Deserializer.Deserialize(byteArr, out ObjClass obj);
 ...
 //高级用法，假设网络层传来了数据（比如Pipeline），我们收到了ReadOnlySequence<byte>
 //这样写性能最最最最好
@@ -287,7 +130,7 @@ ObjClass obj;
 if(data.IsSingleSegment)
 {
   Span<byte> dataSpan = data.FirstSpan;
-  obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(dataSpan);
+  Nino.Deserializer.Deserialize(dataSpan, out ObjClass obj);
 }
 else
 {
@@ -295,44 +138,14 @@ else
   {
     Span<byte> stackMemory = stackalloc byte[(int)data.Length];
     data.CopyTo(stackMemory);
-    obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(stackMemory);
+    Nino.Deserializer.Deserialize(stackMemory, out ObjClass obj);
   }
   else
   {
     byte[] arr = ArrayPool<byte>.Shared.Rent((int)data.Length);
-    obj = Nino.Serialization.Deserializer.Deserialize<ObjClass>(new Span<byte>(arr, 0, (int)data.Length));
+    data.CopyTo(arr);
+    Nino.Deserializer.Deserialize(arr, out ObjClass obj);
     ArrayPool<byte>.Shared.Return(arr);
   }
 }
 ```
-
-传入需要反序列化的类型作为泛型参数，以及序列化结果的二进制数组，会返回反序列化出的对象实例
-
-
-
-## 注意事项
-
-```Nino.Serialization v1.2.0```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析，同时需要生成新的代码！！！
-
-> 这个版本去掉了多态，同时去掉了数字类型压缩，改造了代码生成
-
-
-
-```Nino.Serialization v1.1.2```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！
-
-> 这个版本开始支持了多态了，所以Array/List/HashSet/Queue/Stack等集合类型的二进制格式有变化
-
-
-
-```Nino.Serialization v1.1.0```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！
-
-> 这个版本开始支持了null对象，所以二进制格式有变化
-
-
-
-```Nino.Serialization v1.0.21```与其**之前**的**所有版本**都**不兼容**，升级Nino后需要用新版```Writer/Serializer```  **重新导出** 一份数据，才能被最新版的```Reader/Deserializer```正常解析！！！（```v1.0.21```有个Log忘删了，所以补发了```v1.0.21.2```）
-
-从这个版本开始，```序列化```和```反序列化```时不再需要提供```Encoding```参数！！！
-
-> 出现以上变更的原因是：从这个版本开始，1）字符串直接用C#底层的Utf16编码，直接把```byte*```与字符串的```char*```互转；2）压缩数据时，正整数统一采用无符号类型压缩，负整数统一采用有符号类型压缩，这样可以直接在读取时对读取字段的指针赋值为对应原数据（负整数额外在有符号类型的二进制内进行```memset```填充255（```11111111```）来解决符号问题
-

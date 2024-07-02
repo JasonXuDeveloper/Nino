@@ -29,6 +29,9 @@
         </Reference>
       </ItemGroup>
       <ItemGroup>
-        <ProjectReference Include="..\Nino.Serialization\Nino.Serialization.csproj" />
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" />
+        <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"/>
       </ItemGroup>
 </Project>

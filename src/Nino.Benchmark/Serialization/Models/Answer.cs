@@ -8,13 +8,14 @@ using System;
 using System.Collections.Generic;
 using ProtoBuf;
 using MessagePack;
-using Nino.Serialization;
+using Nino.Core;
+
 #pragma warning disable 8618
 
 namespace Nino.Benchmark.Models
 {
     [ProtoContract, Serializable, System.Runtime.Serialization.DataContract, MessagePackObject]
-    [NinoSerialize]
+    [NinoType]
     public partial class Answer : IGenericEquality<Answer>
     {
         [System.Runtime.Serialization.DataMember, ProtoMember(1), Key(1 - 1), NinoMember(0)]

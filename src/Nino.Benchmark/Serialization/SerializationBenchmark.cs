@@ -4,6 +4,7 @@ using Nino.Benchmark.Models;
 using Nino.Benchmark.Serializers;
 using BenchmarkDotNet.Attributes;
 using System.Collections.Generic;
+
 #pragma warning disable 8618
 
 namespace Nino.Benchmark
@@ -21,7 +22,6 @@ namespace Nino.Benchmark
             new JsonNetSerializer(),
             new BinaryFormatterSerializer(),
             new DataContractSerializer(),
-            new HyperionSerializer(),
             new JilSerializer(),
             new SpanJsonSerializer(),
             new Utf8JsonSerializer(),
@@ -84,25 +84,25 @@ namespace Nino.Benchmark
 
         protected static NestedData NestedDataInput;
 
-        private object _sByteOutput;
-        private object _shortOutput;
-        private object _intOutput;
-        private object _longOutput;
-        private object _byteOutput;
-        private object _uShortOutput;
-        private object _uIntOutput;
-        private object _uLongOutput;
-        private object _boolOutput;
-        private object _stringOutput;
-        private object _charOutput;
-        private object _dateTimeOutput;
+        private byte[] _sByteOutput;
+        private byte[] _shortOutput;
+        private byte[] _intOutput;
+        private byte[] _longOutput;
+        private byte[] _byteOutput;
+        private byte[] _uShortOutput;
+        private byte[] _uIntOutput;
+        private byte[] _uLongOutput;
+        private byte[] _boolOutput;
+        private byte[] _stringOutput;
+        private byte[] _charOutput;
+        private byte[] _dateTimeOutput;
 
-        private object _accessTokenOutput;
-        private object _accountMergeOutput;
-        private object _answerOutput;
-        private object _badgeOutput;
-        private object _commentOutput;
-        private object _nestedDataOutput;
+        private byte[] _accessTokenOutput;
+        private byte[] _accountMergeOutput;
+        private byte[] _answerOutput;
+        private byte[] _badgeOutput;
+        private byte[] _commentOutput;
+        private byte[] _nestedDataOutput;
 
         [GlobalSetup]
         public void Setup()
@@ -117,17 +117,17 @@ namespace Nino.Benchmark
             this._uIntOutput = this.Serializer.Serialize(UIntInput);
             this._uLongOutput = this.Serializer.Serialize(ULongInput);
             this._boolOutput = this.Serializer.Serialize(BoolInput);
-            this._stringOutput = this.Serializer.Serialize(StringInput);
+            this._stringOutput = this.Serializer.SerializeString(StringInput);
             this._charOutput = this.Serializer.Serialize(CharInput);
             this._dateTimeOutput = this.Serializer.Serialize(DateTimeInput);
 
             // models
-            this._accessTokenOutput = this.Serializer.Serialize(AccessTokenInput);
-            this._accountMergeOutput = this.Serializer.Serialize(AccountMergeInput);
-            this._answerOutput = this.Serializer.Serialize(AnswerInput);
-            this._badgeOutput = this.Serializer.Serialize(BadgeInput);
-            this._commentOutput = this.Serializer.Serialize(CommentInput);
-            this._nestedDataOutput = this.Serializer.Serialize(NestedDataInput);
+            this._accessTokenOutput = this.Serializer.SerializeAccessToken(AccessTokenInput);
+            this._accountMergeOutput = this.Serializer.SerializeAccountMerge(AccountMergeInput);
+            this._answerOutput = this.Serializer.SerializeAnswer(AnswerInput);
+            this._badgeOutput = this.Serializer.SerializeBadge(BadgeInput);
+            this._commentOutput = this.Serializer.SerializeComment(CommentInput);
+            this._nestedDataOutput = this.Serializer.SerializeNestedData(NestedDataInput);
         }
 
         private static string GetString(int len)
@@ -140,58 +140,58 @@ namespace Nino.Benchmark
         // Serialize
 
         [Benchmark]
-        public object _PrimitiveSByteSerialize() => this.Serializer.Serialize(SByteInput);
+        public byte[] _PrimitiveSByteSerialize() => this.Serializer.Serialize(SByteInput);
 
         [Benchmark]
-        public object _PrimitiveShortSerialize() => this.Serializer.Serialize(ShortInput);
+        public byte[] _PrimitiveShortSerialize() => this.Serializer.Serialize(ShortInput);
 
         [Benchmark]
-        public object _PrimitiveIntSerialize() => this.Serializer.Serialize(IntInput);
+        public byte[] _PrimitiveIntSerialize() => this.Serializer.Serialize(IntInput);
 
         [Benchmark]
-        public object _PrimitiveLongSerialize() => this.Serializer.Serialize(LongInput);
+        public byte[] _PrimitiveLongSerialize() => this.Serializer.Serialize(LongInput);
 
         [Benchmark]
-        public object _PrimitiveByteSerialize() => this.Serializer.Serialize(ByteInput);
+        public byte[] _PrimitiveByteSerialize() => this.Serializer.Serialize(ByteInput);
 
         [Benchmark]
-        public object _PrimitiveUShortSerialize() => this.Serializer.Serialize(UShortInput);
+        public byte[] _PrimitiveUShortSerialize() => this.Serializer.Serialize(UShortInput);
 
         [Benchmark]
-        public object _PrimitiveUIntSerialize() => this.Serializer.Serialize(UIntInput);
+        public byte[] _PrimitiveUIntSerialize() => this.Serializer.Serialize(UIntInput);
 
         [Benchmark]
-        public object _PrimitiveULongSerialize() => this.Serializer.Serialize(ULongInput);
+        public byte[] _PrimitiveULongSerialize() => this.Serializer.Serialize(ULongInput);
 
         [Benchmark]
-        public object _PrimitiveBoolSerialize() => this.Serializer.Serialize(BoolInput);
+        public byte[] _PrimitiveBoolSerialize() => this.Serializer.Serialize(BoolInput);
 
         [Benchmark]
-        public object _PrimitiveStringSerialize() => this.Serializer.Serialize(StringInput);
+        public byte[] _PrimitiveStringSerialize() => this.Serializer.SerializeString(StringInput);
 
         [Benchmark]
-        public object _PrimitiveCharSerialize() => this.Serializer.Serialize(CharInput);
+        public byte[] _PrimitiveCharSerialize() => this.Serializer.Serialize(CharInput);
 
         [Benchmark]
-        public object _PrimitiveDateTimeSerialize() => this.Serializer.Serialize(DateTimeInput);
+        public byte[] _PrimitiveDateTimeSerialize() => this.Serializer.Serialize(DateTimeInput);
 
         [Benchmark]
-        public object AccessTokenSerialize() => this.Serializer.Serialize(AccessTokenInput);
+        public byte[] AccessTokenSerialize() => this.Serializer.SerializeAccessToken(AccessTokenInput);
 
         [Benchmark]
-        public object AccountMergeSerialize() => this.Serializer.Serialize(AccountMergeInput);
+        public byte[] AccountMergeSerialize() => this.Serializer.SerializeAccountMerge(AccountMergeInput);
 
         [Benchmark]
-        public object AnswerSerialize() => this.Serializer.Serialize(AnswerInput);
+        public byte[] AnswerSerialize() => this.Serializer.SerializeAnswer(AnswerInput);
 
         [Benchmark]
-        public object BadgeSerialize() => this.Serializer.Serialize(BadgeInput);
+        public byte[] BadgeSerialize() => this.Serializer.SerializeBadge(BadgeInput);
 
         [Benchmark]
-        public object CommentSerialize() => this.Serializer.Serialize(CommentInput);
+        public byte[] CommentSerialize() => this.Serializer.SerializeComment(CommentInput);
 
         [Benchmark]
-        public object NestedDataSerialize() => this.Serializer.Serialize(NestedDataInput);
+        public byte[] NestedDataSerialize() => this.Serializer.SerializeNestedData(NestedDataInput);
 
         // Deserialize
 
@@ -223,7 +223,7 @@ namespace Nino.Benchmark
         public bool _PrimitiveBoolDeserialize() => this.Serializer.Deserialize<bool>(this._boolOutput);
 
         [Benchmark]
-        public String _PrimitiveStringDeserialize() => this.Serializer.Deserialize<String>(this._stringOutput);
+        public String _PrimitiveStringDeserialize() => this.Serializer.DeserializeString(this._stringOutput);
 
         [Benchmark]
         public Char _PrimitiveCharDeserialize() => this.Serializer.Deserialize<Char>(this._charOutput);
@@ -232,22 +232,22 @@ namespace Nino.Benchmark
         public DateTime _PrimitiveDateTimeDeserialize() => this.Serializer.Deserialize<DateTime>(this._dateTimeOutput);
 
         [Benchmark]
-        public AccessToken AccessTokenDeserialize() => this.Serializer.Deserialize<AccessToken>(this._accessTokenOutput);
+        public AccessToken AccessTokenDeserialize() => this.Serializer.DeserializeAccessToken(this._accessTokenOutput);
 
         [Benchmark]
         public AccountMerge AccountMergeDeserialize() =>
-            this.Serializer.Deserialize<AccountMerge>(this._accountMergeOutput);
+            this.Serializer.DeserializeAccountMerge(this._accountMergeOutput);
 
         [Benchmark]
-        public Answer AnswerDeserialize() => this.Serializer.Deserialize<Answer>(this._answerOutput);
+        public Answer AnswerDeserialize() => this.Serializer.DeserializeAnswer(this._answerOutput);
 
         [Benchmark]
-        public Badge BadgeDeserialize() => this.Serializer.Deserialize<Badge>(this._badgeOutput);
+        public Badge BadgeDeserialize() => this.Serializer.DeserializeBadge(this._badgeOutput);
 
         [Benchmark]
-        public Comment CommentDeserialize() => this.Serializer.Deserialize<Comment>(this._commentOutput);
+        public Comment CommentDeserialize() => this.Serializer.DeserializeComment(this._commentOutput);
 
         [Benchmark]
-        public NestedData NestedDataDeserialize() => this.Serializer.Deserialize<NestedData>(this._nestedDataOutput);
+        public NestedData NestedDataDeserialize() => this.Serializer.DeserializeNestedData(this._nestedDataOutput);
     }
 }
