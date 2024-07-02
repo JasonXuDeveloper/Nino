@@ -10,16 +10,16 @@
         <IsRoslynComponent>true</IsRoslynComponent>
 
         <RootNamespace>Nino.Generator</RootNamespace>
-        <PackageId>Nino.Serialization</PackageId>
+        <PackageId>Nino.Generator</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.0.0</Version>
-        <Title>Nino.Serialization</Title>
+        <Version>2.0.0.2</Version>
+        <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
-        <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
+        <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
         <Copyright>JasonXuDeveloper</Copyright>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
-        <PackageTags>Nino;Serialization;Binary</PackageTags>
+        <PackageTags>Nino;Serialization;Binary;Generator</PackageTags>
         <PackageReleaseNotes>Nino.Serialization v2.0.0
 - [Optimisation] More efficient code generated via Source Generator
 - [Feature] Polymorphism Solution for Collections Serialization</PackageReleaseNotes>
@@ -37,6 +37,10 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
 
 

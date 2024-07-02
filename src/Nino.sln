@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.Core", "Nino.Core\Nino
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.Generator", "Nino.Generator\Nino.Generator.csproj", "{F2E55A22-A39A-45F9-B200-CD24C5E49466}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino", "Nino\Nino.csproj", "{B6F64479-D851-495A-BCA6-6B479459D5CB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{F2E55A22-A39A-45F9-B200-CD24C5E49466}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F2E55A22-A39A-45F9-B200-CD24C5E49466}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F2E55A22-A39A-45F9-B200-CD24C5E49466}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B6F64479-D851-495A-BCA6-6B479459D5CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B6F64479-D851-495A-BCA6-6B479459D5CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B6F64479-D851-495A-BCA6-6B479459D5CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B6F64479-D851-495A-BCA6-6B479459D5CB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

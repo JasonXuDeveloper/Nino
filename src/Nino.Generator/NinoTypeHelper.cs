@@ -134,8 +134,15 @@ public static class NinoTypeHelper
 
     private static string GetNamespace(SyntaxNode node)
     {
+        //namespace XXX { ... }
         var namespaceDeclaration = node.Ancestors().OfType<NamespaceDeclarationSyntax>().FirstOrDefault();
-        return namespaceDeclaration?.Name.ToString() ?? string.Empty;
+        //file-scoped namespace i.e. namespace XXX;
+        if (namespaceDeclaration == null)
+        {
+            var fileScopedNamespace = node.Ancestors().OfType<FileScopedNamespaceDeclarationSyntax>().FirstOrDefault();
+            return fileScopedNamespace?.Name.ToString() ?? string.Empty;
+        }
+        return namespaceDeclaration.Name.ToString();
     }
 
     private static string GetFullTypeName(TypeDeclarationSyntax typeDeclaration, string separator = ".")

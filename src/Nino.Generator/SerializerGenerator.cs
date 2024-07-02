@@ -98,135 +98,146 @@ public class SerializerGenerator : IIncrementalGenerator
         sb.GenerateClassSerializeMethods("T?", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("List<T>", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("Span<T>", "<T>", "where T : unmanaged");
-        sb.GenerateClassSerializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged");
-        sb.GenerateClassSerializeMethods("IDictionary<TKey, TValue>", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged");
+        sb.GenerateClassSerializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>",
+            "where TKey : unmanaged where TValue : unmanaged");
+        sb.GenerateClassSerializeMethods("IDictionary<TKey, TValue>", "<TKey, TValue>",
+            "where TKey : unmanaged where TValue : unmanaged");
         sb.GenerateClassSerializeMethods("ICollection<T>", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("bool");
         sb.GenerateClassSerializeMethods("string");
 
         foreach (var model in models)
         {
-            string typeFullName = model.GetTypeFullName();
-
-            //only generate for top nino types
-            if (!topNinoTypes.Contains(typeFullName))
+            try
             {
-                var topType = topNinoTypes.FirstOrDefault(t => subTypeMap.ContainsKey(t) && subTypeMap[t].Contains(typeFullName));
-                if (topType == null)
-                    throw new Exception("topType is null");
+                string typeFullName = model.GetTypeFullName();
 
-                continue;
-            }
-
-            sb.GenerateClassSerializeMethods(typeFullName);
-
-            // only applicable for reference types
-            bool isReferenceType = model is ClassDeclarationSyntax;
-            if (isReferenceType)
-            {
-                sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveOptimization)]");
-                sb.AppendLine(
-                    $"        private static void Serialize(this {typeFullName} value, ref Writer writer)");
-                sb.AppendLine("        {");
-                sb.AppendLine("            if (value == null)");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                writer.Write((ushort)TypeCollector.NullTypeId);");
-                sb.AppendLine("                return;");
-                sb.AppendLine("            }");
-                sb.AppendLine();
-            }
-            else
-            {
-                var structSymbol = compilation.GetTypeByMetadataName(typeFullName);
-                if (structSymbol == null)
+                //only generate for top nino types
+                if (!topNinoTypes.Contains(typeFullName))
                 {
-                    //check if is a nested type
-                    TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                        string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
-                    if (typeDeclarationSyntax == null)
-                        throw new Exception("typeDeclarationSyntax is null");
-                    
-                    var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                    structSymbol = compilation.GetTypeByMetadataName(typeFullName2);
-                    if (structSymbol == null) 
-                        throw new Exception("structSymbol is null");
-                }
-                
-                // check if struct is unmanged
-                if (structSymbol.IsUnmanagedType)
-                {
+                    var topType = topNinoTypes.FirstOrDefault(t =>
+                        subTypeMap.ContainsKey(t) && subTypeMap[t].Contains(typeFullName));
+                    if (topType == null)
+                        throw new Exception("topType is null");
+
                     continue;
                 }
 
-                sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveOptimization)]");
-                sb.AppendLine(
-                    $"        private static void Serialize(this {typeFullName} value, ref Writer writer)");
-                sb.AppendLine("        {");
-            }
+                sb.GenerateClassSerializeMethods(typeFullName);
 
-            void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
-            {
-                foreach (var memberDeclarationSyntax in members)
+                // only applicable for reference types
+                bool isReferenceType = model is ClassDeclarationSyntax;
+                if (isReferenceType)
                 {
-                    var name = memberDeclarationSyntax.GetMemberName();
-                    // see if declaredType is a NinoType
-                    var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
-                    //check if declaredType is a NinoType
-                    if (declaredType == null)
-                        throw new Exception("declaredType is null");
-
-                    sb.AppendLine($"                    {valName}.{name}.Serialize(ref writer);");
+                    sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveOptimization)]");
+                    sb.AppendLine(
+                        $"        private static void Serialize(this {typeFullName} value, ref Writer writer)");
+                    sb.AppendLine("        {");
+                    sb.AppendLine("            if (value == null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                writer.Write((ushort)TypeCollector.NullTypeId);");
+                    sb.AppendLine("                return;");
+                    sb.AppendLine("            }");
+                    sb.AppendLine();
                 }
-            }
-
-            if (subTypeMap.TryGetValue(typeFullName, out var lst))
-            {
-                //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
-                lst.Sort((a, b) =>
+                else
                 {
-                    int aCount = inheritanceMap[a].Count;
-                    int bCount = inheritanceMap[b].Count;
-                    return bCount.CompareTo(aCount);
-                });
+                    var structSymbol = compilation.GetTypeByMetadataName(typeFullName);
+                    if (structSymbol == null)
+                    {
+                        //check if is a nested type
+                        TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
+                            string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
+                        if (typeDeclarationSyntax == null)
+                            throw new Exception("typeDeclarationSyntax is null");
 
+                        var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
+                        structSymbol = compilation.GetTypeByMetadataName(typeFullName2);
+                        if (structSymbol == null)
+                            throw new Exception("structSymbol is null");
+                    }
 
-                sb.AppendLine($"            switch (value)");
-                sb.AppendLine("            {");
+                    // check if struct is unmanged
+                    if (structSymbol.IsUnmanagedType)
+                    {
+                        continue;
+                    }
 
-                foreach (var subType in lst)
+                    sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveOptimization)]");
+                    sb.AppendLine(
+                        $"        private static void Serialize(this {typeFullName} value, ref Writer writer)");
+                    sb.AppendLine("        {");
+                }
+
+                void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
                 {
-                    string valName = subType.Replace(".", "_").ToLower();
-                    sb.AppendLine($"                case {subType} {valName}:");
-                    sb.AppendLine($"                    writer.Write((ushort){GetId(subType)});");
+                    foreach (var memberDeclarationSyntax in members)
+                    {
+                        var name = memberDeclarationSyntax.GetMemberName();
+                        // see if declaredType is a NinoType
+                        var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
+                        //check if declaredType is a NinoType
+                        if (declaredType == null)
+                            throw new Exception("declaredType is null");
+
+                        sb.AppendLine($"                    {valName}.{name}.Serialize(ref writer);");
+                    }
+                }
+
+                if (subTypeMap.TryGetValue(typeFullName, out var lst))
+                {
+                    //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
+                    lst.Sort((a, b) =>
+                    {
+                        int aCount = inheritanceMap[a].Count;
+                        int bCount = inheritanceMap[b].Count;
+                        return bCount.CompareTo(aCount);
+                    });
 
 
-                    List<TypeDeclarationSyntax> subTypeModels =
-                        models.Where(m => inheritanceMap[subType]
-                            .Contains(m.GetTypeFullName())).ToList();
+                    sb.AppendLine($"            switch (value)");
+                    sb.AppendLine("            {");
 
-                    var members = models.First(m => m.GetTypeFullName() == subType).GetNinoTypeMembers(subTypeModels);
-                    //get distinct members
-                    members = members.Distinct().ToList();
-                    WriteMembers(members, valName);
+                    foreach (var subType in lst)
+                    {
+                        string valName = subType.Replace(".", "_").ToLower();
+                        sb.AppendLine($"                case {subType} {valName}:");
+                        sb.AppendLine($"                    writer.Write((ushort){GetId(subType)});");
+
+
+                        List<TypeDeclarationSyntax> subTypeModels =
+                            models.Where(m => inheritanceMap[subType]
+                                .Contains(m.GetTypeFullName())).ToList();
+
+                        var members = models.First(m => m.GetTypeFullName() == subType)
+                            .GetNinoTypeMembers(subTypeModels);
+                        //get distinct members
+                        members = members.Distinct().ToList();
+                        WriteMembers(members, valName);
+                        sb.AppendLine("                    break;");
+                    }
+
+                    sb.AppendLine("                default:");
+                    sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
+                    var defaultMembers = model.GetNinoTypeMembers(null);
+                    WriteMembers(defaultMembers, "value");
                     sb.AppendLine("                    break;");
+                    sb.AppendLine("            }");
+                }
+                else
+                {
+                    sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
+                    var members = model.GetNinoTypeMembers(null);
+                    WriteMembers(members, "value");
                 }
 
-                sb.AppendLine("                default:");
-                sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
-                var defaultMembers = model.GetNinoTypeMembers(null);
-                WriteMembers(defaultMembers, "value");
-                sb.AppendLine("                    break;");
-                sb.AppendLine("            }");
+                sb.AppendLine("        }");
+                sb.AppendLine();
             }
-            else
+            catch (Exception e)
             {
-                sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
-                var members = model.GetNinoTypeMembers(null);
-                WriteMembers(members, "value");
+                sb.AppendLine($"// Error: {e.Message} for type {model.GetTypeFullName()}: {e.StackTrace}");
             }
-
-            sb.AppendLine("        }");
-            sb.AppendLine();
         }
 
         // generate code
@@ -281,7 +292,7 @@ public class SerializerGenerator : IIncrementalGenerator
                      {{GeneratePrivateSerializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateSerializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GeneratePrivateSerializeImplMethodBody("Span<T>", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GeneratePrivateSerializeImplMethodBody("ICollection<T>", "        ", "<T>", "where T : unmanaged")}}
@@ -289,7 +300,7 @@ public class SerializerGenerator : IIncrementalGenerator
                      {{GeneratePrivateSerializeImplMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GeneratePrivateSerializeImplMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GeneratePrivateSerializeImplMethodBody("Span<T?>", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GeneratePrivateSerializeImplMethodBody("ICollection<T?>", "        ", "<T>", "where T : unmanaged")}}

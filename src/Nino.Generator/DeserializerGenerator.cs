@@ -106,144 +106,153 @@ public class DeserializerGenerator : IIncrementalGenerator
 
         foreach (var model in models)
         {
-            string typeFullName = model.GetTypeFullName();
-
-            //only generate for top nino types
-            if (!topNinoTypes.Contains(typeFullName))
+            try
             {
-                var topType = topNinoTypes.FirstOrDefault(t =>
-                    subTypeMap.ContainsKey(t) && subTypeMap[t].Contains(typeFullName));
-                if (topType == null)
-                    throw new Exception("topType is null");
+                string typeFullName = model.GetTypeFullName();
 
-                continue;
-            }
-
-            sb.GenerateClassDeserializeMethods(typeFullName);
-
-            // only applicable for reference types
-            bool isReferenceType = model is ClassDeclarationSyntax;
-            if (isReferenceType)
-            {
-                sb.AppendLine($$"""
-                                        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-                                        private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
-                                        {
-                                            value = null;
-                                            reader.Read(out ushort typeId);
-                                            if (typeId == TypeCollector.NullTypeId)
-                                            {
-                                                return;
-                                            }
-                                        
-                                """);
-            }
-            else
-            {
-                var structSymbol = compilation.GetTypeByMetadataName(typeFullName);
-                if (structSymbol == null)
+                //only generate for top nino types
+                if (!topNinoTypes.Contains(typeFullName))
                 {
-                    //check if is a nested type
-                    TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                        string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
-                    if (typeDeclarationSyntax == null)
-                        throw new Exception("typeDeclarationSyntax is null");
+                    var topType = topNinoTypes.FirstOrDefault(t =>
+                        subTypeMap.ContainsKey(t) && subTypeMap[t].Contains(typeFullName));
+                    if (topType == null)
+                        throw new Exception("topType is null");
 
-                    var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                    structSymbol = compilation.GetTypeByMetadataName(typeFullName2);
-                    if (structSymbol == null)
-                        throw new Exception("structSymbol is null");
-                }
-
-                // check if struct is unmanged
-                if (structSymbol.IsUnmanagedType)
-                {
                     continue;
                 }
 
-                sb.AppendLine($$"""
-                                        [MethodImpl(MethodImplOptions.AggressiveOptimization)]
-                                        private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
-                                        {
-                                            value = default;
-                                            reader.Read(out ushort typeId);
-                                        
-                                """);
-            }
+                sb.GenerateClassDeserializeMethods(typeFullName);
 
-            void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
-            {
-                foreach (var memberDeclarationSyntax in members)
+                // only applicable for reference types
+                bool isReferenceType = model is ClassDeclarationSyntax;
+                if (isReferenceType)
                 {
-                    var name = memberDeclarationSyntax.GetMemberName();
-                    // see if declaredType is a NinoType
-                    var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
-                    //check if declaredType is a NinoType
-                    if (declaredType == null)
-                        throw new Exception("declaredType is null");
-
-                    if (memberDeclarationSyntax is FieldDeclarationSyntax)
-                        sb.AppendLine($"                    Deserialize(out {valName}.{name}, ref reader);");
-                    else
+                    sb.AppendLine($$"""
+                                            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+                                            private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
+                                            {
+                                                value = null;
+                                                reader.Read(out ushort typeId);
+                                                if (typeId == TypeCollector.NullTypeId)
+                                                {
+                                                    return;
+                                                }
+                                            
+                                    """);
+                }
+                else
+                {
+                    var structSymbol = compilation.GetTypeByMetadataName(typeFullName);
+                    if (structSymbol == null)
                     {
-                        var tempName = $"temp_{name}";
-                        sb.AppendLine(
-                            $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
-                        sb.AppendLine($"                    {valName}.{name} = {tempName};");
+                        //check if is a nested type
+                        TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
+                            string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
+                        if (typeDeclarationSyntax == null)
+                            throw new Exception("typeDeclarationSyntax is null");
+
+                        var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
+                        structSymbol = compilation.GetTypeByMetadataName(typeFullName2);
+                        if (structSymbol == null)
+                            throw new Exception("structSymbol is null");
+                    }
+
+                    // check if struct is unmanged
+                    if (structSymbol.IsUnmanagedType)
+                    {
+                        continue;
+                    }
+
+                    sb.AppendLine($$"""
+                                            [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+                                            private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
+                                            {
+                                                value = default;
+                                                reader.Read(out ushort typeId);
+                                            
+                                    """);
+                }
+
+                void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
+                {
+                    foreach (var memberDeclarationSyntax in members)
+                    {
+                        var name = memberDeclarationSyntax.GetMemberName();
+                        // see if declaredType is a NinoType
+                        var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
+                        //check if declaredType is a NinoType
+                        if (declaredType == null)
+                            throw new Exception("declaredType is null");
+
+                        if (memberDeclarationSyntax is FieldDeclarationSyntax)
+                            sb.AppendLine($"                    Deserialize(out {valName}.{name}, ref reader);");
+                        else
+                        {
+                            var tempName = $"temp_{name}";
+                            sb.AppendLine(
+                                $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+                            sb.AppendLine($"                    {valName}.{name} = {tempName};");
+                        }
                     }
                 }
-            }
 
-            if (!subTypeMap.TryGetValue(typeFullName, out var lst))
-            {
-                lst = new List<string>();
-            }
+                if (!subTypeMap.TryGetValue(typeFullName, out var lst))
+                {
+                    lst = new List<string>();
+                }
 
-            //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
-            lst.Sort((a, b) =>
-            {
-                int aCount = inheritanceMap[a].Count;
-                int bCount = inheritanceMap[b].Count;
-                return bCount.CompareTo(aCount);
-            });
-
-
-            sb.AppendLine($"            switch (typeId)");
-            sb.AppendLine("            {");
-
-            foreach (var subType in lst)
-            {
-                subTypes.AppendLine(subType.GeneratePublicDeserializeMethodBodyForSubType(typeFullName, "        "));
-                string valName = subType.Replace(".", "_").ToLower();
-                int id = GetId(subType);
-                sb.AppendLine($"                case {id}:");
-                sb.AppendLine($"                    {subType} {valName} = new {subType}();");
+                //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
+                lst.Sort((a, b) =>
+                {
+                    int aCount = inheritanceMap[a].Count;
+                    int bCount = inheritanceMap[b].Count;
+                    return bCount.CompareTo(aCount);
+                });
 
 
-                List<TypeDeclarationSyntax> subTypeModels =
-                    models.Where(m => inheritanceMap[subType]
-                        .Contains(m.GetTypeFullName())).ToList();
+                sb.AppendLine($"            switch (typeId)");
+                sb.AppendLine("            {");
 
-                var members = models.First(m => m.GetTypeFullName() == subType).GetNinoTypeMembers(subTypeModels);
-                //get distinct members
-                members = members.Distinct().ToList();
-                WriteMembers(members, valName);
-                sb.AppendLine($"                    value = {valName};");
+                foreach (var subType in lst)
+                {
+                    subTypes.AppendLine(
+                        subType.GeneratePublicDeserializeMethodBodyForSubType(typeFullName, "        "));
+                    string valName = subType.Replace(".", "_").ToLower();
+                    int id = GetId(subType);
+                    sb.AppendLine($"                case {id}:");
+                    sb.AppendLine($"                    {subType} {valName} = new {subType}();");
+
+
+                    List<TypeDeclarationSyntax> subTypeModels =
+                        models.Where(m => inheritanceMap[subType]
+                            .Contains(m.GetTypeFullName())).ToList();
+
+                    var members = models.First(m => m.GetTypeFullName() == subType).GetNinoTypeMembers(subTypeModels);
+                    //get distinct members
+                    members = members.Distinct().ToList();
+                    WriteMembers(members, valName);
+                    sb.AppendLine($"                    value = {valName};");
+                    sb.AppendLine("                    break;");
+                }
+
+                sb.AppendLine($"                case {GetId(typeFullName)}:");
+                sb.AppendLine($"                    value = new {typeFullName}();");
+                var defaultMembers = model.GetNinoTypeMembers(null);
+                WriteMembers(defaultMembers, "value");
                 sb.AppendLine("                    break;");
+
+                sb.AppendLine("                default:");
+                sb.AppendLine(
+                    "                    throw new InvalidOperationException($\"Invalid type id {typeId}\");");
+
+                sb.AppendLine("            }");
+                sb.AppendLine("        }");
+                sb.AppendLine();
             }
-
-            sb.AppendLine($"                case {GetId(typeFullName)}:");
-            sb.AppendLine($"                    value = new {typeFullName}();");
-            var defaultMembers = model.GetNinoTypeMembers(null);
-            WriteMembers(defaultMembers, "value");
-            sb.AppendLine("                    break;");
-
-            sb.AppendLine("                default:");
-            sb.AppendLine("                    throw new InvalidOperationException($\"Invalid type id {typeId}\");");
-
-            sb.AppendLine("            }");
-            sb.AppendLine("        }");
-            sb.AppendLine();
+            catch (Exception e)
+            {
+                sb.AppendLine($"// Error: {e.Message} for type {model.GetTypeFullName()}: {e.StackTrace}");
+            }
         }
 
         // generate code

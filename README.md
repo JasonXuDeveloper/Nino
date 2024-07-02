@@ -8,7 +8,7 @@ Definite useful and high performance serialisation library for C# projects, espe
 
 ## 功能列表
 
-[使用教程](Docs/Serialization.md) [![nino.serialization.nuget](https://img.shields.io/nuget/v/Nino.Serialization?label=Nino.Serialization)](https://www.nuget.org/packages/Nino.Serialization)
+[使用教程](Docs/Serialization.md) [![nino.nuget](https://img.shields.io/nuget/v/Nino?label=Nino)](https://www.nuget.org/packages/Nino)
 
 > Protobuf-net/MsgPack/BinaryFormatter/Bson/JSON等序列化库的平替方案，优势是更小体积，更高性能，支持多线程，支持多态
 > 
@@ -79,8 +79,8 @@ Definite useful and high performance serialisation library for C# projects, espe
 
 - 使用NuGet
   
-  NuGet里搜```Nino.Serialization```
+  NuGet里搜```Nino```
   
   ```bash
-  PM> Install-Package Nino.Serialization -Version 2.0.0
+  PM> Install-Package Nino -Version 2.0.0.2
   ```
