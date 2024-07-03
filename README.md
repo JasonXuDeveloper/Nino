@@ -68,12 +68,13 @@ Definite useful and high performance serialisation library for C# projects, espe
 
 - Docs，文档
 - src，Nino源码
-- Nino_Unity，Nino Unity 2021及以上版本的工程，包含源码和测试代码（暂未发布v2.0.0 unity版本）
+- Nino_Unity，Nino Unity 2022.3及以上版本的工程，包含源码和测试代码
 - Performance，性能报告
+- Nino.unitypackage，Unity包
 
 ## 在Unity平台使用
 
-暂未发布Unity版本，预计2024年8月推出
+参考[使用教程](Docs/Serialization.md)
 
 ## 在非Unity平台使用
 

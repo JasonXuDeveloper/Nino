@@ -75,11 +75,17 @@ public partial struct NotAutoCollectStruct
 ## 限制
 
 - 需要搭配Source Generator使用
+
 - 不支持使用NinoType去修饰自定义泛型类型
+
 - 无泛型序列化/反序列化非托管类型的代码
+
 - 无法序列化/反序列化非public字段/属性
+
 - 需要有空参数的构造函数
+
 - 如果定义了不支持序列化的类型（如Queue）则会导致编译错误
+
 - 暂时需要序列化端和反序列化端需要使用Nino序列化的类型一一对应（即假设我在A项目里用了Nino去序列化，有10个NinoType类型，那么我在B项目里反序列化A项目生成的二进制时，需确保B项目里也不多不少只有这10个NinoType类型）
   
   > 该限制目前可以通过把一个工程生成的代码复制出来给另一个工程使用（NinoSerializerExtension.(Ext.)g.cs和NinoDeserializerExtension.(Ext.)g.cs）
@@ -90,11 +96,22 @@ public partial struct NotAutoCollectStruct
 
 ## Unity支持
 
-计划八月推出，需要使用Roslyn Analyzer （需要Unity2021）
+> 需要Unity2022.3及以上版本
+
+1. 下载[Nino.unitypackage](Nino.unitypackage)
+
+2. 导入到Unity
+
+3. 把导入后的Nino文件夹移动到一个带有asmdef的目录内（如Nino_Unity工程里的Test目录），因为Unity有Bug，必须把Nino源码丢到一个asmdef目录内才能对这个目录内类型生成代码
+
+4. 如果报错`Nino.Core references netstandard, Version=2.1.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51. A roslyn analyzer should reference netstandard version 2.0`请忽略，unity的bug
+
+5. 如果需要多个asmdef使用，就把导入的Nino目录复制到多个带有不同asmdef的目录内
 
 ## 代码热更（Unity）
 
 - Nino支持**HybridCLR**与**ILRuntime**
+- 如果需要另外创建一个C#工程（不是Unity内的asmdef），请创建Net Core工程并通过NuGet安装Nino库，再将编译出来的DLL在HybridCLR或ILRuntime中使用
 
 ## 序列化
 

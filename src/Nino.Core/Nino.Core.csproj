@@ -4,11 +4,11 @@
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <TargetFrameworks>net5.0;net6.0;net7.0;net8.0;netcoreapp3.1;netstandard2.0;net48</TargetFrameworks>
+        <TargetFrameworks>net5.0;net6.0;netstandard2.1</TargetFrameworks>
         <LangVersion>9</LangVersion>
         <PackageId>Nino.Serialization</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.0.0.2</Version>
+        <Version>2.0.1</Version>
         <Title>Nino.Serialization</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
@@ -16,9 +16,10 @@
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary</PackageTags>
-        <PackageReleaseNotes>Nino.Serialization v2.0.0
-            - [Optimisation] More efficient code generated via Source Generator
-            - [Feature] Polymorphism Solution for Collections Serialization</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v2.0.1
+- [Optimisation] More efficient code generated via Source Generator
+- [Feature] Polymorphism Solution for Collections Serialization
+- [Feature] Support for Unity</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
     </PropertyGroup>
 
