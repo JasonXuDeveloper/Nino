@@ -1,0 +1,20 @@
+{
+    "name": "Test",
+    "rootNamespace": "",
+    "references": [
+        "Nino",
+        "Mongo",
+        "Protobuf",
+        "MessagePack",
+        "MessagePack.Annotations"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
