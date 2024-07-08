@@ -116,8 +116,8 @@ public partial struct NotAutoCollectStruct
 ## 序列化
 
 ```csharp
-byte[] Nino.Serializer.Serialize(可Nino序列化类型 val);
-void Nino.Serializer.Serialize(可Nino序列化类型 val, IBufferWriter<byte> bufferWriter);
+byte[] Serializer.Serialize(可Nino序列化类型 val);
+void Serializer.Serialize(可Nino序列化类型 val, IBufferWriter<byte> bufferWriter);
 ```
 
 示范：
@@ -125,7 +125,7 @@ void Nino.Serializer.Serialize(可Nino序列化类型 val, IBufferWriter<byte> b
 ```csharp
 //懒人写法
 ObjClass obj = new ObjClass();
-byte[] byteArr = Nino.Serializer.Serialize(obj);
+byte[] byteArr = Serializer.Serialize(obj);
 //或
 byteArr = obj.Serialize();
 
@@ -135,7 +135,7 @@ byteArr = obj.Serialize();
 ## 反序列化
 
 ```csharp
-void Nino.Deserializer.Deserialize(ReadOnlySpan<byte> data, out 可Nino序列化类型 value);
+void Deserializer.Deserialize(ReadOnlySpan<byte> data, out 可Nino序列化类型 value);
 ```
 
 > data不仅可以传```byte[]```，还可以```ArraySegment<byte>```或```Span<byte>```
@@ -144,7 +144,7 @@ void Nino.Deserializer.Deserialize(ReadOnlySpan<byte> data, out 可Nino序列化
 
 ```csharp
 //假设这里byteArr是byte[]
-Nino.Deserializer.Deserialize(byteArr, out ObjClass obj);
+Deserializer.Deserialize(byteArr, out ObjClass obj);
 ...
 //高级用法，假设网络层传来了数据（比如Pipeline），我们收到了ReadOnlySequence<byte>
 //这样写性能最最最最好
@@ -153,7 +153,7 @@ ObjClass obj;
 if(data.IsSingleSegment)
 {
   Span<byte> dataSpan = data.FirstSpan;
-  Nino.Deserializer.Deserialize(dataSpan, out ObjClass obj);
+  Deserializer.Deserialize(dataSpan, out ObjClass obj);
 }
 else
 {
@@ -161,13 +161,13 @@ else
   {
     Span<byte> stackMemory = stackalloc byte[(int)data.Length];
     data.CopyTo(stackMemory);
-    Nino.Deserializer.Deserialize(stackMemory, out ObjClass obj);
+    Deserializer.Deserialize(stackMemory, out ObjClass obj);
   }
   else
   {
     byte[] arr = ArrayPool<byte>.Shared.Rent((int)data.Length);
     data.CopyTo(arr);
-    Nino.Deserializer.Deserialize(arr, out ObjClass obj);
+    Deserializer.Deserialize(arr, out ObjClass obj);
     ArrayPool<byte>.Shared.Return(arr);
   }
 }

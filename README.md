@@ -56,8 +56,6 @@ Definite useful and high performance serialisation library for C# projects, espe
   
   - [Test10](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test10.cs) 复杂结构类型序列化反序列化
   
-  - [Test11](Nino_Unity/Assets/Nino/Test/Editor/Serialization/Test11.cs) ILRuntime测试（需要搭配使用教程启用ILRuntime）
-  
   - [真机测试](Nino_Unity/Assets/Nino/Test/BuildTest.cs) 可以打IL2CPP或Mono包进行测试（对比了Nino Reflection/Code Gen与Protobuf-net/BinaryFormatter/Bson/MsgPack Code Gen的序列化性能、序列化体积、反序列化性能）
     
     > Protobuf-net与Bson在IL2CPP下暂不支持字典序列化
@@ -83,5 +81,5 @@ Definite useful and high performance serialisation library for C# projects, espe
   NuGet里搜```Nino```
   
   ```bash
-  PM> Install-Package Nino -Version 2.0.2
+  PM> Install-Package Nino -Version 2.0.3
   ```

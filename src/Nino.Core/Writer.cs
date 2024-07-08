@@ -160,7 +160,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public unsafe void Write(string value)
+        public void Write(string value)
         {
             switch (value)
             {
@@ -176,11 +176,9 @@ namespace Nino.Core
                     var span = _bufferWriter.GetSpan(sizeof(ushort) + sizeof(int) + byteLength);
                     Unsafe.WriteUnaligned(ref span[0], TypeCollector.StringTypeId);
                     Unsafe.WriteUnaligned(ref span[2], value.Length);
-                    fixed (char* p = value)
-                    {
-                        Unsafe.CopyBlockUnaligned(ref span[6], ref Unsafe.AsRef<byte>(p), (uint)byteLength);
-                    }
-
+                    ref var valueRef = ref MemoryMarshal.GetReference(value.AsSpan());
+                    ref byte valueByte = ref Unsafe.As<char, byte>(ref valueRef);
+                    Unsafe.CopyBlockUnaligned(ref span[6], ref valueByte, (uint)byteLength);
                     _bufferWriter.Advance(sizeof(ushort) + sizeof(int) + byteLength);
                     break;
             }

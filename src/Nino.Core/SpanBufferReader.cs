@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 
 namespace Nino.Core
 {
-    internal unsafe ref struct SpanBufferReader
+    internal ref struct SpanBufferReader
     {
         private ReadOnlySpan<byte> data;
 
@@ -21,7 +21,7 @@ namespace Nino.Core
         public void Get<T>(out T value) where T : unmanaged
         {
             value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(data));
-            data = data.Slice(sizeof(T));
+            data = data.Slice(Unsafe.SizeOf<T>());
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

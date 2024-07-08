@@ -5,7 +5,7 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
-    public unsafe ref struct Reader
+    public ref struct Reader
     {
         private SpanBufferReader _bufferReader;
 
@@ -49,7 +49,7 @@ namespace Nino.Core
                     return;
                 case TypeCollector.CollectionTypeId:
                     Read(out int length);
-                    _bufferReader.GetBytes(length * sizeof(T), out var bytes);
+                    _bufferReader.GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
 #if NET5_0_OR_GREATER
                     ret = GC.AllocateUninitializedArray<T>(length);
                     Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref ret[0]), ref MemoryMarshal.GetReference(bytes),

@@ -3,23 +3,17 @@
     <PropertyGroup>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
-
         <IsPackable>false</IsPackable>
-
         <LangVersion>9</LangVersion>
-
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-
         <OutputType>Library</OutputType>
-
         <TargetFramework>net6.0</TargetFramework>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.Buffers" Version="4.5.1" />
-        <PackageReference Include="System.Memory" Version="4.5.5" />
+        <PackageReference Include="System.Buffers" Version="4.5.1"/>
+        <PackageReference Include="System.Memory" Version="4.5.5"/>
     </ItemGroup>
-    
+
     <ItemGroup>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0"/>
         <PackageReference Include="MSTest.TestFramework" Version="3.1.1"/>
@@ -28,7 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" />
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
         <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"/>

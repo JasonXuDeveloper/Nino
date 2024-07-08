@@ -7,7 +7,7 @@ using MessagePack;
 #nullable disable
 namespace Nino.Benchmark;
 
-[CategoriesColumn, MinColumn, MaxColumn, PayloadColumn]
+[MinColumn, MaxColumn, PayloadColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 [SimpleJob(RuntimeMoniker.Net80, warmupCount: 3, iterationCount: 10)]
 [MarkdownExporter, AsciiDocExporter, HtmlExporter, CsvExporter, RPlotExporter]
