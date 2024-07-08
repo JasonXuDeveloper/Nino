@@ -1,12 +1,19 @@
 {
     "name": "Test.Editor",
     "rootNamespace": "",
-    "references": ["GUID:0371820e3c81945b3853517b36266c3a","GUID:8cb834c2cb7b04c2391ea9063c36e935","GUID:b4ba1c6530914478f9c4dc9b75d56ac4","GUID:0062188b04f3b485c8cd32a3cac02b12","GUID:bbde805d927e795439d7a746d1749cab","GUID:5a46ad82eac024e4fbb6a0516a5def17"],
+    "references": [
+        "GUID:0371820e3c81945b3853517b36266c3a",
+        "GUID:8cb834c2cb7b04c2391ea9063c36e935",
+        "GUID:b4ba1c6530914478f9c4dc9b75d56ac4",
+        "GUID:0062188b04f3b485c8cd32a3cac02b12",
+        "GUID:bbde805d927e795439d7a746d1749cab",
+        "GUID:5a46ad82eac024e4fbb6a0516a5def17"
+    ],
     "includePlatforms": [
         "Editor"
     ],
     "excludePlatforms": [],
-    "allowUnsafeCode": false,
+    "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,
