@@ -276,10 +276,10 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
                     {
                         if (value == null)
                         {
-                            writer.Write((ushort)TypeCollector.NullTypeId);
+                            writer.Write(TypeCollector.NullTypeId);
                             return;
                         }
-                        writer.Write((ushort)TypeCollector.CollectionTypeId);
+                        writer.Write(TypeCollector.CollectionTypeId);
                         writer.Write(value.{{lengthName}});
                         foreach (var item in value)
                         {
@@ -301,10 +301,10 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
                                 {
                                     if (!value.HasValue)
                                     {
-                                        writer.Write((ushort)TypeCollector.NullTypeId);
+                                        writer.Write(TypeCollector.NullTypeId);
                                         return;
                                     }
-                                    writer.Write((ushort)TypeCollector.NullableTypeId);
+                                    writer.Write(TypeCollector.NullableTypeId);
                                     value.Value.Serialize(ref writer);
                                 }
                                 

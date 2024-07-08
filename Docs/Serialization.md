@@ -98,7 +98,7 @@ public partial struct NotAutoCollectStruct
 
 > 需要Unity2022.3及以上版本
 
-1. 下载[Nino.unitypackage](Nino.unitypackage)
+1. 下载[Nino.unitypackage](/Nino.unitypackage)
 
 2. 导入到Unity
 

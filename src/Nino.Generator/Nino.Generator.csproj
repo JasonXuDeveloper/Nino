@@ -10,7 +10,7 @@
         <RootNamespace>Nino.Generator</RootNamespace>
         <PackageId>Nino.Generator</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.0.1</Version>
+        <Version>2.0.2</Version>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
@@ -18,10 +18,8 @@
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary;Generator</PackageTags>
-        <PackageReleaseNotes>Nino.Serialization v2.0.1
-- [Optimisation] More efficient code generated via Source Generator
-- [Feature] Polymorphism Solution for Collections Serialization
-- [Feature] Support for Unity</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v2.0.2
+- [Optimisation] More efficient code generation for unmanaged types and arrays</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AnalyzerLanguage>cs</AnalyzerLanguage>
         <IncludeBuildOutput>false</IncludeBuildOutput>

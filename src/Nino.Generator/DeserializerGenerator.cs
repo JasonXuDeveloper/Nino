@@ -120,56 +120,48 @@ public class DeserializerGenerator : IIncrementalGenerator
 
                     continue;
                 }
+                
+                var typeSymbol = compilation.GetTypeByMetadataName(typeFullName);
+                if (typeSymbol == null)
+                {
+                    //check if is a nested type
+                    TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
+                        string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
+                    if (typeDeclarationSyntax == null)
+                        throw new Exception("typeDeclarationSyntax is null");
+
+                    var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
+                    typeSymbol = compilation.GetTypeByMetadataName(typeFullName2);
+                    if (typeSymbol == null)
+                        throw new Exception("structSymbol is null");
+                }
+
+                // check if struct is unmanged
+                if (typeSymbol.IsUnmanagedType)
+                {
+                    continue;
+                }
 
                 sb.GenerateClassDeserializeMethods(typeFullName);
 
+                sb.AppendLine($$"""
+                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                        private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
+                                        {
+                                            value = default;
+                                            reader.Read(out ushort typeId);
+                                        
+                                """);
                 // only applicable for reference types
                 bool isReferenceType = model is ClassDeclarationSyntax;
                 if (isReferenceType)
                 {
-                    sb.AppendLine($$"""
-                                            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                            private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
-                                            {
-                                                value = null;
-                                                reader.Read(out ushort typeId);
+                    sb.AppendLine("""
+                                    
                                                 if (typeId == TypeCollector.NullTypeId)
                                                 {
                                                     return;
                                                 }
-                                            
-                                    """);
-                }
-                else
-                {
-                    var structSymbol = compilation.GetTypeByMetadataName(typeFullName);
-                    if (structSymbol == null)
-                    {
-                        //check if is a nested type
-                        TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                            string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
-                        if (typeDeclarationSyntax == null)
-                            throw new Exception("typeDeclarationSyntax is null");
-
-                        var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                        structSymbol = compilation.GetTypeByMetadataName(typeFullName2);
-                        if (structSymbol == null)
-                            throw new Exception("structSymbol is null");
-                    }
-
-                    // check if struct is unmanged
-                    if (structSymbol.IsUnmanagedType)
-                    {
-                        continue;
-                    }
-
-                    sb.AppendLine($$"""
-                                            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                            private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
-                                            {
-                                                value = default;
-                                                reader.Read(out ushort typeId);
-                                            
                                     """);
                 }
 

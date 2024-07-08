@@ -94,16 +94,13 @@ public class SerializerGenerator : IIncrementalGenerator
 
         var sb = new StringBuilder();
 
-        sb.GenerateClassSerializeMethods("T", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("T?", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("List<T>", "<T>", "where T : unmanaged");
-        sb.GenerateClassSerializeMethods("Span<T>", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>",
             "where TKey : unmanaged where TValue : unmanaged");
         sb.GenerateClassSerializeMethods("IDictionary<TKey, TValue>", "<TKey, TValue>",
             "where TKey : unmanaged where TValue : unmanaged");
         sb.GenerateClassSerializeMethods("ICollection<T>", "<T>", "where T : unmanaged");
-        sb.GenerateClassSerializeMethods("bool");
         sb.GenerateClassSerializeMethods("string");
 
         foreach (var model in models)
@@ -122,51 +119,44 @@ public class SerializerGenerator : IIncrementalGenerator
 
                     continue;
                 }
+                
+                var typeSymbol = compilation.GetTypeByMetadataName(typeFullName);
+                if (typeSymbol == null)
+                {
+                    //check if is a nested type
+                    TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
+                        string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
+                    if (typeDeclarationSyntax == null)
+                        throw new Exception("typeDeclarationSyntax is null");
+
+                    var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
+                    typeSymbol = compilation.GetTypeByMetadataName(typeFullName2);
+                    if (typeSymbol == null)
+                        throw new Exception("structSymbol is null");
+                }
+
+                // check if struct is unmanged
+                if (typeSymbol.IsUnmanagedType)
+                {
+                    continue;
+                }
 
                 sb.GenerateClassSerializeMethods(typeFullName);
 
+                sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine(
+                    $"        private static void Serialize(this {typeFullName} value, ref Writer writer)");
+                sb.AppendLine("        {");
                 // only applicable for reference types
                 bool isReferenceType = model is ClassDeclarationSyntax;
                 if (isReferenceType)
                 {
-                    sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                    sb.AppendLine(
-                        $"        private static void Serialize(this {typeFullName} value, ref Writer writer)");
-                    sb.AppendLine("        {");
                     sb.AppendLine("            if (value == null)");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                writer.Write((ushort)TypeCollector.NullTypeId);");
+                    sb.AppendLine($"                writer.Write(TypeCollector.NullTypeId);");
                     sb.AppendLine("                return;");
                     sb.AppendLine("            }");
                     sb.AppendLine();
-                }
-                else
-                {
-                    var structSymbol = compilation.GetTypeByMetadataName(typeFullName);
-                    if (structSymbol == null)
-                    {
-                        //check if is a nested type
-                        TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                            string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
-                        if (typeDeclarationSyntax == null)
-                            throw new Exception("typeDeclarationSyntax is null");
-
-                        var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                        structSymbol = compilation.GetTypeByMetadataName(typeFullName2);
-                        if (structSymbol == null)
-                            throw new Exception("structSymbol is null");
-                    }
-
-                    // check if struct is unmanged
-                    if (structSymbol.IsUnmanagedType)
-                    {
-                        continue;
-                    }
-
-                    sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                    sb.AppendLine(
-                        $"        private static void Serialize(this {typeFullName} value, ref Writer writer)");
-                    sb.AppendLine("        {");
                 }
 
                 void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
@@ -294,8 +284,78 @@ public class SerializerGenerator : IIncrementalGenerator
                                  bufferWriter.Clear();
                                  BufferWriters.Enqueue(bufferWriter);
                              }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static unsafe byte[] Serialize<T>(this T value) where T : unmanaged
+                             {
+                                 byte[] ret = new byte[sizeof(T)];
+                                 Unsafe.WriteUnaligned(ref ret[0], value);
+                                 return ret;
+                             }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static void Serialize<T>(this T value, IBufferWriter<byte> bufferWriter) where T : unmanaged
+                             {
+                                 Writer writer = new Writer(bufferWriter);
+                                 value.Serialize(ref writer);
+                             }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static unsafe byte[] Serialize<T>(this T[] value) where T : unmanaged
+                             {
+                                return Serialize((Span<T>)value);
+                             }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static void Serialize<T>(this T[] value, IBufferWriter<byte> bufferWriter) where T : unmanaged
+                             {
+                                 Writer writer = new Writer(bufferWriter);
+                                 value.Serialize(ref writer);
+                             }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static unsafe byte[] Serialize<T>(this Span<T> value) where T : unmanaged
+                             {
+                                if (value == null)
+                                    return new byte[2];
+                                int byteLength = value.Length * sizeof(T);
+                        #if NET6_0_OR_GREATER
+                                byte[] ret = GC.AllocateUninitializedArray<byte>(byteLength + 6);
+                        #else
+                                byte[] ret = new byte[byteLength + 6];
+                        #endif
+                                Unsafe.WriteUnaligned(ref ret[0], (ushort)TypeCollector.CollectionTypeId);
+                                Unsafe.WriteUnaligned(ref ret[2], value.Length);
+                                Unsafe.CopyBlockUnaligned(ref ret[6], ref Unsafe.As<T, byte>(ref value[0]), (uint)byteLength);
+                                return ret;
+                             }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static void Serialize<T>(this Span<T> value, IBufferWriter<byte> bufferWriter) where T : unmanaged
+                             {
+                                 Writer writer = new Writer(bufferWriter);
+                                 value.Serialize(ref writer);
+                             }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static unsafe byte[] Serialize(this bool value)
+                             {
+                                 if (value)
+                                     return new byte[1] { 1 };
+                                
+                                 return new byte[1] { 0 };
+                             }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static void Serialize(this bool value, IBufferWriter<byte> bufferWriter)
+                             {
+                                 Writer writer = new Writer(bufferWriter);
+                                 value.Serialize(ref writer);
+                             }
 
                      {{GeneratePrivateSerializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
+                     
+                     {{GeneratePrivateSerializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateSerializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
 
@@ -304,11 +364,9 @@ public class SerializerGenerator : IIncrementalGenerator
                      {{GeneratePrivateSerializeImplMethodBody("ICollection<T>", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GeneratePrivateSerializeImplMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
-                             
+                     
                      {{GeneratePrivateSerializeImplMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
 
-                     {{GeneratePrivateSerializeImplMethodBody("Span<T?>", "        ", "<T>", "where T : unmanaged")}}
-                             
                      {{GeneratePrivateSerializeImplMethodBody("ICollection<T?>", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GeneratePrivateSerializeImplMethodBody("string", "        ")}}

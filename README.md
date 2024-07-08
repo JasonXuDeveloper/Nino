@@ -83,5 +83,5 @@ Definite useful and high performance serialisation library for C# projects, espe
   NuGet里搜```Nino```
   
   ```bash
-  PM> Install-Package Nino -Version 2.0.1
+  PM> Install-Package Nino -Version 2.0.2
   ```

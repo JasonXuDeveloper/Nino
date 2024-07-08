@@ -13,6 +13,66 @@ namespace Nino.UnitTests
     public class IssueTest
     {
         [TestClass]
+        public class InheritanceTest
+        {
+            public class PackageBase
+            {
+                
+            }
+            
+            [Nino.Core.NinoType]
+            [Serializable]
+            public sealed partial class MyPackPerson : PackageBase
+            {
+                public int P1 { get; set; }
+            
+                public string P2 { get; set; }
+            
+                public char P3 { get; set; }
+            
+                public double P4 { get; set; }
+            
+                public List<int> P5 { get; set; }
+            
+                public Dictionary<int, MyClassModel> P6 { get; set; }
+            }
+
+            [Nino.Core.NinoType]
+            [Serializable]
+            public sealed partial class MyClassModel : PackageBase
+            {
+                public DateTime P1 { get; set; }
+            }
+
+            [TestMethod]
+            public void Test()
+            {
+                MyPackPerson person = new MyPackPerson
+                {
+                    P1 = 1,
+                    P2 = "Hello",
+                    P3 = 'A',
+                    P4 = 3.14,
+                    P5 = new List<int> { 1, 2, 3 },
+                    P6 = new Dictionary<int, MyClassModel>
+                    {
+                        { 1, new MyClassModel { P1 = DateTime.Now } }
+                    }
+                };
+                var bytes = person.Serialize();
+                Deserializer.Deserialize(bytes, out MyPackPerson person2);
+                Assert.AreEqual(person.P1, person2.P1);
+                Assert.AreEqual(person.P2, person2.P2);
+                Assert.AreEqual(person.P3, person2.P3);
+                Assert.AreEqual(person.P4, person2.P4);
+                Assert.AreEqual(person.P5.Count, person2.P5.Count);
+                Assert.AreEqual(person.P6.Count, person2.P6.Count);
+                Assert.AreEqual(person.P6[1].P1, person2.P6[1].P1);
+            }
+        }
+
+
+        [TestClass]
         public class IssueIgnore
         {
             [NinoType]

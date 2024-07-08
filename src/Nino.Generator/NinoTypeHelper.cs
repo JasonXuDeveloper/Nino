@@ -22,7 +22,7 @@ public static class NinoTypeHelper
     private static bool IsNinoType(SyntaxNode node) =>
         node is TypeDeclarationSyntax typeDeclarationSyntax &&
         typeDeclarationSyntax.AttributeLists.SelectMany(static al => al.Attributes)
-            .Any(static a => a.Name.ToString() == "NinoType");
+            .Any(static a => a.Name.ToString().EndsWith("NinoType"));
 
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {

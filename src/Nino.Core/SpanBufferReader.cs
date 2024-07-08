@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Nino.Core
@@ -16,18 +17,21 @@ namespace Nino.Core
             this.data = data;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Get<T>(out T value) where T : unmanaged
         {
-            value = MemoryMarshal.Read<T>(data);
+            value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(data));
             data = data.Slice(sizeof(T));
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Get(out bool value)
         {
             value = data[0] != 0;
             data = data.Slice(1);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void GetBytes(int length, out ReadOnlySpan<byte> bytes)
         {
             bytes = data.Slice(0, length);
