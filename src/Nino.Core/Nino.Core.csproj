@@ -19,6 +19,7 @@
 - [Fix] Fix complilation error for special assembly names
 - [Optimisation] Faster deserialisation</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
     </PropertyGroup>
 
     <ItemGroup>

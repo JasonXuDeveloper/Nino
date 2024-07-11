@@ -28,6 +28,7 @@
         <IncludeSymbols>false</IncludeSymbols>
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
         <IsRoslynComponent>true</IsRoslynComponent>
+        <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
     </PropertyGroup>
 
     <ItemGroup>
