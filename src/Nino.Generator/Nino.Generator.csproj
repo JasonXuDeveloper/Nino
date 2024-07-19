@@ -10,7 +10,7 @@
         <RootNamespace>Nino.Generator</RootNamespace>
         <PackageId>Nino.Generator</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.0.3</Version>
+        <Version>2.0.4</Version>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
@@ -18,9 +18,8 @@
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary;Generator</PackageTags>
-        <PackageReleaseNotes>Nino.Serialization v2.0.3
-- [Fix] Fix complilation error for special assembly names
-- [Optimisation] Faster deserialisation</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v2.0.4
+- [Fix] Fix complilation error for subclasses having members with identical names</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AnalyzerLanguage>cs</AnalyzerLanguage>
         <IncludeBuildOutput>false</IncludeBuildOutput>

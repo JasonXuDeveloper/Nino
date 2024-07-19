@@ -167,7 +167,9 @@ public class DeserializerGenerator : IIncrementalGenerator
                             sb.AppendLine($"                    Deserialize(out {valName}.{name}, ref reader);");
                         else
                         {
-                            var tempName = $"temp_{name}";
+                            var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
+                                .Aggregate("", (a, b) => a + b);
+                            var tempName = $"{t}_temp_{name}";
                             sb.AppendLine(
                                 $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
                             sb.AppendLine($"                    {valName}.{name} = {tempName};");
@@ -210,6 +212,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                     string valName = subType.Replace(".", "_").ToLower();
                     int id = GetId(subType);
                     sb.AppendLine($"                case {id}:");
+                    sb.AppendLine("                {");
                     sb.AppendLine($"                    {subType} {valName} = new {subType}();");
 
 
@@ -223,13 +226,16 @@ public class DeserializerGenerator : IIncrementalGenerator
                     WriteMembers(members, valName);
                     sb.AppendLine($"                    value = {valName};");
                     sb.AppendLine("                    return;");
+                    sb.AppendLine("                }");
                 }
 
                 sb.AppendLine($"                case {GetId(typeFullName)}:");
+                sb.AppendLine("                {");
                 sb.AppendLine($"                    value = new {typeFullName}();");
                 var defaultMembers = model.GetNinoTypeMembers(null);
                 WriteMembers(defaultMembers, "value");
                 sb.AppendLine("                    return;");
+                sb.AppendLine("                }");
 
                 sb.AppendLine("                default:");
                 sb.AppendLine(
