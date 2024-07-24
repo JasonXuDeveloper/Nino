@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -27,6 +28,26 @@ public static class NinoTypeHelper
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
         return typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
+    }
+
+    public static INamedTypeSymbol GetTypeSymbol(this Compilation compilation, string typeFullName, ImmutableArray<TypeDeclarationSyntax> models)
+    {
+        var typeSymbol = compilation.GetTypeByMetadataName(typeFullName);
+        if (typeSymbol == null)
+        {
+            //check if is a nested type
+            TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
+                string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
+            if (typeDeclarationSyntax == null)
+                throw new Exception("typeDeclarationSyntax is null");
+
+            var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
+            typeSymbol = compilation.GetTypeByMetadataName(typeFullName2);
+            if (typeSymbol == null)
+                throw new Exception("structSymbol is null");
+        }
+        
+        return typeSymbol;
     }
 
     public static void GenerateClassSerializeMethods(this StringBuilder sb, string typeFullName, string typeParam = "",

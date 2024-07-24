@@ -121,20 +121,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                     continue;
                 }
 
-                var typeSymbol = compilation.GetTypeByMetadataName(typeFullName);
-                if (typeSymbol == null)
-                {
-                    //check if is a nested type
-                    TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                        string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
-                    if (typeDeclarationSyntax == null)
-                        throw new Exception("typeDeclarationSyntax is null");
-
-                    var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                    typeSymbol = compilation.GetTypeByMetadataName(typeFullName2);
-                    if (typeSymbol == null)
-                        throw new Exception("structSymbol is null");
-                }
+                var typeSymbol = compilation.GetTypeSymbol(typeFullName, models);
 
                 // check if struct is unmanged
                 if (typeSymbol.IsUnmanagedType)
@@ -148,10 +135,14 @@ public class DeserializerGenerator : IIncrementalGenerator
                                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                         private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
                                         {
-                                            reader.Read(out ushort typeId);
-                                        
                                 """);
 
+                if (!typeSymbol.IsValueType)
+                {
+                    sb.AppendLine("            reader.Read(out ushort typeId);");
+                    sb.AppendLine();
+                }
+                
                 void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
                 {
                     foreach (var memberDeclarationSyntax in members)
@@ -190,14 +181,12 @@ public class DeserializerGenerator : IIncrementalGenerator
                     return bCount.CompareTo(aCount);
                 });
 
-
-                sb.AppendLine($"            switch (typeId)");
-                sb.AppendLine("            {");
-
                 // only applicable for reference types
-                bool isReferenceType = model is ClassDeclarationSyntax;
+                bool isReferenceType = typeSymbol.IsReferenceType;
                 if (isReferenceType)
                 {
+                    sb.AppendLine("            switch (typeId)");
+                    sb.AppendLine("            {");
                     sb.AppendLine("""
                                                   case TypeCollector.NullTypeId:
                                                       value = null;
@@ -207,41 +196,57 @@ public class DeserializerGenerator : IIncrementalGenerator
 
                 foreach (var subType in lst)
                 {
-                    subTypes.AppendLine(
-                        subType.GeneratePublicDeserializeMethodBodyForSubType(typeFullName, "        "));
-                    string valName = subType.Replace(".", "_").ToLower();
-                    int id = GetId(subType);
-                    sb.AppendLine($"                case {id}:");
-                    sb.AppendLine("                {");
-                    sb.AppendLine($"                    {subType} {valName} = new {subType}();");
+                    var subTypeSymbol = compilation.GetTypeSymbol(subType, models);
+                    if (!subTypeSymbol.IsAbstract)
+                    {
+                        subTypes.AppendLine(
+                            subType.GeneratePublicDeserializeMethodBodyForSubType(typeFullName, "        "));
+                        string valName = subType.Replace(".", "_").ToLower();
+                        int id = GetId(subType);
+                        sb.AppendLine($"                case {id}:");
+                        sb.AppendLine("                {");
+                        sb.AppendLine($"                    {subType} {valName} = new {subType}();");
 
 
-                    List<TypeDeclarationSyntax> subTypeModels =
-                        models.Where(m => inheritanceMap[subType]
-                            .Contains(m.GetTypeFullName())).ToList();
+                        List<TypeDeclarationSyntax> subTypeModels =
+                            models.Where(m => inheritanceMap[subType]
+                                .Contains(m.GetTypeFullName())).ToList();
 
-                    var members = models.First(m => m.GetTypeFullName() == subType).GetNinoTypeMembers(subTypeModels);
-                    //get distinct members
-                    members = members.Distinct().ToList();
-                    WriteMembers(members, valName);
-                    sb.AppendLine($"                    value = {valName};");
-                    sb.AppendLine("                    return;");
-                    sb.AppendLine("                }");
+                        var members = models.First(m => m.GetTypeFullName() == subType).GetNinoTypeMembers(subTypeModels);
+                        //get distinct members
+                        members = members.Distinct().ToList();
+                        WriteMembers(members, valName);
+                        sb.AppendLine($"                    value = {valName};");
+                        sb.AppendLine("                    return;");
+                        sb.AppendLine("                }");
+                    }
                 }
 
-                sb.AppendLine($"                case {GetId(typeFullName)}:");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    value = new {typeFullName}();");
-                var defaultMembers = model.GetNinoTypeMembers(null);
-                WriteMembers(defaultMembers, "value");
-                sb.AppendLine("                    return;");
-                sb.AppendLine("                }");
+                if (!typeSymbol.IsAbstract)
+                {
+                    if (isReferenceType)
+                    {
+                        sb.AppendLine($"                case {GetId(typeFullName)}:");
+                        sb.AppendLine("                {");
+                    }
+                    sb.AppendLine($"                    value = new {typeFullName}();");
+                    var defaultMembers = model.GetNinoTypeMembers(null);
+                    WriteMembers(defaultMembers, "value");
+                    if (isReferenceType)
+                    {
+                        sb.AppendLine("                    return;");
+                        sb.AppendLine("                }");
+                    }
+                }
 
-                sb.AppendLine("                default:");
-                sb.AppendLine(
-                    "                    throw new InvalidOperationException($\"Invalid type id {typeId}\");");
+                if (isReferenceType)
+                {
+                    sb.AppendLine("                default:");
+                    sb.AppendLine(
+                        "                    throw new InvalidOperationException($\"Invalid type id {typeId}\");");
+                    sb.AppendLine("            }");
+                }
 
-                sb.AppendLine("            }");
                 sb.AppendLine("        }");
                 sb.AppendLine();
             }

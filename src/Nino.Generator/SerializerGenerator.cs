@@ -119,21 +119,8 @@ public class SerializerGenerator : IIncrementalGenerator
 
                     continue;
                 }
-                
-                var typeSymbol = compilation.GetTypeByMetadataName(typeFullName);
-                if (typeSymbol == null)
-                {
-                    //check if is a nested type
-                    TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                        string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
-                    if (typeDeclarationSyntax == null)
-                        throw new Exception("typeDeclarationSyntax is null");
 
-                    var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                    typeSymbol = compilation.GetTypeByMetadataName(typeFullName2);
-                    if (typeSymbol == null)
-                        throw new Exception("structSymbol is null");
-                }
+                var typeSymbol = compilation.GetTypeSymbol(typeFullName, models);
 
                 // check if struct is unmanged
                 if (typeSymbol.IsUnmanagedType)
@@ -153,7 +140,7 @@ public class SerializerGenerator : IIncrementalGenerator
                 {
                     sb.AppendLine("            if (value == null)");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                writer.Write(TypeCollector.NullTypeId);");
+                    sb.AppendLine("                writer.Write(TypeCollector.NullTypeId);");
                     sb.AppendLine("                return;");
                     sb.AppendLine("            }");
                     sb.AppendLine();
@@ -190,33 +177,45 @@ public class SerializerGenerator : IIncrementalGenerator
 
                     foreach (var subType in lst)
                     {
-                        string valName = subType.Replace(".", "_").ToLower();
-                        sb.AppendLine($"                case {subType} {valName}:");
-                        sb.AppendLine($"                    writer.Write((ushort){GetId(subType)});");
+                        var subTypeSymbol = compilation.GetTypeSymbol(subType, models);
+                        if (!subTypeSymbol.IsAbstract)
+                        {
+                            string valName = subType.Replace(".", "_").ToLower();
+                            sb.AppendLine($"                case {subType} {valName}:");
+                            sb.AppendLine($"                    writer.Write((ushort){GetId(subType)});");
 
 
-                        List<TypeDeclarationSyntax> subTypeModels =
-                            models.Where(m => inheritanceMap[subType]
-                                .Contains(m.GetTypeFullName())).ToList();
+                            List<TypeDeclarationSyntax> subTypeModels =
+                                models.Where(m => inheritanceMap[subType]
+                                    .Contains(m.GetTypeFullName())).ToList();
 
-                        var members = models.First(m => m.GetTypeFullName() == subType)
-                            .GetNinoTypeMembers(subTypeModels);
-                        //get distinct members
-                        members = members.Distinct().ToList();
-                        WriteMembers(members, valName);
+                            var members = models.First(m => m.GetTypeFullName() == subType)
+                                .GetNinoTypeMembers(subTypeModels);
+                            //get distinct members
+                            members = members.Distinct().ToList();
+                            WriteMembers(members, valName);
+                            sb.AppendLine("                    return;");
+                        }
+                    }
+
+                    if (!typeSymbol.IsAbstract)
+                    {
+                        sb.AppendLine("                default:");
+                        sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
+                        var defaultMembers = model.GetNinoTypeMembers(null);
+                        WriteMembers(defaultMembers, "value");
                         sb.AppendLine("                    return;");
                     }
 
-                    sb.AppendLine("                default:");
-                    sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
-                    var defaultMembers = model.GetNinoTypeMembers(null);
-                    WriteMembers(defaultMembers, "value");
-                    sb.AppendLine("                    return;");
                     sb.AppendLine("            }");
                 }
-                else
+                else if (!typeSymbol.IsAbstract)
                 {
-                    sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
+                    if (!typeSymbol.IsValueType)
+                    {
+                        sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
+                    }
+
                     var members = model.GetNinoTypeMembers(null);
                     WriteMembers(members, "value");
                 }
@@ -238,7 +237,7 @@ public class SerializerGenerator : IIncrementalGenerator
         //replace special characters with _
         curNamespace = new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
         curNamespace += "Nino";
-        
+
         // generate code
         var code = $$"""
                      // <auto-generated/>
@@ -357,7 +356,7 @@ public class SerializerGenerator : IIncrementalGenerator
                              }
 
                      {{GeneratePrivateSerializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GeneratePrivateSerializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateSerializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
@@ -367,7 +366,7 @@ public class SerializerGenerator : IIncrementalGenerator
                      {{GeneratePrivateSerializeImplMethodBody("ICollection<T>", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GeneratePrivateSerializeImplMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GeneratePrivateSerializeImplMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateSerializeImplMethodBody("ICollection<T?>", "        ", "<T>", "where T : unmanaged")}}

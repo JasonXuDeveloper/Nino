@@ -4,6 +4,39 @@ using Nino.Core;
 
 namespace Nino.UnitTests
 {
+    [NinoType]
+    public abstract class Base
+    {
+        public int A;
+    }
+
+    [NinoType]
+    public class Sub1 : Base
+    {
+        public int B;
+    }
+
+    public class Nested
+    {
+        [NinoType]
+        public abstract class Sub2 : Base
+        {
+            public int C;
+        }
+        
+        [NinoType]
+        public class Sub2Impl : Sub2
+        {
+            public int D;
+        }
+    }
+    
+    [NinoType]
+    public class Sub3 : Nested.Sub2Impl
+    {
+        public int E;
+    }
+
     [NinoType(false)]
     public class TestClass
     {
