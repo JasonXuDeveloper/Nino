@@ -30,7 +30,48 @@ public static class NinoTypeHelper
         return typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
     }
 
-    public static INamedTypeSymbol GetTypeSymbol(this Compilation compilation, string typeFullName, ImmutableArray<TypeDeclarationSyntax> models)
+    public static string GetDeserializePrefix(this ITypeSymbol ts)
+    {
+        if (!ts.IsNinoType())
+        {
+            return "Deserialize";
+        }
+        var assName = ts.ContainingAssembly.Name;
+        var curNamespace = $"{assName!}";
+        if (!string.IsNullOrEmpty(curNamespace))
+            curNamespace = $"{curNamespace}_";
+        if (!char.IsLetter(curNamespace[0]))
+            curNamespace = $"_{curNamespace}";
+        //replace special characters with _
+        curNamespace =
+            new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+        curNamespace += "Nino";
+        
+        return $"{curNamespace}.Deserializer.Deserialize";
+    }
+
+    public static string GetSerializePrefix(this ITypeSymbol ts)
+    {
+        if (!ts.IsNinoType())
+        {
+            return "Serialize";
+        }
+        var assName = ts.ContainingAssembly.Name;
+        var curNamespace = $"{assName!}";
+        if (!string.IsNullOrEmpty(curNamespace))
+            curNamespace = $"{curNamespace}_";
+        if (!char.IsLetter(curNamespace[0]))
+            curNamespace = $"_{curNamespace}";
+        //replace special characters with _
+        curNamespace =
+            new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+        curNamespace += "Nino";
+        
+        return $"{curNamespace}.Serializer.Serialize";
+    }
+
+    public static INamedTypeSymbol GetTypeSymbol(this Compilation compilation, string typeFullName,
+        ImmutableArray<TypeDeclarationSyntax> models)
     {
         var typeSymbol = compilation.GetTypeByMetadataName(typeFullName);
         if (typeSymbol == null)
@@ -46,7 +87,7 @@ public static class NinoTypeHelper
             if (typeSymbol == null)
                 throw new Exception("structSymbol is null");
         }
-        
+
         return typeSymbol;
     }
 
@@ -127,7 +168,7 @@ public static class NinoTypeHelper
                     }
 
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    private static void Deserialize(out {{typeName}} value, ref Reader reader)
+                    public static void Deserialize(out {{typeName}} value, ref Reader reader)
                     {
                         Deserialize(out {{topType}} v, ref reader);
                         value = ({{typeName}}) v;
@@ -163,6 +204,7 @@ public static class NinoTypeHelper
             var fileScopedNamespace = node.Ancestors().OfType<FileScopedNamespaceDeclarationSyntax>().FirstOrDefault();
             return fileScopedNamespace?.Name.ToString() ?? string.Empty;
         }
+
         return namespaceDeclaration.Name.ToString();
     }
 
@@ -246,14 +288,14 @@ public static class NinoTypeHelper
                 {
                     return false;
                 }
-                
+
                 //if has ninoignore attribute, ignore this member
                 if (m.AttributeLists.SelectMany(static al => al.Attributes)
                     .Any(static a => a.Name.ToString() == "NinoIgnore"))
                 {
                     return false;
                 }
-                
+
                 var memberName = m.GetMemberName();
                 if (memberName == null)
                 {

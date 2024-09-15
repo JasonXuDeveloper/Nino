@@ -133,7 +133,7 @@ public class DeserializerGenerator : IIncrementalGenerator
 
                 sb.AppendLine($$"""
                                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                        private static void Deserialize(out {{typeFullName}} value, ref Reader reader)
+                                        public static void Deserialize(out {{typeFullName}} value, ref Reader reader)
                                         {
                                 """);
 
@@ -331,7 +331,7 @@ public class DeserializerGenerator : IIncrementalGenerator
     {
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    private static void Deserialize{{typeParam}}(out {{typeName}} value, ref Reader reader) {{genericConstraint}}
+                    public static void Deserialize{{typeParam}}(out {{typeName}} value, ref Reader reader) {{genericConstraint}}
                     {
                         reader.Read(out value);
                     }

@@ -132,7 +132,7 @@ public class SerializerGenerator : IIncrementalGenerator
 
                 sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.AppendLine(
-                    $"        private static void Serialize(this {typeFullName} value, ref Writer writer)");
+                    $"        public static void Serialize(this {typeFullName} value, ref Writer writer)");
                 sb.AppendLine("        {");
                 // only applicable for reference types
                 bool isReferenceType = model is ClassDeclarationSyntax;
@@ -389,7 +389,7 @@ public class SerializerGenerator : IIncrementalGenerator
     {
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    private static void Serialize{{typeParam}}(this {{typeName}} value, ref Writer writer) {{genericConstraint}}
+                    public static void Serialize{{typeParam}}(this {{typeName}} value, ref Writer writer) {{genericConstraint}}
                     {
                         writer.Write(value);
                     }
