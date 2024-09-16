@@ -155,14 +155,14 @@ public class DeserializerGenerator : IIncrementalGenerator
                             throw new Exception("declaredType is null");
 
                         if (memberDeclarationSyntax is FieldDeclarationSyntax)
-                            sb.AppendLine($"                    Deserialize(out {valName}.{name}, ref reader);");
+                            sb.AppendLine($"                    {declaredType.GetDeserializePrefix()}(out {valName}.{name}, ref reader);");
                         else
                         {
                             var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
                                 .Aggregate("", (a, b) => a + b);
                             var tempName = $"{t}_temp_{name}";
                             sb.AppendLine(
-                                $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+                                $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
                             sb.AppendLine($"                    {valName}.{name} = {tempName};");
                         }
                     }

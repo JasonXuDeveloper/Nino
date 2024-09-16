@@ -157,7 +157,8 @@ public class SerializerGenerator : IIncrementalGenerator
                         if (declaredType == null)
                             throw new Exception("declaredType is null");
 
-                        sb.AppendLine($"                    {valName}.{name}.Serialize(ref writer);");
+                        sb.AppendLine(
+                            $"                    {declaredType.GetSerializePrefix()}({valName}.{name}, ref writer);");
                     }
                 }
 
