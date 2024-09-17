@@ -81,7 +81,10 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: artifacts
-        path: ./src
+        path: ./src/artifacts
+        
+    - name: List downloaded files
+      run: ls -la ./artifacts
 
     # Push NuGet packages
     - name: Push NuGet Packages
