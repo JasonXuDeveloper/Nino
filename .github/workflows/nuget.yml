@@ -40,7 +40,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: artifacts
-        path: ./src/artifacts
+        path: ./src/artifacts/**/*.nupkg
 
   test:
     runs-on: ubuntu-latest
@@ -81,6 +81,7 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: artifacts
+        path: ./src
 
     # Push NuGet packages
     - name: Push NuGet Packages
