@@ -1,13 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net5.0;net6.0;netstandard2.1</TargetFrameworks>
+        <TargetFrameworks>net6.0;netstandard2.1</TargetFrameworks>
         <!-- This project is meta package -->
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <IncludeContentInPack>true</IncludeContentInPack>
         <PackageId>Nino</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.0.7</Version>
+        <Version>2.0.8</Version>
         <Title>Nino</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
@@ -15,11 +15,17 @@
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary</PackageTags>
-        <PackageReleaseNotes>Nino.Serialization v2.0.7
-- [Fix] Fix compilation error for cross project types</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v2.0.8
+- [Fix] Fix compilation error for deserializing members with abstract types</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
+        <RunPostBuildEvent>Always</RunPostBuildEvent>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+    </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" />

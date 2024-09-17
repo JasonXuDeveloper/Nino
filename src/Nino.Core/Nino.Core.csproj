@@ -3,11 +3,11 @@
     <PropertyGroup>
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
-        <TargetFrameworks>net5.0;net6.0;netstandard2.1</TargetFrameworks>
+        <TargetFrameworks>net6.0;netstandard2.1</TargetFrameworks>
         <LangVersion>9</LangVersion>
         <PackageId>Nino.Serialization</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.0.7</Version>
+        <Version>2.0.8</Version>
         <Title>Nino.Serialization</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
@@ -15,11 +15,16 @@
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary</PackageTags>
-        <PackageReleaseNotes>Nino.Serialization v2.0.7
-- [Fix] Fix compilation error for cross project types</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v2.0.8
+- [Fix] Fix compilation error for deserializing members with abstract types</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+    </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="System.Buffers" Version="4.5.1" />

@@ -231,9 +231,9 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
             //if type is Span
             if (type.OriginalDefinition.ToDisplayString() == "System.Span<T>")
             {
-                if (type is INamedTypeSymbol { TypeArguments.Length: 1 })
+                if (type is INamedTypeSymbol { TypeArguments.Length: 1 } ns)
                 {
-                    sb.AppendLine(GenerateCollectionSerialization(i.TypeArguments[0].GetSerializePrefix(), typeFullName,
+                    sb.AppendLine(GenerateCollectionSerialization(ns.TypeArguments[0].GetSerializePrefix(), typeFullName,
                         "Length", "        "));
                     continue;
                 }

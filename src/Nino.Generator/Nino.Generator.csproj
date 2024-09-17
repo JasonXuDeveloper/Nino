@@ -10,7 +10,7 @@
         <RootNamespace>Nino.Generator</RootNamespace>
         <PackageId>Nino.Generator</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.0.7</Version>
+        <Version>2.0.8</Version>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
@@ -18,8 +18,8 @@
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary;Generator</PackageTags>
-        <PackageReleaseNotes>Nino.Serialization v2.0.7
-- [Fix] Fix compilation error for cross project types</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v2.0.8
+- [Fix] Fix compilation error for deserializing members with abstract types</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AnalyzerLanguage>cs</AnalyzerLanguage>
         <IncludeBuildOutput>false</IncludeBuildOutput>
@@ -28,7 +28,12 @@
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
         <IsRoslynComponent>true</IsRoslynComponent>
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.3">

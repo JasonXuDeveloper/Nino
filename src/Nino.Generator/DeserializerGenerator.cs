@@ -142,7 +142,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                     sb.AppendLine("            reader.Read(out ushort typeId);");
                     sb.AppendLine();
                 }
-                
+
                 void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
                 {
                     foreach (var memberDeclarationSyntax in members)
@@ -155,7 +155,8 @@ public class DeserializerGenerator : IIncrementalGenerator
                             throw new Exception("declaredType is null");
 
                         if (memberDeclarationSyntax is FieldDeclarationSyntax)
-                            sb.AppendLine($"                    {declaredType.GetDeserializePrefix()}(out {valName}.{name}, ref reader);");
+                            sb.AppendLine(
+                                $"                    {declaredType.GetDeserializePrefix()}(out {valName}.{name}, ref reader);");
                         else
                         {
                             var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
@@ -197,10 +198,10 @@ public class DeserializerGenerator : IIncrementalGenerator
                 foreach (var subType in lst)
                 {
                     var subTypeSymbol = compilation.GetTypeSymbol(subType, models);
+                    subTypes.AppendLine(
+                        subType.GeneratePublicDeserializeMethodBodyForSubType(typeFullName, "        "));
                     if (!subTypeSymbol.IsAbstract)
                     {
-                        subTypes.AppendLine(
-                            subType.GeneratePublicDeserializeMethodBodyForSubType(typeFullName, "        "));
                         string valName = subType.Replace(".", "_").ToLower();
                         int id = GetId(subType);
                         sb.AppendLine($"                case {id}:");
@@ -212,7 +213,8 @@ public class DeserializerGenerator : IIncrementalGenerator
                             models.Where(m => inheritanceMap[subType]
                                 .Contains(m.GetTypeFullName())).ToList();
 
-                        var members = models.First(m => m.GetTypeFullName() == subType).GetNinoTypeMembers(subTypeModels);
+                        var members = models.First(m => m.GetTypeFullName() == subType)
+                            .GetNinoTypeMembers(subTypeModels);
                         //get distinct members
                         members = members.Distinct().ToList();
                         WriteMembers(members, valName);
@@ -229,6 +231,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                         sb.AppendLine($"                case {GetId(typeFullName)}:");
                         sb.AppendLine("                {");
                     }
+
                     sb.AppendLine($"                    value = new {typeFullName}();");
                     var defaultMembers = model.GetNinoTypeMembers(null);
                     WriteMembers(defaultMembers, "value");
