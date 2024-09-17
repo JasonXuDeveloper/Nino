@@ -33,7 +33,7 @@ jobs:
 
     # Build the solution
     - name: Build solution
-      run: dotnet build --configuration Release --output ./artifacts
+      run: dotnet build --configuration Release /p:OutputPath=../artifacts
 
     # Upload build artifacts
     - name: Upload build artifacts
