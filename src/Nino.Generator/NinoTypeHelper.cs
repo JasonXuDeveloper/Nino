@@ -30,12 +30,116 @@ public static class NinoTypeHelper
         return typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
     }
 
+    public static bool IsReferenceType(this TypeDeclarationSyntax typeDecl)
+    {
+        return typeDecl is ClassDeclarationSyntax or RecordDeclarationSyntax or InterfaceDeclarationSyntax;
+    }
+
+    public static bool IsInstanceType(this ITypeSymbol typeSymbol)
+    {
+        //can't be interface or abstract class
+        return typeSymbol.TypeKind switch
+        {
+            TypeKind.Interface => false,
+            TypeKind.Class => !typeSymbol.IsAbstract,
+            TypeKind.Struct => true,
+            TypeKind.Array => true,
+            _ => false
+        };
+    }
+
+    public static int GetId(this List<string> typeFullNames,string typeFullName)
+    {
+        int index = typeFullNames.IndexOf(typeFullName);
+        return index + 4;
+    }
+
+    public static (Dictionary<string, List<string>> inheritanceMap,
+        Dictionary<string, List<string>> subTypeMap,
+        ImmutableArray<string> topNinoTypes) GetInheritanceMap(this Compilation compilation, ImmutableArray<TypeDeclarationSyntax> models)
+    {
+        var ninoTypeModels = models.Select(m => m.GetTypeFullName()).ToImmutableArray();
+        Dictionary<string, List<string>> inheritanceMap = new(); // type -> all base types
+        Dictionary<string, List<string>> subTypeMap = new(); //top type -> all subtypes
+        //get top nino types (i.e. types that are not inherited by other nino types)
+        var topNinoTypes = ninoTypeModels.Where(ninoTypeFullName =>
+        {
+            List<string> inheritedTypes = new();
+            inheritanceMap.Add(ninoTypeFullName, inheritedTypes);
+            INamedTypeSymbol? subTypeSymbol = compilation.GetTypeByMetadataName(ninoTypeFullName);
+            if (subTypeSymbol == null)
+            {
+                //check if is a nested type
+                TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
+                    string.Equals(m.GetTypeFullName(), ninoTypeFullName, StringComparison.Ordinal));
+
+                if (typeDeclarationSyntax == null)
+                    return false;
+
+                var ninoTypeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
+                subTypeSymbol = compilation.GetTypeByMetadataName(ninoTypeFullName2);
+                if (subTypeSymbol == null)
+                    return false;
+            }
+
+            //get toppest ninotype base type
+            INamedTypeSymbol? baseType = subTypeSymbol;
+            List<string> interfaces = new();
+            interfaces.AddRange(baseType.Interfaces.Select(i => i.ToString()));
+            while (baseType.BaseType != null)
+            {
+                baseType = baseType.BaseType;
+                string baseTypeFullName = baseType.ToString();
+                if (ninoTypeModels.Contains(baseTypeFullName))
+                {
+                    interfaces.AddRange(baseType.Interfaces.Select(i => i.ToString()));
+                    if (subTypeMap.ContainsKey(baseTypeFullName))
+                    {
+                        subTypeMap[baseTypeFullName].Add(ninoTypeFullName);
+                    }
+                    else
+                    {
+                        subTypeMap.Add(baseTypeFullName, [ninoTypeFullName]);
+                    }
+
+                    inheritedTypes.Add(baseTypeFullName);
+                }
+                else
+                {
+                    break;
+                }
+            }
+            //it may implement interfaces that are nino types
+            foreach (var @interface in interfaces)
+            {
+                if (ninoTypeModels.Contains(@interface))
+                {
+                    if (subTypeMap.ContainsKey(@interface))
+                    {
+                        subTypeMap[@interface].Add(ninoTypeFullName);
+                    }
+                    else
+                    {
+                        subTypeMap.Add(@interface, [ninoTypeFullName]);
+                    }
+
+                    inheritedTypes.Add(@interface);
+                }
+            }
+
+            return inheritedTypes.Count == 0;
+        }).ToImmutableArray();
+        
+        return (inheritanceMap, subTypeMap, topNinoTypes);
+    }
+
     public static string GetDeserializePrefix(this ITypeSymbol ts)
     {
         if (!ts.IsNinoType())
         {
             return "Deserialize";
         }
+
         var assName = ts.ContainingAssembly.Name;
         var curNamespace = $"{assName!}";
         if (!string.IsNullOrEmpty(curNamespace))
@@ -46,7 +150,7 @@ public static class NinoTypeHelper
         curNamespace =
             new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
         curNamespace += "Nino";
-        
+
         return $"{curNamespace}.Deserializer.Deserialize";
     }
 
@@ -56,6 +160,7 @@ public static class NinoTypeHelper
         {
             return "Serialize";
         }
+
         var assName = ts.ContainingAssembly.Name;
         var curNamespace = $"{assName!}";
         if (!string.IsNullOrEmpty(curNamespace))
@@ -66,7 +171,7 @@ public static class NinoTypeHelper
         curNamespace =
             new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
         curNamespace += "Nino";
-        
+
         return $"{curNamespace}.Serializer.Serialize";
     }
 

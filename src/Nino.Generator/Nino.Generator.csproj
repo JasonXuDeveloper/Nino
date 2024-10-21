@@ -10,7 +10,7 @@
         <RootNamespace>Nino.Generator</RootNamespace>
         <PackageId>Nino.Generator</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.0.8</Version>
+        <Version>2.0.9</Version>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
@@ -18,8 +18,10 @@
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary;Generator</PackageTags>
-        <PackageReleaseNotes>Nino.Serialization v2.0.8
-- [Fix] Fix compilation error for deserializing members with abstract types</PackageReleaseNotes>
+        <PackageReleaseNotes>Nino.Serialization v2.0.9
+- [Feature] Allow serialize/deserialize interfaces (subtypes) and records
+- [Fix] Generated deserialization code should not instantiate an IDicitonary
+- [Fix] Generated deserialization code for any IDictionary implementations should use `dict[key] = val` to set the value, rather than naively call `Add`, so it can support more implementations, i.e. `ConcurrentDictionary`</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AnalyzerLanguage>cs</AnalyzerLanguage>
         <IncludeBuildOutput>false</IncludeBuildOutput>

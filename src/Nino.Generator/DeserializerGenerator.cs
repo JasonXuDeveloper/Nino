@@ -23,74 +23,20 @@ public class DeserializerGenerator : IIncrementalGenerator
         SourceProductionContext spc)
     {
         // get type full names from models (namespaces + type names)
-        var typeFullNames = models.Where(m => m is ClassDeclarationSyntax)
+        var typeFullNames = models.Where(m => m.IsReferenceType())
             .Select(m => m.GetTypeFullName()).ToList();
         //sort by typename
         typeFullNames.Sort();
 
-        int GetId(string typeFullName)
-        {
-            int index = typeFullNames.IndexOf(typeFullName);
-            return index + 4;
-        }
-
         var types = new StringBuilder();
         foreach (var typeFullName in typeFullNames)
         {
-            types.AppendLine($"    * {GetId(typeFullName)} - {typeFullName}");
+            types.AppendLine($"    * {typeFullNames.GetId(typeFullName)} - {typeFullName}");
         }
 
-        var ninoTypeModels = models.Select(m => m.GetTypeFullName()).ToImmutableArray();
-        Dictionary<string, List<string>> inheritanceMap = new(); // type -> all base types
-        Dictionary<string, List<string>> subTypeMap = new(); //top type -> all subtypes
-        //get top nino types (i.e. types that are not inherited by other nino types)
-        var topNinoTypes = ninoTypeModels.Where(ninoTypeFullName =>
-        {
-            List<string> inheritedTypes = new();
-            inheritanceMap.Add(ninoTypeFullName, inheritedTypes);
-            INamedTypeSymbol? subTypeSymbol = compilation.GetTypeByMetadataName(ninoTypeFullName);
-            if (subTypeSymbol == null)
-            {
-                //check if is a nested type
-                TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                    string.Equals(m.GetTypeFullName(), ninoTypeFullName, StringComparison.Ordinal));
-
-                if (typeDeclarationSyntax == null)
-                    return false;
-
-                var ninoTypeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                subTypeSymbol = compilation.GetTypeByMetadataName(ninoTypeFullName2);
-                if (subTypeSymbol == null)
-                    return false;
-            }
-
-            //get toppest ninotype base type
-            INamedTypeSymbol? baseType = subTypeSymbol;
-            while (baseType.BaseType != null)
-            {
-                baseType = baseType.BaseType;
-                string baseTypeFullName = baseType.ToString();
-                if (ninoTypeModels.Contains(baseTypeFullName))
-                {
-                    if (subTypeMap.ContainsKey(baseTypeFullName))
-                    {
-                        subTypeMap[baseTypeFullName].Add(ninoTypeFullName);
-                    }
-                    else
-                    {
-                        subTypeMap.Add(baseTypeFullName, [ninoTypeFullName]);
-                    }
-
-                    inheritedTypes.Add(baseTypeFullName);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            return inheritedTypes.Count == 0;
-        }).ToImmutableArray();
+        var (inheritanceMap, 
+            subTypeMap, 
+            topNinoTypes) = compilation.GetInheritanceMap(models);
 
         var sb = new StringBuilder();
         var subTypes = new StringBuilder();
@@ -183,7 +129,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                 });
 
                 // only applicable for reference types
-                bool isReferenceType = typeSymbol.IsReferenceType;
+                bool isReferenceType = model.IsReferenceType();
                 if (isReferenceType)
                 {
                     sb.AppendLine("            switch (typeId)");
@@ -200,10 +146,10 @@ public class DeserializerGenerator : IIncrementalGenerator
                     var subTypeSymbol = compilation.GetTypeSymbol(subType, models);
                     subTypes.AppendLine(
                         subType.GeneratePublicDeserializeMethodBodyForSubType(typeFullName, "        "));
-                    if (!subTypeSymbol.IsAbstract)
+                    if (subTypeSymbol.IsInstanceType())
                     {
                         string valName = subType.Replace(".", "_").ToLower();
-                        int id = GetId(subType);
+                        int id = typeFullNames.GetId(subType);
                         sb.AppendLine($"                case {id}:");
                         sb.AppendLine("                {");
                         sb.AppendLine($"                    {subType} {valName} = new {subType}();");
@@ -224,11 +170,11 @@ public class DeserializerGenerator : IIncrementalGenerator
                     }
                 }
 
-                if (!typeSymbol.IsAbstract)
+                if (typeSymbol.IsInstanceType())
                 {
                     if (isReferenceType)
                     {
-                        sb.AppendLine($"                case {GetId(typeFullName)}:");
+                        sb.AppendLine($"                case {typeFullNames.GetId(typeFullName)}:");
                         sb.AppendLine("                {");
                     }
 

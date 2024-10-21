@@ -13,27 +13,66 @@ namespace Nino.UnitTests
     public class IssueTest
     {
         [TestClass]
-        public class InheritanceTest
+        public abstract class IssueTestTemplate
+        {
+            [TestMethod]
+            public abstract void RunTest();
+        }
+
+        [TestClass]
+        public class Issue134 : IssueTestTemplate
+        {
+            [NinoType]
+            public interface IBase
+            {
+                int A { get; set; }
+            }
+            
+            [NinoType]
+            public class Impl : IBase
+            {
+                public int A { get; set; }
+            }
+            
+            [TestMethod]
+            public override void RunTest()
+            {
+                var impl = new Impl { A = 10 };
+                var bytes = impl.Serialize();
+                Deserializer.Deserialize(bytes, out Impl impl2);
+                Assert.AreEqual(impl.A, impl2.A);
+                
+                Dictionary<string, IBase> dict = new Dictionary<string, IBase>
+                {
+                    { "A", new Impl { A = 10 } }
+                };
+                bytes = dict.Serialize();
+                Deserializer.Deserialize(bytes, out Dictionary<string, IBase> dict2);
+                Assert.AreEqual(dict["A"].A, dict2["A"].A);
+            }
+        }
+
+        [TestClass]
+        public class InheritanceTest : IssueTestTemplate
         {
             public class PackageBase
             {
-                
             }
-            
+
             [Nino.Core.NinoType]
             [Serializable]
             public sealed partial class MyPackPerson : PackageBase
             {
                 public int P1 { get; set; }
-            
+
                 public string P2 { get; set; }
-            
+
                 public char P3 { get; set; }
-            
+
                 public double P4 { get; set; }
-            
+
                 public List<int> P5 { get; set; }
-            
+
                 public Dictionary<int, MyClassModel> P6 { get; set; }
             }
 
@@ -45,7 +84,7 @@ namespace Nino.UnitTests
             }
 
             [TestMethod]
-            public void Test()
+            public override void RunTest()
             {
                 MyPackPerson person = new MyPackPerson
                 {
@@ -73,7 +112,7 @@ namespace Nino.UnitTests
 
 
         [TestClass]
-        public class IssueIgnore
+        public class IssueIgnore : IssueTestTemplate
         {
             [NinoType]
             public class Data
@@ -91,7 +130,7 @@ namespace Nino.UnitTests
             }
 
             [TestMethod]
-            public void RunTest()
+            public override void RunTest()
             {
                 Data data = new Data();
                 data.A = 10;
@@ -111,7 +150,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue52
+        public class Issue52 : IssueTestTemplate
         {
             [NinoType]
             public class NinoTestData
@@ -121,7 +160,7 @@ namespace Nino.UnitTests
             }
 
             [TestMethod]
-            public void RunTest()
+            public override void RunTest()
             {
                 var dt = new NinoTestData()
                 {
@@ -161,7 +200,7 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue41
+        public class Issue41 : IssueTestTemplate
         {
             [NinoType]
             public class NinoTestData
@@ -179,7 +218,7 @@ namespace Nino.UnitTests
             }
 
             [TestMethod]
-            public void RunTest()
+            public override void RunTest()
             {
                 var list = new List<NinoTestData>();
                 list.Add(new NinoTestData
@@ -238,10 +277,10 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue32
+        public class Issue32 : IssueTestTemplate
         {
             [TestMethod]
-            public void RunTest()
+            public override void RunTest()
             {
                 MessagePackage package = new MessagePackage
                 {

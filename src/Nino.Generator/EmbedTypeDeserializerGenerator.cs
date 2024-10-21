@@ -229,9 +229,8 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                 }
             }
 
-            //if type implements IDictionary or is IDictionary
-            if (typeFullName.StartsWith("System.Collections.Generic.IDictionary")
-                || type.AllInterfaces.Any(namedTypeSymbol =>
+            //if type implements IDictionary only
+            if (type.AllInterfaces.Any(namedTypeSymbol =>
                     namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2))
             {
                 if (type is INamedTypeSymbol { TypeArguments.Length: 2 } namedTypeSymbol)
@@ -365,11 +364,11 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                                 return;
                             case TypeCollector.CollectionTypeId:
                                 reader.Read(out int length);
-                                value = new Dictionary<{{type1}}, {{type2}}>(length);
+                                value = new {{typeFullName}}();
                                 for (int i = 0; i < length; i++)
                                 {
                                     Deserialize(out KeyValuePair<{{type1}}, {{type2}}> kvp, ref reader);
-                                    value.Add(kvp.Key, kvp.Value);
+                                    value[kvp.Key] = kvp.Value;
                                 }
                                 return;
                             default:

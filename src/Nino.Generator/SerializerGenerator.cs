@@ -23,74 +23,20 @@ public class SerializerGenerator : IIncrementalGenerator
         SourceProductionContext spc)
     {
         // get type full names from models (namespaces + type names)
-        var typeFullNames = models.Where(m => m is ClassDeclarationSyntax)
+        var typeFullNames = models.Where(m => m.IsReferenceType())
             .Select(m => m.GetTypeFullName()).ToList();
         //sort by typename
         typeFullNames.Sort();
 
-        int GetId(string typeFullName)
-        {
-            int index = typeFullNames.IndexOf(typeFullName);
-            return index + 4;
-        }
-
         var types = new StringBuilder();
         foreach (var typeFullName in typeFullNames)
         {
-            types.AppendLine($"    * {GetId(typeFullName)} - {typeFullName}");
+            types.AppendLine($"    * {typeFullNames.GetId(typeFullName)} - {typeFullName}");
         }
 
-        var ninoTypeModels = models.Select(m => m.GetTypeFullName()).ToImmutableArray();
-        Dictionary<string, List<string>> inheritanceMap = new(); // type -> all base types
-        Dictionary<string, List<string>> subTypeMap = new(); //top type -> all subtypes
-        //get top nino types (i.e. types that are not inherited by other nino types)
-        var topNinoTypes = ninoTypeModels.Where(ninoTypeFullName =>
-        {
-            List<string> inheritedTypes = new();
-            inheritanceMap.Add(ninoTypeFullName, inheritedTypes);
-            INamedTypeSymbol? subTypeSymbol = compilation.GetTypeByMetadataName(ninoTypeFullName);
-            if (subTypeSymbol == null)
-            {
-                //check if is a nested type
-                TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                    string.Equals(m.GetTypeFullName(), ninoTypeFullName, StringComparison.Ordinal));
-
-                if (typeDeclarationSyntax == null)
-                    return false;
-
-                var ninoTypeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                subTypeSymbol = compilation.GetTypeByMetadataName(ninoTypeFullName2);
-                if (subTypeSymbol == null)
-                    return false;
-            }
-
-            //get toppest ninotype base type
-            INamedTypeSymbol? baseType = subTypeSymbol;
-            while (baseType.BaseType != null)
-            {
-                baseType = baseType.BaseType;
-                string baseTypeFullName = baseType.ToString();
-                if (ninoTypeModels.Contains(baseTypeFullName))
-                {
-                    if (subTypeMap.ContainsKey(baseTypeFullName))
-                    {
-                        subTypeMap[baseTypeFullName].Add(ninoTypeFullName);
-                    }
-                    else
-                    {
-                        subTypeMap.Add(baseTypeFullName, [ninoTypeFullName]);
-                    }
-
-                    inheritedTypes.Add(baseTypeFullName);
-                }
-                else
-                {
-                    break;
-                }
-            }
-
-            return inheritedTypes.Count == 0;
-        }).ToImmutableArray();
+        var (inheritanceMap, 
+            subTypeMap, 
+            topNinoTypes) = compilation.GetInheritanceMap(models);
 
         var sb = new StringBuilder();
 
@@ -135,7 +81,7 @@ public class SerializerGenerator : IIncrementalGenerator
                     $"        public static void Serialize(this {typeFullName} value, ref Writer writer)");
                 sb.AppendLine("        {");
                 // only applicable for reference types
-                bool isReferenceType = model is ClassDeclarationSyntax;
+                bool isReferenceType = model.IsReferenceType();
                 if (isReferenceType)
                 {
                     sb.AppendLine("            if (value == null)");
@@ -179,11 +125,11 @@ public class SerializerGenerator : IIncrementalGenerator
                     foreach (var subType in lst)
                     {
                         var subTypeSymbol = compilation.GetTypeSymbol(subType, models);
-                        if (!subTypeSymbol.IsAbstract)
+                        if (subTypeSymbol.IsInstanceType())
                         {
                             string valName = subType.Replace(".", "_").ToLower();
                             sb.AppendLine($"                case {subType} {valName}:");
-                            sb.AppendLine($"                    writer.Write((ushort){GetId(subType)});");
+                            sb.AppendLine($"                    writer.Write((ushort){typeFullNames.GetId(subType)});");
 
 
                             List<TypeDeclarationSyntax> subTypeModels =
@@ -199,10 +145,10 @@ public class SerializerGenerator : IIncrementalGenerator
                         }
                     }
 
-                    if (!typeSymbol.IsAbstract)
+                    if (typeSymbol.IsInstanceType())
                     {
                         sb.AppendLine("                default:");
-                        sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
+                        sb.AppendLine($"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
                         var defaultMembers = model.GetNinoTypeMembers(null);
                         WriteMembers(defaultMembers, "value");
                         sb.AppendLine("                    return;");
@@ -210,11 +156,11 @@ public class SerializerGenerator : IIncrementalGenerator
 
                     sb.AppendLine("            }");
                 }
-                else if (!typeSymbol.IsAbstract)
+                else if (typeSymbol.IsInstanceType())
                 {
                     if (!typeSymbol.IsValueType)
                     {
-                        sb.AppendLine($"                    writer.Write((ushort){GetId(typeFullName)});");
+                        sb.AppendLine($"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
                     }
 
                     var members = model.GetNinoTypeMembers(null);

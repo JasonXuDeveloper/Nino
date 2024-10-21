@@ -2,7 +2,9 @@ using System;
 
 namespace Nino.Core
 {
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct |
+                    AttributeTargets.Interface
+        , Inherited = false)]
     public class NinoTypeAttribute : Attribute
     {
         public bool AutoCollect;
