@@ -10,7 +10,7 @@
         <PackageReference Include="BenchmarkDotNet" Version="0.13.12"/>
         <PackageReference Include="Jil" Version="2.17.0"/>
         <PackageReference Include="MemoryPack" Version="1.21.1" />
-        <PackageReference Include="MessagePack" Version="2.4.35" />
+        <PackageReference Include="MessagePack" Version="2.5.187" />
         <PackageReference Include="MessagePackAnalyzer" Version="2.4.35">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
