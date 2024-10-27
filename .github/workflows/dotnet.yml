@@ -32,6 +32,11 @@ jobs:
     if: ${{ startsWith(github.event.head_commit.message, 'release v') }}
     needs: build
 
+    # override working directory for this job
+    defaults:
+      run:
+        working-directory: ./
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
