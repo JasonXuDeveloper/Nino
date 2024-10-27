@@ -33,37 +33,14 @@ jobs:
     # Build the solution
     - name: Build solution
       run: dotnet build --configuration Release /p:OutputPath=../artifacts
-
-    # Upload build artifacts
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: artifacts
-        path: ./src/artifacts/**/*.nupkg
-
-  test:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-    # Checkout the code
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: ${{ vars.DOTNET_VERSION }}
-
-    # Run tests
+      
     - name: Run tests
       run: dotnet test --configuration Release --no-build
 
   bump-version:
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.event.head_commit.message, 'release v') }}
-    needs: [build, test]
+    needs: [build]
 
     # override working directory for this job
     defaults:
@@ -159,7 +136,7 @@ jobs:
 
   push-to-nuget:
     runs-on: ubuntu-latest
-    needs: [build, test, bump-version]
+    needs: [build, bump-version]
 
     steps:
     # Checkout the code
@@ -170,21 +147,20 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: ${{ vars.DOTNET_VERSION }}
+        dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
 
-    # Download build artifacts
-    - name: Download build artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: artifacts
-        path: ./src/artifacts
-        
-    - name: List downloaded files
-      run: ls -la ./artifacts
+    # Restore dependencies
+    - name: Restore dependencies
+      run: dotnet restore
+
+    # Build the solution
+    - name: Build solution
+      run: dotnet build --configuration Release /p:OutputPath=../artifacts
 
     # Push NuGet packages
     - name: Push NuGet Packages
       run: |
+        echo "Current directory: $(pwd)"
         for package in ./artifacts/*.nupkg; do
           dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
         done
