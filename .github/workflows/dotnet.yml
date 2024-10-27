@@ -42,10 +42,7 @@ jobs:
       - name: Extract Version and Description
         id: extract_version_description
         run: |
-          FULL_MESSAGE=$(cat <<EOF
-          ${{ github.event.head_commit.message }}
-          EOF
-          )
+          FULL_MESSAGE="${{ github.event.head_commit.message }}"
 
           SUMMARY=$(echo "$FULL_MESSAGE" | head -n 1)
           DESCRIPTION=$(echo "$FULL_MESSAGE" | tail -n +3)
@@ -58,7 +55,7 @@ jobs:
           fi
 
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "DESCRIPTION=$DESCRIPTION" >> $GITHUB_ENV
+          printf "DESCRIPTION<<EOF\n%s\nEOF\n" "$DESCRIPTION" >> $GITHUB_ENV
 
           echo "Bumping version to $VERSION"
 
