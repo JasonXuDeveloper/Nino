@@ -75,8 +75,19 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Check for Changes
+        id: check_changes
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "changes=true" >> $GITHUB_ENV
+          else
+            echo "changes=false" >> $GITHUB_ENV
+          fi
+
       - name: Commit and Push Changes
         id: commit_version_bump  # Capture this step ID to get the commit SHA
+        if: env.changes == 'true'
         run: |
           # Commit the changes with the specified message
           git add .

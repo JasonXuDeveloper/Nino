@@ -1,11 +1,8 @@
 name: Build, Test, and Publish NuGet Packages
 
 on:
-  push:
-    branches:
-      - release
-    tags:
-      - 'v*'
+  release:
+    types: [published]
 
 # Set global defaults, including the working directory
 defaults:
