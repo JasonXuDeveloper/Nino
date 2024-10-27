@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0   # Ensures that we have access to the full commit history
@@ -61,6 +61,9 @@ jobs:
 
       - name: Run Version Bump Script
         run: |
+          echo "Current directory: $(pwd)"
+          echo "Contents of current directory: $(ls -la)"
+          chmod +x ./bump_version.sh
           ./bump_version.sh "$VERSION"
 
       - name: Configure Git
