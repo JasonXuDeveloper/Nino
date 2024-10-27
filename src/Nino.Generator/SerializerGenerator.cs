@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Nino.Generator;
@@ -92,7 +93,7 @@ public class SerializerGenerator : IIncrementalGenerator
                     sb.AppendLine();
                 }
 
-                void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
+                void WriteMembers(List<CSharpSyntaxNode> members, string valName)
                 {
                     foreach (var memberDeclarationSyntax in members)
                     {

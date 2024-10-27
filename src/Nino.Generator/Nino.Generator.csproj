@@ -9,6 +9,7 @@
         <IsRoslynComponent>true</IsRoslynComponent>
         <RootNamespace>Nino.Generator</RootNamespace>
         <PackageId>Nino.Generator</PackageId>
+        <IncludeBuildOutput>true</IncludeBuildOutput>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
         <Version>2.0.9</Version>
         <Title>Nino.Generator</Title>
@@ -18,22 +19,25 @@
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary;Generator</PackageTags>
-        <PackageReleaseNotes>Nino.Serialization v2.0.9
-- [Feature] Allow serialize/deserialize interfaces (subtypes) and records
-- [Fix] Generated deserialization code should not instantiate an IDicitonary
-- [Fix] Generated deserialization code for any IDictionary implementations should use `dict[key] = val` to set the value, rather than naively call `Add`, so it can support more implementations, i.e. `ConcurrentDictionary`</PackageReleaseNotes>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AnalyzerLanguage>cs</AnalyzerLanguage>
-        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <NoPackageAnalysis>true</NoPackageAnalysis>
         <DevelopmentDependency>true</DevelopmentDependency>
         <IncludeSymbols>false</IncludeSymbols>
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
         <IsRoslynComponent>true</IsRoslynComponent>
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <BranchName>refs/heads/main</BranchName>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Include="..\Version.cs"/>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>
 

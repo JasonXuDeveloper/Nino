@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Nino.Generator;
@@ -34,8 +35,8 @@ public class DeserializerGenerator : IIncrementalGenerator
             types.AppendLine($"    * {typeFullNames.GetId(typeFullName)} - {typeFullName}");
         }
 
-        var (inheritanceMap, 
-            subTypeMap, 
+        var (inheritanceMap,
+            subTypeMap,
             topNinoTypes) = compilation.GetInheritanceMap(models);
 
         var sb = new StringBuilder();
@@ -89,7 +90,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                     sb.AppendLine();
                 }
 
-                void WriteMembers(List<MemberDeclarationSyntax> members, string valName)
+                void WriteMembers(List<CSharpSyntaxNode> members, string valName)
                 {
                     foreach (var memberDeclarationSyntax in members)
                     {
@@ -112,6 +113,120 @@ public class DeserializerGenerator : IIncrementalGenerator
                                 $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
                             sb.AppendLine($"                    {valName}.{name} = {tempName};");
                         }
+                    }
+                }
+
+                void WriteMembersWithCustomConstructor(List<CSharpSyntaxNode> members, string typeName, string
+                    valName, string[] constructorMember)
+                {
+                    List<(string, string)> vars = new List<(string, string)>();
+                    Dictionary<string, string> args = new Dictionary<string, string>();
+                    foreach (var memberDeclarationSyntax in members)
+                    {
+                        var name = memberDeclarationSyntax.GetMemberName();
+                        // see if declaredType is a NinoType
+                        var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
+                        //check if declaredType is a NinoType
+                        if (declaredType == null)
+                            throw new Exception("declaredType is null");
+
+                        var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
+                            .Aggregate("", (a, b) => a + b);
+                        var tempName = $"{t}_temp_{name}";
+                        sb.AppendLine(
+                            $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+
+                        if (constructorMember.Any(c => c.ToLower().Equals(name?.ToLower())))
+                        {
+                            args.Add(name!, tempName);
+                        }
+                        else
+                        {
+                            // we dont want init-only properties from the primary constructor
+                            if (memberDeclarationSyntax is not ParameterSyntax)
+                            {
+                                vars.Add((name, tempName)!);
+                            }
+                        }
+                    }
+
+                    sb.AppendLine(
+                        $"                    {valName} = new {typeName}({string.Join(", ",
+                            constructorMember.Select(m =>
+                                args[args.Keys
+                                    .FirstOrDefault(k =>
+                                        k.ToLower()
+                                            .Equals(m.ToLower()))]
+                            ))});");
+                    foreach (var (memberName, varName) in vars)
+                    {
+                        sb.AppendLine($"                    {valName}.{memberName} = {varName};");
+                    }
+                }
+
+                void CreateInstance(List<CSharpSyntaxNode> defaultMembers, INamedTypeSymbol symbol, string valName,
+                    string typeName)
+                {
+                    //if this subtype contains a custom constructor, use it
+                    //go through all constructors and find the one with the NinoConstructor attribute
+                    var constructors = symbol.Constructors;
+                    IMethodSymbol? constructor = null;
+
+                    // if typesymbol is a record, try get the primary constructor
+                    if (symbol.IsRecord)
+                    {
+                        constructor = constructors.FirstOrDefault(c => c.Parameters.Length == 0 || c.Parameters.All(p =>
+                            defaultMembers.Any(m => m.GetMemberName() == p.Name)));
+                    }
+
+                    if (constructor == null)
+                        constructor = constructors.OrderBy(c => c.Parameters.Length).FirstOrDefault();
+
+                    if (constructor == null)
+                    {
+                        sb.AppendLine(
+                            "                    // fallback to default constructor since no constructor found");
+                        sb.AppendLine($"                    {valName} = new {typeName}();");
+                        WriteMembers(defaultMembers, valName);
+                        return;
+                    }
+
+                    var custom = constructors.FirstOrDefault(c => c.GetAttributes().Any(a =>
+                        a.AttributeClass != null &&
+                        a.AttributeClass.ToDisplayString().EndsWith("NinoConstructorAttribute")));
+                    if (custom != null)
+                    {
+                        constructor = custom;
+                    }
+
+                    var attr = constructor.GetNinoConstructorAttribute();
+                    string[]? args;
+                    if (attr != null)
+                    {
+                        sb.AppendLine($"                    //use {constructor.ToDisplayString()}");
+                        //attr is         [NinoConstructor(nameof(a), nameof(b), nameof(c), ...)]
+                        //we need to get a, b, c, ...
+                        var args0 = attr.ConstructorArguments[0].Values;
+                        //should be a string array
+                        args = args0.Select(a =>
+                            a.Value as string).ToArray()!;
+                    }
+                    else
+                    {
+                        args = constructor.Parameters.Select(p => p.Name).ToArray();
+                    }
+
+                    if (args.All(a => defaultMembers.Any(m => m.GetMemberName()?.ToLower() == a.ToLower())))
+                    {
+                        WriteMembersWithCustomConstructor(defaultMembers, typeName, valName, args);
+                    }
+                    else
+                    {
+                        sb.AppendLine($"                    //use {constructor.ToDisplayString()}");
+                        sb.AppendLine(
+                            $"                    // fallback to default constructor from {constructor.ToDisplayString()}");
+                        sb.AppendLine($"                    {valName} = new {typeName}();");
+                        WriteMembers(defaultMembers, valName);
                     }
                 }
 
@@ -152,9 +267,8 @@ public class DeserializerGenerator : IIncrementalGenerator
                         int id = typeFullNames.GetId(subType);
                         sb.AppendLine($"                case {id}:");
                         sb.AppendLine("                {");
-                        sb.AppendLine($"                    {subType} {valName} = new {subType}();");
 
-
+                        //get members
                         List<TypeDeclarationSyntax> subTypeModels =
                             models.Where(m => inheritanceMap[subType]
                                 .Contains(m.GetTypeFullName())).ToList();
@@ -163,7 +277,11 @@ public class DeserializerGenerator : IIncrementalGenerator
                             .GetNinoTypeMembers(subTypeModels);
                         //get distinct members
                         members = members.Distinct().ToList();
-                        WriteMembers(members, valName);
+
+                        sb.AppendLine($"                    {subType} {valName};");
+
+                        CreateInstance(members, subTypeSymbol, valName, subType);
+
                         sb.AppendLine($"                    value = {valName};");
                         sb.AppendLine("                    return;");
                         sb.AppendLine("                }");
@@ -178,9 +296,10 @@ public class DeserializerGenerator : IIncrementalGenerator
                         sb.AppendLine("                {");
                     }
 
-                    sb.AppendLine($"                    value = new {typeFullName}();");
                     var defaultMembers = model.GetNinoTypeMembers(null);
-                    WriteMembers(defaultMembers, "value");
+                    string valName = "value";
+                    CreateInstance(defaultMembers, typeSymbol, valName, typeFullName);
+
                     if (isReferenceType)
                     {
                         sb.AppendLine("                    return;");

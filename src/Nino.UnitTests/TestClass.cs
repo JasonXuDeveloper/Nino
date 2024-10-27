@@ -23,14 +23,14 @@ namespace Nino.UnitTests
         {
             public int C;
         }
-        
+
         [NinoType]
         public class Sub2Impl : Sub2
         {
             public int D;
         }
     }
-    
+
     [NinoType]
     public class Sub3 : Nested.Sub2Impl
     {
@@ -93,5 +93,104 @@ namespace Nino.UnitTests
         public int Id;
         public string Name;
         public DateTime CreateTime;
+    }
+
+    [NinoType]
+    public record SimpleRecord
+    {
+        public int Id;
+        public string Name;
+        public DateTime CreateTime;
+
+        public SimpleRecord()
+        {
+            Id = 0;
+            Name = string.Empty;
+            CreateTime = DateTime.MinValue;
+        }
+
+        [NinoConstructor(nameof(Id), nameof(Name))]
+        public SimpleRecord(int id, string name)
+        {
+            Id = id;
+            Name = name;
+            CreateTime = DateTime.Now;
+        }
+    }
+
+    [NinoType]
+    public record SimpleRecord2(int Id, string Name, DateTime CreateTime);
+
+    [NinoType(false)]
+    public record SimpleRecord3(
+        [NinoMember(3)] int Id,
+        [NinoMember(2)] string Name,
+        [NinoMember(1)] DateTime CreateTime)
+    {
+        [NinoMember(0)] public bool Flag;
+
+        public int Ignored;
+    }
+
+
+    [NinoType]
+    public record SimpleRecord4(int Id, string Name, DateTime CreateTime)
+    {
+        [NinoIgnore] public bool Flag;
+
+        public int ShouldNotIgnore;
+
+        // Should not use this
+        public SimpleRecord4() : this(0, "", DateTime.MinValue)
+        {
+        }
+    }
+
+
+    [NinoType]
+    public record SimpleRecord5(int Id, string Name, DateTime CreateTime)
+    {
+        [NinoIgnore] public bool Flag;
+
+        public int ShouldNotIgnore;
+
+        // Not good since we will discard the primary constructor values when deserializing
+        [NinoConstructor]
+        public SimpleRecord5() : this(0, "", DateTime.MinValue)
+        {
+        }
+    }
+    
+    [NinoType]
+    public struct SimpleStruct
+    {
+        public int Id;
+        public string Name;
+        public DateTime CreateTime;
+        
+        [NinoConstructor(nameof(Id), nameof(Name), nameof(CreateTime))]
+        public SimpleStruct(int a, string b, DateTime c)
+        {
+            Id = a;
+            Name = b;
+            CreateTime = c;
+        }
+    }
+
+    [NinoType]
+    public class SimpleClassWithConstructor
+    {
+        public int Id;
+        public string Name;
+        public DateTime CreateTime;
+        
+        // [NinoConstructor(nameof(Id), nameof(Name), nameof(CreateTime))] - we try not to use this and test if it still works
+        // should automatically use this constructor since this is the only public constructor
+        public SimpleClassWithConstructor(int id, string name, DateTime createTime)
+        {
+            Id = id;
+            Name = name;
+            CreateTime = createTime;
+        }
     }
 }

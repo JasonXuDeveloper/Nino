@@ -10,6 +10,57 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestRecords()
+        {
+            SimpleRecord record = new SimpleRecord
+            {
+                Id = 1,
+                Name = "Test",
+                CreateTime = DateTime.Today
+            };
+
+            byte[] bytes = record.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out SimpleRecord result);
+            Assert.AreEqual(record, result);
+
+            SimpleRecord2 record2 = new SimpleRecord2(1, "Test", DateTime.Today);
+            bytes = record2.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out SimpleRecord2 result2);
+            Assert.AreEqual(record2, result2);
+
+            SimpleRecord3 record3 = new SimpleRecord3(1, "Test", DateTime.Today)
+            {
+                Flag = true,
+                Ignored = 999
+            };
+            bytes = record3.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out SimpleRecord3 result3);
+            Assert.AreEqual(result3.Ignored, 0);
+            result3.Ignored = 999;
+            Assert.AreEqual(record3, result3);
+
+            SimpleRecord4 record4 = new SimpleRecord4(1, "Test", DateTime.Today)
+            {
+                Flag = true,
+                ShouldNotIgnore = 1234
+            };
+            bytes = record4.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out SimpleRecord4 result4);
+            Assert.AreEqual(record4.ShouldNotIgnore, result4.ShouldNotIgnore);
+            Assert.AreEqual(result4.Flag, false);
+            result4.Flag = true;
+            Assert.AreEqual(record4, result4);
+        }
+
+        [TestMethod]
         public void TestSubTypes()
         {
             //Create an instance of TestClass

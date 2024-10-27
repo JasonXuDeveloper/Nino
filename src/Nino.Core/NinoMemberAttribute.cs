@@ -2,7 +2,7 @@ using System;
 
 namespace Nino.Core
 {
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Parameter)]
     public class NinoMemberAttribute : Attribute
     {
         public ushort Index;

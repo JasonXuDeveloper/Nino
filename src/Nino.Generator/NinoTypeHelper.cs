@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Nino.Generator;
@@ -48,7 +49,18 @@ public static class NinoTypeHelper
         };
     }
 
-    public static int GetId(this List<string> typeFullNames,string typeFullName)
+    public static AttributeData? GetNinoConstructorAttribute(this IMethodSymbol? methodSymbol)
+    {
+        if (methodSymbol == null)
+        {
+            return null;
+        }
+
+        return methodSymbol.GetAttributes()
+            .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoConstructorAttribute");
+    }
+
+    public static int GetId(this List<string> typeFullNames, string typeFullName)
     {
         int index = typeFullNames.IndexOf(typeFullName);
         return index + 4;
@@ -56,7 +68,8 @@ public static class NinoTypeHelper
 
     public static (Dictionary<string, List<string>> inheritanceMap,
         Dictionary<string, List<string>> subTypeMap,
-        ImmutableArray<string> topNinoTypes) GetInheritanceMap(this Compilation compilation, ImmutableArray<TypeDeclarationSyntax> models)
+        ImmutableArray<string> topNinoTypes) GetInheritanceMap(this Compilation compilation,
+            ImmutableArray<TypeDeclarationSyntax> models)
     {
         var ninoTypeModels = models.Select(m => m.GetTypeFullName()).ToImmutableArray();
         Dictionary<string, List<string>> inheritanceMap = new(); // type -> all base types
@@ -109,6 +122,7 @@ public static class NinoTypeHelper
                     break;
                 }
             }
+
             //it may implement interfaces that are nino types
             foreach (var @interface in interfaces)
             {
@@ -129,7 +143,7 @@ public static class NinoTypeHelper
 
             return inheritedTypes.Count == 0;
         }).ToImmutableArray();
-        
+
         return (inheritanceMap, subTypeMap, topNinoTypes);
     }
 
@@ -327,7 +341,7 @@ public static class NinoTypeHelper
         return string.Join(separator, typeNames);
     }
 
-    public static ITypeSymbol? GetDeclaredTypeFullName(this MemberDeclarationSyntax memberDeclaration,
+    public static ITypeSymbol? GetDeclaredTypeFullName(this CSharpSyntaxNode memberDeclaration,
         Compilation compilation)
     {
         var model = compilation.GetSemanticModel(memberDeclaration.SyntaxTree);
@@ -342,28 +356,33 @@ public static class NinoTypeHelper
                 var variable = fieldDeclaration.Declaration.Variables.First();
                 var fieldSymbol = model.GetDeclaredSymbol(variable) as IFieldSymbol;
                 return fieldSymbol?.Type;
+
+            case ParameterSyntax parameterSyntax:
+                var parameterSymbol = model.GetDeclaredSymbol(parameterSyntax) as IParameterSymbol;
+                return parameterSymbol?.Type;
         }
 
         return null;
     }
 
-    public static string? GetMemberName(this MemberDeclarationSyntax member)
+    public static string? GetMemberName(this CSharpSyntaxNode member)
     {
         return member switch
         {
             FieldDeclarationSyntax field => field.Declaration.Variables.First().Identifier.Text,
             PropertyDeclarationSyntax property => property.Identifier.Text,
+            ParameterSyntax parameter => parameter.Identifier.Text,
             _ => null
         };
     }
 
-    public static List<MemberDeclarationSyntax> GetNinoTypeMembers(this TypeDeclarationSyntax typeDeclarationSyntax,
+    public static List<CSharpSyntaxNode> GetNinoTypeMembers(this TypeDeclarationSyntax typeDeclarationSyntax,
         List<TypeDeclarationSyntax>? parentNinoTypes)
     {
         //ensure type has attribute NinoType
         if (!IsNinoType(typeDeclarationSyntax))
         {
-            return new List<MemberDeclarationSyntax>();
+            return new List<CSharpSyntaxNode>();
         }
 
         //model is TypeDeclarationSyntax, get its NinoType attribute's first argument value
@@ -385,23 +404,40 @@ public static class NinoTypeHelper
         //get all fields and properties with getter and setter
         var ret = ninoTypes.SelectMany(static t => t.Members)
             .Where(static m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax { AccessorList: not null })
+            .Select(static m => m as CSharpSyntaxNode)
+            .Concat(
+                //consider record (init only) properties
+                //i.e. public record Record(int A, string B);, we want to get A and B
+                ninoTypes.Where(static t => t is RecordDeclarationSyntax)
+                    .Select(static t => t as RecordDeclarationSyntax)
+                    .Where(static r => r != null && r.ParameterList != null)
+                    //now extract the init only properties (A and B) from the record declaration
+                    .SelectMany(static r => r!.ParameterList!.Parameters)
+                    .Where(static p => p.Type != null)
+            )
             .Where(static m => m != null)
-            .Where(m =>
+            .Where(node =>
             {
+                MemberDeclarationSyntax? m = node as MemberDeclarationSyntax;
                 //has to be public
-                if (!m.Modifiers.Any(static m => m.Text == "public"))
+                if (m != null)
                 {
-                    return false;
+                    if (!m.Modifiers.Any(static m => m.Text == "public"))
+                    {
+                        return false;
+                    }
                 }
 
+                var attrList = m?.AttributeLists ?? ((ParameterSyntax)node).AttributeLists;
+
                 //if has ninoignore attribute, ignore this member
-                if (m.AttributeLists.SelectMany(static al => al.Attributes)
+                if (attrList.SelectMany(static al => al.Attributes)
                     .Any(static a => a.Name.ToString() == "NinoIgnore"))
                 {
                     return false;
                 }
 
-                var memberName = m.GetMemberName();
+                var memberName = node.GetMemberName();
                 if (memberName == null)
                 {
                     return false;
@@ -413,13 +449,15 @@ public static class NinoTypeHelper
                     return true;
                 }
 
+
                 //get nino member attribute's first argument on this member
-                var arg = m.AttributeLists.SelectMany(static al => al.Attributes)
+                var arg = attrList.SelectMany(static al => al.Attributes)
                     .Where(static a => a.Name.ToString() == "NinoMember")
                     .Select(static a => a.ArgumentList?.Arguments.FirstOrDefault())
                     .Select(static a => a?.Expression)
                     .OfType<LiteralExpressionSyntax>()
                     .FirstOrDefault();
+
                 if (arg == null)
                 {
                     return false;
