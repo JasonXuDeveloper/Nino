@@ -42,9 +42,10 @@ jobs:
       - name: Extract Version and Description
         id: extract_version_description
         run: |
-          FULL_MESSAGE<<EOF
+          FULL_MESSAGE=$(cat <<EOF
           ${{ github.event.head_commit.message }}
           EOF
+          )
 
           SUMMARY=$(echo "$FULL_MESSAGE" | head -n 1)
           DESCRIPTION=$(echo "$FULL_MESSAGE" | tail -n +3)
