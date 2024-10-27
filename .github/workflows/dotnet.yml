@@ -26,3 +26,80 @@ jobs:
       run: dotnet build --no-restore
     - name: Test
       run: dotnet test --no-build --verbosity normal
+
+  bump-version:
+    runs-on: ubuntu-latest
+    if: ${{ startsWith(github.event.head_commit.message, 'release v') }}
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0   # Ensures that we have access to the full commit history
+
+      - name: Extract Version and Description
+        id: extract_version_description
+        run: |
+          FULL_MESSAGE<<EOF
+          ${{ github.event.head_commit.message }}
+          EOF
+
+          SUMMARY=$(echo "$FULL_MESSAGE" | head -n 1)
+          DESCRIPTION=$(echo "$FULL_MESSAGE" | tail -n +3)
+
+          if [[ $SUMMARY =~ ^release\ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+          else
+            echo "Commit message does not match the pattern 'release vx.x.x'"
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "DESCRIPTION=$DESCRIPTION" >> $GITHUB_ENV
+
+          echo "Bumping version to $VERSION"
+
+      - name: Run Version Bump Script
+        run: |
+          ./bump_version.sh "$VERSION"
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and Push Changes
+        run: |
+          # Commit the changes with the specified message
+          git add .
+          git commit -m "Bump to v$VERSION"
+
+          # Push changes back to main
+          git push origin main
+        env:
+          VERSION: ${{ env.VERSION }}
+
+      - name: Create GitHub Release
+        id: create_release  # Capture the release ID for uploading assets
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "v${{ env.VERSION }}"                  # Release tag, like "v1.2.3"
+          release_name: "v${{ env.VERSION }}"              # Title of the release, same as the tag
+          body: "${{ env.DESCRIPTION }}"                   # Release notes from commit message
+          draft: false                                     # Make the release public immediately
+          prerelease: false                                # Mark it as a stable release
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          release_id: ${{ steps.create_release.outputs.id }}  # Use the release ID from the previous step
+          asset_path: ./Nino.unitypackage
+          asset_name: Nino.unitypackage
+          asset_content_type: application/octet-stream
+
