@@ -29,7 +29,13 @@ fi
 
 echo "Bumping AssemblyVersion number in $VERSION_FILE from $OLD_VERSION to $NEW_VERSION"
 
-sed -i "" "s/AssemblyVersion(\"$OLD_VERSION\")/AssemblyVersion(\"$NEW_VERSION\")/" $VERSION_FILE
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i "" "s/AssemblyVersion(\"$OLD_VERSION\")/AssemblyVersion(\"$NEW_VERSION\")/" $VERSION_FILE
+else
+    # Linux
+    sed -i "s/AssemblyVersion(\"$OLD_VERSION\")/AssemblyVersion(\"$NEW_VERSION\")/" $VERSION_FILE
+fi
 
 # [assembly: AssemblyFileVersion("ver")]
 OLD_VERSION=$(sed -n 's/.*AssemblyFileVersion("\([^"]*\)").*/\1/p' $VERSION_FILE)
@@ -41,7 +47,13 @@ fi
 
 echo "Bumping AssemblyFileVersion number in $VERSION_FILE from $OLD_VERSION to $NEW_VERSION"
 
-sed -i "" 's/AssemblyFileVersion("'"$OLD_VERSION"'")/AssemblyFileVersion("'"$NEW_VERSION"'")/' "$VERSION_FILE"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i "" 's/AssemblyFileVersion("'"$OLD_VERSION"'")/AssemblyFileVersion("'"$NEW_VERSION"'")/' "$VERSION_FILE"
+else
+    # Linux
+    sed -i 's/AssemblyFileVersion("'"$OLD_VERSION"'")/AssemblyFileVersion("'"$NEW_VERSION"'")/' "$VERSION_FILE"
+fi
 
 # Bump the version number in [Nino, Nino.Core, Nino.Generator]/*.csproj files
 PROJS=$(find src/Nino src/Nino.Core src/Nino.Generator -name '*.csproj')
@@ -57,5 +69,11 @@ for PROJ in $PROJS; do
 
     echo "Bumping Version number in $PROJ from $OLD_VERSION to $NEW_VERSION"
 
-    sed -i "" "s/<Version>$OLD_VERSION<\/Version>/<Version>$NEW_VERSION<\/Version>/" $PROJ
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        sed -i "" "s/<Version>$OLD_VERSION<\/Version>/<Version>$NEW_VERSION<\/Version>/" $PROJ
+    else
+        # Linux
+        sed -i "s/<Version>$OLD_VERSION<\/Version>/<Version>$NEW_VERSION<\/Version>/" $PROJ
+    fi
 done

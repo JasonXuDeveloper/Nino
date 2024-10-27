@@ -67,7 +67,6 @@ jobs:
       - name: Run Version Bump Script
         run: |
           echo "Current directory: $(pwd)"
-          echo "Contents of current directory: $(ls -la)"
           chmod +x ./bump_version.sh
           ./bump_version.sh "$VERSION"
 
