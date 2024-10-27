@@ -39,7 +39,7 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: artifacts
-        path: ./src/artifacts/**/*.snupkg
+        path: ./src/artifacts/**/*.nupkg
 
   test:
     runs-on: ubuntu-latest
@@ -141,7 +141,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: "v${{ env.VERSION }}"                  # Release tag, like "v1.2.3"
-          target_commitish: "${{ env.COMMIT_SHA }}"     # Ensures the release points to the bump commit
+          commitish: "${{ env.COMMIT_SHA }}"     # Ensures the release points to the bump commit
           release_name: "v${{ env.VERSION }}"              # Title of the release, same as the tag
           body: "${{ env.DESCRIPTION }}"                   # Release notes from commit message
           draft: false                                     # Make the release public immediately
@@ -185,6 +185,6 @@ jobs:
     # Push NuGet packages
     - name: Push NuGet Packages
       run: |
-        for package in ./artifacts/*.snupkg; do
+        for package in ./artifacts/*.nupkg; do
           dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
         done
