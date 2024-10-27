@@ -32,10 +32,11 @@ jobs:
 
     # Build the solution
     - name: Build solution
-      run: dotnet build --configuration Release /p:OutputPath=../artifacts
-      
-    - name: Run tests
-      run: dotnet test --configuration Release --no-build
+      run: dotnet build --no-restore
+
+    # Run unit tests
+    - name: Test
+      run: dotnet test --no-build --verbosity normal
 
   bump-version:
     runs-on: ubuntu-latest
