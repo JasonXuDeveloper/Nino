@@ -76,6 +76,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Commit and Push Changes
+        id: commit_version_bump  # Capture this step ID to get the commit SHA
         run: |
           # Commit the changes with the specified message
           git add .
@@ -86,6 +87,9 @@ jobs:
         env:
           VERSION: ${{ env.VERSION }}
 
+      - name: Get Commit SHA
+        run: echo "COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
       - name: Create GitHub Release
         id: create_release  # Capture the release ID for uploading assets
         uses: actions/create-release@v1
@@ -93,6 +97,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: "v${{ env.VERSION }}"                  # Release tag, like "v1.2.3"
+          target_commitish: "${{ env.COMMIT_SHA }}"     # Ensures the release points to the bump commit
           release_name: "v${{ env.VERSION }}"              # Title of the release, same as the tag
           body: "${{ env.DESCRIPTION }}"                   # Release notes from commit message
           draft: false                                     # Make the release public immediately
@@ -103,8 +108,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          release_id: ${{ steps.create_release.outputs.id }}  # Use the release ID from the previous step
-          asset_path: ./Nino.unitypackage
-          asset_name: Nino.unitypackage
+          upload_url: ${{ steps.create_release.outputs.upload_url }}  # Use upload_url instead of release_id
+          asset_path: ./Nino.unitypackage  # Path to the asset file
+          asset_name: Nino.unitypackage    # Name of the asset in the release
           asset_content_type: application/octet-stream
-
