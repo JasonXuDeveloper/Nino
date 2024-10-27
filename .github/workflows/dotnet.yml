@@ -135,33 +135,27 @@ jobs:
           asset_name: Nino.unitypackage    # Name of the asset in the release
           asset_content_type: application/octet-stream
 
-  push-to-nuget:
-    runs-on: ubuntu-latest
-    needs: [build, bump-version]
+       # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
 
-    steps:
-    # Checkout the code
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # Restore dependencies
+      - name: Restore dependencies
+        working-directory: ./src  # Override the default working directory
+        run: dotnet restore
 
-    # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
+      # Build the solution
+      - name: Build solution
+        working-directory: ./src  # Override the default working directory
+        run: dotnet build --configuration Release /p:OutputPath=../artifacts
 
-    # Restore dependencies
-    - name: Restore dependencies
-      run: dotnet restore
-
-    # Build the solution
-    - name: Build solution
-      run: dotnet build --configuration Release /p:OutputPath=../artifacts
-
-    # Push NuGet packages
-    - name: Push NuGet Packages
-      run: |
-        echo "Current directory: $(pwd)"
-        for package in ./artifacts/*.nupkg; do
-          dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
-        done
+      # Push NuGet packages
+      - name: Push NuGet Packages
+        working-directory: ./src  # Override the default working directory
+        run: |
+          echo "Current directory: $(pwd)"
+          for package in ./artifacts/*.nupkg; do
+            dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
+          done
