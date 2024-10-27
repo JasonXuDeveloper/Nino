@@ -41,7 +41,7 @@ fi
 
 echo "Bumping AssemblyFileVersion number in $VERSION_FILE from $OLD_VERSION to $NEW_VERSION"
 
-sed -i "" "s/AssemblyFileVersion(\"$OLD_VERSION\")/AssemblyFileVersion(\"$NEW_VERSION\")/" $VERSION_FILE
+sed -i "" 's/AssemblyFileVersion("'"$OLD_VERSION"'")/AssemblyFileVersion("'"$NEW_VERSION"'")/' "$VERSION_FILE"
 
 # Bump the version number in [Nino, Nino.Core, Nino.Generator]/*.csproj files
 PROJS=$(find src/Nino src/Nino.Core src/Nino.Generator -name '*.csproj')
