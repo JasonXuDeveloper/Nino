@@ -14,23 +14,56 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up .NET
+    # Checkout the code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
+    - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
+
+    # Restore dependencies
     - name: Restore dependencies
       run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+
+    # Build the solution
+    - name: Build solution
+      run: dotnet build --configuration Release /p:OutputPath=../artifacts
+
+    # Upload build artifacts
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: artifacts
+        path: ./src/artifacts/**/*.snupkg
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    # Checkout the code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ vars.DOTNET_VERSION }}
+
+    # Run tests
+    - name: Run tests
+      run: dotnet test --configuration Release --no-build
 
   bump-version:
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.event.head_commit.message, 'release v') }}
-    needs: build
+    needs: [build, test]
 
     # override working directory for this job
     defaults:
@@ -123,3 +156,35 @@ jobs:
           asset_path: ./Nino.unitypackage  # Path to the asset file
           asset_name: Nino.unitypackage    # Name of the asset in the release
           asset_content_type: application/octet-stream
+
+  push-to-nuget:
+    runs-on: ubuntu-latest
+    needs: [build, test, bump-version]
+
+    steps:
+    # Checkout the code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ vars.DOTNET_VERSION }}
+
+    # Download build artifacts
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: artifacts
+        path: ./src/artifacts
+        
+    - name: List downloaded files
+      run: ls -la ./artifacts
+
+    # Push NuGet packages
+    - name: Push NuGet Packages
+      run: |
+        for package in ./artifacts/*.snupkg; do
+          dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
+        done
