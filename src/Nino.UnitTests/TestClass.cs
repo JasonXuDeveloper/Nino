@@ -127,7 +127,7 @@ namespace Nino.UnitTests
         [NinoMember(2)] string Name,
         [NinoMember(1)] DateTime CreateTime)
     {
-        [NinoMember(0)] public bool Flag;
+        [NinoMember(4)] public bool Flag;
 
         public int Ignored;
     }

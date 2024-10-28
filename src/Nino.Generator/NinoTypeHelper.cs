@@ -155,7 +155,7 @@ public static class NinoTypeHelper
         }
 
         var assName = ts.ContainingAssembly.Name;
-        var curNamespace = $"{assName!}";
+        var curNamespace = $"{assName}";
         if (!string.IsNullOrEmpty(curNamespace))
             curNamespace = $"{curNamespace}_";
         if (!char.IsLetter(curNamespace[0]))
@@ -176,7 +176,7 @@ public static class NinoTypeHelper
         }
 
         var assName = ts.ContainingAssembly.Name;
-        var curNamespace = $"{assName!}";
+        var curNamespace = $"{assName}";
         if (!string.IsNullOrEmpty(curNamespace))
             curNamespace = $"{curNamespace}_";
         if (!char.IsLetter(curNamespace[0]))
@@ -349,7 +349,7 @@ public static class NinoTypeHelper
         switch (memberDeclaration)
         {
             case PropertyDeclarationSyntax propertyDeclaration:
-                var propertySymbol = model.GetDeclaredSymbol(propertyDeclaration) as IPropertySymbol;
+                var propertySymbol = model.GetDeclaredSymbol(propertyDeclaration);
                 return propertySymbol?.Type;
 
             case FieldDeclarationSyntax fieldDeclaration:
@@ -358,7 +358,7 @@ public static class NinoTypeHelper
                 return fieldSymbol?.Type;
 
             case ParameterSyntax parameterSyntax:
-                var parameterSymbol = model.GetDeclaredSymbol(parameterSyntax) as IParameterSymbol;
+                var parameterSymbol = model.GetDeclaredSymbol(parameterSyntax);
                 return parameterSymbol?.Type;
         }
 
@@ -402,78 +402,82 @@ public static class NinoTypeHelper
         if (parentNinoTypes != null)
             ninoTypes.AddRange(parentNinoTypes);
         //get all fields and properties with getter and setter
-        var ret = ninoTypes.SelectMany(static t => t.Members)
-            .Where(static m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax { AccessorList: not null })
-            .Select(static m => m as CSharpSyntaxNode)
-            .Concat(
-                //consider record (init only) properties
-                //i.e. public record Record(int A, string B);, we want to get A and B
-                ninoTypes.Where(static t => t is RecordDeclarationSyntax)
-                    .Select(static t => t as RecordDeclarationSyntax)
-                    .Where(static r => r != null && r.ParameterList != null)
-                    //now extract the init only properties (A and B) from the record declaration
-                    .SelectMany(static r => r!.ParameterList!.Parameters)
-                    .Where(static p => p.Type != null)
-            )
-            .Where(static m => m != null)
-            .Where(node =>
-            {
-                MemberDeclarationSyntax? m = node as MemberDeclarationSyntax;
-                //has to be public
-                if (m != null)
+        var ret =
+            //consider record (init only) properties
+            //i.e. public record Record(int A, string B);, we want to get A and B
+            ninoTypes.Where(static t => t is RecordDeclarationSyntax)
+                .Select(static t => t as RecordDeclarationSyntax)
+                .Where(static r => r != null && r.ParameterList != null)
+                //now extract the init only properties (A and B) from the record declaration
+                .SelectMany(static r => r!.ParameterList!.Parameters)
+                .Where(static p => p.Type != null)
+                .Concat(
+                    ninoTypes
+                        .SelectMany(static t => t.Members)
+                        .Where(static m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax
+                        {
+                            AccessorList: not null
+                        })
+                        .Select(static m => m as CSharpSyntaxNode)
+                        .Where(static m => m != null))
+                .Where(node =>
                 {
-                    if (!m.Modifiers.Any(static m => m.Text == "public"))
+                    MemberDeclarationSyntax? m = node as MemberDeclarationSyntax;
+                    //has to be public
+                    if (m != null)
+                    {
+                        if (!m.Modifiers.Any(static m => m.Text == "public"))
+                        {
+                            return false;
+                        }
+                    }
+
+                    var attrList = m?.AttributeLists ?? ((ParameterSyntax)node).AttributeLists;
+
+                    //if has ninoignore attribute, ignore this member
+                    if (attrList.SelectMany(static al => al.Attributes)
+                        .Any(static a => a.Name.ToString() == "NinoIgnore"))
                     {
                         return false;
                     }
-                }
 
-                var attrList = m?.AttributeLists ?? ((ParameterSyntax)node).AttributeLists;
+                    var memberName = node.GetMemberName();
+                    if (memberName == null)
+                    {
+                        return false;
+                    }
 
-                //if has ninoignore attribute, ignore this member
-                if (attrList.SelectMany(static al => al.Attributes)
-                    .Any(static a => a.Name.ToString() == "NinoIgnore"))
-                {
-                    return false;
-                }
+                    if (autoCollect)
+                    {
+                        memberIndex[memberName] = memberIndex.Count;
+                        return true;
+                    }
 
-                var memberName = node.GetMemberName();
-                if (memberName == null)
-                {
-                    return false;
-                }
 
-                if (autoCollect)
-                {
-                    memberIndex[memberName] = memberIndex.Count;
+                    //get nino member attribute's first argument on this member
+                    var arg = attrList.SelectMany(static al => al.Attributes)
+                        .Where(static a => a.Name.ToString() == "NinoMember")
+                        .Select(static a => a.ArgumentList?.Arguments.FirstOrDefault())
+                        .Select(static a => a?.Expression)
+                        .OfType<LiteralExpressionSyntax>()
+                        .FirstOrDefault();
+
+                    if (arg == null)
+                    {
+                        return false;
+                    }
+
+                    //get index value from NinoMemberAttribute
+                    var indexValue = arg.Token.Value as int?;
+                    if (indexValue == null)
+                    {
+                        return false;
+                    }
+
+                    memberIndex[memberName] = indexValue.Value;
                     return true;
-                }
-
-
-                //get nino member attribute's first argument on this member
-                var arg = attrList.SelectMany(static al => al.Attributes)
-                    .Where(static a => a.Name.ToString() == "NinoMember")
-                    .Select(static a => a.ArgumentList?.Arguments.FirstOrDefault())
-                    .Select(static a => a?.Expression)
-                    .OfType<LiteralExpressionSyntax>()
-                    .FirstOrDefault();
-
-                if (arg == null)
-                {
-                    return false;
-                }
-
-                //get index value from NinoMemberAttribute
-                var indexValue = arg.Token.Value as int?;
-                if (indexValue == null)
-                {
-                    return false;
-                }
-
-                memberIndex[memberName] = indexValue.Value;
-                return true;
-            })
-            .ToList();
+                })
+                .ToList();
 
         //sort by name
         ret.Sort((a, b) =>

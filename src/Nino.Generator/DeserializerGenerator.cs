@@ -121,6 +121,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                 {
                     List<(string, string)> vars = new List<(string, string)>();
                     Dictionary<string, string> args = new Dictionary<string, string>();
+                    bool instantiated = false;
                     foreach (var memberDeclarationSyntax in members)
                     {
                         var name = memberDeclarationSyntax.GetMemberName();
@@ -130,13 +131,21 @@ public class DeserializerGenerator : IIncrementalGenerator
                         if (declaredType == null)
                             throw new Exception("declaredType is null");
 
+                        //early exit
+                        if (memberDeclarationSyntax is FieldDeclarationSyntax && instantiated)
+                        {
+                            sb.AppendLine(
+                                $"                    {declaredType.GetDeserializePrefix()}(out {valName}.{name}, ref reader);");
+                            continue;
+                        }
+
                         var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
                             .Aggregate("", (a, b) => a + b);
                         var tempName = $"{t}_temp_{name}";
                         sb.AppendLine(
                             $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
 
-                        if (constructorMember.Any(c => c.ToLower().Equals(name?.ToLower())))
+                        if (constructorMember.Any(c => c.ToLower().Equals(name?.ToLower())) && !instantiated)
                         {
                             args.Add(name!, tempName);
                         }
@@ -148,16 +157,21 @@ public class DeserializerGenerator : IIncrementalGenerator
                                 vars.Add((name, tempName)!);
                             }
                         }
+
+                        if (args.Count == constructorMember.Length && !instantiated)
+                        {
+                            sb.AppendLine(
+                                $"                    {valName} = new {typeName}({string.Join(", ",
+                                    constructorMember.Select(m =>
+                                        args[args.Keys
+                                            .FirstOrDefault(k =>
+                                                k.ToLower()
+                                                    .Equals(m.ToLower()))]
+                                    ))});");
+                            instantiated = true;
+                        }
                     }
 
-                    sb.AppendLine(
-                        $"                    {valName} = new {typeName}({string.Join(", ",
-                            constructorMember.Select(m =>
-                                args[args.Keys
-                                    .FirstOrDefault(k =>
-                                        k.ToLower()
-                                            .Equals(m.ToLower()))]
-                            ))});");
                     foreach (var (memberName, varName) in vars)
                     {
                         sb.AppendLine($"                    {valName}.{memberName} = {varName};");
@@ -184,10 +198,8 @@ public class DeserializerGenerator : IIncrementalGenerator
 
                     if (constructor == null)
                     {
-                        sb.AppendLine(
-                            "                    // fallback to default constructor since no constructor found");
-                        sb.AppendLine($"                    {valName} = new {typeName}();");
-                        WriteMembers(defaultMembers, valName);
+                        sb.AppendLine("                    // no constructor found");
+                        sb.AppendLine($"                    throw new InvalidOperationException(\"No constructor found for {typeName}\");");
                         return;
                     }
 
@@ -198,12 +210,12 @@ public class DeserializerGenerator : IIncrementalGenerator
                     {
                         constructor = custom;
                     }
+                    sb.AppendLine($"                    // use {constructor.ToDisplayString()}");
 
                     var attr = constructor.GetNinoConstructorAttribute();
-                    string[]? args;
+                    string[] args;
                     if (attr != null)
                     {
-                        sb.AppendLine($"                    //use {constructor.ToDisplayString()}");
                         //attr is         [NinoConstructor(nameof(a), nameof(b), nameof(c), ...)]
                         //we need to get a, b, c, ...
                         var args0 = attr.ConstructorArguments[0].Values;
@@ -215,19 +227,8 @@ public class DeserializerGenerator : IIncrementalGenerator
                     {
                         args = constructor.Parameters.Select(p => p.Name).ToArray();
                     }
-
-                    if (args.All(a => defaultMembers.Any(m => m.GetMemberName()?.ToLower() == a.ToLower())))
-                    {
-                        WriteMembersWithCustomConstructor(defaultMembers, typeName, valName, args);
-                    }
-                    else
-                    {
-                        sb.AppendLine($"                    //use {constructor.ToDisplayString()}");
-                        sb.AppendLine(
-                            $"                    // fallback to default constructor from {constructor.ToDisplayString()}");
-                        sb.AppendLine($"                    {valName} = new {typeName}();");
-                        WriteMembers(defaultMembers, valName);
-                    }
+                    
+                    WriteMembersWithCustomConstructor(defaultMembers, typeName, valName, args);
                 }
 
                 if (!subTypeMap.TryGetValue(typeFullName, out var lst))
