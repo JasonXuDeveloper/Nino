@@ -2,7 +2,7 @@
 
 实用的高性能C#序列化库，包括但不限于对.NET Core 应用或Unity/Godot游戏带来令人难以置信的收益。
 
-![build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/.github/workflows/dotnet.yml?branch=main)![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
+![build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/.github/workflows/ci.yml?branch=main)![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
 
 [官网](https://nino.xgamedev.net/zh/)
 

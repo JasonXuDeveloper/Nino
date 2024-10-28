@@ -2,7 +2,7 @@
 
 Definite useful and high performance serialization library for any C# projects, including but not limited to .NET Core apps or Unity/Godot games.
 
-![build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/.github/workflows/dotnet.yml?branch=main)![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
+![build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/.github/workflows/ci.yml?branch=main)![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
 
 [Official Website](https://nino.xgamedev.net/en/)
 

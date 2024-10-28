@@ -142,7 +142,7 @@ jobs:
       - name: Package Project
         run: |
           echo "Creating package ${{env.package_path}}"
-          dotnet ../tools/UnityPackageExporter.dll --project ./Nino_Unity --output ./Nino.unitypackage --assets "Assets/Test/Nino/**.*"
+          dotnet ../tools/UnityPackageExporter.dll ./Nino_Unity ./Nino.unitypackage --assets "Assets/Test/Nino/**.*"
 
       # Commit the changes (only the 2 dlls and the unitypackage)
       - name: Commit Changes
