@@ -24,9 +24,9 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: |
-          ${{ vars.DOTNET_VERSION }} # Using repository-level environment variable
-          2.1.*
+        dotnet-version: | 
+          ${{ vars.DOTNET_VERSION }}
+          2.1.x
 
     # Restore dependencies
     - name: Restore dependencies
@@ -115,9 +115,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION }} # Using repository-level environment variable
-            2.1.*
+          dotnet-version: | 
+            ${{ vars.DOTNET_VERSION }}
+            2.1.x
 
       # Restore dependencies
       - name: Restore dependencies
