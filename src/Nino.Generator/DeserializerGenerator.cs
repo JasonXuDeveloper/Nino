@@ -90,38 +90,11 @@ public class DeserializerGenerator : IIncrementalGenerator
                     sb.AppendLine();
                 }
 
-                void WriteMembers(List<CSharpSyntaxNode> members, string valName)
-                {
-                    foreach (var memberDeclarationSyntax in members)
-                    {
-                        var name = memberDeclarationSyntax.GetMemberName();
-                        // see if declaredType is a NinoType
-                        var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
-                        //check if declaredType is a NinoType
-                        if (declaredType == null)
-                            throw new Exception("declaredType is null");
-
-                        if (memberDeclarationSyntax is FieldDeclarationSyntax)
-                            sb.AppendLine(
-                                $"                    {declaredType.GetDeserializePrefix()}(out {valName}.{name}, ref reader);");
-                        else
-                        {
-                            var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
-                                .Aggregate("", (a, b) => a + b);
-                            var tempName = $"{t}_temp_{name}";
-                            sb.AppendLine(
-                                $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
-                            sb.AppendLine($"                    {valName}.{name} = {tempName};");
-                        }
-                    }
-                }
-
                 void WriteMembersWithCustomConstructor(List<CSharpSyntaxNode> members, string typeName, string
                     valName, string[] constructorMember)
                 {
                     List<(string, string)> vars = new List<(string, string)>();
                     Dictionary<string, string> args = new Dictionary<string, string>();
-                    bool instantiated = false;
                     foreach (var memberDeclarationSyntax in members)
                     {
                         var name = memberDeclarationSyntax.GetMemberName();
@@ -131,51 +104,44 @@ public class DeserializerGenerator : IIncrementalGenerator
                         if (declaredType == null)
                             throw new Exception("declaredType is null");
 
-                        //early exit
-                        if (memberDeclarationSyntax is FieldDeclarationSyntax && instantiated)
-                        {
-                            sb.AppendLine(
-                                $"                    {declaredType.GetDeserializePrefix()}(out {valName}.{name}, ref reader);");
-                            continue;
-                        }
-
                         var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
                             .Aggregate("", (a, b) => a + b);
                         var tempName = $"{t}_temp_{name}";
-                        sb.AppendLine(
-                            $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
-
-                        if (constructorMember.Any(c => c.ToLower().Equals(name?.ToLower())) && !instantiated)
+                        if (constructorMember.Any(c => c.ToLower().Equals(name?.ToLower())))
                         {
+                            sb.AppendLine(
+                                $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
                             args.Add(name!, tempName);
                         }
                         else
                         {
+                            sb.AppendLine(
+                                $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+
                             // we dont want init-only properties from the primary constructor
                             if (memberDeclarationSyntax is not ParameterSyntax)
                             {
                                 vars.Add((name, tempName)!);
                             }
                         }
-
-                        if (args.Count == constructorMember.Length && !instantiated)
-                        {
-                            sb.AppendLine(
-                                $"                    {valName} = new {typeName}({string.Join(", ",
-                                    constructorMember.Select(m =>
-                                        args[args.Keys
-                                            .FirstOrDefault(k =>
-                                                k.ToLower()
-                                                    .Equals(m.ToLower()))]
-                                    ))});");
-                            instantiated = true;
-                        }
                     }
 
+                    
+                    sb.AppendLine(
+                        $"                    {valName} = new {typeName}({string.Join(", ",
+                            constructorMember.Select(m =>
+                                args[args.Keys
+                                    .FirstOrDefault(k =>
+                                        k.ToLower()
+                                            .Equals(m.ToLower()))]
+                            ))})");
+                    sb.AppendLine($"                    {new string(' ', valName.Length)}   {{");
                     foreach (var (memberName, varName) in vars)
                     {
-                        sb.AppendLine($"                    {valName}.{memberName} = {varName};");
+                        sb.AppendLine($"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
                     }
+                    
+                    sb.AppendLine($"                    {new string(' ', valName.Length)}   }};");
                 }
 
                 void CreateInstance(List<CSharpSyntaxNode> defaultMembers, INamedTypeSymbol symbol, string valName,
@@ -199,7 +165,8 @@ public class DeserializerGenerator : IIncrementalGenerator
                     if (constructor == null)
                     {
                         sb.AppendLine("                    // no constructor found");
-                        sb.AppendLine($"                    throw new InvalidOperationException(\"No constructor found for {typeName}\");");
+                        sb.AppendLine(
+                            $"                    throw new InvalidOperationException(\"No constructor found for {typeName}\");");
                         return;
                     }
 
@@ -210,6 +177,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                     {
                         constructor = custom;
                     }
+
                     sb.AppendLine($"                    // use {constructor.ToDisplayString()}");
 
                     var attr = constructor.GetNinoConstructorAttribute();
@@ -227,7 +195,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                     {
                         args = constructor.Parameters.Select(p => p.Name).ToArray();
                     }
-                    
+
                     WriteMembersWithCustomConstructor(defaultMembers, typeName, valName, args);
                 }
 

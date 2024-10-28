@@ -9,8 +9,8 @@ namespace Nino.Benchmark;
 
 [MinColumn, MaxColumn, PayloadColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
-[SimpleJob(RuntimeMoniker.Net80, warmupCount: 3, iterationCount: 10)]
-[MarkdownExporter, AsciiDocExporter, HtmlExporter, CsvExporter, RPlotExporter]
+[SimpleJob(RuntimeMoniker.Net80, warmupCount: 1, iterationCount: 10)]
+[MarkdownExporter, HtmlExporter, CsvExporter, JsonExporter]
 public class SimpleTest
 {
     private readonly SimpleClass _simpleClass;

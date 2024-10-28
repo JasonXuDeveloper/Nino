@@ -231,7 +231,7 @@ public class SerializerGenerator : IIncrementalGenerator
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
                              public static void ReturnBufferWriter(ArrayBufferWriter<byte> bufferWriter)
                              {
-                                 bufferWriter.Clear();
+                                 bufferWriter.ResetWrittenCount();
                                  BufferWriters.Enqueue(bufferWriter);
                              }
                              

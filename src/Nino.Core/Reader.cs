@@ -7,17 +7,18 @@ namespace Nino.Core
 {
     public ref struct Reader
     {
-        private SpanBufferReader _bufferReader;
+        private ReadOnlySpan<byte> data;
 
         public Reader(ReadOnlySpan<byte> buffer)
         {
-            _bufferReader = new SpanBufferReader(buffer);
+            data = buffer;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged
         {
-            _bufferReader.Get(out value);
+            value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(data));
+            data = data.Slice(Unsafe.SizeOf<T>());
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -49,11 +50,10 @@ namespace Nino.Core
                     return;
                 case TypeCollector.CollectionTypeId:
                     Read(out int length);
-                    _bufferReader.GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+                    GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
 #if NET5_0_OR_GREATER
-                    ret = GC.AllocateUninitializedArray<T>(length);
-                    Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref ret[0]), ref MemoryMarshal.GetReference(bytes),
-                        (uint)bytes.Length);
+                    ret = bytes.Length > 2048 ? GC.AllocateUninitializedArray<T>(length) : new T[length];
+                    MemoryMarshal.Cast<byte, T>(bytes).CopyTo(ret);
 #else
                     ret = MemoryMarshal.Cast<byte, T>(bytes).ToArray();
 #endif
@@ -90,14 +90,26 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out List<T> ret) where T : unmanaged
         {
-            Read(out T[] arr);
-            if (arr == null)
+            ret = null;
+            Read(out ushort typeId);
+            switch (typeId)
             {
-                ret = null;
-                return;
-            }
+                case TypeCollector.NullTypeId:
+                    return;
+                case TypeCollector.CollectionTypeId:
+                    Read(out int length);
+                    GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+                    ret = new List<T>(length);
+                    ReadOnlySpan<T> span = MemoryMarshal.Cast<byte, T>(bytes);
+                    foreach (var item in span)
+                    {
+                        ret.Add(item);
+                    }
 
-            ret = new List<T>(arr);
+                    return;
+                default:
+                    throw new InvalidOperationException($"Invalid type id {typeId}");
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -117,16 +129,6 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<TKey, TValue>(out Dictionary<TKey, TValue> ret) where TKey : unmanaged where TValue : unmanaged
         {
-#if NET5_0_OR_GREATER
-            Read(out KeyValuePair<TKey, TValue>[] arr);
-            if (arr == null)
-            {
-                ret = null;
-                return;
-            }
-
-            ret = new Dictionary<TKey, TValue>(arr);
-#else
             Read(out ushort typeId);
             switch (typeId)
             {
@@ -147,7 +149,6 @@ namespace Nino.Core
                 default:
                     throw new InvalidOperationException($"Invalid type id {typeId}");
             }
-#endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -188,7 +189,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read(out bool value)
         {
-            _bufferReader.Get(out value);
+            value = data[0] != 0;
+            data = data.Slice(1);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -202,12 +204,19 @@ namespace Nino.Core
                     return;
                 case TypeCollector.StringTypeId:
                     Read(out int length);
-                    _bufferReader.GetBytes(length * sizeof(char), out var bytes);
+                    GetBytes(length * sizeof(char), out var bytes);
                     ret = MemoryMarshal.Cast<byte, char>(bytes).ToString();
                     return;
                 default:
                     throw new InvalidOperationException($"Invalid type id {typeId}");
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void GetBytes(int length, out ReadOnlySpan<byte> bytes)
+        {
+            bytes = data.Slice(0, length);
+            data = data.Slice(length);
         }
     }
 }

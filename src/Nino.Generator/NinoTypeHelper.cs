@@ -239,7 +239,7 @@ public static class NinoTypeHelper
                     {
                         var bufferWriter = GetBufferWriter();
                         Serialize(value, bufferWriter);
-                        var ret = bufferWriter.WrittenMemory.ToArray();
+                        var ret = bufferWriter.WrittenSpan.ToArray();
                         ReturnBufferWriter(bufferWriter);
                         return ret;
                     }
