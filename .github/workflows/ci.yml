@@ -24,9 +24,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: | 
-          ${{ vars.DOTNET_VERSION }}
-          2.1.x
+        dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
 
     # Restore dependencies
     - name: Restore dependencies
@@ -34,7 +32,7 @@ jobs:
 
     # Build the solution
     - name: Build solution
-      run: dotnet build --no-restore --configuration Release
+      run: dotnet build --no-restore
 
     # Run unit tests
     - name: Test
