@@ -35,8 +35,8 @@ public class SerializerGenerator : IIncrementalGenerator
             types.AppendLine($"    * {typeFullNames.GetId(typeFullName)} - {typeFullName}");
         }
 
-        var (inheritanceMap, 
-            subTypeMap, 
+        var (inheritanceMap,
+            subTypeMap,
             topNinoTypes) = compilation.GetInheritanceMap(models);
 
         var sb = new StringBuilder();
@@ -149,7 +149,8 @@ public class SerializerGenerator : IIncrementalGenerator
                     if (typeSymbol.IsInstanceType())
                     {
                         sb.AppendLine("                default:");
-                        sb.AppendLine($"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
+                        sb.AppendLine(
+                            $"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
                         var defaultMembers = model.GetNinoTypeMembers(null);
                         WriteMembers(defaultMembers, "value");
                         sb.AppendLine("                    return;");
@@ -161,7 +162,8 @@ public class SerializerGenerator : IIncrementalGenerator
                 {
                     if (!typeSymbol.IsValueType)
                     {
-                        sb.AppendLine($"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
+                        sb.AppendLine(
+                            $"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
                     }
 
                     var members = model.GetNinoTypeMembers(null);
@@ -231,7 +233,11 @@ public class SerializerGenerator : IIncrementalGenerator
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
                              public static void ReturnBufferWriter(ArrayBufferWriter<byte> bufferWriter)
                              {
+                     #if NET8_0_OR_GREATER
                                  bufferWriter.ResetWrittenCount();
+                     #else
+                                 bufferWriter.Clear();
+                     #endif
                                  BufferWriters.Enqueue(bufferWriter);
                              }
                              
