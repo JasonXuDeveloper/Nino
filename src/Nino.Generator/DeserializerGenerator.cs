@@ -24,7 +24,9 @@ public class DeserializerGenerator : IIncrementalGenerator
         SourceProductionContext spc)
     {
         // get type full names from models (namespaces + type names)
-        var typeFullNames = models.Where(m => m.IsReferenceType())
+        var typeFullNames = models
+            .Where(m => m.IsReferenceType())
+            .Where(m => compilation.GetTypeSymbol(m.GetTypeFullName(), models).IsInstanceType())
             .Select(m => m.GetTypeFullName()).ToList();
         //sort by typename
         typeFullNames.Sort();
@@ -126,7 +128,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                         }
                     }
 
-                    
+
                     sb.AppendLine(
                         $"                    {valName} = new {typeName}({string.Join(", ",
                             constructorMember.Select(m =>
@@ -134,14 +136,18 @@ public class DeserializerGenerator : IIncrementalGenerator
                                     .FirstOrDefault(k =>
                                         k.ToLower()
                                             .Equals(m.ToLower()))]
-                            ))})");
-                    sb.AppendLine($"                    {new string(' ', valName.Length)}   {{");
-                    foreach (var (memberName, varName) in vars)
+                            ))}){(vars.Count > 0 ? "" : ";")}");
+                    if (vars.Count > 0)
                     {
-                        sb.AppendLine($"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
+                        sb.AppendLine($"                    {new string(' ', valName.Length)}   {{");
+                        foreach (var (memberName, varName) in vars)
+                        {
+                            sb.AppendLine(
+                                $"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
+                        }
+
+                        sb.AppendLine($"                    {new string(' ', valName.Length)}   }};");
                     }
-                    
-                    sb.AppendLine($"                    {new string(' ', valName.Length)}   }};");
                 }
 
                 void CreateInstance(List<CSharpSyntaxNode> defaultMembers, INamedTypeSymbol symbol, string valName,

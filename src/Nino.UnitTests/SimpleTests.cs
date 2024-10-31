@@ -164,6 +164,11 @@ namespace Nino.UnitTests
             {
                 1, 2, 3
             };
+            TestStruct? n = new TestStruct()
+            {
+                A = 1,
+                B = "Test"
+            };
 
             void Test(byte[] bytes)
             {
@@ -184,6 +189,9 @@ namespace Nino.UnitTests
             Test(k.Serialize());
             Test(l.Serialize());
             Test(m.Serialize());
+            Test(n.Serialize());
+            Assert.AreEqual(1, n.Value.A);
+            Assert.AreEqual("Test", n.Value.B);
             Deserializer.Deserialize(m.Serialize(), out m);
             Assert.AreEqual(3, m.Count);
             foreach (var item in m)

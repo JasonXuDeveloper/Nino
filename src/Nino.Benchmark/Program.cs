@@ -6,7 +6,7 @@ namespace Nino.Benchmark
     {
         public static void Main(string[] args)
         {
-            BenchmarkRunner.Run(typeof(Program).Assembly);
+            BenchmarkRunner.Run<SimpleTest>();
         }
     }
 }

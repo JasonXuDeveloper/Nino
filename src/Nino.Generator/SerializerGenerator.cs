@@ -24,7 +24,9 @@ public class SerializerGenerator : IIncrementalGenerator
         SourceProductionContext spc)
     {
         // get type full names from models (namespaces + type names)
-        var typeFullNames = models.Where(m => m.IsReferenceType())
+        var typeFullNames = models
+            .Where(m => m.IsReferenceType())
+            .Where(m => compilation.GetTypeSymbol(m.GetTypeFullName(), models).IsInstanceType())
             .Select(m => m.GetTypeFullName()).ToList();
         //sort by typename
         typeFullNames.Sort();
@@ -85,12 +87,11 @@ public class SerializerGenerator : IIncrementalGenerator
                 bool isReferenceType = model.IsReferenceType();
                 if (isReferenceType)
                 {
-                    sb.AppendLine("            if (value == null)");
+                    sb.AppendLine("            switch (value)");
                     sb.AppendLine("            {");
-                    sb.AppendLine("                writer.Write(TypeCollector.NullTypeId);");
-                    sb.AppendLine("                return;");
-                    sb.AppendLine("            }");
-                    sb.AppendLine();
+                    sb.AppendLine("                case null:");
+                    sb.AppendLine("                    writer.Write(TypeCollector.NullTypeId);");
+                    sb.AppendLine("                    return;");
                 }
 
                 void WriteMembers(List<CSharpSyntaxNode> members, string valName)
@@ -119,10 +120,6 @@ public class SerializerGenerator : IIncrementalGenerator
                         return bCount.CompareTo(aCount);
                     });
 
-
-                    sb.AppendLine($"            switch (value)");
-                    sb.AppendLine("            {");
-
                     foreach (var subType in lst)
                     {
                         var subTypeSymbol = compilation.GetTypeSymbol(subType, models);
@@ -145,29 +142,30 @@ public class SerializerGenerator : IIncrementalGenerator
                             sb.AppendLine("                    return;");
                         }
                     }
+                }
 
-                    if (typeSymbol.IsInstanceType())
+
+                if (typeSymbol.IsInstanceType())
+                {
+                    if (typeSymbol.IsReferenceType)
                     {
                         sb.AppendLine("                default:");
                         sb.AppendLine(
                             $"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
-                        var defaultMembers = model.GetNinoTypeMembers(null);
-                        WriteMembers(defaultMembers, "value");
+                    }
+
+                    var defaultMembers = model.GetNinoTypeMembers(null);
+                    WriteMembers(defaultMembers, "value");
+
+                    if (isReferenceType)
+                    {
                         sb.AppendLine("                    return;");
                     }
-
-                    sb.AppendLine("            }");
                 }
-                else if (typeSymbol.IsInstanceType())
+                
+                if (isReferenceType)
                 {
-                    if (!typeSymbol.IsValueType)
-                    {
-                        sb.AppendLine(
-                            $"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
-                    }
-
-                    var members = model.GetNinoTypeMembers(null);
-                    WriteMembers(members, "value");
+                    sb.AppendLine("            }");
                 }
 
                 sb.AppendLine("        }");
