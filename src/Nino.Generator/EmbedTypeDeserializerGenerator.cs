@@ -82,7 +82,6 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                         }
                     }
 
-
                     //if ts implements IList and type parameter is what we want
                     var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
                         namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
@@ -141,10 +140,10 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                 //we dont want any of the type arguments to be a type parameter
                 if (ts is INamedTypeSymbol s)
                 {
-                    bool IsTypeParameter(ITypeSymbol ts)
+                    bool IsTypeParameter(ITypeSymbol typeSymbol)
                     {
-                        if (ts.TypeKind == TypeKind.TypeParameter) return true;
-                        if (ts is INamedTypeSymbol namedTypeSymbol)
+                        if (typeSymbol.TypeKind == TypeKind.TypeParameter) return true;
+                        if (typeSymbol is INamedTypeSymbol namedTypeSymbol)
                         {
                             return namedTypeSymbol.TypeArguments.Any(IsTypeParameter);
                         }
@@ -190,6 +189,14 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                     }
                 }
 
+                //we dont want IDictionary of unmanaged
+                i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
+                    namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
+                if (i != null)
+                {
+                    if (i.TypeArguments[0].IsUnmanagedType && i.TypeArguments[1].IsUnmanagedType) return false;
+                }
+
                 return true;
             }).ToList();
         typeSymbols.Sort((t1, t2) =>
@@ -209,7 +216,8 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                 if (type is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
                 {
                     var fullName = namedTypeSymbol.TypeArguments[0].ToDisplayString();
-                    GenerateNullableStructMethods(sb, namedTypeSymbol.TypeArguments[0].GetDeserializePrefix(), fullName);
+                    GenerateNullableStructMethods(sb, namedTypeSymbol.TypeArguments[0].GetDeserializePrefix(),
+                        fullName);
                     sb.GenerateClassDeserializeMethods(typeFullName);
                     continue;
                 }
@@ -248,7 +256,8 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
             {
                 var elemType = ((IArrayTypeSymbol)type).ElementType.ToDisplayString();
                 if (addedElemType.Add(elemType))
-                    sb.AppendLine(GenerateArrayCollectionSerialization(((IArrayTypeSymbol)type).ElementType.GetDeserializePrefix(),
+                    sb.AppendLine(GenerateArrayCollectionSerialization(
+                        ((IArrayTypeSymbol)type).ElementType.GetDeserializePrefix(),
                         elemType, "        "));
                 sb.GenerateClassDeserializeMethods(typeFullName);
                 continue;
@@ -259,7 +268,8 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
             {
                 var elemType = s.TypeArguments[0].ToDisplayString();
                 if (addedElemType.Add(elemType))
-                    sb.AppendLine(GenerateArrayCollectionSerialization(s.TypeArguments[0].GetDeserializePrefix(), elemType,
+                    sb.AppendLine(GenerateArrayCollectionSerialization(s.TypeArguments[0].GetDeserializePrefix(),
+                        elemType,
                         "        "));
                 if (type.TypeKind != TypeKind.Interface)
                 {

@@ -7,18 +7,18 @@ namespace Nino.Core
 {
     public ref struct Reader
     {
-        private ReadOnlySpan<byte> data;
+        private ReadOnlySpan<byte> _data;
 
         public Reader(ReadOnlySpan<byte> buffer)
         {
-            data = buffer;
+            _data = buffer;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged
         {
-            value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(data));
-            data = data.Slice(Unsafe.SizeOf<T>());
+            value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
+            _data = _data.Slice(Unsafe.SizeOf<T>());
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -53,7 +53,8 @@ namespace Nino.Core
                     GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
 #if NET5_0_OR_GREATER
                     ret = bytes.Length > 2048 ? GC.AllocateUninitializedArray<T>(length) : new T[length];
-                    MemoryMarshal.Cast<byte, T>(bytes).CopyTo(ret);
+                    Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref ret[0]), ref MemoryMarshal.GetReference(bytes),
+                        (uint)bytes.Length);
 #else
                     ret = MemoryMarshal.Cast<byte, T>(bytes).ToArray();
 #endif
@@ -100,11 +101,18 @@ namespace Nino.Core
                     Read(out int length);
                     GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
                     ret = new List<T>(length);
+#if NET5_0_OR_GREATER
+                    ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref ret);
+                    lst._size = length;
+                    Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref lst._items[0]),
+                        ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+#else
                     ReadOnlySpan<T> span = MemoryMarshal.Cast<byte, T>(bytes);
-                    foreach (var item in span)
+                    for (int i = 0; i < length; i++)
                     {
-                        ret.Add(item);
+                        ret.Add(span[i]);
                     }
+#endif
 
                     return;
                 default:
@@ -140,9 +148,8 @@ namespace Nino.Core
                     ret = new Dictionary<TKey, TValue>(length);
                     for (int i = 0; i < length; i++)
                     {
-                        Read(out TKey key);
-                        Read(out TValue value);
-                        ret.Add(key, value);
+                        Read(out KeyValuePair<TKey, TValue> pair);
+                        ret.Add(pair.Key, pair.Value);
                     }
 
                     return;
@@ -187,13 +194,6 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read(out bool value)
-        {
-            value = data[0] != 0;
-            data = data.Slice(1);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read(out string ret)
         {
             Read(out ushort typeId);
@@ -215,8 +215,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void GetBytes(int length, out ReadOnlySpan<byte> bytes)
         {
-            bytes = data.Slice(0, length);
-            data = data.Slice(length);
+            bytes = _data.Slice(0, length);
+            _data = _data.Slice(length);
         }
     }
 }

@@ -24,14 +24,6 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write(byte value)
-        {
-            var span = _bufferWriter.GetSpan(1);
-            span[0] = value;
-            _bufferWriter.Advance(1);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(T value) where T : unmanaged
         {
             var span = _bufferWriter.GetSpan(Unsafe.SizeOf<T>());
@@ -154,12 +146,6 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write(bool value)
-        {
-            Write((byte)(value ? 1 : 0));
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write(string value)
         {
             switch (value)
@@ -173,13 +159,14 @@ namespace Nino.Core
                     return;
                 default:
                     int byteLength = value.Length * Unsafe.SizeOf<char>();
-                    var span = _bufferWriter.GetSpan(sizeof(ushort) + sizeof(int) + byteLength);
+                    int spanLength = sizeof(ushort) + sizeof(int) + byteLength;
+                    var span = _bufferWriter.GetSpan(spanLength);
                     Unsafe.WriteUnaligned(ref span[0], TypeCollector.StringTypeId);
                     Unsafe.WriteUnaligned(ref span[2], value.Length);
                     ref var valueRef = ref MemoryMarshal.GetReference(value.AsSpan());
                     ref byte valueByte = ref Unsafe.As<char, byte>(ref valueRef);
                     Unsafe.CopyBlockUnaligned(ref span[6], ref valueByte, (uint)byteLength);
-                    _bufferWriter.Advance(sizeof(ushort) + sizeof(int) + byteLength);
+                    _bufferWriter.Advance(spanLength);
                     break;
             }
         }

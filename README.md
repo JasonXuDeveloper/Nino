@@ -18,7 +18,7 @@ Definite useful and high performance serialization library for any C# projects, 
 
 - Support all **Span** types
 
-- Support all **[NinoType]** classes/structs
+- Support all **[NinoType]** classes/structs/records
 
 - Support all **Embed** serializable types (dictionary<int, list<supported_type[]>>)
 
@@ -26,11 +26,11 @@ Definite useful and high performance serialization library for any C# projects, 
 
 - Support **type check**
 
-- High performance with low GC allocation
+- High **performance** with low GC allocation
 
 ## Quick Start
 
-[Documentation](https://nino.xgamedev.net/en/start)
+[Documentation](https://nino.xgamedev.net/en/doc/start)
 
 ## Performance
 
