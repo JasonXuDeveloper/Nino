@@ -14,20 +14,34 @@ public class SerializerGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // Get all classes/structs that has attribute NinoType
-        var ninoTypeModels = context.GetNinoTypeModels();
-        var compilationAndClasses = context.CompilationProvider.Combine(ninoTypeModels.Collect());
+        var types = context.GetTypeSyntaxes();
+        var compilationAndClasses = context.CompilationProvider.Combine(types.Collect());
         context.RegisterSourceOutput(compilationAndClasses, (spc, source) => Execute(source.Left, source.Right, spc));
     }
 
-    private static void Execute(Compilation compilation, ImmutableArray<TypeDeclarationSyntax> models,
+    private static void Execute(Compilation compilation, ImmutableArray<TypeSyntax> syntaxes,
         SourceProductionContext spc)
     {
+        var ninoSymbols = syntaxes
+            .Select(s => s.GetTypeSymbol(compilation))
+            .Where(s => s != null)
+            .Distinct(SymbolEqualityComparer.Default)
+            .Select(s => (ITypeSymbol)s!)
+            .Where(s => s.IsNinoType())
+            .Where(s => s is not ITypeParameterSymbol)
+            .Where(s => s is not INamedTypeSymbol ||
+                        (s is INamedTypeSymbol symbol &&
+                         (!symbol.IsGenericType ||
+                          symbol.TypeArguments.Length ==
+                          symbol.TypeParameters.Length &&
+                          symbol.TypeArguments.All(t => t is INamedTypeSymbol))))
+            .ToList();
+
         // get type full names from models (namespaces + type names)
-        var typeFullNames = models
-            .Where(m => m.IsReferenceType())
-            .Where(m => compilation.GetTypeSymbol(m.GetTypeFullName(), models).IsInstanceType())
-            .Select(m => m.GetTypeFullName()).ToList();
+        var typeFullNames = ninoSymbols
+            .Where(symbol => symbol.IsReferenceType())
+            .Where(symbol => symbol.IsInstanceType())
+            .Select(symbol => symbol.GetTypeFullName()).ToList();
         //sort by typename
         typeFullNames.Sort();
 
@@ -39,7 +53,7 @@ public class SerializerGenerator : IIncrementalGenerator
 
         var (inheritanceMap,
             subTypeMap,
-            topNinoTypes) = compilation.GetInheritanceMap(models);
+            topNinoTypes) = ninoSymbols.GetInheritanceMap();
 
         var sb = new StringBuilder();
 
@@ -52,11 +66,11 @@ public class SerializerGenerator : IIncrementalGenerator
         sb.GenerateClassSerializeMethods("ICollection<T>", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("string");
 
-        foreach (var model in models)
+        foreach (var typeSymbol in ninoSymbols)
         {
             try
             {
-                string typeFullName = model.GetTypeFullName();
+                string typeFullName = typeSymbol.GetTypeFullName();
 
                 //only generate for top nino types
                 if (!topNinoTypes.Contains(typeFullName))
@@ -68,8 +82,6 @@ public class SerializerGenerator : IIncrementalGenerator
 
                     continue;
                 }
-
-                var typeSymbol = compilation.GetTypeSymbol(typeFullName, models);
 
                 // check if struct is unmanged
                 if (typeSymbol.IsUnmanagedType)
@@ -84,7 +96,7 @@ public class SerializerGenerator : IIncrementalGenerator
                     $"        public static void Serialize(this {typeFullName} value, ref Writer writer)");
                 sb.AppendLine("        {");
                 // only applicable for reference types
-                bool isReferenceType = model.IsReferenceType();
+                bool isReferenceType = typeSymbol.IsReferenceType();
                 if (isReferenceType)
                 {
                     sb.AppendLine("            switch (value)");
@@ -99,12 +111,10 @@ public class SerializerGenerator : IIncrementalGenerator
                     foreach (var memberDeclarationSyntax in members)
                     {
                         var name = memberDeclarationSyntax.GetMemberName();
-                        // see if declaredType is a NinoType
                         var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
-                        //check if declaredType is a NinoType
                         if (declaredType == null)
                             throw new Exception("declaredType is null");
-
+                        
                         sb.AppendLine(
                             $"                    {declaredType.GetSerializePrefix()}({valName}.{name}, ref writer);");
                     }
@@ -122,20 +132,19 @@ public class SerializerGenerator : IIncrementalGenerator
 
                     foreach (var subType in lst)
                     {
-                        var subTypeSymbol = compilation.GetTypeSymbol(subType, models);
+                        var subTypeSymbol = ninoSymbols.First(s => s.GetTypeFullName() == subType);
                         if (subTypeSymbol.IsInstanceType())
                         {
-                            string valName = subType.Replace(".", "_").ToLower();
+                            string valName = subType.Replace("global::", "").Replace(".", "_").ToLower();
                             sb.AppendLine($"                case {subType} {valName}:");
                             sb.AppendLine($"                    writer.Write((ushort){typeFullNames.GetId(subType)});");
 
 
-                            List<TypeDeclarationSyntax> subTypeModels =
-                                models.Where(m => inheritanceMap[subType]
+                            List<ITypeSymbol> subTypeSymbols =
+                                ninoSymbols.Where(m => inheritanceMap[subType]
                                     .Contains(m.GetTypeFullName())).ToList();
 
-                            var members = models.First(m => m.GetTypeFullName() == subType)
-                                .GetNinoTypeMembers(subTypeModels);
+                            var members = subTypeSymbol.GetNinoTypeMembers(subTypeSymbols);
                             //get distinct members
                             members = members.Distinct().ToList();
                             WriteMembers(members, valName);
@@ -154,7 +163,7 @@ public class SerializerGenerator : IIncrementalGenerator
                             $"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
                     }
 
-                    var defaultMembers = model.GetNinoTypeMembers(null);
+                    var defaultMembers = typeSymbol.GetNinoTypeMembers(null);
                     WriteMembers(defaultMembers, "value");
 
                     if (isReferenceType)
@@ -162,7 +171,7 @@ public class SerializerGenerator : IIncrementalGenerator
                         sb.AppendLine("                    return;");
                     }
                 }
-                
+
                 if (isReferenceType)
                 {
                     sb.AppendLine("            }");
@@ -173,7 +182,15 @@ public class SerializerGenerator : IIncrementalGenerator
             }
             catch (Exception e)
             {
-                sb.AppendLine($"// Error: {e.Message} for type {model.GetTypeFullName()}: {e.StackTrace}");
+                sb.AppendLine($"/* Error: {e.Message} for type {typeSymbol.GetTypeFullName()}");
+                //add stacktrace
+                foreach (var line in e.StackTrace.Split('\n'))
+                {
+                    sb.AppendLine($" * {line}");
+                }
+
+                //end error
+                sb.AppendLine(" */");
             }
         }
 

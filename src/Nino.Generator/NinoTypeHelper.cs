@@ -11,29 +11,65 @@ namespace Nino.Generator;
 
 public static class NinoTypeHelper
 {
-    public static IncrementalValuesProvider<TypeDeclarationSyntax> GetNinoTypeModels(
+    public static IncrementalValuesProvider<TypeSyntax> GetTypeSyntaxes(
         this IncrementalGeneratorInitializationContext context)
     {
         return context.SyntaxProvider
             .CreateSyntaxProvider(
-                predicate: static (s, _) => IsNinoType(s),
-                transform: static (ctx, _) => GetSemanticTarget(ctx))
-            .Where(static m => m is not null);
+                predicate: static (s, _) => s is TypeSyntax,
+                transform: static (ctx, _) => ctx.Node as TypeSyntax)
+            .Where(static m => m != null)!;
     }
 
-    private static bool IsNinoType(SyntaxNode node) =>
-        node is TypeDeclarationSyntax typeDeclarationSyntax &&
-        typeDeclarationSyntax.AttributeLists.SelectMany(static al => al.Attributes)
-            .Any(static a => a.Name.ToString().EndsWith("NinoType"));
+    public static ITypeSymbol? GetTypeSymbol(this TypeSyntax typeSyntax, Compilation compilation)
+    {
+        return compilation.GetSemanticModel(typeSyntax.SyntaxTree).GetTypeInfo(typeSyntax).Type;
+    }
+
+    public static ITypeSymbol ReplaceTypeParameters(this ITypeSymbol declaredType, ITypeSymbol symbol)
+    {
+        //if declaredType is type parameter, get the type from the symbol
+        if (declaredType.TypeKind == TypeKind.TypeParameter)
+        {
+            INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
+            int typeParamIndex = namedTypeSymbol.TypeParameters.ToList()
+                .FindIndex(p => p.Name == declaredType.Name);
+            if (typeParamIndex == -1)
+                throw new Exception("typeParamIndex is -1");
+            declaredType = namedTypeSymbol.TypeArguments[typeParamIndex];
+            declaredType = declaredType.ReplaceTypeParameters(symbol);
+        }
+        //if declaredType is a generic type, that uses a type parameter, substitute it with the actual type argument
+        else if (declaredType is INamedTypeSymbol namedTypeSymbol)
+        {
+            // If declaredType is a generic type, replace its type arguments recursively
+            if (namedTypeSymbol.IsGenericType)
+            {
+                // Replace type parameters within each generic argument
+                var newArguments = namedTypeSymbol.TypeArguments.Select(arg =>
+                        arg.ReplaceTypeParameters(symbol) // Recursive call for nested replacements
+                ).ToArray();
+
+                // Only construct if replacements were made
+                if (!newArguments.SequenceEqual(namedTypeSymbol.TypeArguments, SymbolEqualityComparer.Default))
+                {
+                    return namedTypeSymbol.ConstructedFrom.Construct(newArguments);
+                }
+            }
+        }
+
+        return declaredType;
+    }
+
 
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
         return typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
     }
 
-    public static bool IsReferenceType(this TypeDeclarationSyntax typeDecl)
+    public static bool IsReferenceType(this ITypeSymbol typeDecl)
     {
-        return typeDecl is ClassDeclarationSyntax or RecordDeclarationSyntax or InterfaceDeclarationSyntax;
+        return typeDecl.IsReferenceType || typeDecl.IsRecord || typeDecl.TypeKind == TypeKind.Interface;
     }
 
     public static bool IsInstanceType(this ITypeSymbol typeSymbol)
@@ -68,44 +104,29 @@ public static class NinoTypeHelper
 
     public static (Dictionary<string, List<string>> inheritanceMap,
         Dictionary<string, List<string>> subTypeMap,
-        ImmutableArray<string> topNinoTypes) GetInheritanceMap(this Compilation compilation,
-            ImmutableArray<TypeDeclarationSyntax> models)
+        ImmutableArray<string> topNinoTypes) GetInheritanceMap(this List<ITypeSymbol> ninoSymbols)
     {
-        var ninoTypeModels = models.Select(m => m.GetTypeFullName()).ToImmutableArray();
+        var ninoTypeModels = ninoSymbols.Select(m => m.GetTypeFullName()).ToImmutableArray();
         Dictionary<string, List<string>> inheritanceMap = new(); // type -> all base types
         Dictionary<string, List<string>> subTypeMap = new(); //top type -> all subtypes
         //get top nino types (i.e. types that are not inherited by other nino types)
-        var topNinoTypes = ninoTypeModels.Where(ninoTypeFullName =>
+        var topNinoTypes = ninoSymbols.Where(typeSymbol =>
         {
             List<string> inheritedTypes = new();
+            string ninoTypeFullName = typeSymbol.GetTypeFullName();
             inheritanceMap.Add(ninoTypeFullName, inheritedTypes);
-            INamedTypeSymbol? subTypeSymbol = compilation.GetTypeByMetadataName(ninoTypeFullName);
-            if (subTypeSymbol == null)
-            {
-                //check if is a nested type
-                TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                    string.Equals(m.GetTypeFullName(), ninoTypeFullName, StringComparison.Ordinal));
-
-                if (typeDeclarationSyntax == null)
-                    return false;
-
-                var ninoTypeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-                subTypeSymbol = compilation.GetTypeByMetadataName(ninoTypeFullName2);
-                if (subTypeSymbol == null)
-                    return false;
-            }
 
             //get toppest ninotype base type
-            INamedTypeSymbol? baseType = subTypeSymbol;
+            ITypeSymbol? baseType = typeSymbol;
             List<string> interfaces = new();
-            interfaces.AddRange(baseType.Interfaces.Select(i => i.ToString()));
+            interfaces.AddRange(baseType.Interfaces.Select(i => i.GetTypeFullName()));
             while (baseType.BaseType != null)
             {
                 baseType = baseType.BaseType;
-                string baseTypeFullName = baseType.ToString();
+                string baseTypeFullName = baseType.GetTypeFullName();
                 if (ninoTypeModels.Contains(baseTypeFullName))
                 {
-                    interfaces.AddRange(baseType.Interfaces.Select(i => i.ToString()));
+                    interfaces.AddRange(baseType.Interfaces.Select(i => i.GetTypeFullName()));
                     if (subTypeMap.ContainsKey(baseTypeFullName))
                     {
                         subTypeMap[baseTypeFullName].Add(ninoTypeFullName);
@@ -144,7 +165,7 @@ public static class NinoTypeHelper
             return inheritedTypes.Count == 0;
         }).ToImmutableArray();
 
-        return (inheritanceMap, subTypeMap, topNinoTypes);
+        return (inheritanceMap, subTypeMap, topNinoTypes.Select(t => t.GetTypeFullName()).ToImmutableArray());
     }
 
     public static string GetDeserializePrefix(this ITypeSymbol ts)
@@ -187,27 +208,6 @@ public static class NinoTypeHelper
         curNamespace += "Nino";
 
         return $"{curNamespace}.Serializer.Serialize";
-    }
-
-    public static INamedTypeSymbol GetTypeSymbol(this Compilation compilation, string typeFullName,
-        ImmutableArray<TypeDeclarationSyntax> models)
-    {
-        var typeSymbol = compilation.GetTypeByMetadataName(typeFullName);
-        if (typeSymbol == null)
-        {
-            //check if is a nested type
-            TypeDeclarationSyntax? typeDeclarationSyntax = models.FirstOrDefault(m =>
-                string.Equals(m.GetTypeFullName(), typeFullName, StringComparison.Ordinal));
-            if (typeDeclarationSyntax == null)
-                throw new Exception("typeDeclarationSyntax is null");
-
-            var typeFullName2 = typeDeclarationSyntax.GetTypeFullName("+");
-            typeSymbol = compilation.GetTypeByMetadataName(typeFullName2);
-            if (typeSymbol == null)
-                throw new Exception("structSymbol is null");
-        }
-
-        return typeSymbol;
     }
 
     public static void GenerateClassSerializeMethods(this StringBuilder sb, string typeFullName, string typeParam = "",
@@ -300,47 +300,11 @@ public static class NinoTypeHelper
         return $"{indent}{ret}";
     }
 
-    private static TypeDeclarationSyntax GetSemanticTarget(GeneratorSyntaxContext context)
+    public static string GetTypeFullName(this ITypeSymbol typeSymbol)
     {
-        return (TypeDeclarationSyntax)context.Node;
+        return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
     }
-
-    public static string GetTypeFullName(this TypeDeclarationSyntax typeDeclarationSyntax, string seperator = ".")
-    {
-        var namespaceName = GetNamespace(typeDeclarationSyntax);
-        var typeName = GetFullTypeName(typeDeclarationSyntax, seperator);
-
-        return string.IsNullOrEmpty(namespaceName) ? $"{typeName}" : $"{namespaceName}.{typeName}";
-    }
-
-    private static string GetNamespace(SyntaxNode node)
-    {
-        //namespace XXX { ... }
-        var namespaceDeclaration = node.Ancestors().OfType<NamespaceDeclarationSyntax>().FirstOrDefault();
-        //file-scoped namespace i.e. namespace XXX;
-        if (namespaceDeclaration == null)
-        {
-            var fileScopedNamespace = node.Ancestors().OfType<FileScopedNamespaceDeclarationSyntax>().FirstOrDefault();
-            return fileScopedNamespace?.Name.ToString() ?? string.Empty;
-        }
-
-        return namespaceDeclaration.Name.ToString();
-    }
-
-    private static string GetFullTypeName(TypeDeclarationSyntax typeDeclaration, string separator = ".")
-    {
-        var typeNames = new Stack<string>();
-        var currentTypeDeclaration = typeDeclaration;
-
-        while (currentTypeDeclaration != null)
-        {
-            typeNames.Push(currentTypeDeclaration.Identifier.Text);
-            currentTypeDeclaration = currentTypeDeclaration.Parent as TypeDeclarationSyntax;
-        }
-
-        return string.Join(separator, typeNames);
-    }
-
+    
     public static ITypeSymbol? GetDeclaredTypeFullName(this CSharpSyntaxNode memberDeclaration,
         Compilation compilation)
     {
@@ -376,43 +340,44 @@ public static class NinoTypeHelper
         };
     }
 
-    public static List<CSharpSyntaxNode> GetNinoTypeMembers(this TypeDeclarationSyntax typeDeclarationSyntax,
-        List<TypeDeclarationSyntax>? parentNinoTypes)
+    public static List<CSharpSyntaxNode> GetNinoTypeMembers(this ITypeSymbol typeSymbol,
+        List<ITypeSymbol>? parentNinoTypes)
     {
         //ensure type has attribute NinoType
-        if (!IsNinoType(typeDeclarationSyntax))
+        if (!IsNinoType(typeSymbol))
         {
             return new List<CSharpSyntaxNode>();
         }
 
-        //model is TypeDeclarationSyntax, get its NinoType attribute's first argument value
-        var autoCollectValue = typeDeclarationSyntax.AttributeLists
-            .SelectMany(static al => al.Attributes)
-            .Where(static a => a.Name.ToString() == "NinoType")
-            .Select(static a => a.ArgumentList?.Arguments.FirstOrDefault())
-            .Select(static a => a?.Expression)
-            .OfType<LiteralExpressionSyntax>()
-            .FirstOrDefault();
-        bool autoCollect = autoCollectValue?.Token.Value as bool? ?? true;
+        //get NinoType attribute first argument value from typeSymbol
+        var autoCollectValue = typeSymbol.GetAttributes().FirstOrDefault(a =>
+            a.AttributeClass != null &&
+            a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
+        bool autoCollect = autoCollectValue == null || (bool)(autoCollectValue.ConstructorArguments[0].Value ?? false);
 
         //true = auto collect, false = manual collect with NinoMemberAttribute
         Dictionary<string, int> memberIndex = new Dictionary<string, int>();
-        List<TypeDeclarationSyntax> ninoTypes = new List<TypeDeclarationSyntax>();
-        ninoTypes.Add(typeDeclarationSyntax);
+        List<ITypeSymbol> ninoTypes = new List<ITypeSymbol>();
+        ninoTypes.Add(typeSymbol);
         if (parentNinoTypes != null)
             ninoTypes.AddRange(parentNinoTypes);
         //get all fields and properties with getter and setter
         var ret =
             //consider record (init only) properties
             //i.e. public record Record(int A, string B);, we want to get A and B
-            ninoTypes.Where(static t => t is RecordDeclarationSyntax)
-                .Select(static t => t as RecordDeclarationSyntax)
+            ninoTypes.Where(static t => t.IsRecord)
+                //get record's primary constructor members
+                .Select(static t => t.DeclaringSyntaxReferences.First().GetSyntax())
+                .OfType<RecordDeclarationSyntax>()
                 .Where(static r => r != null && r.ParameterList != null)
                 //now extract the init only properties (A and B) from the record declaration
                 .SelectMany(static r => r!.ParameterList!.Parameters)
                 .Where(static p => p.Type != null)
                 .Concat(
                     ninoTypes
+                        .SelectMany(static t => t.DeclaringSyntaxReferences
+                            .Select(static r => r.GetSyntax())
+                            .OfType<TypeDeclarationSyntax>())
                         .SelectMany(static t => t.Members)
                         .Where(static m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax
                         {

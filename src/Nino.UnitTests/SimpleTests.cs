@@ -199,5 +199,92 @@ namespace Nino.UnitTests
                 Assert.IsTrue(item is >= 1 and <= 3);
             }
         }
+
+        [TestMethod]
+        public void TestGenericStruct()
+        {
+            GenericStruct<int> a = new GenericStruct<int>()
+            {
+                Val = 1
+            };
+            byte[] bytes = a.Serialize();
+
+            Deserializer.Deserialize(bytes, out GenericStruct<int> result);
+            Assert.AreEqual(a.Val, result.Val);
+
+            GenericStruct<string> b = new GenericStruct<string>()
+            {
+                Val = "Test"
+            };
+            bytes = b.Serialize();
+            Deserializer.Deserialize(bytes, out GenericStruct<string> result2);
+
+            Assert.AreEqual(b.Val, result2.Val);
+        }
+
+        [TestMethod]
+        public void TestGeneric()
+        {
+            Generic<int> a = new Generic<int>()
+            {
+                Val = 1
+            };
+            byte[] bytes = a.Serialize();
+
+            Deserializer.Deserialize(bytes, out Generic<int> result);
+            Assert.AreEqual(a.Val, result.Val);
+
+            Generic<string> b = new Generic<string>()
+            {
+                Val = "Test"
+            };
+            bytes = b.Serialize();
+            Deserializer.Deserialize(bytes, out Generic<string> result2);
+
+            Assert.AreEqual(b.Val, result2.Val);
+        }
+
+        [TestMethod]
+        public void TestComplexGeneric()
+        {
+            ComplexGeneric<List<int>> a = new ComplexGeneric<List<int>>()
+            {
+                Val = new List<int>()
+                {
+                    1,
+                    2
+                }
+            };
+
+            byte[] bytes = a.Serialize();
+            Deserializer.Deserialize(bytes, out ComplexGeneric<List<int>> result);
+            Assert.AreEqual(a.Val.Count, result.Val.Count);
+            Assert.AreEqual(a.Val[0], result.Val[0]);
+            Assert.AreEqual(a.Val[1], result.Val[1]);
+        }
+
+        [TestMethod]
+        public void TestComplexGeneric2()
+        {
+            ComplexGeneric2<Generic<SimpleClass>> a = new ComplexGeneric2<Generic<SimpleClass>>()
+            {
+                Val = new Generic<Generic<SimpleClass>>()
+                {
+                    Val = new Generic<SimpleClass>()
+                    {
+                        Val = new SimpleClass()
+                        {
+                            Id = 1,
+                            Name = "Test"
+                        }
+                    }
+                }
+            };
+
+            byte[] bytes = a.Serialize();
+            Deserializer.Deserialize(bytes, out ComplexGeneric2<Generic<SimpleClass>> result);
+            Assert.AreEqual(a.Val.Val.Val.Id, result.Val.Val.Val.Id);
+            Assert.AreEqual(a.Val.Val.Val.Name, result.Val.Val.Val.Name);
+        }
     }
 }

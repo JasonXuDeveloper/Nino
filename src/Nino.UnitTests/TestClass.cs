@@ -1,9 +1,34 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using Nino.Core;
 
 namespace Nino.UnitTests
 {
+    [NinoType]
+    public struct GenericStruct<T>
+    {
+        public T Val;
+    }
+
+    [NinoType]
+    public class Generic<T>
+    {
+        public T Val;
+    }
+
+    [NinoType]
+    public class ComplexGeneric<T> where T : IList
+    {
+        public T Val;
+    }
+
+    [NinoType]
+    public class ComplexGeneric2<T>
+    {
+        public Generic<T> Val;
+    }
+
     [NinoType]
     public abstract class Base
     {
@@ -160,14 +185,14 @@ namespace Nino.UnitTests
         {
         }
     }
-    
+
     [NinoType]
     public struct SimpleStruct
     {
         public int Id;
         public string Name;
         public DateTime CreateTime;
-        
+
         [NinoConstructor(nameof(Id), nameof(Name), nameof(CreateTime))]
         public SimpleStruct(int a, string b, DateTime c)
         {
@@ -183,7 +208,7 @@ namespace Nino.UnitTests
         public int Id;
         public string Name;
         public DateTime CreateTime;
-        
+
         // [NinoConstructor(nameof(Id), nameof(Name), nameof(CreateTime))] - we try not to use this and test if it still works
         // should automatically use this constructor since this is the only public constructor
         public SimpleClassWithConstructor(int id, string name, DateTime createTime)
