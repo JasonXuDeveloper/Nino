@@ -2,8 +2,9 @@ name: Performance Report
 
 # on new release
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   report:
