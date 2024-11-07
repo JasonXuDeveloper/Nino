@@ -7,10 +7,10 @@ using MessagePack;
 #nullable disable
 namespace Nino.Benchmark;
 
-[MinColumn, MaxColumn, PayloadColumn]
+[PayloadColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
-[SimpleJob(RuntimeMoniker.Net80, warmupCount: 1, iterationCount: 10)]
-[MarkdownExporter, HtmlExporter, CsvExporter, JsonExporter]
+[SimpleJob(RuntimeMoniker.Net90, warmupCount: 1, iterationCount: 10)]
+[MarkdownExporter]
 public class SimpleTest
 {
     private readonly SimpleClass _simpleClass;
@@ -26,25 +26,25 @@ public class SimpleTest
     public SimpleTest()
     {
         _simpleClass = SimpleClass.Create();
-        _simpleClasses = Enumerable.Range(0, 30).Select(_ => SimpleClass.Create()).ToArray();
+        _simpleClasses = Enumerable.Range(0, 100).Select(_ => SimpleClass.Create()).ToArray();
         _simpleStruct = SimpleStruct.Create();
-        _simpleStructs = Enumerable.Range(0, 30).Select(_ => SimpleStruct.Create()).ToArray();
+        _simpleStructs = Enumerable.Range(0, 100).Select(_ => SimpleStruct.Create()).ToArray();
 
         _serializedSimpleClass = new byte[3][];
         _serializedSimpleClass[0] = MessagePackSerializer.Serialize(_simpleClass);
         _serializedSimpleClass[1] = MemoryPackSerializer.Serialize(_simpleClass);
         _serializedSimpleClass[2] = Nino_Benchmark_Nino.Serializer.Serialize(_simpleClass);
-        
+
         _serializedSimpleStruct = new byte[3][];
         _serializedSimpleStruct[0] = MessagePackSerializer.Serialize(_simpleStruct);
         _serializedSimpleStruct[1] = MemoryPackSerializer.Serialize(_simpleStruct);
         _serializedSimpleStruct[2] = Nino_Benchmark_Nino.Serializer.Serialize(_simpleStruct);
-        
+
         _serializedSimpleClasses = new byte[3][];
         _serializedSimpleClasses[0] = MessagePackSerializer.Serialize(_simpleClasses);
         _serializedSimpleClasses[1] = MemoryPackSerializer.Serialize(_simpleClasses);
         _serializedSimpleClasses[2] = Nino_Benchmark_Nino.Serializer.Serialize(_simpleClasses);
-        
+
         _serializedSimpleStructs = new byte[3][];
         _serializedSimpleStructs[0] = MessagePackSerializer.Serialize(_simpleStructs);
         _serializedSimpleStructs[1] = MemoryPackSerializer.Serialize(_simpleStructs);
