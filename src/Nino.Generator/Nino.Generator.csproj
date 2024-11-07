@@ -11,7 +11,7 @@
         <PackageId>Nino.Generator</PackageId>
         <IncludeBuildOutput>true</IncludeBuildOutput>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <Version>2.1.5</Version>
+        <Version>2.1.6</Version>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
