@@ -53,14 +53,6 @@ jobs:
         echo "$PERF_CONTENT"
         echo "::set-output name=perf_content::$PERF_CONTENT"
 
-    - name: Install GitHub CLI
-      run: sudo apt-get install -y gh
-
-    - name: Authenticate GitHub CLI
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
     - name: Update Release Body
       env:
         TAG_NAME: ${{ steps.determine_tag.outputs.tag }}
