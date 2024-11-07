@@ -1,63 +1,78 @@
 name: Performance Report
 
-# on new release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'  # Trigger on push to version tags
+  workflow_dispatch:  # Allow manual triggering
 
 jobs:
   report:
     runs-on: ubuntu-latest
-    # allow 1hr for the job to complete
-    timeout-minutes: 60
-    # working directory for this job
-    defaults:
-      run:
-        working-directory: ./src/Nino.Benchmark  # Default working directory for all steps in this job
-  
-    steps:
-    # Checkout the code to the commit of the release
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        ref: ${{ github.event.release.target_commitish }}
+    timeout-minutes: 60  # Allow 1 hour for the job to complete
 
-    # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0  # Ensure all tags are fetched
+
+    - name: Determine Tag Name
+      id: determine_tag
+      run: |
+        if [[ "${{ github.event_name }}" == "push" ]]; then
+          # For push events, get the tag from github.ref
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+        else
+          # For manual trigger, get the latest tag
+          TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1))
+        fi
+        echo "Using tag: $TAG_NAME"
+        echo "::set-output name=tag::$TAG_NAME"
+
+    - name: Check out Repository at Tag
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ steps.determine_tag.outputs.tag }}  # Checkout at the determined tag
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
-    
-    # dotnet benchmark at src/Nino.Benchmark
+
     - name: Run benchmarks
-      run: dotnet run -c Release
-    
-    # Export markdown report content from src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md to an environment variable
-    - name: Fetch report
       run: |
-        cd BenchmarkDotNet.Artifacts/results
-        export PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
+        cd src/Nino.Benchmark
+        dotnet run -c Release
+
+    - name: Fetch report
+      id: fetch_report
+      run: |
+        cd src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
+        PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
         echo "$PERF_CONTENT"
-        echo "::set-env name=PERF_CONTENT::$PERF_CONTENT"
-  
+        echo "::set-output name=perf_content::$PERF_CONTENT"
+
     - name: Install GitHub CLI
       run: sudo apt-get install -y gh
 
     - name: Authenticate GitHub CLI
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: gh auth login --with-token < $GITHUB_TOKEN
-
-    - name: Get Release Info
-      id: get_release
-      run: |
-        gh release view ${{ github.event.release.tag_name }} --json body --jq '.body' > release_body.txt
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
     - name: Update Release Body
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        TAG_NAME: ${{ steps.determine_tag.outputs.tag }}
+        PERF_CONTENT: ${{ steps.fetch_report.outputs.perf_content }}
       run: |
-        NEW_CONTENT="\n## Performance Report\n${{ env.PERF_CONTENT }}"
-        UPDATED_BODY="$(cat release_body.txt)${NEW_CONTENT}"
-        gh release edit ${{ github.event.release.tag_name }} --notes "${UPDATED_BODY}"
+        # Retrieve the existing release body
+        RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
+        echo "Current release body: $RELEASE_BODY"
+
+        # Prepare new content and update the release body
+        NEW_CONTENT="\n## Performance Report\n$PERF_CONTENT"
+        UPDATED_BODY="${RELEASE_BODY}${NEW_CONTENT}"
+
+        # Update the release notes
+        gh release edit "$TAG_NAME" --notes "$UPDATED_BODY"
