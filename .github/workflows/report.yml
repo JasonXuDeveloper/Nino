@@ -60,7 +60,7 @@ jobs:
         echo "Current release body: $RELEASE_BODY"
 
         # Prepare the new content by using printf to handle multiline content correctly
-        NEW_CONTENT=$(printf "\n\n## Performance Report\n<details><summary>expand</summary>%s</details>\n" "$PERF_CONTENT")
+        NEW_CONTENT=$(printf "\n\n## Performance Report\n<details><summary>expand</summary>\n\n%s\n\n</details>\n" "$PERF_CONTENT")
         UPDATED_BODY=$(printf "%s%s" "$RELEASE_BODY" "$NEW_CONTENT")
 
         # Update the release notes
