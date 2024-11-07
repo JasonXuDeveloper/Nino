@@ -119,6 +119,12 @@ namespace Nino.UnitTests
         public string Name;
         public DateTime CreateTime;
     }
+    
+    [NinoType]
+    public record struct SimpleRecordStruct(int Id, string Name, DateTime CreateTime);
+    
+    [NinoType]
+    public record struct SimpleRecordStruct2(int Id, DateTime CreateTime);
 
     [NinoType]
     public record SimpleRecord

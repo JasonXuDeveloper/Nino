@@ -10,6 +10,29 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestRecordStruct()
+        {
+            SimpleRecordStruct record = new SimpleRecordStruct
+            {
+                Id = 1,
+                Name = "Test",
+                CreateTime = DateTime.Today
+            };
+
+            byte[] bytes = record.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out SimpleRecordStruct result);
+            Assert.AreEqual(record, result);
+
+            SimpleRecordStruct2 record2 = new SimpleRecordStruct2(1, DateTime.Today);
+            bytes = record2.Serialize();
+
+            Deserializer.Deserialize(bytes, out SimpleRecordStruct2 result2);
+            Assert.AreEqual(record2, result2);
+        }
+
+        [TestMethod]
         public void TestRecords()
         {
             SimpleRecord record = new SimpleRecord

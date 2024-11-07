@@ -5,7 +5,6 @@ using Microsoft.CodeAnalysis;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Nino.Generator;
 
@@ -19,23 +18,10 @@ public class SerializerGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(compilationAndClasses, (spc, source) => Execute(source.Left, source.Right, spc));
     }
 
-    private static void Execute(Compilation compilation, ImmutableArray<TypeSyntax> syntaxes,
+    private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
         SourceProductionContext spc)
     {
-        var ninoSymbols = syntaxes
-            .Select(s => s.GetTypeSymbol(compilation))
-            .Where(s => s != null)
-            .Distinct(SymbolEqualityComparer.Default)
-            .Select(s => (ITypeSymbol)s!)
-            .Where(s => s.IsNinoType())
-            .Where(s => s is not ITypeParameterSymbol)
-            .Where(s => s is not INamedTypeSymbol ||
-                        (s is INamedTypeSymbol symbol &&
-                         (!symbol.IsGenericType ||
-                          symbol.TypeArguments.Length ==
-                          symbol.TypeParameters.Length &&
-                          symbol.TypeArguments.All(t => t is INamedTypeSymbol))))
-            .ToList();
+        var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
 
         // get type full names from models (namespaces + type names)
         var typeFullNames = ninoSymbols
@@ -114,7 +100,7 @@ public class SerializerGenerator : IIncrementalGenerator
                         var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
                         if (declaredType == null)
                             throw new Exception("declaredType is null");
-                        
+
                         sb.AppendLine(
                             $"                    {declaredType.GetSerializePrefix()}({valName}.{name}, ref writer);");
                     }
@@ -152,7 +138,6 @@ public class SerializerGenerator : IIncrementalGenerator
                         }
                     }
                 }
-
 
                 if (typeSymbol.IsInstanceType())
                 {

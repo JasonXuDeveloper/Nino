@@ -154,8 +154,10 @@ namespace Nino.Core
                     Write(TypeCollector.NullTypeId);
                     return;
                 case "":
-                    Write(TypeCollector.StringTypeId);
-                    Write(0);
+                    var header = _bufferWriter.GetSpan(sizeof(ushort) + sizeof(int));
+                    Unsafe.WriteUnaligned(ref header[0], TypeCollector.StringTypeId);
+                    header.Slice(2).Clear();
+                    _bufferWriter.Advance(sizeof(ushort) + sizeof(int));
                     return;
                 default:
                     int byteLength = value.Length * Unsafe.SizeOf<char>();
@@ -163,8 +165,7 @@ namespace Nino.Core
                     var span = _bufferWriter.GetSpan(spanLength);
                     Unsafe.WriteUnaligned(ref span[0], TypeCollector.StringTypeId);
                     Unsafe.WriteUnaligned(ref span[2], value.Length);
-                    ref var valueRef = ref MemoryMarshal.GetReference(value.AsSpan());
-                    ref byte valueByte = ref Unsafe.As<char, byte>(ref valueRef);
+                    ref byte valueByte = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(value.AsSpan()));
                     Unsafe.CopyBlockUnaligned(ref span[6], ref valueByte, (uint)byteLength);
                     _bufferWriter.Advance(spanLength);
                     break;

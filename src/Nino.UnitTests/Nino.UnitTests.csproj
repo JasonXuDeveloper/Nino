@@ -4,7 +4,7 @@
         <ImplicitUsings>disable</ImplicitUsings>
         <Nullable>disable</Nullable>
         <IsPackable>false</IsPackable>
-        <LangVersion>9</LangVersion>
+        <LangVersion>10</LangVersion>
         <OutputType>Library</OutputType>
         <TargetFramework>net6.0</TargetFramework>
     </PropertyGroup>

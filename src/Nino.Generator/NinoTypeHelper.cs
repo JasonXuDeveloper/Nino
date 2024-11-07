@@ -11,19 +11,45 @@ namespace Nino.Generator;
 
 public static class NinoTypeHelper
 {
-    public static IncrementalValuesProvider<TypeSyntax> GetTypeSyntaxes(
+    public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
         this IncrementalGeneratorInitializationContext context)
     {
         return context.SyntaxProvider
             .CreateSyntaxProvider(
-                predicate: static (s, _) => s is TypeSyntax,
-                transform: static (ctx, _) => ctx.Node as TypeSyntax)
+                //class decl, struct decl, interface decl, record decl, record struct decl
+                predicate: static (s, _) => s is TypeDeclarationSyntax || s is TypeSyntax,
+                transform: static (ctx, _) => ctx.Node as CSharpSyntaxNode)
             .Where(static m => m != null)!;
     }
 
-    public static ITypeSymbol? GetTypeSymbol(this TypeSyntax typeSyntax, Compilation compilation)
+    public static List<ITypeSymbol> GetNinoTypeSymbols(this ImmutableArray<CSharpSyntaxNode> syntaxes, Compilation compilation)
     {
-        return compilation.GetSemanticModel(typeSyntax.SyntaxTree).GetTypeInfo(typeSyntax).Type;
+        return syntaxes.Select(s => s.GetTypeSymbol(compilation))
+            .Where(s => s != null)
+            .Distinct(SymbolEqualityComparer.Default)
+            .Select(s => (ITypeSymbol)s!)
+            .Where(s => s.IsNinoType())
+            .Where(s => s is not ITypeParameterSymbol)
+            .Where(s => s is not INamedTypeSymbol ||
+                        (s is INamedTypeSymbol symbol &&
+                         (!symbol.IsGenericType ||
+                          (symbol.TypeArguments.Length ==
+                           symbol.TypeParameters.Length &&
+                           symbol.TypeArguments.All(t => t is INamedTypeSymbol)))))
+            .ToList();
+    }
+
+    public static ITypeSymbol? GetTypeSymbol(this CSharpSyntaxNode syntax, Compilation compilation)
+    {
+        switch (syntax)
+        {
+            case TypeDeclarationSyntax typeDeclaration:
+                return compilation.GetSemanticModel(typeDeclaration.SyntaxTree).GetDeclaredSymbol(typeDeclaration);
+            case TypeSyntax typeSyntax:
+                return compilation.GetSemanticModel(typeSyntax.SyntaxTree).GetTypeInfo(typeSyntax).Type;
+        }
+        
+        return null;
     }
 
     public static ITypeSymbol ReplaceTypeParameters(this ITypeSymbol declaredType, ITypeSymbol symbol)
@@ -69,7 +95,7 @@ public static class NinoTypeHelper
 
     public static bool IsReferenceType(this ITypeSymbol typeDecl)
     {
-        return typeDecl.IsReferenceType || typeDecl.IsRecord || typeDecl.TypeKind == TypeKind.Interface;
+        return typeDecl.IsReferenceType || typeDecl is { IsRecord: true, IsValueType: false } || typeDecl.TypeKind == TypeKind.Interface;
     }
 
     public static bool IsInstanceType(this ITypeSymbol typeSymbol)
