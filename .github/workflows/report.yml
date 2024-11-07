@@ -55,6 +55,7 @@ jobs:
 
     - name: Update Release Body
       env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set GH_TOKEN for GitHub CLI
         TAG_NAME: ${{ steps.determine_tag.outputs.tag }}
         PERF_CONTENT: ${{ steps.fetch_report.outputs.perf_content }}
       run: |
