@@ -53,6 +53,7 @@ jobs:
         # Read PERF_CONTENT from the file
         cd src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
         PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
+        echo "Performance report content: $PERF_CONTENT"
 
         # Retrieve the existing release body
         RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
@@ -60,7 +61,7 @@ jobs:
 
         # Prepare the new content by using printf to handle multiline content correctly
         NEW_CONTENT=$(printf "\n## Performance Report\n%s\n" "$PERF_CONTENT")
-        UPDATED_BODY=$(printf "%s%s" "$RELEASE_BODY" "$NEW_CONTENT")
+        UPDATED_BODY=$(printf "%s\n%s" "$RELEASE_BODY" "$NEW_CONTENT")
 
         # Update the release notes
         gh release edit "$TAG_NAME" --notes "$UPDATED_BODY"
