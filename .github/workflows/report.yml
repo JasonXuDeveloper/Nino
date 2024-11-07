@@ -1,0 +1,62 @@
+name: Performance Report
+
+# on new release
+on:
+  release:
+    types: [published]
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    # allow 1hr for the job to complete
+    timeout-minutes: 60
+    # working directory for this job
+    defaults:
+      run:
+        working-directory: ./src/Nino.Benchmark  # Default working directory for all steps in this job
+  
+    steps:
+    # Checkout the code to the commit of the release
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.release.target_commitish }}
+
+    # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
+    
+    # dotnet benchmark at src/Nino.Benchmark
+    - name: Run benchmarks
+      run: dotnet run -c Release
+    
+    # Export markdown report content from src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md to an environment variable
+    - name: Fetch report
+      run: |
+        cd BenchmarkDotNet.Artifacts/results
+        export PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
+        echo "$PERF_CONTENT"
+        echo "::set-env name=PERF_CONTENT::$PERF_CONTENT"
+  
+    - name: Install GitHub CLI
+      run: sudo apt-get install -y gh
+
+    - name: Authenticate GitHub CLI
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: gh auth login --with-token < $GITHUB_TOKEN
+
+    - name: Get Release Info
+      id: get_release
+      run: |
+        gh release view ${{ github.event.release.tag_name }} --json body --jq '.body' > release_body.txt
+
+    - name: Update Release Body
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        NEW_CONTENT="\n## Performance Report\n${{ env.PERF_CONTENT }}"
+        UPDATED_BODY="$(cat release_body.txt)${NEW_CONTENT}"
+        gh release edit ${{ github.event.release.tag_name }} --notes "${UPDATED_BODY}"
