@@ -28,12 +28,12 @@ jobs:
           TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1))
         fi
         echo "Using tag: $TAG_NAME"
-        echo "::set-output name=tag::$TAG_NAME"
+        echo "tag=$TAG_NAME" >> $GITHUB_ENV
 
     - name: Check out Repository at Tag
       uses: actions/checkout@v2
       with:
-        ref: ${{ steps.determine_tag.outputs.tag }}  # Checkout at the determined tag
+        ref: ${{ env.tag }}  # Checkout at the determined tag
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
@@ -45,30 +45,22 @@ jobs:
         cd src/Nino.Benchmark
         dotnet run -c Release
 
-    - name: Fetch report
-      id: fetch_report
-      run: |
-        cd src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
-        PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
-        echo "$PERF_CONTENT"
-        echo "::set-output name=perf_content::$PERF_CONTENT"
-
     - name: Update Release Body
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set GH_TOKEN for GitHub CLI
-        TAG_NAME: ${{ steps.determine_tag.outputs.tag }}
-        PERF_CONTENT: ${{ steps.fetch_report.outputs.perf_content }}
+        TAG_NAME: ${{ env.tag }}
       run: |
+        # Read PERF_CONTENT from the file
+        cd src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
+        PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
+
         # Retrieve the existing release body
         RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
         echo "Current release body: $RELEASE_BODY"
 
-        # Append Performance Report content
-        NEW_CONTENT="\n## Performance Report\n$PERF_CONTENT"
-        
-        # Use printf to safely construct the updated body with multi-line content
+        # Prepare the new content by using printf to handle multiline content correctly
+        NEW_CONTENT=$(printf "\n## Performance Report\n%s\n" "$PERF_CONTENT")
         UPDATED_BODY=$(printf "%s%s" "$RELEASE_BODY" "$NEW_CONTENT")
-        echo "Updated release body: $UPDATED_BODY"
 
         # Update the release notes
         gh release edit "$TAG_NAME" --notes "$UPDATED_BODY"
