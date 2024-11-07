@@ -63,9 +63,12 @@ jobs:
         RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
         echo "Current release body: $RELEASE_BODY"
 
-        # Prepare new content and update the release body
+        # Append Performance Report content
         NEW_CONTENT="\n## Performance Report\n$PERF_CONTENT"
-        UPDATED_BODY="${RELEASE_BODY}${NEW_CONTENT}"
+        
+        # Use printf to safely construct the updated body with multi-line content
+        UPDATED_BODY=$(printf "%s%s" "$RELEASE_BODY" "$NEW_CONTENT")
+        echo "Updated release body: $UPDATED_BODY"
 
         # Update the release notes
         gh release edit "$TAG_NAME" --notes "$UPDATED_BODY"
