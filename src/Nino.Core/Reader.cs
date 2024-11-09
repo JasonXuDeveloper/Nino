@@ -7,9 +7,9 @@ namespace Nino.Core
 {
     public ref struct Reader
     {
-        private ReadOnlySpan<byte> _data;
+        private Span<byte> _data;
 
-        public Reader(ReadOnlySpan<byte> buffer)
+        public Reader(Span<byte> buffer)
         {
             _data = buffer;
         }
@@ -53,8 +53,9 @@ namespace Nino.Core
                     GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
 #if NET5_0_OR_GREATER
                     ret = bytes.Length > 2048 ? GC.AllocateUninitializedArray<T>(length) : new T[length];
-                    Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref ret[0]), ref MemoryMarshal.GetReference(bytes),
-                        (uint)bytes.Length);
+                    Span<T> span = ret;
+                    Span<byte> byteSpan = MemoryMarshal.Cast<T, byte>(span);
+                    Unsafe.CopyBlockUnaligned(ref byteSpan[0], ref bytes[0], (uint)bytes.Length);
 #else
                     ret = MemoryMarshal.Cast<byte, T>(bytes).ToArray();
 #endif
@@ -104,8 +105,8 @@ namespace Nino.Core
 #if NET5_0_OR_GREATER
                     ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref ret);
                     lst._size = length;
-                    Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref lst._items[0]),
-                        ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+                    Span<byte> byteSpan = MemoryMarshal.Cast<T, byte>(lst._items);
+                    Unsafe.CopyBlockUnaligned(ref byteSpan[0], ref bytes[0], (uint)bytes.Length);
 #else
                     ReadOnlySpan<T> span = MemoryMarshal.Cast<byte, T>(bytes);
                     for (int i = 0; i < length; i++)
@@ -205,7 +206,11 @@ namespace Nino.Core
                 case TypeCollector.StringTypeId:
                     Read(out int length);
                     GetBytes(length * sizeof(char), out var bytes);
+#if NET5_0_OR_GREATER
+                    ret = new string(MemoryMarshal.Cast<byte, char>(bytes));
+#else
                     ret = MemoryMarshal.Cast<byte, char>(bytes).ToString();
+#endif
                     return;
                 default:
                     throw new InvalidOperationException($"Invalid type id {typeId}");
@@ -213,7 +218,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void GetBytes(int length, out ReadOnlySpan<byte> bytes)
+        private void GetBytes(int length, out Span<byte> bytes)
         {
             bytes = _data.Slice(0, length);
             _data = _data.Slice(length);

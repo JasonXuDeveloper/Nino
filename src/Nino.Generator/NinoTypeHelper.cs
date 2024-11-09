@@ -289,36 +289,11 @@ public static class NinoTypeHelper
     {
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize{{typeParam}}(ReadOnlySpan<byte> data, out {{typeName}} value) {{genericConstraint}}
+                    public static void Deserialize{{typeParam}}(Span<byte> data, out {{typeName}} value) {{genericConstraint}}
                     {
                         var reader = new Reader(data);
                         Deserialize(out value, ref reader);
                     }
-                    """;
-
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
-    }
-
-    public static string GeneratePublicDeserializeMethodBodyForSubType(this string typeName, string topType,
-        string indent = "")
-    {
-        var ret = $$"""
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize(ReadOnlySpan<byte> data, out {{typeName}} value)
-                    {
-                        var reader = new Reader(data);
-                        Deserialize(out value, ref reader);
-                    }
-
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize(out {{typeName}} value, ref Reader reader)
-                    {
-                        Deserialize(out {{topType}} v, ref reader);
-                        value = ({{typeName}}) v;
-                    }
-
                     """;
 
         // indent

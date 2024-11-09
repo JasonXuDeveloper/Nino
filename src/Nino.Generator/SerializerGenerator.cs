@@ -39,7 +39,7 @@ public class SerializerGenerator : IIncrementalGenerator
 
         var (inheritanceMap,
             subTypeMap,
-            topNinoTypes) = ninoSymbols.GetInheritanceMap();
+            _) = ninoSymbols.GetInheritanceMap();
 
         var sb = new StringBuilder();
 
@@ -57,19 +57,8 @@ public class SerializerGenerator : IIncrementalGenerator
             try
             {
                 string typeFullName = typeSymbol.GetTypeFullName();
-
-                //only generate for top nino types
-                if (!topNinoTypes.Contains(typeFullName))
-                {
-                    var topType = topNinoTypes.FirstOrDefault(t =>
-                        subTypeMap.ContainsKey(t) && subTypeMap[t].Contains(typeFullName));
-                    if (topType == null)
-                        throw new Exception("topType is null");
-
-                    continue;
-                }
-
-                // check if struct is unmanged
+                
+                // check if struct is unmanaged
                 if (typeSymbol.IsUnmanagedType)
                 {
                     continue;
@@ -219,7 +208,7 @@ public class SerializerGenerator : IIncrementalGenerator
                              {
                                  if (BufferWriters.Count == 0)
                                  {
-                                     return new ArrayBufferWriter<byte>();
+                                     return new ArrayBufferWriter<byte>(1024);
                                  }
                          
                                  if (BufferWriters.TryDequeue(out var bufferWriter))
@@ -227,7 +216,7 @@ public class SerializerGenerator : IIncrementalGenerator
                                      return bufferWriter;
                                  }
                          
-                                 return new ArrayBufferWriter<byte>();
+                                 return new ArrayBufferWriter<byte>(1024);
                              }
                          
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
