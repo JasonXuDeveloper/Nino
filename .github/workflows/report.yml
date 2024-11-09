@@ -1,10 +1,12 @@
 name: Performance Report
 
 on:
-  push:
-    tags:
-      - 'v*'  # Trigger on push to version tags
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch: # Allow manual triggering
+  # When another workflow is completed and successful
+  workflow_run:
+    workflows: [ Code Check and Release ]
+    types:
+      - completed
 
 jobs:
   report:
@@ -12,56 +14,56 @@ jobs:
     timeout-minutes: 60  # Allow 1 hour for the job to complete
 
     steps:
-    - name: Check out repository
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 0  # Ensure all tags are fetched
+      - name: Check out repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Ensure all tags are fetched
 
-    - name: Determine Tag Name
-      id: determine_tag
-      run: |
-        if [[ "${{ github.event_name }}" == "push" ]]; then
-          # For push events, get the tag from github.ref
-          TAG_NAME="${GITHUB_REF#refs/tags/}"
-        else
-          # For manual trigger, get the latest tag
-          TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1))
-        fi
-        echo "Using tag: $TAG_NAME"
-        echo "tag=$TAG_NAME" >> $GITHUB_ENV
+      - name: Determine Tag Name
+        id: determine_tag
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # For push events, get the tag from github.ref
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            # For manual trigger, get the latest tag
+            TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1))
+          fi
+          echo "Using tag: $TAG_NAME"
+          echo "tag=$TAG_NAME" >> $GITHUB_ENV
 
-    - name: Check out Repository at Tag
-      uses: actions/checkout@v2
-      with:
-        ref: ${{ env.tag }}  # Checkout at the determined tag
+      - name: Check out Repository at Tag
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ env.tag }}  # Checkout at the determined tag
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
 
-    - name: Run benchmarks
-      run: |
-        cd src/Nino.Benchmark
-        dotnet run -c Release
+      - name: Run benchmarks
+        run: |
+          cd src/Nino.Benchmark
+          dotnet run -c Release
 
-    - name: Update Release Body
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set GH_TOKEN for GitHub CLI
-        TAG_NAME: ${{ env.tag }}
-      run: |
-        # Read PERF_CONTENT from the file
-        cd src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
-        PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
-        echo "Performance report content: $PERF_CONTENT"
-
-        # Retrieve the existing release body
-        RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
-        echo "Current release body: $RELEASE_BODY"
-
-        # Prepare the new content by using printf to handle multiline content correctly
-        NEW_CONTENT=$(printf "\n\n## Performance Report\n<details><summary>expand</summary>\n\n%s\n\n</details>\n" "$PERF_CONTENT")
-        UPDATED_BODY=$(printf "%s%s" "$RELEASE_BODY" "$NEW_CONTENT")
-
-        # Update the release notes
-        gh release edit "$TAG_NAME" --notes "$UPDATED_BODY"
+      - name: Update Release Body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set GH_TOKEN for GitHub CLI
+          TAG_NAME: ${{ env.tag }}
+        run: |
+          # Read PERF_CONTENT from the file
+          cd src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
+          PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
+          echo "Performance report content: $PERF_CONTENT"
+          
+          # Retrieve the existing release body
+          RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
+          echo "Current release body: $RELEASE_BODY"
+          
+          # Prepare the new content by using printf to handle multiline content correctly
+          NEW_CONTENT=$(printf "\n\n## Performance Report\n<details><summary>expand</summary>\n\n%s\n\n</details>\n" "$PERF_CONTENT")
+          UPDATED_BODY=$(printf "%s%s" "$RELEASE_BODY" "$NEW_CONTENT")
+          
+          # Update the release notes
+          gh release edit "$TAG_NAME" --notes "$UPDATED_BODY"

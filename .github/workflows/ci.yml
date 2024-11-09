@@ -16,32 +16,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Checkout the code
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
-
-    # Restore dependencies
-    - name: Restore dependencies
-      run: dotnet restore
-
-    # Build the solution
-    - name: Build solution
-      run: dotnet build --no-restore
-
-    # Run unit tests
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+      # Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
+      
+      # Restore dependencies
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      # Build the solution
+      - name: Build solution
+        run: dotnet build --no-restore
+      
+      # Run unit tests
+      - name: Test
+        run: dotnet test --no-build --verbosity normal
 
   bump-version:
     runs-on: ubuntu-latest
     if: ${{ startsWith(github.event.head_commit.message, 'release v') }}
-    needs: [build]
+    needs: [ build ]
 
     # override working directory for this job
     defaults:
@@ -138,7 +138,7 @@ jobs:
         run: |
           git clone https://github.com/Lachee/Unity-Package-Exporter.git "../tools/unity-package-exporter"
           dotnet publish -c Release -o ../tools "../tools/unity-package-exporter/UnityPackageExporter"
-        
+      
       # Pack the assets
       - name: Package Project
         run: |
