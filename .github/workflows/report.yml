@@ -2,11 +2,6 @@ name: Performance Report
 
 on:
   workflow_dispatch: # Allow manual triggering
-  # When another workflow is completed and successful
-  workflow_run:
-    workflows: [ Code Check and Release ]
-    types:
-      - completed
 
 jobs:
   report:
@@ -46,21 +41,25 @@ jobs:
           RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
           echo "Current release body: $RELEASE_BODY"
           if [[ $RELEASE_BODY == *"Performance Report"* ]]; then
-              echo "Release notes already updated"
-              exit 0
+            echo "changes=false" >> $GITHUB_ENV
+          else
+            echo "changes=true" >> $GITHUB_ENV
           fi
 
       - name: Setup .NET
+        if: env.changes == 'true'
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
 
       - name: Run benchmarks
+        if: env.changes == 'true'
         run: |
           cd src/Nino.Benchmark
           dotnet run -c Release
 
       - name: Update Release Body
+        if: env.changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set GH_TOKEN for GitHub CLI
           TAG_NAME: ${{ env.tag }}

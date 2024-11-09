@@ -204,3 +204,7 @@ jobs:
           for package in ./artifacts/*.nupkg; do
             dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
           done
+  
+  benchmark:
+    needs: [ bump-version ]
+    uses: ../.github/workflows/report.yml
