@@ -206,6 +206,5 @@ jobs:
           done
   
   benchmark:
-    name: Benchmark
     needs: [ bump-version ]
     uses: JasonXuDeveloper/Nino/.github/workflows/report.yml@main
