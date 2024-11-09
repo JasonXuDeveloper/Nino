@@ -40,6 +40,8 @@ jobs:
       # Check if release notes are already updated
       - name: Check Release Notes
         id: check_release_notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set GH_TOKEN for GitHub CLI
         run: |
           RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
           echo "Current release body: $RELEASE_BODY"
