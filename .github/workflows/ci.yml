@@ -206,5 +206,6 @@ jobs:
           done
   
   benchmark:
+    name: Benchmark
     needs: [ bump-version ]
-    uses: ../.github/workflows/report.yml
+    uses: ./../.github/workflows/report.yml
