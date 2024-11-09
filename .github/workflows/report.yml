@@ -47,7 +47,7 @@ jobs:
           echo "Current release body: $RELEASE_BODY"
           if [[ $RELEASE_BODY == *"Performance Report"* ]]; then
               echo "Release notes already updated"
-              exit 1
+              exit 0
           fi
 
       - name: Setup .NET
