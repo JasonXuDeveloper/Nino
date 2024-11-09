@@ -36,6 +36,17 @@ jobs:
         uses: actions/checkout@v2
         with:
           ref: ${{ env.tag }}  # Checkout at the determined tag
+      
+      # Check if release notes are already updated
+      - name: Check Release Notes
+        id: check_release_notes
+        run: |
+          RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
+          echo "Current release body: $RELEASE_BODY"
+          if [[ $RELEASE_BODY == *"Performance Report"* ]]; then
+              echo "Release notes already updated"
+              exit 1
+          fi
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
