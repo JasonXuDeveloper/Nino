@@ -44,13 +44,11 @@ public class DeserializerGenerator : IIncrementalGenerator
 
         var sb = new StringBuilder();
 
-        sb.GenerateClassDeserializeMethods("T", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T?", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T[]", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("List<T>", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>",
             "where TKey : unmanaged where TValue : unmanaged");
-        sb.GenerateClassDeserializeMethods("bool");
         sb.GenerateClassDeserializeMethods("string");
 
         foreach (var typeSymbol in ninoSymbols)
@@ -107,8 +105,13 @@ public class DeserializerGenerator : IIncrementalGenerator
                      {{types}}    */
                          public static partial class Deserializer
                          {
-
                      {{GeneratePrivateDeserializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
+                            
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static void Deserialize<T>(Span<byte> data, out T value) where T : unmanaged
+                             {
+                                 value = Unsafe.ReadUnaligned<T>(ref data[0]);
+                             }
 
                      {{GeneratePrivateDeserializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
@@ -133,8 +136,6 @@ public class DeserializerGenerator : IIncrementalGenerator
                      {{GeneratePrivateDeserializeImplMethodBody("IDictionary<TKey, TValue>", "        ", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged")}}
 
                      {{GeneratePrivateDeserializeImplMethodBody("string", "        ")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("bool", "        ")}}
                              
                      {{sb}}    }
                      }

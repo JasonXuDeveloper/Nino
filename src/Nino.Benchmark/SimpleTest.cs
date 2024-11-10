@@ -9,7 +9,7 @@ namespace Nino.Benchmark;
 
 [PayloadColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
-[SimpleJob(RuntimeMoniker.Net90, warmupCount: 1, iterationCount: 10)]
+[SimpleJob(RuntimeMoniker.Net90, warmupCount: 1, iterationCount: 20)]
 [MarkdownExporter]
 public class SimpleTest
 {

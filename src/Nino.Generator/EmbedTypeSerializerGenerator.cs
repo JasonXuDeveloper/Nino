@@ -214,7 +214,8 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
             if (type is IArrayTypeSymbol)
             {
                 sb.AppendLine(GenerateCollectionSerialization(((IArrayTypeSymbol)type).ElementType.GetSerializePrefix(),
-                    typeFullName, "Length", "        "));
+                    typeFullName, "Length", "        ", "", "", ((IArrayTypeSymbol)type).ElementType.ToDisplayString(),
+                    true, false, true));
                 continue;
             }
 
@@ -233,8 +234,9 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
             {
                 if (type is INamedTypeSymbol { TypeArguments.Length: 1 } ns)
                 {
-                    sb.AppendLine(GenerateCollectionSerialization(ns.TypeArguments[0].GetSerializePrefix(), typeFullName,
-                        "Length", "        "));
+                    sb.AppendLine(GenerateCollectionSerialization(ns.TypeArguments[0].GetSerializePrefix(),
+                        typeFullName,
+                        "Length", "        ", "", "", ns.TypeArguments[0].ToDisplayString(), false, true, true));
                     continue;
                 }
             }
@@ -277,8 +279,14 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
 
     private static string GenerateCollectionSerialization(string prefix, string collectionType, string lengthName,
         string indent,
-        string typeParam = "", string genericConstraint = "")
+        string typeParam = "", string genericConstraint = "", string elementType = "", bool isArray = false,
+        bool isSpan = false,
+        bool canUseFor = false)
     {
+        var span = canUseFor && isArray ? $"Span<{elementType}> span = value.AsSpan();" : "";
+        var collection = isArray && canUseFor ? "span" : "value";
+        var loop = canUseFor ? $"for (int i = 0; i < {collection}.Length; i++)" : $"foreach (var item in {collection})";
+        var element = canUseFor ? $"{collection}[i]" : "item";
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static void Serialize{{typeParam}}(this {{collectionType}} value, ref Writer writer) {{genericConstraint}}
@@ -290,9 +298,10 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
                         }
                         writer.Write(TypeCollector.CollectionTypeId);
                         writer.Write(value.{{lengthName}});
-                        foreach (var item in value)
+                        {{span}}
+                        {{loop}}
                         {
-                            {{prefix}}(item, ref writer);
+                            {{prefix}}({{element}}, ref writer);
                         }
                     }
 

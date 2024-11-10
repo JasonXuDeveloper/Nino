@@ -57,7 +57,7 @@ public class SerializerGenerator : IIncrementalGenerator
             try
             {
                 string typeFullName = typeSymbol.GetTypeFullName();
-                
+
                 // check if struct is unmanaged
                 if (typeSymbol.IsUnmanagedType)
                 {
@@ -248,7 +248,14 @@ public class SerializerGenerator : IIncrementalGenerator
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
                              public static byte[] Serialize<T>(this T[] value) where T : unmanaged
                              {
-                                return Serialize((Span<T>)value);
+                                 if (value == null)
+                                     return new byte[2];
+                                 var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
+                                 byte[] ret = new byte[valueSpan.Length + 6];
+                                 Unsafe.WriteUnaligned(ref ret[0], (ushort)TypeCollector.CollectionTypeId);
+                                 Unsafe.WriteUnaligned(ref ret[2], value.Length);
+                                 Unsafe.CopyBlockUnaligned(ref ret[6], ref valueSpan[0], (uint)valueSpan.Length);
+                                 return ret;
                              }
                              
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -263,15 +270,11 @@ public class SerializerGenerator : IIncrementalGenerator
                              {
                                 if (value == null)
                                     return new byte[2];
-                                int byteLength = value.Length * Unsafe.SizeOf<T>();
-                        #if NET6_0_OR_GREATER
-                                byte[] ret = GC.AllocateUninitializedArray<byte>(byteLength + 6);
-                        #else
-                                byte[] ret = new byte[byteLength + 6];
-                        #endif
+                                var valueSpan = MemoryMarshal.AsBytes(value);
+                                byte[] ret = new byte[valueSpan.Length + 6];
                                 Unsafe.WriteUnaligned(ref ret[0], (ushort)TypeCollector.CollectionTypeId);
                                 Unsafe.WriteUnaligned(ref ret[2], value.Length);
-                                Unsafe.CopyBlockUnaligned(ref ret[6], ref Unsafe.As<T, byte>(ref value[0]), (uint)byteLength);
+                                Unsafe.CopyBlockUnaligned(ref ret[6], ref valueSpan[0], (uint)valueSpan.Length);
                                 return ret;
                              }
                              
@@ -289,13 +292,6 @@ public class SerializerGenerator : IIncrementalGenerator
                                      return new byte[1] { 1 };
                                 
                                  return new byte[1] { 0 };
-                             }
-                             
-                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static void Serialize(this bool value, IBufferWriter<byte> bufferWriter)
-                             {
-                                 Writer writer = new Writer(bufferWriter);
-                                 value.Serialize(ref writer);
                              }
 
                      {{GeneratePrivateSerializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
