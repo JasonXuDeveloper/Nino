@@ -18,13 +18,8 @@ jobs:
       - name: Determine Tag Name
         id: determine_tag
         run: |
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            # For push events, get the tag from github.ref
-            TAG_NAME="${GITHUB_REF#refs/tags/}"
-          else
-            # For manual trigger, get the latest tag
-            TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1))
-          fi
+          # For manual trigger, get the latest tag
+          TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1))
           echo "Using tag: $TAG_NAME"
           echo "tag=$TAG_NAME" >> $GITHUB_ENV
 
