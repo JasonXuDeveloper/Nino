@@ -128,7 +128,7 @@ namespace Nino.UnitTests
 
     [NinoType]
     public record struct SimpleRecordStruct2<T>(int Id, T Data);
-
+    
     [NinoType]
     public record SimpleRecord
     {
@@ -194,6 +194,10 @@ namespace Nino.UnitTests
         {
         }
     }
+    
+    [NinoType]
+    public record SimpleRecord6<T>(int Id, T Data);
+
 
     [NinoType]
     public struct SimpleStruct

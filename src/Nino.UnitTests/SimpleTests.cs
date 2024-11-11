@@ -94,6 +94,25 @@ namespace Nino.UnitTests
             Assert.AreEqual(result4.Flag, false);
             result4.Flag = true;
             Assert.AreEqual(record4, result4);
+            
+            SimpleRecord5 record5 = new SimpleRecord5(1, "Test", DateTime.Today)
+            {
+                Flag = true,
+                ShouldNotIgnore = 1234
+            };
+            
+            bytes = record5.Serialize();
+            Assert.IsNotNull(bytes);
+            
+            Deserializer.Deserialize(bytes, out SimpleRecord5 result5);
+            Assert.AreEqual(record5.ShouldNotIgnore, result5.ShouldNotIgnore);
+            
+            SimpleRecord6<int> record6 = new SimpleRecord6<int>(1, 1234);
+            bytes = record6.Serialize();
+            Assert.IsNotNull(bytes);
+            
+            Deserializer.Deserialize(bytes, out SimpleRecord6<int> result6);
+            Assert.AreEqual(record6, result6);
         }
 
         [TestMethod]
