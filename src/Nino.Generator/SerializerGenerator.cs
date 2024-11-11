@@ -115,11 +115,11 @@ public class SerializerGenerator : IIncrementalGenerator
                             sb.AppendLine($"                    writer.Write((ushort){typeFullNames.GetId(subType)});");
 
 
-                            List<ITypeSymbol> subTypeSymbols =
+                            List<ITypeSymbol> subTypeParentSymbols =
                                 ninoSymbols.Where(m => inheritanceMap[subType]
                                     .Contains(m.GetTypeFullName())).ToList();
 
-                            var members = subTypeSymbol.GetNinoTypeMembers(subTypeSymbols);
+                            var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
                             //get distinct members
                             members = members.Distinct().ToList();
                             WriteMembers(members, valName);
@@ -137,7 +137,11 @@ public class SerializerGenerator : IIncrementalGenerator
                             $"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
                     }
 
-                    var defaultMembers = typeSymbol.GetNinoTypeMembers(null);
+                    
+                    List<ITypeSymbol> parentTypeSymbols =
+                        ninoSymbols.Where(m => inheritanceMap[typeFullName]
+                            .Contains(m.GetTypeFullName())).ToList();
+                    var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
                     WriteMembers(defaultMembers, "value");
 
                     if (isReferenceType)

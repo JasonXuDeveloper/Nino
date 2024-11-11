@@ -329,11 +329,11 @@ public class DeserializerGenerator : IIncrementalGenerator
                 sb.AppendLine("                {");
 
                 //get members
-                List<ITypeSymbol> subTypeSymbols =
+                List<ITypeSymbol> subTypeParentSymbols =
                     ninoSymbols.Where(m => inheritanceMap[subType]
                         .Contains(m.GetTypeFullName())).ToList();
 
-                var members = subTypeSymbol.GetNinoTypeMembers(subTypeSymbols);
+                var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
                 //get distinct members
                 members = members.Distinct().ToList();
 
@@ -355,7 +355,10 @@ public class DeserializerGenerator : IIncrementalGenerator
                 sb.AppendLine("                {");
             }
 
-            var defaultMembers = typeSymbol.GetNinoTypeMembers(null);
+            List<ITypeSymbol> parentTypeSymbols =
+                ninoSymbols.Where(m => inheritanceMap[typeFullName]
+                    .Contains(m.GetTypeFullName())).ToList();
+            var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
             string valName = "value";
             CreateInstance(defaultMembers, typeSymbol, valName, typeFullName);
 
