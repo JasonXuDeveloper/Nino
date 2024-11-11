@@ -17,7 +17,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged
         {
-            value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
+            value = Unsafe.ReadUnaligned<T>(ref _data[0]);
             _data = _data.Slice(Unsafe.SizeOf<T>());
         }
 
@@ -52,13 +52,12 @@ namespace Nino.Core
                     Read(out int length);
                     GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
 #if NET5_0_OR_GREATER
-                    ret = bytes.Length > 2048 ? GC.AllocateUninitializedArray<T>(length) : new T[length];
-                    Span<T> span = ret;
-                    Span<byte> byteSpan = MemoryMarshal.Cast<T, byte>(span);
-                    Unsafe.CopyBlockUnaligned(ref byteSpan[0], ref bytes[0], (uint)bytes.Length);
+                    ret = bytes.Length <= 2048 ? new T[length] : GC.AllocateUninitializedArray<T>(length);
 #else
-                    ret = MemoryMarshal.Cast<byte, T>(bytes).ToArray();
+                    ret = new T[length];
 #endif
+                    ref byte first = ref Unsafe.As<T, byte>(ref ret[0]);
+                    Unsafe.CopyBlockUnaligned(ref first, ref bytes[0], (uint)bytes.Length);
                     return;
                 default:
                     throw new InvalidOperationException($"Invalid type id {typeId}");
@@ -101,19 +100,17 @@ namespace Nino.Core
                 case TypeCollector.CollectionTypeId:
                     Read(out int length);
                     GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
-                    ret = new List<T>(length);
-#if NET5_0_OR_GREATER
+                    ret = new List<T>();
                     ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref ret);
                     lst._size = length;
-                    Span<byte> byteSpan = MemoryMarshal.Cast<T, byte>(lst._items);
-                    Unsafe.CopyBlockUnaligned(ref byteSpan[0], ref bytes[0], (uint)bytes.Length);
+#if NET5_0_OR_GREATER
+                    var arr = bytes.Length <= 2048 ? new T[length] : GC.AllocateUninitializedArray<T>(length);
 #else
-                    ReadOnlySpan<T> span = MemoryMarshal.Cast<byte, T>(bytes);
-                    for (int i = 0; i < length; i++)
-                    {
-                        ret.Add(span[i]);
-                    }
+                    var arr = new T[length];
 #endif
+                    ref byte first = ref Unsafe.As<T, byte>(ref arr[0]);
+                    Unsafe.CopyBlockUnaligned(ref first, ref bytes[0], (uint)bytes.Length);
+                    lst._items = arr;
 
                     return;
                 default:
@@ -207,7 +204,10 @@ namespace Nino.Core
                     Read(out int length);
                     GetBytes(length * sizeof(char), out var bytes);
 #if NET5_0_OR_GREATER
-                    ret = new string(MemoryMarshal.Cast<byte, char>(bytes));
+                    ret = new string(
+                        MemoryMarshal.CreateReadOnlySpan(
+                            ref Unsafe.As<byte, char>(ref bytes[0]),
+                            length));
 #else
                     ret = MemoryMarshal.Cast<byte, char>(bytes).ToString();
 #endif

@@ -256,7 +256,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
             {
                 var elemType = ((IArrayTypeSymbol)type).ElementType.ToDisplayString();
                 if (addedElemType.Add(elemType))
-                    sb.AppendLine(GenerateArrayCollectionSerialization(
+                    sb.AppendLine(GenerateArraySerialization(
                         ((IArrayTypeSymbol)type).ElementType.GetDeserializePrefix(),
                         elemType, "        "));
                 sb.GenerateClassDeserializeMethods(typeFullName);
@@ -268,7 +268,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
             {
                 var elemType = s.TypeArguments[0].ToDisplayString();
                 if (addedElemType.Add(elemType))
-                    sb.AppendLine(GenerateArrayCollectionSerialization(s.TypeArguments[0].GetDeserializePrefix(),
+                    sb.AppendLine(GenerateArraySerialization(s.TypeArguments[0].GetDeserializePrefix(),
                         elemType,
                         "        "));
                 if (type.TypeKind != TypeKind.Interface)
@@ -323,7 +323,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
         context.AddSource("NinoDeserializerExtension.Ext.g.cs", code);
     }
 
-    private static string GenerateArrayCollectionSerialization(string prefix, string elemType, string indent)
+    private static string GenerateArraySerialization(string prefix, string elemType, string indent)
     {
         var creationDecl = elemType.EndsWith("[]")
             ? elemType.Insert(elemType.IndexOf("[]", StringComparison.Ordinal), "[length]")
@@ -342,9 +342,11 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                             case TypeCollector.CollectionTypeId:
                                 reader.Read(out int length);
                                 value = new {{creationDecl}};
+                                var span = value.AsSpan();
                                 for (int i = 0; i < length; i++)
                                 {
-                                    {{prefix}}(out value[i], ref reader);
+                                    {{prefix}}(out {{elemType}} val, ref reader);
+                                    span[i] = val;
                                 }
                                 break;
                             default:
