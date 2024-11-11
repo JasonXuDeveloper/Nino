@@ -30,6 +30,19 @@ namespace Nino.UnitTests
 
             Deserializer.Deserialize(bytes, out SimpleRecordStruct2 result2);
             Assert.AreEqual(record2, result2);
+            
+            SimpleRecordStruct2<int> record3 = new SimpleRecordStruct2<int>(1, 1234);
+            bytes = record3.Serialize();
+            Assert.IsNotNull(bytes);
+            
+            Deserializer.Deserialize(bytes, out SimpleRecordStruct2<int> result3);
+            Assert.AreEqual(record3, result3);
+            
+            SimpleRecordStruct2<string> record4 = new SimpleRecordStruct2<string>(1, "Test");
+            bytes = record4.Serialize();
+            
+            Deserializer.Deserialize(bytes, out SimpleRecordStruct2<string> result4);
+            Assert.AreEqual(record4, result4);
         }
 
         [TestMethod]
