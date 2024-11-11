@@ -332,6 +332,14 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static void Deserialize(out {{elemType}}[] value, ref Reader reader)
                     {
+                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                         if (reader.Eof)
+                         {
+                            value = default;
+                            return;
+                         }
+                    #endif
+                        
                         reader.Read(out ushort typeId);
                         
                         switch (typeId)
@@ -367,6 +375,14 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static void Deserialize(out {{typeFullName}} value, ref Reader reader)
                     {
+                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                         if (reader.Eof)
+                         {
+                            value = default;
+                            return;
+                         }
+                    #endif
+                        
                         reader.Read(out ushort typeId);
                         
                         switch (typeId)
@@ -402,6 +418,14 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static void Deserialize(out {{sigTypeFullname}} value, ref Reader reader)
                     {
+                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                         if (reader.Eof)
+                         {
+                            value = default;
+                            return;
+                         }
+                    #endif
+                        
                         {{elemType}}[] arr;
                         {{prefix}}(out arr, ref reader);
                         if (arr == null)
@@ -425,6 +449,14 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                 public static void Deserialize(out {{typeFullName}}? value, ref Reader reader)
                                 {
+                                #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                     if (reader.Eof)
+                                     {
+                                        value = default;
+                                        return;
+                                     }
+                                #endif
+                                    
                                     reader.Read(out ushort typeId);
                                     
                                     switch (typeId)
@@ -451,6 +483,14 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                 public static void Deserialize(out KeyValuePair<{{type1}}, {{type2}}> value, ref Reader reader)
                                 {
+                                #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                     if (reader.Eof)
+                                     {
+                                        value = default;
+                                        return;
+                                     }
+                                #endif
+                                    
                                     {{type1}} key;
                                     {{type2}} val;
                                     {{prefix1}}(out key, ref reader);

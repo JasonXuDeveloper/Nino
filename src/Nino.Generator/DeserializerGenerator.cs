@@ -160,6 +160,14 @@ public class DeserializerGenerator : IIncrementalGenerator
                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                 public static void Deserialize(out {{typeFullName}} value, ref Reader reader)
                                 {
+                                #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                     if (reader.Eof)
+                                     {
+                                        value = default;
+                                        return;
+                                     }
+                                #endif
+                                     
                         """);
 
         if (!typeSymbol.IsValueType)
@@ -389,6 +397,14 @@ public class DeserializerGenerator : IIncrementalGenerator
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static void Deserialize{{typeParam}}(out {{typeName}} value, ref Reader reader) {{genericConstraint}}
                     {
+                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                         if (reader.Eof)
+                         {
+                            value = default;
+                            return;
+                         }
+                    #endif
+                        
                         reader.Read(out value);
                     }
                     """;

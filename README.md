@@ -26,11 +26,13 @@ Plausibly the fastest and most flexible binary serialization library for C# proj
 
 - Support all **Embed** serializable types (i.e. `Dictionary<Int, List<SupportedType[]>>`)
 
-- Support **type check** (guarantees data integrity)
+- Support **polymorphism**
 
 - High **performance** with low GC allocation
 
-- Support **polymorphism**
+- Support **type check** (guarantees data integrity)
+
+- Contains **version tolerance** (i.e. add/remove fields, change field type, etc)
 
 - Support **cross-project** (C# Project) type serialization (i.e. serialize a class with member of types in A.dll from B.dll)
 

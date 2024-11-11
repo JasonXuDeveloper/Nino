@@ -11,6 +11,8 @@ namespace Nino.Generator;
 
 public static class NinoTypeHelper
 {
+    public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
+    
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
         this IncrementalGeneratorInitializationContext context)
     {

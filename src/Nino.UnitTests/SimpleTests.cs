@@ -10,6 +10,49 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestDeserializeOldData()
+        {
+            SaveData data = new SaveData
+            {
+                Id = 1,
+                Name = "Test",
+            };
+
+            //from serialization old version of data
+            /*
+             * [NinoType(false)]
+               public class SaveData
+               {
+                   [NinoMember(1)] public int Id;
+                   [NinoMember(2)] public string Name;
+               }
+             */
+
+            //require symbol WEAK_VERSION_TOLERANCE to be defined
+#if WEAK_VERSION_TOLERANCE
+            Span<byte> oldData = stackalloc byte[]
+            {
+                26, 0, 1, 0, 0, 0, 1, 0, 4, 0, 0, 0, 84, 0, 101, 0, 115, 0, 116, 0
+            };
+            Deserializer.Deserialize(oldData, out SaveData result);
+            Assert.AreEqual(data.Id, result.Id);
+            Assert.AreEqual(data.Name, result.Name);
+            Assert.AreEqual(default, result.NewField1);
+            Assert.AreEqual(default, result.NewField2);
+#else
+            //should throw out of range exception
+            Assert.ThrowsException<IndexOutOfRangeException>(() =>
+            {
+                Span<byte> oldData = stackalloc byte[]
+                {
+                    26, 0, 1, 0, 0, 0, 1, 0, 4, 0, 0, 0, 84, 0, 101, 0, 115, 0, 116, 0
+                };
+                Deserializer.Deserialize(oldData, out SaveData _);
+            });
+#endif
+        }
+
+        [TestMethod]
         public void TestRecordStruct()
         {
             SimpleRecordStruct record = new SimpleRecordStruct
@@ -30,17 +73,17 @@ namespace Nino.UnitTests
 
             Deserializer.Deserialize(bytes, out SimpleRecordStruct2 result2);
             Assert.AreEqual(record2, result2);
-            
+
             SimpleRecordStruct2<int> record3 = new SimpleRecordStruct2<int>(1, 1234);
             bytes = record3.Serialize();
             Assert.IsNotNull(bytes);
-            
+
             Deserializer.Deserialize(bytes, out SimpleRecordStruct2<int> result3);
             Assert.AreEqual(record3, result3);
-            
+
             SimpleRecordStruct2<string> record4 = new SimpleRecordStruct2<string>(1, "Test");
             bytes = record4.Serialize();
-            
+
             Deserializer.Deserialize(bytes, out SimpleRecordStruct2<string> result4);
             Assert.AreEqual(record4, result4);
         }
@@ -94,23 +137,23 @@ namespace Nino.UnitTests
             Assert.AreEqual(result4.Flag, false);
             result4.Flag = true;
             Assert.AreEqual(record4, result4);
-            
+
             SimpleRecord5 record5 = new SimpleRecord5(1, "Test", DateTime.Today)
             {
                 Flag = true,
                 ShouldNotIgnore = 1234
             };
-            
+
             bytes = record5.Serialize();
             Assert.IsNotNull(bytes);
-            
+
             Deserializer.Deserialize(bytes, out SimpleRecord5 result5);
             Assert.AreEqual(record5.ShouldNotIgnore, result5.ShouldNotIgnore);
-            
+
             SimpleRecord6<int> record6 = new SimpleRecord6<int>(1, 1234);
             bytes = record6.Serialize();
             Assert.IsNotNull(bytes);
-            
+
             Deserializer.Deserialize(bytes, out SimpleRecord6<int> result6);
             Assert.AreEqual(record6, result6);
         }

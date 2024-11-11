@@ -5,6 +5,15 @@ using Nino.Core;
 
 namespace Nino.UnitTests
 {
+    [NinoType(false)]
+    public class SaveData
+    {
+        [NinoMember(1)] public int Id;
+        [NinoMember(2)] public string Name;
+        [NinoMember(3)] public DateTime NewField1;
+        [NinoMember(4)] public Generic<int> NewField2;
+    }
+    
     [NinoType]
     public struct GenericStruct<T>
     {

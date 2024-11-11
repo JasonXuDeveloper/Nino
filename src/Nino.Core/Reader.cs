@@ -14,6 +14,12 @@ namespace Nino.Core
             _data = buffer;
         }
 
+        public bool Eof
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _data.IsEmpty;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged
         {
