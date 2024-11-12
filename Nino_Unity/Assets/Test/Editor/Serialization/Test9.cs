@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using Test_Nino;
+using Test.Editor.NinoGen;
 
 
 // ReSharper disable RedundantTypeArgumentsOfMethod

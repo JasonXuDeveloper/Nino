@@ -12,21 +12,15 @@ namespace Nino.Benchmark;
 [MessagePackObject]
 public partial class SimpleClass
 {
-    [Key(0)]
-    public int Id;
+    [Key(0)] public int Id;
 
-    [Key(1)]
-    public string Name { get; set; }
-    [Key(2)]
-    public int[] Numbers { get; set; }
-    [Key(3)]
-    public List<DateTime> Dates { get; set; }
+    [Key(1)] [NinoUtf8] public string Name { get; set; }
+    [Key(2)] public int[] Numbers { get; set; }
+    [Key(3)] public List<DateTime> Dates { get; set; }
 
-    [Key(4)]
-    public Dictionary<int, string> Map1;
+    [Key(4)] public Dictionary<int, string> Map1;
 
-    [Key(5)]
-    public Dictionary<int, int> Map2 { get; set; }
+    [Key(5)] public Dictionary<int, int> Map2 { get; set; }
 
     public static SimpleClass Create()
     {
@@ -34,7 +28,7 @@ public partial class SimpleClass
         return new SimpleClass
         {
             Id = random.Next(),
-            Name = "SimpleClass",
+            Name = Guid.NewGuid().ToString(),
             Numbers = Enumerable.Range(0, 100).Select(n => random.Next()).ToArray(),
             Dates = Enumerable.Range(0, 10).Select(n => DateTime.Now.AddSeconds(random.Next())).ToList(),
             Map1 = Enumerable.Range(0, 10).ToDictionary(n => n, n => n.ToString()),
@@ -48,10 +42,8 @@ public partial class SimpleClass
 [MessagePackObject]
 public partial struct SimpleStruct
 {
-    [Key(0)]
-    public int Id;
-    [Key(1)]
-    public DateTime CreateTime;
+    [Key(0)] public int Id;
+    [Key(1)] public DateTime CreateTime;
 
     public static SimpleStruct Create()
     {

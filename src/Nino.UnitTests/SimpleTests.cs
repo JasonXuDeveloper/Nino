@@ -2,13 +2,42 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Nino_UnitTests_Nino;
+using Nino.UnitTests.NinoGen;
 
 namespace Nino.UnitTests
 {
     [TestClass]
     public class SimpleTests
     {
+        [TestMethod]
+        public void TestString()
+        {
+            StringData data = new StringData
+            {
+                Str = "Hello, World!"
+            };
+            StringData2 data2 = new StringData2
+            {
+                Str = "Hello, World!"
+            };
+            
+            byte[] bytes = data.Serialize();
+            Console.WriteLine(string.Join(", ", bytes));
+            Assert.IsNotNull(bytes);
+            
+            Deserializer.Deserialize(bytes, out StringData result);
+            Assert.AreEqual(data.Str, result.Str);
+            
+            bytes = data2.Serialize();
+            Console.WriteLine(string.Join(", ", bytes));
+            Assert.IsNotNull(bytes);
+            
+            Deserializer.Deserialize(bytes, out StringData2 result2);
+            Assert.AreEqual(data2.Str, result2.Str);
+            
+            Assert.AreEqual(result.Str, result2.Str);
+        }
+        
         [TestMethod]
         public void TestDeserializeOldData()
         {
@@ -27,13 +56,18 @@ namespace Nino.UnitTests
                    [NinoMember(2)] public string Name;
                }
              */
+            
+            //print all const int in NinoTypeConst
 
+            Console.WriteLine(string.Join(", ", data.Serialize()));
+            // public const int Nino_UnitTests_SaveData = 1770431639;
+            Assert.AreEqual(1770431639, NinoTypeConst.Nino_UnitTests_SaveData);
+            byte[] oldData =
+            {
+                151, 164, 134, 105, 1, 0, 0, 0, 4, 0, 0, 128, 84, 101, 115, 116
+            };
             //require symbol WEAK_VERSION_TOLERANCE to be defined
 #if WEAK_VERSION_TOLERANCE
-            Span<byte> oldData = stackalloc byte[]
-            {
-                26, 0, 1, 0, 0, 0, 1, 0, 4, 0, 0, 0, 84, 0, 101, 0, 115, 0, 116, 0
-            };
             Deserializer.Deserialize(oldData, out SaveData result);
             Assert.AreEqual(data.Id, result.Id);
             Assert.AreEqual(data.Name, result.Name);
@@ -43,10 +77,6 @@ namespace Nino.UnitTests
             //should throw out of range exception
             Assert.ThrowsException<IndexOutOfRangeException>(() =>
             {
-                Span<byte> oldData = stackalloc byte[]
-                {
-                    26, 0, 1, 0, 0, 0, 1, 0, 4, 0, 0, 0, 84, 0, 101, 0, 115, 0, 116, 0
-                };
                 Deserializer.Deserialize(oldData, out SaveData _);
             });
 #endif
@@ -288,8 +318,9 @@ namespace Nino.UnitTests
             Test(l.Serialize());
             Test(m.Serialize());
             Test(n.Serialize());
-            Assert.AreEqual(1, n.Value.A);
-            Assert.AreEqual("Test", n.Value.B);
+            Deserializer.Deserialize(n.Serialize(), out TestStruct? nn);
+            Assert.AreEqual(1, nn!.Value.A);
+            Assert.AreEqual("Test", nn.Value.B);
             Deserializer.Deserialize(m.Serialize(), out m);
             Assert.AreEqual(3, m.Count);
             foreach (var item in m)
@@ -383,6 +414,34 @@ namespace Nino.UnitTests
             Deserializer.Deserialize(bytes, out ComplexGeneric2<Generic<SimpleClass>> result);
             Assert.AreEqual(a.Val.Val.Val.Id, result.Val.Val.Val.Id);
             Assert.AreEqual(a.Val.Val.Val.Name, result.Val.Val.Val.Name);
+        }
+        
+        [TestMethod]
+        public void TestNullCollection()
+        {
+            List<int> a = null;
+            byte[] bytes = a.Serialize();
+            Console.WriteLine(string.Join(", ", bytes));
+            Deserializer.Deserialize(bytes, out List<int> result);
+            Assert.IsNull(result);
+
+            List<int?> b = null;
+            bytes = b.Serialize();
+            Console.WriteLine(string.Join(", ", bytes));
+            Deserializer.Deserialize(bytes, out List<int?> result2);
+            Assert.IsNull(result2);
+
+            List<SimpleClass> c = null;
+            bytes = c.Serialize();
+            Console.WriteLine(string.Join(", ", bytes));
+            Deserializer.Deserialize(bytes, out List<SimpleClass> result3);
+            Assert.IsNull(result3);
+
+            List<SimpleClass?> d = null;
+            bytes = d.Serialize();
+            Console.WriteLine(string.Join(", ", bytes));
+            Deserializer.Deserialize(bytes, out List<SimpleClass?> result4);
+            Assert.IsNull(result4);
         }
     }
 }

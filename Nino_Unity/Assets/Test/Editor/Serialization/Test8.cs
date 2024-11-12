@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Test_Nino;
+using Test.Editor.NinoGen;
 
 
 // ReSharper disable RedundantTypeArgumentsOfMethod

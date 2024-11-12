@@ -11,7 +11,7 @@ using MessagePack.Resolvers;
 using MongoDB.Bson.Serialization;
 using UnityEngine.SceneManagement;
 using System.Runtime.Serialization.Formatters.Binary;
-using Test_Nino;
+using Test.NinoGen;
 using Debug = UnityEngine.Debug;
 
 

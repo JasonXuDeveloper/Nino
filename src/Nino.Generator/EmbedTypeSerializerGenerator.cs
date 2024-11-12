@@ -53,6 +53,7 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
 
                 return null;
             })
+            .Concat(NinoTypeHelper.GetAllNinoRequiredTypes(compilation))
             .Where(s => s != null)
             .Select(s => s!)
             .Distinct(SymbolEqualityComparer.Default)
@@ -215,7 +216,7 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
             {
                 sb.AppendLine(GenerateCollectionSerialization(((IArrayTypeSymbol)type).ElementType.GetSerializePrefix(),
                     typeFullName, "Length", "        ", "", "", ((IArrayTypeSymbol)type).ElementType.ToDisplayString(),
-                    true, false, true));
+                    true, true));
                 continue;
             }
 
@@ -236,7 +237,7 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
                 {
                     sb.AppendLine(GenerateCollectionSerialization(ns.TypeArguments[0].GetSerializePrefix(),
                         typeFullName,
-                        "Length", "        ", "", "", ns.TypeArguments[0].ToDisplayString(), false, true, true));
+                        "Length", "        ", "", "", ns.TypeArguments[0].ToDisplayString(), false, true));
                     continue;
                 }
             }
@@ -245,14 +246,7 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
             sb.AppendLine($"// Type: {typeFullName} is not supported");
         }
 
-        var curNamespace = $"{compilation.AssemblyName!}";
-        if (!string.IsNullOrEmpty(curNamespace))
-            curNamespace = $"{curNamespace}_";
-        if (!char.IsLetter(curNamespace[0]))
-            curNamespace = $"_{curNamespace}";
-        //replace special characters with _
-        curNamespace = new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
-        curNamespace += "Nino";
+        var curNamespace = compilation.AssemblyName!.GetNamespace();
 
         // generate code
         var code = $$"""
@@ -268,7 +262,7 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
 
                      namespace {{curNamespace}}
                      {
-                         public static partial class Serializer
+                         internal static partial class Serializer
                          {
                      {{sb}}    }
                      }
@@ -280,7 +274,6 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
     private static string GenerateCollectionSerialization(string prefix, string collectionType, string lengthName,
         string indent,
         string typeParam = "", string genericConstraint = "", string elementType = "", bool isArray = false,
-        bool isSpan = false,
         bool canUseFor = false)
     {
         var span = canUseFor && isArray ? $"Span<{elementType}> span = value.AsSpan();" : "";
@@ -291,13 +284,12 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static void Serialize{{typeParam}}(this {{collectionType}} value, ref Writer writer) {{genericConstraint}}
                     {
-                        if (value == null)
+                        if (value == ({{collectionType}}) default)
                         {
-                            writer.Write(TypeCollector.NullTypeId);
+                            writer.Write(TypeCollector.NullCollection);
                             return;
                         }
-                        writer.Write(TypeCollector.CollectionTypeId);
-                        writer.Write(value.{{lengthName}});
+                        writer.Write(TypeCollector.GetCollectionHeader(value.{{lengthName}}));
                         {{span}}
                         {{loop}}
                         {
@@ -319,10 +311,11 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
                                 {
                                     if (!value.HasValue)
                                     {
-                                        writer.Write(TypeCollector.NullTypeId);
+                                        writer.Write(false);
                                         return;
                                     }
-                                    writer.Write(TypeCollector.NullableTypeId);
+                                    
+                                    writer.Write(true);
                                     {{prefix}}(value.Value, ref writer);
                                 }
                                 

@@ -53,6 +53,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
 
                 return null;
             })
+            .Concat(NinoTypeHelper.GetAllNinoRequiredTypes(compilation))
             .Where(s => s != null)
             .Select(s => s!)
             .Distinct(SymbolEqualityComparer.Default)
@@ -177,6 +178,8 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                     if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
                     {
                         if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
+                        //we also dont want nullable of reference type, as it already has a null check
+                        if (namedTypeSymbol.TypeArguments[0].IsReferenceType) return false;
                     }
                 }
 
@@ -291,14 +294,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
             sb.AppendLine($"// Type: {typeFullName} is not supported");
         }
 
-        var curNamespace = $"{compilation.AssemblyName!}";
-        if (!string.IsNullOrEmpty(curNamespace))
-            curNamespace = $"{curNamespace}_";
-        if (!char.IsLetter(curNamespace[0]))
-            curNamespace = $"_{curNamespace}";
-        //replace special characters with _
-        curNamespace = new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
-        curNamespace += "Nino";
+        var curNamespace = compilation.AssemblyName!.GetNamespace();
 
         // generate code
         var code = $$"""
@@ -314,7 +310,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
 
                      namespace {{curNamespace}}
                      {
-                         public static partial class Deserializer
+                         internal static partial class Deserializer
                          {
                      {{sb}}    }
                      }
@@ -340,25 +336,18 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                          }
                     #endif
                         
-                        reader.Read(out ushort typeId);
-                        
-                        switch (typeId)
+                        if (!reader.ReadCollectionHeader(out var length))
                         {
-                            case TypeCollector.NullTypeId:
-                                value = null;
-                                return;
-                            case TypeCollector.CollectionTypeId:
-                                reader.Read(out int length);
-                                value = new {{creationDecl}};
-                                var span = value.AsSpan();
-                                for (int i = 0; i < length; i++)
-                                {
-                                    {{prefix}}(out {{elemType}} val, ref reader);
-                                    span[i] = val;
-                                }
-                                break;
-                            default:
-                                throw new InvalidOperationException($"Invalid type id {typeId}");
+                            value = default;
+                            return;
+                        }
+                        
+                        value = new {{creationDecl}};
+                        var span = value.AsSpan();
+                        for (int i = 0; i < length; i++)
+                        {
+                            {{prefix}}(out {{elemType}} val, ref reader);
+                            span[i] = val;
                         }
                     }
 
@@ -383,24 +372,17 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                          }
                     #endif
                         
-                        reader.Read(out ushort typeId);
-                        
-                        switch (typeId)
+                        if (!reader.ReadCollectionHeader(out var length))
                         {
-                            case TypeCollector.NullTypeId:
-                                value = null;
-                                return;
-                            case TypeCollector.CollectionTypeId:
-                                reader.Read(out int length);
-                                value = new {{typeFullName}}();
-                                for (int i = 0; i < length; i++)
-                                {
-                                    Deserialize(out KeyValuePair<{{type1}}, {{type2}}> kvp, ref reader);
-                                    value[kvp.Key] = kvp.Value;
-                                }
-                                return;
-                            default:
-                                throw new InvalidOperationException($"Invalid type id {typeId}");
+                            value = default;
+                            return;
+                        }
+                        
+                        value = new {{typeFullName}}({{(typeFullName.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
+                        for (int i = 0; i < length; i++)
+                        {
+                            Deserialize(out KeyValuePair<{{type1}}, {{type2}}> kvp, ref reader);
+                            value[kvp.Key] = kvp.Value;
                         }
                     }
 
@@ -426,8 +408,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                          }
                     #endif
                         
-                        {{elemType}}[] arr;
-                        {{prefix}}(out arr, ref reader);
+                        {{prefix}}(out {{elemType}}[] arr, ref reader);
                         if (arr == null)
                         {
                             value = default;
@@ -457,20 +438,15 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                                      }
                                 #endif
                                     
-                                    reader.Read(out ushort typeId);
-                                    
-                                    switch (typeId)
+                                    reader.Read(out bool hasValue);
+                                    if (!hasValue)
                                     {
-                                        case TypeCollector.NullTypeId:
-                                            value = null;
-                                            return;
-                                        case TypeCollector.NullableTypeId:
-                                            {{prefix}}(out {{typeFullName}} ret, ref reader);
-                                            value = ret;
-                                            return;
-                                        default:
-                                            throw new InvalidOperationException($"Invalid type id {typeId}");
+                                        value = default;
+                                        return;
                                     }
+                                    
+                                    {{prefix}}(out {{typeFullName}} ret, ref reader);
+                                    value = ret;
                                 }
                                 
                         """);

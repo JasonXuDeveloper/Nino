@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Nino.Generator;
 
@@ -22,21 +23,6 @@ public class SerializerGenerator : IIncrementalGenerator
         SourceProductionContext spc)
     {
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
-
-        // get type full names from models (namespaces + type names)
-        var typeFullNames = ninoSymbols
-            .Where(symbol => symbol.IsReferenceType())
-            .Where(symbol => symbol.IsInstanceType())
-            .Select(symbol => symbol.GetTypeFullName()).ToList();
-        //sort by typename
-        typeFullNames.Sort();
-
-        var types = new StringBuilder();
-        foreach (var typeFullName in typeFullNames)
-        {
-            types.AppendLine($"    * {typeFullNames.GetId(typeFullName)} - {typeFullName}");
-        }
-
         var (inheritanceMap,
             subTypeMap,
             _) = ninoSymbols.GetInheritanceMap();
@@ -44,7 +30,9 @@ public class SerializerGenerator : IIncrementalGenerator
         var sb = new StringBuilder();
 
         sb.GenerateClassSerializeMethods("T?", "<T>", "where T : unmanaged");
+        sb.GenerateClassSerializeMethods("T?[]", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("List<T>", "<T>", "where T : unmanaged");
+        sb.GenerateClassSerializeMethods("List<T?>", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>",
             "where TKey : unmanaged where TValue : unmanaged");
         sb.GenerateClassSerializeMethods("IDictionary<TKey, TValue>", "<TKey, TValue>",
@@ -77,18 +65,37 @@ public class SerializerGenerator : IIncrementalGenerator
                     sb.AppendLine("            switch (value)");
                     sb.AppendLine("            {");
                     sb.AppendLine("                case null:");
-                    sb.AppendLine("                    writer.Write(TypeCollector.NullTypeId);");
+                    sb.AppendLine("                    writer.Write(TypeCollector.Null);");
                     sb.AppendLine("                    return;");
                 }
 
-                void WriteMembers(List<CSharpSyntaxNode> members, string valName)
+                void WriteMembers(List<CSharpSyntaxNode> members, string valName, ITypeSymbol ts)
                 {
                     foreach (var memberDeclarationSyntax in members)
                     {
                         var name = memberDeclarationSyntax.GetMemberName();
-                        var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
+                        var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation, ts);
                         if (declaredType == null)
                             throw new Exception("declaredType is null");
+
+                        //check if the typesymbol declaredType is string
+                        if (declaredType.SpecialType == SpecialType.System_String)
+                        {
+                            //check if this member is annotated with [NinoUtf8]
+                            MemberDeclarationSyntax? node = memberDeclarationSyntax as MemberDeclarationSyntax;
+                            var attrList = node?.AttributeLists ??
+                                           ((ParameterSyntax)memberDeclarationSyntax).AttributeLists;
+                            var isUtf8 = attrList.Any(a => 
+                                a.Attributes.Any(attr => 
+                                    attr.Name.ToString() == "NinoUtf8"));
+
+                            sb.AppendLine(
+                                isUtf8
+                                    ? $"                    writer.WriteUtf8({valName}.{name});"
+                                    : $"                    writer.Write({valName}.{name});");
+
+                            continue;
+                        }
 
                         sb.AppendLine(
                             $"                    {declaredType.GetSerializePrefix()}({valName}.{name}, ref writer);");
@@ -112,7 +119,8 @@ public class SerializerGenerator : IIncrementalGenerator
                         {
                             string valName = subType.Replace("global::", "").Replace(".", "_").ToLower();
                             sb.AppendLine($"                case {subType} {valName}:");
-                            sb.AppendLine($"                    writer.Write((ushort){typeFullNames.GetId(subType)});");
+                            sb.AppendLine(
+                                $"                    writer.Write(NinoTypeConst.{subTypeSymbol.GetTypeFullName().GetTypeConstName()});");
 
 
                             List<ITypeSymbol> subTypeParentSymbols =
@@ -122,7 +130,7 @@ public class SerializerGenerator : IIncrementalGenerator
                             var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
                             //get distinct members
                             members = members.Distinct().ToList();
-                            WriteMembers(members, valName);
+                            WriteMembers(members, valName, subTypeSymbol);
                             sb.AppendLine("                    return;");
                         }
                     }
@@ -134,15 +142,15 @@ public class SerializerGenerator : IIncrementalGenerator
                     {
                         sb.AppendLine("                default:");
                         sb.AppendLine(
-                            $"                    writer.Write((ushort){typeFullNames.GetId(typeFullName)});");
+                            $"                    writer.Write(NinoTypeConst.{typeSymbol.GetTypeFullName().GetTypeConstName()});");
                     }
 
-                    
+
                     List<ITypeSymbol> parentTypeSymbols =
                         ninoSymbols.Where(m => inheritanceMap[typeFullName]
                             .Contains(m.GetTypeFullName())).ToList();
                     var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
-                    WriteMembers(defaultMembers, "value");
+                    WriteMembers(defaultMembers, "value", typeSymbol);
 
                     if (isReferenceType)
                     {
@@ -172,14 +180,7 @@ public class SerializerGenerator : IIncrementalGenerator
             }
         }
 
-        var curNamespace = $"{compilation.AssemblyName!}";
-        if (!string.IsNullOrEmpty(curNamespace))
-            curNamespace = $"{curNamespace}_";
-        if (!char.IsLetter(curNamespace[0]))
-            curNamespace = $"_{curNamespace}";
-        //replace special characters with _
-        curNamespace = new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
-        curNamespace += "Nino";
+        var curNamespace = compilation.AssemblyName!.GetNamespace();
 
         // generate code
         var code = $$"""
@@ -195,14 +196,7 @@ public class SerializerGenerator : IIncrementalGenerator
 
                      namespace {{curNamespace}}
                      {
-                         /*
-                         * Type Id - Type
-                         * 0 - Null
-                         * 1 - System.String
-                         * 2 - System.ICollection
-                         * 3 - System.Nullable
-                     {{types}}    */
-                         public static partial class Serializer
+                         internal static partial class Serializer
                          {
                              private static readonly ConcurrentQueue<ArrayBufferWriter<byte>> BufferWriters =
                                  new ConcurrentQueue<ArrayBufferWriter<byte>>();
@@ -255,10 +249,11 @@ public class SerializerGenerator : IIncrementalGenerator
                                  if (value == null)
                                      return new byte[2];
                                  var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
-                                 byte[] ret = new byte[valueSpan.Length + 6];
-                                 Unsafe.WriteUnaligned(ref ret[0], (ushort)TypeCollector.CollectionTypeId);
-                                 Unsafe.WriteUnaligned(ref ret[2], value.Length);
-                                 Unsafe.CopyBlockUnaligned(ref ret[6], ref valueSpan[0], (uint)valueSpan.Length);
+                                 int size = sizeof(int) + valueSpan.Length;
+                                 byte[] ret = new byte[size];
+                                 Unsafe.WriteUnaligned(ref ret[0], TypeCollector.GetCollectionHeader(value.Length));
+                                 Unsafe.CopyBlockUnaligned(ref ret[4], ref valueSpan[0],
+                                     (uint)valueSpan.Length);
                                  return ret;
                              }
                              
@@ -272,13 +267,14 @@ public class SerializerGenerator : IIncrementalGenerator
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
                              public static byte[] Serialize<T>(this Span<T> value) where T : unmanaged
                              {
-                                if (value == null)
+                                if (value == Span<T>.Empty)
                                     return new byte[2];
                                 var valueSpan = MemoryMarshal.AsBytes(value);
-                                byte[] ret = new byte[valueSpan.Length + 6];
-                                Unsafe.WriteUnaligned(ref ret[0], (ushort)TypeCollector.CollectionTypeId);
-                                Unsafe.WriteUnaligned(ref ret[2], value.Length);
-                                Unsafe.CopyBlockUnaligned(ref ret[6], ref valueSpan[0], (uint)valueSpan.Length);
+                                int size = sizeof(int) + valueSpan.Length;
+                                byte[] ret = new byte[size];
+                                Unsafe.WriteUnaligned(ref ret[0], TypeCollector.GetCollectionHeader(value.Length));
+                                Unsafe.CopyBlockUnaligned(ref ret[4], ref valueSpan[0],
+                                    (uint)valueSpan.Length);
                                 return ret;
                              }
                              
@@ -297,10 +293,18 @@ public class SerializerGenerator : IIncrementalGenerator
                                 
                                  return new byte[1] { 0 };
                              }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static byte[] Serialize(this byte value)
+                             {
+                                 return new byte[1] { value };
+                             }
 
                      {{GeneratePrivateSerializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
-
+                     
                      {{GeneratePrivateSerializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
+
+                     {{GeneratePrivateSerializeImplMethodBody("T?[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateSerializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
 
@@ -316,8 +320,8 @@ public class SerializerGenerator : IIncrementalGenerator
                              
                      {{GeneratePrivateSerializeImplMethodBody("string", "        ")}}
 
-                     {{GeneratePrivateSerializeImplMethodBody("bool", "        ")}}
-                             
+                     {{GeneratePrivateSerializeImplMethodBody("Dictionary<TKey, TValue>", "        ", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged")}}
+
                      {{sb}}    }
                      }
                      """;

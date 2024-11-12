@@ -2,17 +2,22 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+// ReSharper disable HeuristicUnreachableCode
+#pragma warning disable CS0162 // Unreachable code detected
 
 namespace Nino.Generator;
 
 public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
-    
+
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
         this IncrementalGeneratorInitializationContext context)
     {
@@ -24,9 +29,31 @@ public static class NinoTypeHelper
             .Where(static m => m != null)!;
     }
 
-    public static List<ITypeSymbol> GetNinoTypeSymbols(this ImmutableArray<CSharpSyntaxNode> syntaxes, Compilation compilation)
+    public static string GetTypeConstName(this string typeFullName)
+    {
+        return typeFullName.ToCharArray()
+            .Select(c => char.IsLetterOrDigit(c) ? c : '_')
+            .Aggregate("", (a, b) => a + b);
+    }
+
+    public static string GetNamespace(this string assemblyName)
+    {
+        var curNamespace = assemblyName;
+        if (!string.IsNullOrEmpty(curNamespace))
+            curNamespace = $"{curNamespace}.";
+        if (!char.IsLetter(curNamespace[0]))
+            curNamespace = $"_{curNamespace}";
+        //replace special characters with _
+        curNamespace = new string(curNamespace.Select(c => char.IsLetterOrDigit(c) || c == '.' ? c : '_').ToArray());
+        curNamespace += "NinoGen";
+        return curNamespace;
+    }
+
+    public static List<ITypeSymbol> GetNinoTypeSymbols(this ImmutableArray<CSharpSyntaxNode> syntaxes,
+        Compilation compilation)
     {
         return syntaxes.Select(s => s.GetTypeSymbol(compilation))
+            .Concat(GetAllNinoRequiredTypes(compilation))
             .Where(s => s != null)
             .Distinct(SymbolEqualityComparer.Default)
             .Select(s => (ITypeSymbol)s!)
@@ -41,6 +68,157 @@ public static class NinoTypeHelper
             .ToList();
     }
 
+    public static IEnumerable<ITypeSymbol> GetAllNinoRequiredTypes(Compilation compilation)
+    {
+        var lst = GetAllTypes(compilation)
+            .Where(s => s != null)
+            .Distinct(SymbolEqualityComparer.Default)
+            .Select(s => (ITypeSymbol)s!)
+            .Where(s => s.IsNinoType())
+            .Where(s => s is not ITypeParameterSymbol)
+            .Where(s => s is not INamedTypeSymbol ||
+                        (s is INamedTypeSymbol symbol &&
+                         (!symbol.IsGenericType ||
+                          (symbol.TypeArguments.Length ==
+                           symbol.TypeParameters.Length &&
+                           symbol.TypeArguments.All(t => t is INamedTypeSymbol)))))
+            .ToList();
+        var ret = lst.Concat(lst.SelectMany(type =>
+            {
+                var members = type.GetMembers();
+                var allTypes = new List<ITypeSymbol>();
+                foreach (var member in members)
+                {
+                    switch (member)
+                    {
+                        case IFieldSymbol fieldSymbol:
+                            allTypes.Add(fieldSymbol.Type);
+                            break;
+                        case IPropertySymbol propertySymbol:
+                            allTypes.Add(propertySymbol.Type);
+                            break;
+                        case IParameterSymbol parameterSymbol:
+                            allTypes.Add(parameterSymbol.Type);
+                            break;
+                    }
+                }
+
+                return allTypes;
+            }))
+            .Distinct(SymbolEqualityComparer.Default)
+            .Where(s => s != null)
+            .Select(s => (ITypeSymbol)s!)
+            .ToList();
+        foreach (var typeSymbol in ret.ToList())
+        {
+            AddElementRecursively(typeSymbol, ret);
+        }
+
+        return ret.Distinct(SymbolEqualityComparer.Default)
+            .Where(s => s != null)
+            .Select(s => (ITypeSymbol)s!)
+            .ToList();
+    }
+
+    private static void AddElementRecursively(ITypeSymbol symbol, List<ITypeSymbol> ret)
+    {
+        if (symbol is INamedTypeSymbol namedTypeSymbol)
+        {
+            AddTypeArguments(namedTypeSymbol, ret);
+        }
+        else if (symbol is IArrayTypeSymbol arrayTypeSymbol)
+        {
+            AddArrayElementType(arrayTypeSymbol, ret);
+        }
+    }
+
+    private static void AddArrayElementType(IArrayTypeSymbol symbol, List<ITypeSymbol> ret)
+    {
+        ret.Add(symbol.ElementType);
+        AddElementRecursively(symbol.ElementType, ret);
+    }
+
+    private static void AddTypeArguments(INamedTypeSymbol symbol, List<ITypeSymbol> ret)
+    {
+        foreach (var typeArgument in symbol.TypeArguments)
+        {
+            ret.Add(typeArgument);
+            AddElementRecursively(typeArgument, ret);
+        }
+    }
+
+    public static IEnumerable<INamedTypeSymbol> GetAllTypes(Compilation compilation)
+    {
+        var allTypes = new List<INamedTypeSymbol>();
+
+        // Add all types from the current assembly (compilation)
+        allTypes.AddRange(GetTypesInNamespace(compilation.GlobalNamespace));
+
+        // Add all types from each referenced assembly
+        foreach (var referencedAssembly in compilation.References)
+        {
+            var assemblySymbol = compilation.GetAssemblyOrModuleSymbol(referencedAssembly) as IAssemblySymbol;
+            if (assemblySymbol != null)
+            {
+                allTypes.AddRange(GetTypesInNamespace(assemblySymbol.GlobalNamespace));
+            }
+        }
+
+
+        //distinct
+        return allTypes
+            .Distinct(SymbolEqualityComparer.Default)
+            .Where(s => s != null)
+            .Select(s => (INamedTypeSymbol)s!)
+            .ToList();
+    }
+
+    private static IEnumerable<INamedTypeSymbol> GetTypesInNamespace(INamespaceSymbol namespaceSymbol)
+    {
+        // Collect all types in the current namespace
+        foreach (var typeSymbol in namespaceSymbol.GetTypeMembers())
+        {
+            foreach (var nestedType in GetNestedTypes(typeSymbol))
+            {
+                yield return nestedType;
+            }
+        }
+
+        // Recursively get types from nested namespaces
+        foreach (var nestedNamespace in namespaceSymbol.GetNamespaceMembers())
+        {
+            foreach (var nestedType in GetTypesInNamespace(nestedNamespace))
+            {
+                foreach (var nestedNestedType in GetNestedTypes(nestedType))
+                {
+                    yield return nestedNestedType;
+                }
+            }
+        }
+    }
+    
+    public static IEnumerable<INamedTypeSymbol> GetNestedTypes(this INamedTypeSymbol typeSymbol)
+    {
+        // check public accessibility
+        if (!typeSymbol.DeclaredAccessibility.HasFlag(Accessibility.Public))
+        {
+            yield break;
+        }
+        
+        // yiled itself
+        yield return typeSymbol;
+        
+        //recursively get nested types
+        foreach (var nestedType in typeSymbol.GetTypeMembers())
+        {
+            //recursive call
+            foreach (var nestedNestedType in GetNestedTypes(nestedType))
+            {
+                yield return nestedNestedType;
+            }
+        }
+    }
+
     public static ITypeSymbol? GetTypeSymbol(this CSharpSyntaxNode syntax, Compilation compilation)
     {
         switch (syntax)
@@ -50,7 +228,7 @@ public static class NinoTypeHelper
             case TypeSyntax typeSyntax:
                 return compilation.GetSemanticModel(typeSyntax.SyntaxTree).GetTypeInfo(typeSyntax).Type;
         }
-        
+
         return null;
     }
 
@@ -97,7 +275,8 @@ public static class NinoTypeHelper
 
     public static bool IsReferenceType(this ITypeSymbol typeDecl)
     {
-        return typeDecl.IsReferenceType || typeDecl is { IsRecord: true, IsValueType: false } || typeDecl.TypeKind == TypeKind.Interface;
+        return typeDecl.IsReferenceType || typeDecl is { IsRecord: true, IsValueType: false } ||
+               typeDecl.TypeKind == TypeKind.Interface;
     }
 
     public static bool IsInstanceType(this ITypeSymbol typeSymbol)
@@ -124,14 +303,42 @@ public static class NinoTypeHelper
             .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoConstructorAttribute");
     }
 
-    public static int GetId(this List<string> typeFullNames, string typeFullName)
+    public static int GetId(this ITypeSymbol typeSymbol)
     {
-        int index = typeFullNames.IndexOf(typeFullName);
-        return index + 4;
+        return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            .GetLegacyNonRandomizedHashCode();
+    }
+
+    // Use this if and only if you need the hashcode to not change across app domains (e.g. you have an app domain agile
+    // hash table).
+    /// <summary>
+    /// Reference: https://github.com/microsoft/referencesource/blob/51cf7850defa8a17d815b4700b67116e3fa283c2/mscorlib/system/string.cs#L894C9-L949C10
+    /// </summary>
+    /// <returns></returns>
+    private static int GetLegacyNonRandomizedHashCode(this string str)
+    {
+        ReadOnlySpan<char> span = str.AsSpan();
+        int hash1 = 5381;
+        int hash2 = hash1;
+
+        int c;
+        ref char s = ref MemoryMarshal.GetReference(span);
+        while ((c = s) != 0)
+        {
+            hash1 = ((hash1 << 5) + hash1) ^ c;
+            c = Unsafe.Add(ref s, 1);
+            if (c == 0)
+                break;
+            hash2 = ((hash2 << 5) + hash2) ^ c;
+            s = ref Unsafe.Add(ref s, 2);
+        }
+
+        return hash1 + hash2 * 1566083941;
     }
 
     public static (Dictionary<string, List<string>> inheritanceMap,
         Dictionary<string, List<string>> subTypeMap,
+        // ReSharper disable once UnusedTupleComponentInReturnValue
         ImmutableArray<string> topNinoTypes) GetInheritanceMap(this List<ITypeSymbol> ninoSymbols)
     {
         var ninoTypeModels = ninoSymbols.Select(m => m.GetTypeFullName()).ToImmutableArray();
@@ -198,42 +405,32 @@ public static class NinoTypeHelper
 
     public static string GetDeserializePrefix(this ITypeSymbol ts)
     {
+        return "Deserialize";
+
+        // v2 legacy code - not used
         if (!ts.IsNinoType())
         {
             return "Deserialize";
         }
 
         var assName = ts.ContainingAssembly.Name;
-        var curNamespace = $"{assName}";
-        if (!string.IsNullOrEmpty(curNamespace))
-            curNamespace = $"{curNamespace}_";
-        if (!char.IsLetter(curNamespace[0]))
-            curNamespace = $"_{curNamespace}";
-        //replace special characters with _
-        curNamespace =
-            new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
-        curNamespace += "Nino";
+        var curNamespace = assName.GetNamespace();
 
         return $"{curNamespace}.Deserializer.Deserialize";
     }
 
     public static string GetSerializePrefix(this ITypeSymbol ts)
     {
+        return "Serialize";
+
+        // v2 legacy code - not used
         if (!ts.IsNinoType())
         {
             return "Serialize";
         }
 
         var assName = ts.ContainingAssembly.Name;
-        var curNamespace = $"{assName}";
-        if (!string.IsNullOrEmpty(curNamespace))
-            curNamespace = $"{curNamespace}_";
-        if (!char.IsLetter(curNamespace[0]))
-            curNamespace = $"_{curNamespace}";
-        //replace special characters with _
-        curNamespace =
-            new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
-        curNamespace += "Nino";
+        var curNamespace = assName.GetNamespace();
 
         return $"{curNamespace}.Serializer.Serialize";
     }
@@ -305,31 +502,35 @@ public static class NinoTypeHelper
 
     public static string GetTypeFullName(this ITypeSymbol typeSymbol)
     {
-        return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return typeSymbol.ToDisplayString();
     }
-    
+
     public static ITypeSymbol? GetDeclaredTypeFullName(this CSharpSyntaxNode memberDeclaration,
-        Compilation compilation)
+        Compilation compilation, ITypeSymbol declaringType)
     {
-        var model = compilation.GetSemanticModel(memberDeclaration.SyntaxTree);
-
-        switch (memberDeclaration)
+        var name = memberDeclaration.GetMemberName();
+        ITypeSymbol? declaredType = null;
+        var s = declaringType.GetMembers().FirstOrDefault(s => s.Name == name);
+        while (s == null && declaringType.BaseType != null)
         {
-            case PropertyDeclarationSyntax propertyDeclaration:
-                var propertySymbol = model.GetDeclaredSymbol(propertyDeclaration);
-                return propertySymbol?.Type;
-
-            case FieldDeclarationSyntax fieldDeclaration:
-                var variable = fieldDeclaration.Declaration.Variables.First();
-                var fieldSymbol = model.GetDeclaredSymbol(variable) as IFieldSymbol;
-                return fieldSymbol?.Type;
-
-            case ParameterSyntax parameterSyntax:
-                var parameterSymbol = model.GetDeclaredSymbol(parameterSyntax);
-                return parameterSymbol?.Type;
+            declaringType = declaringType.BaseType;
+            s = declaringType.GetMembers().FirstOrDefault(symbol => symbol.Name == name);
         }
 
-        return null;
+        switch (s)
+        {
+            case IFieldSymbol fs:
+                declaredType = fs.Type;
+                break;
+            case IPropertySymbol ps:
+                declaredType = ps.Type;
+                break;
+            case IParameterSymbol ps:
+                declaredType = ps.Type;
+                break;
+        }
+
+        return declaredType;
     }
 
     public static string? GetMemberName(this CSharpSyntaxNode member)

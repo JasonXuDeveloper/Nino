@@ -23,21 +23,6 @@ public class DeserializerGenerator : IIncrementalGenerator
         SourceProductionContext spc)
     {
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
-
-        // get type full names from models (namespaces + type names)
-        var typeFullNames = ninoSymbols
-            .Where(symbol => symbol.IsReferenceType())
-            .Where(symbol => symbol.IsInstanceType())
-            .Select(symbol => symbol.GetTypeFullName()).ToList();
-        //sort by typename
-        typeFullNames.Sort();
-
-        var types = new StringBuilder();
-        foreach (var typeFullName in typeFullNames)
-        {
-            types.AppendLine($"    * {typeFullNames.GetId(typeFullName)} - {typeFullName}");
-        }
-
         var (inheritanceMap,
             subTypeMap,
             _) = ninoSymbols.GetInheritanceMap();
@@ -46,7 +31,9 @@ public class DeserializerGenerator : IIncrementalGenerator
 
         sb.GenerateClassDeserializeMethods("T?", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T[]", "<T>", "where T : unmanaged");
+        sb.GenerateClassDeserializeMethods("T?[]", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("List<T>", "<T>", "where T : unmanaged");
+        sb.GenerateClassDeserializeMethods("List<T?>", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>",
             "where TKey : unmanaged where TValue : unmanaged");
         sb.GenerateClassDeserializeMethods("string");
@@ -57,7 +44,7 @@ public class DeserializerGenerator : IIncrementalGenerator
             {
                 string typeFullName = typeSymbol.GetTypeFullName();
                 GenerateDeserializeImplementation(typeSymbol, typeFullName, sb, compilation, inheritanceMap,
-                    subTypeMap, ninoSymbols, typeFullNames);
+                    subTypeMap, ninoSymbols);
             }
             catch (Exception e)
             {
@@ -73,14 +60,7 @@ public class DeserializerGenerator : IIncrementalGenerator
             }
         }
 
-        var curNamespace = $"{compilation.AssemblyName!}";
-        if (!string.IsNullOrEmpty(curNamespace))
-            curNamespace = $"{curNamespace}_";
-        if (!char.IsLetter(curNamespace[0]))
-            curNamespace = $"_{curNamespace}";
-        //replace special characters with _
-        curNamespace = new string(curNamespace.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
-        curNamespace += "Nino";
+        var curNamespace = compilation.AssemblyName!.GetNamespace();
 
         // generate code
         var code = $$"""
@@ -96,14 +76,7 @@ public class DeserializerGenerator : IIncrementalGenerator
 
                      namespace {{curNamespace}}
                      {
-                         /*
-                         * Type Id - Type
-                         * 0 - Null
-                         * 1 - System.String
-                         * 2 - System.ICollection
-                         * 3 - System.Nullable
-                     {{types}}    */
-                         public static partial class Deserializer
+                         internal static partial class Deserializer
                          {
                      {{GeneratePrivateDeserializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
                             
@@ -146,7 +119,7 @@ public class DeserializerGenerator : IIncrementalGenerator
 
     private static void GenerateDeserializeImplementation(ITypeSymbol typeSymbol, string typeFullName, StringBuilder sb,
         Compilation compilation, Dictionary<string, List<string>> inheritanceMap,
-        Dictionary<string, List<string>> subTypeMap, List<ITypeSymbol> ninoSymbols, List<string> typeFullNames)
+        Dictionary<string, List<string>> subTypeMap, List<ITypeSymbol> ninoSymbols)
     {
         // check if struct is unmanaged
         if (typeSymbol.IsUnmanagedType)
@@ -172,7 +145,7 @@ public class DeserializerGenerator : IIncrementalGenerator
 
         if (!typeSymbol.IsValueType)
         {
-            sb.AppendLine("            reader.Read(out ushort typeId);");
+            sb.AppendLine("            reader.Read(out int typeId);");
             sb.AppendLine();
         }
 
@@ -185,7 +158,7 @@ public class DeserializerGenerator : IIncrementalGenerator
             foreach (var memberDeclarationSyntax in members)
             {
                 var name = memberDeclarationSyntax.GetMemberName();
-                var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation);
+                var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation, symbol);
                 declaredType = declaredType?.ReplaceTypeParameters(symbol);
                 if (declaredType == null)
                     throw new Exception("declaredType is null");
@@ -193,17 +166,33 @@ public class DeserializerGenerator : IIncrementalGenerator
                 var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
                     .Aggregate("", (a, b) => a + b);
                 var tempName = $"{t}_temp_{name}";
-                if (constructorMember.Any(c => c.ToLower().Equals(name?.ToLower())))
+                //check if the typesymbol declaredType is string
+                if (declaredType.SpecialType == SpecialType.System_String)
                 {
+                    //check if this member is annotated with [NinoUtf8]
+                    MemberDeclarationSyntax? node = memberDeclarationSyntax as MemberDeclarationSyntax;
+                    var attrList = node?.AttributeLists ??
+                                   ((ParameterSyntax)memberDeclarationSyntax).AttributeLists;
+                    var isUtf8 = attrList.Any(a => 
+                        a.Attributes.Any(attr => 
+                            attr.Name.ToString() == "NinoUtf8"));
+                    
                     sb.AppendLine(
-                        $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
-                    args.Add(name!, tempName);
+                        isUtf8
+                            ? $"                    reader.ReadUtf8(out {declaredType.ToDisplayString()} {tempName});"
+                            : $"                    reader.Read(out {declaredType.ToDisplayString()} {tempName});");
                 }
                 else
                 {
                     sb.AppendLine(
                         $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
-
+                }
+                if (constructorMember.Any(c => c.ToLower().Equals(name?.ToLower())))
+                {
+                    args.Add(name!, tempName);
+                }
+                else
+                {
                     // we dont want init-only properties from the primary constructor
                     if (memberDeclarationSyntax is not ParameterSyntax)
                     {
@@ -319,7 +308,7 @@ public class DeserializerGenerator : IIncrementalGenerator
             sb.AppendLine("            switch (typeId)");
             sb.AppendLine("            {");
             sb.AppendLine("""
-                                          case TypeCollector.NullTypeId:
+                                          case TypeCollector.Null:
                                               value = null;
                                               return;
                           """);
@@ -332,8 +321,8 @@ public class DeserializerGenerator : IIncrementalGenerator
             if (subTypeSymbol.IsInstanceType())
             {
                 string valName = subType.Replace("global::", "").Replace(".", "_").ToLower();
-                int id = typeFullNames.GetId(subType);
-                sb.AppendLine($"                case {id}:");
+                sb.AppendLine(
+                    $"                case NinoTypeConst.{subTypeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
 
                 //get members
@@ -359,7 +348,7 @@ public class DeserializerGenerator : IIncrementalGenerator
         {
             if (isReferenceType)
             {
-                sb.AppendLine($"                case {typeFullNames.GetId(typeFullName)}:");
+                sb.AppendLine($"                case NinoTypeConst.{typeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
             }
 

@@ -2,7 +2,6 @@
     "name": "Test.Editor",
     "rootNamespace": "",
     "references": [
-        "GUID:0371820e3c81945b3853517b36266c3a",
         "GUID:8cb834c2cb7b04c2391ea9063c36e935",
         "GUID:b4ba1c6530914478f9c4dc9b75d56ac4",
         "GUID:0062188b04f3b485c8cd32a3cac02b12",

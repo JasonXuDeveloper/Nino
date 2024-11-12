@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 #pragma warning disable CS0649
 
@@ -6,10 +7,15 @@ namespace Nino.Core
 {
     public static class TypeCollector
     {
-        public const ushort NullTypeId = 0;
-        public const ushort StringTypeId = 1;
-        public const ushort CollectionTypeId = 2;
-        public const ushort NullableTypeId = 3;
+        public const int Null = 0;
+        public const byte NullCollection = 0;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static uint GetCollectionHeader(int size)
+        {
+            // set sign bit to 1 - indicates that this is a collection and not null
+            return (uint)size | 0x80000000;
+        }
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
         internal class ListView<T>

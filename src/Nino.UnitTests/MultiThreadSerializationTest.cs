@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Nino_UnitTests_Nino;
+using Nino.UnitTests.NinoGen;
 
 namespace Nino.UnitTests
 {

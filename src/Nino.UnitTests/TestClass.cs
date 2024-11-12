@@ -5,15 +5,29 @@ using Nino.Core;
 
 namespace Nino.UnitTests
 {
+    [NinoType]
+    public class StringData
+    {
+        [NinoUtf8] public string Str;
+        [NinoUtf8] public bool ShouldHaveNoEffect;
+    }
+
+    [NinoType]
+    public class StringData2
+    {
+        public string Str;
+        [NinoUtf8] public bool ShouldHaveNoEffect;
+    }
+
     [NinoType(false)]
     public class SaveData
     {
         [NinoMember(1)] public int Id;
-        [NinoMember(2)] public string Name;
+        [NinoMember(2)] [NinoUtf8] public string Name;
         [NinoMember(3)] public DateTime NewField1;
         [NinoMember(4)] public Generic<int> NewField2;
     }
-    
+
     [NinoType]
     public struct GenericStruct<T>
     {
@@ -137,7 +151,7 @@ namespace Nino.UnitTests
 
     [NinoType]
     public record struct SimpleRecordStruct2<T>(int Id, T Data);
-    
+
     [NinoType]
     public record SimpleRecord
     {
@@ -203,7 +217,7 @@ namespace Nino.UnitTests
         {
         }
     }
-    
+
     [NinoType]
     public record SimpleRecord6<T>(int Id, T Data);
 

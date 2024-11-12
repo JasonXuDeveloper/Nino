@@ -2,7 +2,7 @@ using System;
 using MessagePack;
 using System.Text;
 using System.Diagnostics;
-using Test_Nino;
+using Test.Editor.NinoGen;
 using MessagePack.Resolvers;
 
 // ReSharper disable RedundantJumpStatement
