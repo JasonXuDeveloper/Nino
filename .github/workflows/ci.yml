@@ -129,31 +129,19 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       # Copy src/Nino/bin/Release/netstandard2.1/Nino.Core.dll and src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll
-      # to Nino_Unity/Assets/Test/Nino and Nino_Unity/Assets/Test/Editor/Nino, replace existing files
+      # to Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime, replacing the existing DLLs
       - name: Copy DLLs
         run: |
-          cp -f ./src/Nino/bin/Release/netstandard2.1/Nino.Core.dll ./Nino_Unity/Assets/Test/Nino/Nino.Core.dll && cp -f ./src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino_Unity/Assets/Test/Nino/Nino.Generator.dll
-          cp -f ./src/Nino/bin/Release/netstandard2.1/Nino.Core.dll ./Nino_Unity/Assets/Test/Editor/Nino/Nino.Core.dll && cp -f ./src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino_Unity/Assets/Test/Editor/Nino/Nino.Generator.dll
-      
-      # Install the packager. We are putting it outside the working directory so we dont include it by mistake
-      - name: Install Unity Packager
-        run: |
-          git clone https://github.com/Lachee/Unity-Package-Exporter.git "../tools/unity-package-exporter"
-          dotnet publish -c Release -o ../tools "../tools/unity-package-exporter/UnityPackageExporter"
-      
-      # Pack the assets
-      - name: Package Project
-        run: |
-          echo "Creating package ${{env.package_path}}"
-          dotnet ../tools/UnityPackageExporter.dll ./Nino_Unity ./Nino.unitypackage --assets "Assets/Test/Nino/**.*"
+          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Core.dll ./Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime
+          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime
 
-      # Commit the changes (only the 4 dlls and the unitypackage)
+      # Commit the changes (only the 2 dlls)
       - name: Commit Changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./Nino.unitypackage ./Nino_Unity/Assets/Test/Nino/Nino.Core.dll ./Nino_Unity/Assets/Test/Nino/Nino.Generator.dll ./Nino_Unity/Assets/Test/Editor/Nino/Nino.Core.dll ./Nino_Unity/Assets/Test/Editor/Nino/Nino.Generator.dll
-          git commit -m "Bump Unity Package to v$VERSION"
+          git add ./Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll ./Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          git commit -m "Bump Unity Package DLLs to v$VERSION"
           git push origin main
 
       - name: Get Commit SHA
@@ -171,16 +159,6 @@ jobs:
           body: "${{ env.DESCRIPTION }}"                   # Release notes from commit message
           draft: false                                     # Make the release public immediately
           prerelease: false                                # Mark it as a stable release
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}  # Use upload_url instead of release_id
-          asset_path: ./Nino.unitypackage  # Path to the asset file
-          asset_name: Nino.unitypackage    # Name of the asset in the release
-          asset_content_type: application/octet-stream
 
       # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
       - name: Setup .NET
