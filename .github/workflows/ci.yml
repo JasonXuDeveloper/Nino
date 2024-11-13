@@ -54,6 +54,7 @@ jobs:
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         with:
           projectPath: ./src/Nino.Unity
+          testMode: editmode
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           unityVersion: '2022.3.51f1'
 
