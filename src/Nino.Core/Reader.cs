@@ -31,8 +31,14 @@ namespace Nino.Core
             }
 
             //if value is 0 or sign bit is not set, then it's a null collection
-            Read(out int value);
-            length = value & 0x7FFFFFFF;
+            Read(out uint value);
+#if NET5_0_OR_GREATER
+            value = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(value);
+#else
+            //to little endian
+            value = (value << 24) | (value >> 24) | ((value & 0x0000FF00) << 8) | ((value & 0x00FF0000) >> 8);
+#endif
+            length = (int)(value & 0x7FFFFFFF);
             return true;
         }
 

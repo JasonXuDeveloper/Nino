@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -20,6 +21,79 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
+        public class IssueV3_0 : IssueTestTemplate
+        {
+            [NinoType]
+            public class DiceData
+            {
+                
+            }
+
+            [NinoType(false)]
+            public class DicePool : IEnumerable<DiceData>
+            {
+                [NinoMember(1)] public DicePoolType Type { get; set; }
+                [NinoMember(2)] public List<DiceData> DiceDatas { get; set; } = new List<DiceData>();
+
+                public IEnumerator<DiceData> GetEnumerator()
+                {
+                    return DiceDatas.GetEnumerator();
+                }
+
+                IEnumerator IEnumerable.GetEnumerator()
+                {
+                    return GetEnumerator();
+                }
+
+                public void Add(DiceData diceData)
+                {
+                    DiceDatas.Add(diceData);
+                }
+
+                public void Remove(DiceData diceData)
+                {
+                    DiceDatas.Remove(diceData);
+                }
+
+                public void Clear()
+                {
+                    DiceDatas.Clear();
+                }
+
+                public bool Contains(DiceData diceData)
+                {
+                    return DiceDatas.Contains(diceData);
+                }
+            }
+
+            /// <summary>
+            /// 骰子池类型
+            /// </summary>
+            public enum DicePoolType
+            {
+                /// <summary>
+                /// 力量
+                /// </summary>
+                STR = 1,
+
+                /// <summary>
+                /// 体质
+                /// </summary>
+                CONS = 2,
+            }
+
+            [TestMethod]
+            public override void RunTest()
+            {
+                var pools = new Dictionary<DicePoolType, DicePool>();
+                pools.Add(DicePoolType.STR, new DicePool());
+                pools.Add(DicePoolType.CONS, new DicePool());
+                var bytes = Serializer.Serialize(pools);
+                Deserializer.Deserialize(bytes, out Dictionary<DicePoolType, DicePool> pools2);
+            }
+        }
+
+        [TestClass]
         public class Issue134 : IssueTestTemplate
         {
             [NinoType]
@@ -27,13 +101,13 @@ namespace Nino.UnitTests
             {
                 int A { get; set; }
             }
-            
+
             [NinoType]
             public class Impl : IBase
             {
                 public int A { get; set; }
             }
-            
+
             [TestMethod]
             public override void RunTest()
             {
@@ -41,7 +115,7 @@ namespace Nino.UnitTests
                 var bytes = impl.Serialize();
                 Deserializer.Deserialize(bytes, out Impl impl2);
                 Assert.AreEqual(impl.A, impl2.A);
-                
+
                 Dictionary<string, IBase> dict = new Dictionary<string, IBase>
                 {
                     { "A", new Impl { A = 10 } }

@@ -14,14 +14,20 @@ namespace Nino.Core
         public static uint GetCollectionHeader(int size)
         {
             // set sign bit to 1 - indicates that this is a collection and not null
-            return (uint)size | 0x80000000;
+            uint ret = (uint)size | 0x80000000;
+            //to big endian
+#if NET5_0_OR_GREATER
+            return System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(ret);
+#else
+            return (ret << 24) | (ret >> 24) | ((ret & 0x0000FF00) << 8) | ((ret & 0x00FF0000) >> 8);
+#endif
         }
 
         [SuppressMessage("ReSharper", "InconsistentNaming")]
-        internal class ListView<T>
+        public class ListView<T>
         {
-            internal T[] _items; // Do not rename (binary serialization)
-            internal int _size; // Do not rename (binary serialization)
+            public T[] _items; // Do not rename (binary serialization)
+            public int _size; // Do not rename (binary serialization)
         }
     }
 }

@@ -64,7 +64,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(1770431639, NinoTypeConst.Nino_UnitTests_SaveData);
             byte[] oldData =
             {
-                151, 164, 134, 105, 1, 0, 0, 0, 4, 0, 0, 128, 84, 101, 115, 116
+                151, 164, 134, 105, 1, 0, 0, 0, 128, 0, 0, 4, 84, 101, 115, 116
             };
             //require symbol WEAK_VERSION_TOLERANCE to be defined
 #if WEAK_VERSION_TOLERANCE

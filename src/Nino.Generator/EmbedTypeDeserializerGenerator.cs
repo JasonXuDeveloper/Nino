@@ -278,14 +278,24 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                         "        "));
                 if (type.TypeKind != TypeKind.Interface)
                 {
-                    sb.AppendLine(GenerateCollectionSerialization(s.TypeArguments[0].GetDeserializePrefix(), elemType,
-                        typeFullName, typeFullName, "        "));
+                    //if is List<T>
+                    if (type.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.List<T>")
+                    {
+                        sb.AppendLine(GenerateListSerialization(s.TypeArguments[0].GetDeserializePrefix(), elemType,
+                            typeFullName, typeFullName, "        "));
+                    }
+                    else
+                    {
+                        sb.AppendLine(GenerateCollectionSerialization(s.TypeArguments[0].GetDeserializePrefix(),
+                            elemType,
+                            typeFullName, typeFullName, "        "));
+                    }
                 }
                 else
                 {
-                    var newFullName = $"List<{elemType}>";
-                    sb.AppendLine(GenerateCollectionSerialization(s.TypeArguments[0].GetDeserializePrefix(), elemType,
-                        typeFullName, newFullName, "        "));
+                    var newFullName = $"System.Collections.Generic.List<{elemType}>";
+                    sb.AppendLine(GenerateListSerialization(s.TypeArguments[0].GetDeserializePrefix(), elemType,
+                        typeFullName, newFullName, "        ", true));
                 }
 
                 sb.GenerateClassDeserializeMethods(typeFullName);
@@ -418,6 +428,46 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                         }
                         
                         value = new {{typeFullname}}(arr);
+                    }
+
+                    """;
+        // indent
+        ret = ret.Replace("\n", $"\n{indent}");
+        return $"{indent}{ret}";
+    }
+
+    private static string GenerateListSerialization(string prefix, string elemType, string sigTypeFullname,
+        string typeFullname,
+        string indent,
+        bool isInterface = false)
+    {
+        var decl = isInterface ? $"var ret = new {typeFullname}(0);" : $"value = new {typeFullname}(0);";
+        var val = isInterface ? "ret" : "value";
+        var end = isInterface ? "value = ret;" : "";
+        var ret = $$"""
+                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                    public static void Deserialize(out {{sigTypeFullname}} value, ref Reader reader)
+                    {
+                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                         if (reader.Eof)
+                         {
+                            value = default;
+                            return;
+                         }
+                    #endif
+                        
+                        {{prefix}}(out {{elemType}}[] arr, ref reader);
+                        if (arr == null)
+                        {
+                            value = default;
+                            return;
+                        }
+                        
+                        {{decl}}
+                        ref var lst = ref Unsafe.As<List<{{elemType}}>, TypeCollector.ListView<{{elemType}}>>(ref {{val}});
+                        lst._size = arr.Length;
+                        lst._items = arr;
+                        {{end}}
                     }
 
                     """;

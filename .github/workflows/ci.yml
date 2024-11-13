@@ -37,6 +37,25 @@ jobs:
       # Run unit tests
       - name: Test
         run: dotnet test --no-build --verbosity normal
+        
+      # Cache Unity Project
+      - uses: actions/cache@v3
+        with:
+          path: ./Nino.Unity/Library
+          key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-
+
+      # Test on Unity
+      - uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: ./Nino.Unity
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          unityVersion: '2022.3.52f1'
 
   bump-version:
     runs-on: ubuntu-latest
@@ -129,18 +148,18 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       # Copy src/Nino/bin/Release/netstandard2.1/Nino.Core.dll and src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll
-      # to Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime, replacing the existing DLLs
+      # to src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime, replacing the existing DLLs
       - name: Copy DLLs
         run: |
-          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Core.dll ./Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime
-          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime
+          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Core.dll .src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime
+          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll .src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime
 
       # Commit the changes (only the 2 dlls)
       - name: Commit Changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll ./Nino_Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          git add ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
           git commit -m "Bump Unity Package DLLs to v$VERSION"
           git push origin main
 
