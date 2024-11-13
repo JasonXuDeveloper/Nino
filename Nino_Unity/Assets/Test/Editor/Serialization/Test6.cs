@@ -176,7 +176,9 @@ namespace Nino.Test.Editor.Serialization
                     $"time diff pct => time/MsgPack : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
 
             //Logger.D("Serialization Test",string.Join(",", bs));
-
+            
+            GC.Collect();
+            
             #endregion
         }
     }

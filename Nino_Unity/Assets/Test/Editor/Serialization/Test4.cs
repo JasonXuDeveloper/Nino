@@ -1,9 +1,11 @@
+using System;
 using System.IO;
 using System.Text;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Runtime.Serialization.Formatters.Binary;
 using Test.Editor.NinoGen;
+
 
 // ReSharper disable RedundantJumpStatement
 
@@ -128,6 +130,8 @@ namespace Nino.Test.Editor.Serialization
             Logger.D("Deserialization Test",
                 $"time diff pct => time/BinaryFormatter : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
 
+            GC.Collect();
+            
             #endregion
         }
     }

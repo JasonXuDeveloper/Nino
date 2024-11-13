@@ -2,7 +2,9 @@ using System;
 using System.IO;
 using System.Text;
 using System.Diagnostics;
+using Nino.Core;
 using Test.Editor.NinoGen;
+
 
 
 // ReSharper disable RedundantJumpStatement
@@ -124,6 +126,8 @@ namespace Nino.Test.Editor.Serialization
             Logger.D("Serialization Test", $"time diff (nino - protobuf): {tm - sw.ElapsedMilliseconds} ms");
             Logger.D("Serialization Test",
                 $"time diff pct => time/protobuf : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+            
+            GC.Collect();
 
             #endregion
         }

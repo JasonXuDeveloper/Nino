@@ -18,6 +18,39 @@ public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
+    public static bool IsValidCompilation(this Compilation compilation)
+    {
+        //make sure the compilation contains the Nino.Core assembly
+        if (!compilation.ReferencedAssemblyNames.Any(static a => a.Name == "Nino.Core"))
+        {
+            return false;
+        }
+
+        //make sure the compilation indeed uses Nino.Core
+        foreach (var syntaxTree in compilation.SyntaxTrees)
+        {
+            var root = syntaxTree.GetRoot();
+            var usingDirectives = root.DescendantNodes()
+                .OfType<UsingDirectiveSyntax>()
+                .Where(usingDirective => usingDirective.Name.ToString() == "Nino.Core");
+
+            if (usingDirectives.Any())
+            {
+                return true; // Namespace is used in a using directive
+            }
+        }
+
+        //or if any member has NinoTypeAttribute/NinoMemberAttribute/NinoIgnoreAttribute/NinoConstructorAttribute/NinoUtf8Attribute
+        return compilation.SyntaxTrees
+            .SelectMany(static s => s.GetRoot().DescendantNodes())
+            .Any(static s => s is AttributeSyntax attributeSyntax &&
+                             (attributeSyntax.Name.ToString() == "NinoType" ||
+                              attributeSyntax.Name.ToString() == "NinoMember" ||
+                              attributeSyntax.Name.ToString() == "NinoIgnore" ||
+                              attributeSyntax.Name.ToString() == "NinoConstructor" ||
+                              attributeSyntax.Name.ToString() == "NinoUtf8"));
+    }
+
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
         this IncrementalGeneratorInitializationContext context)
     {
@@ -196,7 +229,7 @@ public static class NinoTypeHelper
             }
         }
     }
-    
+
     public static IEnumerable<INamedTypeSymbol> GetNestedTypes(this INamedTypeSymbol typeSymbol)
     {
         // check public accessibility
@@ -204,10 +237,10 @@ public static class NinoTypeHelper
         {
             yield break;
         }
-        
+
         // yiled itself
         yield return typeSymbol;
-        
+
         //recursively get nested types
         foreach (var nestedType in typeSymbol.GetTypeMembers())
         {
@@ -544,13 +577,43 @@ public static class NinoTypeHelper
         };
     }
 
-    public static List<CSharpSyntaxNode> GetNinoTypeMembers(this ITypeSymbol typeSymbol,
+    public record NinoMember(string Name, ITypeSymbol Type, AttributeData[] Attrs, bool IsCtorParam)
+    {
+        public readonly string Name = Name;
+        public readonly ITypeSymbol Type = Type;
+        public readonly AttributeData[] Attrs = Attrs;
+        public readonly bool IsCtorParam = IsCtorParam;
+
+        public virtual bool Equals(NinoMember? other)
+        {
+            if (ReferenceEquals(null, other)) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Name == other.Name && Type.Equals(other.Type, SymbolEqualityComparer.Default) &&
+                   Attrs.SequenceEqual(other.Attrs) &&
+                   IsCtorParam == other.IsCtorParam;
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = Name.GetHashCode();
+                hashCode = (hashCode * 397) ^ Type.Name.GetHashCode();
+                hashCode = (hashCode * 397) ^ Attrs.GetHashCode();
+                hashCode = (hashCode * 397) ^ IsCtorParam.GetHashCode();
+                return hashCode;
+            }
+        }
+    };
+
+    public static List<NinoMember> GetNinoTypeMembers(
+        this ITypeSymbol typeSymbol,
         List<ITypeSymbol>? parentNinoTypes)
     {
         //ensure type has attribute NinoType
         if (!IsNinoType(typeSymbol))
         {
-            return new List<CSharpSyntaxNode>();
+            return new List<NinoMember>();
         }
 
         //get NinoType attribute first argument value from typeSymbol
@@ -565,102 +628,132 @@ public static class NinoTypeHelper
         ninoTypes.Add(typeSymbol);
         if (parentNinoTypes != null)
             ninoTypes.AddRange(parentNinoTypes);
-        //get all fields and properties with getter and setter
-        var ret =
-            //consider record (init only) properties
-            //i.e. public record Record(int A, string B);, we want to get A and B
-            ninoTypes.Where(static t => t.IsRecord)
-                //get record's primary constructor members
-                .Select(static t => t.DeclaringSyntaxReferences.First().GetSyntax())
-                .OfType<RecordDeclarationSyntax>()
-                .Where(static r => r != null && r.ParameterList != null)
-                //now extract the init only properties (A and B) from the record declaration
-                .SelectMany(static r => r!.ParameterList!.Parameters)
-                .Where(static p => p.Type != null)
-                .Concat(
-                    ninoTypes
-                        .SelectMany(static t => t.DeclaringSyntaxReferences
-                            .Select(static r => r.GetSyntax())
-                            .OfType<TypeDeclarationSyntax>())
-                        .SelectMany(static t => t.Members)
-                        .Where(static m => m is FieldDeclarationSyntax or PropertyDeclarationSyntax
-                        {
-                            AccessorList: not null
-                        })
-                        .Select(static m => m as CSharpSyntaxNode)
-                        .Where(static m => m != null))
-                .Where(node =>
+        List<NinoMember> ret = new();
+        var members = ninoTypes
+            .SelectMany(t => t.GetMembers())
+            .Where(m =>
+            {
+                if (m.IsImplicitlyDeclared)
+                    return false;
+
+                if (m is IFieldSymbol fieldSymbol)
                 {
-                    MemberDeclarationSyntax? m = node as MemberDeclarationSyntax;
                     //has to be public
-                    if (m != null)
-                    {
-                        if (!m.Modifiers.Any(static m => m.Text == "public"))
-                        {
-                            return false;
-                        }
-                    }
+                    return fieldSymbol.DeclaredAccessibility == Accessibility.Public;
+                }
 
-                    var attrList = m?.AttributeLists ?? ((ParameterSyntax)node).AttributeLists;
+                if (m is IPropertySymbol propertySymbol)
+                {
+                    //has to be public and has getter and setter
+                    return propertySymbol.DeclaredAccessibility == Accessibility.Public &&
+                           propertySymbol.GetMethod != null &&
+                           propertySymbol.SetMethod != null;
+                }
 
-                    //if has ninoignore attribute, ignore this member
-                    if (attrList.SelectMany(static al => al.Attributes)
-                        .Any(static a => a.Name.ToString() == "NinoIgnore"))
-                    {
-                        return false;
-                    }
-
-                    var memberName = node.GetMemberName();
-                    if (memberName == null)
-                    {
-                        return false;
-                    }
-
-                    if (autoCollect)
-                    {
-                        memberIndex[memberName] = memberIndex.Count;
-                        return true;
-                    }
-
-
-                    //get nino member attribute's first argument on this member
-                    var arg = attrList.SelectMany(static al => al.Attributes)
-                        .Where(static a => a.Name.ToString() == "NinoMember")
-                        .Select(static a => a.ArgumentList?.Arguments.FirstOrDefault())
-                        .Select(static a => a?.Expression)
-                        .OfType<LiteralExpressionSyntax>()
-                        .FirstOrDefault();
-
-                    if (arg == null)
-                    {
-                        return false;
-                    }
-
-                    //get index value from NinoMemberAttribute
-                    var indexValue = arg.Token.Value as int?;
-                    if (indexValue == null)
-                    {
-                        return false;
-                    }
-
-                    memberIndex[memberName] = indexValue.Value;
-                    return true;
-                })
+                return false;
+            })
+            .ToList();
+        var primaryConstructorParams = new List<IParameterSymbol>();
+        if (typeSymbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.IsRecord)
+        {
+            // Retrieve all public instance constructors
+            var publicConstructors = namedTypeSymbol.InstanceConstructors
+                .Where(c => c.DeclaredAccessibility == Accessibility.Public && !c.IsImplicitlyDeclared)
                 .ToList();
+
+            foreach (var constructor in publicConstructors)
+            {
+                // Check that each parameter in the constructor has a matching readonly property with the same name
+                foreach (var parameter in constructor.Parameters)
+                {
+                    var matchingProperty = namedTypeSymbol.GetMembers()
+                        .OfType<IPropertySymbol>()
+                        .FirstOrDefault(p => p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase));
+
+                    // If any parameter does not have a matching readonly property, it’s likely not a primary constructor
+                    if (matchingProperty == null || !matchingProperty.IsReadOnly)
+                    {
+                        break;
+                    }
+                }
+                
+                primaryConstructorParams.AddRange(constructor.Parameters);
+                break;
+            }
+        }
+
+        List<ISymbol> symbols = new();
+        symbols.AddRange(members);
+        symbols.AddRange(primaryConstructorParams);
+        symbols = symbols.Distinct(SymbolEqualityComparer.Default).ToList();
+        //for each symbol we get the attribute list
+        foreach (var symbol in symbols)
+        {
+            var attrList = symbol.GetAttributes();
+            //if has ninoignore attribute, ignore this member
+            if (attrList.Any(a => a.AttributeClass?.Name == "NinoIgnoreAttribute"))
+            {
+                continue;
+            }
+
+            var memberName = symbol.Name;
+            if (memberIndex.ContainsKey(memberName))
+            {
+                continue;
+            }
+
+            var memberType = symbol switch
+            {
+                IFieldSymbol fieldSymbol => fieldSymbol.Type,
+                IPropertySymbol propertySymbol => propertySymbol.Type,
+                IParameterSymbol parameterSymbol => parameterSymbol.Type,
+                _ => null
+            };
+
+            if (memberType == null)
+            {
+                continue;
+            }
+
+            if (autoCollect)
+            {
+                memberIndex[memberName] = memberIndex.Count;
+                ret.Add(new(memberName, memberType, attrList.ToArray(), symbol is IParameterSymbol));
+                continue;
+            }
+
+            //get nino member attribute's first argument on this member
+            var arg = attrList.FirstOrDefault(a => a.AttributeClass?.Name == "NinoMemberAttribute")?
+                .ConstructorArguments.FirstOrDefault();
+            if (arg == null)
+            {
+                continue;
+            }
+
+            //get index value from NinoMemberAttribute
+            var indexValue = arg.Value.Value;
+            if (indexValue == null)
+            {
+                continue;
+            }
+
+            memberIndex[memberName] = (ushort)indexValue;
+            ret.Add(new(memberName, memberType, attrList.ToArray(), symbol is IParameterSymbol));
+        }
 
         //sort by name
         ret.Sort((a, b) =>
         {
-            var aName = a.GetMemberName();
-            var bName = b.GetMemberName();
+            var aName = a.Name;
+            var bName = b.Name;
             return string.Compare(aName, bName, StringComparison.Ordinal);
         });
         //sort by index
         ret.Sort((a, b) =>
         {
-            var aName = a.GetMemberName();
-            var bName = b.GetMemberName();
-            return memberIndex[aName!].CompareTo(memberIndex[bName!]);
+            var aName = a.Name;
+            var bName = b.Name;
+            return memberIndex[aName].CompareTo(memberIndex[bName]);
         });
         return ret;
     }

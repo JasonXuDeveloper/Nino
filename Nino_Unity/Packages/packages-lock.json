@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.jasonxudeveloper.nino": {
+      "version": "file:com.jasonxudeveloper.nino",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.unity.2d.animation": {
       "version": "9.1.3",
       "depth": 0,

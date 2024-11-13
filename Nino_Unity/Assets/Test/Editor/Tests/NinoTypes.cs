@@ -1,30 +1,124 @@
 using System.Collections.Generic;
-using Test.Editor.NinoGen;
+using System.Diagnostics;
+using Editor.Tests.NinoGen;
+using Nino.Test;
+using NUnit.Framework;
+using Debug = UnityEngine.Debug;
 
-
-// ReSharper disable RedundantTypeArgumentsOfMethod
-namespace Nino.Test.Editor.Serialization
+namespace Test.Editor.Tests
 {
-    public class Test10
+    public class NinoTypes
     {
-        private const string SerializationTest10 = "Nino/Test/Serialization/Test10 - Complex Data";
+        [Test]
+            public void TestCommonClass(){
+                //custom type
+                PrimitiveTypeTest c = new PrimitiveTypeTest()
+                {
+                    ni = null,
+                    v3 = UnityEngine.Vector3.one,
+                    m = UnityEngine.Matrix4x4.zero,
+                    qs = new List<UnityEngine.Quaternion>()
+                    {
+                        new(100.99f, 299.31f, 45.99f, 0.5f),
+                        new(100.99f, 299.31f, 45.99f, 0.5f),
+                        new(100.99f, 299.31f, 45.99f, 0.5f)
+                    },
+                    dict = new Dictionary<string, int>()
+                    {
+                        { "test1", 1 },
+                        { "test2", 2 },
+                        { "test3", 3 },
+                        { "test4", 4 },
+                    },
+                    dict2 = new Dictionary<string, Data>()
+                    {
+                        { "dict2.entry1", new Data() },
+                        { "dict2.entry2", new Data() },
+                        { "dict2.entry3", new Data() },
+                    }
+                };
 
-#if UNITY_2017_1_OR_NEWER
-        [UnityEditor.MenuItem(SerializationTest10, priority=10)]
-#endif
-        public static void Main()
+                Debug.Log($"will serialize c: {c}");
+                var bs = Serializer.Serialize(c);
+                Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
+                Debug.Log("will deserialize");
+                Deserializer.Deserialize(bs, out PrimitiveTypeTest cc);
+                Debug.Log($"deserialized as cc: {cc}");
+                
+                Assert.AreEqual(c.ToString(), cc.ToString());
+        }
+        
+        [Test]
+        public void TestTrivialClass()
+        {
+            
+            Stopwatch sw = new Stopwatch();
+            
+            IncludeAllClassCodeGen codeGen = new IncludeAllClassCodeGen()
+            {
+                a = 100,
+                b = 199,
+                c = 5.5f,
+                d = 1.23456
+            };
+            Debug.Log(
+                "serialize an 'include all' class with code gen, this will not make the serialization result larger or slower, if and only if code gen occurs for an include all class");
+            Debug.Log($"will serialize codeGen: {codeGen}");
+            sw.Reset();
+            sw.Start();
+            var bs = codeGen.Serialize();
+            sw.Stop();
+            Debug.Log($"serialized to {bs.Length} bytes in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {string.Join(",", bs)}");
+
+            Debug.Log("will deserialize");
+            sw.Reset();
+            sw.Start();
+            Deserializer.Deserialize(bs,out IncludeAllClassCodeGen codeGenR);
+            sw.Stop();
+            Debug.Log($"deserialized as codeGenR in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {codeGenR}");
+            
+            NotIncludeAllClass d = new NotIncludeAllClass()
+            {
+                a = 100,
+                b = 199,
+                c = 5.5f,
+                d = 1.23456
+            };
+            Debug.Log(
+                "Now in comparison, we serialize a class with the same structure and same value");
+            Debug.Log($"will serialize d in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {d}");
+            sw.Reset();
+            sw.Start();
+            bs = d.Serialize();
+            sw.Stop();
+            Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
+
+            Debug.Log("will deserialize");
+            sw.Reset();
+            sw.Start();
+            Deserializer.Deserialize(bs, out NotIncludeAllClass dd);
+            sw.Stop();
+            Debug.Log($"deserialized as dd in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {dd}");
+            
+            Assert.AreEqual(codeGen.ToString(), codeGenR.ToString());
+            Assert.AreEqual(d.ToString(), dd.ToString());
+            Assert.AreEqual(codeGen.ToString(), dd.ToString());
+        }
+
+        [Test]
+        public void TestComplexClass()
         {
             ComplexData data = new ComplexData();
             data.a = new int[3][];
-            data.a[0] = new int[2] { 1, 2 };
-            data.a[1] = new int[2] { 10, 20 };
-            data.a[2] = new int[2] { 100, 200 };
+            data.a[0] = new[] { 1, 2 };
+            data.a[1] = new[] { 10, 20 };
+            data.a[2] = new[] { 100, 200 };
             data.b = new List<int[]>()
             {
-                new int[] { 3, 5 },
-                new int[] { 7, 9 },
+                new[] { 3, 5 },
+                new[] { 7, 9 },
             };
-            data.c = new List<int>[]
+            data.c = new[]
             {
                 new List<int>() { 10, 11, 12 },
                 new List<int>() { 13, 14, 15 },
@@ -39,7 +133,7 @@ namespace Nino.Test.Editor.Serialization
                     }
                 }
             };
-            data.e = new Dictionary<string, Dictionary<string, int[][]>>[]
+            data.e = new[]
             {
                 new Dictionary<string, Dictionary<string, int[][]>>()
                 {
@@ -76,9 +170,9 @@ namespace Nino.Test.Editor.Serialization
                     }
                 }
             };
-            data.f = new Data[][]
+            data.f = new[]
             {
-                new Data[]
+                new[]
                 {
                     new Data()
                     {
@@ -103,7 +197,7 @@ namespace Nino.Test.Editor.Serialization
                         en = TestEnum.A,
                     }
                 },
-                new Data[]
+                new[]
                 {
                     new Data()
                     {
@@ -131,7 +225,7 @@ namespace Nino.Test.Editor.Serialization
             };
             data.g = new List<Data[]>()
             {
-                new Data[]
+                new[]
                 {
                     new Data()
                     {
@@ -156,7 +250,7 @@ namespace Nino.Test.Editor.Serialization
                         en = TestEnum.A,
                     }
                 },
-                new Data[]
+                new[]
                 {
                     new Data()
                     {
@@ -182,16 +276,16 @@ namespace Nino.Test.Editor.Serialization
                     }
                 },
             };
-            data.h = new Data[][][]
+            data.h = new[]
             {
                 data.f,
                 data.f
             };
-            data.i = new List<Data>[]
+            data.i = new[]
             {
                 new List<Data>()
                 {
-                    new Data()
+                    new()
                     {
                         x = short.MaxValue,
                         y = byte.MaxValue,
@@ -205,7 +299,7 @@ namespace Nino.Test.Editor.Serialization
                 },
                 new List<Data>()
                 {
-                    new Data()
+                    new()
                     {
                         x = short.MaxValue,
                         y = byte.MaxValue,
@@ -218,17 +312,18 @@ namespace Nino.Test.Editor.Serialization
                     }
                 }
             };
-            data.j = new List<Data[]>[]
+            data.j = new[]
             {
                 data.g,
                 data.g,
             };
-            Logger.D(data);
+            Debug.Log(data);
             var buf = Serializer.Serialize(data);
-            Logger.D($"Serialized data: {buf.Length} bytes, {string.Join(",",buf)}");
+            Debug.Log($"Serialized data: {buf.Length} bytes, {string.Join(",",buf)}");
             Deserializer.Deserialize(buf, out ComplexData result);
-            Logger.D($"Deserialized as: {result}");
+            Debug.Log($"Deserialized as: {result}");
+            
+            Assert.AreEqual(data.ToString(), result.ToString());
         }
     }
 }
-// ReSharper restore RedundantTypeArgumentsOfMethod

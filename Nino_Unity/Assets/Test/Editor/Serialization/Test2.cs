@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Text;
 using System.Diagnostics;
@@ -124,6 +125,8 @@ namespace Nino.Test.Editor.Serialization
             Logger.D("Serialization Test", $"time diff (nino - BinaryFormatter): {tm - sw.ElapsedMilliseconds} ms");
             Logger.D("Serialization Test",
                 $"time diff pct => time/BinaryFormatter : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
+
+            GC.Collect();
 
             #endregion
         }

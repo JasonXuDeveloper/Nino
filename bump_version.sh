@@ -77,3 +77,24 @@ for PROJ in $PROJS; do
         sed -i "s/<Version>$OLD_VERSION<\/Version>/<Version>$NEW_VERSION<\/Version>/" $PROJ
     fi
 done
+
+# Bump the version number in Nino_Unity/Packages/com.jasonxudeveloper.nino/package.json
+PACKAGE_JSON="src/Nino_Unity/Packages/com.jasonxudeveloper.nino/package.json"
+
+# "version": "x.x.x",
+OLD_VERSION=$(sed -n 's/.*"version": "\([^"]*\)",.*/\1/p' $PACKAGE_JSON)
+
+if [ -z "$OLD_VERSION" ]; then
+    echo "Failed to find version in $PACKAGE_JSON"
+    exit 1
+fi
+
+echo "Bumping version number in $PACKAGE_JSON from $OLD_VERSION to $NEW_VERSION"
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS
+    sed -i "" "s/\"version\": \"$OLD_VERSION\",/\"version\": \"$NEW_VERSION\",/" $PACKAGE_JSON
+else
+    # Linux
+    sed -i "s/\"version\": \"$OLD_VERSION\",/\"version\": \"$NEW_VERSION\",/" $PACKAGE_JSON
+fi

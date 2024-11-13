@@ -4,6 +4,7 @@ using System.Text;
 using MongoDB.Bson.IO;
 using System.Diagnostics;
 using Test.Editor.NinoGen;
+
 using MongoDB.Bson.Serialization;
 
 
@@ -165,6 +166,8 @@ namespace Nino.Test.Editor.Serialization
             Logger.D("Deserialization Test",
                 $"time diff pct => time/MongoDB.Bson : {((tm - sw.ElapsedMilliseconds) * 100f / sw.ElapsedMilliseconds):F2}%");
 
+            GC.Collect();
+            
             #endregion
         }
     }

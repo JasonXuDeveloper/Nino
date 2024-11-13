@@ -45,6 +45,8 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
         (Compilation Compilation, ImmutableArray<TypeSyntax> Types) input)
     {
         var (compilation, types) = input;
+        if (!compilation.IsValidCompilation()) return;
+
         var typeSymbols = types.Select(t =>
             {
                 var model = compilation.GetSemanticModel(t.SyntaxTree);
@@ -310,7 +312,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
 
                      namespace {{curNamespace}}
                      {
-                         internal static partial class Deserializer
+                         public static partial class Deserializer
                          {
                      {{sb}}    }
                      }

@@ -45,6 +45,8 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
         (Compilation Compilation, ImmutableArray<TypeSyntax> Types) input)
     {
         var (compilation, types) = input;
+        if (!compilation.IsValidCompilation()) return;
+
         var typeSymbols = types.Select(t =>
             {
                 var model = compilation.GetSemanticModel(t.SyntaxTree);
@@ -262,7 +264,7 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
 
                      namespace {{curNamespace}}
                      {
-                         internal static partial class Serializer
+                         public static partial class Serializer
                          {
                      {{sb}}    }
                      }

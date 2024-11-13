@@ -186,7 +186,7 @@ namespace Nino.Test
 
     [Serializable]
     [ProtoContract]
-    [NinoType]
+    [NinoType(false)]
     [MessagePackObject]
     public class NotIncludeAllClass
     {

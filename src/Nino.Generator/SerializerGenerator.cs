@@ -5,7 +5,6 @@ using Microsoft.CodeAnalysis;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Nino.Generator;
 
@@ -22,6 +21,8 @@ public class SerializerGenerator : IIncrementalGenerator
     private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
         SourceProductionContext spc)
     {
+        if (!compilation.IsValidCompilation()) return;
+
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
         var (inheritanceMap,
             subTypeMap,
@@ -69,25 +70,16 @@ public class SerializerGenerator : IIncrementalGenerator
                     sb.AppendLine("                    return;");
                 }
 
-                void WriteMembers(List<CSharpSyntaxNode> members, string valName, ITypeSymbol ts)
+                void WriteMembers(List<NinoTypeHelper.NinoMember> members,
+                    string valName)
                 {
-                    foreach (var memberDeclarationSyntax in members)
+                    foreach (var (name, declaredType, attrs, _) in members)
                     {
-                        var name = memberDeclarationSyntax.GetMemberName();
-                        var declaredType = memberDeclarationSyntax.GetDeclaredTypeFullName(compilation, ts);
-                        if (declaredType == null)
-                            throw new Exception("declaredType is null");
-
                         //check if the typesymbol declaredType is string
                         if (declaredType.SpecialType == SpecialType.System_String)
                         {
                             //check if this member is annotated with [NinoUtf8]
-                            MemberDeclarationSyntax? node = memberDeclarationSyntax as MemberDeclarationSyntax;
-                            var attrList = node?.AttributeLists ??
-                                           ((ParameterSyntax)memberDeclarationSyntax).AttributeLists;
-                            var isUtf8 = attrList.Any(a => 
-                                a.Attributes.Any(attr => 
-                                    attr.Name.ToString() == "NinoUtf8"));
+                            var isUtf8 = attrs.Any(a => a.AttributeClass!.Name == "NinoUtf8Attribute");
 
                             sb.AppendLine(
                                 isUtf8
@@ -130,7 +122,7 @@ public class SerializerGenerator : IIncrementalGenerator
                             var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
                             //get distinct members
                             members = members.Distinct().ToList();
-                            WriteMembers(members, valName, subTypeSymbol);
+                            WriteMembers(members, valName);
                             sb.AppendLine("                    return;");
                         }
                     }
@@ -150,7 +142,7 @@ public class SerializerGenerator : IIncrementalGenerator
                         ninoSymbols.Where(m => inheritanceMap[typeFullName]
                             .Contains(m.GetTypeFullName())).ToList();
                     var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
-                    WriteMembers(defaultMembers, "value", typeSymbol);
+                    WriteMembers(defaultMembers, "value");
 
                     if (isReferenceType)
                     {
@@ -196,7 +188,7 @@ public class SerializerGenerator : IIncrementalGenerator
 
                      namespace {{curNamespace}}
                      {
-                         internal static partial class Serializer
+                         public static partial class Serializer
                          {
                              private static readonly ConcurrentQueue<ArrayBufferWriter<byte>> BufferWriters =
                                  new ConcurrentQueue<ArrayBufferWriter<byte>>();
@@ -301,7 +293,7 @@ public class SerializerGenerator : IIncrementalGenerator
                              }
 
                      {{GeneratePrivateSerializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GeneratePrivateSerializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateSerializeImplMethodBody("T?[]", "        ", "<T>", "where T : unmanaged")}}

@@ -1,0 +1,22 @@
+{
+    "name": "com.jasonxudeveloper.nino",
+    "version": "3.0.0",
+    "displayName": "Nino",
+    "description": "Definite useful and high performance serialization library for any C# projects, including but not limited to .NET Core apps or Unity/Godot games.",
+    "unity": "2022.3",
+    "documentationUrl": "https://nino.xgamedev.net/en/",
+    "repoUrl": "https://github.com/JasonXuDeveloper/Nino",
+    "changelogUrl": "https://github.com/JasonXuDeveloper/Nino/releases",
+    "license": "MIT",
+    "licensesUrl": "https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE",
+    "keywords": [
+        "Nino",
+        "Serialization",
+        "Binary"
+    ],
+    "author": {
+        "name": "Jason Xu",
+        "email": "jasonxudeveloper@gmail.com",
+        "url": "https://github.com/JasonXuDeveloper"
+    }
+}

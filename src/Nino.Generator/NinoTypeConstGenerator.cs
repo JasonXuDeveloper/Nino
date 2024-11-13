@@ -19,6 +19,8 @@ public class NinoTypeConstGenerator : IIncrementalGenerator
     private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
         SourceProductionContext spc)
     {
+        if (!compilation.IsValidCompilation()) return;
+
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
 
         // get type full names from models (namespaces + type names)
@@ -33,6 +35,7 @@ public class NinoTypeConstGenerator : IIncrementalGenerator
             types.AppendLine($"\t\t// {type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}");
             types.AppendLine($"\t\tpublic const int {variableName} = {type.GetId()};");
         }
+
         //remove last newline
         types.Remove(types.Length - 1, 1);
 
