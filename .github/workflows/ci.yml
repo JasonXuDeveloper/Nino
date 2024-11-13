@@ -152,8 +152,8 @@ jobs:
       # to src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime, replacing the existing DLLs
       - name: Copy DLLs
         run: |
-          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Core.dll .src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime
-          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll .src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime
+          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Core.dll .src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll .src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
 
       # Commit the changes (only the 2 dlls)
       - name: Commit Changes
