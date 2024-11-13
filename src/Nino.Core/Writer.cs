@@ -92,10 +92,17 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(List<T> value) where T : unmanaged
         {
+            if (value == null)
+            {
+                Write(TypeCollector.NullCollection);
+                return;
+            }
+            
 #if NET6_0_OR_GREATER
             Write(CollectionsMarshal.AsSpan(value));
 #else
-            Write((ICollection<T>)value);
+            ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref value);
+            Write(lst._items);
 #endif
         }
 

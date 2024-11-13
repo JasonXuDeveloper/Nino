@@ -272,7 +272,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
             if (type is INamedTypeSymbol { TypeArguments.Length: 1 } s)
             {
                 var elemType = s.TypeArguments[0].ToDisplayString();
-                if (addedElemType.Add(elemType))
+                if (addedElemType.Add(elemType) && !s.TypeArguments[0].IsUnmanagedType)
                     sb.AppendLine(GenerateArraySerialization(s.TypeArguments[0].GetDeserializePrefix(),
                         elemType,
                         "        "));
