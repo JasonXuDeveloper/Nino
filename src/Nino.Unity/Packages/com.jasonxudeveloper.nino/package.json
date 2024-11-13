@@ -1,6 +1,6 @@
 {
     "name": "com.jasonxudeveloper.nino",
-    "version": "3.0.0",
+    "version": "3.0.1",
     "displayName": "Nino",
     "description": "Definite useful and high performance serialization library for any C# projects, including but not limited to .NET Core apps or Unity/Godot games.",
     "unity": "2022.3",
