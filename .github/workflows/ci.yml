@@ -55,7 +55,7 @@ jobs:
         with:
           projectPath: ./Nino.Unity
           githubToken: ${{ secrets.GITHUB_TOKEN }}
-          unityVersion: '2022.3.52f1'
+          # unityVersion: '2022.3.52f1'
 
   bump-version:
     runs-on: ubuntu-latest
