@@ -79,7 +79,7 @@ for PROJ in $PROJS; do
 done
 
 # Bump the version number in Nino_Unity/Packages/com.jasonxudeveloper.nino/package.json
-PACKAGE_JSON="src/Nino_Unity/Packages/com.jasonxudeveloper.nino/package.json"
+PACKAGE_JSON="Nino_Unity/Packages/com.jasonxudeveloper.nino/package.json"
 
 # "version": "x.x.x",
 OLD_VERSION=$(sed -n 's/.*"version": "\([^"]*\)",.*/\1/p' $PACKAGE_JSON)
