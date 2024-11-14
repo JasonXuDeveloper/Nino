@@ -10,6 +10,8 @@
 
 [官网](https://nino.xgamedev.net/zh/)
 
+大概率是C#里最快速、最灵活的二进制序列化库。
+
 ## 功能列表
 
 - 支持**全部非托管**类型（`int`/`float`/`DateTime`/`Vector`/`Matrix`灯）
