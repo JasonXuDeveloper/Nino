@@ -2,7 +2,8 @@
 
 终极高性能C#二进制序列化库。
 
-![build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/.github/workflows/ci.yml?branch=main)![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
+![build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/.github/workflows/ci.yml?branch=main)
+![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
 [![nino.nuget](https://img.shields.io/nuget/v/Nino?label=Nino)](https://www.nuget.org/packages/Nino)
 [![openupm](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
 
