@@ -1,17 +1,16 @@
 # Nino
 
-Definite useful and high performance serialization library for any C# projects, including but not limited to .NET Core
-apps or Unity/Godot games.
+Ultimate high-performance binary serialization library for C#.
 
 ![build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/.github/workflows/ci.yml?branch=main)![license](https://img.shields.io/github/license/JasonXuDeveloper/Nino)
+[![nino.nuget](https://img.shields.io/nuget/v/Nino?label=Nino)](https://www.nuget.org/packages/Nino)
+[![openupm](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?label=openupm&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
 
 [Official Website](https://nino.xgamedev.net/en/)
 
 Plausibly the fastest and most flexible binary serialization library for C# projects.
 
 ## Features
-
-[![nino.nuget](https://img.shields.io/nuget/v/Nino?label=Nino)](https://www.nuget.org/packages/Nino)
 
 - Support all **unmanaged types** (`int`/`float`/`DateTime`/`Vector`/`Matrix`, etc)
 
