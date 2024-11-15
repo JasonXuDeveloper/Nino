@@ -30,7 +30,7 @@ public static class NinoTypeHelper
 
         //we also want unmanaged type
         if (ts.IsUnmanagedType) return true;
-        
+
         //we also want array of what we want
         if (ts is IArrayTypeSymbol arrayTypeSymbol)
         {
@@ -751,7 +751,7 @@ public static class NinoTypeHelper
         {
             var attrList = symbol.GetAttributes();
             //if has ninoignore attribute, ignore this member
-            if (attrList.Any(a => a.AttributeClass?.Name == "NinoIgnoreAttribute"))
+            if (attrList.Any(a => a.AttributeClass?.Name.EndsWith("NinoIgnoreAttribute") ?? false))
             {
                 continue;
             }
@@ -786,7 +786,7 @@ public static class NinoTypeHelper
             }
 
             //get nino member attribute's first argument on this member
-            var arg = attrList.FirstOrDefault(a => a.AttributeClass?.Name == "NinoMemberAttribute")?
+            var arg = attrList.FirstOrDefault(a => a.AttributeClass?.Name.EndsWith("NinoMemberAttribute") ?? false)?
                 .ConstructorArguments.FirstOrDefault();
             if (arg == null)
             {
