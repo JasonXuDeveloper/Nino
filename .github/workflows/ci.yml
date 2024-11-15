@@ -34,18 +34,17 @@ jobs:
       
       # Build the solution
       - name: Build solution
-        run: dotnet build --configuration Release
+        run: dotnet build
+
+      # Copy DLLs for Unity Unit Test
+      - name: Copy DLLs
+        run: |
+          cp ./Nino/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          cp ./Nino/bin/Debug/netstandard2.0/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
       
       # Run unit tests
       - name: Test
         run: dotnet test --no-build --verbosity normal
-
-      # Copy src/Nino/bin/Release/netstandard2.1/Nino.Core.dll and src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll
-      # to src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime, replacing the existing DLLs
-      - name: Copy DLLs
-        run: |
-          cp ./Nino/bin/Release/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
-          cp ./Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
         
       # Cache Unity Project
       - uses: actions/cache@v3
