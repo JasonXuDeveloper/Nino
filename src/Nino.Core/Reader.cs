@@ -32,6 +32,10 @@ namespace Nino.Core
 
             //if value is 0 or sign bit is not set, then it's a null collection
             Read(out uint value);
+#if BIGENDIAN
+            length = (int)(value & 0x7FFFFFFF);
+            return true;
+#else
 #if NET5_0_OR_GREATER
             value = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(value);
 #else
@@ -40,6 +44,7 @@ namespace Nino.Core
 #endif
             length = (int)(value & 0x7FFFFFFF);
             return true;
+#endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

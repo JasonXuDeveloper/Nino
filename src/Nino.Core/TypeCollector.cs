@@ -15,11 +15,15 @@ namespace Nino.Core
         {
             // set sign bit to 1 - indicates that this is a collection and not null
             uint ret = (uint)size | 0x80000000;
+#if BIGENDIAN
+            return ret;
+#else
             //to big endian
 #if NET5_0_OR_GREATER
             return System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(ret);
 #else
             return (ret << 24) | (ret >> 24) | ((ret & 0x0000FF00) << 8) | ((ret & 0x00FF0000) >> 8);
+#endif
 #endif
         }
 
