@@ -49,7 +49,7 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: ./src/Nino.Unity/Library
-          key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          key: Library-${{ hashFiles('Assets/**', 'ProjectSettings/**') }}
           restore-keys: |
             Library-
 
