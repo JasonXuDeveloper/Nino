@@ -19,9 +19,19 @@ namespace Nino.UnitTests
                 B = DateTime.Today,
                 C = Guid.NewGuid()
             };
-            byte[] bytes = a.Serialize();
+            //polymorphism serialization and real type deserialization
+            byte[] bytes = ((ISerializable)a).Serialize();
+            Deserializer.Deserialize(bytes, out Struct1 i11);
+            Assert.AreEqual(a, i11);
             
-            Deserializer.Deserialize(bytes, out Struct1 result);
+            //real type serialization and deserialization with polymorphism
+            bytes = a.Serialize();
+            Deserializer.Deserialize(bytes, out ISerializable i1);
+            
+            Assert.AreEqual(i1, i11);
+            
+            Assert.IsInstanceOfType(i1, typeof(Struct1));
+            var result = (Struct1)i1;
             Assert.AreEqual(a.A, result.A);
             
             Class1 b = new Class1
@@ -33,7 +43,9 @@ namespace Nino.UnitTests
             };
             
             bytes = b.Serialize();
-            Deserializer.Deserialize(bytes, out Class1 result2);
+            Deserializer.Deserialize(bytes, out ISerializable i2);
+            Assert.IsInstanceOfType(i2, typeof(Class1));
+            var result2 = (Class1)i2;
             Assert.AreEqual(b.A, result2.A);
             Assert.AreEqual(b.B, result2.B);
             Assert.AreEqual(b.C, result2.C);
@@ -48,7 +60,9 @@ namespace Nino.UnitTests
             };
             
             bytes = c.Serialize();
-            Deserializer.Deserialize(bytes, out Struct2 result3);
+            Deserializer.Deserialize(bytes, out ISerializable i3);
+            Assert.IsInstanceOfType(i3, typeof(Struct2));
+            var result3 = (Struct2)i3;
             
             Assert.AreEqual(c.A, result3.A);
             Assert.AreEqual(c.B, result3.B);

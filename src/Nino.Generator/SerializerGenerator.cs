@@ -48,9 +48,10 @@ public class SerializerGenerator : IIncrementalGenerator
             try
             {
                 string typeFullName = typeSymbol.GetTypeFullName();
+                bool isPolymorphicType = typeSymbol.IsPolymorphicType();
 
                 // check if struct is unmanaged
-                if (typeSymbol.IsUnmanagedType)
+                if (typeSymbol.IsUnmanagedType && !isPolymorphicType)
                 {
                     continue;
                 }
@@ -61,8 +62,6 @@ public class SerializerGenerator : IIncrementalGenerator
                 sb.AppendLine(
                     $"        public static void Serialize(this {typeFullName} value, ref Writer writer)");
                 sb.AppendLine("        {");
-                // only applicable for reference types
-                bool isPolymorphicType = typeSymbol.IsPolymorphicType();
                 if (isPolymorphicType && typeSymbol.IsReferenceType)
                 {
                     sb.AppendLine("            switch (value)");
@@ -151,11 +150,18 @@ public class SerializerGenerator : IIncrementalGenerator
                     }
 
 
-                    List<ITypeSymbol> parentTypeSymbols =
-                        ninoSymbols.Where(m => inheritanceMap[typeFullName]
-                            .Contains(m.GetTypeFullName())).ToList();
-                    var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
-                    WriteMembers(defaultMembers, "value");
+                    if (typeSymbol.IsUnmanagedType)
+                    {
+                        sb.AppendLine("                    writer.Write(value);");
+                    }
+                    else
+                    {
+                        List<ITypeSymbol> parentTypeSymbols =
+                            ninoSymbols.Where(m => inheritanceMap[typeFullName]
+                                .Contains(m.GetTypeFullName())).ToList();
+                        var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
+                        WriteMembers(defaultMembers, "value");
+                    }
 
                     if (isPolymorphicType && typeSymbol.IsReferenceType)
                     {

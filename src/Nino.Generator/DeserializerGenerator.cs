@@ -124,8 +124,10 @@ public class DeserializerGenerator : IIncrementalGenerator
         Dictionary<string, List<string>> inheritanceMap,
         Dictionary<string, List<string>> subTypeMap, List<ITypeSymbol> ninoSymbols)
     {
+        bool isPolymorphicType = typeSymbol.IsPolymorphicType();
+
         // check if struct is unmanaged
-        if (typeSymbol.IsUnmanagedType)
+        if (typeSymbol.IsUnmanagedType && !isPolymorphicType)
         {
             return;
         }
@@ -296,8 +298,6 @@ public class DeserializerGenerator : IIncrementalGenerator
             return bCount.CompareTo(aCount);
         });
 
-        // only applicable for reference types
-        bool isPolymorphicType = typeSymbol.IsPolymorphicType();
         if (isPolymorphicType)
         {
             sb.AppendLine("            switch (typeId)");
@@ -355,12 +355,19 @@ public class DeserializerGenerator : IIncrementalGenerator
                 sb.AppendLine("                {");
             }
 
-            List<ITypeSymbol> parentTypeSymbols =
-                ninoSymbols.Where(m => inheritanceMap[typeFullName]
-                    .Contains(m.GetTypeFullName())).ToList();
-            var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
-            string valName = "value";
-            CreateInstance(defaultMembers, typeSymbol, valName, typeFullName);
+            if(typeSymbol.IsUnmanagedType)
+            {
+                sb.AppendLine($"                    reader.Read(out value);");
+            }
+            else
+            {
+                List<ITypeSymbol> parentTypeSymbols =
+                    ninoSymbols.Where(m => inheritanceMap[typeFullName]
+                        .Contains(m.GetTypeFullName())).ToList();
+                var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
+                string valName = "value";
+                CreateInstance(defaultMembers, typeSymbol, valName, typeFullName);
+            }
 
             if (isPolymorphicType)
             {
