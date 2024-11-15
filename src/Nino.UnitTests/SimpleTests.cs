@@ -4,11 +4,61 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.UnitTests.NinoGen;
 
+#nullable disable
 namespace Nino.UnitTests
 {
     [TestClass]
     public class SimpleTests
     {
+        [TestMethod]
+        public void TestInterfaceVariants()
+        {
+            Struct1 a = new Struct1
+            {
+                A = 1,
+                B = DateTime.Today,
+                C = Guid.NewGuid()
+            };
+            byte[] bytes = a.Serialize();
+            
+            Deserializer.Deserialize(bytes, out Struct1 result);
+            Assert.AreEqual(a.A, result.A);
+            
+            Class1 b = new Class1
+            {
+                A = 1,
+                B = DateTime.Today,
+                C = Guid.NewGuid(),
+                D = a
+            };
+            
+            bytes = b.Serialize();
+            Deserializer.Deserialize(bytes, out Class1 result2);
+            Assert.AreEqual(b.A, result2.A);
+            Assert.AreEqual(b.B, result2.B);
+            Assert.AreEqual(b.C, result2.C);
+            Assert.AreEqual((Struct1)b.D, (Struct1)result2.D);
+            
+            Struct2 c = new Struct2
+            {
+                A = 1,
+                B = DateTime.Today,
+                C = "Test",
+                D = b
+            };
+            
+            bytes = c.Serialize();
+            Deserializer.Deserialize(bytes, out Struct2 result3);
+            
+            Assert.AreEqual(c.A, result3.A);
+            Assert.AreEqual(c.B, result3.B);
+            Assert.AreEqual(c.C, result3.C);
+            Assert.AreEqual(c.D.A, result3.D.A);
+            Assert.AreEqual(c.D.B, result3.D.B);
+            Assert.AreEqual(c.D.C, result3.D.C);
+            Assert.AreEqual(((Struct1)c.D.D).A, ((Struct1)result3.D.D).A);
+        }
+        
         [TestMethod]
         public void TestString()
         {

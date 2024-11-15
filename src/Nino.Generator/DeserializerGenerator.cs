@@ -21,7 +21,9 @@ public class DeserializerGenerator : IIncrementalGenerator
     private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
         SourceProductionContext spc)
     {
-        if (!compilation.IsValidCompilation()) return;
+        var result = compilation.IsValidCompilation();
+        if (!result.isValid) return;
+        compilation = result.newCompilation;
 
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
         var (inheritanceMap,
@@ -118,7 +120,8 @@ public class DeserializerGenerator : IIncrementalGenerator
         spc.AddSource("NinoDeserializerExtension.g.cs", code);
     }
 
-    private static void GenerateDeserializeImplementation(ITypeSymbol typeSymbol, string typeFullName, StringBuilder sb, Dictionary<string, List<string>> inheritanceMap,
+    private static void GenerateDeserializeImplementation(ITypeSymbol typeSymbol, string typeFullName, StringBuilder sb,
+        Dictionary<string, List<string>> inheritanceMap,
         Dictionary<string, List<string>> subTypeMap, List<ITypeSymbol> ninoSymbols)
     {
         // check if struct is unmanaged
@@ -143,7 +146,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                                      
                         """);
 
-        if (!typeSymbol.IsValueType)
+        if (typeSymbol.IsPolymorphicType())
         {
             sb.AppendLine("            reader.Read(out int typeId);");
             sb.AppendLine();
@@ -294,16 +297,19 @@ public class DeserializerGenerator : IIncrementalGenerator
         });
 
         // only applicable for reference types
-        bool isReferenceType = typeSymbol.IsReferenceType();
-        if (isReferenceType)
+        bool isPolymorphicType = typeSymbol.IsPolymorphicType();
+        if (isPolymorphicType)
         {
             sb.AppendLine("            switch (typeId)");
             sb.AppendLine("            {");
-            sb.AppendLine("""
-                                          case TypeCollector.Null:
-                                              value = null;
-                                              return;
-                          """);
+            if (typeSymbol.IsReferenceType)
+            {
+                sb.AppendLine("""
+                                              case TypeCollector.Null:
+                                                  value = null;
+                                                  return;
+                              """);
+            }
         }
 
         foreach (var subType in lst)
@@ -316,19 +322,24 @@ public class DeserializerGenerator : IIncrementalGenerator
                 sb.AppendLine(
                     $"                case NinoTypeConst.{subTypeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
-
-                //get members
-                List<ITypeSymbol> subTypeParentSymbols =
-                    ninoSymbols.Where(m => inheritanceMap[subType]
-                        .Contains(m.GetTypeFullName())).ToList();
-
-                var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
-                //get distinct members
-                members = members.Distinct().ToList();
-
                 sb.AppendLine($"                    {subType} {valName};");
 
-                CreateInstance(members, subTypeSymbol, valName, subType);
+                if (subTypeSymbol.IsUnmanagedType)
+                {
+                    sb.AppendLine($"                    reader.Read(out {valName});");
+                }
+                else
+                {
+                    //get members
+                    List<ITypeSymbol> subTypeParentSymbols =
+                        ninoSymbols.Where(m => inheritanceMap[subType]
+                            .Contains(m.GetTypeFullName())).ToList();
+
+                    var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
+                    //get distinct members
+                    members = members.Distinct().ToList();
+                    CreateInstance(members, subTypeSymbol, valName, subType);
+                }
 
                 sb.AppendLine($"                    value = {valName};");
                 sb.AppendLine("                    return;");
@@ -338,7 +349,7 @@ public class DeserializerGenerator : IIncrementalGenerator
 
         if (typeSymbol.IsInstanceType())
         {
-            if (isReferenceType)
+            if (isPolymorphicType)
             {
                 sb.AppendLine($"                case NinoTypeConst.{typeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
@@ -351,14 +362,14 @@ public class DeserializerGenerator : IIncrementalGenerator
             string valName = "value";
             CreateInstance(defaultMembers, typeSymbol, valName, typeFullName);
 
-            if (isReferenceType)
+            if (isPolymorphicType)
             {
                 sb.AppendLine("                    return;");
                 sb.AppendLine("                }");
             }
         }
 
-        if (isReferenceType)
+        if (isPolymorphicType)
         {
             sb.AppendLine("                default:");
             sb.AppendLine(

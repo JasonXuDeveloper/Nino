@@ -45,7 +45,9 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
         (Compilation Compilation, ImmutableArray<TypeSyntax> Types) input)
     {
         var (compilation, types) = input;
-        if (!compilation.IsValidCompilation()) return;
+        var result = compilation.IsValidCompilation();
+        if (!result.isValid) return;
+        compilation = result.newCompilation;
 
         var typeSymbols = types.Select(t =>
             {
@@ -60,63 +62,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
             .Select(s => s!)
             .Distinct(SymbolEqualityComparer.Default)
             .Select(s => (ITypeSymbol)s!)
-            .Where(symbol =>
-            {
-                bool IsSerializableType(ITypeSymbol ts)
-                {
-                    //we dont want void
-                    if (ts.SpecialType == SpecialType.System_Void) return false;
-                    //we accept string
-                    if (ts.SpecialType == SpecialType.System_String) return true;
-                    //we want nino type
-                    if (ts.IsNinoType()) return true;
-
-                    //we also want unmanaged type
-                    if (ts.IsUnmanagedType) return true;
-
-                    //we also want KeyValuePair
-                    if (ts.OriginalDefinition.ToDisplayString() ==
-                        "System.Collections.Generic.KeyValuePair<TKey, TValue>")
-                    {
-                        if (ts is INamedTypeSymbol { TypeArguments.Length: 2 } namedTypeSymbol)
-                        {
-                            return IsSerializableType(namedTypeSymbol.TypeArguments[0]) &&
-                                   IsSerializableType(namedTypeSymbol.TypeArguments[1]);
-                        }
-                    }
-
-                    //if ts implements IList and type parameter is what we want
-                    var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                        namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
-                    if (i != null)
-                        return IsSerializableType(i.TypeArguments[0]);
-
-                    //if ts is Span of what we want
-                    if (ts.OriginalDefinition.ToDisplayString() == "System.Span<T>")
-                    {
-                        if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-                        {
-                            return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
-                        }
-                    }
-
-                    //if ts is nullable of what we want
-                    if (ts.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
-                    {
-                        //get type parameter
-                        // Get the type argument of Nullable<T>
-                        if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-                        {
-                            return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
-                        }
-                    }
-
-                    //otherwise, we dont want it
-                    return false;
-                }
-
-                return IsSerializableType(symbol);
-            })
+            .Where(symbol => symbol.IsSerializableType())
             .ToList();
         //for typeSymbols implements ICollection<KeyValuePair<T1, T2>>, add type KeyValuePair<T1, T2> to typeSymbols
         var kvps = typeSymbols.Select(ts =>
@@ -125,7 +71,7 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
                 namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
             if (i != null)
             {
-                return i.TypeArguments[0];
+                return i.TypeArguments[0].IsSerializableType() ? i.TypeArguments[0] : null;
             }
 
             return null;

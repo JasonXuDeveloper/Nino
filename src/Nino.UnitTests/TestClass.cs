@@ -3,8 +3,40 @@ using System.Collections;
 using System.Collections.Generic;
 using Nino.Core;
 
+#nullable disable
 namespace Nino.UnitTests
 {
+    [NinoType]
+    public interface ISerializable
+    {
+    }
+
+    [NinoType]
+    public struct Struct1 : ISerializable
+    {
+        public int A;
+        public DateTime B;
+        public Guid C;
+    }
+
+    [NinoType]
+    public class Class1 : ISerializable
+    {
+        public int A;
+        public DateTime B;
+        public Guid C;
+        public ISerializable D;
+    }
+
+    [NinoType]
+    public struct Struct2 : ISerializable
+    {
+        public int A;
+        public DateTime B;
+        public string C;
+        public Class1 D;
+    }
+
     [NinoType]
     public class StringData
     {

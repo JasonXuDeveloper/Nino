@@ -18,13 +18,89 @@ public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
-    public static bool IsValidCompilation(this Compilation compilation)
+    public static bool IsSerializableType(this ITypeSymbol ts)
+    {
+        ts = ts.GetPureType();
+        //we dont want void
+        if (ts.SpecialType == SpecialType.System_Void) return false;
+        //we accept string
+        if (ts.SpecialType == SpecialType.System_String) return true;
+        //we want nino type
+        if (ts.IsNinoType()) return true;
+
+        //we also want unmanaged type
+        if (ts.IsUnmanagedType) return true;
+        
+        //we also want array of what we want
+        if (ts is IArrayTypeSymbol arrayTypeSymbol)
+        {
+            return IsSerializableType(arrayTypeSymbol.ElementType);
+        }
+
+        //we also want KeyValuePair
+        if (ts.OriginalDefinition.ToDisplayString() ==
+            "System.Collections.Generic.KeyValuePair<TKey, TValue>")
+        {
+            if (ts is INamedTypeSymbol { TypeArguments.Length: 2 } namedTypeSymbol)
+            {
+                return IsSerializableType(namedTypeSymbol.TypeArguments[0]) &&
+                       IsSerializableType(namedTypeSymbol.TypeArguments[1]);
+            }
+        }
+
+        //if ts implements IList and type parameter is what we want
+        var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
+            namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
+        if (i != null)
+            return IsSerializableType(i.TypeArguments[0]);
+
+        //if ts is Span of what we want
+        if (ts.OriginalDefinition.ToDisplayString() == "System.Span<T>")
+        {
+            if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
+            {
+                return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
+            }
+        }
+
+        //if ts is nullable of what we want
+        if (ts.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+        {
+            //get type parameter
+            // Get the type argument of Nullable<T>
+            if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
+            {
+                //we dont want nullable reference type
+                return namedTypeSymbol.TypeArguments[0].IsValueType &&
+                       IsSerializableType(namedTypeSymbol.TypeArguments[0]);
+            }
+        }
+
+        //otherwise, we dont want it
+        return false;
+    }
+
+    public static (bool isValid, Compilation newCompilation) IsValidCompilation(this Compilation compilation)
     {
         //make sure the compilation contains the Nino.Core assembly
         if (!compilation.ReferencedAssemblyNames.Any(static a => a.Name == "Nino.Core"))
         {
-            return false;
+            return (false, compilation);
         }
+
+        //disable nullable reference types
+        Compilation newCompilation = compilation;
+        // Cast to CSharpCompilation to access the C#-specific options
+        if (compilation is CSharpCompilation csharpCompilation)
+        {
+            // Create a new CSharpCompilationOptions with nullable warnings disabled
+            var newOptions = csharpCompilation.Options.WithNullableContextOptions(NullableContextOptions.Disable);
+
+            // Return a new compilation with the updated options
+            newCompilation = csharpCompilation.WithOptions(newOptions);
+        }
+
+        compilation = newCompilation;
 
         //make sure the compilation indeed uses Nino.Core
         foreach (var syntaxTree in compilation.SyntaxTrees)
@@ -32,23 +108,23 @@ public static class NinoTypeHelper
             var root = syntaxTree.GetRoot();
             var usingDirectives = root.DescendantNodes()
                 .OfType<UsingDirectiveSyntax>()
-                .Where(usingDirective => usingDirective.Name.ToString() == "Nino.Core");
+                .Where(usingDirective => usingDirective.Name.ToString().Contains("Nino.Core"));
 
             if (usingDirectives.Any())
             {
-                return true; // Namespace is used in a using directive
+                return (true, newCompilation); // Namespace is used in a using directive
             }
         }
 
         //or if any member has NinoTypeAttribute/NinoMemberAttribute/NinoIgnoreAttribute/NinoConstructorAttribute/NinoUtf8Attribute
-        return compilation.SyntaxTrees
+        return (compilation.SyntaxTrees
             .SelectMany(static s => s.GetRoot().DescendantNodes())
             .Any(static s => s is AttributeSyntax attributeSyntax &&
-                             (attributeSyntax.Name.ToString() == "NinoType" ||
-                              attributeSyntax.Name.ToString() == "NinoMember" ||
-                              attributeSyntax.Name.ToString() == "NinoIgnore" ||
-                              attributeSyntax.Name.ToString() == "NinoConstructor" ||
-                              attributeSyntax.Name.ToString() == "NinoUtf8"));
+                             (attributeSyntax.Name.ToString().EndsWith("NinoType") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoMember") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoIgnore") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoConstructor") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoUtf8"))), newCompilation);
     }
 
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
@@ -98,6 +174,7 @@ public static class NinoTypeHelper
                           (symbol.TypeArguments.Length ==
                            symbol.TypeParameters.Length &&
                            symbol.TypeArguments.All(t => t is INamedTypeSymbol)))))
+            .Select(s => s.GetPureType())
             .ToList();
     }
 
@@ -141,6 +218,7 @@ public static class NinoTypeHelper
             .Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
             .Select(s => (ITypeSymbol)s!)
+            .Select(s => s.GetPureType())
             .ToList();
         foreach (var typeSymbol in ret.ToList())
         {
@@ -265,49 +343,31 @@ public static class NinoTypeHelper
         return null;
     }
 
-    public static ITypeSymbol ReplaceTypeParameters(this ITypeSymbol declaredType, ITypeSymbol symbol)
+    public static ITypeSymbol GetPureType(this ITypeSymbol typeSymbol)
     {
-        //if declaredType is type parameter, get the type from the symbol
-        if (declaredType.TypeKind == TypeKind.TypeParameter)
-        {
-            INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
-            int typeParamIndex = namedTypeSymbol.TypeParameters.ToList()
-                .FindIndex(p => p.Name == declaredType.Name);
-            if (typeParamIndex == -1)
-                throw new Exception("typeParamIndex is -1");
-            declaredType = namedTypeSymbol.TypeArguments[typeParamIndex];
-            declaredType = declaredType.ReplaceTypeParameters(symbol);
-        }
-        //if declaredType is a generic type, that uses a type parameter, substitute it with the actual type argument
-        else if (declaredType is INamedTypeSymbol namedTypeSymbol)
-        {
-            // If declaredType is a generic type, replace its type arguments recursively
-            if (namedTypeSymbol.IsGenericType)
-            {
-                // Replace type parameters within each generic argument
-                var newArguments = namedTypeSymbol.TypeArguments.Select(arg =>
-                        arg.ReplaceTypeParameters(symbol) // Recursive call for nested replacements
-                ).ToArray();
-
-                // Only construct if replacements were made
-                if (!newArguments.SequenceEqual(namedTypeSymbol.TypeArguments, SymbolEqualityComparer.Default))
-                {
-                    return namedTypeSymbol.ConstructedFrom.Construct(newArguments);
-                }
-            }
-        }
-
-        return declaredType;
+        return typeSymbol.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
     }
-
 
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
-        return typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
+        return typeSymbol.IsUnmanagedType ||
+               typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
     }
 
-    public static bool IsReferenceType(this ITypeSymbol typeDecl)
+    public static bool IsPolymorphicType(this ITypeSymbol typeDecl)
     {
+        var baseType = typeDecl.BaseType;
+        while (baseType != null)
+        {
+            if (baseType.IsNinoType())
+                return true;
+            baseType = baseType.BaseType;
+        }
+
+        var interfaces = typeDecl.Interfaces;
+        if (interfaces.Any(i => i.IsNinoType()))
+            return true;
+
         return typeDecl.IsReferenceType || typeDecl is { IsRecord: true, IsValueType: false } ||
                typeDecl.TypeKind == TypeKind.Interface;
     }
@@ -676,7 +736,7 @@ public static class NinoTypeHelper
                         break;
                     }
                 }
-                
+
                 primaryConstructorParams.AddRange(constructor.Parameters);
                 break;
             }
@@ -714,6 +774,9 @@ public static class NinoTypeHelper
             {
                 continue;
             }
+
+            //nullability check
+            memberType = memberType.GetPureType();
 
             if (autoCollect)
             {

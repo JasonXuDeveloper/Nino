@@ -21,7 +21,9 @@ public class SerializerGenerator : IIncrementalGenerator
     private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
         SourceProductionContext spc)
     {
-        if (!compilation.IsValidCompilation()) return;
+        var result = compilation.IsValidCompilation();
+        if (!result.isValid) return;
+        compilation = result.newCompilation;
 
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
         var (inheritanceMap,
@@ -60,8 +62,8 @@ public class SerializerGenerator : IIncrementalGenerator
                     $"        public static void Serialize(this {typeFullName} value, ref Writer writer)");
                 sb.AppendLine("        {");
                 // only applicable for reference types
-                bool isReferenceType = typeSymbol.IsReferenceType();
-                if (isReferenceType)
+                bool isPolymorphicType = typeSymbol.IsPolymorphicType();
+                if (isPolymorphicType && typeSymbol.IsReferenceType)
                 {
                     sb.AppendLine("            switch (value)");
                     sb.AppendLine("            {");
@@ -113,16 +115,23 @@ public class SerializerGenerator : IIncrementalGenerator
                             sb.AppendLine($"                case {subType} {valName}:");
                             sb.AppendLine(
                                 $"                    writer.Write(NinoTypeConst.{subTypeSymbol.GetTypeFullName().GetTypeConstName()});");
+                            if (subTypeSymbol.IsUnmanagedType)
+                            {
+                                sb.AppendLine(
+                                    $"                    writer.Write({valName});");
+                            }
+                            else
+                            {
+                                List<ITypeSymbol> subTypeParentSymbols =
+                                    ninoSymbols.Where(m => inheritanceMap[subType]
+                                        .Contains(m.GetTypeFullName())).ToList();
 
+                                var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
+                                //get distinct members
+                                members = members.Distinct().ToList();
+                                WriteMembers(members, valName);
+                            }
 
-                            List<ITypeSymbol> subTypeParentSymbols =
-                                ninoSymbols.Where(m => inheritanceMap[subType]
-                                    .Contains(m.GetTypeFullName())).ToList();
-
-                            var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
-                            //get distinct members
-                            members = members.Distinct().ToList();
-                            WriteMembers(members, valName);
                             sb.AppendLine("                    return;");
                         }
                     }
@@ -133,6 +142,10 @@ public class SerializerGenerator : IIncrementalGenerator
                     if (typeSymbol.IsReferenceType)
                     {
                         sb.AppendLine("                default:");
+                    }
+
+                    if (isPolymorphicType)
+                    {
                         sb.AppendLine(
                             $"                    writer.Write(NinoTypeConst.{typeSymbol.GetTypeFullName().GetTypeConstName()});");
                     }
@@ -144,13 +157,13 @@ public class SerializerGenerator : IIncrementalGenerator
                     var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
                     WriteMembers(defaultMembers, "value");
 
-                    if (isReferenceType)
+                    if (isPolymorphicType && typeSymbol.IsReferenceType)
                     {
                         sb.AppendLine("                    return;");
                     }
                 }
 
-                if (isReferenceType)
+                if (isPolymorphicType && typeSymbol.IsReferenceType)
                 {
                     sb.AppendLine("            }");
                 }

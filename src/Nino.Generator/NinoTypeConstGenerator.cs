@@ -19,13 +19,15 @@ public class NinoTypeConstGenerator : IIncrementalGenerator
     private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
         SourceProductionContext spc)
     {
-        if (!compilation.IsValidCompilation()) return;
+        var result = compilation.IsValidCompilation();
+        if (!result.isValid) return;
+        compilation = result.newCompilation;
 
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
 
         // get type full names from models (namespaces + type names)
         var serializableTypes = ninoSymbols
-            .Where(symbol => symbol.IsReferenceType())
+            .Where(symbol => symbol.IsPolymorphicType())
             .Where(symbol => symbol.IsInstanceType()).ToList();
 
         var types = new StringBuilder();
