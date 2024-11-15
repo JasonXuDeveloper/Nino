@@ -24,7 +24,9 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION }} 
+            2.1.x
       
       # Restore dependencies
       - name: Restore dependencies
@@ -32,7 +34,7 @@ jobs:
       
       # Build the solution
       - name: Build solution
-        run: dotnet build --no-restore
+        run: dotnet build --configuration Release
       
       # Run unit tests
       - name: Test
@@ -142,7 +144,6 @@ jobs:
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION }}
-            3.1.x
             2.1.x
 
       # Restore dependencies
@@ -153,7 +154,7 @@ jobs:
       # Build the solution
       - name: Build solution
         working-directory: ./src  # Override the default working directory
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build --configuration Release
 
       # Copy src/Nino/bin/Release/netstandard2.1/Nino.Core.dll and src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll
       # to src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime, replacing the existing DLLs
