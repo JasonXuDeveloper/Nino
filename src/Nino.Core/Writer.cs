@@ -33,8 +33,11 @@ namespace Nino.Core
                 return;
             }
 
-            Write(true);
-            Write(value.Value);
+            int size = Unsafe.SizeOf<T>() + 1;
+            var span = _bufferWriter.GetSpan(size);
+            span[0] = 1;
+            Unsafe.WriteUnaligned(ref span[1], value.Value);
+            _bufferWriter.Advance(size);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -137,11 +140,11 @@ namespace Nino.Core
             int size = sizeof(int) + byteLength;
             var span = _bufferWriter.GetSpan(size);
             Unsafe.WriteUnaligned(ref span[0], TypeCollector.GetCollectionHeader(value.Count));
-            var current = span.Slice(4);
+            int offset = 4;
             foreach (var item in value)
             {
-                Unsafe.WriteUnaligned(ref current[0], item);
-                current = current.Slice(eleSize);
+                Unsafe.WriteUnaligned(ref span[offset], item);
+                offset += eleSize;
             }
 
             _bufferWriter.Advance(size);
@@ -161,11 +164,11 @@ namespace Nino.Core
             int size = sizeof(int) + byteLength;
             var span = _bufferWriter.GetSpan(size);
             Unsafe.WriteUnaligned(ref span[0], TypeCollector.GetCollectionHeader(value.Count));
-            var current = span.Slice(4);
+            int offset = 4;
             foreach (var item in value)
             {
-                Unsafe.WriteUnaligned(ref current[0], item);
-                current = current.Slice(eleSize);
+                Unsafe.WriteUnaligned(ref span[offset], item);
+                offset += eleSize;
             }
 
             _bufferWriter.Advance(size);
