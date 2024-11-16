@@ -581,7 +581,7 @@ public static class NinoTypeHelper
     {
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize{{typeParam}}(Span<byte> data, out {{typeName}} value) {{genericConstraint}}
+                    public static void Deserialize{{typeParam}}(ReadOnlySpan<byte> data, out {{typeName}} value) {{genericConstraint}}
                     {
                         var reader = new Reader(data);
                         Deserialize(out value, ref reader);
@@ -698,16 +698,18 @@ public static class NinoTypeHelper
 
                 if (m is IFieldSymbol fieldSymbol)
                 {
-                    //has to be public
-                    return fieldSymbol.DeclaredAccessibility == Accessibility.Public;
+                    //has to be public and not static
+                    return fieldSymbol.DeclaredAccessibility == Accessibility.Public &&
+                           !fieldSymbol.IsStatic;
                 }
 
                 if (m is IPropertySymbol propertySymbol)
                 {
-                    //has to be public and has getter and setter
+                    //has to be public and has getter and setter and not static
                     return propertySymbol.DeclaredAccessibility == Accessibility.Public &&
                            propertySymbol.GetMethod != null &&
-                           propertySymbol.SetMethod != null;
+                           propertySymbol.SetMethod != null &&
+                           !propertySymbol.IsStatic;
                 }
 
                 return false;
@@ -718,7 +720,10 @@ public static class NinoTypeHelper
         {
             // Retrieve all public instance constructors
             var publicConstructors = namedTypeSymbol.InstanceConstructors
-                .Where(c => c.DeclaredAccessibility == Accessibility.Public && !c.IsImplicitlyDeclared)
+                .Where(c => c.DeclaredAccessibility == Accessibility.Public
+                            && !c.IsImplicitlyDeclared
+                            && !c.IsStatic
+                )
                 .ToList();
 
             foreach (var constructor in publicConstructors)
@@ -728,7 +733,9 @@ public static class NinoTypeHelper
                 {
                     var matchingProperty = namedTypeSymbol.GetMembers()
                         .OfType<IPropertySymbol>()
-                        .FirstOrDefault(p => p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase));
+                        .FirstOrDefault(p =>
+                            p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase)
+                            && !p.IsStatic);
 
                     // If any parameter does not have a matching readonly property, it’s likely not a primary constructor
                     if (matchingProperty == null || !matchingProperty.IsReadOnly)

@@ -7,9 +7,9 @@ namespace Nino.Core
 {
     public ref struct Reader
     {
-        private Span<byte> _data;
+        private ReadOnlySpan<byte> _data;
 
-        public Reader(Span<byte> buffer)
+        public Reader(ReadOnlySpan<byte> buffer)
         {
             _data = buffer;
         }
@@ -50,7 +50,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged
         {
-            value = Unsafe.ReadUnaligned<T>(ref _data[0]);
+            value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
             _data = _data.Slice(Unsafe.SizeOf<T>());
         }
 
@@ -84,7 +84,7 @@ namespace Nino.Core
             ret = new T[length];
 #endif
             ref byte first = ref Unsafe.As<T, byte>(ref ret[0]);
-            Unsafe.CopyBlockUnaligned(ref first, ref bytes[0], (uint)bytes.Length);
+            Unsafe.CopyBlockUnaligned(ref first, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -123,7 +123,7 @@ namespace Nino.Core
             var arr = new T[length];
 #endif
             ref byte first = ref Unsafe.As<T, byte>(ref arr[0]);
-            Unsafe.CopyBlockUnaligned(ref first, ref bytes[0], (uint)bytes.Length);
+            Unsafe.CopyBlockUnaligned(ref first, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
             lst._items = arr;
         }
 
@@ -213,7 +213,7 @@ namespace Nino.Core
 #if NET5_0_OR_GREATER
             unsafe
             {
-                ret = string.Create(length, (IntPtr)Unsafe.AsPointer(ref utf8Bytes[0]),
+                ret = string.Create(length, (IntPtr)Unsafe.AsPointer(ref MemoryMarshal.GetReference(utf8Bytes)),
                     (dst, ptr) =>
                     {
                         var src = new Span<byte>((byte*)ptr, length);
@@ -245,17 +245,14 @@ namespace Nino.Core
 
             GetBytes(length * sizeof(char), out var utf16Bytes);
 #if NET5_0_OR_GREATER
-            ret = new string(
-                MemoryMarshal.CreateReadOnlySpan(
-                    ref Unsafe.As<byte, char>(ref utf16Bytes[0]),
-                    length));
+            ret = new string(MemoryMarshal.Cast<byte, char>(utf16Bytes));
 #else
             ret = MemoryMarshal.Cast<byte, char>(utf16Bytes).ToString();
 #endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void GetBytes(int length, out Span<byte> bytes)
+        private void GetBytes(int length, out ReadOnlySpan<byte> bytes)
         {
             bytes = _data.Slice(0, length);
             _data = _data.Slice(length);

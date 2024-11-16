@@ -84,9 +84,9 @@ public class DeserializerGenerator : IIncrementalGenerator
                      {{GeneratePrivateDeserializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
                             
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static void Deserialize<T>(Span<byte> data, out T value) where T : unmanaged
+                             public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value) where T : unmanaged
                              {
-                                 value = Unsafe.ReadUnaligned<T>(ref data[0]);
+                                 value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(data));
                              }
 
                      {{GeneratePrivateDeserializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
