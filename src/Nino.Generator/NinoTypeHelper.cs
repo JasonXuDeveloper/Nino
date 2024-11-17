@@ -173,8 +173,51 @@ public static class NinoTypeHelper
                          (!symbol.IsGenericType ||
                           (symbol.TypeArguments.Length ==
                            symbol.TypeParameters.Length &&
-                           symbol.TypeArguments.All(t => t is INamedTypeSymbol)))))
+                           symbol.TypeArguments.All(
+                               t => t is INamedTypeSymbol n && n.TypeKind != TypeKind.TypeParameter)))))
             .Select(s => s.GetPureType())
+            .Select(s =>
+            {
+                var containingType = s;
+
+                //containing type can not be an uninstantiated generic type
+                bool IsContainingTypeValid(ITypeSymbol type)
+                {
+                    if (type is INamedTypeSymbol namedTypeSymbol)
+                    {
+                        if (namedTypeSymbol.IsGenericType)
+                        {
+                            return namedTypeSymbol.TypeArguments.Length ==
+                                   namedTypeSymbol.TypeParameters.Length &&
+                                   namedTypeSymbol.TypeArguments.All(t =>
+                                       t is INamedTypeSymbol n && n.TypeKind != TypeKind.TypeParameter) &&
+                                   namedTypeSymbol.TypeArguments.All(IsContainingTypeValid);
+                        }
+
+                        return true;
+                    }
+
+                    return false;
+                }
+                
+                while (containingType != null)
+                {
+                    if (IsContainingTypeValid(containingType))
+                    {
+                        containingType = containingType.ContainingType;
+                    }
+                    else
+                    {
+                        return null;
+                    }
+                }
+                
+                return s;
+            })
+            .Where(s => s != null)
+            .Distinct(SymbolEqualityComparer.Default)
+            .Where(s => s != null)
+            .Select(s => (ITypeSymbol)s!)
             .ToList();
     }
 
