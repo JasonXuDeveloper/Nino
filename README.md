@@ -11,6 +11,8 @@ Ultimate high-performance binary serialization library for C#.
 
 Plausibly the fastest and most flexible binary serialization library for C# projects.
 
+![Activity](https://repobeats.axiom.co/api/embed/a9aea9d0b7b75f40c14af83e3c1f20eca39486c4.svg "Repobeats analytics image")
+
 ## Features
 
 - Support all **unmanaged types** (`int`/`float`/`DateTime`/`Vector`/`Matrix`, etc)

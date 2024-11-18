@@ -12,6 +12,9 @@
 
 大概率是C#里最快速、最灵活的二进制序列化库。
 
+![Activity](https://repobeats.axiom.co/api/embed/a9aea9d0b7b75f40c14af83e3c1f20eca39486c4.svg "Repobeats analytics image")
+
+
 ## 功能列表
 
 - 支持**全部非托管**类型（`int`/`float`/`DateTime`/`Vector`/`Matrix`灯）
