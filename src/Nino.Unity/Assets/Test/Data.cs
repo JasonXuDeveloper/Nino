@@ -145,7 +145,7 @@ namespace Nino.Test
     }
 
     [NinoType(false)]
-    public class PrimitiveTypeTest
+    public partial class PrimitiveTypeTest
     {
         [NinoMember(1)] public Vector3 v3;
 
