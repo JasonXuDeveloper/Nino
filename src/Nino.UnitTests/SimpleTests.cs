@@ -13,11 +13,19 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestPrivateAccess()
         {
+            TestPrivateMemberClass pcls = new TestPrivateMemberClass();
+            pcls.A = 1;
+            
+            byte[] bytes = pcls.Serialize();
+            Deserializer.Deserialize(bytes, out TestPrivateMemberClass pcls2);
+            Assert.AreEqual(pcls.A, pcls2.A);
+            Assert.AreEqual(pcls.ReadonlyId, pcls2.ReadonlyId);
+            
             RecordWithPrivateMember record = new RecordWithPrivateMember("Test");
             Assert.IsNotNull(record.Name);
             Assert.AreEqual("Test", record.Name);
             
-            byte[] bytes = record.Serialize();
+            bytes = record.Serialize();
             Deserializer.Deserialize(bytes, out RecordWithPrivateMember r1);
             Assert.AreEqual(record.Name, r1.Name);
             Assert.AreEqual(record.ReadonlyId, r1.ReadonlyId);

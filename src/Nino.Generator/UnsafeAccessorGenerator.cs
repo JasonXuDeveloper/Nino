@@ -33,6 +33,7 @@ public class UnsafeAccessorGenerator : IIncrementalGenerator
                 _) = ninoSymbols.GetInheritanceMap();
 
             var sb = new StringBuilder();
+            var generatedTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
 
             foreach (var typeSymbol in ninoSymbols)
             {
@@ -50,6 +51,11 @@ public class UnsafeAccessorGenerator : IIncrementalGenerator
                     void WriteMembers(List<NinoTypeHelper.NinoMember> members, ITypeSymbol type,
                         string typeName)
                     {
+                        if (!generatedTypes.Add(type))
+                        {
+                            return;
+                        }
+                        
                         foreach (var (name, declaredType, _, _, isPrivate, isProperty) in members)
                         {
                             if (!isPrivate)

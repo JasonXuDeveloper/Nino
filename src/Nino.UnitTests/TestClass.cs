@@ -12,6 +12,23 @@ namespace Nino.UnitTests
 #if !NET8_0_OR_GREATER
         partial
 #endif
+        class TestPrivateMemberClass : Base
+    {
+        private int Id { get; set; }
+
+        public int ReadonlyId => Id;
+        
+        public TestPrivateMemberClass()
+        {
+            Id = Random.Shared.Next();
+        }
+    }
+    
+    [NinoType]
+    public
+#if !NET8_0_OR_GREATER
+        partial
+#endif
         record RecordWithPrivateMember(string Name)
     {
         private int Id { get; set; }
