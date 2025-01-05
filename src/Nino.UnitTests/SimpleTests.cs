@@ -11,6 +11,85 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestPrivateAccess()
+        {
+            RecordWithPrivateMember record = new RecordWithPrivateMember("Test");
+            Assert.IsNotNull(record.Name);
+            Assert.AreEqual("Test", record.Name);
+            
+            byte[] bytes = record.Serialize();
+            Deserializer.Deserialize(bytes, out RecordWithPrivateMember r1);
+            Assert.AreEqual(record.Name, r1.Name);
+            Assert.AreEqual(record.ReadonlyId, r1.ReadonlyId);
+            
+            RecordWithPrivateMember2 record2 = new RecordWithPrivateMember2("Test");
+            Assert.IsNotNull(record2.Name);
+            Assert.AreEqual("Test", record2.Name);
+            
+            bytes = record2.Serialize();
+            Deserializer.Deserialize(bytes, out RecordWithPrivateMember2 r2);
+            Assert.AreEqual(record2.Name, r2.Name);
+            Assert.AreEqual(record2.ReadonlyId, r2.ReadonlyId);
+            
+            StructWithPrivateMember s = new StructWithPrivateMember
+            {
+                Id = 1,
+            };
+            s.SetName("Test");
+            Assert.AreEqual("Test", s.GetName());
+            
+            bytes = s.Serialize();
+            Deserializer.Deserialize(bytes, out StructWithPrivateMember s2);
+            Assert.AreEqual(s.Id, s2.Id);
+            Assert.AreEqual(s.GetName(), s2.GetName());
+            
+            ClassWithPrivateMember<float> cls = new ClassWithPrivateMember<float>();
+            cls.Flag = true;
+            cls.List = new List<float>
+            {
+                1.1f,
+                2.2f,
+                3.3f
+            };
+            Assert.IsNotNull(cls.Name);
+
+            bytes = cls.Serialize();
+            Deserializer.Deserialize(bytes, out ClassWithPrivateMember<float> result);
+            Assert.AreEqual(cls.Id, result.Id);
+            //private field
+            Assert.AreEqual(cls.Name, result.Name);
+            //private property
+            Assert.AreEqual(cls.Flag, result.Flag);
+            //private generic field, list sequentially equal
+            Assert.AreEqual(cls.List.Count, result.List.Count);
+            for (int i = 0; i < cls.List.Count; i++)
+            {
+                Assert.AreEqual(cls.List[i], result.List[i]);
+            }
+
+            ClassWithPrivateMember<int> cls2 = new ClassWithPrivateMember<int>();
+            cls2.Flag = false;
+            cls2.List = new List<int>
+            {
+                3,
+                2,
+                1
+            };
+            Assert.IsNotNull(cls2.Name);
+            
+            bytes = cls2.Serialize();
+            Deserializer.Deserialize(bytes, out ClassWithPrivateMember<int> result2);
+            Assert.AreEqual(cls2.Id, result2.Id);
+            Assert.AreEqual(cls2.Name, result2.Name);
+            Assert.AreEqual(cls2.Flag, result2.Flag);
+            Assert.AreEqual(cls2.List.Count, result2.List.Count);
+            for (int i = 0; i < cls2.List.Count; i++)
+            {
+                Assert.AreEqual(cls2.List[i], result2.List[i]);
+            }
+        }
+        
+        [TestMethod]
         public void TestInterfaceVariants()
         {
             Struct1 a = new Struct1

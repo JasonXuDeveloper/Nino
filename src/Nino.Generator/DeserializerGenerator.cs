@@ -171,13 +171,13 @@ public class DeserializerGenerator : IIncrementalGenerator
             sb.AppendLine();
         }
 
-        void WriteMembersWithCustomConstructor(List<NinoTypeHelper.NinoMember> members,
-            string typeName, string
-                valName, string[] constructorMember)
+        void WriteMembersWithCustomConstructor(List<NinoTypeHelper.NinoMember> members, ITypeSymbol type,
+            string typeName, string valName, string[] constructorMember)
         {
             List<(string, string)> vars = new List<(string, string)>();
+            List<(string, string, bool)> privateVars = new List<(string, string,bool)>();
             Dictionary<string, string> args = new Dictionary<string, string>();
-            foreach (var (name, declaredType, attrs, isCtorParam) in members)
+            foreach (var (name, declaredType, attrs, isCtorParam, isPrivate, isProperty) in members)
             {
                 var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
                     .Aggregate("", (a, b) => a + b);
@@ -209,7 +209,14 @@ public class DeserializerGenerator : IIncrementalGenerator
                     // we dont want init-only properties from the primary constructor
                     if (!isCtorParam)
                     {
-                        vars.Add((name, tempName));
+                        if (!isPrivate)
+                        {
+                            vars.Add((name, tempName));
+                        }
+                        else
+                        {
+                            privateVars.Add((name, tempName, isProperty));
+                        }
                     }
                 }
             }
@@ -231,7 +238,42 @@ public class DeserializerGenerator : IIncrementalGenerator
                         $"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
                 }
 
+                if (privateVars.Count > 0)
+                {
+                    sb.AppendLine("#if !NET8_0_OR_GREATER");
+                    foreach (var (memberName, varName, _) in privateVars)
+                    {
+                        sb.AppendLine(
+                            $"                 {new string(' ', valName.Length)}      \t__nino__generated__{memberName} = {varName},");
+                    }
+
+                    sb.AppendLine("#endif");
+                }
+
                 sb.AppendLine($"                    {new string(' ', valName.Length)}   }};");
+            }
+            if (privateVars.Count > 0)
+            {
+                sb.AppendLine("#if NET8_0_OR_GREATER");
+                if (type.IsValueType)
+                {
+                    valName = $"ref {valName}";
+                }
+                foreach (var (memberName, varName, isProperty) in privateVars)
+                {
+                    if (isProperty)
+                    {
+                        sb.AppendLine(
+                            $"                    PrivateAccessor.__set__{memberName}__({valName}, {varName});");
+                    }
+                    else
+                    {
+                        sb.AppendLine(
+                            $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
+                        sb.AppendLine($"                    __{varName} = {varName};");
+                    }
+                }
+                sb.AppendLine("#endif");
             }
         }
 
@@ -299,7 +341,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                 args = constructor.Parameters.Select(p => p.Name).ToArray();
             }
 
-            WriteMembersWithCustomConstructor(defaultMembers, typeName, valName, args);
+            WriteMembersWithCustomConstructor(defaultMembers, symbol, typeName, valName, args);
         }
 
         if (!subTypeMap.TryGetValue(typeFullName, out var lst))

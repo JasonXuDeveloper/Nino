@@ -4,8 +4,82 @@ using System.Collections.Generic;
 using Nino.Core;
 
 #nullable disable
+
 namespace Nino.UnitTests
 {
+    [NinoType]
+    public
+#if !NET8_0_OR_GREATER
+        partial
+#endif
+        record RecordWithPrivateMember(string Name)
+    {
+        private int Id { get; set; }
+
+        public int ReadonlyId => Id;
+    }
+
+    [NinoType]
+    public
+#if !NET8_0_OR_GREATER
+        partial
+#endif
+        record struct RecordWithPrivateMember2(string Name)
+    {
+        private int Id { get; set; } = 0;
+
+        public int ReadonlyId => Id;
+    }
+
+    [NinoType]
+    public
+#if !NET8_0_OR_GREATER
+        partial
+#endif
+        struct StructWithPrivateMember
+    {
+        public int Id;
+        private string Name;
+
+        public string GetName() => Name;
+        public void SetName(string name) => Name = name;
+    }
+
+    [NinoType]
+    public
+#if !NET8_0_OR_GREATER
+        partial
+#endif
+        class ClassWithPrivateMember<T>
+    {
+        public int Id;
+        [NinoIgnore] public bool Flag;
+
+        private string _name;
+        private List<T> _list;
+
+        private bool _flagProperty
+        {
+            get => Flag;
+            set => Flag = value;
+        }
+
+        public string Name => _name;
+
+        [NinoIgnore]
+        public List<T> List
+        {
+            get => _list;
+            set => _list = value;
+        }
+
+        public ClassWithPrivateMember()
+        {
+            Id = 0;
+            _name = Guid.NewGuid().ToString();
+        }
+    }
+
     [NinoType]
     public interface ISerializable
     {

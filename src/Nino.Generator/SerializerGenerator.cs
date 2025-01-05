@@ -73,11 +73,36 @@ public class SerializerGenerator : IIncrementalGenerator
                         sb.AppendLine("                    return;");
                     }
 
-                    void WriteMembers(List<NinoTypeHelper.NinoMember> members,
+                    void WriteMembers(List<NinoTypeHelper.NinoMember> members, ITypeSymbol type,
                         string valName)
                     {
-                        foreach (var (name, declaredType, attrs, _) in members)
+                        foreach (var (name, declaredType, attrs, _, isPrivate, isProperty) in members)
                         {
+                            var val = $"{valName}.{name}";
+
+                            if (isPrivate)
+                            {
+                                var accessName = valName;
+                                if (type.IsValueType)
+                                {
+                                    accessName = $"ref {valName}";
+                                }
+
+                                val = isProperty
+                                    ? $"PrivateAccessor.__get__{name}__({accessName})"
+                                    : $"PrivateAccessor.__{name}__({accessName})";
+                                var legacyVal = $"{valName}.__nino__generated__{name}";
+                                val = $"""
+
+                                       #if NET8_0_OR_GREATER
+                                                               {val}
+                                       #else
+                                                               {legacyVal}
+                                       #endif 
+                                                           
+                                       """;
+                            }
+
                             //check if the typesymbol declaredType is string
                             if (declaredType.SpecialType == SpecialType.System_String)
                             {
@@ -86,14 +111,14 @@ public class SerializerGenerator : IIncrementalGenerator
 
                                 sb.AppendLine(
                                     isUtf8
-                                        ? $"                    writer.WriteUtf8({valName}.{name});"
-                                        : $"                    writer.Write({valName}.{name});");
+                                        ? $"                    writer.WriteUtf8({val});"
+                                        : $"                    writer.Write({val});");
 
                                 continue;
                             }
 
                             sb.AppendLine(
-                                $"                    {declaredType.GetSerializePrefix()}({valName}.{name}, ref writer);");
+                                $"                    {declaredType.GetSerializePrefix()}({val}, ref writer);");
                         }
                     }
 
@@ -130,7 +155,7 @@ public class SerializerGenerator : IIncrementalGenerator
                                     var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
                                     //get distinct members
                                     members = members.Distinct().ToList();
-                                    WriteMembers(members, valName);
+                                    WriteMembers(members, subTypeSymbol, valName);
                                 }
 
                                 sb.AppendLine("                    return;");
@@ -162,7 +187,7 @@ public class SerializerGenerator : IIncrementalGenerator
                                 ninoSymbols.Where(m => inheritanceMap[typeFullName]
                                     .Contains(m.GetTypeFullName())).ToList();
                             var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
-                            WriteMembers(defaultMembers, "value");
+                            WriteMembers(defaultMembers, typeSymbol, "value");
                         }
 
                         if (isPolymorphicType && typeSymbol.IsReferenceType)

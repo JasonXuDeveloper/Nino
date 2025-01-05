@@ -199,7 +199,7 @@ public static class NinoTypeHelper
 
                     return false;
                 }
-                
+
                 while (containingType != null)
                 {
                     if (IsContainingTypeValid(containingType))
@@ -211,7 +211,7 @@ public static class NinoTypeHelper
                         return null;
                     }
                 }
-                
+
                 return s;
             })
             .Where(s => s != null)
@@ -396,6 +396,45 @@ public static class NinoTypeHelper
         return typeSymbol.IsUnmanagedType ||
                typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
     }
+    
+    public static string GetTypeModifiers(this ITypeSymbol typeSymbol)
+    {
+        if (typeSymbol is not INamedTypeSymbol namedTypeSymbol)
+        {
+            return string.Empty; // Not a named type.
+        }
+
+        // Determine the base modifier.
+        string typeKind = namedTypeSymbol.TypeKind switch
+        {
+            TypeKind.Class => "class",
+            TypeKind.Interface => "interface",
+            TypeKind.Struct => "struct",
+            TypeKind.Enum => "enum",
+            TypeKind.Delegate => "delegate",
+            _ => string.Empty
+        };
+
+        // Check if it's a record.
+        if (namedTypeSymbol.IsRecord)
+        {
+            typeKind = typeKind switch
+            {
+                "class" => "record",     // Record class.
+                "struct" => "record struct", // Record struct.
+                _ => typeKind
+            };
+        }
+
+        // Check for ref struct.
+        if (typeKind == "struct" && namedTypeSymbol.IsRefLikeType)
+        {
+            typeKind = "ref struct";
+        }
+
+        return typeKind;
+    }
+
 
     public static bool IsPolymorphicType(this ITypeSymbol typeDecl)
     {
@@ -641,51 +680,20 @@ public static class NinoTypeHelper
         return typeSymbol.ToDisplayString();
     }
 
-    public static ITypeSymbol? GetDeclaredTypeFullName(this CSharpSyntaxNode memberDeclaration,
-        Compilation compilation, ITypeSymbol declaringType)
-    {
-        var name = memberDeclaration.GetMemberName();
-        ITypeSymbol? declaredType = null;
-        var s = declaringType.GetMembers().FirstOrDefault(s => s.Name == name);
-        while (s == null && declaringType.BaseType != null)
-        {
-            declaringType = declaringType.BaseType;
-            s = declaringType.GetMembers().FirstOrDefault(symbol => symbol.Name == name);
-        }
-
-        switch (s)
-        {
-            case IFieldSymbol fs:
-                declaredType = fs.Type;
-                break;
-            case IPropertySymbol ps:
-                declaredType = ps.Type;
-                break;
-            case IParameterSymbol ps:
-                declaredType = ps.Type;
-                break;
-        }
-
-        return declaredType;
-    }
-
-    public static string? GetMemberName(this CSharpSyntaxNode member)
-    {
-        return member switch
-        {
-            FieldDeclarationSyntax field => field.Declaration.Variables.First().Identifier.Text,
-            PropertyDeclarationSyntax property => property.Identifier.Text,
-            ParameterSyntax parameter => parameter.Identifier.Text,
-            _ => null
-        };
-    }
-
-    public record NinoMember(string Name, ITypeSymbol Type, AttributeData[] Attrs, bool IsCtorParam)
+    public record NinoMember(
+        string Name,
+        ITypeSymbol Type,
+        AttributeData[] Attrs,
+        bool IsCtorParam,
+        bool IsPrivate,
+        bool IsProperty)
     {
         public readonly string Name = Name;
         public readonly ITypeSymbol Type = Type;
         public readonly AttributeData[] Attrs = Attrs;
         public readonly bool IsCtorParam = IsCtorParam;
+        public readonly bool IsPrivate = IsPrivate;
+        public readonly bool IsProperty = IsProperty;
 
         public virtual bool Equals(NinoMember? other)
         {
@@ -742,17 +750,19 @@ public static class NinoTypeHelper
                 if (m is IFieldSymbol fieldSymbol)
                 {
                     //has to be public and not static
-                    return fieldSymbol.DeclaredAccessibility == Accessibility.Public &&
-                           !fieldSymbol.IsStatic;
+                    return
+                        // fieldSymbol.DeclaredAccessibility == Accessibility.Public &&
+                        !fieldSymbol.IsStatic;
                 }
 
                 if (m is IPropertySymbol propertySymbol)
                 {
                     //has to be public and has getter and setter and not static
-                    return propertySymbol.DeclaredAccessibility == Accessibility.Public &&
-                           propertySymbol.GetMethod != null &&
-                           propertySymbol.SetMethod != null &&
-                           !propertySymbol.IsStatic;
+                    return
+                        // propertySymbol.DeclaredAccessibility == Accessibility.Public &&
+                        propertySymbol.GetMethod != null &&
+                        propertySymbol.SetMethod != null &&
+                        !propertySymbol.IsStatic;
                 }
 
                 return false;
@@ -763,9 +773,10 @@ public static class NinoTypeHelper
         {
             // Retrieve all public instance constructors
             var publicConstructors = namedTypeSymbol.InstanceConstructors
-                .Where(c => c.DeclaredAccessibility == Accessibility.Public
-                            && !c.IsImplicitlyDeclared
-                            && !c.IsStatic
+                .Where(c =>
+                    c.DeclaredAccessibility == Accessibility.Public
+                    && !c.IsImplicitlyDeclared
+                    && !c.IsStatic
                 )
                 .ToList();
 
@@ -812,6 +823,7 @@ public static class NinoTypeHelper
                 continue;
             }
 
+            bool isPrivate = symbol.DeclaredAccessibility == Accessibility.Private;
             var memberType = symbol switch
             {
                 IFieldSymbol fieldSymbol => fieldSymbol.Type,
@@ -831,12 +843,15 @@ public static class NinoTypeHelper
             if (autoCollect)
             {
                 memberIndex[memberName] = memberIndex.Count;
-                ret.Add(new(memberName, memberType, attrList.ToArray(), symbol is IParameterSymbol));
+                ret.Add(new(memberName, memberType, attrList.ToArray(),
+                    symbol is IParameterSymbol, isPrivate,
+                    symbol is IPropertySymbol));
                 continue;
             }
 
             //get nino member attribute's first argument on this member
-            var arg = attrList.FirstOrDefault(a => a.AttributeClass?.Name.EndsWith("NinoMemberAttribute") ?? false)?
+            var arg = attrList.FirstOrDefault(a
+                    => a.AttributeClass?.Name.EndsWith("NinoMemberAttribute") ?? false)?
                 .ConstructorArguments.FirstOrDefault();
             if (arg == null)
             {
@@ -851,7 +866,9 @@ public static class NinoTypeHelper
             }
 
             memberIndex[memberName] = (ushort)indexValue;
-            ret.Add(new(memberName, memberType, attrList.ToArray(), symbol is IParameterSymbol));
+            ret.Add(new(memberName, memberType, attrList.ToArray(),
+                symbol is IParameterSymbol, isPrivate,
+                symbol is IPropertySymbol));
         }
 
         //sort by name
