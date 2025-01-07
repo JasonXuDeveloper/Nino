@@ -17,7 +17,7 @@
 
 ## 功能列表
 
-- 支持**全部非托管**类型（`int`/`float`/`DateTime`/`Vector`/`Matrix`灯）
+- 支持**全部非托管**类型（`int`/`float`/`DateTime`/`Vector`/`Matrix`等）
 
 - 支持**全部**用`[NinoType]`标识的自定义`interface`/`class`/`struct`/`record`类型（包括`泛型`，支持自定义反序列化构造函数）
 
