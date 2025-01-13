@@ -149,7 +149,7 @@ namespace Nino.Test
     {
         [NinoMember(1)] public Vector3 v3;
 
-        [NinoMember(2)] private DateTime dt = DateTime.Now;
+        [NinoMember(2)] private DateTime dt;
 
         [NinoMember(3)] public int? ni { get; set; }
 
@@ -160,6 +160,17 @@ namespace Nino.Test
         [NinoMember(6)] public Dictionary<string, int> dict;
 
         [NinoMember(7)] public Dictionary<string, Data> dict2;
+
+        public PrimitiveTypeTest()
+        {
+            dt = DateTime.Now;
+        }
+
+        [NinoConstructor(nameof(dt))]
+        public PrimitiveTypeTest(DateTime time)
+        {
+            dt = time;
+        }
 
         public override string ToString()
         {
