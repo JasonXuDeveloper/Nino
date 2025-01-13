@@ -15,6 +15,7 @@ namespace Test.Editor.Tests
                 PrimitiveTypeTest c = new PrimitiveTypeTest()
                 {
                     ni = null,
+                    Time = DateTime.Now,
                     v3 = UnityEngine.Vector3.one,
                     m = UnityEngine.Matrix4x4.zero,
                     qs = new List<UnityEngine.Quaternion>()
