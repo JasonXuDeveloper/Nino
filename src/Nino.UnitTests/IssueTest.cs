@@ -21,12 +21,65 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
+        public class Issue137 : IssueTestTemplate
+        {
+            public class MultiMap<T, K> : SortedDictionary<T, List<K>>
+            {
+                
+                public new List<K> this[T key]
+                {
+                    get
+                    {
+                        if (!TryGetValue(key, out List<K> value))
+                        {
+                            value = new List<K>();
+                            Add(key, value);
+                        }
+
+                        return value;
+                    }
+                    
+                    set
+                    {
+                        if (value.Count == 0)
+                        {
+                            Remove(key);
+                        }
+                        else
+                        {
+                            base[key] = value;
+                        }
+                    }
+                }
+            }
+
+            [TestMethod]
+            public override void RunTest()
+            {
+                MultiMap<long, long> TimeId = new MultiMap<long, long>();
+                TimeId[1].Add(1);
+                TimeId[1].Add(2);
+                TimeId[2].Add(3);
+                
+                var bytes = TimeId.Serialize();
+                Deserializer.Deserialize(bytes, out MultiMap<long, long> TimeId2);
+                
+                Assert.AreEqual(TimeId.Count, TimeId2.Count);
+                Assert.AreEqual(TimeId[1].Count, TimeId2[1].Count);
+                Assert.AreEqual(TimeId[2].Count, TimeId2[2].Count);
+                
+                Assert.AreEqual(TimeId[1][0], TimeId2[1][0]);
+                Assert.AreEqual(TimeId[1][1], TimeId2[1][1]);
+                Assert.AreEqual(TimeId[2][0], TimeId2[2][0]);
+            }
+        }
+
+        [TestClass]
         public class IssueV3_0 : IssueTestTemplate
         {
             [NinoType]
             public class DiceData
             {
-                
             }
 
             [NinoType(false)]

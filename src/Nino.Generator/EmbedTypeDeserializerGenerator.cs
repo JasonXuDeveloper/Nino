@@ -189,10 +189,11 @@ public class EmbedTypeDeserializerGenerator : IIncrementalGenerator
             }
 
             //if type implements IDictionary only
-            if (type.AllInterfaces.Any(namedTypeSymbol =>
-                    namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2))
+            var idict = type.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
+                namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
+            if (idict != null)
             {
-                if (type is INamedTypeSymbol { TypeArguments.Length: 2 } namedTypeSymbol)
+                if (idict is { TypeArguments.Length: 2 } namedTypeSymbol)
                 {
                     var type1 = namedTypeSymbol.TypeArguments[0].ToDisplayString();
                     var type2 = namedTypeSymbol.TypeArguments[1].ToDisplayString();
