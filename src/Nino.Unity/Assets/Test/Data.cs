@@ -150,14 +150,6 @@ namespace Nino.Test
         [NinoMember(1)] public Vector3 v3;
 
         [NinoMember(2)] private DateTime dt;
-        
-        [NinoIgnore]
-        public DateTime Time
-        {
-            get => dt;
-            set => dt = value;
-        }
-
         [NinoMember(3)] public int? ni { get; set; }
 
         [NinoMember(4)] public List<Quaternion> qs;
