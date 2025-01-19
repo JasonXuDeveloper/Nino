@@ -158,7 +158,7 @@ public class PartialClassGenerator : IIncrementalGenerator
                                  """;
                     if (hasNamespace)
                     {
-                        code += "}";
+                        code += "\n}";
                     }
                     
                     spc.AddSource($"{typeSimpleName.Replace("<", "_").Replace(">", "_").Replace(",", "_")}.g.cs", code);
