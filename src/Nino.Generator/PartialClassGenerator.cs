@@ -115,7 +115,8 @@ public class PartialClassGenerator : IIncrementalGenerator
                     {
                         return;
                     }
-
+                    
+                    var hasNamespace = !type.ContainingNamespace.IsGlobalNamespace && !string.IsNullOrEmpty(type.ContainingNamespace.ToDisplayString());
                     var typeNamespace = type.ContainingNamespace.ToDisplayString();
                     var modifer = type.GetTypeModifiers();
                     //get typename, including type parameters if any
@@ -134,6 +135,12 @@ public class PartialClassGenerator : IIncrementalGenerator
                     {
                         return;
                     }
+                    
+                    var namespaceStr = hasNamespace ? $"namespace {typeNamespace}\n" : "";
+                    if (hasNamespace)
+                    {
+                        namespaceStr += "{";
+                    }
 
                     // generate code
                     var code = $$"""
@@ -142,15 +149,18 @@ public class PartialClassGenerator : IIncrementalGenerator
                                  using System;
                                  using System.Runtime.CompilerServices;
 
-                                 namespace {{typeNamespace}}
-                                 {
+                                 {{namespaceStr}}
                                  #if !NET8_0_OR_GREATER
                                      public partial {{modifer}} {{typeSimpleName}}
                                      {
                                  {{sb}}    }
                                  #endif
-                                 }
                                  """;
+                    if (hasNamespace)
+                    {
+                        code += "}";
+                    }
+                    
                     spc.AddSource($"{typeSimpleName.Replace("<", "_").Replace(">", "_").Replace(",", "_")}.g.cs", code);
                 }
 

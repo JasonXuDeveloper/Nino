@@ -95,6 +95,11 @@ namespace Nino.UnitTests
             {
                 Assert.AreEqual(cls2.List[i], result2.List[i]);
             }
+            
+            Bindable<int> bindable = new Bindable<int>(1);
+            bytes = bindable.Serialize();
+            Deserializer.Deserialize(bytes, out Bindable<int> bindable2);
+            Assert.AreEqual(bindable.Value, bindable2.Value);
         }
         
         [TestMethod]

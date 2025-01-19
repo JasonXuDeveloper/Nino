@@ -5,6 +5,28 @@ using Nino.Core;
 
 #nullable disable
 
+//We make it no namespace on purpose to see if it still works
+[NinoType(false)]
+public
+#if !NET8_0_OR_GREATER
+    partial
+#endif
+    class Bindable<T>
+{
+    [NinoMember(0)] private T mValue;
+        
+    public T Value
+    {
+        get => mValue;
+    }
+
+    [NinoConstructor(nameof(mValue))]
+    public Bindable(T value)
+    {
+        mValue = value;
+    }
+}
+
 namespace Nino.UnitTests
 {
     [NinoType]
@@ -17,13 +39,13 @@ namespace Nino.UnitTests
         private int Id { get; set; }
 
         public int ReadonlyId => Id;
-        
+
         public TestPrivateMemberClass()
         {
             Id = Random.Shared.Next();
         }
     }
-    
+
     [NinoType]
     public
 #if !NET8_0_OR_GREATER
