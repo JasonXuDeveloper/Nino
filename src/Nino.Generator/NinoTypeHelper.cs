@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -29,7 +30,7 @@ public static class NinoTypeHelper
 
                 return null;
             })
-            .Concat(NinoTypeHelper.GetAllNinoRequiredTypes(compilation))
+            .Concat(GetAllNinoRequiredTypes(compilation))
             .Where(s => s != null)
             .Select(s => s!)
             .Distinct(SymbolEqualityComparer.Default)
@@ -43,7 +44,8 @@ public static class NinoTypeHelper
                 namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
             var cond = forDeserialization
                 ? i != null //when deserializing, we want ICollection and dont care other things
-                : i != null && !i.IsUnmanagedType && // when serializing, we want ICollection of what we want, i.e. not unmanaged, otherwise we have a default fallback
+                : i != null &&
+                  !i.IsUnmanagedType && // when serializing, we want ICollection of what we want, i.e. not unmanaged, otherwise we have a default fallback
                   i.TypeArguments.All(t => t.IsSerializableType());
             if (cond)
             {
@@ -103,21 +105,21 @@ public static class NinoTypeHelper
                         .OfType<IPropertySymbol>()
                         .Where(p => p.IsIndexer)
                         .ToList();
-                    
+
                     //ensure there exists one public indexer that returns vType and takes only kType
                     var validIndexers = indexers.Where(p =>
-                        p.Type.Equals(vType, SymbolEqualityComparer.Default) && p.Parameters.Length == 1 &&
-                        p.Parameters[0].Type.Equals(kType, SymbolEqualityComparer.Default))
+                            p.Type.Equals(vType, SymbolEqualityComparer.Default) && p.Parameters.Length == 1 &&
+                            p.Parameters[0].Type.Equals(kType, SymbolEqualityComparer.Default))
                         .ToList();
                     if (!validIndexers.Any()) return false;
-                    
+
                     //ensure the valid indexer has public getter and setter
                     if (validIndexers.Any(p => p.GetMethod?.DeclaredAccessibility == Accessibility.Public &&
                                                p.SetMethod?.DeclaredAccessibility == Accessibility.Public))
                     {
                         return true;
                     }
-                    
+
                     return false;
                 }
 
@@ -370,8 +372,14 @@ public static class NinoTypeHelper
             .ToList();
     }
 
+    private static readonly ConcurrentDictionary<int, List<ITypeSymbol>> AllNinoRequiredTypesCache = new();
+
     public static IEnumerable<ITypeSymbol> GetAllNinoRequiredTypes(Compilation compilation)
     {
+        if (AllNinoRequiredTypesCache.TryGetValue(compilation.GetHashCode(), out var types))
+            //return a copy
+            return types.ToArray();
+
         var lst = GetAllTypes(compilation)
             .Where(s => s != null)
             .Distinct(SymbolEqualityComparer.Default)
@@ -416,11 +424,14 @@ public static class NinoTypeHelper
         {
             AddElementRecursively(typeSymbol, ret);
         }
-
-        return ret.Distinct(SymbolEqualityComparer.Default)
+        
+        AllNinoRequiredTypesCache[compilation.GetHashCode()] = ret.Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
             .Select(s => (ITypeSymbol)s!)
             .ToList();
+        
+        //return a copy
+        return AllNinoRequiredTypesCache[compilation.GetHashCode()].ToArray();
     }
 
     private static void AddElementRecursively(ITypeSymbol symbol, List<ITypeSymbol> ret)
@@ -450,8 +461,15 @@ public static class NinoTypeHelper
         }
     }
 
+
+    private static readonly ConcurrentDictionary<int, List<INamedTypeSymbol>> AllTypesCache = new();
+
     public static IEnumerable<INamedTypeSymbol> GetAllTypes(Compilation compilation)
     {
+        if (AllTypesCache.TryGetValue(compilation.GetHashCode(), out var types))
+            //return a copy
+            return types.ToArray();
+
         var allTypes = new List<INamedTypeSymbol>();
 
         // Add all types from the current assembly (compilation)
@@ -467,13 +485,15 @@ public static class NinoTypeHelper
             }
         }
 
-
         //distinct
-        return allTypes
+        AllTypesCache[compilation.GetHashCode()] = allTypes
             .Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
             .Select(s => (INamedTypeSymbol)s!)
             .ToList();
+
+        //return a copy
+        return AllTypesCache[compilation.GetHashCode()].ToArray();
     }
 
     private static IEnumerable<INamedTypeSymbol> GetTypesInNamespace(INamespaceSymbol namespaceSymbol)
@@ -583,7 +603,7 @@ public static class NinoTypeHelper
 
         return typeKind;
     }
-    
+
     public static bool IsPolymorphicType(this ITypeSymbol typeDecl)
     {
         var baseType = typeDecl.BaseType;
