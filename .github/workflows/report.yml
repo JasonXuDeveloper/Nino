@@ -46,7 +46,10 @@ jobs:
         if: env.changes == 'true'
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: ${{ vars.DOTNET_VERSION }}  # Using repository-level environment variable
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION }} 
+            8.0.x
+            6.0.x
 
       - name: Run benchmarks
         if: env.changes == 'true'
