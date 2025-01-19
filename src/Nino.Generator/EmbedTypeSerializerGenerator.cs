@@ -1,11 +1,9 @@
-using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Nino.Generator;
@@ -48,84 +46,9 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
         var result = compilation.IsValidCompilation();
         if (!result.isValid) return;
         compilation = result.newCompilation;
-
-        var typeSymbols = types.Select(t =>
-            {
-                var model = compilation.GetSemanticModel(t.SyntaxTree);
-                var typeInfo = model.GetTypeInfo(t);
-                if (typeInfo.Type != null) return typeInfo.Type;
-
-                return null;
-            })
-            .Concat(NinoTypeHelper.GetAllNinoRequiredTypes(compilation))
-            .Where(s => s != null)
-            .Select(s => s!)
-            .Distinct(SymbolEqualityComparer.Default)
-            .Select(s => (ITypeSymbol)s!)
-            .Where(symbol => symbol.IsSerializableType())
-            .ToList();
-        //for typeSymbols implements ICollection<KeyValuePair<T1, T2>>, add type KeyValuePair<T1, T2> to typeSymbols
-        var kvps = typeSymbols.Select(ts =>
-        {
-            var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
-            if (i != null && !i.IsUnmanagedType && i.TypeArguments.All(t => t.IsSerializableType()))
-            {
-                return i.TypeArguments[0].IsSerializableType() ? i.TypeArguments[0] : null;
-            }
-
-            return null;
-        }).Where(ts => ts != null).Select(ts => ts!).ToList();
-        typeSymbols.AddRange(kvps);
-        typeSymbols = typeSymbols
-            .Where(ts =>
-            {
-                //we dont want unmanaged
-                if (ts.IsUnmanagedType) return false;
-                //we dont want nino type
-                if (ts.IsNinoType()) return false;
-                //we dont want string
-                if (ts.SpecialType == SpecialType.System_String) return false;
-                //we dont want ICollection of unmanaged
-                var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                    namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
-                if (i != null)
-                {
-                    if (i.TypeArguments[0].IsUnmanagedType) return false;
-                }
-
-                //we dont want array of unmanaged
-                if (ts is IArrayTypeSymbol arrayTypeSymbol)
-                {
-                    if (arrayTypeSymbol.ElementType.IsUnmanagedType) return false;
-                }
-
-                //we dont want nullable of unmanaged
-                if (ts.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
-                {
-                    //get type parameter
-                    // Get the type argument of Nullable<T>
-                    if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-                    {
-                        if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
-                    }
-                }
-
-                //we dont want span of unmanaged
-                if (ts.OriginalDefinition.ToDisplayString() == "System.Span<T>")
-                {
-                    if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-                    {
-                        if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
-                    }
-                }
-
-                return true;
-            }).ToList();
-        typeSymbols.Sort((t1, t2) =>
-            String.Compare(t1.ToDisplayString(), t2.ToDisplayString(), StringComparison.Ordinal));
-
+        var typeSymbols = types.GetPotentialCollectionTypes(compilation);
         var sb = new StringBuilder();
+        
         HashSet<string> addedType = new HashSet<string>();
         foreach (var type in typeSymbols)
         {

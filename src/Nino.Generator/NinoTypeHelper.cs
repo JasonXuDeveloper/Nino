@@ -18,6 +18,155 @@ public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
+    public static List<ITypeSymbol> GetPotentialCollectionTypes(this ImmutableArray<TypeSyntax> types,
+        Compilation compilation, bool forDeserialization = false)
+    {
+        var typeSymbols = types.Select(t =>
+            {
+                var model = compilation.GetSemanticModel(t.SyntaxTree);
+                var typeInfo = model.GetTypeInfo(t);
+                if (typeInfo.Type != null) return typeInfo.Type;
+
+                return null;
+            })
+            .Concat(NinoTypeHelper.GetAllNinoRequiredTypes(compilation))
+            .Where(s => s != null)
+            .Select(s => s!)
+            .Distinct(SymbolEqualityComparer.Default)
+            .Select(s => (ITypeSymbol)s!)
+            .Where(symbol => symbol.IsSerializableType())
+            .ToList();
+        //for typeSymbols implements ICollection<KeyValuePair<T1, T2>>, add type KeyValuePair<T1, T2> to typeSymbols
+        var kvps = typeSymbols.Select(ts =>
+        {
+            var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
+                namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
+            var cond = forDeserialization
+                ? i != null //when deserializing, we want ICollection and dont care other things
+                : i != null && !i.IsUnmanagedType && // when serializing, we want ICollection of what we want, i.e. not unmanaged, otherwise we have a default fallback
+                  i.TypeArguments.All(t => t.IsSerializableType());
+            if (cond)
+            {
+                return i!.TypeArguments[0].IsSerializableType() ? i.TypeArguments[0] : null;
+            }
+
+            return null;
+        }).Where(ts => ts != null).Select(ts => ts!).ToList();
+        typeSymbols.AddRange(kvps);
+        typeSymbols = typeSymbols
+            .Where(ts =>
+            {
+                //we dont want unmanaged
+                if (ts.IsUnmanagedType) return false;
+                //we dont want nino type
+                if (ts.IsNinoType()) return false;
+                //we dont want string
+                if (ts.SpecialType == SpecialType.System_String) return false;
+
+                //we dont want any of the type arguments to be a type parameter
+                if (ts is INamedTypeSymbol s)
+                {
+                    bool IsTypeParameter(ITypeSymbol typeSymbol)
+                    {
+                        if (typeSymbol.TypeKind == TypeKind.TypeParameter) return true;
+                        if (typeSymbol is INamedTypeSymbol namedTypeSymbol)
+                        {
+                            return namedTypeSymbol.TypeArguments.Any(IsTypeParameter);
+                        }
+
+                        return false;
+                    }
+
+                    if (s.TypeArguments.Any(IsTypeParameter)) return false;
+                }
+
+                //we dont want IList/ICollection of unmanaged
+                var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
+                    namedTypeSymbol.Name == (forDeserialization ? "IList" : "ICollection") &&
+                    namedTypeSymbol.TypeArguments.Length == 1);
+                if (i != null)
+                {
+                    if (i.TypeArguments[0].IsUnmanagedType) return false;
+                }
+
+                //we dont want Dictionary that has no getter/setter in its indexer
+                var iDict = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
+                    namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
+                if (iDict != null)
+                {
+                    var kType = iDict.TypeArguments[0];
+                    var vType = iDict.TypeArguments[1];
+
+                    //use indexer to set/get value, TODO alternatively, use attributes to specify relevant methods
+                    var indexers = ts
+                        .GetMembers()
+                        .OfType<IPropertySymbol>()
+                        .Where(p => p.IsIndexer)
+                        .ToList();
+                    
+                    //ensure there exists one public indexer that returns vType and takes only kType
+                    var validIndexers = indexers.Where(p =>
+                        p.Type.Equals(vType, SymbolEqualityComparer.Default) && p.Parameters.Length == 1 &&
+                        p.Parameters[0].Type.Equals(kType, SymbolEqualityComparer.Default))
+                        .ToList();
+                    if (!validIndexers.Any()) return false;
+                    
+                    //ensure the valid indexer has public getter and setter
+                    if (validIndexers.Any(p => p.GetMethod?.DeclaredAccessibility == Accessibility.Public &&
+                                               p.SetMethod?.DeclaredAccessibility == Accessibility.Public))
+                    {
+                        return true;
+                    }
+                    
+                    return false;
+                }
+
+                //we dont want array of unmanaged
+                if (ts is IArrayTypeSymbol arrayTypeSymbol)
+                {
+                    if (arrayTypeSymbol.ElementType.TypeKind == TypeKind.TypeParameter) return false;
+                    if (arrayTypeSymbol.ElementType.IsUnmanagedType) return false;
+                }
+
+                //we dont want nullable of unmanaged
+                if (ts.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+                {
+                    //get type parameter
+                    // Get the type argument of Nullable<T>
+                    if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
+                    {
+                        if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
+                        //we also dont want nullable of reference type, as it already has a null check
+                        if (namedTypeSymbol.TypeArguments[0].IsReferenceType) return false;
+                    }
+                }
+
+                //we dont want span of unmanaged
+                if (ts.OriginalDefinition.ToDisplayString() == "System.Span<T>")
+                {
+                    if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
+                    {
+                        if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
+                    }
+                }
+
+                //we dont want IDictionary of unmanaged
+                i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
+                    namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
+                if (i != null)
+                {
+                    if (i.TypeArguments[0].IsUnmanagedType && i.TypeArguments[1].IsUnmanagedType) return false;
+                }
+
+                return true;
+            }).ToList();
+        typeSymbols.Sort((t1, t2) =>
+            String.Compare(t1.ToDisplayString(), t2.ToDisplayString(), StringComparison.Ordinal));
+
+
+        return typeSymbols;
+    }
+
     public static bool IsSerializableType(this ITypeSymbol ts)
     {
         ts = ts.GetPureType();
@@ -396,7 +545,7 @@ public static class NinoTypeHelper
         return typeSymbol.IsUnmanagedType ||
                typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
     }
-    
+
     public static string GetTypeModifiers(this ITypeSymbol typeSymbol)
     {
         if (typeSymbol is not INamedTypeSymbol namedTypeSymbol)
@@ -420,7 +569,7 @@ public static class NinoTypeHelper
         {
             typeKind = typeKind switch
             {
-                "class" => "record",     // Record class.
+                "class" => "record", // Record class.
                 "struct" => "record struct", // Record struct.
                 _ => typeKind
             };
@@ -434,8 +583,7 @@ public static class NinoTypeHelper
 
         return typeKind;
     }
-
-
+    
     public static bool IsPolymorphicType(this ITypeSymbol typeDecl)
     {
         var baseType = typeDecl.BaseType;
