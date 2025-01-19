@@ -26,6 +26,8 @@ jobs:
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION }} 
+            8.0.x
+            6.0.x
             2.1.x
       
       # Restore dependencies
