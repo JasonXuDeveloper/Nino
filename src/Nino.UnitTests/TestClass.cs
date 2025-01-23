@@ -5,8 +5,28 @@ using Nino.Core;
 
 #nullable disable
 
+[NinoType]
+public
+#if !NET8_0_OR_GREATER
+    partial
+#endif
+    class ShouldIgnorePrivate
+{
+    private int _id;
+
+    [NinoIgnore]
+    public int Id
+    {
+        get => _id;
+        set => _id = value;
+    }
+
+    public string Name;
+    public DateTime CreateTime;
+}
+
 //We make it no namespace on purpose to see if it still works
-[NinoType(false)]
+[NinoType(false, true)]
 public
 #if !NET8_0_OR_GREATER
     partial
@@ -14,7 +34,7 @@ public
     class Bindable<T>
 {
     [NinoMember(0)] private T mValue;
-        
+
     public T Value
     {
         get => mValue;
@@ -29,12 +49,13 @@ public
 
 namespace Nino.UnitTests
 {
-    [NinoType]
+    [NinoType(containNonPublicMembers: true)]
     public
 #if !NET8_0_OR_GREATER
         partial
 #endif
-        class TestPrivateMemberClass : Base
+        class
+        TestPrivateMemberClass : Base
     {
         private int Id { get; set; }
 
@@ -46,7 +67,7 @@ namespace Nino.UnitTests
         }
     }
 
-    [NinoType]
+    [NinoType(containNonPublicMembers: true)]
     public
 #if !NET8_0_OR_GREATER
         partial
@@ -58,7 +79,7 @@ namespace Nino.UnitTests
         public int ReadonlyId => Id;
     }
 
-    [NinoType]
+    [NinoType(containNonPublicMembers: true)]
     public
 #if !NET8_0_OR_GREATER
         partial
@@ -70,7 +91,7 @@ namespace Nino.UnitTests
         public int ReadonlyId => Id;
     }
 
-    [NinoType]
+    [NinoType(containNonPublicMembers: true)]
     public
 #if !NET8_0_OR_GREATER
         partial
@@ -84,7 +105,7 @@ namespace Nino.UnitTests
         public void SetName(string name) => Name = name;
     }
 
-    [NinoType]
+    [NinoType(containNonPublicMembers: true)]
     public
 #if !NET8_0_OR_GREATER
         partial

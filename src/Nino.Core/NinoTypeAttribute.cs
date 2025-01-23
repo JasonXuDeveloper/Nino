@@ -11,11 +11,8 @@ namespace Nino.Core
         , Inherited = false)]
     public class NinoTypeAttribute : Attribute
     {
-        public bool AutoCollect;
-
-        public NinoTypeAttribute(bool autoCollect = true)
+        public NinoTypeAttribute(bool autoCollect = true, bool containNonPublicMembers = false)
         {
-            AutoCollect = autoCollect;
         }
     }
 }

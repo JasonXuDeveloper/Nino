@@ -424,12 +424,12 @@ public static class NinoTypeHelper
         {
             AddElementRecursively(typeSymbol, ret);
         }
-        
+
         AllNinoRequiredTypesCache[compilation.GetHashCode()] = ret.Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
             .Select(s => (ITypeSymbol)s!)
             .ToList();
-        
+
         //return a copy
         return AllNinoRequiredTypesCache[compilation.GetHashCode()].ToArray();
     }
@@ -896,10 +896,11 @@ public static class NinoTypeHelper
         }
 
         //get NinoType attribute first argument value from typeSymbol
-        var autoCollectValue = typeSymbol.GetAttributes().FirstOrDefault(a =>
+        var attr = typeSymbol.GetAttributes().FirstOrDefault(a =>
             a.AttributeClass != null &&
             a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
-        bool autoCollect = autoCollectValue == null || (bool)(autoCollectValue.ConstructorArguments[0].Value ?? false);
+        bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
+        bool containNonPublic = attr != null && (bool)(attr.ConstructorArguments[1].Value ?? false);
 
         //true = auto collect, false = manual collect with NinoMemberAttribute
         Dictionary<string, int> memberIndex = new Dictionary<string, int>();
@@ -917,19 +918,18 @@ public static class NinoTypeHelper
 
                 if (m is IFieldSymbol fieldSymbol)
                 {
-                    //has to be public and not static
-                    return
-                        // fieldSymbol.DeclaredAccessibility == Accessibility.Public &&
-                        !fieldSymbol.IsStatic;
+                    //has to be not static
+                    return (containNonPublic || fieldSymbol.DeclaredAccessibility == Accessibility.Public) &&
+                           !fieldSymbol.IsStatic;
                 }
 
                 if (m is IPropertySymbol propertySymbol)
                 {
-                    //has to be public and has getter and setter and not static
+                    //has getter and setter and not static
                     return
-                        // propertySymbol.DeclaredAccessibility == Accessibility.Public &&
                         propertySymbol.GetMethod != null &&
                         propertySymbol.SetMethod != null &&
+                        (containNonPublic || propertySymbol.DeclaredAccessibility == Accessibility.Public) &&
                         !propertySymbol.IsStatic;
                 }
 
@@ -991,7 +991,13 @@ public static class NinoTypeHelper
                 continue;
             }
 
-            bool isPrivate = symbol.DeclaredAccessibility == Accessibility.Private;
+            bool isPrivate = symbol.DeclaredAccessibility != Accessibility.Public;
+            //we dont count primary constructor params as private
+            if (primaryConstructorParams.Contains(symbol, SymbolEqualityComparer.Default))
+            {
+                isPrivate = false;
+            }
+
             var memberType = symbol switch
             {
                 IFieldSymbol fieldSymbol => fieldSymbol.Type,

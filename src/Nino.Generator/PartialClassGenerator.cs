@@ -5,7 +5,6 @@ using Microsoft.CodeAnalysis;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Nino.Generator;
 
@@ -89,13 +88,16 @@ public class PartialClassGenerator : IIncrementalGenerator
                             }
 
                             hasPrivateMembers = true;
-                            sb.AppendLine(
-                                $"        internal {declaringType} __nino__generated__{name}");
-                            sb.AppendLine("        {");
-                            sb.AppendLine($"            get => {name};");
-                            sb.AppendLine($"            set => {name} = value;");
-                            sb.AppendLine("        }");
-                            sb.AppendLine();
+                            var accessor = $$"""
+                                                  internal {{declaringType}} __nino__generated__{{name}}
+                                                  {
+                                                      [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                                      get => {{name}};
+                                                      [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                                      set => {{name}} = value;
+                                                  }
+                                          """;
+                            sb.AppendLine(accessor);
                         }
                     }
                     catch (Exception e)
