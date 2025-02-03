@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -463,6 +464,23 @@ public static class NinoTypeHelper
 
 
     private static readonly ConcurrentDictionary<int, List<INamedTypeSymbol>> AllTypesCache = new();
+    private static readonly ConcurrentDictionary<int, List<INamedTypeSymbol>> AllAssembliesTypesCache = new();
+
+    [SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1024:Symbols should be compared for equality")]
+    private static INamedTypeSymbol[] GetTypesInAssembly(IAssemblySymbol assembly)
+    {
+        var hash = string.IsNullOrEmpty(assembly.Name)
+            ? assembly.Name.GetLegacyNonRandomizedHashCode()
+            : assembly.GetHashCode();
+        if (AllAssembliesTypesCache.TryGetValue(hash, out var types))
+            //return a copy
+            return types.ToArray();
+        
+        var allTypes = GetTypesInNamespace(assembly.GlobalNamespace).ToList();
+        AllAssembliesTypesCache[hash] = allTypes;
+        //return a copy
+        return allTypes.ToArray();
+    }
 
     public static IEnumerable<INamedTypeSymbol> GetAllTypes(Compilation compilation)
     {
@@ -478,10 +496,9 @@ public static class NinoTypeHelper
         // Add all types from each referenced assembly
         foreach (var referencedAssembly in compilation.References)
         {
-            var assemblySymbol = compilation.GetAssemblyOrModuleSymbol(referencedAssembly) as IAssemblySymbol;
-            if (assemblySymbol != null)
+            if (compilation.GetAssemblyOrModuleSymbol(referencedAssembly) is IAssemblySymbol assemblySymbol)
             {
-                allTypes.AddRange(GetTypesInNamespace(assemblySymbol.GlobalNamespace));
+                allTypes.AddRange(GetTypesInAssembly(assemblySymbol));
             }
         }
 
