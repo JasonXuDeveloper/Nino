@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -32,11 +30,10 @@ public static class NinoTypeHelper
                 return null;
             })
             .Concat(GetAllNinoRequiredTypes(compilation))
-            .Where(s => s != null)
+            .Where(s => s != null && s.IsSerializableType())
             .Select(s => s!)
             .Distinct(SymbolEqualityComparer.Default)
             .Select(s => (ITypeSymbol)s!)
-            .Where(symbol => symbol.IsSerializableType())
             .ToList();
         //for typeSymbols implements ICollection<KeyValuePair<T1, T2>>, add type KeyValuePair<T1, T2> to typeSymbols
         var kvps = typeSymbols.Select(ts =>
@@ -368,26 +365,18 @@ public static class NinoTypeHelper
         return true;
     }
 
-    private static readonly ConcurrentDictionary<int, List<ITypeSymbol>> AllNinoRequiredTypesCache = new();
-
-    public static IEnumerable<ITypeSymbol> GetAllNinoRequiredTypes(Compilation compilation)
+    public static List<ITypeSymbol> GetAllNinoRequiredTypes(Compilation compilation)
     {
-        if (AllNinoRequiredTypesCache.TryGetValue(compilation.GetHashCode(), out var types))
-            //return a copy
-            return types.ToArray();
-
         var lst = GetAllTypes(compilation)
-            .Where(s => s != null)
+            .Where(s => s != null && s.IsNinoType())
             .Distinct(SymbolEqualityComparer.Default)
             .Select(s => (ITypeSymbol)s!)
-            .Where(s => s.IsNinoType())
-            .Where(s => s is not ITypeParameterSymbol)
-            .Where(s => s is not INamedTypeSymbol ||
-                        (s is INamedTypeSymbol symbol &&
-                         (!symbol.IsGenericType ||
-                          (symbol.TypeArguments.Length ==
-                           symbol.TypeParameters.Length &&
-                           symbol.TypeArguments.All(t => t is INamedTypeSymbol)))))
+            .Where(s =>
+                s is INamedTypeSymbol symbol &&
+                (!symbol.IsGenericType ||
+                 (symbol.TypeArguments.Length ==
+                  symbol.TypeParameters.Length &&
+                  symbol.TypeArguments.All(t => t is INamedTypeSymbol))))
             .ToList();
         var ret = lst.Concat(lst.SelectMany(type =>
             {
@@ -413,21 +402,17 @@ public static class NinoTypeHelper
             }))
             .Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
-            .Select(s => (ITypeSymbol)s!)
-            .Select(s => s.GetPureType())
+            .Select(s => ((ITypeSymbol)s!).GetPureType())
             .ToList();
         foreach (var typeSymbol in ret.ToList())
         {
             AddElementRecursively(typeSymbol, ret);
         }
 
-        AllNinoRequiredTypesCache[compilation.GetHashCode()] = ret.Distinct(SymbolEqualityComparer.Default)
+        return ret.Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
             .Select(s => (ITypeSymbol)s!)
             .ToList();
-
-        //return a copy
-        return AllNinoRequiredTypesCache[compilation.GetHashCode()].ToArray();
     }
 
     private static void AddElementRecursively(ITypeSymbol symbol, List<ITypeSymbol> ret)
@@ -458,31 +443,13 @@ public static class NinoTypeHelper
     }
 
 
-    private static readonly ConcurrentDictionary<int, List<INamedTypeSymbol>> AllTypesCache = new();
-    private static readonly ConcurrentDictionary<int, List<INamedTypeSymbol>> AllAssembliesTypesCache = new();
-
-    [SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1024:Symbols should be compared for equality")]
     private static INamedTypeSymbol[] GetTypesInAssembly(IAssemblySymbol assembly)
     {
-        var hash = string.IsNullOrEmpty(assembly.Name)
-            ? assembly.Name.GetLegacyNonRandomizedHashCode()
-            : assembly.GetHashCode();
-        if (AllAssembliesTypesCache.TryGetValue(hash, out var types))
-            //return a copy
-            return types.ToArray();
-
-        var allTypes = GetTypesInNamespace(assembly.GlobalNamespace).ToList();
-        AllAssembliesTypesCache[hash] = allTypes;
-        //return a copy
-        return allTypes.ToArray();
+        return GetTypesInNamespace(assembly.GlobalNamespace).ToArray();
     }
 
-    public static IEnumerable<INamedTypeSymbol> GetAllTypes(Compilation compilation)
+    public static List<INamedTypeSymbol> GetAllTypes(Compilation compilation)
     {
-        if (AllTypesCache.TryGetValue(compilation.GetHashCode(), out var types))
-            //return a copy
-            return types.ToArray();
-
         var allTypes = new List<INamedTypeSymbol>();
 
         // Add all types from the current assembly (compilation)
@@ -498,14 +465,11 @@ public static class NinoTypeHelper
         }
 
         //distinct
-        AllTypesCache[compilation.GetHashCode()] = allTypes
+        return allTypes
             .Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
             .Select(s => (INamedTypeSymbol)s!)
             .ToList();
-
-        //return a copy
-        return AllTypesCache[compilation.GetHashCode()].ToArray();
     }
 
     private static IEnumerable<INamedTypeSymbol> GetTypesInNamespace(INamespaceSymbol namespaceSymbol)
