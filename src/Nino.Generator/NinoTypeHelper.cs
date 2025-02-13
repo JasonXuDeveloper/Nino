@@ -242,41 +242,21 @@ public static class NinoTypeHelper
 
         //disable nullable reference types
         Compilation newCompilation = compilation;
-        // Cast to CSharpCompilation to access the C#-specific options
-        if (compilation is CSharpCompilation csharpCompilation)
+        //if nullable is enabled, disable it
+        if (compilation.Options.NullableContextOptions != NullableContextOptions.Disable)
         {
-            // Create a new CSharpCompilationOptions with nullable warnings disabled
-            var newOptions = csharpCompilation.Options.WithNullableContextOptions(NullableContextOptions.Disable);
-
-            // Return a new compilation with the updated options
-            newCompilation = csharpCompilation.WithOptions(newOptions);
-        }
-
-        compilation = newCompilation;
-
-        //make sure the compilation indeed uses Nino.Core
-        foreach (var syntaxTree in compilation.SyntaxTrees)
-        {
-            var root = syntaxTree.GetRoot();
-            var usingDirectives = root.DescendantNodes()
-                .OfType<UsingDirectiveSyntax>()
-                .Where(usingDirective => usingDirective.Name.ToString().Contains("Nino.Core"));
-
-            if (usingDirectives.Any())
+            // Cast to CSharpCompilation to access the C#-specific options
+            if (compilation is CSharpCompilation csharpCompilation)
             {
-                return (true, newCompilation); // Namespace is used in a using directive
+                // Create a new CSharpCompilationOptions with nullable warnings disabled
+                var newOptions = csharpCompilation.Options.WithNullableContextOptions(NullableContextOptions.Disable);
+
+                // Return a new compilation with the updated options
+                newCompilation = csharpCompilation.WithOptions(newOptions);
             }
         }
 
-        //or if any member has NinoTypeAttribute/NinoMemberAttribute/NinoIgnoreAttribute/NinoConstructorAttribute/NinoUtf8Attribute
-        return (compilation.SyntaxTrees
-            .SelectMany(static s => s.GetRoot().DescendantNodes())
-            .Any(static s => s is AttributeSyntax attributeSyntax &&
-                             (attributeSyntax.Name.ToString().EndsWith("NinoType") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoMember") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoIgnore") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoConstructor") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoUtf8"))), newCompilation);
+        return (true, newCompilation);
     }
 
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
@@ -310,67 +290,82 @@ public static class NinoTypeHelper
         return curNamespace;
     }
 
-    public static List<ITypeSymbol> GetNinoTypeSymbols(this ImmutableArray<CSharpSyntaxNode> syntaxes,
+    public static List<ITypeSymbol> GetNinoTypeSymbols(
+        this ImmutableArray<CSharpSyntaxNode> syntaxes,
         Compilation compilation)
     {
-        return syntaxes.Select(s => s.GetTypeSymbol(compilation))
-            .Concat(GetAllNinoRequiredTypes(compilation))
-            .Where(s => s != null)
-            .Distinct(SymbolEqualityComparer.Default)
-            .Select(s => (ITypeSymbol)s!)
-            .Where(s => s.IsNinoType())
-            .Where(s => s is not ITypeParameterSymbol)
-            .Where(s => s is not INamedTypeSymbol ||
-                        (s is INamedTypeSymbol symbol &&
-                         (!symbol.IsGenericType ||
-                          (symbol.TypeArguments.Length ==
-                           symbol.TypeParameters.Length &&
-                           symbol.TypeArguments.All(
-                               t => t is INamedTypeSymbol n && n.TypeKind != TypeKind.TypeParameter)))))
-            .Select(s => s.GetPureType())
-            .Select(s =>
+        // Use a HashSet with the proper comparer to deduplicate symbols.
+        var result = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+
+        // Local helper to process a candidate symbol.
+        void ProcessCandidate(ITypeSymbol? symbol)
+        {
+            if (symbol is null)
+                return;
+            if (!symbol.IsNinoType())
+                return;
+            if (symbol is ITypeParameterSymbol)
+                return;
+
+            // If it's a generic named type, ensure it's fully instantiated.
+            if (symbol is INamedTypeSymbol namedSymbol && namedSymbol.IsGenericType)
             {
-                var containingType = s;
-
-                //containing type can not be an uninstantiated generic type
-                bool IsContainingTypeValid(ITypeSymbol type)
+                if (namedSymbol.TypeArguments.Length != namedSymbol.TypeParameters.Length)
+                    return;
+                for (int i = 0, len = namedSymbol.TypeArguments.Length; i < len; i++)
                 {
-                    if (type is INamedTypeSymbol namedTypeSymbol)
-                    {
-                        if (namedTypeSymbol.IsGenericType)
-                        {
-                            return namedTypeSymbol.TypeArguments.Length ==
-                                   namedTypeSymbol.TypeParameters.Length &&
-                                   namedTypeSymbol.TypeArguments.All(t =>
-                                       t is INamedTypeSymbol n && n.TypeKind != TypeKind.TypeParameter) &&
-                                   namedTypeSymbol.TypeArguments.All(IsContainingTypeValid);
-                        }
+                    var t = namedSymbol.TypeArguments[i];
+                    if (!(t is INamedTypeSymbol arg) || arg.TypeKind == TypeKind.TypeParameter)
+                        return;
+                }
+            }
 
-                        return true;
-                    }
+            // Remove any wrappers, etc.
+            var pureType = symbol.GetPureType();
 
+            // Verify that all containing types (if any) are fully instantiated.
+            if (!AreContainingTypesValid(pureType))
+                return;
+
+            result.Add(pureType);
+        }
+
+        // Process symbols from the syntax nodes (using an index-based loop to avoid LINQ overhead).
+        for (int i = 0, len = syntaxes.Length; i < len; i++)
+        {
+            ProcessCandidate(syntaxes[i].GetTypeSymbol(compilation));
+        }
+
+        // Process additional required types.
+        foreach (var symbol in GetAllNinoRequiredTypes(compilation))
+        {
+            ProcessCandidate(symbol);
+        }
+
+        return result.ToList();
+    }
+
+    private static bool AreContainingTypesValid(ITypeSymbol type)
+    {
+        // Iteratively check each containing type.
+        for (var current = type; current != null; current = current.ContainingType)
+        {
+            if (current is INamedTypeSymbol named && named.IsGenericType)
+            {
+                if (named.TypeArguments.Length != named.TypeParameters.Length)
                     return false;
-                }
-
-                while (containingType != null)
+                for (int i = 0, len = named.TypeArguments.Length; i < len; i++)
                 {
-                    if (IsContainingTypeValid(containingType))
-                    {
-                        containingType = containingType.ContainingType;
-                    }
-                    else
-                    {
-                        return null;
-                    }
+                    var t = named.TypeArguments[i];
+                    if (!(t is INamedTypeSymbol arg) || arg.TypeKind == TypeKind.TypeParameter)
+                        return false;
+                    if (!AreContainingTypesValid(arg))
+                        return false;
                 }
+            }
+        }
 
-                return s;
-            })
-            .Where(s => s != null)
-            .Distinct(SymbolEqualityComparer.Default)
-            .Where(s => s != null)
-            .Select(s => (ITypeSymbol)s!)
-            .ToList();
+        return true;
     }
 
     private static readonly ConcurrentDictionary<int, List<ITypeSymbol>> AllNinoRequiredTypesCache = new();
@@ -475,7 +470,7 @@ public static class NinoTypeHelper
         if (AllAssembliesTypesCache.TryGetValue(hash, out var types))
             //return a copy
             return types.ToArray();
-        
+
         var allTypes = GetTypesInNamespace(assembly.GlobalNamespace).ToList();
         AllAssembliesTypesCache[hash] = allTypes;
         //return a copy
@@ -763,36 +758,39 @@ public static class NinoTypeHelper
         return (inheritanceMap, subTypeMap, topNinoTypes.Select(t => t.GetTypeFullName()).ToImmutableArray());
     }
 
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string GetDeserializePrefix(this ITypeSymbol ts)
     {
         return "Deserialize";
-
-        // v2 legacy code - not used
-        if (!ts.IsNinoType())
-        {
-            return "Deserialize";
-        }
-
-        var assName = ts.ContainingAssembly.Name;
-        var curNamespace = assName.GetNamespace();
-
-        return $"{curNamespace}.Deserializer.Deserialize";
+        //
+        // // v2 legacy code - not used
+        // if (!ts.IsNinoType())
+        // {
+        //     return "Deserialize";
+        // }
+        //
+        // var assName = ts.ContainingAssembly.Name;
+        // var curNamespace = assName.GetNamespace();
+        //
+        // return $"{curNamespace}.Deserializer.Deserialize";
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string GetSerializePrefix(this ITypeSymbol ts)
     {
         return "Serialize";
-
-        // v2 legacy code - not used
-        if (!ts.IsNinoType())
-        {
-            return "Serialize";
-        }
-
-        var assName = ts.ContainingAssembly.Name;
-        var curNamespace = assName.GetNamespace();
-
-        return $"{curNamespace}.Serializer.Serialize";
+        //
+        // // v2 legacy code - not used
+        // if (!ts.IsNinoType())
+        // {
+        //     return "Serialize";
+        // }
+        //
+        // var assName = ts.ContainingAssembly.Name;
+        // var curNamespace = assName.GetNamespace();
+        //
+        // return $"{curNamespace}.Serializer.Serialize";
     }
 
     public static void GenerateClassSerializeMethods(this StringBuilder sb, string typeFullName, string typeParam = "",
@@ -991,9 +989,8 @@ public static class NinoTypeHelper
         List<ISymbol> symbols = new();
         symbols.AddRange(members);
         symbols.AddRange(primaryConstructorParams);
-        symbols = symbols.Distinct(SymbolEqualityComparer.Default).ToList();
         //for each symbol we get the attribute list
-        foreach (var symbol in symbols)
+        foreach (var symbol in symbols.Distinct(SymbolEqualityComparer.Default))
         {
             var attrList = symbol.GetAttributes();
             //if has ninoignore attribute, ignore this member
