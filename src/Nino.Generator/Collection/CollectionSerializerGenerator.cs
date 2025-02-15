@@ -1,54 +1,20 @@
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Nino.Generator.Template;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Collection;
 
-[Generator]
-public class EmbedTypeSerializerGenerator : IIncrementalGenerator
+public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSymbol> potentialCollectionSymbols)
+    : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
 {
-    public void Initialize(IncrementalGeneratorInitializationContext context)
+    protected override void Generate(SourceProductionContext spc)
     {
-        // Register the syntax receiver
-        var typeDeclarations = context.SyntaxProvider
-            .CreateSyntaxProvider(IsTypeSyntaxNode, TransformTypeSyntaxNode)
-            .Where(type => type != null);
-
-        // Combine the results and generate source code
-        var compilationAndTypes = context.CompilationProvider.Combine(typeDeclarations.Collect());
-
-        context.RegisterSourceOutput(compilationAndTypes, GenerateSource!);
-    }
-
-    private static bool IsTypeSyntaxNode(SyntaxNode node, CancellationToken ct)
-    {
-        return node is TypeSyntax || node is StackAllocArrayCreationExpressionSyntax;
-    }
-
-    private static TypeSyntax? TransformTypeSyntaxNode(GeneratorSyntaxContext context, CancellationToken ct)
-    {
-        if (context.Node is TypeSyntax typeSyntax)
-        {
-            return typeSyntax;
-        }
-
-        return null;
-    }
-
-    private void GenerateSource(SourceProductionContext context,
-        (Compilation Compilation, ImmutableArray<TypeSyntax> Types) input)
-    {
-        var (compilation, types) = input;
-        var result = compilation.IsValidCompilation();
-        if (!result.isValid) return;
-        compilation = result.newCompilation;
-        var typeSymbols = types.GetPotentialCollectionTypes(compilation);
+        var compilation = Compilation;
+        var typeSymbols = PotentialCollectionSymbols;
         var sb = new StringBuilder();
-        
+
         HashSet<string> addedType = new HashSet<string>();
         foreach (var type in typeSymbols)
         {
@@ -138,7 +104,7 @@ public class EmbedTypeSerializerGenerator : IIncrementalGenerator
                      }
                      """;
 
-        context.AddSource("NinoSerializerExtension.Ext.g.cs", code);
+        spc.AddSource("NinoSerializerExtension.Ext.g.cs", code);
     }
 
     private static string GenerateCollectionSerialization(string prefix, string collectionType, string lengthName,

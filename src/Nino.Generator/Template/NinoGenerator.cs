@@ -1,19 +1,10 @@
-using System.Collections.Generic;
-using System.Linq;
 using Microsoft.CodeAnalysis;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Template;
 
-public abstract class NinoGenerator
+public abstract class NinoGenerator(Compilation compilation)
 {
-    protected Compilation Compilation;
-    protected List<ITypeSymbol> NinoSymbols;
-
-    protected NinoGenerator(Compilation compilation, List<ITypeSymbol> ninoSymbols)
-    {
-        Compilation = compilation;
-        NinoSymbols = ninoSymbols.ToList(); //copy
-    }
+    protected readonly Compilation Compilation = compilation;
 
     protected abstract void Generate(SourceProductionContext spc);
 

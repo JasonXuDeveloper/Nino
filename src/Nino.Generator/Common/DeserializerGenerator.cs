@@ -1,140 +1,116 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using Microsoft.CodeAnalysis.CSharp;
+using Nino.Generator.Template;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Common;
 
-[Generator]
-public class DeserializerGenerator : IIncrementalGenerator
+public class DeserializerGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> ninoSymbols,
+    Dictionary<string, List<string>> inheritanceMap,
+    Dictionary<string, List<string>> subTypeMap,
+    ImmutableArray<string> topNinoTypes)
+    : NinoCommonGenerator(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
 {
-    public void Initialize(IncrementalGeneratorInitializationContext context)
+    protected override void Generate(SourceProductionContext spc)
     {
-        var ninoTypeModels = context.GetTypeSyntaxes();
-        var compilationAndClasses = context.CompilationProvider.Combine(ninoTypeModels.Collect());
-        context.RegisterSourceOutput(compilationAndClasses, (spc, source) => Execute(source.Left, source.Right, spc));
-    }
+        var compilation = Compilation;
+        var ninoSymbols = NinoSymbols;
+        var inheritanceMap = InheritanceMap;
+        var subTypeMap = SubTypeMap;
 
-    private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
-        SourceProductionContext spc)
-    {
-        try
+        var sb = new StringBuilder();
+
+        sb.GenerateClassDeserializeMethods("T?", "<T>", "where T : unmanaged");
+        sb.GenerateClassDeserializeMethods("T[]", "<T>", "where T : unmanaged");
+        sb.GenerateClassDeserializeMethods("T?[]", "<T>", "where T : unmanaged");
+        sb.GenerateClassDeserializeMethods("List<T>", "<T>", "where T : unmanaged");
+        sb.GenerateClassDeserializeMethods("List<T?>", "<T>", "where T : unmanaged");
+        sb.GenerateClassDeserializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>",
+            "where TKey : unmanaged where TValue : unmanaged");
+        sb.GenerateClassDeserializeMethods("string");
+
+        foreach (var typeSymbol in ninoSymbols)
         {
-            var result = compilation.IsValidCompilation();
-            if (!result.isValid) return;
-            compilation = result.newCompilation;
-
-            var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
-            var (inheritanceMap,
-                subTypeMap,
-                _) = ninoSymbols.GetInheritanceMap();
-
-            var sb = new StringBuilder();
-
-            sb.GenerateClassDeserializeMethods("T?", "<T>", "where T : unmanaged");
-            sb.GenerateClassDeserializeMethods("T[]", "<T>", "where T : unmanaged");
-            sb.GenerateClassDeserializeMethods("T?[]", "<T>", "where T : unmanaged");
-            sb.GenerateClassDeserializeMethods("List<T>", "<T>", "where T : unmanaged");
-            sb.GenerateClassDeserializeMethods("List<T?>", "<T>", "where T : unmanaged");
-            sb.GenerateClassDeserializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>",
-                "where TKey : unmanaged where TValue : unmanaged");
-            sb.GenerateClassDeserializeMethods("string");
-
-            foreach (var typeSymbol in ninoSymbols)
+            try
             {
-                try
-                {
-                    string typeFullName = typeSymbol.GetTypeFullName();
-                    GenerateDeserializeImplementation(typeSymbol, typeFullName, sb, inheritanceMap,
-                        subTypeMap, ninoSymbols);
-                }
-                catch (Exception e)
-                {
-                    sb.AppendLine($"/* Error: {e.Message} for type {typeSymbol.GetTypeFullName()}");
-                    //add stacktrace
-                    foreach (var line in e.StackTrace.Split('\n'))
-                    {
-                        sb.AppendLine($" * {line}");
-                    }
-
-                    //end error
-                    sb.AppendLine(" */");
-                }
+                string typeFullName = typeSymbol.GetTypeFullName();
+                GenerateDeserializeImplementation(typeSymbol, typeFullName, sb, inheritanceMap,
+                    subTypeMap, ninoSymbols);
             }
+            catch (Exception e)
+            {
+                sb.AppendLine($"/* Error: {e.Message} for type {typeSymbol.GetTypeFullName()}");
+                //add stacktrace
+                foreach (var line in e.StackTrace.Split('\n'))
+                {
+                    sb.AppendLine($" * {line}");
+                }
 
-            var curNamespace = compilation.AssemblyName!.GetNamespace();
+                //end error
+                sb.AppendLine(" */");
+            }
+        }
 
-            // generate code
-            var code = $$"""
-                         // <auto-generated/>
+        var curNamespace = compilation.AssemblyName!.GetNamespace();
 
-                         using System;
-                         using global::Nino.Core;
-                         using System.Buffers;
-                         using System.Collections.Generic;
-                         using System.Collections.Concurrent;
-                         using System.Runtime.InteropServices;
-                         using System.Runtime.CompilerServices;
+        // generate code
+        var code = $$"""
+                     // <auto-generated/>
 
-                         namespace {{curNamespace}}
+                     using System;
+                     using global::Nino.Core;
+                     using System.Buffers;
+                     using System.Collections.Generic;
+                     using System.Collections.Concurrent;
+                     using System.Runtime.InteropServices;
+                     using System.Runtime.CompilerServices;
+
+                     namespace {{curNamespace}}
+                     {
+                         public static partial class Deserializer
                          {
-                             public static partial class Deserializer
+                     {{GeneratePrivateDeserializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
+                            
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value) where T : unmanaged
                              {
-                         {{GeneratePrivateDeserializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
-                                
-                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                 public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value) where T : unmanaged
-                                 {
-                                     value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(data));
-                                 }
+                                 value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(data));
+                             }
 
-                         {{GeneratePrivateDeserializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("IList<T>", "        ", "<T>", "where T : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("IList<T>", "        ", "<T>", "where T : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("ICollection<T>", "        ", "<T>", "where T : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("ICollection<T>", "        ", "<T>", "where T : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("T?[]", "        ", "<T>", "where T : unmanaged")}}
-                                 
-                         {{GeneratePrivateDeserializeImplMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("T?[]", "        ", "<T>", "where T : unmanaged")}}
+                             
+                     {{GeneratePrivateDeserializeImplMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("IList<T?>", "        ", "<T>", "where T : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("IList<T?>", "        ", "<T>", "where T : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("ICollection<T?>", "        ", "<T>", "where T : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("ICollection<T?>", "        ", "<T>", "where T : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("Dictionary<TKey, TValue>", "        ", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("Dictionary<TKey, TValue>", "        ", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("IDictionary<TKey, TValue>", "        ", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged")}}
+                     {{GeneratePrivateDeserializeImplMethodBody("IDictionary<TKey, TValue>", "        ", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged")}}
 
-                         {{GeneratePrivateDeserializeImplMethodBody("string", "        ")}}
-                                 
-                         {{sb}}    }
-                         }
-                         """;
+                     {{GeneratePrivateDeserializeImplMethodBody("string", "        ")}}
+                             
+                     {{sb}}    }
+                     }
+                     """;
 
-            spc.AddSource("NinoDeserializerExtension.g.cs", code);
-        }
-        catch (Exception e)
-        {
-            string wrappedMessage = $@"""
-            /*
-            {
-                e.Message
-            }
-            {
-                e.StackTrace
-            }
-            */
-""";
-            spc.AddSource("NinoDeserializerExtension.g.cs", wrappedMessage);
-        }
+        spc.AddSource("NinoDeserializerExtension.g.cs", code);
     }
 
     private static void GenerateDeserializeImplementation(ITypeSymbol typeSymbol, string typeFullName, StringBuilder sb,
@@ -175,7 +151,7 @@ public class DeserializerGenerator : IIncrementalGenerator
             string typeName, string valName, string[] constructorMember)
         {
             List<(string, string)> vars = new List<(string, string)>();
-            List<(string, string, bool)> privateVars = new List<(string, string,bool)>();
+            List<(string, string, bool)> privateVars = new List<(string, string, bool)>();
             Dictionary<string, string> args = new Dictionary<string, string>();
             foreach (var (name, declaredType, attrs, isCtorParam, isPrivate, isProperty) in members)
             {
@@ -252,6 +228,7 @@ public class DeserializerGenerator : IIncrementalGenerator
 
                 sb.AppendLine($"                    {new string(' ', valName.Length)}   }};");
             }
+
             if (privateVars.Count > 0)
             {
                 sb.AppendLine("#if NET8_0_OR_GREATER");
@@ -259,6 +236,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                 {
                     valName = $"ref {valName}";
                 }
+
                 foreach (var (memberName, varName, isProperty) in privateVars)
                 {
                     if (isProperty)
@@ -273,6 +251,7 @@ public class DeserializerGenerator : IIncrementalGenerator
                         sb.AppendLine($"                    __{varName} = {varName};");
                     }
                 }
+
                 sb.AppendLine("#endif");
             }
         }

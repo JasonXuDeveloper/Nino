@@ -1,11 +1,14 @@
+using System;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Nino.Generator.Common;
+using Nino.Generator.Template;
 
 namespace Nino.Generator;
 
 [Generator(LanguageNames.CSharp)]
-public class TypeSyntaxGenerator : IIncrementalGenerator
+public class CommonGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -22,13 +25,25 @@ public class TypeSyntaxGenerator : IIncrementalGenerator
         compilation = result.newCompilation;
 
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
-        
-        TypeConstGenerator typeConstGenerator = new(compilation, ninoSymbols);
-        UnsafeAccessorGenerator unsafeAccessorGenerator = new(compilation, ninoSymbols);
-        PartialClassGenerator partialClassGenerator = new(compilation, ninoSymbols);
-        
-        typeConstGenerator.Execute(spc);
-        unsafeAccessorGenerator.Execute(spc);
-        partialClassGenerator.Execute(spc);
+        var (inheritanceMap,
+            subTypeMap,
+            topNinoTypes) = ninoSymbols.GetInheritanceMap();
+
+        Type[] types =
+        [
+            typeof(TypeConstGenerator),
+            typeof(UnsafeAccessorGenerator),
+            typeof(PartialClassGenerator),
+            typeof(SerializerGenerator),
+            typeof(DeserializerGenerator)
+        ];
+
+        foreach (Type type in types)
+        {
+            var generator = (NinoCommonGenerator)Activator.CreateInstance(type, compilation, ninoSymbols,
+                inheritanceMap,
+                subTypeMap, topNinoTypes);
+            generator.Execute(spc);
+        }
     }
 }

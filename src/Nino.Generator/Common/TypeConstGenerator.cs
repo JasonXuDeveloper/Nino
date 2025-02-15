@@ -1,12 +1,19 @@
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Template;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Common;
 
-public class TypeConstGenerator(Compilation compilation, List<ITypeSymbol> ninoSymbols)
-    : NinoGenerator(compilation, ninoSymbols)
+public class TypeConstGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> ninoSymbols,
+    Dictionary<string, List<string>> inheritanceMap,
+    Dictionary<string, List<string>> subTypeMap,
+    ImmutableArray<string> topNinoTypes)
+    : NinoCommonGenerator(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
 {
     protected override void Generate(SourceProductionContext spc)
     {

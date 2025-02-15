@@ -1,24 +1,27 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using System.Collections.Generic;
-using System.Collections.Immutable;
-using Microsoft.CodeAnalysis.CSharp;
+using Nino.Generator.Template;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Common;
 
-public class UnsafeAccessorGenerator(Compilation compilation, List<ITypeSymbol> ninoSymbols)
-    : NinoGenerator(compilation, ninoSymbols)
+public class UnsafeAccessorGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> ninoSymbols,
+    Dictionary<string, List<string>> inheritanceMap,
+    Dictionary<string, List<string>> subTypeMap,
+    ImmutableArray<string> topNinoTypes)
+    : NinoCommonGenerator(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
 {
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
         var ninoSymbols = NinoSymbols;
-
-        var (inheritanceMap,
-            subTypeMap,
-            _) = ninoSymbols.GetInheritanceMap();
+        var inheritanceMap = InheritanceMap;
+        var subTypeMap = SubTypeMap;
 
         var sb = new StringBuilder();
         var generatedTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);

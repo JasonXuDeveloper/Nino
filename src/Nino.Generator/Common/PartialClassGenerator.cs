@@ -1,22 +1,27 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using System.Collections.Generic;
+using Nino.Generator.Template;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Common;
 
-public class PartialClassGenerator(Compilation compilation, List<ITypeSymbol> ninoSymbols)
-    : NinoGenerator(compilation, ninoSymbols)
+public class PartialClassGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> ninoSymbols,
+    Dictionary<string, List<string>> inheritanceMap,
+    Dictionary<string, List<string>> subTypeMap,
+    ImmutableArray<string> topNinoTypes)
+    : NinoCommonGenerator(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
 {
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
         var ninoSymbols = NinoSymbols;
-
-        var (inheritanceMap,
-            subTypeMap,
-            _) = ninoSymbols.GetInheritanceMap();
+        var inheritanceMap = InheritanceMap;
+        var subTypeMap = SubTypeMap;
 
         HashSet<string> generatedTypes = new();
 
