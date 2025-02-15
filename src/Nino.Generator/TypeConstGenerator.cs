@@ -1,29 +1,17 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using System.Collections.Immutable;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace Nino.Generator;
 
-[Generator]
-public class NinoTypeConstGenerator : IIncrementalGenerator
+public class TypeConstGenerator(Compilation compilation, List<ITypeSymbol> ninoSymbols)
+    : NinoGenerator(compilation, ninoSymbols)
 {
-    public void Initialize(IncrementalGeneratorInitializationContext context)
+    protected override void Generate(SourceProductionContext spc)
     {
-        var ninoTypeModels = context.GetTypeSyntaxes();
-        var compilationAndClasses = context.CompilationProvider.Combine(ninoTypeModels.Collect());
-        context.RegisterSourceOutput(compilationAndClasses, (spc, source) => Execute(source.Left, source.Right, spc));
-    }
-
-    private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
-        SourceProductionContext spc)
-    {
-        var result = compilation.IsValidCompilation();
-        if (!result.isValid) return;
-        compilation = result.newCompilation;
-
-        var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
+        var compilation = Compilation;
+        var ninoSymbols = NinoSymbols;
 
         // get type full names from models (namespaces + type names)
         var serializableTypes = ninoSymbols
