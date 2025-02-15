@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -10,9 +8,6 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-
-// ReSharper disable HeuristicUnreachableCode
-#pragma warning disable CS0162 // Unreachable code detected
 
 namespace Nino.Generator;
 
@@ -282,12 +277,20 @@ public static class NinoTypeHelper
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
         this IncrementalGeneratorInitializationContext context)
     {
-        return context.SyntaxProvider
-            .CreateSyntaxProvider(
-                //class decl, struct decl, interface decl, record decl, record struct decl
-                predicate: static (s, _) => s is TypeDeclarationSyntax || s is TypeSyntax,
-                transform: static (ctx, _) => ctx.Node as CSharpSyntaxNode)
-            .Where(static m => m != null)!;
+        var ninoTypeAnnotatedTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
+            "Nino.NinoTypeAttribute",
+            predicate: static (s, _) => s is TypeDeclarationSyntax,
+            transform: static (ctx, _) => (CSharpSyntaxNode)ctx.TargetNode);
+
+        var declaredGenericTypes = context.SyntaxProvider.CreateSyntaxProvider(
+            predicate: static (s, _) => s is GenericNameSyntax,
+            transform: static (ctx, _) => (TypeSyntax)ctx.Node);
+
+        var collectedAnnotatedTypes = ninoTypeAnnotatedTypes.Collect();
+        var collectedGenericTypes = declaredGenericTypes.Collect();
+
+        return collectedAnnotatedTypes.Combine(collectedGenericTypes)
+            .SelectMany((pair, _) => pair.Left.Concat(pair.Right));
     }
 
     public static string GetTypeConstName(this string typeFullName)
@@ -313,20 +316,22 @@ public static class NinoTypeHelper
     public static List<ITypeSymbol> GetNinoTypeSymbols(this ImmutableArray<CSharpSyntaxNode> syntaxes,
         Compilation compilation)
     {
-        return syntaxes.Select(s => s.GetTypeSymbol(compilation))
+        var visited = new HashSet<string>();
+        var candidates = new HashSet<CSharpSyntaxNode>();
+        foreach (var syntax in syntaxes)
+        {
+            if (visited.Add(syntax.ToFullString()))
+                candidates.Add(syntax);
+        }
+
+        return candidates
+            .Select(s => s.GetTypeSymbol(compilation))
             .Concat(GetAllNinoRequiredTypes(compilation))
             .Where(s => s != null)
             .Distinct(SymbolEqualityComparer.Default)
             .Select(s => (ITypeSymbol)s!)
             .Where(s => s.IsNinoType())
             .Where(s => s is not ITypeParameterSymbol)
-            .Where(s => s is not INamedTypeSymbol ||
-                        (s is INamedTypeSymbol symbol &&
-                         (!symbol.IsGenericType ||
-                          (symbol.TypeArguments.Length ==
-                           symbol.TypeParameters.Length &&
-                           symbol.TypeArguments.All(
-                               t => t is INamedTypeSymbol n && n.TypeKind != TypeKind.TypeParameter)))))
             .Select(s => s.GetPureType())
             .Select(s =>
             {
@@ -335,21 +340,17 @@ public static class NinoTypeHelper
                 //containing type can not be an uninstantiated generic type
                 bool IsContainingTypeValid(ITypeSymbol type)
                 {
-                    if (type is INamedTypeSymbol namedTypeSymbol)
+                    return type switch
                     {
-                        if (namedTypeSymbol.IsGenericType)
-                        {
-                            return namedTypeSymbol.TypeArguments.Length ==
-                                   namedTypeSymbol.TypeParameters.Length &&
-                                   namedTypeSymbol.TypeArguments.All(t =>
-                                       t is INamedTypeSymbol n && n.TypeKind != TypeKind.TypeParameter) &&
-                                   namedTypeSymbol.TypeArguments.All(IsContainingTypeValid);
-                        }
-
-                        return true;
-                    }
-
-                    return false;
+                        ITypeParameterSymbol => false,
+                        IArrayTypeSymbol arrayTypeSymbol => IsContainingTypeValid(arrayTypeSymbol.ElementType),
+                        INamedTypeSymbol namedTypeSymbol when namedTypeSymbol.IsGenericType =>
+                            namedTypeSymbol.TypeArguments.Length == namedTypeSymbol.TypeParameters.Length &&
+                            namedTypeSymbol.TypeArguments.All(t => t.TypeKind != TypeKind.TypeParameter) &&
+                            namedTypeSymbol.TypeArguments.All(IsContainingTypeValid),
+                        INamedTypeSymbol => true,
+                        _ => false
+                    };
                 }
 
                 while (containingType != null)
@@ -373,14 +374,8 @@ public static class NinoTypeHelper
             .ToList();
     }
 
-    private static readonly ConcurrentDictionary<int, List<ITypeSymbol>> AllNinoRequiredTypesCache = new();
-
     public static IEnumerable<ITypeSymbol> GetAllNinoRequiredTypes(Compilation compilation)
     {
-        if (AllNinoRequiredTypesCache.TryGetValue(compilation.GetHashCode(), out var types))
-            //return a copy
-            return types.ToArray();
-
         var lst = GetAllTypes(compilation)
             .Where(s => s != null)
             .Distinct(SymbolEqualityComparer.Default)
@@ -426,13 +421,10 @@ public static class NinoTypeHelper
             AddElementRecursively(typeSymbol, ret);
         }
 
-        AllNinoRequiredTypesCache[compilation.GetHashCode()] = ret.Distinct(SymbolEqualityComparer.Default)
+        return ret.Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
             .Select(s => (ITypeSymbol)s!)
             .ToList();
-
-        //return a copy
-        return AllNinoRequiredTypesCache[compilation.GetHashCode()].ToArray();
     }
 
     private static void AddElementRecursively(ITypeSymbol symbol, List<ITypeSymbol> ret)
@@ -462,32 +454,13 @@ public static class NinoTypeHelper
         }
     }
 
-
-    private static readonly ConcurrentDictionary<int, List<INamedTypeSymbol>> AllTypesCache = new();
-    private static readonly ConcurrentDictionary<int, List<INamedTypeSymbol>> AllAssembliesTypesCache = new();
-
-    [SuppressMessage("MicrosoftCodeAnalysisCorrectness", "RS1024:Symbols should be compared for equality")]
     private static INamedTypeSymbol[] GetTypesInAssembly(IAssemblySymbol assembly)
     {
-        var hash = string.IsNullOrEmpty(assembly.Name)
-            ? assembly.Name.GetLegacyNonRandomizedHashCode()
-            : assembly.GetHashCode();
-        if (AllAssembliesTypesCache.TryGetValue(hash, out var types))
-            //return a copy
-            return types.ToArray();
-        
-        var allTypes = GetTypesInNamespace(assembly.GlobalNamespace).ToList();
-        AllAssembliesTypesCache[hash] = allTypes;
-        //return a copy
-        return allTypes.ToArray();
+        return GetTypesInNamespace(assembly.GlobalNamespace).ToArray();
     }
 
     public static IEnumerable<INamedTypeSymbol> GetAllTypes(Compilation compilation)
     {
-        if (AllTypesCache.TryGetValue(compilation.GetHashCode(), out var types))
-            //return a copy
-            return types.ToArray();
-
         var allTypes = new List<INamedTypeSymbol>();
 
         // Add all types from the current assembly (compilation)
@@ -503,14 +476,11 @@ public static class NinoTypeHelper
         }
 
         //distinct
-        AllTypesCache[compilation.GetHashCode()] = allTypes
+        return allTypes
             .Distinct(SymbolEqualityComparer.Default)
             .Where(s => s != null)
             .Select(s => (INamedTypeSymbol)s!)
             .ToList();
-
-        //return a copy
-        return AllTypesCache[compilation.GetHashCode()].ToArray();
     }
 
     private static IEnumerable<INamedTypeSymbol> GetTypesInNamespace(INamespaceSymbol namespaceSymbol)
@@ -566,7 +536,15 @@ public static class NinoTypeHelper
             case TypeDeclarationSyntax typeDeclaration:
                 return compilation.GetSemanticModel(typeDeclaration.SyntaxTree).GetDeclaredSymbol(typeDeclaration);
             case TypeSyntax typeSyntax:
-                return compilation.GetSemanticModel(typeSyntax.SyntaxTree).GetTypeInfo(typeSyntax).Type;
+                var semanticModel = compilation.GetSemanticModel(typeSyntax.SyntaxTree);
+                var typeInfo = semanticModel.GetTypeInfo(typeSyntax);
+                ITypeSymbol? typeSymbol = typeInfo.Type;
+                if (typeSymbol is null)
+                {
+                    return semanticModel.GetSymbolInfo(typeSyntax).Symbol as ITypeSymbol;
+                }
+
+                return typeSymbol;
         }
 
         return null;
@@ -763,36 +741,16 @@ public static class NinoTypeHelper
         return (inheritanceMap, subTypeMap, topNinoTypes.Select(t => t.GetTypeFullName()).ToImmutableArray());
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string GetDeserializePrefix(this ITypeSymbol ts)
     {
         return "Deserialize";
-
-        // v2 legacy code - not used
-        if (!ts.IsNinoType())
-        {
-            return "Deserialize";
-        }
-
-        var assName = ts.ContainingAssembly.Name;
-        var curNamespace = assName.GetNamespace();
-
-        return $"{curNamespace}.Deserializer.Deserialize";
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static string GetSerializePrefix(this ITypeSymbol ts)
     {
         return "Serialize";
-
-        // v2 legacy code - not used
-        if (!ts.IsNinoType())
-        {
-            return "Serialize";
-        }
-
-        var assName = ts.ContainingAssembly.Name;
-        var curNamespace = assName.GetNamespace();
-
-        return $"{curNamespace}.Serializer.Serialize";
     }
 
     public static void GenerateClassSerializeMethods(this StringBuilder sb, string typeFullName, string typeParam = "",
