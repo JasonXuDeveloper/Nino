@@ -235,22 +235,47 @@ public static class NinoTypeHelper
             return (false, compilation);
         }
 
+        //disable nullable reference types
+        Compilation newCompilation = compilation;
         // Cast to CSharpCompilation to access the C#-specific options
-        if (compilation is not CSharpCompilation csharpCompilation) return (false, compilation);
-
-        // if already disabled nullable, return
-        if (csharpCompilation.Options.NullableContextOptions == NullableContextOptions.Disable)
+        if (compilation is CSharpCompilation csharpCompilation)
         {
-            return (true, compilation);
+            // Check if nullable reference types is enabled
+            if (csharpCompilation.Options.NullableContextOptions != NullableContextOptions.Disable)
+            {
+                // Create a new CSharpCompilationOptions with nullable warnings disabled
+                var newOptions = csharpCompilation.Options.WithNullableContextOptions(NullableContextOptions.Disable);
+
+                // Return a new compilation with the updated options
+                newCompilation = csharpCompilation.WithOptions(newOptions);
+            }
         }
 
-        // Create a new CSharpCompilationOptions with nullable warnings disabled
-        var newOptions = csharpCompilation.Options.WithNullableContextOptions(NullableContextOptions.Disable);
+        compilation = newCompilation;
 
-        // Return a new compilation with the updated options
-        Compilation newCompilation = csharpCompilation.WithOptions(newOptions);
+        //make sure the compilation indeed uses Nino.Core
+        foreach (var syntaxTree in compilation.SyntaxTrees)
+        {
+            var root = syntaxTree.GetRoot();
+            var usingDirectives = root.DescendantNodes()
+                .OfType<UsingDirectiveSyntax>()
+                .Where(usingDirective => usingDirective.Name.ToString().Contains("Nino.Core"));
 
-        return (true, newCompilation);
+            if (usingDirectives.Any())
+            {
+                return (true, newCompilation); // Namespace is used in a using directive
+            }
+        }
+
+        //or if any member has NinoTypeAttribute/NinoMemberAttribute/NinoIgnoreAttribute/NinoConstructorAttribute/NinoUtf8Attribute
+        return (compilation.SyntaxTrees
+            .SelectMany(static s => s.GetRoot().DescendantNodes())
+            .Any(static s => s is AttributeSyntax attributeSyntax &&
+                             (attributeSyntax.Name.ToString().EndsWith("NinoType") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoMember") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoIgnore") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoConstructor") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoUtf8"))), newCompilation);
     }
 
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
@@ -284,7 +309,7 @@ public static class NinoTypeHelper
         var curNamespace = assemblyName;
         if (!string.IsNullOrEmpty(curNamespace))
             curNamespace = $"{curNamespace}.";
-        if (!char.IsLetter(curNamespace[0]))
+        if (curNamespace.Length > 0 && !char.IsLetter(curNamespace[0]))
             curNamespace = $"_{curNamespace}";
         //replace special characters with _
         curNamespace = new string(curNamespace.Select(c => char.IsLetterOrDigit(c) || c == '.' ? c : '_').ToArray());

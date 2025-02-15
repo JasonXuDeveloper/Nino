@@ -149,15 +149,15 @@ public class UnsafeAccessorGenerator(
 
                      using System;
                      using System.Runtime.CompilerServices;
-
+                     
+                     #if NET8_0_OR_GREATER
                      namespace {{curNamespace}}
                      {
-                     #if NET8_0_OR_GREATER
                          internal static partial class PrivateAccessor
                          {
                      {{sb}}    }
-                     #endif
                      }
+                     #endif
                      """;
 
         spc.AddSource("NinoPrivateAccessor.g.cs", code);

@@ -25,6 +25,8 @@ public class CommonGenerator : IIncrementalGenerator
         compilation = result.newCompilation;
 
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
+        if (ninoSymbols.Count == 0) return;
+        
         var (inheritanceMap,
             subTypeMap,
             topNinoTypes) = ninoSymbols.GetInheritanceMap();

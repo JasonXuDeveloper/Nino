@@ -42,10 +42,16 @@ public class CollectionGenerator : IIncrementalGenerator
         var serializeTypeSymbols = types.GetPotentialCollectionTypes(allNinoRequiredTypes, compilation);
         var deserializeTypeSymbols = types.GetPotentialCollectionTypes(allNinoRequiredTypes, compilation, true);
 
-        CollectionSerializerGenerator serializerGenerator = new(compilation, serializeTypeSymbols);
-        CollectionDeserializerGenerator deserializerGenerator = new(compilation, deserializeTypeSymbols);
+        if (serializeTypeSymbols.Count > 0)
+        {
+            CollectionSerializerGenerator serializerGenerator = new(compilation, serializeTypeSymbols);
+            serializerGenerator.Execute(context);
+        }
 
-        serializerGenerator.Execute(context);
-        deserializerGenerator.Execute(context);
+        if (deserializeTypeSymbols.Count > 0)
+        {
+            CollectionDeserializerGenerator deserializerGenerator = new(compilation, deserializeTypeSymbols);
+            deserializerGenerator.Execute(context);
+        }
     }
 }

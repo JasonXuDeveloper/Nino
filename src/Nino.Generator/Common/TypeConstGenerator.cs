@@ -34,7 +34,8 @@ public class TypeConstGenerator(
         }
 
         //remove last newline
-        types.Remove(types.Length - 1, 1);
+        if (types.Length > 0)
+            types.Remove(types.Length - 1, 1);
 
         var curNamespace = compilation.AssemblyName!.GetNamespace();
 
