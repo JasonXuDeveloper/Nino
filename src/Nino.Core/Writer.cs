@@ -49,21 +49,27 @@ namespace Nino.Core
                 return;
             }
 
-            var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
-            int size = sizeof(int) + valueSpan.Length;
-            var span = _bufferWriter.GetSpan(size);
-            Unsafe.WriteUnaligned(ref span[0], TypeCollector.GetCollectionHeader(value.Length));
-            Unsafe.CopyBlockUnaligned(ref span[4], ref valueSpan[0],
-                (uint)valueSpan.Length);
-            _bufferWriter.Advance(size);
+            Write(value.AsSpan());
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T>(T?[] value) where T : unmanaged
+        {
+            if (value == null)
+            {
+                Write(TypeCollector.NullCollection);
+                return;
+            }
+
+            Write(value.AsSpan());
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(Span<T> value) where T : unmanaged
         {
-            if (value == Span<T>.Empty)
+            if (value.IsEmpty)
             {
-                Write(TypeCollector.NullCollection);
+                Write(TypeCollector.GetCollectionHeader(0));
                 return;
             }
 
@@ -79,9 +85,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(Span<T?> value) where T : unmanaged
         {
-            if (value == Span<T?>.Empty)
+            if (value.IsEmpty)
             {
-                Write(TypeCollector.NullCollection);
+                Write(TypeCollector.GetCollectionHeader(0));
                 return;
             }
 

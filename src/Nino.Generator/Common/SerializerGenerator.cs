@@ -25,6 +25,9 @@ public class SerializerGenerator(
 
         var sb = new StringBuilder();
 
+        sb.GenerateClassSerializeMethods("Span<T>", "<T>", "where T : unmanaged");
+        sb.GenerateClassSerializeMethods("Span<T?>", "<T>", "where T : unmanaged");
+        sb.GenerateClassSerializeMethods("T[]", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("T?", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("T?[]", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("List<T>", "<T>", "where T : unmanaged");
@@ -273,48 +276,6 @@ public class SerializerGenerator(
                              }
                              
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static byte[] Serialize<T>(this T[] value) where T : unmanaged
-                             {
-                                 if (value == null)
-                                     return new byte[2];
-                                 var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
-                                 int size = sizeof(int) + valueSpan.Length;
-                                 byte[] ret = new byte[size];
-                                 Unsafe.WriteUnaligned(ref ret[0], TypeCollector.GetCollectionHeader(value.Length));
-                                 Unsafe.CopyBlockUnaligned(ref ret[4], ref valueSpan[0],
-                                     (uint)valueSpan.Length);
-                                 return ret;
-                             }
-                             
-                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static void Serialize<T>(this T[] value, IBufferWriter<byte> bufferWriter) where T : unmanaged
-                             {
-                                 Writer writer = new Writer(bufferWriter);
-                                 value.Serialize(ref writer);
-                             }
-                             
-                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static byte[] Serialize<T>(this Span<T> value) where T : unmanaged
-                             {
-                                if (value == Span<T>.Empty)
-                                    return new byte[2];
-                                var valueSpan = MemoryMarshal.AsBytes(value);
-                                int size = sizeof(int) + valueSpan.Length;
-                                byte[] ret = new byte[size];
-                                Unsafe.WriteUnaligned(ref ret[0], TypeCollector.GetCollectionHeader(value.Length));
-                                Unsafe.CopyBlockUnaligned(ref ret[4], ref valueSpan[0],
-                                    (uint)valueSpan.Length);
-                                return ret;
-                             }
-                             
-                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static void Serialize<T>(this Span<T> value, IBufferWriter<byte> bufferWriter) where T : unmanaged
-                             {
-                                 Writer writer = new Writer(bufferWriter);
-                                 value.Serialize(ref writer);
-                             }
-                             
-                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
                              public static byte[] Serialize(this bool value)
                              {
                                  if (value)
@@ -330,21 +291,23 @@ public class SerializerGenerator(
                              }
 
                      {{GeneratePrivateSerializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
-
+                     
+                     {{GeneratePrivateSerializeImplMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
+                     
                      {{GeneratePrivateSerializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateSerializeImplMethodBody("T?[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateSerializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
-
+                     
+                     {{GeneratePrivateSerializeImplMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
+                     
                      {{GeneratePrivateSerializeImplMethodBody("Span<T>", "        ", "<T>", "where T : unmanaged")}}
+                     
+                     {{GeneratePrivateSerializeImplMethodBody("Span<T?>", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GeneratePrivateSerializeImplMethodBody("ICollection<T>", "        ", "<T>", "where T : unmanaged")}}
                              
-                     {{GeneratePrivateSerializeImplMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateSerializeImplMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
-
                      {{GeneratePrivateSerializeImplMethodBody("ICollection<T?>", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GeneratePrivateSerializeImplMethodBody("string", "        ")}}

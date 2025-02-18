@@ -77,6 +77,12 @@ namespace Nino.Core
                 return;
             }
 
+            if (length == 0)
+            {
+                ret = Array.Empty<T>();
+                return;
+            }
+
             GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
 #if NET5_0_OR_GREATER
             ret = bytes.Length <= 2048 ? new T[length] : GC.AllocateUninitializedArray<T>(length);
@@ -110,6 +116,11 @@ namespace Nino.Core
             if (!ReadCollectionHeader(out var length))
             {
                 ret = null;
+                return;
+            }
+            if (length == 0)
+            {
+                ret = new List<T>();
                 return;
             }
 

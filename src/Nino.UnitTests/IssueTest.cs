@@ -21,6 +21,25 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
+        public class ListTest : IssueTestTemplate
+        {
+            [NinoType]
+            public class MyTest
+            {
+                public List<int> List = new List<int>();
+            }
+            
+            [TestMethod]
+            public override void RunTest()
+            {
+                var t = new MyTest();
+                var bytes = t.Serialize();
+                Deserializer.Deserialize(bytes, out MyTest t2);
+                Assert.AreEqual(t.List.Count, t2.List.Count);
+            }
+        }
+
+        [TestClass]
         public class Issue137 : IssueTestTemplate
         {
             public class MultiMap<T, K> : SortedDictionary<T, List<K>>
