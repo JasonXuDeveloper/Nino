@@ -110,7 +110,7 @@ public class DeserializerGenerator(
                      }
                      """;
 
-        spc.AddSource("NinoDeserializerExtension.g.cs", code);
+        spc.AddSource("NinoDeserializer.g.cs", code);
     }
 
     private static void GenerateDeserializeImplementation(ITypeSymbol typeSymbol, string typeFullName, StringBuilder sb,

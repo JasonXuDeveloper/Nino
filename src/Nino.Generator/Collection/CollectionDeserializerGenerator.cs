@@ -140,7 +140,7 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
                      }
                      """;
 
-        spc.AddSource("NinoDeserializerExtension.Ext.g.cs", code);
+        spc.AddSource("NinoDeserializer.Collection.g.cs", code);
     }
 
     private static string GenerateArraySerialization(string prefix, string elemType, string indent)

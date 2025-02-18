@@ -104,7 +104,7 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
                      }
                      """;
 
-        spc.AddSource("NinoSerializerExtension.Ext.g.cs", code);
+        spc.AddSource("NinoSerializer.Collection.g.cs", code);
     }
 
     private static string GenerateCollectionSerialization(string prefix, string collectionType, string lengthName,

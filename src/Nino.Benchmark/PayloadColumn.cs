@@ -36,11 +36,11 @@ public class PayloadColumn : IColumn
     {
         var methodInfo = benchmarkCase.Descriptor.WorkloadMethod;
 
-        if (methodInfo.ReturnType == typeof(byte[]))
+        if (methodInfo.ReturnType == typeof(int))
         {
             var instance = Activator.CreateInstance(benchmarkCase.Descriptor.Type);
-            var result = (byte[])methodInfo.Invoke(instance, null)!;
-            return new SizeValue(result.LongLength).ToString();
+            var result = (int)methodInfo.Invoke(instance, null)!;
+            return new SizeValue(result).ToString();
         }
         else
         {
