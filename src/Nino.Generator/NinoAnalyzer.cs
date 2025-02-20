@@ -98,6 +98,6 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 "Sub-type of a NinoType should also have the NinoTypeAttribute applied",
                 "Sub-type '{0}' of NinoType '{1}' should also have the NinoTypeAttribute applied",
                 "Nino",
-                DiagnosticSeverity.Error, true)
+                DiagnosticSeverity.Info, true)
         );
 }

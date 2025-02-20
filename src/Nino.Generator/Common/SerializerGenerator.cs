@@ -54,6 +54,8 @@ public class SerializerGenerator(
 
                 sb.GenerateClassSerializeMethods(typeFullName);
 
+                HashSet<string> visited = new HashSet<string>();
+
                 sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.AppendLine(
                     $"        public static void Serialize(this {typeFullName} value, ref Writer writer)");
@@ -65,6 +67,8 @@ public class SerializerGenerator(
                     sb.AppendLine("                case null:");
                     sb.AppendLine("                    writer.Write(TypeCollector.Null);");
                     sb.AppendLine("                    return;");
+
+                    visited.Add("null");
                 }
 
                 void WriteMembers(List<NinoTypeHelper.NinoMember> members, ITypeSymbol type,
@@ -131,6 +135,11 @@ public class SerializerGenerator(
                         var subTypeSymbol = ninoSymbols.First(s => s.GetTypeFullName() == subType);
                         if (subTypeSymbol.IsInstanceType())
                         {
+                            if (!visited.Add(subType))
+                            {
+                                continue;
+                            }
+
                             string valName = subType.Replace("global::", "").Replace(".", "_").ToLower();
                             sb.AppendLine($"                case {subType} {valName}:");
                             sb.AppendLine(
@@ -188,15 +197,19 @@ public class SerializerGenerator(
                     {
                         sb.AppendLine("                    return;");
                     }
-                }
-                else
-                {
-                    sb.AppendLine("                default:");
-                    sb.AppendLine("                    throw new InvalidOperationException($\"Invalid type: {value.GetType().FullName}\");");
+
+                    visited.Add("default");
                 }
 
                 if (isPolymorphicType && typeSymbol.IsReferenceType)
                 {
+                    if (!visited.Contains("default"))
+                    {
+                        sb.AppendLine("                default:");
+                        sb.AppendLine(
+                            "                    throw new InvalidOperationException($\"Invalid type: {value.GetType().FullName}\");");
+                    }
+
                     sb.AppendLine("            }");
                 }
 
@@ -320,19 +333,19 @@ public class SerializerGenerator(
                              }
 
                      {{GenerateWriterAccessMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GenerateWriterAccessMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GenerateWriterAccessMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GenerateWriterAccessMethodBody("T?[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GenerateWriterAccessMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GenerateWriterAccessMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GenerateWriterAccessMethodBody("Span<T>", "        ", "<T>", "where T : unmanaged")}}
-                     
+
                      {{GenerateWriterAccessMethodBody("Span<T?>", "        ", "<T>", "where T : unmanaged")}}
                              
                      {{GenerateWriterAccessMethodBody("ICollection<T>", "        ", "<T>", "where T : unmanaged")}}
