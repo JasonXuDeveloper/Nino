@@ -189,6 +189,11 @@ public class SerializerGenerator(
                         sb.AppendLine("                    return;");
                     }
                 }
+                else
+                {
+                    sb.AppendLine("                default:");
+                    sb.AppendLine("                    throw new InvalidOperationException($\"Invalid type: {value.GetType().FullName}\");");
+                }
 
                 if (isPolymorphicType && typeSymbol.IsReferenceType)
                 {

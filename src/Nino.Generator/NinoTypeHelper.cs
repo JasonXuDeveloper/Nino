@@ -8,6 +8,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Nino.Generator;
 
@@ -546,6 +547,11 @@ public static class NinoTypeHelper
         }
 
         return null;
+    }
+
+    public static ITypeSymbol? GetTypeSymbol(this TypeDeclarationSyntax syntax, SyntaxNodeAnalysisContext context)
+    {
+        return context.SemanticModel.GetDeclaredSymbol(syntax);
     }
 
     public static ITypeSymbol GetPureType(this ITypeSymbol typeSymbol)
