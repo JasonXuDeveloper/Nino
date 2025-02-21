@@ -28,7 +28,7 @@ namespace Nino.UnitTests
             {
                 public List<int> List = new List<int>();
             }
-            
+
             [TestMethod]
             public override void RunTest()
             {
@@ -40,11 +40,58 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
+        public class Issue141 : IssueTestTemplate
+        {
+            [NinoType]
+            public class TestClass<T>
+            {
+                public Dictionary<TestEnum, T> Dict = new Dictionary<TestEnum, T>();
+            }
+
+            public enum TestEnum
+            {
+                A,
+                B,
+                C
+            }
+
+
+            [TestMethod]
+            public override void RunTest()
+            {
+                var t = new TestClass<int>();
+                t.Dict.Add(TestEnum.A, 1);
+                t.Dict.Add(TestEnum.B, 2);
+                t.Dict.Add(TestEnum.C, 3);
+                
+                var bytes = t.Serialize();
+                Deserializer.Deserialize(bytes, out TestClass<int> t2);
+                
+                Assert.AreEqual(t.Dict.Count, t2.Dict.Count);
+                Assert.AreEqual(t.Dict[TestEnum.A], t2.Dict[TestEnum.A]);
+                Assert.AreEqual(t.Dict[TestEnum.B], t2.Dict[TestEnum.B]);
+                Assert.AreEqual(t.Dict[TestEnum.C], t2.Dict[TestEnum.C]);
+                
+                var tt = new TestClass<string>();
+                tt.Dict.Add(TestEnum.A, "1");
+                tt.Dict.Add(TestEnum.B, "2");
+                tt.Dict.Add(TestEnum.C, "3");
+                
+                bytes = tt.Serialize();
+                Deserializer.Deserialize(bytes, out TestClass<string> tt2);
+                
+                Assert.AreEqual(tt.Dict.Count, tt2.Dict.Count);
+                Assert.AreEqual(tt.Dict[TestEnum.A], tt2.Dict[TestEnum.A]);
+                Assert.AreEqual(tt.Dict[TestEnum.B], tt2.Dict[TestEnum.B]);
+                Assert.AreEqual(tt.Dict[TestEnum.C], tt2.Dict[TestEnum.C]);
+            }
+        }
+
+        [TestClass]
         public class Issue137 : IssueTestTemplate
         {
             public class MultiMap<T, K> : SortedDictionary<T, List<K>>
             {
-                
                 public new List<K> this[T key]
                 {
                     get
@@ -57,7 +104,7 @@ namespace Nino.UnitTests
 
                         return value;
                     }
-                    
+
                     set
                     {
                         if (value.Count == 0)
@@ -79,14 +126,14 @@ namespace Nino.UnitTests
                 TimeId[1].Add(1);
                 TimeId[1].Add(2);
                 TimeId[2].Add(3);
-                
+
                 var bytes = TimeId.Serialize();
                 Deserializer.Deserialize(bytes, out MultiMap<long, long> TimeId2);
-                
+
                 Assert.AreEqual(TimeId.Count, TimeId2.Count);
                 Assert.AreEqual(TimeId[1].Count, TimeId2[1].Count);
                 Assert.AreEqual(TimeId[2].Count, TimeId2[2].Count);
-                
+
                 Assert.AreEqual(TimeId[1][0], TimeId2[1][0]);
                 Assert.AreEqual(TimeId[1][1], TimeId2[1][1]);
                 Assert.AreEqual(TimeId[2][0], TimeId2[2][0]);

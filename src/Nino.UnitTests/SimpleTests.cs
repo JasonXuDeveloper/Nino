@@ -13,13 +13,21 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestPrivateAccess()
         {
+            ProtectedShouldInclude protectedShouldInclude = new ProtectedShouldInclude()
+            {
+                Id = 991122
+            };
+            byte[] bytes = protectedShouldInclude.Serialize();
+            Deserializer.Deserialize(bytes, out ProtectedShouldInclude protectedShouldInclude2);
+            Assert.AreEqual(protectedShouldInclude.Id, protectedShouldInclude2.Id);
+            
             ShouldIgnorePrivate data = new ShouldIgnorePrivate
             {
                 Id = 1,
                 Name = "Test",
                 CreateTime = DateTime.Today
             };
-            byte[] bytes = data.Serialize();
+            bytes = data.Serialize();
             Deserializer.Deserialize(bytes, out ShouldIgnorePrivate shouldIgnorePrivate);
             Assert.AreNotEqual(data.Id, shouldIgnorePrivate.Id);
             Assert.AreEqual(data.Name, shouldIgnorePrivate.Name);

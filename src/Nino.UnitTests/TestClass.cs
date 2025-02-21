@@ -5,6 +5,23 @@ using Nino.Core;
 
 #nullable disable
 
+[NinoType(containNonPublicMembers: true)]
+public
+#if !NET8_0_OR_GREATER
+    partial
+#endif
+    class ProtectedShouldInclude
+{
+    protected int _id;
+
+    [NinoIgnore]
+    public int Id
+    {
+        get => _id;
+        set => _id = value;
+    }
+}
+
 [NinoType]
 public
 #if !NET8_0_OR_GREATER

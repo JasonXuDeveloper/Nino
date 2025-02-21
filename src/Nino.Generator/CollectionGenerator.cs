@@ -38,7 +38,7 @@ public class CollectionGenerator : IIncrementalGenerator
         var result = compilation.IsValidCompilation();
         if (!result.isValid) return;
         compilation = result.newCompilation;
-        var allNinoRequiredTypes = NinoTypeHelper.GetAllNinoRequiredTypes(compilation);
+        var allNinoRequiredTypes = types.GetAllNinoRequiredTypes(compilation);
         var serializeTypeSymbols = types.GetPotentialCollectionTypes(allNinoRequiredTypes, compilation);
         var deserializeTypeSymbols = types.GetPotentialCollectionTypes(allNinoRequiredTypes, compilation, true);
 

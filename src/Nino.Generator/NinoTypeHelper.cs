@@ -367,7 +367,8 @@ public static class NinoTypeHelper
                 typeSymbols.Add(typeSymbol.GetPureType());
         }
 
-        foreach (var syntax in GetAllNinoRequiredTypes(compilation))
+        foreach (var syntax in GetAllNinoRequiredTypes(syntaxes.Select(s => (TypeSyntax)s).ToImmutableArray()
+                     , compilation))
         {
             if (syntax != null && syntax.IsNinoType()
                                && syntax is not ITypeParameterSymbol
@@ -378,7 +379,8 @@ public static class NinoTypeHelper
         return typeSymbols.ToList();
     }
 
-    public static List<ITypeSymbol> GetAllNinoRequiredTypes(Compilation compilation)
+    public static List<ITypeSymbol> GetAllNinoRequiredTypes(this ImmutableArray<TypeSyntax> syntaxes,
+        Compilation compilation)
     {
         HashSet<INamedTypeSymbol> validTypes = new(SymbolEqualityComparer.Default);
         foreach (var type in GetAllTypes(compilation))
@@ -391,6 +393,16 @@ public static class NinoTypeHelper
                 //add to valid types
                 validTypes.Add(type);
             }
+        }
+
+        foreach (var syntax in syntaxes)
+        {
+            if (syntax == null) continue;
+            var typeSymbol = syntax.GetTypeSymbol(compilation);
+            if (typeSymbol != null && typeSymbol is INamedTypeSymbol namedTypeSymbol && typeSymbol.IsNinoType()
+                && typeSymbol is not ITypeParameterSymbol
+                && CheckGenericValidity(typeSymbol))
+                validTypes.Add((INamedTypeSymbol)namedTypeSymbol.GetPureType());
         }
 
         HashSet<ITypeSymbol> ret = new(SymbolEqualityComparer.Default);
