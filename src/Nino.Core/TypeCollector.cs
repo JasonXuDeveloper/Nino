@@ -9,6 +9,7 @@ namespace Nino.Core
     {
         public const int Null = 0;
         public const byte NullCollection = 0;
+        public const uint EmptyCollectionHeader = 128;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint GetCollectionHeader(int size)
