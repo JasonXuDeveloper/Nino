@@ -5,6 +5,30 @@ using Nino.Core;
 
 #nullable disable
 
+[NinoType]
+public interface IListElementClass
+{
+}
+
+[NinoType]
+public class ListElementClass : IListElementClass
+{
+    public int Id;
+    public string Name;
+    public DateTime CreateTime;
+    public bool Extra;
+}
+
+[NinoType]
+public class ListElementClass2 : IListElementClass
+{
+    public int Id;
+    public string Name;
+    public DateTime CreateTime;
+    public string Extra;
+}
+
+
 [NinoType(containNonPublicMembers: true)]
 public
 #if !NET8_0_OR_GREATER

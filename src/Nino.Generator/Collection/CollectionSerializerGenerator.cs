@@ -127,9 +127,16 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
                         }
                         writer.Write(TypeCollector.GetCollectionHeader(value.{{lengthName}}));
                         {{span}}
+                        
+                        int pos, diff;
+                        
                         {{loop}}
                         {
+                            pos = writer.WrittenCount;
+                            writer.Advance(4);
                             {{prefix}}({{element}}, ref writer);
+                            diff = writer.WrittenCount - pos;
+                            writer.UnsafeWriteBack(diff, diff);
                         }
                     }
 

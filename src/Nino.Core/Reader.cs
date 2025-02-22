@@ -19,6 +19,14 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _data.IsEmpty;
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Reader Slice(int length)
+        {
+            var slice = _data.Slice(0, length);
+            _data = _data.Slice(length);
+            return new Reader(slice);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ReadCollectionHeader(out int length)

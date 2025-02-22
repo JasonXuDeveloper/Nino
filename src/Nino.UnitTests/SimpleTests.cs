@@ -11,6 +11,106 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestModifyListMemberDataStructure()
+        {
+            List<IListElementClass> list = new List<IListElementClass>
+            {
+                new ListElementClass
+                {
+                    Id = 1,
+                    Name = "Test",
+                    CreateTime = DateTime.Today
+                },
+                new ListElementClass2
+                {
+                    Id = 2,
+                    Name = "Test2",
+                    CreateTime = DateTime.Today
+                }
+            };
+
+            byte[] bytes = list.Serialize();
+            Assert.IsNotNull(bytes);
+            Console.WriteLine(string.Join(", ", bytes));
+
+            Deserializer.Deserialize(bytes, out List<IListElementClass> result);
+            Assert.AreEqual(list.Count, result.Count);
+            foreach (var item in list)
+            {
+                switch (item)
+                {
+                    case ListElementClass listElementClass:
+                        Assert.IsTrue(result[0] is ListElementClass);
+                        Assert.AreEqual(listElementClass.Id, ((ListElementClass)result[0]).Id);
+                        Assert.AreEqual(listElementClass.Name, ((ListElementClass)result[0]).Name);
+                        Assert.AreEqual(listElementClass.CreateTime, ((ListElementClass)result[0]).CreateTime);
+                        break;
+                    case ListElementClass2 listElementClass2:
+                        Assert.IsTrue(result[1] is ListElementClass2);
+                        Assert.AreEqual(listElementClass2.Id, ((ListElementClass2)result[1]).Id);
+                        Assert.AreEqual(listElementClass2.Name, ((ListElementClass2)result[1]).Name);
+                        Assert.AreEqual(listElementClass2.CreateTime, ((ListElementClass2)result[1]).CreateTime);
+                        break;
+                }
+            }
+        }
+
+
+#if WEAK_VERSION_TOLERANCE
+        [TestMethod]
+        public void TestModifyListMemberDataStructure2()
+        {
+            // same data as above
+            List<IListElementClass> list = new List<IListElementClass>
+            {
+                new ListElementClass
+                {
+                    Id = 1,
+                    Name = "Test",
+                    CreateTime = DateTime.Today
+                },
+                new ListElementClass2
+                {
+                    Id = 2,
+                    Name = "Test2",
+                    CreateTime = DateTime.Today
+                }
+            };
+
+            // serialized old data structure
+            byte[] bytes = new byte[]
+            {
+                128, 0, 0, 2, 32, 0, 0, 0, 125, 234, 9, 159, 1, 0, 0, 0, 128, 0, 0, 4, 84, 0, 101, 0, 115, 0, 116, 0, 0,
+                64, 172, 217, 211, 82, 221, 136, 34, 0, 0, 0, 75, 83, 158, 19, 2, 0, 0, 0, 128, 0, 0, 5, 84, 0, 101, 0,
+                115, 0, 116, 0, 50, 0, 0, 64, 172, 217, 211, 82, 221, 136
+            };
+
+            Deserializer.Deserialize(bytes, out List<IListElementClass> result);
+            Assert.AreEqual(list.Count, result.Count);
+            foreach (var item in list)
+            {
+                switch (item)
+                {
+                    case ListElementClass listElementClass:
+                        Assert.IsTrue(result[0] is ListElementClass);
+                        Assert.AreEqual(listElementClass.Id, ((ListElementClass)result[0]).Id);
+                        Assert.AreEqual(listElementClass.Name, ((ListElementClass)result[0]).Name);
+                        Assert.AreEqual(listElementClass.CreateTime, ((ListElementClass)result[0]).CreateTime);
+                        Assert.AreEqual(listElementClass.Extra, false);
+                        break;
+                    case ListElementClass2 listElementClass2:
+                        Assert.IsTrue(result[1] is ListElementClass2);
+                        Assert.AreEqual(listElementClass2.Id, ((ListElementClass2)result[1]).Id);
+                        Assert.AreEqual(listElementClass2.Name, ((ListElementClass2)result[1]).Name);
+                        Assert.AreEqual(listElementClass2.CreateTime, ((ListElementClass2)result[1]).CreateTime);
+                        Assert.AreEqual(listElementClass2.Extra, null);
+                        break;
+                }
+            }
+        }
+#endif
+
+        [TestMethod]
         public void TestPrivateAccess()
         {
             ProtectedShouldInclude protectedShouldInclude = new ProtectedShouldInclude()
@@ -20,7 +120,7 @@ namespace Nino.UnitTests
             byte[] bytes = protectedShouldInclude.Serialize();
             Deserializer.Deserialize(bytes, out ProtectedShouldInclude protectedShouldInclude2);
             Assert.AreEqual(protectedShouldInclude.Id, protectedShouldInclude2.Id);
-            
+
             ShouldIgnorePrivate data = new ShouldIgnorePrivate
             {
                 Id = 1,
@@ -32,45 +132,45 @@ namespace Nino.UnitTests
             Assert.AreNotEqual(data.Id, shouldIgnorePrivate.Id);
             Assert.AreEqual(data.Name, shouldIgnorePrivate.Name);
             Assert.AreEqual(data.CreateTime, shouldIgnorePrivate.CreateTime);
-            
+
             TestPrivateMemberClass pcls = new TestPrivateMemberClass();
             pcls.A = 1;
-            
+
             bytes = pcls.Serialize();
             Deserializer.Deserialize(bytes, out TestPrivateMemberClass pcls2);
             Assert.AreEqual(pcls.A, pcls2.A);
             Assert.AreEqual(pcls.ReadonlyId, pcls2.ReadonlyId);
-            
+
             RecordWithPrivateMember record = new RecordWithPrivateMember("Test");
             Assert.IsNotNull(record.Name);
             Assert.AreEqual("Test", record.Name);
-            
+
             bytes = record.Serialize();
             Deserializer.Deserialize(bytes, out RecordWithPrivateMember r1);
             Assert.AreEqual(record.Name, r1.Name);
             Assert.AreEqual(record.ReadonlyId, r1.ReadonlyId);
-            
+
             RecordWithPrivateMember2 record2 = new RecordWithPrivateMember2("Test");
             Assert.IsNotNull(record2.Name);
             Assert.AreEqual("Test", record2.Name);
-            
+
             bytes = record2.Serialize();
             Deserializer.Deserialize(bytes, out RecordWithPrivateMember2 r2);
             Assert.AreEqual(record2.Name, r2.Name);
             Assert.AreEqual(record2.ReadonlyId, r2.ReadonlyId);
-            
+
             StructWithPrivateMember s = new StructWithPrivateMember
             {
                 Id = 1,
             };
             s.SetName("Test");
             Assert.AreEqual("Test", s.GetName());
-            
+
             bytes = s.Serialize();
             Deserializer.Deserialize(bytes, out StructWithPrivateMember s2);
             Assert.AreEqual(s.Id, s2.Id);
             Assert.AreEqual(s.GetName(), s2.GetName());
-            
+
             ClassWithPrivateMember<float> cls = new ClassWithPrivateMember<float>();
             cls.Flag = true;
             cls.List = new List<float>
@@ -104,7 +204,7 @@ namespace Nino.UnitTests
                 1
             };
             Assert.IsNotNull(cls2.Name);
-            
+
             bytes = cls2.Serialize();
             Deserializer.Deserialize(bytes, out ClassWithPrivateMember<int> result2);
             Assert.AreEqual(cls2.Id, result2.Id);
@@ -115,13 +215,13 @@ namespace Nino.UnitTests
             {
                 Assert.AreEqual(cls2.List[i], result2.List[i]);
             }
-            
+
             Bindable<int> bindable = new Bindable<int>(1);
             bytes = bindable.Serialize();
             Deserializer.Deserialize(bytes, out Bindable<int> bindable2);
             Assert.AreEqual(bindable.Value, bindable2.Value);
         }
-        
+
         [TestMethod]
         public void TestInterfaceVariants()
         {
@@ -135,17 +235,17 @@ namespace Nino.UnitTests
             byte[] bytes = ((ISerializable)a).Serialize();
             Deserializer.Deserialize(bytes, out Struct1 i11);
             Assert.AreEqual(a, i11);
-            
+
             //real type serialization and deserialization with polymorphism
             bytes = a.Serialize();
             Deserializer.Deserialize(bytes, out ISerializable i1);
-            
+
             Assert.AreEqual(i1, i11);
-            
+
             Assert.IsInstanceOfType(i1, typeof(Struct1));
             var result = (Struct1)i1;
             Assert.AreEqual(a.A, result.A);
-            
+
             Class1 b = new Class1
             {
                 A = 1,
@@ -153,7 +253,7 @@ namespace Nino.UnitTests
                 C = Guid.NewGuid(),
                 D = a
             };
-            
+
             bytes = b.Serialize();
             Deserializer.Deserialize(bytes, out ISerializable i2);
             Assert.IsInstanceOfType(i2, typeof(Class1));
@@ -162,7 +262,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(b.B, result2.B);
             Assert.AreEqual(b.C, result2.C);
             Assert.AreEqual((Struct1)b.D, (Struct1)result2.D);
-            
+
             Struct2 c = new Struct2
             {
                 A = 1,
@@ -170,12 +270,12 @@ namespace Nino.UnitTests
                 C = "Test",
                 D = b
             };
-            
+
             bytes = c.Serialize();
             Deserializer.Deserialize(bytes, out ISerializable i3);
             Assert.IsInstanceOfType(i3, typeof(Struct2));
             var result3 = (Struct2)i3;
-            
+
             Assert.AreEqual(c.A, result3.A);
             Assert.AreEqual(c.B, result3.B);
             Assert.AreEqual(c.C, result3.C);
@@ -184,7 +284,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(c.D.C, result3.D.C);
             Assert.AreEqual(((Struct1)c.D.D).A, ((Struct1)result3.D.D).A);
         }
-        
+
         [TestMethod]
         public void TestString()
         {
@@ -196,24 +296,24 @@ namespace Nino.UnitTests
             {
                 Str = "Hello, World!"
             };
-            
+
             byte[] bytes = data.Serialize();
             Console.WriteLine(string.Join(", ", bytes));
             Assert.IsNotNull(bytes);
-            
+
             Deserializer.Deserialize(bytes, out StringData result);
             Assert.AreEqual(data.Str, result.Str);
-            
+
             bytes = data2.Serialize();
             Console.WriteLine(string.Join(", ", bytes));
             Assert.IsNotNull(bytes);
-            
+
             Deserializer.Deserialize(bytes, out StringData2 result2);
             Assert.AreEqual(data2.Str, result2.Str);
-            
+
             Assert.AreEqual(result.Str, result2.Str);
         }
-        
+
         [TestMethod]
         public void TestDeserializeOldData()
         {
@@ -232,7 +332,7 @@ namespace Nino.UnitTests
                    [NinoMember(2)] public string Name;
                }
              */
-            
+
             //print all const int in NinoTypeConst
 
             Console.WriteLine(string.Join(", ", data.Serialize()));
@@ -591,7 +691,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(a.Val.Val.Val.Id, result.Val.Val.Val.Id);
             Assert.AreEqual(a.Val.Val.Val.Name, result.Val.Val.Val.Name);
         }
-        
+
         [TestMethod]
         public void TestNullCollection()
         {

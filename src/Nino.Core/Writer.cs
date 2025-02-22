@@ -6,13 +6,37 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
-    public readonly ref struct Writer
+    public ref struct Writer
     {
         private readonly IBufferWriter<byte> _bufferWriter;
+
+        public int WrittenCount
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get;
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private set;
+        }
 
         public Writer(IBufferWriter<byte> bufferWriter)
         {
             _bufferWriter = bufferWriter;
+            WrittenCount = 0;
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Advance(int count)
+        {
+            _bufferWriter.Advance(count);
+            WrittenCount += count;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void UnsafeWriteBack<T>(T value, int offset) where T : unmanaged
+        {
+            var span = _bufferWriter.GetSpan();
+            ref byte backByte = ref Unsafe.SubtractByteOffset(ref MemoryMarshal.GetReference(span), (nint)offset);
+            Unsafe.WriteUnaligned(ref backByte, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -22,6 +46,7 @@ namespace Nino.Core
             var span = _bufferWriter.GetSpan(size);
             Unsafe.WriteUnaligned(ref span[0], value);
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -38,6 +63,7 @@ namespace Nino.Core
             span[0] = 1;
             Unsafe.WriteUnaligned(ref span[1], value.Value);
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -80,6 +106,7 @@ namespace Nino.Core
             Unsafe.CopyBlockUnaligned(ref span[4], ref valueSpan[0],
                 (uint)valueSpan.Length);
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -154,6 +181,7 @@ namespace Nino.Core
             }
 
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -178,6 +206,7 @@ namespace Nino.Core
             }
 
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -208,6 +237,7 @@ namespace Nino.Core
                     var header = _bufferWriter.GetSpan(sizeof(int));
                     Unsafe.WriteUnaligned(ref header[0], TypeCollector.GetCollectionHeader(0));
                     _bufferWriter.Advance(sizeof(int));
+                    WrittenCount += sizeof(int);
                     return;
                 default:
                     int spanLength = sizeof(int) + value.Length;
@@ -221,6 +251,7 @@ namespace Nino.Core
                     System.Text.Encoding.UTF8.GetBytes(value, span.Slice(4));
 #endif
                     _bufferWriter.Advance(spanLength);
+                    WrittenCount += spanLength;
                     break;
             }
         }
@@ -237,6 +268,7 @@ namespace Nino.Core
                     var header = _bufferWriter.GetSpan(sizeof(int));
                     Unsafe.WriteUnaligned(ref header[0], TypeCollector.GetCollectionHeader(0));
                     _bufferWriter.Advance(sizeof(int));
+                    WrittenCount += sizeof(int);
                     return;
                 default:
                     var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
@@ -246,6 +278,7 @@ namespace Nino.Core
                     Unsafe.CopyBlockUnaligned(ref span[4], ref MemoryMarshal.GetReference(valueSpan),
                         (uint)valueSpan.Length);
                     _bufferWriter.Advance(spanLength);
+                    WrittenCount += spanLength;
                     break;
             }
         }

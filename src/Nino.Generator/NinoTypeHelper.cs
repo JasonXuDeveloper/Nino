@@ -112,13 +112,12 @@ public static class NinoTypeHelper
                     if (!validIndexers.Any()) return false;
 
                     //ensure the valid indexer has public getter and setter
-                    if (validIndexers.Any(p => p.GetMethod?.DeclaredAccessibility == Accessibility.Public &&
-                                               p.SetMethod?.DeclaredAccessibility == Accessibility.Public))
-                    {
-                        return true;
-                    }
+                    var hasValidIndexer = validIndexers.Any(p =>
+                        p.GetMethod?.DeclaredAccessibility == Accessibility.Public &&
+                        p.SetMethod?.DeclaredAccessibility == Accessibility.Public);
 
-                    return false;
+                    if (!hasValidIndexer)
+                        return false;
                 }
 
                 //we dont want array of unmanaged
