@@ -165,10 +165,29 @@ public class DeserializerGenerator(
                     var isUtf8 = attrs.Any(a =>
                         a.AttributeClass?.ToDisplayString().EndsWith("NinoUtf8Attribute") == true);
 
-                    sb.AppendLine(
-                        isUtf8
-                            ? $"                    reader.ReadUtf8(out {declaredType.ToDisplayString()} {tempName});"
-                            : $"                    reader.Read(out {declaredType.ToDisplayString()} {tempName});");
+                    var str = isUtf8
+                        ? $"reader.ReadUtf8(out {tempName});"
+                        : $"reader.Read(out {tempName});";
+                    
+                    //weak version tolerance
+                    var toleranceCode = $$$"""
+                                                               {{{declaredType.ToDisplayString()}}} {{{tempName}}};
+                                                               #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
+                                                               if (reader.Eof)
+                                                               {
+                                                                  {{{tempName}}} = default;
+                                                               }
+                                                               else
+                                                               {
+                                                                  {{{str}}}
+                                                               }
+                                                               #else
+                                                               {{{str}}}
+                                                               #endif
+                                           """;
+                    
+                    sb.AppendLine(toleranceCode);
+                    sb.AppendLine();
                 }
                 else
                 {
