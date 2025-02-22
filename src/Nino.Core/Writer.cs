@@ -27,6 +27,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Advance(int count)
         {
+            _bufferWriter.GetSpan(count);
             _bufferWriter.Advance(count);
             WrittenCount += count;
         }
