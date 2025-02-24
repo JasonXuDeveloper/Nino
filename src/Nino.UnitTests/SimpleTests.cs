@@ -19,13 +19,13 @@ namespace Nino.UnitTests
                 {
                     Id = 1,
                     Name = "Test",
-                    CreateTime = DateTime.Today
+                    CreateTime = new DateTime(2025, 2, 22)
                 },
                 new ListElementClass2
                 {
                     Id = 2,
                     Name = "Test2",
-                    CreateTime = DateTime.Today
+                    CreateTime = new DateTime(2025, 2, 22)
                 }
             };
 
@@ -67,13 +67,13 @@ namespace Nino.UnitTests
                 {
                     Id = 1,
                     Name = "Test",
-                    CreateTime = DateTime.Today
+                    CreateTime = new DateTime(2025, 2, 22)
                 },
                 new ListElementClass2
                 {
                     Id = 2,
                     Name = "Test2",
-                    CreateTime = DateTime.Today
+                    CreateTime = new DateTime(2025, 2, 22)
                 }
             };
 
