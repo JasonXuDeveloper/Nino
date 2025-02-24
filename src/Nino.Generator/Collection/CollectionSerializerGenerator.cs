@@ -51,8 +51,7 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
             if (type is IArrayTypeSymbol)
             {
                 sb.AppendLine(GenerateCollectionSerialization(((IArrayTypeSymbol)type).ElementType.GetSerializePrefix(),
-                    type, typeFullName, "Length", "        ",
-                    "", "", ((IArrayTypeSymbol)type).ElementType.ToDisplayString(),
+                    typeFullName, "Length", "        ", "", "", ((IArrayTypeSymbol)type).ElementType.ToDisplayString(),
                     true, true));
                 continue;
             }
@@ -62,8 +61,8 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
                 namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
             if (i != null)
             {
-                sb.AppendLine(GenerateCollectionSerialization(i.TypeArguments[0].GetSerializePrefix(), type,
-                    typeFullName, "Count", "        "));
+                sb.AppendLine(GenerateCollectionSerialization(i.TypeArguments[0].GetSerializePrefix(), typeFullName,
+                    "Count", "        "));
                 continue;
             }
 
@@ -73,8 +72,8 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
                 if (type is INamedTypeSymbol { TypeArguments.Length: 1 } ns)
                 {
                     sb.AppendLine(GenerateCollectionSerialization(ns.TypeArguments[0].GetSerializePrefix(),
-                        type, typeFullName, "Length", "        ",
-                        "", "", ns.TypeArguments[0].ToDisplayString(), false, true));
+                        typeFullName,
+                        "Length", "        ", "", "", ns.TypeArguments[0].ToDisplayString(), false, true));
                     continue;
                 }
             }
@@ -108,8 +107,7 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
         spc.AddSource("NinoSerializer.Collection.g.cs", code);
     }
 
-    private static string GenerateCollectionSerialization(string prefix, ITypeSymbol collectionTypeSymbol,
-        string collectionType, string lengthName,
+    private static string GenerateCollectionSerialization(string prefix, string collectionType, string lengthName,
         string indent,
         string typeParam = "", string genericConstraint = "", string elementType = "", bool isArray = false,
         bool canUseFor = false)
@@ -118,32 +116,30 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
         var collection = isArray && canUseFor ? "span" : "value";
         var loop = canUseFor ? $"for (int i = 0; i < {collection}.Length; i++)" : $"foreach (var item in {collection})";
         var element = canUseFor ? $"{collection}[i]" : "item";
-        var nullStr = collectionTypeSymbol.IsReferenceType ? "null" : "var _ when value.Equals(default)";
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static void Serialize{{typeParam}}(this {{collectionType}} value, ref Writer writer) {{genericConstraint}}
                     {
-                        switch (value)
+                        if (value == ({{collectionType}}) default)
                         {
-                            case {{nullStr}}:
-                                writer.Write(TypeCollector.NullCollection);
-                                return;
-                            case var _ when value.{{lengthName}} == 0:
-                                writer.Write(TypeCollector.EmptyCollectionHeader);
-                                return;
-                            default:
-                                writer.Write(TypeCollector.GetCollectionHeader(value.{{lengthName}}));
-                                {{span}}
-                                {{loop}}
-                                {
-                                    int pos = writer.WrittenCount;
-                                    writer.Advance(4);
-                                    {{prefix}}({{element}}, ref writer);
-                                    int diff = writer.WrittenCount - pos;
-                                    writer.WriteBack(diff, pos);
-                                }
-                                
-                                return;
+                            writer.Write(TypeCollector.NullCollection);
+                            return;
+                        }
+                        if (value.{{lengthName}} == 0)
+                        {
+                            writer.Write(TypeCollector.EmptyCollectionHeader);
+                            return;
+                        }
+                        
+                        writer.Write(TypeCollector.GetCollectionHeader(value.{{lengthName}}));
+                        {{span}}
+                        {{loop}}
+                        {
+                            int pos = writer.WrittenCount;
+                            writer.Advance(4);
+                            {{prefix}}({{element}}, ref writer);
+                            int diff = writer.WrittenCount - pos;
+                            writer.WriteBack(diff, pos);
                         }
                     }
 
