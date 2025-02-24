@@ -309,7 +309,15 @@ public class SerializerGenerator(
                              }
                              
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static void Serialize<T>(this T value, IBufferWriter<byte> bufferWriter) where T : unmanaged
+                             public static void Serialize<T>(this T value, NinoArrayBufferWriter bufferWriter) where T : unmanaged
+                             {
+                                 int size = Unsafe.SizeOf<T>();
+                                 Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(bufferWriter.GetSpan(size)), value);
+                                 bufferWriter.Advance(size);
+                             }
+                             
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static void Serialize<T>(this T value, INinoBufferWriter bufferWriter) where T : unmanaged
                              {
                                  int size = Unsafe.SizeOf<T>();
                                  Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(bufferWriter.GetSpan(size)), value);

@@ -803,7 +803,14 @@ public static class NinoTypeHelper
                     }
 
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Serialize{{typeParam}}(this {{typeName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
+                    public static void Serialize{{typeParam}}(this {{typeName}} value, NinoArrayBufferWriter bufferWriter) {{genericConstraint}}
+                    {
+                        Writer writer = new Writer(bufferWriter);
+                        value.Serialize(ref writer);
+                    }
+
+                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                    public static void Serialize{{typeParam}}(this {{typeName}} value, INinoBufferWriter bufferWriter) {{genericConstraint}}
                     {
                         Writer writer = new Writer(bufferWriter);
                         value.Serialize(ref writer);
