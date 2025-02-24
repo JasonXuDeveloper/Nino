@@ -312,8 +312,7 @@ public class SerializerGenerator(
                              public static void Serialize<T>(this T value, IBufferWriter<byte> bufferWriter) where T : unmanaged
                              {
                                  int size = Unsafe.SizeOf<T>();
-                                 var span = bufferWriter.GetSpan(size);
-                                 Unsafe.WriteUnaligned(ref span[0], value);
+                                 Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(bufferWriter.GetSpan(size)), value);
                                  bufferWriter.Advance(size);
                              }
                              
