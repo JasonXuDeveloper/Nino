@@ -166,17 +166,14 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
                             return;
                         }
                         
-                        int eleLength;
                         Reader eleReader;
                         
                         value = new {{creationDecl}};
                         var span = value.AsSpan();
                         for (int i = 0; i < length; i++)
                         {
-                            reader.Read(out eleLength);
-                            eleReader = reader.Slice(eleLength - 4);
-                            {{prefix}}(out {{elemType}} val, ref eleReader);
-                            span[i] = val;
+                            eleReader = reader.Slice();
+                            {{prefix}}(out span[i], ref eleReader);
                         }
                     }
 
@@ -207,14 +204,12 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
                             return;
                         }
                     
-                        int eleLength;
                         Reader eleReader;
                         
                         value = new {{typeFullName}}({{(typeFullName.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
                         for (int i = 0; i < length; i++)
                         {
-                            reader.Read(out eleLength);
-                            eleReader = reader.Slice(eleLength - 4);
+                            eleReader = reader.Slice();
                             Deserialize(out KeyValuePair<{{type1}}, {{type2}}> kvp, ref eleReader);
                             value[kvp.Key] = kvp.Value;
                         }

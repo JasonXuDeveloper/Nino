@@ -41,7 +41,7 @@ public class SimpleTest
             .Select(_ => new Vector4(r.NextSingle(), r.NextSingle(),
                 r.NextSingle(), r.NextSingle())).ToArray();
 
-        _bufferWriter = new ArrayBufferWriter<byte>(1024);
+        _bufferWriter = new ArrayBufferWriter<byte>(1024 * 1024);
 
         _serializedSimpleClass = new byte[3][];
         _serializedSimpleClass[0] = MessagePackSerializer.Serialize(_simpleClass);

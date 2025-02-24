@@ -21,17 +21,25 @@ namespace Nino.Core
             _bufferWriter = bufferWriter;
         }
 
+        /// <summary>
+        /// Returns the position before advancing
+        /// </summary>
+        /// <param name="count"></param>
+        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Advance(int count)
+        public int Advance(int count)
         {
+            var pos = _bufferWriter.WrittenCount;
             _bufferWriter.GetSpan(count);
             _bufferWriter.Advance(count);
+            
+            return pos;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteBack<T>(T value, int offset) where T : unmanaged
+        public void PutLength(int oldPos)
         {
-            Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.WrittenSpan.Slice(offset)), value);
+            Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.WrittenSpan.Slice(oldPos)), WrittenCount - oldPos);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

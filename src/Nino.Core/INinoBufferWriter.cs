@@ -1,12 +1,27 @@
 using System;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
-    public interface INinoBufferWriter: IBufferWriter<byte>
+    public interface INinoBufferWriter : IBufferWriter<byte>
     {
-        int WrittenCount { get; }
-        ReadOnlySpan<byte> WrittenSpan { get; }
-        ReadOnlyMemory<byte> WrittenMemory { get; }
+        int WrittenCount
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get;
+        }
+
+        ReadOnlySpan<byte> WrittenSpan
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get;
+        }
+
+        ReadOnlyMemory<byte> WrittenMemory
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get;
+        }
     }
 }

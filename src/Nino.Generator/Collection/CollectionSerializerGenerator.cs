@@ -114,7 +114,8 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
     {
         var span = canUseFor && isArray ? $"Span<{elementType}> span = value.AsSpan();" : "";
         var collection = isArray && canUseFor ? "span" : "value";
-        var loop = canUseFor ? $"for (int i = 0; i < {collection}.Length; i++)" : $"foreach (var item in {collection})";
+        var cnt = canUseFor ? $"int cnt = {collection}.Length;" : "";
+        var loop = canUseFor ? "for (int i = 0; i < cnt; i++)" : $"foreach (var item in {collection})";
         var element = canUseFor ? $"{collection}[i]" : "item";
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -125,21 +126,16 @@ public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSy
                             writer.Write(TypeCollector.NullCollection);
                             return;
                         }
-                        if (value.{{lengthName}} == 0)
-                        {
-                            writer.Write(TypeCollector.EmptyCollectionHeader);
-                            return;
-                        }
-                        
+
                         writer.Write(TypeCollector.GetCollectionHeader(value.{{lengthName}}));
                         {{span}}
+                        int pos;
+                        {{cnt}}
                         {{loop}}
                         {
-                            int pos = writer.WrittenCount;
-                            writer.Advance(4);
+                            pos = writer.Advance(4);
                             {{prefix}}({{element}}, ref writer);
-                            int diff = writer.WrittenCount - pos;
-                            writer.WriteBack(diff, pos);
+                            writer.PutLength(pos);
                         }
                     }
 

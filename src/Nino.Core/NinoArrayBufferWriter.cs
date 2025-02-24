@@ -36,16 +36,19 @@ namespace Nino.Core
             _bufferWriter = new ArrayBufferWriter<byte>(initialCapacity);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Advance(int count)
         {
             _bufferWriter.Advance(count);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Memory<byte> GetMemory(int sizeHint = 0)
         {
             return _bufferWriter.GetMemory(sizeHint);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Span<byte> GetSpan(int sizeHint = 0)
         {
             return _bufferWriter.GetSpan(sizeHint);

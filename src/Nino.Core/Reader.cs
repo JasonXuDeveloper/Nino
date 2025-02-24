@@ -21,9 +21,10 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Reader Slice(int length)
+        public Reader Slice()
         {
-            var slice = _data.Slice(0, length);
+            int length = Unsafe.ReadUnaligned<int>(ref MemoryMarshal.GetReference(_data));
+            var slice = _data.Slice(4, length - 4);
             _data = _data.Slice(length);
             return new Reader(slice);
         }
