@@ -660,9 +660,22 @@ public static class NinoTypeHelper
     {
         var formerName = typeSymbol.GetAttributes()
             .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoFormerNameAttribute");
-        var typeFullName = formerName?.ConstructorArguments[0].Value?.ToString() ??
-                           typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-        return typeFullName.GetLegacyNonRandomizedHashCode();
+        
+        if(formerName == null)
+            return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).GetLegacyNonRandomizedHashCode();
+        
+        //if not generic
+        if (typeSymbol is not INamedTypeSymbol namedTypeSymbol || !namedTypeSymbol.IsGenericType)
+        {
+            return formerName.ConstructorArguments[0].Value?.ToString().GetLegacyNonRandomizedHashCode() ??
+                   typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).GetLegacyNonRandomizedHashCode();
+        }
+        
+        //for generic, we only replace the non-generic part of the name
+        var typeFullName = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var genericIndex = typeFullName.IndexOf('<');
+        var newName = $"{formerName.ConstructorArguments[0].Value}{typeFullName.Substring(genericIndex)}";
+        return newName.GetLegacyNonRandomizedHashCode();
     }
 
     // Use this if and only if you need the hashcode to not change across app domains (e.g. you have an app domain agile
