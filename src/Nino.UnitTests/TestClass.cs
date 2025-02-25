@@ -20,7 +20,8 @@ public class ListElementClass : IListElementClass
 }
 
 [NinoType]
-public class ListElementClass2 : IListElementClass
+[NinoFormerName("global::ListElementClass2")]
+public class ListElementClass2Renamed : IListElementClass
 {
     public int Id;
     public string Name;

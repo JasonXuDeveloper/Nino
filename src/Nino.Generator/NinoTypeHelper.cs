@@ -658,8 +658,11 @@ public static class NinoTypeHelper
 
     public static int GetId(this ITypeSymbol typeSymbol)
     {
-        return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
-            .GetLegacyNonRandomizedHashCode();
+        var formerName = typeSymbol.GetAttributes()
+            .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoFormerNameAttribute");
+        var typeFullName = formerName?.ConstructorArguments[0].Value?.ToString() ??
+                           typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        return typeFullName.GetLegacyNonRandomizedHashCode();
     }
 
     // Use this if and only if you need the hashcode to not change across app domains (e.g. you have an app domain agile
@@ -803,14 +806,7 @@ public static class NinoTypeHelper
                     }
 
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Serialize{{typeParam}}(this {{typeName}} value, NinoArrayBufferWriter bufferWriter) {{genericConstraint}}
-                    {
-                        Writer writer = new Writer(bufferWriter);
-                        value.Serialize(ref writer);
-                    }
-
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Serialize{{typeParam}}(this {{typeName}} value, INinoBufferWriter bufferWriter) {{genericConstraint}}
+                    public static void Serialize{{typeParam}}(this {{typeName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
                     {
                         Writer writer = new Writer(bufferWriter);
                         value.Serialize(ref writer);

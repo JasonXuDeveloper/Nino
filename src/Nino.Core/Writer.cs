@@ -6,19 +6,16 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
-    public readonly ref struct Writer
+    public ref struct Writer
     {
-        private readonly INinoBufferWriter _bufferWriter;
+        private readonly IBufferWriter<byte> _bufferWriter;
 
-        public int WrittenCount
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _bufferWriter.WrittenCount;
-        }
+        public int WrittenCount;
 
-        public Writer(INinoBufferWriter bufferWriter)
+        public Writer(IBufferWriter<byte> bufferWriter)
         {
             _bufferWriter = bufferWriter;
+            WrittenCount = 0;
         }
 
         /// <summary>
@@ -29,17 +26,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Advance(int count)
         {
-            var pos = _bufferWriter.WrittenCount;
+            var pos = WrittenCount;
             _bufferWriter.GetSpan(count);
             _bufferWriter.Advance(count);
-            
+            WrittenCount += count;
+
             return pos;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void PutLength(int oldPos)
         {
-            Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.WrittenSpan.Slice(oldPos)), WrittenCount - oldPos);
+            var diff = WrittenCount - oldPos;
+            ref byte oldPosByte = ref Unsafe.Subtract(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan()), diff);
+            Unsafe.WriteUnaligned(ref oldPosByte, diff);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -48,6 +48,7 @@ namespace Nino.Core
             int size = Unsafe.SizeOf<T>();
             Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size)), value);
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -64,6 +65,7 @@ namespace Nino.Core
             header = 1;
             Unsafe.WriteUnaligned(ref Unsafe.Add(ref header, 1), value.Value);
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -106,6 +108,7 @@ namespace Nino.Core
             Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref header, 4), ref MemoryMarshal.GetReference(valueSpan),
                 (uint)valueSpan.Length);
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -173,6 +176,7 @@ namespace Nino.Core
             ref byte header = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size));
             Unsafe.WriteUnaligned(ref header, TypeCollector.GetCollectionHeader(value.Count));
             int offset = 4;
+            
             foreach (var item in value)
             {
                 Unsafe.WriteUnaligned(ref Unsafe.Add(ref header, offset), item);
@@ -180,6 +184,7 @@ namespace Nino.Core
             }
 
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -204,6 +209,7 @@ namespace Nino.Core
             }
 
             _bufferWriter.Advance(size);
+            WrittenCount += size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -245,6 +251,7 @@ namespace Nino.Core
                     System.Text.Encoding.UTF8.GetBytes(value, span.Slice(4));
 #endif
                     _bufferWriter.Advance(spanLength);
+                    WrittenCount += spanLength;
                     break;
             }
         }
@@ -268,6 +275,7 @@ namespace Nino.Core
                     Unsafe.CopyBlockUnaligned(ref span[4], ref MemoryMarshal.GetReference(valueSpan),
                         (uint)valueSpan.Length);
                     _bufferWriter.Advance(spanLength);
+                    WrittenCount += spanLength;
                     break;
             }
         }

@@ -21,7 +21,7 @@ namespace Nino.UnitTests
                     Name = "Test",
                     CreateTime = new DateTime(2025, 2, 22)
                 },
-                new ListElementClass2
+                new ListElementClass2Renamed
                 {
                     Id = 2,
                     Name = "Test2",
@@ -45,11 +45,11 @@ namespace Nino.UnitTests
                         Assert.AreEqual(listElementClass.Name, ((ListElementClass)result[0]).Name);
                         Assert.AreEqual(listElementClass.CreateTime, ((ListElementClass)result[0]).CreateTime);
                         break;
-                    case ListElementClass2 listElementClass2:
-                        Assert.IsTrue(result[1] is ListElementClass2);
-                        Assert.AreEqual(listElementClass2.Id, ((ListElementClass2)result[1]).Id);
-                        Assert.AreEqual(listElementClass2.Name, ((ListElementClass2)result[1]).Name);
-                        Assert.AreEqual(listElementClass2.CreateTime, ((ListElementClass2)result[1]).CreateTime);
+                    case ListElementClass2Renamed listElementClass2:
+                        Assert.IsTrue(result[1] is ListElementClass2Renamed);
+                        Assert.AreEqual(listElementClass2.Id, ((ListElementClass2Renamed)result[1]).Id);
+                        Assert.AreEqual(listElementClass2.Name, ((ListElementClass2Renamed)result[1]).Name);
+                        Assert.AreEqual(listElementClass2.CreateTime, ((ListElementClass2Renamed)result[1]).CreateTime);
                         break;
                 }
             }
@@ -69,7 +69,7 @@ namespace Nino.UnitTests
                     Name = "Test",
                     CreateTime = new DateTime(2025, 2, 22)
                 },
-                new ListElementClass2
+                new ListElementClass2Renamed
                 {
                     Id = 2,
                     Name = "Test2",
@@ -98,11 +98,11 @@ namespace Nino.UnitTests
                         Assert.AreEqual(listElementClass.CreateTime, ((ListElementClass)result[0]).CreateTime);
                         Assert.AreEqual(listElementClass.Extra, false);
                         break;
-                    case ListElementClass2 listElementClass2:
-                        Assert.IsTrue(result[1] is ListElementClass2);
-                        Assert.AreEqual(listElementClass2.Id, ((ListElementClass2)result[1]).Id);
-                        Assert.AreEqual(listElementClass2.Name, ((ListElementClass2)result[1]).Name);
-                        Assert.AreEqual(listElementClass2.CreateTime, ((ListElementClass2)result[1]).CreateTime);
+                    case ListElementClass2Renamed listElementClass2:
+                        Assert.IsTrue(result[1] is ListElementClass2Renamed);
+                        Assert.AreEqual(listElementClass2.Id, ((ListElementClass2Renamed)result[1]).Id);
+                        Assert.AreEqual(listElementClass2.Name, ((ListElementClass2Renamed)result[1]).Name);
+                        Assert.AreEqual(listElementClass2.CreateTime, ((ListElementClass2Renamed)result[1]).CreateTime);
                         Assert.AreEqual(listElementClass2.Extra, null);
                         break;
                 }
