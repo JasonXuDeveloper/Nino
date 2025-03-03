@@ -92,16 +92,6 @@ public static class NinoTypeHelper
                     return true;
                 }
 
-                //we dont want IList/ICollection of unmanaged
-                var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                    namedTypeSymbol.Name == (forDeserialization ? "IList" : "ICollection") &&
-                    namedTypeSymbol.TypeArguments.Length == 1);
-                if (i != null)
-                {
-                    if (i.TypeArguments[0].IsUnmanagedType) return false;
-                    if (!IsAccessibleType(i.TypeArguments[0])) return false;
-                }
-
                 //we dont want Dictionary that has no getter/setter in its indexer
                 var iDict = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
                     namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
@@ -110,8 +100,21 @@ public static class NinoTypeHelper
                     var kType = iDict.TypeArguments[0];
                     var vType = iDict.TypeArguments[1];
 
-                    if (kType.IsUnmanagedType && vType.IsUnmanagedType) return false;
+                    bool isJustTrivial = ts.OriginalDefinition.ToDisplayString() ==
+                                         "System.Collections.Generic.Dictionary<TKey, TValue>" ||
+                                         ts.OriginalDefinition.ToDisplayString() ==
+                                         "System.Collections.Generic.IDictionary<TKey, TValue>" ||
+                                         ts.TypeKind == TypeKind.Interface;
+
+                    if (kType.IsUnmanagedType && vType.IsUnmanagedType)
+                    {
+                        if (forDeserialization && !isJustTrivial) return true;
+                        return false;
+                    }
+
                     if (!IsAccessibleType(kType) || !IsAccessibleType(vType)) return false;
+
+                    if (ts.TypeKind == TypeKind.Interface && forDeserialization) return true;
 
                     //use indexer to set/get value, TODO alternatively, use attributes to specify relevant methods
                     var indexers = ts
@@ -135,7 +138,7 @@ public static class NinoTypeHelper
                     if (!hasValidIndexer)
                         return false;
                 }
-
+                
                 //we dont want array of unmanaged
                 if (ts is IArrayTypeSymbol arrayTypeSymbol)
                 {
@@ -143,6 +146,27 @@ public static class NinoTypeHelper
                     if (arrayTypeSymbol.ElementType.IsUnmanagedType) return false;
                     if (!IsAccessibleType(arrayTypeSymbol.ElementType)) return false;
                 }
+
+                //we dont want IList/ICollection of unmanaged
+                var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
+                    namedTypeSymbol.Name == (forDeserialization ? "IList" : "ICollection") &&
+                    namedTypeSymbol.TypeArguments.Length == 1);
+                if (i != null)
+                {
+                    bool isJustTrivial = ts.OriginalDefinition.ToDisplayString() ==
+                                         "System.Collections.Generic.List<T>" ||
+                                         ts.OriginalDefinition.ToDisplayString() ==
+                                         "System.Collections.Generic.IList<T>" ||
+                                         ts.TypeKind == TypeKind.Interface;
+                    if (i.TypeArguments[0].IsUnmanagedType)
+                    {
+                        if (forDeserialization && !isJustTrivial) return true;
+                        return false;
+                    }
+
+                    if (!IsAccessibleType(i.TypeArguments[0])) return false;
+                }
+
 
                 //we dont want nullable of unmanaged
                 if (ts.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)

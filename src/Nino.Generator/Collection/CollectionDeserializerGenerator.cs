@@ -20,9 +20,6 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
         HashSet<string> addedElemType = new HashSet<string>();
         foreach (var type in typeSymbols)
         {
-            //obviously we cannot deserialize to an interface, we want an actual type
-            if (type.TypeKind == TypeKind.Interface) continue;
-
             var typeFullName = type.ToDisplayString();
             if (!addedType.Add(typeFullName)) continue;
 
@@ -56,14 +53,28 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
             //if type implements IDictionary only
             var idict = type.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
                 namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
+            if (idict == null)
+            {
+                //if type is indeed IDictionary
+                idict = type.TypeKind == TypeKind.Interface && type.Name == "IDictionary"
+                    ? (INamedTypeSymbol)type
+                    : null;
+            }
+
             if (idict != null)
             {
                 if (idict is { TypeArguments.Length: 2 } namedTypeSymbol)
                 {
                     var type1 = namedTypeSymbol.TypeArguments[0].ToDisplayString();
                     var type2 = namedTypeSymbol.TypeArguments[1].ToDisplayString();
-                    sb.AppendLine(GenerateDictionarySerialization(type1, type2, typeFullName, "        "));
+                    sb.AppendLine(GenerateDictionarySerialization(type1, type2,
+                        namedTypeSymbol.TypeArguments[0], namedTypeSymbol.TypeArguments[1],
+                        typeFullName,
+                        type.TypeKind == TypeKind.Interface
+                            ? "System.Collections.Generic.Dictionary<" + type1 + ", " + type2 + ">"
+                            : typeFullName, "        "));
                     sb.GenerateClassDeserializeMethods(typeFullName);
+
                     continue;
                 }
             }
@@ -71,6 +82,8 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
             //if type is array
             if (type is IArrayTypeSymbol)
             {
+                if (((IArrayTypeSymbol)type).ElementType.IsUnmanagedType)
+                    continue;
                 var elemType = ((IArrayTypeSymbol)type).ElementType.ToDisplayString();
                 if (addedElemType.Add(elemType))
                     sb.AppendLine(GenerateArraySerialization(
@@ -81,7 +94,8 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
             }
 
             //ICollection<T>
-            if (type is INamedTypeSymbol { TypeArguments.Length: 1 } s)
+            if (type is INamedTypeSymbol { TypeArguments.Length: 1 } s &&
+                s.AllInterfaces.Any(namedTypeSymbol => namedTypeSymbol.Name == "ICollection"))
             {
                 var elemType = s.TypeArguments[0].ToDisplayString();
                 if (addedElemType.Add(elemType) && !s.TypeArguments[0].IsUnmanagedType)
@@ -183,12 +197,20 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
         return $"{indent}{ret}";
     }
 
-    private static string GenerateDictionarySerialization(string type1, string type2, string typeFullName,
+    private static string GenerateDictionarySerialization(string type1, string type2, ITypeSymbol keyType,
+        ITypeSymbol valType,
+        string sigTypeFullName,
+        string typeFullName,
         string indent = "")
     {
+        bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
+        var reader = isUnmanaged ? "reader" : "eleReader";
+        var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
+        var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
+
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize(out {{typeFullName}} value, ref Reader reader)
+                    public static void Deserialize(out {{sigTypeFullName}} value, ref Reader reader)
                     {
                     #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                          if (reader.Eof)
@@ -204,13 +226,13 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
                             return;
                         }
                     
-                        Reader eleReader;
+                        {{eleReaderDecl}}
                         
                         value = new {{typeFullName}}({{(typeFullName.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
                         for (int i = 0; i < length; i++)
                         {
-                            eleReader = reader.Slice();
-                            Deserialize(out KeyValuePair<{{type1}}, {{type2}}> kvp, ref eleReader);
+                            {{slice}}
+                            Deserialize(out KeyValuePair<{{type1}}, {{type2}}> kvp, ref {{reader}});
                             value[kvp.Key] = kvp.Value;
                         }
                     }
@@ -221,7 +243,8 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
         return $"{indent}{ret}";
     }
 
-    private static string GenerateCollectionSerialization(string prefix, string elemType, string sigTypeFullname,
+    private static string GenerateCollectionSerialization(string prefix, string elemType,
+        string sigTypeFullname,
         string typeFullname,
         string indent)
     {
@@ -253,7 +276,8 @@ public class CollectionDeserializerGenerator(Compilation compilation, List<IType
         return $"{indent}{ret}";
     }
 
-    private static string GenerateListSerialization(string prefix, string elemType, string sigTypeFullname,
+    private static string GenerateListSerialization(string prefix, string elemType,
+        string sigTypeFullname,
         string typeFullname,
         string indent,
         bool isInterface = false)

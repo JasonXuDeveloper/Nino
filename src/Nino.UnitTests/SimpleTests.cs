@@ -11,6 +11,66 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestCollections()
+        {
+            ConcurrentDictionary<int,int>[] dict = new ConcurrentDictionary<int, int>[10];
+            for (int i = 0; i < dict.Length; i++)
+            {
+                dict[i] = new ConcurrentDictionary<int, int>();
+                dict[i].TryAdd(i, i);
+            }
+            var bytes = dict.Serialize();
+            Assert.IsNotNull(bytes);
+            
+            Deserializer.Deserialize(bytes, out ConcurrentDictionary<int, int>[] result);
+            Assert.AreEqual(dict.Length, result.Length);
+            for (int i = 0; i < dict.Length; i++)
+            {
+                Assert.AreEqual(dict[i].Count, result[i].Count);
+                Assert.AreEqual(dict[i][i], result[i][i]);
+            }
+            
+            ConcurrentDictionary<int,string>[] dict2 = new ConcurrentDictionary<int, string>[10];
+            for (int i = 0; i < dict2.Length; i++)
+            {
+                dict2[i] = new ConcurrentDictionary<int, string>();
+                dict2[i].TryAdd(i, i.ToString());
+            }
+            bytes = dict2.Serialize();
+            Assert.IsNotNull(bytes);
+            
+            Deserializer.Deserialize(bytes, out IDictionary<int, string>[] result2);
+            Assert.AreEqual(dict2.Length, result2.Length);
+            for (int i = 0; i < dict2.Length; i++)
+            {
+                Assert.AreEqual(dict2[i].Count, result2[i].Count);
+                Assert.AreEqual(dict2[i][i], result2[i][i]);
+            }
+            
+            IDictionary<int, IDictionary<int, int[]>> dict3 = new Dictionary<int, IDictionary<int, int[]>>();
+            for (int i = 0; i < 10; i++)
+            {
+                dict3[i] = new ConcurrentDictionary<int, int[]>();
+                dict3[i].TryAdd(i, new int[]{i, i});
+            }
+            dict2.Serialize();
+            bytes = dict3.Serialize();
+            Assert.IsNotNull(bytes);
+            
+            Deserializer.Deserialize(bytes, out IDictionary<int, IDictionary<int, int[]>> result3);
+            Assert.AreEqual(dict3.Count, result3.Count);
+            for (int i = 0; i < dict3.Count; i++)
+            {
+                Assert.AreEqual(dict3[i].Count, result3[i].Count);
+                Assert.AreEqual(dict3[i][i].Length, result3[i][i].Length);
+                for (int j = 0; j < dict3[i][i].Length; j++)
+                {
+                    Assert.AreEqual(dict3[i][i][j], result3[i][i][j]);
+                }
+            }
+        }
+        
+        [TestMethod]
         public void TestModifyListMemberDataStructure()
         {
             List<IListElementClass> list = new List<IListElementClass>
