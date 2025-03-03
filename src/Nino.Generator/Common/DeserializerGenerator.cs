@@ -233,23 +233,13 @@ public class DeserializerGenerator(
                         $"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
                 }
 
-                if (privateVars.Count > 0)
-                {
-                    sb.AppendLine("#if !NET8_0_OR_GREATER");
-                    foreach (var (memberName, varName, _) in privateVars)
-                    {
-                        sb.AppendLine(
-                            $"                 {new string(' ', valName.Length)}      \t__nino__generated__{memberName} = {varName},");
-                    }
-
-                    sb.AppendLine("#endif");
-                }
-
                 sb.AppendLine($"                    {new string(' ', valName.Length)}   }};");
             }
 
             if (privateVars.Count > 0)
             {
+                var originalValName = valName;
+
                 if (type.IsValueType)
                 {
                     valName = $"ref {valName}";
@@ -269,6 +259,13 @@ public class DeserializerGenerator(
                             $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
                         sb.AppendLine($"                    __{varName} = {varName};");
                     }
+                }
+
+                sb.AppendLine("#else");
+                foreach (var (memberName, varName, isProperty) in privateVars)
+                {
+                    var legacyVal = $"{originalValName}.__nino__generated__{memberName}";
+                    sb.AppendLine($"                    {legacyVal} = {varName};");
                 }
 
                 sb.AppendLine("#endif");

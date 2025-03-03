@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using Test.NinoGen;
 using Nino.Test;
+using Nino.Core;
 using NUnit.Framework;
 using Debug = UnityEngine.Debug;
 
@@ -42,10 +44,15 @@ namespace Test.Editor.Tests
             };
 
             Debug.Log($"will serialize c: {c}");
-            var bs = Serializer.Serialize(c);
+            var bs = global::Editor.Tests.NinoGen.Serializer.Serialize(c);
             Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
+            var bs2 = global::Test.NinoGen.Serializer.Serialize(c);
+            Debug.Log($"serialized to {bs2.Length} bytes: {string.Join(",", bs2)}");
+            
+            Assert.True(bs.SequenceEqual(bs2));
+            
             Debug.Log("will deserialize");
-            Deserializer.Deserialize(bs, out PrimitiveTypeTest cc);
+            global::Editor.Tests.NinoGen.Deserializer.Deserialize(bs, out PrimitiveTypeTest cc);
             Debug.Log($"deserialized as cc: {cc}");
 
             Assert.AreEqual(c.ToString(), cc.ToString());

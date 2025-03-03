@@ -79,7 +79,7 @@ public static class NinoTypeHelper
 
                     if (s.TypeArguments.Any(IsTypeParameter)) return false;
                 }
-                
+
                 bool IsAccessibleType(ITypeSymbol typeSymbol)
                 {
                     if (typeSymbol.DeclaredAccessibility == Accessibility.Private) return false;
@@ -109,7 +109,7 @@ public static class NinoTypeHelper
                 {
                     var kType = iDict.TypeArguments[0];
                     var vType = iDict.TypeArguments[1];
-                    
+
                     if (kType.IsUnmanagedType && vType.IsUnmanagedType) return false;
                     if (!IsAccessibleType(kType) || !IsAccessibleType(vType)) return false;
 
@@ -680,17 +680,19 @@ public static class NinoTypeHelper
     {
         var formerName = typeSymbol.GetAttributes()
             .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoFormerNameAttribute");
-        
-        if(formerName == null)
-            return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).GetLegacyNonRandomizedHashCode();
-        
+
+        if (formerName == null)
+            return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                .GetLegacyNonRandomizedHashCode();
+
         //if not generic
         if (typeSymbol is not INamedTypeSymbol namedTypeSymbol || !namedTypeSymbol.IsGenericType)
         {
             return formerName.ConstructorArguments[0].Value?.ToString().GetLegacyNonRandomizedHashCode() ??
-                   typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).GetLegacyNonRandomizedHashCode();
+                   typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+                       .GetLegacyNonRandomizedHashCode();
         }
-        
+
         //for generic, we only replace the non-generic part of the name
         var typeFullName = typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var genericIndex = typeFullName.IndexOf('<');
@@ -921,6 +923,21 @@ public static class NinoTypeHelper
             return new List<NinoMember>();
         }
 
+        //check if this type has attribute NinoExplicitOrder
+        var explicitOrder = typeSymbol.GetAttributes().FirstOrDefault(a =>
+            a.AttributeClass != null &&
+            a.AttributeClass.ToDisplayString().EndsWith("NinoExplicitOrderAttribute"));
+        Dictionary<string, int> order = new();
+        if (explicitOrder != null)
+        {
+            //first arg of NinoExplicitOrderAttribute is param string[] order
+            for (var index = 0; index < explicitOrder.ConstructorArguments[0].Values.Length; index++)
+            {
+                var value = explicitOrder.ConstructorArguments[0].Values[index];
+                order[(string)value.Value!] = index;
+            }
+        }
+
         //get NinoType attribute first argument value from typeSymbol
         var attr = typeSymbol.GetAttributes().FirstOrDefault(a =>
             a.AttributeClass != null &&
@@ -1010,7 +1027,22 @@ public static class NinoTypeHelper
                 continue;
             }
 
-            var memberName = symbol.Name;
+            //if has NinoPrivateProxyAttribute, it is a private proxy
+            var ninoPrivateProxyAttribute = attrList.FirstOrDefault(a =>
+                a.AttributeClass?.Name.EndsWith("NinoPrivateProxyAttribute") ?? false);
+            bool isPrivateProxy = false;
+            bool isProxyProperty = false;
+            string proxyName = "";
+
+            if (ninoPrivateProxyAttribute != null)
+            {
+                var args = ninoPrivateProxyAttribute.ConstructorArguments;
+                isPrivateProxy = true;
+                isProxyProperty = (bool)(args[1].Value ?? throw new InvalidOperationException());
+                proxyName = (string)(args[0].Value ?? throw new InvalidOperationException());
+            }
+
+            var memberName = isPrivateProxy ? proxyName : symbol.Name;
             if (memberIndex.ContainsKey(memberName))
             {
                 continue;
@@ -1022,6 +1054,9 @@ public static class NinoTypeHelper
             {
                 isPrivate = false;
             }
+
+            if (isPrivateProxy)
+                isPrivate = true;
 
             var memberType = symbol switch
             {
@@ -1038,13 +1073,14 @@ public static class NinoTypeHelper
 
             //nullability check
             memberType = memberType.GetPureType();
+            var isProperty = isPrivateProxy ? isProxyProperty : symbol is IPropertySymbol;
 
-            if (autoCollect)
+            if (autoCollect || isPrivateProxy)
             {
                 memberIndex[memberName] = memberIndex.Count;
                 ret.Add(new(memberName, memberType, attrList.ToArray(),
                     symbol is IParameterSymbol, isPrivate,
-                    symbol is IPropertySymbol));
+                    isProperty));
                 continue;
             }
 
@@ -1067,7 +1103,7 @@ public static class NinoTypeHelper
             memberIndex[memberName] = (ushort)indexValue;
             ret.Add(new(memberName, memberType, attrList.ToArray(),
                 symbol is IParameterSymbol, isPrivate,
-                symbol is IPropertySymbol));
+                isProperty));
         }
 
         //sort by name
@@ -1084,6 +1120,17 @@ public static class NinoTypeHelper
             var bName = b.Name;
             return memberIndex[aName].CompareTo(memberIndex[bName]);
         });
+
+        if (order.Count > 0)
+        {
+            ret.Sort((a, b) =>
+            {
+                var aName = a.Name;
+                var bName = b.Name;
+                return order[aName].CompareTo(order[bName]);
+            });
+        }
+
         return ret;
     }
 }
