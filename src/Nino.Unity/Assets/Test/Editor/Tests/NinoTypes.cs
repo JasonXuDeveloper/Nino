@@ -35,7 +35,8 @@ namespace Test.Editor.Tests
                         { "dict2.entry1", new Data() },
                         { "dict2.entry2", new Data() },
                         { "dict2.entry3", new Data() },
-                    }
+                    },
+                    Dt = DateTime.Now
                 };
 
                 Debug.Log($"will serialize c: {c}");
