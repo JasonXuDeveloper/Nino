@@ -6,6 +6,32 @@ using Nino.Core;
 #nullable disable
 
 [NinoType]
+public class PrivateNestedCollection
+{
+    private struct MyStruct
+    {
+        public int X;
+        public string Y;
+    }
+    
+    private class MyClass
+    {
+        public int X;
+        public string Y;
+    }
+
+    public void Func()
+    {
+        //ensure no code is generated for this
+        List<MyStruct> list = new List<MyStruct>();
+        Dictionary<MyStruct, MyStruct> dict = new Dictionary<MyStruct, MyStruct>();
+        List<MyClass> list2 = new List<MyClass>();
+        Dictionary<MyClass, MyClass> dict2 = new Dictionary<MyClass, MyClass>();
+        Dictionary<MyStruct, MyClass> dict3 = new Dictionary<MyStruct, MyClass>();
+    }
+}
+
+[NinoType]
 public interface IListElementClass
 {
 }

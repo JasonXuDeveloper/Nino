@@ -155,4 +155,135 @@ public class Something
                 .WithLocation(36, 14)
                 .WithArguments("TestClass4", "IBase")).RunAsync();
     }
+
+    [TestMethod]
+    public async Task TestNino004()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoMember(1)]
+    public int A;
+
+    [NinoMember(2)]
+    public string B;
+}
+
+[NinoType(false)]
+public class TestClass2
+{
+    [NinoMember(1)]
+    public int A;
+
+    [NinoMember(2)]
+    public string B;
+}
+";
+
+        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO004")
+                .WithSpan(8, 16, 8, 17)
+                .WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO004")
+                .WithSpan(11, 19, 11, 20)
+                .WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino005()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(false)]
+public class TestClass
+{
+    [NinoIgnore]
+    public int A;
+
+    [NinoMember(2)]
+    public string B;
+}
+
+[NinoType]
+public class TestClass2
+{
+    [NinoIgnore]
+    public int A;
+
+    public string B;
+}
+";
+
+        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO005")
+            .WithSpan(8, 16, 8, 17)
+            .WithArguments("A", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino006()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(false)]
+public class TestClass
+{
+    [NinoIgnore]
+    [NinoMember(2)]
+    public int A;
+
+    public string B;
+}
+
+[NinoType]
+public class TestClass2
+{
+    [NinoIgnore]
+    [NinoMember(2)]
+    public int A;
+
+    public string B;
+}
+";
+
+        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO006")
+                .WithSpan(9, 16, 9, 17)
+                .WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO004")
+                .WithSpan(19, 16, 19, 17)
+                .WithArguments("A", "TestClass2")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino007()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(false)]
+public class TestClass
+{
+    [NinoMember(1)]
+    private int A;
+
+    public string B;
+}
+
+[NinoType(false, true)]
+public class TestClass2
+{
+    [NinoMember(1)]
+    private int A;
+
+    public string B;
+}
+";
+
+        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO007")
+            .WithSpan(8, 17, 8, 18)
+            .WithArguments("A", "TestClass")).RunAsync();
+    }
 }

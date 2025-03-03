@@ -47,7 +47,69 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 var typeDeclarationSyntax = (TypeDeclarationSyntax)syntaxContext.Node;
                 var typeSymbol = typeDeclarationSyntax.GetTypeSymbol(syntaxContext);
                 if (typeSymbol == null) return;
-                if (typeSymbol.IsNinoType()) return;
+                if (typeSymbol.IsNinoType())
+                {
+                    // check redundant NinoMemberAttribute and NinoIgnoreAttribute
+                    var attr = typeSymbol.GetAttributes().FirstOrDefault(a =>
+                        a.AttributeClass != null &&
+                        a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
+                    bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
+                    bool containNonPublic = attr != null && (bool)(attr.ConstructorArguments[1].Value ?? false);
+
+                    foreach (var member in typeSymbol.GetMembers())
+                    {
+                        bool definedNinoMember = member.GetAttributes()
+                            .Any(x => x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
+                        bool definedNinoIgnore =
+                            member.GetAttributes().Any(x => x.AttributeClass?.Name == "NinoIgnoreAttribute");
+
+                        // auto collect but manually annotated - nino004
+                        if (autoCollect && definedNinoMember)
+                        {
+                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                                SupportedDiagnostics[3],
+                                member.Locations.First(),
+                                member.Name,
+                                typeSymbol.Name));
+                        }
+
+                        // not auto collect and manually annotated but is private - nino007
+                        if (!autoCollect && definedNinoMember  &&
+                            member.DeclaredAccessibility == Accessibility.Private &&
+                            !containNonPublic)
+                        {
+                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                                SupportedDiagnostics[6],
+                                member.Locations.First(),
+                                member.Name,
+                                typeSymbol.Name));
+                        }
+
+                        // not annotated but manually ignored when not manually annotated - nino005
+                        if (!autoCollect && !definedNinoMember && definedNinoIgnore)
+                        {
+                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                                SupportedDiagnostics[4],
+                                member.Locations.First(),
+                                member.Name,
+                                typeSymbol.Name));
+                        }
+
+                        // ambiguous annotation - nino006
+                        if (!autoCollect && definedNinoIgnore && definedNinoMember)
+                        {
+                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                                SupportedDiagnostics[5],
+                                member.Locations.First(),
+                                member.Name,
+                                typeSymbol.Name));
+                        }
+                    }
+
+                    return;
+                }
+
+                //check base type
                 var baseType = typeSymbol.BaseType;
                 while (baseType != null)
                 {
@@ -60,7 +122,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                             baseType.Name));
                         break;
                     }
-                
+
                     baseType = baseType.BaseType;
                 }
 
@@ -96,8 +158,28 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 DiagnosticSeverity.Error, true),
             new DiagnosticDescriptor("NINO003",
                 "Sub-type of a NinoType should also have the NinoTypeAttribute applied",
-                "Sub-type '{0}' of NinoType '{1}' should also have the NinoTypeAttribute applied",
+                "Sub-type '{0}' of NinoType '{1}' should also have the NinoTypeAttribute applied to ensure serialization does not lead to undefined behavior",
                 "Nino",
-                DiagnosticSeverity.Warning, true)
+                DiagnosticSeverity.Warning, true),
+            new DiagnosticDescriptor("NINO004",
+                "Redundant NinoMemberAttribute",
+                "Member '{0}' of NinoType '{1}' will be automatically collected, the NinoMemberAttribute is redundant",
+                "Nino",
+                DiagnosticSeverity.Warning, true),
+            new DiagnosticDescriptor("NINO005",
+                "Redundant NinoIgnoreAttribute",
+                "Member '{0}' of NinoType '{1}' will not be collected at anytime, the NinoIgnoreAttribute is redundant",
+                "Nino",
+                DiagnosticSeverity.Warning, true),
+            new DiagnosticDescriptor("NINO006",
+                "Ambiguous Member",
+                "Member '{0}' of NinoType '{1}' is annotated with both NinoMemberAttribute and NinoIgnoreAttribute, it is ambiguous",
+                "Nino",
+                DiagnosticSeverity.Error, true),
+            new DiagnosticDescriptor("NINO007",
+                "Suspicious member",
+                "Member '{0}' of NinoType '{1}' is private but this type is not marked as containing non-public members",
+                "Nino",
+                DiagnosticSeverity.Error, true)
         );
 }

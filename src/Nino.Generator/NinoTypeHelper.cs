@@ -79,6 +79,18 @@ public static class NinoTypeHelper
 
                     if (s.TypeArguments.Any(IsTypeParameter)) return false;
                 }
+                
+                bool IsAccessibleType(ITypeSymbol typeSymbol)
+                {
+                    if (typeSymbol.DeclaredAccessibility == Accessibility.Private) return false;
+                    if (typeSymbol.DeclaredAccessibility == Accessibility.Protected) return false;
+                    if (typeSymbol is INamedTypeSymbol namedTypeSymbol)
+                    {
+                        return namedTypeSymbol.TypeArguments.All(IsAccessibleType);
+                    }
+
+                    return true;
+                }
 
                 //we dont want IList/ICollection of unmanaged
                 var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
@@ -87,6 +99,7 @@ public static class NinoTypeHelper
                 if (i != null)
                 {
                     if (i.TypeArguments[0].IsUnmanagedType) return false;
+                    if (!IsAccessibleType(i.TypeArguments[0])) return false;
                 }
 
                 //we dont want Dictionary that has no getter/setter in its indexer
@@ -96,6 +109,9 @@ public static class NinoTypeHelper
                 {
                     var kType = iDict.TypeArguments[0];
                     var vType = iDict.TypeArguments[1];
+                    
+                    if (kType.IsUnmanagedType && vType.IsUnmanagedType) return false;
+                    if (!IsAccessibleType(kType) || !IsAccessibleType(vType)) return false;
 
                     //use indexer to set/get value, TODO alternatively, use attributes to specify relevant methods
                     var indexers = ts
@@ -125,6 +141,7 @@ public static class NinoTypeHelper
                 {
                     if (arrayTypeSymbol.ElementType.TypeKind == TypeKind.TypeParameter) return false;
                     if (arrayTypeSymbol.ElementType.IsUnmanagedType) return false;
+                    if (!IsAccessibleType(arrayTypeSymbol.ElementType)) return false;
                 }
 
                 //we dont want nullable of unmanaged
@@ -137,6 +154,7 @@ public static class NinoTypeHelper
                         if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
                         //we also dont want nullable of reference type, as it already has a null check
                         if (namedTypeSymbol.TypeArguments[0].IsReferenceType) return false;
+                        if (!IsAccessibleType(namedTypeSymbol.TypeArguments[0])) return false;
                     }
                 }
 
@@ -146,6 +164,7 @@ public static class NinoTypeHelper
                     if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
                     {
                         if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
+                        if (!IsAccessibleType(namedTypeSymbol.TypeArguments[0])) return false;
                     }
                 }
 
@@ -155,6 +174,7 @@ public static class NinoTypeHelper
                 if (i != null)
                 {
                     if (i.TypeArguments[0].IsUnmanagedType && i.TypeArguments[1].IsUnmanagedType) return false;
+                    if (!IsAccessibleType(i.TypeArguments[0]) || !IsAccessibleType(i.TypeArguments[1])) return false;
                 }
 
                 return true;
