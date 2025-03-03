@@ -168,7 +168,7 @@ public class DeserializerGenerator(
                     var str = isUtf8
                         ? $"reader.ReadUtf8(out {tempName});"
                         : $"reader.Read(out {tempName});";
-                    
+
                     //weak version tolerance
                     var toleranceCode = $$$"""
                                                                {{{declaredType.ToDisplayString()}}} {{{tempName}}};
@@ -185,7 +185,7 @@ public class DeserializerGenerator(
                                                                {{{str}}}
                                                                #endif
                                            """;
-                    
+
                     sb.AppendLine(toleranceCode);
                     sb.AppendLine();
                 }
@@ -250,15 +250,14 @@ public class DeserializerGenerator(
 
             if (privateVars.Count > 0)
             {
-                var originalValName = valName;
                 if (type.IsValueType)
                 {
                     valName = $"ref {valName}";
                 }
 
+                sb.AppendLine("#if NET8_0_OR_GREATER");
                 foreach (var (memberName, varName, isProperty) in privateVars)
                 {
-                    sb.AppendLine("#if NET8_0_OR_GREATER");
                     if (isProperty)
                     {
                         sb.AppendLine(
@@ -270,11 +269,9 @@ public class DeserializerGenerator(
                             $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
                         sb.AppendLine($"                    __{varName} = {varName};");
                     }
-                    sb.AppendLine("#else");
-                    var legacyVal = $"{originalValName}.__nino__generated__{memberName}";
-                    sb.AppendLine($"                    {legacyVal} = {varName};");
-                    sb.AppendLine("#endif");
                 }
+
+                sb.AppendLine("#endif");
             }
         }
 

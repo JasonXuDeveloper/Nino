@@ -80,7 +80,7 @@ public class PartialClassGenerator(
 
                         hasPrivateMembers = true;
                         var accessor = $$"""
-                                                 internal {{declaringType}} __nino__generated__{{name}}
+                                                 public {{declaringType}} __nino__generated__{{name}}
                                                  {
                                                      [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                                      get => {{name}};

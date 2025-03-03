@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using Editor.Tests.NinoGen;
+using Test.NinoGen;
 using Nino.Test;
 using NUnit.Framework;
 using Debug = UnityEngine.Debug;
@@ -11,51 +11,51 @@ namespace Test.Editor.Tests
     public class NinoTypes
     {
         [Test]
-            public void TestCommonClass(){
-                //custom type
-                PrimitiveTypeTest c = new PrimitiveTypeTest()
+        public void TestCommonClass()
+        {
+            //custom type
+            PrimitiveTypeTest c = new PrimitiveTypeTest()
+            {
+                ni = null,
+                v3 = UnityEngine.Vector3.one,
+                m = UnityEngine.Matrix4x4.identity,
+                qs = new List<UnityEngine.Quaternion>()
                 {
-                    ni = null,
-                    v3 = UnityEngine.Vector3.one,
-                    m = UnityEngine.Matrix4x4.zero,
-                    qs = new List<UnityEngine.Quaternion>()
-                    {
-                        new(100.99f, 299.31f, 45.99f, 0.5f),
-                        new(100.99f, 299.31f, 45.99f, 0.5f),
-                        new(100.99f, 299.31f, 45.99f, 0.5f)
-                    },
-                    dict = new Dictionary<string, int>()
-                    {
-                        { "test1", 1 },
-                        { "test2", 2 },
-                        { "test3", 3 },
-                        { "test4", 4 },
-                    },
-                    dict2 = new Dictionary<string, Data>()
-                    {
-                        { "dict2.entry1", new Data() },
-                        { "dict2.entry2", new Data() },
-                        { "dict2.entry3", new Data() },
-                    },
-                    Dt = DateTime.Now
-                };
+                    new(100.99f, 299.31f, 45.99f, 0.5f),
+                    new(100.99f, 299.31f, 45.99f, 0.5f),
+                    new(100.99f, 299.31f, 45.99f, 0.5f)
+                },
+                dict = new Dictionary<string, int>()
+                {
+                    { "test1", 1 },
+                    { "test2", 2 },
+                    { "test3", 3 },
+                    { "test4", 4 },
+                },
+                dict2 = new Dictionary<string, Data>()
+                {
+                    { "dict2.entry1", new Data() },
+                    { "dict2.entry2", new Data() },
+                    { "dict2.entry3", new Data() },
+                },
+                Dt = DateTime.Now
+            };
 
-                Debug.Log($"will serialize c: {c}");
-                var bs = Serializer.Serialize(c);
-                Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
-                Debug.Log("will deserialize");
-                Deserializer.Deserialize(bs, out PrimitiveTypeTest cc);
-                Debug.Log($"deserialized as cc: {cc}");
-                
-                Assert.AreEqual(c.ToString(), cc.ToString());
+            Debug.Log($"will serialize c: {c}");
+            var bs = Serializer.Serialize(c);
+            Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
+            Debug.Log("will deserialize");
+            Deserializer.Deserialize(bs, out PrimitiveTypeTest cc);
+            Debug.Log($"deserialized as cc: {cc}");
+
+            Assert.AreEqual(c.ToString(), cc.ToString());
         }
-        
+
         [Test]
         public void TestTrivialClass()
         {
-            
             Stopwatch sw = new Stopwatch();
-            
+
             IncludeAllClassCodeGen codeGen = new IncludeAllClassCodeGen()
             {
                 a = 100,
@@ -70,15 +70,17 @@ namespace Test.Editor.Tests
             sw.Start();
             var bs = codeGen.Serialize();
             sw.Stop();
-            Debug.Log($"serialized to {bs.Length} bytes in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {string.Join(",", bs)}");
+            Debug.Log(
+                $"serialized to {bs.Length} bytes in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {string.Join(",", bs)}");
 
             Debug.Log("will deserialize");
             sw.Reset();
             sw.Start();
-            Deserializer.Deserialize(bs,out IncludeAllClassCodeGen codeGenR);
+            Deserializer.Deserialize(bs, out IncludeAllClassCodeGen codeGenR);
             sw.Stop();
-            Debug.Log($"deserialized as codeGenR in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {codeGenR}");
-            
+            Debug.Log(
+                $"deserialized as codeGenR in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {codeGenR}");
+
             NotIncludeAllClass d = new NotIncludeAllClass()
             {
                 a = 100,
@@ -101,7 +103,7 @@ namespace Test.Editor.Tests
             Deserializer.Deserialize(bs, out NotIncludeAllClass dd);
             sw.Stop();
             Debug.Log($"deserialized as dd in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {dd}");
-            
+
             Assert.AreEqual(codeGen.ToString(), codeGenR.ToString());
             Assert.AreEqual(d.ToString(), dd.ToString());
             Assert.AreEqual(codeGen.ToString(), dd.ToString());
@@ -321,10 +323,10 @@ namespace Test.Editor.Tests
             };
             Debug.Log(data);
             var buf = Serializer.Serialize(data);
-            Debug.Log($"Serialized data: {buf.Length} bytes, {string.Join(",",buf)}");
+            Debug.Log($"Serialized data: {buf.Length} bytes, {string.Join(",", buf)}");
             Deserializer.Deserialize(buf, out ComplexData result);
             Debug.Log($"Deserialized as: {result}");
-            
+
             Assert.AreEqual(data.ToString(), result.ToString());
         }
     }
