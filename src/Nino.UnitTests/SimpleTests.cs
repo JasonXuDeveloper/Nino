@@ -11,17 +11,153 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestTuple()
+        {
+            Tuple<int, string> tuple = new Tuple<int, string>(1, "Test");
+            byte[] bytes = tuple.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Tuple<int, string> result);
+            Assert.AreEqual(tuple.Item1, result.Item1);
+            Assert.AreEqual(tuple.Item2, result.Item2);
+
+            Tuple<int, int> tuple2 = new Tuple<int, int>(1, 2);
+            bytes = tuple2.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Tuple<int, int> result2);
+            Assert.AreEqual(tuple2.Item1, result2.Item1);
+            Assert.AreEqual(tuple2.Item2, result2.Item2);
+
+            Tuple<string, Tuple<int, string>> tuple3 =
+                new Tuple<string, Tuple<int, string>>("Test", new Tuple<int, string>(1, "Test"));
+            bytes = tuple3.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Tuple<string, Tuple<int, string>> result3);
+            Assert.AreEqual(tuple3.Item1, result3.Item1);
+            Assert.AreEqual(tuple3.Item2.Item1, result3.Item2.Item1);
+            Assert.AreEqual(tuple3.Item2.Item2, result3.Item2.Item2);
+
+            Tuple<Data, Tuple<int, int>> tuple4 = new Tuple<Data, Tuple<int, int>>(new Data()
+            {
+                En = TestEnum.A,
+                Name = "Test",
+                X = 1,
+                Y = 2
+            }, new Tuple<int, int>(1, 2));
+            bytes = tuple4.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Tuple<Data, Tuple<int, int>> result4);
+            Assert.AreEqual(tuple4.Item1.En, result4.Item1.En);
+            Assert.AreEqual(tuple4.Item1.Name, result4.Item1.Name);
+            Assert.AreEqual(tuple4.Item1.X, result4.Item1.X);
+            Assert.AreEqual(tuple4.Item1.Y, result4.Item1.Y);
+            Assert.AreEqual(tuple4.Item2.Item1, result4.Item2.Item1);
+            Assert.AreEqual(tuple4.Item2.Item2, result4.Item2.Item2);
+        }
+
+        [TestMethod]
+        public void TestValueTuple()
+        {
+            ValueTuple<int, string> tuple = new ValueTuple<int, string>(1, "Test");
+            byte[] bytes = tuple.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out ValueTuple<int, string> result);
+            Assert.AreEqual(tuple.Item1, result.Item1);
+            Assert.AreEqual(tuple.Item2, result.Item2);
+
+            ValueTuple<int, int> tuple2 = new ValueTuple<int, int>(1, 2);
+            bytes = tuple2.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out ValueTuple<int, int> result2);
+            Assert.AreEqual(tuple2.Item1, result2.Item1);
+            Assert.AreEqual(tuple2.Item2, result2.Item2);
+
+            ValueTuple<string, ValueTuple<int, string>> tuple3 =
+                new ValueTuple<string, ValueTuple<int, string>>("Test", new ValueTuple<int, string>(1, "Test"));
+            bytes = tuple3.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out ValueTuple<string, ValueTuple<int, string>> result3);
+            Assert.AreEqual(tuple3.Item1, result3.Item1);
+            Assert.AreEqual(tuple3.Item2.Item1, result3.Item2.Item1);
+            Assert.AreEqual(tuple3.Item2.Item2, result3.Item2.Item2);
+
+            ValueTuple<Data, ValueTuple<int, int>> tuple4 = new ValueTuple<Data, ValueTuple<int, int>>(new Data()
+            {
+                En = TestEnum.A,
+                Name = "Test",
+                X = 1,
+                Y = 2
+            }, new ValueTuple<int, int>(1, 2));
+            bytes = tuple4.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out ValueTuple<Data, ValueTuple<int, int>> result4);
+            Assert.AreEqual(tuple4.Item1.En, result4.Item1.En);
+            Assert.AreEqual(tuple4.Item1.Name, result4.Item1.Name);
+            Assert.AreEqual(tuple4.Item1.X, result4.Item1.X);
+            Assert.AreEqual(tuple4.Item1.Y, result4.Item1.Y);
+            Assert.AreEqual(tuple4.Item2.Item1, result4.Item2.Item1);
+            Assert.AreEqual(tuple4.Item2.Item2, result4.Item2.Item2);
+        }
+
+        [TestMethod]
+        public void TestKvp()
+        {
+            KeyValuePair<int, long> kvp = new KeyValuePair<int, long>(1, 1234567890);
+            byte[] bytes = kvp.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out KeyValuePair<int, long> result);
+            Assert.AreEqual(kvp.Key, result.Key);
+            Assert.AreEqual(kvp.Value, result.Value);
+
+            KeyValuePair<int, string> kvp2 = new KeyValuePair<int, string>(1, "Test");
+            bytes = kvp2.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out KeyValuePair<int, string> result2);
+            Assert.AreEqual(kvp2.Key, result2.Key);
+            Assert.AreEqual(kvp2.Value, result2.Value);
+
+            KeyValuePair<int, KeyValuePair<int, long>> kvp3 =
+                new KeyValuePair<int, KeyValuePair<int, long>>(1, new KeyValuePair<int, long>(2, 1234567890));
+            bytes = kvp3.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out KeyValuePair<int, KeyValuePair<int, long>> result3);
+            Assert.AreEqual(kvp3.Key, result3.Key);
+            Assert.AreEqual(kvp3.Value.Key, result3.Value.Key);
+
+            KeyValuePair<string, KeyValuePair<bool, string>> kvp4 =
+                new KeyValuePair<string, KeyValuePair<bool, string>>("Test111",
+                    new KeyValuePair<bool, string>(true, "Test"));
+            bytes = kvp4.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out KeyValuePair<string, KeyValuePair<bool, string>> result4);
+            Assert.AreEqual(kvp4.Key, result4.Key);
+            Assert.AreEqual(kvp4.Value.Key, result4.Value.Key);
+        }
+
+        [TestMethod]
         public void TestCollections()
         {
-            ConcurrentDictionary<int,int>[] dict = new ConcurrentDictionary<int, int>[10];
+            ConcurrentDictionary<int, int>[] dict = new ConcurrentDictionary<int, int>[10];
             for (int i = 0; i < dict.Length; i++)
             {
                 dict[i] = new ConcurrentDictionary<int, int>();
                 dict[i].TryAdd(i, i);
             }
+
             var bytes = dict.Serialize();
             Assert.IsNotNull(bytes);
-            
+
             Deserializer.Deserialize(bytes, out ConcurrentDictionary<int, int>[] result);
             Assert.AreEqual(dict.Length, result.Length);
             for (int i = 0; i < dict.Length; i++)
@@ -29,16 +165,17 @@ namespace Nino.UnitTests
                 Assert.AreEqual(dict[i].Count, result[i].Count);
                 Assert.AreEqual(dict[i][i], result[i][i]);
             }
-            
-            ConcurrentDictionary<int,string>[] dict2 = new ConcurrentDictionary<int, string>[10];
+
+            ConcurrentDictionary<int, string>[] dict2 = new ConcurrentDictionary<int, string>[10];
             for (int i = 0; i < dict2.Length; i++)
             {
                 dict2[i] = new ConcurrentDictionary<int, string>();
                 dict2[i].TryAdd(i, i.ToString());
             }
+
             bytes = dict2.Serialize();
             Assert.IsNotNull(bytes);
-            
+
             Deserializer.Deserialize(bytes, out IDictionary<int, string>[] result2);
             Assert.AreEqual(dict2.Length, result2.Length);
             for (int i = 0; i < dict2.Length; i++)
@@ -46,17 +183,18 @@ namespace Nino.UnitTests
                 Assert.AreEqual(dict2[i].Count, result2[i].Count);
                 Assert.AreEqual(dict2[i][i], result2[i][i]);
             }
-            
+
             IDictionary<int, IDictionary<int, int[]>> dict3 = new Dictionary<int, IDictionary<int, int[]>>();
             for (int i = 0; i < 10; i++)
             {
                 dict3[i] = new ConcurrentDictionary<int, int[]>();
-                dict3[i].TryAdd(i, new int[]{i, i});
+                dict3[i].TryAdd(i, new int[] { i, i });
             }
+
             dict2.Serialize();
             bytes = dict3.Serialize();
             Assert.IsNotNull(bytes);
-            
+
             Deserializer.Deserialize(bytes, out IDictionary<int, IDictionary<int, int[]>> result3);
             Assert.AreEqual(dict3.Count, result3.Count);
             for (int i = 0; i < dict3.Count; i++)
@@ -69,7 +207,7 @@ namespace Nino.UnitTests
                 }
             }
         }
-        
+
         [TestMethod]
         public void TestModifyListMemberDataStructure()
         {

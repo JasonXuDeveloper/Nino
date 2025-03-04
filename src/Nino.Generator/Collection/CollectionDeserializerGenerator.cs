@@ -3,370 +3,587 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Filter;
+using Nino.Generator.Filter.Operation;
 using Nino.Generator.Template;
+using Array = Nino.Generator.Filter.Array;
+using Nullable = Nino.Generator.Filter.Nullable;
+using String = Nino.Generator.Filter.String;
 
 namespace Nino.Generator.Collection;
 
-public class CollectionDeserializerGenerator(Compilation compilation, List<ITypeSymbol> potentialCollectionSymbols)
+public class CollectionDeserializerGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> potentialCollectionSymbols)
     : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
 {
-    protected override void Generate(SourceProductionContext spc)
+    protected override IFilter Selector =>
+        new Joint().With
+        (
+            // We want to ensure the type we are using is accessible (i.e. not private)
+            new Accessible(),
+            // We want to ensure all generics are fully-typed
+            new Not(new RawGeneric()),
+            /*
+             * We already have functions for:
+             * - unmanged types
+             * - NinoTyped types
+             * - strings
+             * So we can filter them out
+             */
+            new Not(new Unmanaged()),
+            new Not(new NinoTyped()),
+            new Not(new String()),
+            // We now collect things we want
+            new Union().With
+            (
+                // We want key-value pairs for dictionaries
+                new Joint().With
+                (
+                    new Trivial("KeyValuePair"),
+                    new AllTypeArgument(symbol => symbol.IsSerializableType())
+                ),
+                // We want tuples
+                new Joint().With
+                (
+                    new Trivial("ValueTuple", "Tuple"),
+                    new AllTypeArgument(symbol => symbol.IsSerializableType())
+                ),
+                // We want nullables
+                new Joint().With
+                (
+                    new Nullable(),
+                    new AllTypeArgument(symbol => symbol.IsSerializableType())
+                ),
+                // We want arrays
+                new Array(symbol => symbol.IsSerializableType()),
+                // We want dictionaries with valid indexers
+                new Joint().With
+                (
+                    new Interface("IDictionary"),
+                    new AllTypeArgument(symbol => symbol.IsSerializableType()),
+                    new ValidIndexer((symbol, indexer) =>
+                    {
+                        if (symbol.TypeKind == TypeKind.Interface) return true;
+                        if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
+                        var keySymbol = namedTypeSymbol.TypeArguments[0];
+                        var valueSymbol = namedTypeSymbol.TypeArguments[1];
+
+                        return indexer.Parameters.Length == 1
+                               && indexer.Parameters[0].Type
+                                   .Equals(keySymbol, SymbolEqualityComparer.Default)
+                               && indexer.Type.Equals(valueSymbol, SymbolEqualityComparer.Default);
+                    })
+                ),
+                // We want collections/lists with valid constructors
+                new Joint().With
+                (
+                    new Union().With
+                    (
+                        new Interface("ICollection"),
+                        new Interface("IList")
+                    ),
+                    new AllTypeArgument(symbol => symbol.IsSerializableType()),
+                    new ValidMethod((symbol, method) =>
+                    {
+                        if (symbol.TypeKind == TypeKind.Interface) return true;
+                        if (method.MethodKind == MethodKind.Constructor)
+                        {
+                            return method.Parameters.Length == 0
+                                   || (method.Parameters.Length == 1
+                                       && method.Parameters[0].Type.SpecialType == SpecialType.System_Int32);
+                        }
+
+                        return false;
+                    })
+                ),
+                // We want to ensure the type is serializable
+                new Serializable()
+            )
+        );
+
+    protected override string ClassName => "Deserializer";
+    protected override string OutputFileName => "NinoDeserializer.Collection.g.cs";
+
+    protected override Action<StringBuilder, string> PublicMethod => (sb, typeFullName) =>
     {
-        var compilation = Compilation;
-        var typeSymbols = PotentialCollectionSymbols;
-        var sb = new StringBuilder();
+        sb.GenerateClassDeserializeMethods(typeFullName);
+    };
 
-        HashSet<string> addedType = new HashSet<string>();
-        HashSet<string> addedElemType = new HashSet<string>();
-        foreach (var type in typeSymbols)
-        {
-            var typeFullName = type.ToDisplayString();
-            if (!addedType.Add(typeFullName)) continue;
-
-            //if type is nullable
-            if (type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
-            {
-                if (type is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-                {
-                    var fullName = namedTypeSymbol.TypeArguments[0].ToDisplayString();
-                    GenerateNullableStructMethods(sb, namedTypeSymbol.TypeArguments[0].GetDeserializePrefix(),
-                        fullName);
-                    sb.GenerateClassDeserializeMethods(typeFullName);
-                    continue;
-                }
-            }
-
-            //if type is KeyValuePair
-            if (type.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.KeyValuePair<TKey, TValue>")
-            {
-                if (type is INamedTypeSymbol { TypeArguments.Length: 2 } namedTypeSymbol)
-                {
-                    var type1 = namedTypeSymbol.TypeArguments[0].ToDisplayString();
-                    var type2 = namedTypeSymbol.TypeArguments[1].ToDisplayString();
-                    GenerateKvpStructMethods(sb, namedTypeSymbol.TypeArguments[0].GetDeserializePrefix(), type1,
-                        namedTypeSymbol.TypeArguments[1].GetDeserializePrefix(), type2);
-                    sb.GenerateClassDeserializeMethods(typeFullName);
-                    continue;
-                }
-            }
-
-            //if type implements IDictionary only
-            var idict = type.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
-            if (idict == null)
-            {
-                //if type is indeed IDictionary
-                idict = type.TypeKind == TypeKind.Interface && type.Name == "IDictionary"
-                    ? (INamedTypeSymbol)type
-                    : null;
-            }
-
-            if (idict != null)
-            {
-                if (idict is { TypeArguments.Length: 2 } namedTypeSymbol)
-                {
-                    var type1 = namedTypeSymbol.TypeArguments[0].ToDisplayString();
-                    var type2 = namedTypeSymbol.TypeArguments[1].ToDisplayString();
-                    sb.AppendLine(GenerateDictionarySerialization(type1, type2,
-                        namedTypeSymbol.TypeArguments[0], namedTypeSymbol.TypeArguments[1],
-                        typeFullName,
-                        type.TypeKind == TypeKind.Interface
-                            ? "System.Collections.Generic.Dictionary<" + type1 + ", " + type2 + ">"
-                            : typeFullName, "        "));
-                    sb.GenerateClassDeserializeMethods(typeFullName);
-
-                    continue;
-                }
-            }
-
-            //if type is array
-            if (type is IArrayTypeSymbol)
-            {
-                if (((IArrayTypeSymbol)type).ElementType.IsUnmanagedType)
-                    continue;
-                var elemType = ((IArrayTypeSymbol)type).ElementType.ToDisplayString();
-                if (addedElemType.Add(elemType))
-                    sb.AppendLine(GenerateArraySerialization(
-                        ((IArrayTypeSymbol)type).ElementType.GetDeserializePrefix(),
-                        elemType, "        "));
-                sb.GenerateClassDeserializeMethods(typeFullName);
-                continue;
-            }
-
-            //ICollection<T>
-            if (type is INamedTypeSymbol { TypeArguments.Length: 1 } s &&
-                s.AllInterfaces.Any(namedTypeSymbol => namedTypeSymbol.Name == "ICollection"))
-            {
-                var elemType = s.TypeArguments[0].ToDisplayString();
-                if (addedElemType.Add(elemType) && !s.TypeArguments[0].IsUnmanagedType)
-                    sb.AppendLine(GenerateArraySerialization(s.TypeArguments[0].GetDeserializePrefix(),
-                        elemType,
-                        "        "));
-                if (type.TypeKind != TypeKind.Interface)
-                {
-                    //if is List<T>
-                    if (type.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.List<T>")
-                    {
-                        sb.AppendLine(GenerateListSerialization(s.TypeArguments[0].GetDeserializePrefix(), elemType,
-                            typeFullName, typeFullName, "        "));
-                    }
-                    else
-                    {
-                        sb.AppendLine(GenerateCollectionSerialization(s.TypeArguments[0].GetDeserializePrefix(),
-                            elemType,
-                            typeFullName, typeFullName, "        "));
-                    }
-                }
-                else
-                {
-                    var newFullName = $"System.Collections.Generic.List<{elemType}>";
-                    sb.AppendLine(GenerateListSerialization(s.TypeArguments[0].GetDeserializePrefix(), elemType,
-                        typeFullName, newFullName, "        ", true));
-                }
-
-                sb.GenerateClassDeserializeMethods(typeFullName);
-                continue;
-            }
-
-            //otherwise we add a comment of the error type
-            sb.AppendLine($"// Type: {typeFullName} is not supported");
-        }
-
-        var curNamespace = compilation.AssemblyName!.GetNamespace();
-
-        // generate code
-        var code = $$"""
-                     // <auto-generated/>
-
-                     using System;
-                     using global::Nino.Core;
-                     using System.Buffers;
-                     using System.Collections.Generic;
-                     using System.Collections.Concurrent;
-                     using System.Runtime.InteropServices;
-                     using System.Runtime.CompilerServices;
-
-                     namespace {{curNamespace}}
-                     {
-                         public static partial class Deserializer
-                         {
-                     {{sb}}    }
-                     }
-                     """;
-
-        spc.AddSource("NinoDeserializer.Collection.g.cs", code);
-    }
-
-    private static string GenerateArraySerialization(string prefix, string elemType, string indent)
+    protected override List<Transformer> Transformers => new()
     {
-        var creationDecl = elemType.EndsWith("[]")
-            ? elemType.Insert(elemType.IndexOf("[]", StringComparison.Ordinal), "[length]")
-            : $"{elemType}[length]";
-        var ret = $$"""
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize(out {{elemType}}[] value, ref Reader reader)
-                    {
-                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                         if (reader.Eof)
+        // Nullable Ninotypes
+        new
+        (
+            "Nullable",
+            // We want nullable for non-unmanaged ninotypes
+            new Joint().With
+            (
+                new Nullable(),
+                new TypeArgument(0, symbol => !symbol.IsUnmanagedType)
+            )
+            , symbol =>
+            {
+                ITypeSymbol elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize(out {{elementType.ToDisplayString()}}? value, ref Reader reader)
                          {
-                            value = default;
-                            return;
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 value = default;
+                                 return;
+                              }
+                         #endif
+                             
+                             reader.Read(out bool hasValue);
+                             if (!hasValue)
+                             {
+                                 value = default;
+                                 return;
+                             }
+                             
+                             Deserialize(out {{elementType.ToDisplayString()}} ret, ref reader);
+                             value = ret;
                          }
-                    #endif
-                        
-                        if (!reader.ReadCollectionHeader(out var length))
-                        {
-                            value = default;
-                            return;
-                        }
-                        
-                        Reader eleReader;
-                        
-                        value = new {{creationDecl}};
-                        var span = value.AsSpan();
-                        for (int i = 0; i < length; i++)
-                        {
-                            eleReader = reader.Slice();
-                            {{prefix}}(out span[i], ref eleReader);
-                        }
-                    }
-
-                    """;
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
-    }
-
-    private static string GenerateDictionarySerialization(string type1, string type2, ITypeSymbol keyType,
-        ITypeSymbol valType,
-        string sigTypeFullName,
-        string typeFullName,
-        string indent = "")
-    {
-        bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
-        var reader = isUnmanaged ? "reader" : "eleReader";
-        var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
-        var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
-
-        var ret = $$"""
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize(out {{sigTypeFullName}} value, ref Reader reader)
-                    {
-                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                         if (reader.Eof)
+                         """;
+            }
+        ),
+        // KeyValuePair Ninotypes
+        new
+        (
+            "KeyValuePair",
+            // We only want KeyValuePair for non-unmanaged ninotypes
+            new Joint().With(
+                new Trivial("KeyValuePair"),
+                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+            ),
+            symbol =>
+                GenericTupleLikeMethods(symbol,
+                    ((INamedTypeSymbol)symbol).TypeArguments
+                    .Select(typeSymbol =>
+                        typeSymbol.ToDisplayString()).ToArray(),
+                    "K", "V")
+        ),
+        // Tuple Ninotypes
+        new
+        (
+            "Tuple",
+            // We only want Tuple for non-unmanaged ninotypes
+            new Trivial("ValueTuple", "Tuple"),
+            symbol => symbol.IsUnmanagedType
+                ? ""
+                : GenericTupleLikeMethods(symbol,
+                    ((INamedTypeSymbol)symbol).TypeArguments
+                    .Select(typeSymbol =>
+                        typeSymbol.ToDisplayString()).ToArray(),
+                    ((INamedTypeSymbol)symbol)
+                    .TypeArguments.Select((_, i) => $"Item{i + 1}").ToArray())
+        ),
+        // Array Ninotypes
+        new
+        (
+            "Array",
+            new Array(arraySymbol =>
+            {
+                var elementType = arraySymbol.ElementType;
+                return !elementType.IsUnmanagedType;
+            }),
+            symbol =>
+            {
+                var elemType = ((IArrayTypeSymbol)symbol).ElementType.ToDisplayString();
+                var creationDecl = elemType.EndsWith("[]")
+                    ? elemType.Insert(elemType.IndexOf("[]", StringComparison.Ordinal), "[length]")
+                    : $"{elemType}[length]";
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize(out {{symbol.ToDisplayString()}} value, ref Reader reader)
                          {
-                            value = default;
-                            return;
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 value = null;
+                                 return;
+                              }
+                         #endif
+                             
+                             if (!reader.ReadCollectionHeader(out var length))
+                             {
+                                 value = null;
+                                 return;
+                             }
+                             
+                             Reader eleReader;
+                             
+                             value = new {{creationDecl}};
+                             var span = value.AsSpan();
+                             for (int i = 0; i < length; i++)
+                             {
+                                 eleReader = reader.Slice();
+                                 Deserialize(out span[i], ref eleReader);
+                             }
                          }
-                    #endif
-                        
-                        if (!reader.ReadCollectionHeader(out var length))
-                        {
-                            value = default;
-                            return;
-                        }
-                    
-                        {{eleReaderDecl}}
-                        
-                        value = new {{typeFullName}}({{(typeFullName.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
-                        for (int i = 0; i < length; i++)
-                        {
-                            {{slice}}
-                            Deserialize(out KeyValuePair<{{type1}}, {{type2}}> kvp, ref {{reader}});
-                            value[kvp.Key] = kvp.Value;
-                        }
-                    }
+                         """;
+            }
+        ),
+        // non trivial IDictionary Ninotypes
+        new
+        (
+            "NonTrivialDictionary",
+            // Note that we accept non-trivial IDictionary types with unmanaged key and value types
+            new Joint().With
+            (
+                new Interface("IDictionary"),
+                new NonTrivial("IDictionary", "IDictionary", "Dictionary")
+            ),
+            symbol =>
+            {
+                if (symbol.TypeKind == TypeKind.Interface) return "";
 
-                    """;
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
-    }
+                INamedTypeSymbol dictSymbol = (INamedTypeSymbol)symbol;
+                var idictSymbol = dictSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "IDictionary")
+                                  ?? dictSymbol;
+                var keyType = idictSymbol.TypeArguments[0];
+                var valType = idictSymbol.TypeArguments[1];
+                var dictType = symbol.ToDisplayString();
+                bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
 
-    private static string GenerateCollectionSerialization(string prefix, string elemType,
-        string sigTypeFullname,
-        string typeFullname,
-        string indent)
-    {
-        var ret = $$"""
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize(out {{sigTypeFullname}} value, ref Reader reader)
-                    {
-                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                         if (reader.Eof)
+                var reader = isUnmanaged ? "reader" : "eleReader";
+                var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
+                var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
+                var deserializeStr = isUnmanaged
+                    ? $"""
+                               Deserialize(out KeyValuePair<{keyType.ToDisplayString()}, {valType.ToDisplayString()}> kvp, ref {reader});
+                               value[kvp.Key] = kvp.Value;
+                       """
+                    : $"""
+                               Deserialize(out {keyType.ToDisplayString()} key, ref {reader});
+                               Deserialize(out {valType.ToDisplayString()} val, ref {reader});
+                               value[key] = val;
+                       """;
+
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize(out {{dictSymbol.ToDisplayString()}} value, ref Reader reader)
                          {
-                            value = default;
-                            return;
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 value = default;
+                                 return;
+                              }
+                         #endif
+                             
+                             if (!reader.ReadCollectionHeader(out var length))
+                             {
+                                 value = default;
+                                 return;
+                             }
+                         
+                             {{eleReaderDecl}}
+                             
+                             value = new {{dictType}}({{(dictType.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
+                             for (int i = 0; i < length; i++)
+                             {
+                                 {{slice}}
+                         {{deserializeStr}}
+                             }
                          }
-                    #endif
-                        
-                        {{prefix}}(out {{elemType}}[] arr, ref reader);
-                        if (arr == null)
-                        {
-                            value = default;
-                            return;
-                        }
-                        
-                        value = new {{typeFullname}}(arr);
-                    }
+                         """;
+            }
+        ),
+        // trivial IDictionary Ninotypes
+        new
+        (
+            "TrivialDictionary",
+            new Joint().With
+            (
+                new Interface("IDictionary"),
+                new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary")),
+                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+            ),
+            symbol =>
+            {
+                INamedTypeSymbol dictSymbol = (INamedTypeSymbol)symbol;
+                var keyType = dictSymbol.TypeArguments[0];
+                var valType = dictSymbol.TypeArguments[1];
+                var dictType =
+                    $"System.Collections.Generic.Dictionary<{keyType.ToDisplayString()}, {valType.ToDisplayString()}>";
 
-                    """;
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
-    }
-
-    private static string GenerateListSerialization(string prefix, string elemType,
-        string sigTypeFullname,
-        string typeFullname,
-        string indent,
-        bool isInterface = false)
-    {
-        var decl = isInterface ? $"var ret = new {typeFullname}(0);" : $"value = new {typeFullname}(0);";
-        var val = isInterface ? "ret" : "value";
-        var end = isInterface ? "value = ret;" : "";
-        var ret = $$"""
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize(out {{sigTypeFullname}} value, ref Reader reader)
-                    {
-                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                         if (reader.Eof)
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize(out {{dictSymbol.ToDisplayString()}} value, ref Reader reader)
                          {
-                            value = default;
-                            return;
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 value = default;
+                                 return;
+                              }
+                         #endif
+                             
+                             if (!reader.ReadCollectionHeader(out var length))
+                             {
+                                 value = default;
+                                 return;
+                             }
+                         
+                             Reader eleReader;
+                             
+                             value = new {{dictType}}({{(dictType.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
+                             for (int i = 0; i < length; i++)
+                             {
+                                 eleReader = reader.Slice();
+                                 Deserialize(out {{keyType.ToDisplayString()}} key, ref eleReader);
+                                 Deserialize(out {{valType.ToDisplayString()}} val, ref eleReader);
+                                 value[key] = val;
+                             }
                          }
-                    #endif
-                        
-                        {{prefix}}(out {{elemType}}[] arr, ref reader);
-                        if (arr == null)
-                        {
-                            value = default;
-                            return;
-                        }
-                        
-                        {{decl}}
-                        ref var lst = ref Unsafe.As<List<{{elemType}}>, TypeCollector.ListView<{{elemType}}>>(ref {{val}});
-                        lst._size = arr.Length;
-                        lst._items = arr;
-                        {{end}}
-                    }
+                         """;
+            }
+        ),
+        // non trivial ICollection Ninotypes
+        new
+        (
+            "NonTrivialCollectionUsingAdd",
+            // Note that we accept non-trivial ICollection types with unmanaged element types
+            new Joint().With
+            (
+                // Note that array is an ICollection, but we don't want to generate code for it
+                new Interface("ICollection"),
+                new Not(new Array()),
+                new NonTrivial("ICollection", "ICollection", "List"),
+                // We want to be able to Add
+                new ValidMethod((symbol, method) =>
+                {
+                    if (symbol.TypeKind == TypeKind.Interface) return false;
+                    if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
+                    var elementType = namedTypeSymbol.TypeArguments[0];
 
-                    """;
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
-    }
+                    return method.Name == "Add"
+                           && method.Parameters.Length == 1
+                           && method.Parameters[0].Type.Equals(elementType, SymbolEqualityComparer.Default);
+                })
+            ),
+            symbol =>
+            {
+                INamedTypeSymbol collSymbol = (INamedTypeSymbol)symbol;
+                var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
+                                  ?? collSymbol;
+                var elemType = iCollSymbol.TypeArguments[0];
+                var collType = symbol.ToDisplayString();
+                bool isUnmanaged = elemType.IsUnmanagedType;
 
-    private static void GenerateNullableStructMethods(StringBuilder sb, string prefix, string typeFullName)
+                bool constructorWithNumArg = collSymbol.Constructors.Any(c =>
+                    c.Parameters.Length == 1 && c.Parameters[0].Type.ToDisplayString() == "System.Int32");
+
+                var reader = isUnmanaged ? "reader" : "eleReader";
+                var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
+                var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
+                var creationDecl = constructorWithNumArg
+                    ? $"new {collType}(length)"
+                    : $"new {collType}()";
+
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize(out {{collSymbol.ToDisplayString()}} value, ref Reader reader)
+                         {
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 value = default;
+                                 return;
+                              }
+                         #endif
+                             
+                             if (!reader.ReadCollectionHeader(out var length))
+                             {
+                                 value = default;
+                                 return;
+                             }
+                         
+                             {{eleReaderDecl}}
+                             
+                             value = {{creationDecl}};
+                             for (int i = 0; i < length; i++)
+                             {
+                                 {{slice}}
+                                 Deserialize(out {{elemType.ToDisplayString()}} item, ref {{reader}});
+                                 value.Add(item);
+                             }
+                         }
+                         """;
+            }
+        ),
+        // non trivial ICollection Ninotypes
+        new
+        (
+            "NonTrivialCollectionUsingCtorWithEnumerable",
+            // Note that we accept non-trivial ICollection types with unmanaged element types
+            new Joint().With
+            (
+                // Note that array is an ICollection, but we don't want to generate code for it
+                new Interface("ICollection"),
+                new Not(new Array()),
+                new NonTrivial("ICollection", "ICollection", "List"),
+                // We want to be able to use a constructor with IEnumerable
+                new ValidMethod((symbol, method) =>
+                {
+                    if (symbol.TypeKind == TypeKind.Interface) return false;
+                    if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
+                    var elementType = namedTypeSymbol.TypeArguments[0];
+
+                    return method.MethodKind == MethodKind.Constructor
+                           && method.Parameters.Length == 1
+                           && method.Parameters[0].Type.SpecialType == SpecialType.System_Collections_IEnumerable
+                           && method.Parameters[0].Type is INamedTypeSymbol ienumerable && ienumerable.IsGenericType
+                           && ienumerable.TypeArguments.Length > 0 && ienumerable.TypeArguments[0]
+                               .Equals(elementType, SymbolEqualityComparer.Default);
+                })
+            ),
+            symbol =>
+            {
+                INamedTypeSymbol collSymbol = (INamedTypeSymbol)symbol;
+                var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
+                                  ?? collSymbol;
+                var elemType = iCollSymbol.TypeArguments[0];
+                var collType = symbol.ToDisplayString();
+                bool isUnmanaged = elemType.IsUnmanagedType;
+
+                var reader = isUnmanaged ? "reader" : "eleReader";
+                var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
+                var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
+                var creationDecl = $"new {collType}(arr)";
+                var arrCreationDecl = $"new {elemType.ToDisplayString()}[length]";
+
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize(out {{collSymbol.ToDisplayString()}} value, ref Reader reader)
+                         {
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 value = default;
+                                 return;
+                              }
+                         #endif
+                             
+                             if (!reader.ReadCollectionHeader(out var length))
+                             {
+                                 value = default;
+                                 return;
+                             }
+                         
+                             {{eleReaderDecl}}
+                             var arr = {{arrCreationDecl}};
+                             var span = arr.AsSpan();
+                             for (int i = 0; i < length; i++)
+                             {
+                                 {{slice}}
+                                 Deserialize(out span[i], ref {{reader}});
+                             }
+                         
+                             value = {{creationDecl}};
+                         }
+                         """;
+            }
+        ),
+        // trivial ICollection Ninotypes
+        new
+        (
+            "TrivialCollectionUsingAdd",
+            // Note that we accept non-trivial ICollection types with unmanaged element types
+            new Joint().With
+            (
+                // Note that array is an ICollection, but we don't want to generate code for it
+                new Interface("ICollection"),
+                new Not(new Array()),
+                new Not(new NonTrivial("ICollection", "ICollection", "List")),
+                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType),
+                // We want to be able to Add
+                new ValidMethod((symbol, method) =>
+                {
+                    if (symbol.TypeKind == TypeKind.Interface) return true;
+                    if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
+                    var elementType = namedTypeSymbol.TypeArguments[0];
+
+                    return method.Name == "Add"
+                           && method.Parameters.Length == 1
+                           && method.Parameters[0].Type.Equals(elementType, SymbolEqualityComparer.Default);
+                })
+            ),
+            symbol =>
+            {
+                INamedTypeSymbol collSymbol = (INamedTypeSymbol)symbol;
+                var elemType = collSymbol.TypeArguments[0];
+                var collType = $"System.Collections.Generic.List<{elemType.ToDisplayString()}>";
+
+                bool constructorWithNumArg = collSymbol.Constructors.Any(c =>
+                    c.Parameters.Length == 1 && c.Parameters[0].Type.ToDisplayString() == "System.Int32");
+
+                var creationDecl = constructorWithNumArg
+                    ? $"new {collType}(length)"
+                    : $"new {collType}()";
+
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize(out {{collSymbol.ToDisplayString()}} value, ref Reader reader)
+                         {
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 value = default;
+                                 return;
+                              }
+                         #endif
+                             
+                             if (!reader.ReadCollectionHeader(out var length))
+                             {
+                                 value = default;
+                                 return;
+                             }
+                         
+                             Reader eleReader;
+                             
+                             value = {{creationDecl}};
+                             for (int i = 0; i < length; i++)
+                             {
+                                 eleReader = reader.Slice();
+                                 Deserialize(out {{elemType.ToDisplayString()}} item, ref eleReader);
+                                 value.Add(item);
+                             }
+                         }
+                         """;
+            }
+        ),
+    };
+
+    private string GenericTupleLikeMethods(ITypeSymbol type, string[] types, params string[] fields)
     {
-        sb.AppendLine($$"""
-                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                public static void Deserialize(out {{typeFullName}}? value, ref Reader reader)
-                                {
-                                #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                     if (reader.Eof)
-                                     {
-                                        value = default;
-                                        return;
-                                     }
-                                #endif
-                                    
-                                    reader.Read(out bool hasValue);
-                                    if (!hasValue)
-                                    {
-                                        value = default;
-                                        return;
-                                    }
-                                    
-                                    {{prefix}}(out {{typeFullName}} ret, ref reader);
-                                    value = ret;
-                                }
-                                
-                        """);
-    }
+        string[] deserializeValues =
+            fields.Select((field, i) =>
+                $"Deserialize(out {types[i]} {field.ToLower()}, ref reader);").ToArray();
+        bool isValueTuple = type.Name == "ValueTuple";
 
-    private static void GenerateKvpStructMethods(StringBuilder sb, string prefix1, string type1, string prefix2,
-        string type2)
-    {
-        sb.AppendLine($$"""
-                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                public static void Deserialize(out KeyValuePair<{{type1}}, {{type2}}> value, ref Reader reader)
-                                {
-                                #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                     if (reader.Eof)
-                                     {
-                                        value = default;
-                                        return;
-                                     }
-                                #endif
-                                    
-                                    {{type1}} key;
-                                    {{type2}} val;
-                                    {{prefix1}}(out key, ref reader);
-                                    {{prefix2}}(out val, ref reader);
-                                    value = new KeyValuePair<{{type1}}, {{type2}}>(key, val);
-                                }
-                                
-                        """);
+        return $$"""
+                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                 public static void Deserialize(out {{type.ToDisplayString()}} value, ref Reader reader)
+                 {
+                 #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                      if (reader.Eof)
+                      {
+                         value = default;
+                         return;
+                      }
+                 #endif
+                 
+                     {{string.Join("\n    ", deserializeValues)}};
+                     value = {{(isValueTuple ? "" : $"new {type.ToDisplayString()}")}}({{
+                         string.Join(", ",
+                             fields.Select(field => field.ToLower()))
+                     }});
+                 }
+                 """;
     }
 }

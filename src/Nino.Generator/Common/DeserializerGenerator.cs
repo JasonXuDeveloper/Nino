@@ -262,7 +262,7 @@ public class DeserializerGenerator(
                 }
 
                 sb.AppendLine("#else");
-                foreach (var (memberName, varName, isProperty) in privateVars)
+                foreach (var (memberName, varName, _) in privateVars)
                 {
                     var legacyVal = $"{originalValName}.__nino__generated__{memberName}";
                     sb.AppendLine($"                    {legacyVal} = {varName};");

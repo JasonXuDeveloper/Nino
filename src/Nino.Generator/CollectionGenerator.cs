@@ -1,7 +1,10 @@
+using System;
 using System.Collections.Immutable;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Nino.Generator.Collection;
+using Nino.Generator.Template;
 
 namespace Nino.Generator;
 
@@ -39,19 +42,21 @@ public class CollectionGenerator : IIncrementalGenerator
         if (!result.isValid) return;
         compilation = result.newCompilation;
         var allNinoRequiredTypes = types.GetAllNinoRequiredTypes(compilation);
-        var serializeTypeSymbols = types.GetPotentialCollectionTypes(allNinoRequiredTypes, compilation);
-        var deserializeTypeSymbols = types.GetPotentialCollectionTypes(allNinoRequiredTypes, compilation, true);
+        var potentialTypes =
+            allNinoRequiredTypes!.MergeTypes(types.Select(syntax => syntax.GetTypeSymbol(compilation)).ToList());
+        potentialTypes.Sort((x, y) =>
+            string.Compare(x.ToDisplayString(), y.ToDisplayString(), StringComparison.Ordinal));
 
-        if (serializeTypeSymbols.Count > 0)
-        {
-            CollectionSerializerGenerator serializerGenerator = new(compilation, serializeTypeSymbols);
-            serializerGenerator.Execute(context);
-        }
+        Type[] generatorTypes =
+        [
+            typeof(CollectionSerializerGenerator),
+            typeof(CollectionDeserializerGenerator),
+        ];
 
-        if (deserializeTypeSymbols.Count > 0)
+        foreach (Type type in generatorTypes)
         {
-            CollectionDeserializerGenerator deserializerGenerator = new(compilation, deserializeTypeSymbols);
-            deserializerGenerator.Execute(context);
+            var generator = (NinoCollectionGenerator)Activator.CreateInstance(type, compilation, potentialTypes);
+            generator.Execute(context);
         }
     }
 }

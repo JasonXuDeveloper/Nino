@@ -172,7 +172,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 "Nino",
                 DiagnosticSeverity.Warning, true),
             new DiagnosticDescriptor("NINO006",
-                "Ambiguous Member",
+                "Ambiguous member",
                 "Member '{0}' of NinoType '{1}' is annotated with both NinoMemberAttribute and NinoIgnoreAttribute, it is ambiguous",
                 "Nino",
                 DiagnosticSeverity.Error, true),

@@ -137,6 +137,22 @@ namespace Nino.UnitTests
                 Assert.AreEqual(TimeId[1][0], TimeId2[1][0]);
                 Assert.AreEqual(TimeId[1][1], TimeId2[1][1]);
                 Assert.AreEqual(TimeId[2][0], TimeId2[2][0]);
+                
+                MultiMap<long, string> dict = new MultiMap<long, string>();
+                dict[1].Add("1");
+                dict[1].Add("2");
+                dict[2].Add("3");
+                
+                bytes = dict.Serialize();
+                Deserializer.Deserialize(bytes, out MultiMap<long, string> dict2);
+                
+                Assert.AreEqual(dict.Count, dict2.Count);
+                Assert.AreEqual(dict[1].Count, dict2[1].Count);
+                Assert.AreEqual(dict[2].Count, dict2[2].Count);
+                
+                Assert.AreEqual(dict[1][0], dict2[1][0]);
+                Assert.AreEqual(dict[1][1], dict2[1][1]);
+                Assert.AreEqual(dict[2][0], dict2[2][0]);
             }
         }
 

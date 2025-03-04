@@ -16,202 +16,26 @@ public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
-    public static List<ITypeSymbol> GetPotentialCollectionTypes(this ImmutableArray<TypeSyntax> types,
-        IEnumerable<ITypeSymbol> allNinoRequiredTypes,
-        Compilation compilation, bool forDeserialization = false)
+    public static List<ITypeSymbol> MergeTypes(this List<ITypeSymbol?> types, List<ITypeSymbol?> otherTypes)
     {
-        HashSet<ITypeSymbol> typeSymbols = new(SymbolEqualityComparer.Default);
-        foreach (var typeSyntax in types)
-        {
-            var typeSymbol = typeSyntax.GetTypeSymbol(compilation);
-            if (typeSymbol != null && typeSymbol.IsSerializableType())
-                typeSymbols.Add(typeSymbol);
-        }
+        HashSet<ITypeSymbol?> typeSymbols = new(SymbolEqualityComparer.Default);
+        typeSymbols.UnionWith(types);
+        typeSymbols.UnionWith(otherTypes);
+        typeSymbols.RemoveWhere(ts => ts == null);
 
-        foreach (var typeSymbol in allNinoRequiredTypes)
-        {
-            if (typeSymbol != null && typeSymbol.IsSerializableType())
-                typeSymbols.Add(typeSymbol);
-        }
-
-        //for typeSymbols implements ICollection<KeyValuePair<T1, T2>>, add type KeyValuePair<T1, T2> to typeSymbols
         foreach (var typeSymbol in typeSymbols.ToList())
         {
-            var i = typeSymbol.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
-            var cond = i != null;
-            if (!forDeserialization)
-                cond = cond && !i!.IsUnmanagedType && i.TypeArguments.All(t => t.IsSerializableType());
-
-            if (!cond) continue;
-            {
-                var t = i!.TypeArguments[0];
-                if (t.IsSerializableType())
-                {
-                    typeSymbols.Add(t);
-                }
-            }
+            AddElementRecursively(typeSymbol!, typeSymbols!);
         }
 
-        var ret = typeSymbols
-            .Where(ts =>
-            {
-                //we dont want unmanaged
-                if (ts.IsUnmanagedType) return false;
-                //we dont want nino type
-                if (ts.IsNinoType()) return false;
-                //we dont want string
-                if (ts.SpecialType == SpecialType.System_String) return false;
-
-                //we dont want any of the type arguments to be a type parameter
-                if (ts is INamedTypeSymbol s)
-                {
-                    bool IsTypeParameter(ITypeSymbol typeSymbol)
-                    {
-                        if (typeSymbol.TypeKind == TypeKind.TypeParameter) return true;
-                        if (typeSymbol is INamedTypeSymbol namedTypeSymbol)
-                        {
-                            return namedTypeSymbol.TypeArguments.Any(IsTypeParameter);
-                        }
-
-                        return false;
-                    }
-
-                    if (s.TypeArguments.Any(IsTypeParameter)) return false;
-                }
-
-                bool IsAccessibleType(ITypeSymbol typeSymbol)
-                {
-                    if (typeSymbol.DeclaredAccessibility == Accessibility.Private) return false;
-                    if (typeSymbol.DeclaredAccessibility == Accessibility.Protected) return false;
-                    if (typeSymbol is INamedTypeSymbol namedTypeSymbol)
-                    {
-                        return namedTypeSymbol.TypeArguments.All(IsAccessibleType);
-                    }
-
-                    return true;
-                }
-
-                //we dont want Dictionary that has no getter/setter in its indexer
-                var iDict = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                    namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
-                if (iDict != null)
-                {
-                    var kType = iDict.TypeArguments[0];
-                    var vType = iDict.TypeArguments[1];
-
-                    bool isJustTrivial = ts.OriginalDefinition.ToDisplayString() ==
-                                         "System.Collections.Generic.Dictionary<TKey, TValue>" ||
-                                         ts.OriginalDefinition.ToDisplayString() ==
-                                         "System.Collections.Generic.IDictionary<TKey, TValue>" ||
-                                         ts.TypeKind == TypeKind.Interface;
-
-                    if (kType.IsUnmanagedType && vType.IsUnmanagedType)
-                    {
-                        if (forDeserialization && !isJustTrivial) return true;
-                        return false;
-                    }
-
-                    if (!IsAccessibleType(kType) || !IsAccessibleType(vType)) return false;
-
-                    if (ts.TypeKind == TypeKind.Interface && forDeserialization) return true;
-
-                    //use indexer to set/get value, TODO alternatively, use attributes to specify relevant methods
-                    var indexers = ts
-                        .GetMembers()
-                        .OfType<IPropertySymbol>()
-                        .Where(p => p.IsIndexer)
-                        .ToList();
-
-                    //ensure there exists one public indexer that returns vType and takes only kType
-                    var validIndexers = indexers.Where(p =>
-                            p.Type.Equals(vType, SymbolEqualityComparer.Default) && p.Parameters.Length == 1 &&
-                            p.Parameters[0].Type.Equals(kType, SymbolEqualityComparer.Default))
-                        .ToList();
-                    if (!validIndexers.Any()) return false;
-
-                    //ensure the valid indexer has public getter and setter
-                    var hasValidIndexer = validIndexers.Any(p =>
-                        p.GetMethod?.DeclaredAccessibility == Accessibility.Public &&
-                        p.SetMethod?.DeclaredAccessibility == Accessibility.Public);
-
-                    if (!hasValidIndexer)
-                        return false;
-                }
-                
-                //we dont want array of unmanaged
-                if (ts is IArrayTypeSymbol arrayTypeSymbol)
-                {
-                    if (arrayTypeSymbol.ElementType.TypeKind == TypeKind.TypeParameter) return false;
-                    if (arrayTypeSymbol.ElementType.IsUnmanagedType) return false;
-                    if (!IsAccessibleType(arrayTypeSymbol.ElementType)) return false;
-                }
-
-                //we dont want IList/ICollection of unmanaged
-                var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                    namedTypeSymbol.Name == (forDeserialization ? "IList" : "ICollection") &&
-                    namedTypeSymbol.TypeArguments.Length == 1);
-                if (i != null)
-                {
-                    bool isJustTrivial = ts.OriginalDefinition.ToDisplayString() ==
-                                         "System.Collections.Generic.List<T>" ||
-                                         ts.OriginalDefinition.ToDisplayString() ==
-                                         "System.Collections.Generic.IList<T>" ||
-                                         ts.TypeKind == TypeKind.Interface;
-                    if (i.TypeArguments[0].IsUnmanagedType)
-                    {
-                        if (forDeserialization && !isJustTrivial) return true;
-                        return false;
-                    }
-
-                    if (!IsAccessibleType(i.TypeArguments[0])) return false;
-                }
-
-
-                //we dont want nullable of unmanaged
-                if (ts.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
-                {
-                    //get type parameter
-                    // Get the type argument of Nullable<T>
-                    if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-                    {
-                        if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
-                        //we also dont want nullable of reference type, as it already has a null check
-                        if (namedTypeSymbol.TypeArguments[0].IsReferenceType) return false;
-                        if (!IsAccessibleType(namedTypeSymbol.TypeArguments[0])) return false;
-                    }
-                }
-
-                //we dont want span of unmanaged
-                if (ts.OriginalDefinition.ToDisplayString() == "System.Span<T>")
-                {
-                    if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-                    {
-                        if (namedTypeSymbol.TypeArguments[0].IsUnmanagedType) return false;
-                        if (!IsAccessibleType(namedTypeSymbol.TypeArguments[0])) return false;
-                    }
-                }
-
-                //we dont want IDictionary of unmanaged
-                i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                    namedTypeSymbol.Name == "IDictionary" && namedTypeSymbol.TypeArguments.Length == 2);
-                if (i != null)
-                {
-                    if (i.TypeArguments[0].IsUnmanagedType && i.TypeArguments[1].IsUnmanagedType) return false;
-                    if (!IsAccessibleType(i.TypeArguments[0]) || !IsAccessibleType(i.TypeArguments[1])) return false;
-                }
-
-                return true;
-            }).ToList();
-        ret.Sort((t1, t2) =>
-            string.Compare(t1.ToDisplayString(), t2.ToDisplayString(), StringComparison.Ordinal));
-
-        return ret;
+        return typeSymbols.ToList()!;
     }
 
     public static bool IsSerializableType(this ITypeSymbol ts)
     {
         ts = ts.GetPureType();
+        //we dont want type parameter
+        if (ts.TypeKind == TypeKind.TypeParameter) return false;
         //we dont want void
         if (ts.SpecialType == SpecialType.System_Void) return false;
         //we accept string
@@ -228,46 +52,12 @@ public static class NinoTypeHelper
             return IsSerializableType(arrayTypeSymbol.ElementType);
         }
 
-        //we also want KeyValuePair
-        if (ts.OriginalDefinition.ToDisplayString() ==
-            "System.Collections.Generic.KeyValuePair<TKey, TValue>")
+        //for INamedTypeSymbol, we want all type arguments to be what we want
+        if (ts is INamedTypeSymbol namedTypeSymbol)
         {
-            if (ts is INamedTypeSymbol { TypeArguments.Length: 2 } namedTypeSymbol)
-            {
-                return IsSerializableType(namedTypeSymbol.TypeArguments[0]) &&
-                       IsSerializableType(namedTypeSymbol.TypeArguments[1]);
-            }
+            return namedTypeSymbol.IsGenericType && namedTypeSymbol.TypeArguments.All(IsSerializableType);
         }
 
-        //if ts implements IList and type parameter is what we want
-        var i = ts.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-            namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
-        if (i != null)
-            return IsSerializableType(i.TypeArguments[0]);
-
-        //if ts is Span of what we want
-        if (ts.OriginalDefinition.ToDisplayString() == "System.Span<T>")
-        {
-            if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-            {
-                return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
-            }
-        }
-
-        //if ts is nullable of what we want
-        if (ts.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
-        {
-            //get type parameter
-            // Get the type argument of Nullable<T>
-            if (ts is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-            {
-                //we dont want nullable reference type
-                return namedTypeSymbol.TypeArguments[0].IsValueType &&
-                       IsSerializableType(namedTypeSymbol.TypeArguments[0]);
-            }
-        }
-
-        //otherwise, we dont want it
         return false;
     }
 
@@ -835,7 +625,6 @@ public static class NinoTypeHelper
     {
         sb.AppendLine($$"""
                         {{typeFullName.GeneratePublicSerializeMethodBody("        ", typeParam, genericConstraint)}}
-
                         """);
     }
 
@@ -845,7 +634,6 @@ public static class NinoTypeHelper
     {
         sb.AppendLine($$"""
                         {{typeFullName.GeneratePublicDeserializeMethodBody("        ", typeParam, genericConstraint)}}
-
                         """);
     }
 

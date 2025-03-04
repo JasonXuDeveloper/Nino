@@ -1,180 +1,400 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Filter;
+using Nino.Generator.Filter.Operation;
 using Nino.Generator.Template;
+using Array = Nino.Generator.Filter.Array;
+using Nullable = Nino.Generator.Filter.Nullable;
+using String = Nino.Generator.Filter.String;
 
 namespace Nino.Generator.Collection;
 
-public class CollectionSerializerGenerator(Compilation compilation, List<ITypeSymbol> potentialCollectionSymbols)
+public class CollectionSerializerGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> potentialCollectionSymbols)
     : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
 {
-    protected override void Generate(SourceProductionContext spc)
+    protected override IFilter Selector => new Joint().With
+    (
+        // We want to ensure the type we are using is accessible (i.e. not private)
+        new Accessible(),
+        // We want to ensure all generics are fully-typed
+        new Not(new RawGeneric()),
+        /*
+         * We already have functions for:
+         * - unmanged types
+         * - NinoTyped types
+         * - strings
+         * So we can filter them out
+         */
+        new Not(new Unmanaged()),
+        new Not(new NinoTyped()),
+        new Not(new String()),
+        // We now collect things we want
+        new Union().With
+        (
+            // We want key-value pairs for dictionaries
+            new Joint().With
+            (
+                new Trivial("KeyValuePair"),
+                new AllTypeArgument(symbol => symbol.IsSerializableType())
+            ),
+            // We want tuples
+            new Joint().With
+            (
+                new Trivial("ValueTuple", "Tuple"),
+                new AllTypeArgument(symbol => symbol.IsSerializableType())
+            ),
+            // We want nullables
+            new Joint().With
+            (
+                new Nullable(),
+                new AllTypeArgument(symbol => symbol.IsSerializableType())
+            ),
+            // We want dictionaries
+            new Joint().With
+            (
+                new Interface("IDictionary"),
+                new AllTypeArgument(symbol => symbol.IsSerializableType())
+            ),
+            // We want arrays
+            new Array(symbol => symbol.IsSerializableType()),
+            // We want collections
+            new Joint().With
+            (
+                new Interface("ICollection"),
+                new AllTypeArgument(symbol => symbol.IsSerializableType())
+            ),
+            // We want lists
+            new Joint().With
+            (
+                new Interface("IList"),
+                new AllTypeArgument(symbol => symbol.IsSerializableType())
+            ),
+            // We want span
+            new Joint().With
+            (
+                new Span(),
+                new AllTypeArgument(symbol => symbol.IsSerializableType())
+            )
+        ),
+        // We want to ensure the type is serializable
+        new Serializable()
+    );
+
+    protected override string ClassName => "Serializer";
+    protected override string OutputFileName => "NinoSerializer.Collection.g.cs";
+
+    protected override Action<StringBuilder, string> PublicMethod => (sb, typeFullName) =>
     {
-        var compilation = Compilation;
-        var typeSymbols = PotentialCollectionSymbols;
-        var sb = new StringBuilder();
+        sb.GenerateClassSerializeMethods(typeFullName);
+    };
 
-        HashSet<string> addedType = new HashSet<string>();
-        foreach (var type in typeSymbols)
-        {
-            var typeFullName = type.ToDisplayString();
-            if (!addedType.Add(typeFullName)) continue;
-            sb.GenerateClassSerializeMethods(typeFullName);
-
-            //if type is nullable
-            if (type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+    protected override List<Transformer> Transformers => new List<Transformer>
+    {
+        // Nullable Ninotypes
+        new
+        (
+            "Nullable",
+            // We want nullable for non-unmanaged ninotypes
+            new Joint().With
+            (
+                new Nullable(),
+                new TypeArgument(0, symbol => !symbol.IsUnmanagedType)
+            )
+            , symbol =>
             {
-                if (type is INamedTypeSymbol { TypeArguments.Length: 1 } namedTypeSymbol)
-                {
-                    var fullName = namedTypeSymbol.TypeArguments[0].ToDisplayString();
-                    GenerateNullableStructMethods(sb,
-                        namedTypeSymbol.TypeArguments[0].GetSerializePrefix(), fullName);
-                    continue;
-                }
-            }
-
-            //if type is KeyValuePair
-            if (type.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.KeyValuePair<TKey, TValue>")
-            {
-                if (type is INamedTypeSymbol { TypeArguments.Length: 2 } namedTypeSymbol)
-                {
-                    var type1 = namedTypeSymbol.TypeArguments[0].ToDisplayString();
-                    var type2 = namedTypeSymbol.TypeArguments[1].ToDisplayString();
-                    GenerateKvpStructMethods(sb, namedTypeSymbol.TypeArguments[0].GetSerializePrefix(), type1,
-                        namedTypeSymbol.TypeArguments[0].GetSerializePrefix(), type2);
-                    continue;
-                }
-            }
-
-            //if type is array
-            if (type is IArrayTypeSymbol)
-            {
-                sb.AppendLine(GenerateCollectionSerialization(((IArrayTypeSymbol)type).ElementType.GetSerializePrefix(),
-                    typeFullName, "Length", "        ", "", "", ((IArrayTypeSymbol)type).ElementType.ToDisplayString(),
-                    true, true));
-                continue;
-            }
-
-            //if type is ICollection
-            var i = type.AllInterfaces.FirstOrDefault(namedTypeSymbol =>
-                namedTypeSymbol.Name == "ICollection" && namedTypeSymbol.TypeArguments.Length == 1);
-            if (i != null)
-            {
-                sb.AppendLine(GenerateCollectionSerialization(i.TypeArguments[0].GetSerializePrefix(), typeFullName,
-                    "Count", "        "));
-                continue;
-            }
-
-            //if type is Span
-            if (type.OriginalDefinition.ToDisplayString() == "System.Span<T>")
-            {
-                if (type is INamedTypeSymbol { TypeArguments.Length: 1 } ns)
-                {
-                    sb.AppendLine(GenerateCollectionSerialization(ns.TypeArguments[0].GetSerializePrefix(),
-                        typeFullName,
-                        "Length", "        ", "", "", ns.TypeArguments[0].ToDisplayString(), false, true));
-                    continue;
-                }
-            }
-
-            //otherwise we add a comment of the error type
-            sb.AppendLine($"// Type: {typeFullName} is not supported");
-        }
-
-        var curNamespace = compilation.AssemblyName!.GetNamespace();
-
-        // generate code
-        var code = $$"""
-                     // <auto-generated/>
-
-                     using System;
-                     using global::Nino.Core;
-                     using System.Buffers;
-                     using System.Collections.Generic;
-                     using System.Collections.Concurrent;
-                     using System.Runtime.InteropServices;
-                     using System.Runtime.CompilerServices;
-
-                     namespace {{curNamespace}}
-                     {
-                         public static partial class Serializer
+                ITypeSymbol elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Serialize(this {{elementType.ToDisplayString()}}? value, ref Writer writer)
                          {
-                     {{sb}}    }
-                     }
-                     """;
-
-        spc.AddSource("NinoSerializer.Collection.g.cs", code);
-    }
-
-    private static string GenerateCollectionSerialization(string prefix, string collectionType, string lengthName,
-        string indent,
-        string typeParam = "", string genericConstraint = "", string elementType = "", bool isArray = false,
-        bool canUseFor = false)
-    {
-        var span = canUseFor && isArray ? $"Span<{elementType}> span = value.AsSpan();" : "";
-        var collection = isArray && canUseFor ? "span" : "value";
-        var cnt = canUseFor ? $"int cnt = {collection}.Length;" : "";
-        var loop = canUseFor ? "for (int i = 0; i < cnt; i++)" : $"foreach (var item in {collection})";
-        var element = canUseFor ? $"{collection}[i]" : "item";
-        var ret = $$"""
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Serialize{{typeParam}}(this {{collectionType}} value, ref Writer writer) {{genericConstraint}}
-                    {
-                        if (value == ({{collectionType}}) default)
+                             if (!value.HasValue)
+                             {
+                                 writer.Write(false);
+                                 return;
+                             }
+                             
+                             writer.Write(true);
+                             Serialize(value.Value, ref writer);
+                         }
+                         """;
+            }
+        ),
+        // KeyValuePair Ninotypes
+        new
+        (
+            "KeyValuePair",
+            // We only want KeyValuePair for non-unmanaged ninotypes
+            new Joint().With(
+                new Trivial("KeyValuePair"),
+                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+            ),
+            symbol =>
+                GenericTupleLikeMethods(symbol, "Key", "Value")
+        ),
+        // Tuple Ninotypes
+        new
+        (
+            "Tuple",
+            // We only want Tuple for non-unmanaged ninotypes
+            new Trivial("ValueTuple", "Tuple"),
+            symbol => symbol.IsUnmanagedType
+                ? ""
+                : GenericTupleLikeMethods(symbol, ((INamedTypeSymbol)symbol)
+                    .TypeArguments.Select((_, i) => $"Item{i + 1}").ToArray())
+        ),
+        // Array Ninotypes
+        new
+        (
+            "Array",
+            new Array(arraySymbol =>
+            {
+                var elementType = arraySymbol.ElementType;
+                return !elementType.IsUnmanagedType;
+            }),
+            symbol => $$"""
+                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                        public static void Serialize(this {{symbol.ToDisplayString()}} value, ref Writer writer)
                         {
-                            writer.Write(TypeCollector.NullCollection);
-                            return;
+                            if (value == null)
+                            {
+                                writer.Write(TypeCollector.NullCollection);
+                                return;
+                            }
+                        
+                            var span = value.AsSpan();
+                            int cnt = span.Length;
+                            int pos;
+                            writer.Write(TypeCollector.GetCollectionHeader(cnt));
+                            
+                            for (int i = 0; i < cnt; i++)
+                            {
+                                pos = writer.Advance(4);
+                                Serialize(span[i], ref writer);
+                                writer.PutLength(pos);
+                            }
                         }
-
-                        writer.Write(TypeCollector.GetCollectionHeader(value.{{lengthName}}));
-                        {{span}}
-                        int pos;
-                        {{cnt}}
-                        {{loop}}
+                        """
+        ),
+        // Span Ninotypes
+        new
+        (
+            "Span",
+            new Joint().With
+            (
+                new Span(),
+                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+            ),
+            symbol => $$"""
+                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                        public static void Serialize(this {{symbol.ToDisplayString()}} value, ref Writer writer)
                         {
-                            pos = writer.Advance(4);
-                            {{prefix}}({{element}}, ref writer);
-                            writer.PutLength(pos);
+                            if (value.IsEmpty)
+                            {
+                                writer.Write(TypeCollector.NullCollection);
+                                return;
+                            }
+                        
+                            int cnt = value.Length;
+                            int pos;
+                            writer.Write(TypeCollector.GetCollectionHeader(cnt));
+                            
+                            for (int i = 0; i < cnt; i++)
+                            {
+                                pos = writer.Advance(4);
+                                Serialize(value[i], ref writer);
+                                writer.PutLength(pos);
+                            }
                         }
-                    }
+                        """
+        ),
+        // non trivial IDictionary Ninotypes
+        new
+        (
+            "NonTrivialDictionary",
+            // Note that we accept non-trivial IDictionary types with unmanaged key and value types
+            new Joint().With
+            (
+                new Interface("IDictionary"),
+                new NonTrivial("IDictionary", "IDictionary", "Dictionary")
+            ),
+            symbol =>
+            {
+                INamedTypeSymbol dictSymbol = (INamedTypeSymbol)symbol;
+                var idictSymbol = dictSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "IDictionary")
+                                  ?? dictSymbol;
+                var keyType = idictSymbol.TypeArguments[0];
+                var valType = idictSymbol.TypeArguments[1];
+                bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
 
-                    """;
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
-    }
+                string nonTrivialUnmanagedCase = """
+                                                     Serialize(item, ref writer);
+                                                 """;
 
-    private static void GenerateNullableStructMethods(StringBuilder sb, string prefix, string typeFullName)
+                string fallbackCase = """
+                                          pos = writer.Advance(4);
+                                          Serialize(item.Key, ref writer);
+                                          Serialize(item.Value, ref writer);
+                                          writer.PutLength(pos);
+                                      """;
+
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Serialize(this {{symbol.ToDisplayString()}} value, ref Writer writer)
+                         {
+                             if (value == {{(symbol.IsValueType ? "default" : "null")}})
+                             {
+                                 writer.Write(TypeCollector.NullCollection);
+                                 return;
+                             }
+                         
+                             int cnt = value.Count;
+                             int pos;
+                             writer.Write(TypeCollector.GetCollectionHeader(cnt));
+                         
+                             foreach (var item in value)
+                             {
+                                 {{(isUnmanaged ? nonTrivialUnmanagedCase : fallbackCase)}}
+                             }
+                         }
+                         """;
+            }
+        ),
+        // trivial IDictionary Ninotypes
+        new
+        (
+            "TrivialDictionary",
+            new Joint().With
+            (
+                new Interface("IDictionary"),
+                new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary")),
+                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+            ),
+            symbol => $$"""
+                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                        public static void Serialize(this {{symbol.ToDisplayString()}} value, ref Writer writer)
+                        {
+                            if (value == {{(symbol.IsValueType ? "default" : "null")}})
+                            {
+                                writer.Write(TypeCollector.NullCollection);
+                                return;
+                            }
+                        
+                            int cnt = value.Count;
+                            int pos;
+                            writer.Write(TypeCollector.GetCollectionHeader(cnt));
+                        
+                            foreach (var item in value)
+                            {
+                                pos = writer.Advance(4);
+                                Serialize(item.Key, ref writer);
+                                Serialize(item.Value, ref writer);
+                                writer.PutLength(pos);
+                            }
+                        }
+                        """),
+        // non trivial ICollection Ninotypes
+        new
+        (
+            "NonTrivialCollection",
+            // Note that we accept non-trivial ICollection types with unmanaged element types
+            new Joint().With
+            (
+                // Note that array is an ICollection, but we don't want to generate code for it
+                new Interface("ICollection"),
+                new Not(new Array()),
+                new NonTrivial("ICollection", "ICollection", "List")
+            ),
+            symbol =>
+            {
+                INamedTypeSymbol collSymbol = (INamedTypeSymbol)symbol;
+                var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
+                                  ?? collSymbol;
+                var elemType = iCollSymbol.TypeArguments[0];
+                bool isUnmanaged = elemType.IsUnmanagedType;
+
+                string nonTrivialUnmanagedCase = """
+                                                     Serialize(item, ref writer);
+                                                 """;
+
+                string fallbackCase = """
+                                            pos = writer.Advance(4);
+                                            Serialize(item, ref writer);
+                                            writer.PutLength(pos);
+                                      """;
+
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Serialize(this {{symbol.ToDisplayString()}} value, ref Writer writer)
+                         {
+                             if (value == {{(symbol.IsValueType ? "default" : "null")}})
+                             {
+                                 writer.Write(TypeCollector.NullCollection);
+                                 return;
+                             }
+                         
+                             int cnt = value.Count;
+                             int pos;
+                             writer.Write(TypeCollector.GetCollectionHeader(cnt));
+                         
+                             foreach (var item in value)
+                             {
+                                 {{(isUnmanaged ? nonTrivialUnmanagedCase : fallbackCase)}}
+                             }
+                         }
+                         """;
+            }
+        ),
+        // trivial ICollection Ninotypes
+        new
+        (
+            "TrivialCollection",
+            new Joint().With
+            (
+                // Note that array is an ICollection, but we don't want to generate code for it
+                new Interface("ICollection"),
+                new Not(new Array()),
+                new Not(new NonTrivial("ICollection", "ICollection", "List")),
+                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+            ),
+            symbol => $$"""
+                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                        public static void Serialize(this {{symbol.ToDisplayString()}} value, ref Writer writer)
+                        {
+                            if (value == {{(symbol.IsValueType ? "default" : "null")}})
+                            {
+                                writer.Write(TypeCollector.NullCollection);
+                                return;
+                            }
+                        
+                            int cnt = value.Count;
+                            int pos;
+                            writer.Write(TypeCollector.GetCollectionHeader(cnt));
+                        
+                            foreach (var item in value)
+                            {
+                                pos = writer.Advance(4);
+                                Serialize(item, ref writer);
+                                writer.PutLength(pos);
+                            }
+                        }
+                        """),
+    };
+
+    private string GenericTupleLikeMethods(ITypeSymbol type, params string[] fields)
     {
-        sb.AppendLine($$"""
-                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                public static void Serialize(this {{typeFullName}}? value, ref Writer writer)
-                                {
-                                    if (!value.HasValue)
-                                    {
-                                        writer.Write(false);
-                                        return;
-                                    }
-                                    
-                                    writer.Write(true);
-                                    {{prefix}}(value.Value, ref writer);
-                                }
-                                
-                        """);
-    }
+        string[] serializeValues = fields.Select(field => $"Serialize(value.{field}, ref writer);").ToArray();
 
-    private static void GenerateKvpStructMethods(StringBuilder sb, string prefix1, string type1, string prefix2,
-        string type2)
-    {
-        sb.AppendLine($$"""
-                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                public static void Serialize(this System.Collections.Generic.KeyValuePair<{{type1}}, {{type2}}> value, ref Writer writer)
-                                {
-                                    {{prefix1}}(value.Key, ref writer);
-                                    {{prefix2}}(value.Value, ref writer);
-                                }
-                                
-                        """);
+        return $$"""
+                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                 public static void Serialize(this {{type.ToDisplayString()}} value, ref Writer writer)
+                 {
+                     {{string.Join("\n    ", serializeValues)}};
+                 }
+                 """;
     }
 }
