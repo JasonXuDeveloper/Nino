@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.UnitTests.NinoGen;
 
@@ -104,6 +105,9 @@ namespace Nino.UnitTests
             Assert.AreEqual(tuple4.Item1.Y, result4.Item1.Y);
             Assert.AreEqual(tuple4.Item2.Item1, result4.Item2.Item1);
             Assert.AreEqual(tuple4.Item2.Item2, result4.Item2.Item2);
+
+            Task<bool> aaa;
+            List<Task<(bool,string)>> bbb;
         }
 
         [TestMethod]

@@ -55,7 +55,34 @@ public static class NinoTypeHelper
         //for INamedTypeSymbol, we want all type arguments to be what we want
         if (ts is INamedTypeSymbol namedTypeSymbol)
         {
-            return namedTypeSymbol.IsGenericType && namedTypeSymbol.TypeArguments.All(IsSerializableType);
+            if (namedTypeSymbol.IsGenericType)
+            {
+                //for kvp, typle, valuetuple, we check all typeargs
+                if (namedTypeSymbol.Name == "KeyValuePair" || namedTypeSymbol.Name == "ValueTuple" ||
+                    namedTypeSymbol.Name == "Tuple")
+                {
+                    return namedTypeSymbol.TypeArguments.All(IsSerializableType);
+                }
+
+                //nullable
+                if (namedTypeSymbol.Name == "Nullable")
+                {
+                    return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
+                }
+
+                //span
+                if (namedTypeSymbol.Name == "Span" || namedTypeSymbol.Name == "ReadOnlySpan")
+                {
+                    return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
+                }
+
+                //ICollection
+                if (namedTypeSymbol.AllInterfaces.Any(i => i.Name == "ICollection") ||
+                    namedTypeSymbol.AllInterfaces.Any(i => i.Name == "IList"))
+                {
+                    return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
+                }
+            }
         }
 
         return false;
