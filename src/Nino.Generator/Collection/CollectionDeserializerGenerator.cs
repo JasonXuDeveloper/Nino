@@ -48,11 +48,16 @@ public class CollectionDeserializerGenerator(
                 // We want nullables
                 new Nullable(),
                 // We want arrays
-                new Array(),
+                new Array(arraySymbol => Selector.Filter(arraySymbol.ElementType)),
                 // We want dictionaries with valid indexers
                 new Joint().With
                 (
-                    new Interface("IDictionary"),
+                    new Interface("IDictionary<TKey, TValue>", interfaceSymbol =>
+                    {
+                        var keyType = interfaceSymbol.TypeArguments[0];
+                        var valueType = interfaceSymbol.TypeArguments[1];
+                        return Selector.Filter(keyType) && Selector.Filter(valueType);
+                    }),
                     new ValidIndexer((symbol, indexer) =>
                     {
                         if (symbol.TypeKind == TypeKind.Interface) return true;
@@ -71,11 +76,12 @@ public class CollectionDeserializerGenerator(
                 // We want collections/lists with valid constructors
                 new Joint().With
                 (
-                    new Union().With
-                    (
-                        new Interface("ICollection"),
-                        new Interface("IList")
-                    ),
+                    // We want enumerable (which contains array, icollection, ilist, idictionary, etc)
+                    new Interface("IEnumerable<T>", interfaceSymbol =>
+                    {
+                        var elementType = interfaceSymbol.TypeArguments[0];
+                        return Selector.Filter(elementType);
+                    }),
                     new ValidMethod((symbol, method) =>
                     {
                         if (symbol.TypeKind == TypeKind.Interface) return true;
@@ -83,7 +89,10 @@ public class CollectionDeserializerGenerator(
                         {
                             return method.Parameters.Length == 0
                                    || (method.Parameters.Length == 1
-                                       && method.Parameters[0].Type.SpecialType == SpecialType.System_Int32);
+                                       && method.Parameters[0].Type.SpecialType == SpecialType.System_Int32)
+                                   || (method.Parameters.Length == 1
+                                       && method.Parameters[0].Type.OriginalDefinition.ToDisplayString()
+                                           .EndsWith("IEnumerable<T>"));
                         }
 
                         return false;
@@ -110,7 +119,7 @@ public class CollectionDeserializerGenerator(
             new Joint().With
             (
                 new Nullable(),
-                new TypeArgument(0, symbol => !symbol.IsUnmanagedType)
+                new TypeArgument(0, symbol => !symbol.IsUnmanagedType && Selector.Filter(symbol))
             )
             , symbol =>
             {
@@ -224,7 +233,7 @@ public class CollectionDeserializerGenerator(
             // Note that we accept non-trivial IDictionary types with unmanaged key and value types
             new Joint().With
             (
-                new Interface("IDictionary"),
+                new Interface("IDictionary<TKey, TValue>"),
                 new NonTrivial("IDictionary", "IDictionary", "Dictionary")
             ),
             symbol =>
@@ -291,7 +300,7 @@ public class CollectionDeserializerGenerator(
             "TrivialDictionary",
             new Joint().With
             (
-                new Interface("IDictionary"),
+                new Interface("IDictionary<TKey, TValue>"),
                 new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary")),
                 new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
             ),
@@ -335,26 +344,29 @@ public class CollectionDeserializerGenerator(
                          """;
             }
         ),
-        // non trivial ICollection Ninotypes
+        // non trivial IEnumerable Ninotypes
         new
         (
-            "NonTrivialCollectionUsingAdd",
-            // Note that we accept non-trivial ICollection types with unmanaged element types
+            "NonTrivialEnumerableUsingAdd",
+            // Note that we accept non-trivial Enumerable types with unmanaged element types
             new Joint().With
             (
-                // Note that array is an ICollection, but we don't want to generate code for it
-                new Interface("ICollection"),
+                // Note that array is an IEnumerable, but we don't want to generate code for it
+                new Interface("IEnumerable<T>"),
                 new Not(new Array()),
-                new NonTrivial("ICollection", "ICollection", "List"),
+                // We want to exclude the ones that already have a serializer
+                new Not(new NinoTyped()),
+                new Not(new String()),
+                new NonTrivial("IEnumerable", "ICollection", "IList", "List"),
                 // We want to be able to Add
                 new ValidMethod((symbol, method) =>
                 {
                     if (symbol.TypeKind == TypeKind.Interface) return false;
                     if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
-                    var iCollSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
-                                      ?? namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "IList")
+                    var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
+                                          i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
                                       ?? namedTypeSymbol;
-                    var elementType = iCollSymbol.TypeArguments[0];
+                    var elementType = ienumSymbol.TypeArguments[0];
 
                     return method.Name == "Add"
                            && method.Parameters.Length == 1
@@ -363,16 +375,17 @@ public class CollectionDeserializerGenerator(
             ),
             symbol =>
             {
-                INamedTypeSymbol collSymbol = (INamedTypeSymbol)symbol;
-                var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
-                                  ?? collSymbol;
-                var elemType = iCollSymbol.TypeArguments[0];
+                INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
+                var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
+                                      i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                  ?? namedTypeSymbol;
+                var elemType = ienumSymbol.TypeArguments[0];
                 if (!Selector.Filter(elemType)) return "";
 
                 var collType = symbol.ToDisplayString();
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
-                bool constructorWithNumArg = collSymbol.Constructors.Any(c =>
+                bool constructorWithNumArg = ienumSymbol.Constructors.Any(c =>
                     c.Parameters.Length == 1 && c.Parameters[0].Type.ToDisplayString() == "System.Int32");
 
                 var reader = isUnmanaged ? "reader" : "eleReader";
@@ -384,7 +397,7 @@ public class CollectionDeserializerGenerator(
 
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                         public static void Deserialize(out {{collSymbol.ToDisplayString()}} value, ref Reader reader)
+                         public static void Deserialize(out {{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
                          {
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                               if (reader.Eof)
@@ -413,54 +426,112 @@ public class CollectionDeserializerGenerator(
                          """;
             }
         ),
-        // non trivial ICollection Ninotypes
+        // stack Ninotypes
         new
         (
-            "NonTrivialCollectionUsingCtorWithEnumerable",
-            // Note that we accept non-trivial ICollection types with unmanaged element types
-            new Joint().With
-            (
-                // Note that array is an ICollection, but we don't want to generate code for it
-                new Interface("ICollection"),
-                new Not(new Array()),
-                new NonTrivial("ICollection", "ICollection", "List"),
-                // We want to be able to use a constructor with IEnumerable
-                new ValidMethod((symbol, method) =>
-                {
-                    if (symbol.TypeKind == TypeKind.Interface) return false;
-                    if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
-                    var iCollSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
-                                      ?? namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "IList")
-                                      ?? namedTypeSymbol;
-                    var elementType = iCollSymbol.TypeArguments[0];
-
-                    return method.MethodKind == MethodKind.Constructor
-                           && method.Parameters.Length == 1
-                           && method.Parameters[0].Type.SpecialType == SpecialType.System_Collections_IEnumerable
-                           && method.Parameters[0].Type is INamedTypeSymbol ienumerable && ienumerable.IsGenericType
-                           && ienumerable.TypeArguments.Length > 0 && ienumerable.TypeArguments[0]
-                               .Equals(elementType, SymbolEqualityComparer.Default);
-                })
-            ),
+            "Stack",
+            new Interface("Stack<T>"),
             symbol =>
             {
-                INamedTypeSymbol collSymbol = (INamedTypeSymbol)symbol;
-                var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
-                                  ?? collSymbol;
-                var elemType = iCollSymbol.TypeArguments[0];
+                INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
+                var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
+                                      i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                  ?? namedTypeSymbol;
+                var elemType = ienumSymbol.TypeArguments[0];
                 if (!Selector.Filter(elemType)) return "";
-                var collType = symbol.ToDisplayString();
+                var typeDecl = symbol.ToDisplayString();
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
                 var reader = isUnmanaged ? "reader" : "eleReader";
                 var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
                 var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
-                var creationDecl = $"new {collType}(arr)";
+                var creationDecl = $"new {typeDecl}(arr)";
                 var arrCreationDecl = $"new {elemType.ToDisplayString()}[length]";
-
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                         public static void Deserialize(out {{collSymbol.ToDisplayString()}} value, ref Reader reader)
+                         public static void Deserialize(out {{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
+                         {
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 value = default;
+                                 return;
+                              }
+                         #endif
+                             
+                             if (!reader.ReadCollectionHeader(out var length))
+                             {
+                                 value = default;
+                                 return;
+                             }
+                         
+                             {{eleReaderDecl}}
+                             var arr = {{arrCreationDecl}};
+                             var span = arr.AsSpan();
+                             for (int i = length - 1; i >= 0; i--)
+                             {
+                                 {{slice}}
+                                 Deserialize(out span[i], ref {{reader}});
+                             }
+                         
+                             value = {{creationDecl}};
+                         }
+                         """;
+            }
+        ),
+        // non trivial IEnumerable Ninotypes
+        new
+        (
+            "NonTrivialEnumerableUsingCtorWithArr",
+            // Note that we accept non-trivial IEnumerable types with unmanaged element types
+            new Joint().With
+            (
+                // Note that array is an IEnumerable, but we don't want to generate code for it
+                new Interface("IEnumerable<T>"),
+                new Not(new Array()),
+                // We want to exclude the ones that already have a serializer
+                new Not(new NinoTyped()),
+                new Not(new String()),
+                new NonTrivial("IEnumerable", "ICollection", "IList", "List"),
+                // We want to be able to use a constructor with IEnumerable
+                new ValidMethod((symbol, method) =>
+                {
+                    if (symbol.TypeKind == TypeKind.Interface) return false;
+                    if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
+                    var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
+                                          i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                      ?? namedTypeSymbol;
+                    var elementType = ienumSymbol.TypeArguments[0];
+
+                    return method.MethodKind == MethodKind.Constructor
+                           && method.Parameters.Length == 1
+                           && method.Parameters[0].Type is INamedTypeSymbol ienumerable
+                           && ienumerable.IsGenericType
+                           && ienumerable.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>")
+                           && ienumerable.TypeArguments.Length > 0
+                           && ienumerable.TypeArguments[0]
+                               .Equals(elementType, SymbolEqualityComparer.Default);
+                })
+            ),
+            symbol =>
+            {
+                INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
+                var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
+                                      i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                  ?? namedTypeSymbol;
+                var elemType = ienumSymbol.TypeArguments[0];
+                if (!Selector.Filter(elemType)) return "";
+                var typeDecl = symbol.ToDisplayString();
+                bool isUnmanaged = elemType.IsUnmanagedType;
+
+                var reader = isUnmanaged ? "reader" : "eleReader";
+                var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
+                var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
+                var creationDecl = $"new {typeDecl}(arr)";
+                var arrCreationDecl = $"new {elemType.ToDisplayString()}[length]";
+                return $$"""
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize(out {{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
                          {
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                               if (reader.Eof)
@@ -490,46 +561,35 @@ public class CollectionDeserializerGenerator(
                          """;
             }
         ),
-        // trivial ICollection Ninotypes
+        // trivial IEnumerable Ninotypes
         new
         (
-            "TrivialCollectionUsingAdd",
-            // Note that we accept non-trivial ICollection types with unmanaged element types
+            "TrivialEnumerableUsingAdd",
+            // Note that we accept non-trivial IEnumerable types with unmanaged element types
             new Joint().With
             (
-                // Note that array is an ICollection, but we don't want to generate code for it
-                new Interface("ICollection"),
+                // Note that array is an IEnumerable, but we don't want to generate code for it
+                new Interface("IEnumerable<T>"),
                 new Not(new Array()),
-                new Not(new NonTrivial("ICollection", "ICollection", "List")),
-                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType),
-                // We want to be able to Add
-                new ValidMethod((symbol, method) =>
-                {
-                    if (symbol.TypeKind == TypeKind.Interface) return true;
-                    if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
-                    var elementType = namedTypeSymbol.TypeArguments[0];
-
-                    return method.Name == "Add"
-                           && method.Parameters.Length == 1
-                           && method.Parameters[0].Type.Equals(elementType, SymbolEqualityComparer.Default);
-                })
+                // We want to exclude the ones that already have a serializer
+                new Not(new NinoTyped()),
+                new Not(new String()),
+                new Not(new NonTrivial("IEnumerable", "ICollection", "IList", "List")),
+                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
             ),
             symbol =>
             {
-                INamedTypeSymbol collSymbol = (INamedTypeSymbol)symbol;
-                var elemType = collSymbol.TypeArguments[0];
-                var collType = $"System.Collections.Generic.List<{elemType.ToDisplayString()}>";
+                INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
+                var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
+                                      i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                  ?? namedTypeSymbol;
+                var elemType = ienumSymbol.TypeArguments[0];
+                var typeDecl = $"System.Collections.Generic.List<{elemType.ToDisplayString()}>";
 
-                bool constructorWithNumArg = collSymbol.Constructors.Any(c =>
-                    c.Parameters.Length == 1 && c.Parameters[0].Type.ToDisplayString() == "System.Int32");
-
-                var creationDecl = constructorWithNumArg
-                    ? $"new {collType}(length)"
-                    : $"new {collType}()";
-
+                var creationDecl = $"new {typeDecl}(length)";
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                         public static void Deserialize(out {{collSymbol.ToDisplayString()}} value, ref Reader reader)
+                         public static void Deserialize(out {{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
                          {
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                               if (reader.Eof)

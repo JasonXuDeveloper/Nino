@@ -60,8 +60,14 @@ public abstract class NinoCollectionGenerator(
         sb.AppendLine("");
 
         HashSet<string> addedType = new HashSet<string>();
-        foreach (var type in filteredSymbols)
+        foreach (var symbol in filteredSymbols)
         {
+            var type = symbol;
+            if (type.IsTupleType && type is INamedTypeSymbol namedTypeSymbol)
+            {
+                type = namedTypeSymbol.TupleUnderlyingType ?? symbol;
+            }
+
             var typeFullName = type.ToDisplayString();
             if (!addedType.Add(typeFullName)) continue;
             for (var index = 0; index < Transformers!.Count; index++)

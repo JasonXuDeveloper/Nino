@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.UnitTests.NinoGen;
@@ -11,6 +12,184 @@ namespace Nino.UnitTests
     [TestClass]
     public class SimpleTests
     {
+        [TestMethod]
+        public void TestCursedGeneric()
+        {
+            CursedGeneric<int> cursedGeneric = new CursedGeneric<int>
+            {
+                field = new ConcurrentDictionary<string, int[]>
+                {
+                    ["Test"] = new[] { 1, 2, 3 }
+                }
+            };
+
+            byte[] bytes = cursedGeneric.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out CursedGeneric<int> result);
+            Assert.AreEqual(cursedGeneric.field.Count, result.field.Count);
+            Assert.AreEqual(cursedGeneric.field["Test"].Length, result.field["Test"].Length);
+            for (int i = 0; i < cursedGeneric.field["Test"].Length; i++)
+            {
+                Assert.AreEqual(cursedGeneric.field["Test"][i], result.field["Test"][i]);
+            }
+
+            CursedGeneric<string> cursedGeneric2 = new CursedGeneric<string>
+            {
+                field = new ConcurrentDictionary<string, string[]>
+                {
+                    ["Test"] = new[] { "1", "2", "3" }
+                }
+            };
+
+            bytes = cursedGeneric2.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out CursedGeneric<string> result2);
+            Assert.AreEqual(cursedGeneric2.field.Count, result2.field.Count);
+            Assert.AreEqual(cursedGeneric2.field["Test"].Length, result2.field["Test"].Length);
+            for (int i = 0; i < cursedGeneric2.field["Test"].Length; i++)
+            {
+                Assert.AreEqual(cursedGeneric2.field["Test"][i], result2.field["Test"][i]);
+            }
+
+            CursedGeneric<TestClass> cursedGeneric3 = new CursedGeneric<TestClass>
+            {
+                field = new ConcurrentDictionary<string, TestClass[]>
+                {
+                    ["Test"] = new[] { new TestClass { A = 1, B = "Test" }, new TestClass { A = 2, B = "Test2" } }
+                }
+            };
+
+            bytes = cursedGeneric3.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out CursedGeneric<TestClass> result3);
+            Assert.AreEqual(cursedGeneric3.field.Count, result3.field.Count);
+            Assert.AreEqual(cursedGeneric3.field["Test"].Length, result3.field["Test"].Length);
+            for (int i = 0; i < cursedGeneric3.field["Test"].Length; i++)
+            {
+                Assert.AreEqual(cursedGeneric3.field["Test"][i].A, result3.field["Test"][i].A);
+                Assert.AreEqual(cursedGeneric3.field["Test"][i].B, result3.field["Test"][i].B);
+            }
+        }
+
+        [TestMethod]
+        public void TestNonTrivialCollection()
+        {
+            Stack<int> stack = new Stack<int>();
+            stack.Push(1);
+            stack.Push(2);
+
+            byte[] bytes = stack.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Stack<int> result);
+            Assert.AreEqual(stack.Count, result.Count);
+            Assert.AreEqual(stack.Pop(), result.Pop());
+            Assert.AreEqual(stack.Pop(), result.Pop());
+
+            Queue<int> queue = new Queue<int>();
+            queue.Enqueue(1);
+            queue.Enqueue(2);
+
+            bytes = queue.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Queue<int> result2);
+            Assert.AreEqual(queue.Count, result2.Count);
+
+            Assert.AreEqual(queue.Dequeue(), result2.Dequeue());
+            Assert.AreEqual(queue.Dequeue(), result2.Dequeue());
+
+            Stack<TestClass> stack2 = new Stack<TestClass>();
+            stack2.Push(new TestClass
+            {
+                A = 1,
+                B = "Test"
+            });
+
+            bytes = stack2.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Stack<TestClass> result3);
+            Assert.AreEqual(stack2.Count, result3.Count);
+            var item = stack2.Pop();
+            var item2 = result3.Pop();
+            Assert.AreEqual(item.A, item2.A);
+            Assert.AreEqual(item.B, item2.B);
+
+            Queue<TestClass> queue2 = new Queue<TestClass>();
+            queue2.Enqueue(new TestClass
+            {
+                A = 1,
+                B = "Test"
+            });
+
+            bytes = queue2.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Queue<TestClass> result4);
+            Assert.AreEqual(queue2.Count, result4.Count);
+            item = queue2.Dequeue();
+            item2 = result4.Dequeue();
+            Assert.AreEqual(item.A, item2.A);
+            Assert.AreEqual(item.B, item2.B);
+
+            Stack<Queue<(TestClass, int)>> stack3 = new Stack<Queue<(TestClass, int)>>();
+            Queue<(TestClass, int)> queue3 = new Queue<(TestClass, int)>();
+            queue3.Enqueue((new TestClass
+            {
+                A = 1,
+                B = "Test"
+            }, 1));
+            stack3.Push(queue3);
+
+            bytes = stack3.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Stack<Queue<(TestClass, int)>> result5);
+            Assert.AreEqual(stack3.Count, result5.Count);
+            var queue4 = stack3.Pop();
+            var queue5 = result5.Pop();
+            Assert.AreEqual(queue4.Count, queue5.Count);
+            var item3 = queue4.Dequeue();
+            var item4 = queue5.Dequeue();
+            Assert.AreEqual(item3.Item1.A, item4.Item1.A);
+            Assert.AreEqual(item3.Item1.B, item4.Item1.B);
+
+            LinkedList<TestClass> linkedList = new LinkedList<TestClass>();
+            linkedList.AddLast(new TestClass
+            {
+                A = 1,
+                B = "Test"
+            });
+
+            bytes = linkedList.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out LinkedList<TestClass> result6);
+            Assert.AreEqual(linkedList.Count, result6.Count);
+            var node = linkedList.First;
+            var node2 = result6.First;
+            Assert.AreEqual(node.Value.A, node2.Value.A);
+            Assert.AreEqual(node.Value.B, node2.Value.B);
+
+            Queue<int> queue6 = new Queue<int>();
+            queue6.Enqueue(1);
+            queue6.Enqueue(2);
+            queue6.Enqueue(3);
+
+            bytes = queue6.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out Queue<int> result7);
+            Assert.AreEqual(queue6.Count, result7.Count);
+            Assert.AreEqual(queue6.Dequeue(), result7.Dequeue());
+            Assert.AreEqual(queue6.Dequeue(), result7.Dequeue());
+            Assert.AreEqual(queue6.Dequeue(), result7.Dequeue());
+        }
+
         [TestMethod]
         public void TestTuple()
         {
@@ -106,8 +285,21 @@ namespace Nino.UnitTests
             Assert.AreEqual(tuple4.Item2.Item1, result4.Item2.Item1);
             Assert.AreEqual(tuple4.Item2.Item2, result4.Item2.Item2);
 
-            Task<bool> aaa;
-            List<Task<(bool,string)>> bbb;
+            (bool a, string b) val = (true, "1");
+            bytes = val.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out (bool, string) result5);
+            Assert.AreEqual(val.a, result5.Item1);
+            Assert.AreEqual(val.b, result5.Item2);
+
+            (bool, string) val2 = (false, "2");
+            bytes = val2.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out (bool a, string b) result6);
+            Assert.AreEqual(val2.Item1, result6.a);
+            Assert.AreEqual(val2.Item2, result6.b);
         }
 
         [TestMethod]

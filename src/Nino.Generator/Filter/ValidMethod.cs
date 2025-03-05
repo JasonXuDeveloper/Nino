@@ -16,9 +16,9 @@ public class ValidMethod(Func<ITypeSymbol, IMethodSymbol, bool> validMethod)
 
         if (!methods.Any()) return false;
 
-        var validConstructors = methods.Where(c => validMethod(symbol, c)).ToList();
+        var validMethodCandidate = methods.Where(c => validMethod(symbol, c)).ToList();
 
         // ensure valid constructors are public
-        return validConstructors.Any(p => p.DeclaredAccessibility == Accessibility.Public);
+        return validMethodCandidate.Any(p => p.DeclaredAccessibility == Accessibility.Public);
     }
 }

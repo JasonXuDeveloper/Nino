@@ -348,6 +348,8 @@ public static class NinoTypeHelper
     {
         switch (syntax)
         {
+            case TupleTypeSyntax tupleTypeSyntax:
+                return compilation.GetSemanticModel(tupleTypeSyntax.SyntaxTree).GetTypeInfo(tupleTypeSyntax).Type;
             case TypeDeclarationSyntax typeDeclaration:
                 return compilation.GetSemanticModel(typeDeclaration.SyntaxTree).GetDeclaredSymbol(typeDeclaration);
             case TypeSyntax typeSyntax:

@@ -1,9 +1,16 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Nino.Core;
 
 #nullable disable
+
+[NinoType]
+public class CursedGeneric<T>
+{
+    public ConcurrentDictionary<string, T[]> field;
+}
 
 [NinoType]
 public class PrivateNestedCollection

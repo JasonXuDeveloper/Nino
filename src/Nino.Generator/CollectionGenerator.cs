@@ -17,7 +17,7 @@ public class CollectionGenerator : IIncrementalGenerator
         var typeDeclarations = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, _) =>
-                    node is GenericNameSyntax or ArrayTypeSyntax or StackAllocArrayCreationExpressionSyntax,
+                    node is GenericNameSyntax or ArrayTypeSyntax or StackAllocArrayCreationExpressionSyntax or TupleTypeSyntax,
                 static (context, _) =>
                     context.Node switch
                     {
@@ -25,6 +25,7 @@ public class CollectionGenerator : IIncrementalGenerator
                         ArrayTypeSyntax arrayTypeSyntax => arrayTypeSyntax,
                         StackAllocArrayCreationExpressionSyntax stackAllocArrayCreationExpressionSyntax =>
                             stackAllocArrayCreationExpressionSyntax.Type,
+                        TupleTypeSyntax tupleTypeSyntax => tupleTypeSyntax,
                         _ => null
                     })
             .Where(type => type != null);

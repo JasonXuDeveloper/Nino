@@ -46,14 +46,12 @@ public class CollectionSerializerGenerator(
             ),
             // We want nullables
             new Nullable(),
-            // We want dictionaries
-            new Interface("IDictionary"),
-            // We want arrays
-            new Array(),
-            // We want collections
-            new Interface("ICollection"),
-            // We want lists
-            new Interface("IList"),
+            // We want enumerable (which contains array, icollection, ilist, idictionary, etc)
+            new Interface("IEnumerable<T>", interfaceSymbol =>
+            {
+                var elementType = interfaceSymbol.TypeArguments[0];
+                return Selector.Filter(elementType);
+            }),
             // We want span
             new Span()
         )
@@ -77,7 +75,7 @@ public class CollectionSerializerGenerator(
             new Joint().With
             (
                 new Nullable(),
-                new TypeArgument(0, symbol => !symbol.IsUnmanagedType)
+                new TypeArgument(0, symbol => !symbol.IsUnmanagedType && Selector.Filter(symbol))
             )
             , symbol =>
             {
@@ -193,7 +191,7 @@ public class CollectionSerializerGenerator(
             // Note that we accept non-trivial IDictionary types with unmanaged key and value types
             new Joint().With
             (
-                new Interface("IDictionary"),
+                new Interface("IDictionary<TKey, TValue>"),
                 new NonTrivial("IDictionary", "IDictionary", "Dictionary")
             ),
             symbol =>
@@ -245,7 +243,7 @@ public class CollectionSerializerGenerator(
             "TrivialDictionary",
             new Joint().With
             (
-                new Interface("IDictionary"),
+                new Interface("IDictionary<TKey, TValue>"),
                 new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary")),
                 new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
             ),
@@ -272,28 +270,35 @@ public class CollectionSerializerGenerator(
                             }
                         }
                         """),
-        // non trivial ICollection Ninotypes
+        // non trivial IEnumerable Ninotypes
         new
         (
-            "NonTrivialCollection",
-            // Note that we accept non-trivial ICollection types with unmanaged element types
+            "NonTrivialEnumerable",
+            // Note that we accept non-trivial IEnumerable types with unmanaged element types
             new Joint().With
             (
-                // Note that array is an ICollection, but we don't want to generate code for it
-                new Interface("ICollection"),
+                // Note that array is an IEnumerable, but we don't want to generate code for it
+                new Interface("IEnumerable<T>"),
                 new Not(new Array()),
-                new NonTrivial("ICollection", "ICollection", "List")
+                // We want to exclude the ones that already have a serializer
+                new Not(new NinoTyped()),
+                new Not(new String()),
+                new NonTrivial("IEnumerable", "ICollection", "IList", "List"),
+                // Ensure to have a property called Count
+                new ValidProperty((_, property) =>
+                    property.Name == "Count" && property.Type.SpecialType == SpecialType.System_Int32)
             ),
             symbol =>
             {
-                INamedTypeSymbol collSymbol = (INamedTypeSymbol)symbol;
-                var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
-                                  ?? collSymbol;
-                var elemType = iCollSymbol.TypeArguments[0];
+                INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
+                var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
+                                      i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                  ?? namedTypeSymbol;
+                var elemType = ienumSymbol.TypeArguments[0];
                 if (!Selector.Filter(elemType)) return "";
 
                 bool isUnmanaged = elemType.IsUnmanagedType;
-
+                
                 string nonTrivialUnmanagedCase = """
                                                      Serialize(item, ref writer);
                                                  """;
@@ -325,16 +330,16 @@ public class CollectionSerializerGenerator(
                          """;
             }
         ),
-        // trivial ICollection Ninotypes
+        // trivial IEnumerable Ninotypes
         new
         (
-            "TrivialCollection",
+            "TrivialEnumerable",
             new Joint().With
             (
-                // Note that array is an ICollection, but we don't want to generate code for it
-                new Interface("ICollection"),
+                // Note that array is an IEnumerable, but we don't want to generate code for it
+                new Interface("IEnumerable<T>"),
                 new Not(new Array()),
-                new Not(new NonTrivial("ICollection", "ICollection", "List")),
+                new Not(new NonTrivial("IEnumerable", "ICollection", "IList", "List")),
                 new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
             ),
             symbol => $$"""

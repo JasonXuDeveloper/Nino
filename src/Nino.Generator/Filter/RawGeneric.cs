@@ -13,6 +13,11 @@ public class RawGeneric : IFilter
             return namedTypeSymbol.TypeArguments.Any(IsTypeParameter);
         }
 
+        if (typeSymbol is IArrayTypeSymbol arrayTypeSymbol)
+        {
+            return IsTypeParameter(arrayTypeSymbol.ElementType);
+        }
+
         return false;
     }
 
@@ -25,6 +30,11 @@ public class RawGeneric : IFilter
 
             if (namedTypeSymbol.TypeArguments.Any(IsTypeParameter))
                 return true;
+        }
+
+        if (symbol is IArrayTypeSymbol arrayTypeSymbol)
+        {
+            return IsTypeParameter(arrayTypeSymbol.ElementType);
         }
 
         return false;
