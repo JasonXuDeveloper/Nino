@@ -31,63 +31,6 @@ public static class NinoTypeHelper
         return typeSymbols.ToList()!;
     }
 
-    public static bool IsSerializableType(this ITypeSymbol ts)
-    {
-        ts = ts.GetPureType();
-        //we dont want type parameter
-        if (ts.TypeKind == TypeKind.TypeParameter) return false;
-        //we dont want void
-        if (ts.SpecialType == SpecialType.System_Void) return false;
-        //we accept string
-        if (ts.SpecialType == SpecialType.System_String) return true;
-        //we want nino type
-        if (ts.IsNinoType()) return true;
-
-        //we also want unmanaged type
-        if (ts.IsUnmanagedType) return true;
-
-        //we also want array of what we want
-        if (ts is IArrayTypeSymbol arrayTypeSymbol)
-        {
-            return IsSerializableType(arrayTypeSymbol.ElementType);
-        }
-
-        //for INamedTypeSymbol, we want all type arguments to be what we want
-        if (ts is INamedTypeSymbol namedTypeSymbol)
-        {
-            if (namedTypeSymbol.IsGenericType)
-            {
-                //for kvp, typle, valuetuple, we check all typeargs
-                if (namedTypeSymbol.Name == "KeyValuePair" || namedTypeSymbol.Name == "ValueTuple" ||
-                    namedTypeSymbol.Name == "Tuple")
-                {
-                    return namedTypeSymbol.TypeArguments.All(IsSerializableType);
-                }
-
-                //nullable
-                if (namedTypeSymbol.Name == "Nullable")
-                {
-                    return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
-                }
-
-                //span
-                if (namedTypeSymbol.Name == "Span" || namedTypeSymbol.Name == "ReadOnlySpan")
-                {
-                    return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
-                }
-
-                //ICollection
-                if (namedTypeSymbol.AllInterfaces.Any(i => i.Name == "ICollection") ||
-                    namedTypeSymbol.AllInterfaces.Any(i => i.Name == "IList"))
-                {
-                    return IsSerializableType(namedTypeSymbol.TypeArguments[0]);
-                }
-            }
-        }
-
-        return false;
-    }
-
     public static (bool isValid, Compilation newCompilation) IsValidCompilation(this Compilation compilation)
     {
         //make sure the compilation contains the Nino.Core assembly
@@ -136,6 +79,7 @@ public static class NinoTypeHelper
                               attributeSyntax.Name.ToString().EndsWith("NinoMember") ||
                               attributeSyntax.Name.ToString().EndsWith("NinoIgnore") ||
                               attributeSyntax.Name.ToString().EndsWith("NinoConstructor") ||
+                              attributeSyntax.Name.ToString().EndsWith("NinoFormerName") ||
                               attributeSyntax.Name.ToString().EndsWith("NinoUtf8"))), newCompilation);
     }
 
@@ -633,18 +577,6 @@ public static class NinoTypeHelper
         }).ToImmutableArray();
 
         return (inheritanceMap, subTypeMap, topNinoTypes.Select(t => t.GetTypeFullName()).ToImmutableArray());
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static string GetDeserializePrefix(this ITypeSymbol ts)
-    {
-        return "Deserialize";
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static string GetSerializePrefix(this ITypeSymbol ts)
-    {
-        return "Serialize";
     }
 
     public static void GenerateClassSerializeMethods(this StringBuilder sb, string typeFullName, string typeParam = "",

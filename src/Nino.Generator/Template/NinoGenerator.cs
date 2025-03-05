@@ -18,7 +18,7 @@ public abstract class NinoGenerator(Compilation compilation)
         {
             spc.ReportDiagnostic(Diagnostic.Create(
                 new DiagnosticDescriptor("NINO001", "Nino Generator",
-                    $"An error occurred while generating code: {e.Message}, {e.StackTrace}",
+                    $"An error occurred while generating code: {e.GetType()} {e.Message}, {e.StackTrace}",
                     "Nino.Generator",
                     DiagnosticSeverity.Error, true), Location.None));
         }

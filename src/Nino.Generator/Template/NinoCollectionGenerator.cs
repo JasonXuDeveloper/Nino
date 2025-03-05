@@ -31,7 +31,25 @@ public abstract class NinoCollectionGenerator(
         if (Transformers == null || Transformers?.Count == 0) return;
 
         var filteredSymbols = potentialCollectionSymbols
-            .Where(Selector.Filter).ToList();
+            .Where(symbol =>
+            {
+                if (!Selector.Filter(symbol)) return false;
+
+                if (symbol is INamedTypeSymbol namedTypeSymbol)
+                {
+                    if (namedTypeSymbol.IsGenericType)
+                        return namedTypeSymbol.TypeArguments.All(Selector.Filter);
+
+                    return true;
+                }
+
+                if (symbol is IArrayTypeSymbol arrayTypeSymbol)
+                {
+                    return Selector.Filter(arrayTypeSymbol.ElementType);
+                }
+
+                return false;
+            }).ToList();
 
         var compilation = Compilation;
         var sb = new StringBuilder();
@@ -49,9 +67,9 @@ public abstract class NinoCollectionGenerator(
             for (var index = 0; index < Transformers!.Count; index++)
             {
                 var transformer = Transformers![index];
-                if (transformer.Filter.Filter(type))
+                try
                 {
-                    try
+                    if (transformer.Filter.Filter(type))
                     {
                         var indent = "        ";
                         var generated = transformer.RuleBasedGenerator(type);
@@ -65,13 +83,13 @@ public abstract class NinoCollectionGenerator(
                         sb.AppendLine();
                         break;
                     }
-                    catch (Exception e)
-                    {
-                        throw new ApplicationException(
-                            $"{OutputFileName} error: Failed to generate code for type {typeFullName} " +
-                            $"using transformer[{index}] ({transformer.Name})",
-                            e);
-                    }
+                }
+                catch (Exception e)
+                {
+                    throw new AggregateException(
+                        $"{OutputFileName} error: Failed to generate code for type {typeFullName} " +
+                        $"using transformer[{index}] ({transformer.Name})",
+                        e);
                 }
             }
         }

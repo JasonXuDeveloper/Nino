@@ -192,7 +192,7 @@ public class DeserializerGenerator(
                 else
                 {
                     sb.AppendLine(
-                        $"                    {declaredType.GetDeserializePrefix()}(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+                        $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
                 }
 
                 if (constructorMember.Any(c => c.ToLower().Equals(name.ToLower())))

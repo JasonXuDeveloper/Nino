@@ -116,7 +116,7 @@ public class SerializerGenerator(
                         }
 
                         sb.AppendLine(
-                            $"                    {declaredType.GetSerializePrefix()}({val}, ref writer);");
+                            $"                    Serialize({val}, ref writer);");
                     }
                 }
 

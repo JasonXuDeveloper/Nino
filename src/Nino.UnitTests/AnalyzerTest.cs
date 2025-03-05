@@ -76,20 +76,50 @@ public class NestedTestClass
         public static string B;
     }
 }
+
+internal class SomeContainer
+{
+    public class A
+    {
+        [NinoType]
+        private class B
+        {
+            
+        }
+    }
+    [NinoType]
+    class C
+    {
+        [NinoType]
+        public class D
+        {
+            
+        }
+    }
+}
 ";
 
         await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO002")
                 .WithLocation(5, 16)
-                .WithArguments("TestClass", "internal"),
+                .WithArguments("TestClass"),
             Verify.Diagnostic("NINO002")
                 .WithLocation(14, 20)
-                .WithArguments("NestedA", "internal"),
+                .WithArguments("NestedTestClass.NestedA"),
             Verify.Diagnostic("NINO002")
                 .WithLocation(21, 19)
-                .WithArguments("NestedB", "private"),
+                .WithArguments("NestedTestClass.NestedB"),
             Verify.Diagnostic("NINO002")
                 .WithLocation(28, 26)
-                .WithArguments("NestedC", "private, static")).RunAsync();
+                .WithArguments("NestedTestClass.NestedC"),
+            Verify.Diagnostic("NINO002")
+                .WithLocation(40, 23)
+                .WithArguments("SomeContainer.A.B"),
+            Verify.Diagnostic("NINO002")
+                .WithLocation(46, 11)
+                .WithArguments("SomeContainer.C"),
+            Verify.Diagnostic("NINO002")
+                .WithLocation(49, 22)
+                .WithArguments("SomeContainer.C.D")).RunAsync();
     }
 
     [TestMethod]

@@ -23,66 +23,40 @@ public class CollectionSerializerGenerator(
         new Accessible(),
         // We want to ensure all generics are fully-typed
         new Not(new RawGeneric()),
-        /*
-         * We already have functions for:
-         * - unmanged types
-         * - NinoTyped types
-         * - strings
-         * So we can filter them out
-         */
-        new Not(new Unmanaged()),
-        new Not(new NinoTyped()),
-        new Not(new String()),
         // We now collect things we want
         new Union().With
         (
+            // We accept unmanaged
+            new Unmanaged(),
+            // We accept NinoTyped
+            new NinoTyped(),
+            // We accept strings
+            new String(),
             // We want key-value pairs for dictionaries
             new Joint().With
             (
                 new Trivial("KeyValuePair"),
-                new AllTypeArgument(symbol => symbol.IsSerializableType())
+                new Not(new AnyTypeArgument(symbol => !Selector.Filter(symbol)))
             ),
             // We want tuples
             new Joint().With
             (
                 new Trivial("ValueTuple", "Tuple"),
-                new AllTypeArgument(symbol => symbol.IsSerializableType())
+                new Not(new AnyTypeArgument(symbol => !Selector.Filter(symbol)))
             ),
             // We want nullables
-            new Joint().With
-            (
-                new Nullable(),
-                new AllTypeArgument(symbol => symbol.IsSerializableType())
-            ),
+            new Nullable(),
             // We want dictionaries
-            new Joint().With
-            (
-                new Interface("IDictionary"),
-                new AllTypeArgument(symbol => symbol.IsSerializableType())
-            ),
+            new Interface("IDictionary"),
             // We want arrays
-            new Array(symbol => symbol.IsSerializableType()),
+            new Array(),
             // We want collections
-            new Joint().With
-            (
-                new Interface("ICollection"),
-                new AllTypeArgument(symbol => symbol.IsSerializableType())
-            ),
+            new Interface("ICollection"),
             // We want lists
-            new Joint().With
-            (
-                new Interface("IList"),
-                new AllTypeArgument(symbol => symbol.IsSerializableType())
-            ),
+            new Interface("IList"),
             // We want span
-            new Joint().With
-            (
-                new Span(),
-                new AllTypeArgument(symbol => symbol.IsSerializableType())
-            )
-        ),
-        // We want to ensure the type is serializable
-        new Serializable()
+            new Span()
+        )
     );
 
     protected override string ClassName => "Serializer";
@@ -229,6 +203,8 @@ public class CollectionSerializerGenerator(
                                   ?? dictSymbol;
                 var keyType = idictSymbol.TypeArguments[0];
                 var valType = idictSymbol.TypeArguments[1];
+                if (!Selector.Filter(keyType) || !Selector.Filter(valType)) return "";
+
                 bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
 
                 string nonTrivialUnmanagedCase = """
@@ -236,7 +212,7 @@ public class CollectionSerializerGenerator(
                                                  """;
 
                 string fallbackCase = """
-                                          pos = writer.Advance(4);
+                                          int pos = writer.Advance(4);
                                           Serialize(item.Key, ref writer);
                                           Serialize(item.Value, ref writer);
                                           writer.PutLength(pos);
@@ -253,7 +229,6 @@ public class CollectionSerializerGenerator(
                              }
                          
                              int cnt = value.Count;
-                             int pos;
                              writer.Write(TypeCollector.GetCollectionHeader(cnt));
                          
                              foreach (var item in value)
@@ -315,6 +290,8 @@ public class CollectionSerializerGenerator(
                 var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
                                   ?? collSymbol;
                 var elemType = iCollSymbol.TypeArguments[0];
+                if (!Selector.Filter(elemType)) return "";
+
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
                 string nonTrivialUnmanagedCase = """
@@ -322,7 +299,7 @@ public class CollectionSerializerGenerator(
                                                  """;
 
                 string fallbackCase = """
-                                            pos = writer.Advance(4);
+                                            int pos = writer.Advance(4);
                                             Serialize(item, ref writer);
                                             writer.PutLength(pos);
                                       """;
@@ -338,7 +315,6 @@ public class CollectionSerializerGenerator(
                              }
                          
                              int cnt = value.Count;
-                             int pos;
                              writer.Write(TypeCollector.GetCollectionHeader(cnt));
                          
                              foreach (var item in value)

@@ -24,50 +24,43 @@ public class CollectionDeserializerGenerator(
             new Accessible(),
             // We want to ensure all generics are fully-typed
             new Not(new RawGeneric()),
-            /*
-             * We already have functions for:
-             * - unmanged types
-             * - NinoTyped types
-             * - strings
-             * So we can filter them out
-             */
-            new Not(new Unmanaged()),
-            new Not(new NinoTyped()),
-            new Not(new String()),
             // We now collect things we want
             new Union().With
             (
+                // We accept unmanaged
+                new Unmanaged(),
+                // We accept NinoTyped
+                new NinoTyped(),
+                // We accept strings
+                new String(),
                 // We want key-value pairs for dictionaries
                 new Joint().With
                 (
                     new Trivial("KeyValuePair"),
-                    new AllTypeArgument(symbol => symbol.IsSerializableType())
+                    new Not(new AnyTypeArgument(symbol => !Selector.Filter(symbol)))
                 ),
                 // We want tuples
                 new Joint().With
                 (
                     new Trivial("ValueTuple", "Tuple"),
-                    new AllTypeArgument(symbol => symbol.IsSerializableType())
+                    new Not(new AnyTypeArgument(symbol => !Selector.Filter(symbol)))
                 ),
                 // We want nullables
-                new Joint().With
-                (
-                    new Nullable(),
-                    new AllTypeArgument(symbol => symbol.IsSerializableType())
-                ),
+                new Nullable(),
                 // We want arrays
-                new Array(symbol => symbol.IsSerializableType()),
+                new Array(),
                 // We want dictionaries with valid indexers
                 new Joint().With
                 (
                     new Interface("IDictionary"),
-                    new AllTypeArgument(symbol => symbol.IsSerializableType()),
                     new ValidIndexer((symbol, indexer) =>
                     {
                         if (symbol.TypeKind == TypeKind.Interface) return true;
                         if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
-                        var keySymbol = namedTypeSymbol.TypeArguments[0];
-                        var valueSymbol = namedTypeSymbol.TypeArguments[1];
+                        var idictSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "IDictionary")
+                                          ?? namedTypeSymbol;
+                        var keySymbol = idictSymbol.TypeArguments[0];
+                        var valueSymbol = idictSymbol.TypeArguments[1];
 
                         return indexer.Parameters.Length == 1
                                && indexer.Parameters[0].Type
@@ -83,7 +76,6 @@ public class CollectionDeserializerGenerator(
                         new Interface("ICollection"),
                         new Interface("IList")
                     ),
-                    new AllTypeArgument(symbol => symbol.IsSerializableType()),
                     new ValidMethod((symbol, method) =>
                     {
                         if (symbol.TypeKind == TypeKind.Interface) return true;
@@ -96,9 +88,7 @@ public class CollectionDeserializerGenerator(
 
                         return false;
                     })
-                ),
-                // We want to ensure the type is serializable
-                new Serializable()
+                )
             )
         );
 
@@ -246,6 +236,8 @@ public class CollectionDeserializerGenerator(
                                   ?? dictSymbol;
                 var keyType = idictSymbol.TypeArguments[0];
                 var valType = idictSymbol.TypeArguments[1];
+                if (!Selector.Filter(keyType) || !Selector.Filter(valType)) return "";
+
                 var dictType = symbol.ToDisplayString();
                 bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
 
@@ -359,7 +351,10 @@ public class CollectionDeserializerGenerator(
                 {
                     if (symbol.TypeKind == TypeKind.Interface) return false;
                     if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
-                    var elementType = namedTypeSymbol.TypeArguments[0];
+                    var iCollSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
+                                      ?? namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "IList")
+                                      ?? namedTypeSymbol;
+                    var elementType = iCollSymbol.TypeArguments[0];
 
                     return method.Name == "Add"
                            && method.Parameters.Length == 1
@@ -372,6 +367,8 @@ public class CollectionDeserializerGenerator(
                 var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
                                   ?? collSymbol;
                 var elemType = iCollSymbol.TypeArguments[0];
+                if (!Selector.Filter(elemType)) return "";
+
                 var collType = symbol.ToDisplayString();
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
@@ -432,7 +429,10 @@ public class CollectionDeserializerGenerator(
                 {
                     if (symbol.TypeKind == TypeKind.Interface) return false;
                     if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
-                    var elementType = namedTypeSymbol.TypeArguments[0];
+                    var iCollSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
+                                      ?? namedTypeSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "IList")
+                                      ?? namedTypeSymbol;
+                    var elementType = iCollSymbol.TypeArguments[0];
 
                     return method.MethodKind == MethodKind.Constructor
                            && method.Parameters.Length == 1
@@ -448,6 +448,7 @@ public class CollectionDeserializerGenerator(
                 var iCollSymbol = collSymbol.AllInterfaces.FirstOrDefault(i => i.Name == "ICollection")
                                   ?? collSymbol;
                 var elemType = iCollSymbol.TypeArguments[0];
+                if (!Selector.Filter(elemType)) return "";
                 var collType = symbol.ToDisplayString();
                 bool isUnmanaged = elemType.IsUnmanagedType;
 

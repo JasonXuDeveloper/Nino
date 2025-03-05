@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Nino.Generator.Filter;
 
 namespace Nino.Generator;
 
@@ -17,28 +18,21 @@ public class NinoAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
 
         // All Type declarations syntaxes with NinoTypeAttribute applied must be public
-        context.RegisterSyntaxNodeAction(
-            syntaxContext =>
+        IFilter filter = new Accessible();
+        context.RegisterSymbolAction(
+            symbolContext =>
             {
-                var typeDeclarationSyntax = (TypeDeclarationSyntax)syntaxContext.Node;
-                // Check if the type declaration has the NinoTypeAttribute applied
-                if (typeDeclarationSyntax.AttributeLists.SelectMany(x => x.Attributes)
-                    .All(x => x.Name.ToString() != "NinoType")) return;
-                if (typeDeclarationSyntax.Modifiers.Count == 0 ||
-                    typeDeclarationSyntax.Modifiers.All(x => !x.IsKind(SyntaxKind.PublicKeyword)))
-                {
-                    syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                var symbol = symbolContext.Symbol;
+                if (symbol is not INamedTypeSymbol typeSymbol) return;
+                if (!typeSymbol.IsNinoType()) return;
+                
+                if (!filter.Filter(typeSymbol))
+                    symbolContext.ReportDiagnostic(Diagnostic.Create(
                         SupportedDiagnostics[1],
-                        typeDeclarationSyntax.Identifier.GetLocation(),
-                        typeDeclarationSyntax.Identifier.Text,
-                        typeDeclarationSyntax.Modifiers.Any()
-                            ? string.Join(", ", typeDeclarationSyntax.Modifiers.Select(x => x.Text))
-                            : "internal"));
-                }
+                        typeSymbol.Locations.First(),
+                        typeSymbol.ToDisplayString()));
             },
-            SyntaxKind.ClassDeclaration, SyntaxKind.StructDeclaration,
-            SyntaxKind.InterfaceDeclaration, SyntaxKind.RecordDeclaration,
-            SyntaxKind.RecordStructDeclaration);
+            SymbolKind.NamedType);
 
         // A sub-type of a NinoType must also have the NinoTypeAttribute applied
         context.RegisterSyntaxNodeAction(
@@ -74,7 +68,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                         }
 
                         // not auto collect and manually annotated but is private - nino007
-                        if (!autoCollect && definedNinoMember  &&
+                        if (!autoCollect && definedNinoMember &&
                             member.DeclaredAccessibility == Accessibility.Private &&
                             !containNonPublic)
                         {
@@ -153,7 +147,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 DiagnosticSeverity.Error, true),
             new DiagnosticDescriptor("NINO002",
                 "'NinoType' should be applied to a public class",
-                "[NinoType] should be applied to a public class ({0} is {1})",
+                "[NinoType] should be applied to a public class (even if it is nested) (Check all levels of accessibility for {0})",
                 "'Nino",
                 DiagnosticSeverity.Error, true),
             new DiagnosticDescriptor("NINO003",
