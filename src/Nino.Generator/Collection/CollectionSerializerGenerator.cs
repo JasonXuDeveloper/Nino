@@ -298,7 +298,7 @@ public class CollectionSerializerGenerator(
                 if (!Selector.Filter(elemType)) return "";
 
                 bool isUnmanaged = elemType.IsUnmanagedType;
-                
+
                 string nonTrivialUnmanagedCase = """
                                                      Serialize(item, ref writer);
                                                  """;
