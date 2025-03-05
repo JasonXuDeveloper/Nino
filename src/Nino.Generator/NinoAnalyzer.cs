@@ -24,8 +24,9 @@ public class NinoAnalyzer : DiagnosticAnalyzer
             {
                 var symbol = symbolContext.Symbol;
                 if (symbol is not INamedTypeSymbol typeSymbol) return;
+                if (typeSymbol.IsUnmanagedType) return;
                 if (!typeSymbol.IsNinoType()) return;
-                
+
                 if (!filter.Filter(typeSymbol))
                     symbolContext.ReportDiagnostic(Diagnostic.Create(
                         SupportedDiagnostics[1],
