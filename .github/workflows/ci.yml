@@ -208,7 +208,7 @@ jobs:
           for package in $(find ./Nino.Core/bin/Release ./Nino.Generator/bin/Release ./Nino/bin/Release -name "*.nupkg" -print0 | sort -z -u | xargs -0 -n1 echo); do
             dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
-          for package in $(find ./Nino.Core/bin/Release ./Nino.Generator/bin/Release ./Nino/bin/Release -name "*.snupkg" -print0 | sort -z -u | xargs -0 -n1 echo); do
+          for package in $(find ./Nino.Core/bin/Release -name "*.snupkg" -print0 | sort -z -u | xargs -0 -n1 echo); do
             dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
   

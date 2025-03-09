@@ -12,7 +12,7 @@
         <PackageId>Nino.Generator</PackageId>
         <IncludeBuildOutput>true</IncludeBuildOutput>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Version>3.3.0</Version>
+        <Version>3.2.13</Version>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
@@ -30,31 +30,22 @@
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <BranchName>refs/heads/main</BranchName>
-        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <!-- Enable embedding repository URL in the PDB -->
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <!-- Embed source files for files not tracked in source control -->
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
-        <!-- Include PDBs (symbols) in the NuGet package -->
-        <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-        <!-- Include source files in the symbol package -->
-        <IncludeSource>true</IncludeSource>
-        <!-- For SDK-style projects, set DebugType to embed the source link info -->
-        <DebugType>embedded</DebugType>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsPackable>true</IsPackable>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <ItemGroup>
         <Compile Include="..\Version.cs"/>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>
-    
-    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
-        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-    </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All"/>
         <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -65,5 +56,5 @@
     <ItemGroup>
         <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
     </ItemGroup>
-    
+
 </Project>
