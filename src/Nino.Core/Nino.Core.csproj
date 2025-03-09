@@ -6,7 +6,7 @@
         <TargetFrameworks>net6.0;netstandard2.1</TargetFrameworks>
         <LangVersion>9</LangVersion>
         <PackageId>Nino.Serialization</PackageId>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Version>3.2.12</Version>
         <Title>Nino.Serialization</Title>
         <Authors>JasonXuDeveloper</Authors>

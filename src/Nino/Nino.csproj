@@ -6,7 +6,7 @@
         <IncludeBuildOutput>true</IncludeBuildOutput>
         <IncludeContentInPack>true</IncludeContentInPack>
         <PackageId>Nino</PackageId>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Version>3.2.12</Version>
         <Title>Nino</Title>
         <Authors>JasonXuDeveloper</Authors>

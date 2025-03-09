@@ -11,7 +11,7 @@
         <RootNamespace>Nino.Generator</RootNamespace>
         <PackageId>Nino.Generator</PackageId>
         <IncludeBuildOutput>true</IncludeBuildOutput>
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Version>3.2.12</Version>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
