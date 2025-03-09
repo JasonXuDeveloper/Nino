@@ -143,18 +143,17 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: |
-            8.0.x
             6.0.x
             2.1.x
 
       # Restore dependencies
       - name: Restore dependencies
-        working-directory: ./src  # Override the default working directory
+        working-directory: ./src/Nino  # Override the default working directory
         run: dotnet restore
 
       # Build the solution
       - name: Build solution
-        working-directory: ./src  # Override the default working directory
+        working-directory: ./src/Nino  # Override the default working directory
         run: dotnet build --configuration Release
 
       # Copy src/Nino/bin/Release/netstandard2.1/Nino.Core.dll and src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll
@@ -194,18 +193,17 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: |
-            8.0.x
             6.0.x
             2.1.x
 
       # Restore dependencies
       - name: Restore dependencies
-        working-directory: ./src  # Override the default working directory
+        working-directory: ./src/Nino  # Override the default working directory
         run: dotnet restore
 
       # Build the solution
       - name: Build solution
-        working-directory: ./src  # Override the default working directory
+        working-directory: ./src/Nino  # Override the default working directory
         run: dotnet build --configuration Release /p:OutputPath=../artifacts
 
       # Push NuGet packages
