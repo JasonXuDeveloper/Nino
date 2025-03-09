@@ -196,22 +196,16 @@ jobs:
             6.0.x
             2.1.x
 
-      # Restore dependencies
-      - name: Restore dependencies
-        working-directory: ./src/Nino  # Override the default working directory
-        run: dotnet restore
-
-      # Build the solution
-      - name: Build solution
-        working-directory: ./src/Nino  # Override the default working directory
-        run: dotnet build --configuration Release /p:OutputPath=../artifacts
-
       # Push NuGet packages
       - name: Push NuGet Packages
         working-directory: ./src  # Override the default working directory
         run: |
           echo "Current directory: $(pwd)"
-          for package in ./artifacts/*.nupkg; do
+          dotnet pack Nino.Core/Nino.Core.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
+          dotnet pack Nino.Generator/Nino.Generator.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
+          dotnet pack Nino/Nino.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
+#          for package in ./artifacts/*.nupkg; do
+          for package in ./Nino.Core/bin/Debug/*.snupkg ./Nino.Generator/bin/Debug/*.snupkg ./Nino/bin/Debug/*.snupkg; do
             dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
           done
   
