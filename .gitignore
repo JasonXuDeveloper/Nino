@@ -9,3 +9,4 @@ Nino_Unity/.vsconfig
 src/Nino.sln.DotSettings.user
 src/Nino.Shared/Nino.Shared.csproj.user
 **/BenchmarkDotNet.Artifacts
+src/Nino.Core/.AssemblyAttributes

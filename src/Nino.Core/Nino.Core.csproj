@@ -7,7 +7,7 @@
         <LangVersion>9</LangVersion>
         <PackageId>Nino.Serialization</PackageId>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Version>3.3.0</Version>
+        <Version>3.2.13</Version>
         <Title>Nino.Serialization</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
@@ -28,19 +28,26 @@
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <!-- Include PDBs (symbols) in the NuGet package -->
         <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <!-- Include source files in the symbol package -->
         <IncludeSource>true</IncludeSource>
         <!-- For SDK-style projects, set DebugType to embed the source link info -->
         <DebugType>embedded</DebugType>
+        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     </PropertyGroup>
+
+    <!--  for .NET Standard  -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+        <TargetFrameworkMonikerAssemblyAttributesPath>$([System.IO.Path]::Combine('$(IntermediateOutputPath)','$(TargetFrameworkMoniker).AssemblyAttributes$(DefaultLanguageSourceExtension)'))</TargetFrameworkMonikerAssemblyAttributesPath>
+    </PropertyGroup>
+    <ItemGroup>
+        <EmbeddedFiles Include="$(GeneratedAssemblyInfoFile)"/>
+    </ItemGroup>
 
     <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="..\Version.cs"/>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>
 
