@@ -33,6 +33,9 @@
     <ItemGroup>
       <PackageReference Include="System.Buffers" Version="4.6.0" />
       <PackageReference Include="System.Memory" Version="4.6.0" />
+      <PackageReference Include="System.Collections" Version="4.0.0" />
+      <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.0" />
+      <PackageReference Include="System.Runtime.InteropServices" Version="4.0.0" />
     </ItemGroup>
 
 </Project>
