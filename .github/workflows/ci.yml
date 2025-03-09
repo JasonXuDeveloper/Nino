@@ -24,7 +24,11 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: ${{ vars.DOTNET_VERSION }}
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION }}
+            8.0.x
+            6.0.x
+            2.1.x
       
       # Restore dependencies
       - name: Restore dependencies
