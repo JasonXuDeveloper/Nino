@@ -205,6 +205,9 @@ jobs:
           dotnet pack Nino.Core/Nino.Core.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
           dotnet pack Nino.Generator/Nino.Generator.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
           dotnet pack Nino/Nino.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
+          for package in ./Nino.Core/bin/Debug/*.nupkg ./Nino.Generator/bin/Debug/*.nupkg ./Nino/bin/Debug/*.nupkg; do
+            dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
+          done
           for package in ./Nino.Core/bin/Debug/*.snupkg ./Nino.Generator/bin/Debug/*.snupkg ./Nino/bin/Debug/*.snupkg; do
             dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
           done
