@@ -28,6 +28,7 @@
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <!-- Include PDBs (symbols) in the NuGet package -->
         <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <!-- Include source files in the symbol package -->
         <IncludeSource>true</IncludeSource>
         <!-- For SDK-style projects, set DebugType to embed the source link info -->
