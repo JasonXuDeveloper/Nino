@@ -3,7 +3,7 @@
     <PropertyGroup>
         <TargetFrameworks>net6.0;netstandard2.1</TargetFrameworks>
         <!-- This project is meta package -->
-        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeBuildOutput>true</IncludeBuildOutput>
         <IncludeContentInPack>true</IncludeContentInPack>
         <PackageId>Nino</PackageId>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -22,13 +22,14 @@
         <BranchName>refs/heads/main</BranchName>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <NoWarn>$(NoWarn);NU5128</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
         <Compile Include="..\Version.cs"/>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>
-
+    
     <ItemGroup>
       <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" />
       <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj" />

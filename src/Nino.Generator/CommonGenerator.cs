@@ -32,13 +32,13 @@ public class CommonGenerator : IIncrementalGenerator
             topNinoTypes) = ninoSymbols.GetInheritanceMap();
 
         Type[] types =
-        [
+        {
             typeof(TypeConstGenerator),
             typeof(UnsafeAccessorGenerator),
             typeof(PartialClassGenerator),
             typeof(SerializerGenerator),
             typeof(DeserializerGenerator)
-        ];
+        };
 
         foreach (Type type in types)
         {

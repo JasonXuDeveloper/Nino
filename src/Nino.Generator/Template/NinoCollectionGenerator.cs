@@ -7,18 +7,29 @@ using Nino.Generator.Filter;
 
 namespace Nino.Generator.Template;
 
-public abstract class NinoCollectionGenerator(
-    Compilation compilation,
-    List<ITypeSymbol> potentialCollectionSymbols)
-    : NinoGenerator(compilation)
+public abstract class NinoCollectionGenerator : NinoGenerator
 {
-    protected class Transformer(string name, IFilter filter, Func<ITypeSymbol, string> ruleBasedGenerator)
+    protected class Transformer
     {
-        public readonly string Name = name;
-        public readonly IFilter Filter = filter;
-        public readonly Func<ITypeSymbol, string> RuleBasedGenerator = ruleBasedGenerator;
+        public readonly string Name;
+        public readonly IFilter Filter;
+        public readonly Func<ITypeSymbol, string> RuleBasedGenerator;
+
+        public Transformer(string name, IFilter filter, Func<ITypeSymbol, string> ruleBasedGenerator)
+        {
+            Name = name;
+            Filter = filter;
+            RuleBasedGenerator = ruleBasedGenerator;
+        }
+    }
+    
+    protected NinoCollectionGenerator(Compilation compilation, List<ITypeSymbol> potentialCollectionSymbols) :
+        base(compilation)
+    {
+        PotentialCollectionSymbols = potentialCollectionSymbols;
     }
 
+    protected readonly List<ITypeSymbol> PotentialCollectionSymbols;
     protected abstract IFilter Selector { get; }
     protected abstract string ClassName { get; }
     protected abstract string OutputFileName { get; }
@@ -27,10 +38,10 @@ public abstract class NinoCollectionGenerator(
 
     protected override void Generate(SourceProductionContext spc)
     {
-        if (potentialCollectionSymbols.Count == 0) return;
+        if (PotentialCollectionSymbols.Count == 0) return;
         if (Transformers == null || Transformers?.Count == 0) return;
 
-        var filteredSymbols = potentialCollectionSymbols
+        var filteredSymbols = PotentialCollectionSymbols
             .Where(symbol =>
             {
                 if (!Selector.Filter(symbol)) return false;

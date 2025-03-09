@@ -8,14 +8,17 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
-public class DeserializerGenerator(
-    Compilation compilation,
-    List<ITypeSymbol> ninoSymbols,
-    Dictionary<string, List<string>> inheritanceMap,
-    Dictionary<string, List<string>> subTypeMap,
-    ImmutableArray<string> topNinoTypes)
-    : NinoCommonGenerator(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+public class DeserializerGenerator : NinoCommonGenerator
 {
+    public DeserializerGenerator(
+        Compilation compilation,
+        List<ITypeSymbol> ninoSymbols,
+        Dictionary<string, List<string>> inheritanceMap,
+        Dictionary<string, List<string>> subTypeMap,
+        ImmutableArray<string> topNinoTypes) : base(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+    {
+    }
+
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;

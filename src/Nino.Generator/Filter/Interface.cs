@@ -4,18 +4,27 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Filter;
 
-public class Interface(string interfaceName, Func<INamedTypeSymbol, bool>? restriction = null) : IFilter
+public class Interface : IFilter
 {
+    private readonly string _interfaceName;
+    private readonly Func<INamedTypeSymbol, bool>? _restriction;
+
+    public Interface(string interfaceName, Func<INamedTypeSymbol, bool>? restriction = null)
+    {
+        _interfaceName = interfaceName;
+        _restriction = restriction;
+    }
+
     public bool Filter(ITypeSymbol symbol)
     {
         var baseType = symbol;
         while (baseType != null)
         {
-            if (baseType.OriginalDefinition.ToDisplayString().EndsWith(interfaceName))
+            if (baseType.OriginalDefinition.ToDisplayString().EndsWith(_interfaceName))
             {
-                if (restriction != null)
+                if (_restriction != null)
                 {
-                    return restriction((INamedTypeSymbol)baseType);
+                    return _restriction((INamedTypeSymbol)baseType);
                 }
 
                 return true;
@@ -24,11 +33,11 @@ public class Interface(string interfaceName, Func<INamedTypeSymbol, bool>? restr
             baseType = baseType.BaseType;
         }
 
-        if (symbol.OriginalDefinition.ToDisplayString().EndsWith(interfaceName))
+        if (symbol.OriginalDefinition.ToDisplayString().EndsWith(_interfaceName))
         {
-            if (restriction != null)
+            if (_restriction != null)
             {
-                return restriction((INamedTypeSymbol)symbol);
+                return _restriction((INamedTypeSymbol)symbol);
             }
 
             return true;
@@ -36,12 +45,12 @@ public class Interface(string interfaceName, Func<INamedTypeSymbol, bool>? restr
 
         var interfaceSymbol =
             symbol.AllInterfaces.FirstOrDefault(type =>
-                type.OriginalDefinition.ToDisplayString().EndsWith(interfaceName));
+                type.OriginalDefinition.ToDisplayString().EndsWith(_interfaceName));
         if (interfaceSymbol != null)
         {
-            if (restriction != null)
+            if (_restriction != null)
             {
-                return restriction(interfaceSymbol);
+                return _restriction(interfaceSymbol);
             }
 
             return true;

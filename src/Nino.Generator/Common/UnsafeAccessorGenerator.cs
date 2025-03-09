@@ -8,14 +8,16 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
-public class UnsafeAccessorGenerator(
-    Compilation compilation,
-    List<ITypeSymbol> ninoSymbols,
-    Dictionary<string, List<string>> inheritanceMap,
-    Dictionary<string, List<string>> subTypeMap,
-    ImmutableArray<string> topNinoTypes)
-    : NinoCommonGenerator(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+public class UnsafeAccessorGenerator : NinoCommonGenerator
 {
+    public UnsafeAccessorGenerator(Compilation compilation,
+        List<ITypeSymbol> ninoSymbols,
+        Dictionary<string, List<string>> inheritanceMap,
+        Dictionary<string, List<string>> subTypeMap,
+        ImmutableArray<string> topNinoTypes) : base(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+    {
+    }
+
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
@@ -149,7 +151,7 @@ public class UnsafeAccessorGenerator(
 
                      using System;
                      using System.Runtime.CompilerServices;
-                     
+
                      #if NET8_0_OR_GREATER
                      namespace {{curNamespace}}
                      {

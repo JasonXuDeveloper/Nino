@@ -4,9 +4,16 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Filter;
 
-public class ValidIndexer(Func<ITypeSymbol, IPropertySymbol, bool> validIndexer)
+public class ValidIndexer
     : IFilter
 {
+    private readonly Func<ITypeSymbol, IPropertySymbol, bool> _validIndexer;
+    
+    public ValidIndexer(Func<ITypeSymbol, IPropertySymbol, bool> validIndexer)
+    {
+        _validIndexer = validIndexer;
+    }
+    
     public bool Filter(ITypeSymbol symbol)
     {
         var indexers = symbol
@@ -17,7 +24,7 @@ public class ValidIndexer(Func<ITypeSymbol, IPropertySymbol, bool> validIndexer)
 
         if (!indexers.Any()) return false;
 
-        var validIndexers = indexers.Where(i => validIndexer(symbol, i)).ToList();
+        var validIndexers = indexers.Where(i => _validIndexer(symbol, i)).ToList();
         if (!validIndexers.Any()) return false;
 
         //ensure the valid indexer has public getter and setter

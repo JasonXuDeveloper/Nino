@@ -546,7 +546,7 @@ public static class NinoTypeHelper
                     }
                     else
                     {
-                        subTypeMap.Add(baseTypeFullName, [ninoTypeFullName]);
+                        subTypeMap.Add(baseTypeFullName, new List<string> { ninoTypeFullName });
                     }
 
                     inheritedTypes.Add(baseTypeFullName);
@@ -568,7 +568,10 @@ public static class NinoTypeHelper
                     }
                     else
                     {
-                        subTypeMap.Add(@interface, [ninoTypeFullName]);
+                        subTypeMap.Add(@interface, new List<string>()
+                        {
+                            ninoTypeFullName
+                        });
                     }
 
                     inheritedTypes.Add(@interface);

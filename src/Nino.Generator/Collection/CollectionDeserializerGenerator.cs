@@ -12,11 +12,14 @@ using String = Nino.Generator.Filter.String;
 
 namespace Nino.Generator.Collection;
 
-public class CollectionDeserializerGenerator(
-    Compilation compilation,
-    List<ITypeSymbol> potentialCollectionSymbols)
-    : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
+public class CollectionDeserializerGenerator : NinoCollectionGenerator
 {
+    public CollectionDeserializerGenerator(
+        Compilation compilation,
+        List<ITypeSymbol> potentialCollectionSymbols) : base(compilation, potentialCollectionSymbols)
+    {
+    }
+
     protected override IFilter Selector =>
         new Joint().With
         (

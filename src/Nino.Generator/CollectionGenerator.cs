@@ -17,7 +17,8 @@ public class CollectionGenerator : IIncrementalGenerator
         var typeDeclarations = context.SyntaxProvider
             .CreateSyntaxProvider(
                 static (node, _) =>
-                    node is GenericNameSyntax or ArrayTypeSyntax or StackAllocArrayCreationExpressionSyntax or TupleTypeSyntax,
+                    node is GenericNameSyntax or ArrayTypeSyntax or StackAllocArrayCreationExpressionSyntax
+                        or TupleTypeSyntax,
                 static (context, _) =>
                     context.Node switch
                     {
@@ -49,10 +50,10 @@ public class CollectionGenerator : IIncrementalGenerator
             string.Compare(x.ToDisplayString(), y.ToDisplayString(), StringComparison.Ordinal));
 
         Type[] generatorTypes =
-        [
+        {
             typeof(CollectionSerializerGenerator),
             typeof(CollectionDeserializerGenerator),
-        ];
+        };
 
         foreach (Type type in generatorTypes)
         {

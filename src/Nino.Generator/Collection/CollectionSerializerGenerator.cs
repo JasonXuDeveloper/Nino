@@ -12,11 +12,15 @@ using String = Nino.Generator.Filter.String;
 
 namespace Nino.Generator.Collection;
 
-public class CollectionSerializerGenerator(
-    Compilation compilation,
-    List<ITypeSymbol> potentialCollectionSymbols)
-    : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
+public class CollectionSerializerGenerator : NinoCollectionGenerator
 {
+    public CollectionSerializerGenerator(
+        Compilation compilation,
+        List<ITypeSymbol> potentialCollectionSymbols) : base(compilation, potentialCollectionSymbols)
+    {
+        
+    }
+    
     protected override IFilter Selector => new Joint().With
     (
         // We want to ensure the type we are using is accessible (i.e. not private)
