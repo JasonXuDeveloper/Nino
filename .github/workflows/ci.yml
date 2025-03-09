@@ -202,14 +202,14 @@ jobs:
         working-directory: ./src  # Override the default working directory
         run: |
           echo "Current directory: $(pwd)"
-          dotnet pack Nino.Core/Nino.Core.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
-          dotnet pack Nino.Generator/Nino.Generator.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
-          dotnet pack Nino/Nino.csproj  -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg
-          for package in ./Nino.Core/bin/Debug/*.nupkg ./Nino.Generator/bin/Debug/*.nupkg ./Nino/bin/Debug/*.nupkg; do
-            dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
+          dotnet pack Nino.Core/Nino.Core.csproj  -c Release
+          dotnet pack Nino.Generator/Nino.Generator.csproj  -c Release
+          dotnet pack Nino/Nino.csproj  -c Release
+          for package in $(find ./Nino.Core/bin/Release ./Nino.Generator/bin/Release ./Nino/bin/Release -name "*.nupkg" -print0 | sort -z -u | xargs -0 -n1 echo); do
+            dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
-          for package in ./Nino.Core/bin/Debug/*.snupkg ./Nino.Generator/bin/Debug/*.snupkg ./Nino/bin/Debug/*.snupkg; do
-            dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json
+          for package in $(find ./Nino.Core/bin/Release ./Nino.Generator/bin/Release ./Nino/bin/Release -name "*.snupkg" -print0 | sort -z -u | xargs -0 -n1 echo); do
+            dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json --skip-duplicate
           done
   
   benchmark:
