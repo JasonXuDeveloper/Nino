@@ -219,15 +219,28 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                                           writer.PutLength(pos);
                                       """;
 
+                IFilter equalityMethod = new ValidMethod((_, method) =>
+                    method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
+                    && method is { Name: "op_Equality", Parameters.Length: 2 }
+                    && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
+                        dictSymbol)
+                    && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type,
+                        dictSymbol));
+
+                bool shouldHaveIfDefaultCheck = !symbol.IsValueType || equalityMethod.Filter(dictSymbol);
+
+                string defaultCheck = $$"""
+                                           if (value == {{(symbol.IsValueType ? "default" : "null")}})
+                                           {
+                                               writer.Write(TypeCollector.NullCollection);
+                                               return;
+                                           }
+                                        """;
+
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
                          public static void Serialize(this {{symbol.ToDisplayString()}} value, ref Writer writer)
-                         {
-                             if (value == {{(symbol.IsValueType ? "default" : "null")}})
-                             {
-                                 writer.Write(TypeCollector.NullCollection);
-                                 return;
-                             }
+                         {{{(shouldHaveIfDefaultCheck ? defaultCheck : "")}}
                          
                              int cnt = value.Count;
                              writer.Write(TypeCollector.GetCollectionHeader(cnt));
@@ -312,20 +325,13 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                                             writer.PutLength(pos);
                                       """;
 
-                IFilter equalityMethod = new Union().With
-                (
-                    new ValidMethod((_, method) => method.Name == "Equals"
-                                                   && method.Parameters.Length == 1
-                                                   && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
-                                                       namedTypeSymbol)),
-                    new ValidMethod((_, method) =>
-                        method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
-                        && method is { Name: "op_Equality", Parameters.Length: 2 }
-                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
-                            namedTypeSymbol)
-                        && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type,
-                            namedTypeSymbol))
-                );
+                IFilter equalityMethod = new ValidMethod((_, method) =>
+                    method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
+                    && method is { Name: "op_Equality", Parameters.Length: 2 }
+                    && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
+                        namedTypeSymbol)
+                    && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type,
+                        namedTypeSymbol));
 
                 bool shouldHaveIfDefaultCheck = !symbol.IsValueType || equalityMethod.Filter(namedTypeSymbol);
 
