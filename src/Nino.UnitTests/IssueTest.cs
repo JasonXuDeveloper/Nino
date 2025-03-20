@@ -40,6 +40,151 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
+        public class Issue144 : IssueTestTemplate
+        {
+            /// <summary>
+            /// Source https://github.com/Unity-Technologies/InputSystem/blob/develop/Packages/com.unity.inputsystem/InputSystem/Utilities/ReadOnlyArray.cs
+            /// </summary>
+            /// <typeparam name="TValue"></typeparam>
+            public struct ReadOnlyArray<TValue> : IReadOnlyList<TValue>
+            {
+                internal TValue[] m_Array;
+                internal int m_StartIndex;
+                internal int m_Length;
+
+                public ReadOnlyArray(TValue[] array)
+                {
+                    m_Array = array;
+                    m_StartIndex = 0;
+                    m_Length = array?.Length ?? 0;
+                }
+                
+                public ReadOnlyArray(TValue[] array, int index, int length)
+                {
+                    m_Array = array;
+                    m_StartIndex = index;
+                    m_Length = length;
+                }
+                
+                public TValue[] ToArray()
+                {
+                    var result = new TValue[m_Length];
+                    if (m_Length > 0)
+                        Array.Copy(m_Array, m_StartIndex, result, 0, m_Length);
+                    return result;
+                }
+                
+                public int IndexOf(Predicate<TValue> predicate)
+                {
+                    if (predicate == null)
+                        throw new ArgumentNullException(nameof(predicate));
+
+                    for (var i = 0; i < m_Length; ++i)
+                        if (predicate(m_Array[m_StartIndex + i]))
+                            return i;
+
+                    return -1;
+                }
+                
+                public Enumerator GetEnumerator()
+                {
+                    return new Enumerator(m_Array, m_StartIndex, m_Length);
+                }
+
+                IEnumerator<TValue> IEnumerable<TValue>.GetEnumerator()
+                {
+                    return GetEnumerator();
+                }
+
+                IEnumerator IEnumerable.GetEnumerator()
+                {
+                    return GetEnumerator();
+                }
+                
+                [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage",
+                    "CA2225:OperatorOverloadsHaveNamedAlternates",
+                    Justification =
+                        "`ToXXX` message only really makes sense as static, which is not recommended for generic types.")]
+                public static implicit operator ReadOnlyArray<TValue>(TValue[] array)
+                {
+                    return new ReadOnlyArray<TValue>(array);
+                }
+
+                public int Count => m_Length;
+                
+                public TValue this[int index]
+                {
+                    get
+                    {
+                        if (index < 0 || index >= m_Length)
+                            throw new ArgumentOutOfRangeException(nameof(index));
+                        if (m_Array == null)
+                            throw new InvalidOperationException();
+                        return m_Array[m_StartIndex + index];
+                    }
+                }
+                
+                public struct Enumerator : IEnumerator<TValue>
+                {
+                    private readonly TValue[] m_Array;
+                    private readonly int m_IndexStart;
+                    private readonly int m_IndexEnd;
+                    private int m_Index;
+
+                    internal Enumerator(TValue[] array, int index, int length)
+                    {
+                        m_Array = array;
+                        m_IndexStart = index - 1; // First call to MoveNext() moves us to first valid index.
+                        m_IndexEnd = index + length;
+                        m_Index = m_IndexStart;
+                    }
+
+                    public void Dispose()
+                    {
+                    }
+
+                    public bool MoveNext()
+                    {
+                        if (m_Index < m_IndexEnd)
+                            ++m_Index;
+                        return m_Index != m_IndexEnd;
+                    }
+
+                    public void Reset()
+                    {
+                        m_Index = m_IndexStart;
+                    }
+
+                    public TValue Current
+                    {
+                        get
+                        {
+                            if (m_Index == m_IndexEnd)
+                                throw new InvalidOperationException("Iterated beyond end");
+                            return m_Array[m_Index];
+                        }
+                    }
+
+                    object IEnumerator.Current => Current;
+                }
+            }
+
+            public override void RunTest()
+            {
+                var array = new int[] {1, 2, 3, 4, 5};
+                var readOnlyArray = new ReadOnlyArray<int>(array);
+                var bytes = readOnlyArray.Serialize();
+                
+                Assert.IsTrue(bytes.Length > 0);
+                Deserializer.Deserialize(bytes, out ReadOnlyArray<int> readOnlyArray2);
+                for (var i = 0; i < readOnlyArray.Count; i++)
+                {
+                    Assert.AreEqual(readOnlyArray[i], readOnlyArray2[i]);
+                }
+            }
+        }
+
+        [TestClass]
         public class Issue141 : IssueTestTemplate
         {
             [NinoType]
@@ -63,23 +208,23 @@ namespace Nino.UnitTests
                 t.Dict.Add(TestEnum.A, 1);
                 t.Dict.Add(TestEnum.B, 2);
                 t.Dict.Add(TestEnum.C, 3);
-                
+
                 var bytes = t.Serialize();
                 Deserializer.Deserialize(bytes, out TestClass<int> t2);
-                
+
                 Assert.AreEqual(t.Dict.Count, t2.Dict.Count);
                 Assert.AreEqual(t.Dict[TestEnum.A], t2.Dict[TestEnum.A]);
                 Assert.AreEqual(t.Dict[TestEnum.B], t2.Dict[TestEnum.B]);
                 Assert.AreEqual(t.Dict[TestEnum.C], t2.Dict[TestEnum.C]);
-                
+
                 var tt = new TestClass<string>();
                 tt.Dict.Add(TestEnum.A, "1");
                 tt.Dict.Add(TestEnum.B, "2");
                 tt.Dict.Add(TestEnum.C, "3");
-                
+
                 bytes = tt.Serialize();
                 Deserializer.Deserialize(bytes, out TestClass<string> tt2);
-                
+
                 Assert.AreEqual(tt.Dict.Count, tt2.Dict.Count);
                 Assert.AreEqual(tt.Dict[TestEnum.A], tt2.Dict[TestEnum.A]);
                 Assert.AreEqual(tt.Dict[TestEnum.B], tt2.Dict[TestEnum.B]);
@@ -137,19 +282,19 @@ namespace Nino.UnitTests
                 Assert.AreEqual(TimeId[1][0], TimeId2[1][0]);
                 Assert.AreEqual(TimeId[1][1], TimeId2[1][1]);
                 Assert.AreEqual(TimeId[2][0], TimeId2[2][0]);
-                
+
                 MultiMap<long, string> dict = new MultiMap<long, string>();
                 dict[1].Add("1");
                 dict[1].Add("2");
                 dict[2].Add("3");
-                
+
                 bytes = dict.Serialize();
                 Deserializer.Deserialize(bytes, out MultiMap<long, string> dict2);
-                
+
                 Assert.AreEqual(dict.Count, dict2.Count);
                 Assert.AreEqual(dict[1].Count, dict2[1].Count);
                 Assert.AreEqual(dict[2].Count, dict2[2].Count);
-                
+
                 Assert.AreEqual(dict[1][0], dict2[1][0]);
                 Assert.AreEqual(dict[1][1], dict2[1][1]);
                 Assert.AreEqual(dict[2][0], dict2[2][0]);

@@ -90,12 +90,19 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                         if (symbol.TypeKind == TypeKind.Interface) return true;
                         if (method.MethodKind == MethodKind.Constructor)
                         {
+                            if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
+                            var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
+                                                  i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                              ?? namedTypeSymbol;
+                            var elemType = ienumSymbol.TypeArguments[0];
+                            // make array type from element type
+                            var arrayType = Compilation.CreateArrayTypeSymbol(elemType);
+
                             return method.Parameters.Length == 0
                                    || (method.Parameters.Length == 1
                                        && method.Parameters[0].Type.SpecialType == SpecialType.System_Int32)
                                    || (method.Parameters.Length == 1
-                                       && method.Parameters[0].Type.OriginalDefinition.ToDisplayString()
-                                           .EndsWith("IEnumerable<T>"));
+                                       && Compilation.HasImplicitConversion(arrayType, method.Parameters[0].Type));
                         }
 
                         return false;
@@ -505,15 +512,11 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                           i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
                                       ?? namedTypeSymbol;
                     var elementType = ienumSymbol.TypeArguments[0];
+                    var arrayType = Compilation.CreateArrayTypeSymbol(elementType);
 
                     return method.MethodKind == MethodKind.Constructor
                            && method.Parameters.Length == 1
-                           && method.Parameters[0].Type is INamedTypeSymbol ienumerable
-                           && ienumerable.IsGenericType
-                           && ienumerable.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>")
-                           && ienumerable.TypeArguments.Length > 0
-                           && ienumerable.TypeArguments[0]
-                               .Equals(elementType, SymbolEqualityComparer.Default);
+                           && Compilation.HasImplicitConversion(arrayType, method.Parameters[0].Type);
                 })
             ),
             symbol =>
@@ -531,7 +534,10 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
                 var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
                 var creationDecl = $"new {typeDecl}(arr)";
-                var arrCreationDecl = $"new {elemType.ToDisplayString()}[length]";
+                var arrCreationDecl = $"new {elemType.ToDisplayString()}[]";
+                //replace first `[` to `[length`
+                arrCreationDecl = arrCreationDecl.Insert(arrCreationDecl.IndexOf('[') + 1, "length");
+
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
                          public static void Deserialize(out {{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
