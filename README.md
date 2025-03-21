@@ -17,16 +17,18 @@ Plausibly the fastest and most flexible binary serialization library for C# proj
 
 - Support all **unmanaged types** (`int`/`float`/`DateTime`/`Vector`/`Matrix`, etc)
 
-- Support all custom `interfaces`/`classes`/`structs`/`records` annotated with **[NinoType]** (including `generics`,
+- Support `ValueTuple`/`Tuple`/`KeyValuePair` of supported types
+
+- Support all custom `interfaces`/`classes`/`structs`/`records`/`record structs` annotated with **[NinoType]** (including `generics`,
   support custom constructor for deserialization)
 
-- Support all **`ICollection<SupportedType>`** types (`List`, `Dictonary`, `ConcurrentDictonary`, `Hashset`, etc)
+- Support all **`IEnumerable<SupportedType>`** types (`List`, `Dictonary`, `ConcurrentDictonary`, `Hashset`, `ArraySegment`, `Stack`, `ReadOnlyList` etc)
 
 - Support all **`Span<SupportedType>`** types
 
 - Support all **`Nullable<SupportedType>`** types
 
-- Support all **Embed** serializable types (i.e. `Dictionary<Int, List<SupportedType[]>>`)
+- Support all **Embed** serializable types (i.e. `Stack<Dictionary<Int, List<SupportedType[]>[]>[]>`)
 
 - Support **polymorphism**
 
@@ -34,7 +36,7 @@ Plausibly the fastest and most flexible binary serialization library for C# proj
 
 - Support **type check** (guarantees data integrity)
 
-- Contains **version tolerance** (i.e. add/remove fields, change field type, etc)
+- Support **version compatibility** (i.e. adding fields, changing field type, etc)
 
 - Support **cross-project** (C# Project) type serialization (i.e. serialize a class with member of types in A.dll from B.dll)
 
