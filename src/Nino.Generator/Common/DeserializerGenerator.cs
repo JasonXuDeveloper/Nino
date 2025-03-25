@@ -1,30 +1,23 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
 public class DeserializerGenerator : NinoCommonGenerator
 {
-    public DeserializerGenerator(
-        Compilation compilation,
-        List<ITypeSymbol> ninoSymbols,
-        Dictionary<string, List<string>> inheritanceMap,
-        Dictionary<string, List<string>> subTypeMap,
-        ImmutableArray<string> topNinoTypes) : base(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+    public DeserializerGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+        : base(compilation, ninoGraph, ninoTypes)
     {
     }
 
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
-        var ninoSymbols = NinoSymbols;
-        var inheritanceMap = InheritanceMap;
-        var subTypeMap = SubTypeMap;
 
         var sb = new StringBuilder();
 
@@ -37,17 +30,15 @@ public class DeserializerGenerator : NinoCommonGenerator
             "where TKey : unmanaged where TValue : unmanaged");
         sb.GenerateClassDeserializeMethods("string");
 
-        foreach (var typeSymbol in ninoSymbols)
+        foreach (var ninoType in NinoTypes)
         {
             try
             {
-                string typeFullName = typeSymbol.GetTypeFullName();
-                GenerateDeserializeImplementation(typeSymbol, typeFullName, sb, inheritanceMap,
-                    subTypeMap, ninoSymbols);
+                GenerateDeserializeImplementation(ninoType, sb);
             }
             catch (Exception e)
             {
-                sb.AppendLine($"/* Error: {e.Message} for type {typeSymbol.GetTypeFullName()}");
+                sb.AppendLine($"/* Error: {e.Message} for type {ninoType.TypeSymbol.GetTypeFullName()}");
                 //add stacktrace
                 foreach (var line in e.StackTrace.Split('\n'))
                 {
@@ -116,23 +107,21 @@ public class DeserializerGenerator : NinoCommonGenerator
         spc.AddSource("NinoDeserializer.g.cs", code);
     }
 
-    private static void GenerateDeserializeImplementation(ITypeSymbol typeSymbol, string typeFullName, StringBuilder sb,
-        Dictionary<string, List<string>> inheritanceMap,
-        Dictionary<string, List<string>> subTypeMap, List<ITypeSymbol> ninoSymbols)
+    private void GenerateDeserializeImplementation(NinoType ninoType, StringBuilder sb)
     {
-        bool isPolymorphicType = typeSymbol.IsPolymorphicType();
+        bool isPolymorphicType = ninoType.TypeSymbol.IsPolymorphicType();
 
         // check if struct is unmanaged
-        if (typeSymbol.IsUnmanagedType && !isPolymorphicType)
+        if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
         {
             return;
         }
 
-        sb.GenerateClassDeserializeMethods(typeFullName);
+        sb.GenerateClassDeserializeMethods(ninoType.TypeSymbol.GetTypeFullName());
 
         sb.AppendLine($$"""
                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                public static void Deserialize(out {{typeFullName}} value, ref Reader reader)
+                                public static void Deserialize(out {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
                                 {
                                 #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                      if (reader.Eof)
@@ -144,29 +133,32 @@ public class DeserializerGenerator : NinoCommonGenerator
                                      
                         """);
 
-        if (typeSymbol.IsPolymorphicType())
+        if (ninoType.TypeSymbol.IsPolymorphicType())
         {
             sb.AppendLine("            reader.Read(out int typeId);");
             sb.AppendLine();
         }
 
-        void WriteMembersWithCustomConstructor(List<NinoTypeHelper.NinoMember> members, ITypeSymbol type,
-            string typeName, string valName, string[] constructorMember)
+        void WriteMembersWithCustomConstructor(NinoType nt, string valName, string[] constructorMember)
         {
             List<(string, string)> vars = new List<(string, string)>();
             List<(string, string, bool)> privateVars = new List<(string, string, bool)>();
             Dictionary<string, string> args = new Dictionary<string, string>();
-            foreach (var (name, declaredType, attrs, isCtorParam, isPrivate, isProperty) in members)
+            foreach (var member in nt.Members)
             {
+                var name = member.Name;
+                var declaredType = member.Type;
+                var isCtorParam = member.IsCtorParameter;
+                var isPrivate = member.IsPrivate;
+                var isProperty = member.IsProperty;
+                
                 var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
                     .Aggregate("", (a, b) => a + b);
                 var tempName = $"{t}_temp_{name}";
                 //check if the typesymbol declaredType is string
                 if (declaredType.SpecialType == SpecialType.System_String)
                 {
-                    //check if this member is annotated with [NinoUtf8]
-                    var isUtf8 = attrs.Any(a =>
-                        a.AttributeClass?.ToDisplayString().EndsWith("NinoUtf8Attribute") == true);
+                    var isUtf8 = member.IsUtf8String;
 
                     var str = isUtf8
                         ? $"reader.ReadUtf8(out {tempName});"
@@ -220,7 +212,7 @@ public class DeserializerGenerator : NinoCommonGenerator
             }
 
             sb.AppendLine(
-                $"                    {valName} = new {typeName}({string.Join(", ",
+                $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
                     constructorMember.Select(m =>
                         args[args.Keys
                             .FirstOrDefault(k =>
@@ -243,7 +235,7 @@ public class DeserializerGenerator : NinoCommonGenerator
             {
                 var originalValName = valName;
 
-                if (type.IsValueType)
+                if (nt.TypeSymbol.IsValueType)
                 {
                     valName = $"ref {valName}";
                 }
@@ -275,31 +267,29 @@ public class DeserializerGenerator : NinoCommonGenerator
             }
         }
 
-        void CreateInstance(List<NinoTypeHelper.NinoMember> defaultMembers, ITypeSymbol symbol,
-            string valName,
-            string typeName)
+        void CreateInstance(NinoType nt, string valName)
         {
             //if this subtype contains a custom constructor, use it
             //go through all constructors and find the one with the NinoConstructor attribute
             //get constructors of the symbol
-            var constructors = (symbol as INamedTypeSymbol)?.Constructors.ToList();
+            var constructors = (nt.TypeSymbol as INamedTypeSymbol)?.Constructors.ToList();
 
             if (constructors == null)
             {
                 sb.AppendLine(
-                    $"                    // no constructor found, symbol is not a named type symbol but a {symbol.GetType()}");
+                    $"                    // no constructor found, symbol is not a named type symbol but a {nt.TypeSymbol.GetType()}");
                 sb.AppendLine(
-                    $"                    throw new InvalidOperationException(\"No constructor found for {typeName}\");");
+                    $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
                 return;
             }
 
             IMethodSymbol? constructor = null;
 
             // if typesymbol is a record, try get the primary constructor
-            if (symbol.IsRecord)
+            if (nt.TypeSymbol.IsRecord)
             {
                 constructor = constructors.FirstOrDefault(c => c.Parameters.Length == 0 || c.Parameters.All(p =>
-                    defaultMembers.Any(m => m.Name == p.Name)));
+                    nt.Members.Any(m => m.Name == p.Name)));
             }
 
             if (constructor == null)
@@ -309,7 +299,7 @@ public class DeserializerGenerator : NinoCommonGenerator
             {
                 sb.AppendLine("                    // no constructor found");
                 sb.AppendLine(
-                    $"                    throw new InvalidOperationException(\"No constructor found for {typeName}\");");
+                    $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
                 return;
             }
 
@@ -339,19 +329,19 @@ public class DeserializerGenerator : NinoCommonGenerator
                 args = constructor.Parameters.Select(p => p.Name).ToArray();
             }
 
-            WriteMembersWithCustomConstructor(defaultMembers, symbol, typeName, valName, args);
+            WriteMembersWithCustomConstructor(nt, valName, args);
         }
 
-        if (!subTypeMap.TryGetValue(typeFullName, out var lst))
+        if (!NinoGraph.SubTypes.TryGetValue(ninoType, out var lst))
         {
-            lst = new List<string>();
+            lst = new List<NinoType>();
         }
 
         //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
         lst.Sort((a, b) =>
         {
-            int aCount = inheritanceMap[a].Count;
-            int bCount = inheritanceMap[b].Count;
+            int aCount = NinoGraph.BaseTypes[a].Count;
+            int bCount = NinoGraph.BaseTypes[b].Count;
             return bCount.CompareTo(aCount);
         });
 
@@ -359,7 +349,7 @@ public class DeserializerGenerator : NinoCommonGenerator
         {
             sb.AppendLine("            switch (typeId)");
             sb.AppendLine("            {");
-            if (typeSymbol.IsReferenceType)
+            if (ninoType.TypeSymbol.IsReferenceType)
             {
                 sb.AppendLine("""
                                               case TypeCollector.Null:
@@ -371,31 +361,21 @@ public class DeserializerGenerator : NinoCommonGenerator
 
         foreach (var subType in lst)
         {
-            var subTypeSymbol = ninoSymbols.First(s => s.GetTypeFullName() == subType);
-
-            if (subTypeSymbol.IsInstanceType())
+            if (subType.TypeSymbol.IsInstanceType())
             {
-                string valName = subType.Replace("global::", "").Replace(".", "_").ToLower();
+                string valName = subType.TypeSymbol.ToDisplayString().Replace("global::", "").Replace(".", "_").ToLower();
                 sb.AppendLine(
-                    $"                case NinoTypeConst.{subTypeSymbol.GetTypeFullName().GetTypeConstName()}:");
+                    $"                case NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
-                sb.AppendLine($"                    {subType} {valName};");
+                sb.AppendLine($"                    {subType.TypeSymbol.GetTypeFullName()} {valName};");
 
-                if (subTypeSymbol.IsUnmanagedType)
+                if (subType.TypeSymbol.IsUnmanagedType)
                 {
                     sb.AppendLine($"                    reader.Read(out {valName});");
                 }
                 else
                 {
-                    //get members
-                    List<ITypeSymbol> subTypeParentSymbols =
-                        ninoSymbols.Where(m => inheritanceMap[subType]
-                            .Contains(m.GetTypeFullName())).ToList();
-
-                    var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
-                    //get distinct members
-                    members = members.Distinct().ToList();
-                    CreateInstance(members, subTypeSymbol, valName, subType);
+                    CreateInstance(subType, valName);
                 }
 
                 sb.AppendLine($"                    value = {valName};");
@@ -404,26 +384,22 @@ public class DeserializerGenerator : NinoCommonGenerator
             }
         }
 
-        if (typeSymbol.IsInstanceType())
+        if (ninoType.TypeSymbol.IsInstanceType())
         {
             if (isPolymorphicType)
             {
-                sb.AppendLine($"                case NinoTypeConst.{typeSymbol.GetTypeFullName().GetTypeConstName()}:");
+                sb.AppendLine($"                case NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
             }
 
-            if (typeSymbol.IsUnmanagedType)
+            if (ninoType.TypeSymbol.IsUnmanagedType)
             {
                 sb.AppendLine($"                    reader.Read(out value);");
             }
             else
             {
-                List<ITypeSymbol> parentTypeSymbols =
-                    ninoSymbols.Where(m => inheritanceMap[typeFullName]
-                        .Contains(m.GetTypeFullName())).ToList();
-                var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
                 string valName = "value";
-                CreateInstance(defaultMembers, typeSymbol, valName, typeFullName);
+                CreateInstance(ninoType, valName);
             }
 
             if (isPolymorphicType)

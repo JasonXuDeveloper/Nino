@@ -1,48 +1,40 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
 public class PartialClassGenerator : NinoCommonGenerator
 {
-    public PartialClassGenerator(
-        Compilation compilation,
-        List<ITypeSymbol> ninoSymbols,
-        Dictionary<string, List<string>> inheritanceMap,
-        Dictionary<string, List<string>> subTypeMap,
-        ImmutableArray<string> topNinoTypes) : base(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+    public PartialClassGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+        : base(compilation, ninoGraph, ninoTypes)
     {
     }
 
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
-        var ninoSymbols = NinoSymbols;
-        var inheritanceMap = InheritanceMap;
-        var subTypeMap = SubTypeMap;
 
         HashSet<string> generatedTypes = new();
 
-        foreach (var typeSymbol in ninoSymbols)
+        foreach (var ninoType in NinoTypes)
         {
-            string typeFullName = typeSymbol.GetTypeFullName();
-            bool isPolymorphicType = typeSymbol.IsPolymorphicType();
+            bool isPolymorphicType = ninoType.TypeSymbol.IsPolymorphicType();
 
             // check if struct is unmanaged
-            if (typeSymbol.IsUnmanagedType && !isPolymorphicType)
+            if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
             {
                 continue;
             }
 
-            void WriteMembers(List<NinoTypeHelper.NinoMember> members, ITypeSymbol type)
+            void WriteMembers(NinoType type)
             {
                 //ensure type is in this compilation, not from referenced assemblies
-                if (!type.ContainingAssembly.Equals(compilation.Assembly, SymbolEqualityComparer.Default))
+                if (!type.TypeSymbol.ContainingAssembly.Equals(compilation.Assembly, SymbolEqualityComparer.Default))
                 {
                     return;
                 }
@@ -52,8 +44,13 @@ public class PartialClassGenerator : NinoCommonGenerator
 
                 try
                 {
-                    foreach (var (name, declaredType, _, _, isPrivate, isProperty) in members)
+                    foreach (var typeMember in type.Members)
                     {
+                        var name = typeMember.Name;
+                        var declaredType = typeMember.Type;
+                        var isPrivate = typeMember.IsPrivate;
+                        var isProperty = typeMember.IsProperty;
+
                         if (!isPrivate)
                         {
                             continue;
@@ -61,7 +58,7 @@ public class PartialClassGenerator : NinoCommonGenerator
 
                         var declaringType = declaredType.ToDisplayString();
 
-                        if (type is INamedTypeSymbol nts)
+                        if (type.TypeSymbol is INamedTypeSymbol nts)
                         {
                             if (nts.TypeParameters.Length > 0)
                             {
@@ -97,7 +94,7 @@ public class PartialClassGenerator : NinoCommonGenerator
                 }
                 catch (Exception e)
                 {
-                    sb.AppendLine($"/* Error: {e.Message} for type {typeSymbol.GetTypeFullName()}");
+                    sb.AppendLine($"/* Error: {e.Message} for type {ninoType.TypeSymbol.GetTypeFullName()}");
                     //add stacktrace
                     foreach (var line in e.StackTrace.Split('\n'))
                     {
@@ -113,14 +110,14 @@ public class PartialClassGenerator : NinoCommonGenerator
                     return;
                 }
 
-                var hasNamespace = !type.ContainingNamespace.IsGlobalNamespace &&
-                                   !string.IsNullOrEmpty(type.ContainingNamespace.ToDisplayString());
-                var typeNamespace = type.ContainingNamespace.ToDisplayString();
-                var modifer = type.GetTypeModifiers();
+                var hasNamespace = !type.TypeSymbol.ContainingNamespace.IsGlobalNamespace &&
+                                   !string.IsNullOrEmpty(type.TypeSymbol.ContainingNamespace.ToDisplayString());
+                var typeNamespace = type.TypeSymbol.ContainingNamespace.ToDisplayString();
+                var modifer = type.TypeSymbol.GetTypeModifiers();
                 //get typename, including type parameters if any
-                var typeSimpleName = type.Name;
+                var typeSimpleName = type.TypeSymbol.Name;
                 //type arguments to type parameters
-                if (type is INamedTypeSymbol namedTypeSymbol)
+                if (type.TypeSymbol is INamedTypeSymbol namedTypeSymbol)
                 {
                     var typeParameters = namedTypeSymbol.TypeParameters;
                     if (typeParameters.Length > 0)
@@ -140,7 +137,7 @@ public class PartialClassGenerator : NinoCommonGenerator
                     namespaceStr += "{";
                 }
 
-                var order = string.Join(", ", members.Select(m => $"nameof({m.Name})"));
+                var order = string.Join(", ", type.Members.Select(m => $"nameof({m.Name})"));
 
                 // generate code
                 var code = $$"""
@@ -165,50 +162,38 @@ public class PartialClassGenerator : NinoCommonGenerator
                 spc.AddSource($"{typeSimpleName.Replace("<", "_").Replace(">", "_").Replace(",", "_")}.g.cs", code);
             }
 
-            if (subTypeMap.TryGetValue(typeFullName, out var lst))
+            if (NinoGraph.SubTypes.TryGetValue(ninoType, out var lst))
             {
                 //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
                 lst.Sort((a, b) =>
                 {
-                    int aCount = inheritanceMap[a].Count;
-                    int bCount = inheritanceMap[b].Count;
+                    int aCount = NinoGraph.BaseTypes[a].Count;
+                    int bCount = NinoGraph.BaseTypes[b].Count;
                     return bCount.CompareTo(aCount);
                 });
 
                 foreach (var subType in lst)
                 {
-                    var subTypeSymbol = ninoSymbols.First(s => s.GetTypeFullName() == subType);
-                    if (subTypeSymbol.IsInstanceType())
+                    if (subType.TypeSymbol.IsInstanceType())
                     {
-                        if (subTypeSymbol.IsUnmanagedType)
+                        if (subType.TypeSymbol.IsUnmanagedType)
                         {
                             continue;
                         }
 
-                        List<ITypeSymbol> subTypeParentSymbols =
-                            ninoSymbols.Where(m => inheritanceMap[subType]
-                                .Contains(m.GetTypeFullName())).ToList();
-
-                        var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
-                        //get distinct members
-                        members = members.Distinct().ToList();
-                        WriteMembers(members, subTypeSymbol);
+                        WriteMembers(subType);
                     }
                 }
             }
 
-            if (typeSymbol.IsInstanceType())
+            if (ninoType.TypeSymbol.IsInstanceType())
             {
-                if (typeSymbol.IsUnmanagedType)
+                if (ninoType.TypeSymbol.IsUnmanagedType)
                 {
                     continue;
                 }
 
-                List<ITypeSymbol> parentTypeSymbols =
-                    ninoSymbols.Where(m => inheritanceMap[typeFullName]
-                        .Contains(m.GetTypeFullName())).ToList();
-                var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
-                WriteMembers(defaultMembers, typeSymbol);
+                WriteMembers(ninoType);
             }
         }
     }

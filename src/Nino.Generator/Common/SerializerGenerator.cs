@@ -1,30 +1,22 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
 public class SerializerGenerator : NinoCommonGenerator
 {
-    public SerializerGenerator(
-        Compilation compilation,
-        List<ITypeSymbol> ninoSymbols,
-        Dictionary<string, List<string>> inheritanceMap,
-        Dictionary<string, List<string>> subTypeMap,
-        ImmutableArray<string> topNinoTypes) : base(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+    public SerializerGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+        : base(compilation, ninoGraph, ninoTypes)
     {
     }
 
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
-        var ninoSymbols = NinoSymbols;
-        var inheritanceMap = InheritanceMap;
-        var subTypeMap = SubTypeMap;
 
         var sb = new StringBuilder();
 
@@ -42,15 +34,15 @@ public class SerializerGenerator : NinoCommonGenerator
         sb.GenerateClassSerializeMethods("ICollection<T>", "<T>", "where T : unmanaged");
         sb.GenerateClassSerializeMethods("string");
 
-        foreach (var typeSymbol in ninoSymbols)
+        foreach (var ninoType in NinoTypes)
         {
             try
             {
-                string typeFullName = typeSymbol.GetTypeFullName();
-                bool isPolymorphicType = typeSymbol.IsPolymorphicType();
+                string typeFullName = ninoType.TypeSymbol.GetTypeFullName();
+                bool isPolymorphicType = ninoType.TypeSymbol.IsPolymorphicType();
 
                 // check if struct is unmanaged
-                if (typeSymbol.IsUnmanagedType && !isPolymorphicType)
+                if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
                 {
                     continue;
                 }
@@ -63,7 +55,7 @@ public class SerializerGenerator : NinoCommonGenerator
                 sb.AppendLine(
                     $"        public static void Serialize(this {typeFullName} value, ref Writer writer)");
                 sb.AppendLine("        {");
-                if (isPolymorphicType && typeSymbol.IsReferenceType)
+                if (isPolymorphicType && ninoType.TypeSymbol.IsReferenceType)
                 {
                     sb.AppendLine("            switch (value)");
                     sb.AppendLine("            {");
@@ -74,17 +66,21 @@ public class SerializerGenerator : NinoCommonGenerator
                     visited.Add("null");
                 }
 
-                void WriteMembers(List<NinoTypeHelper.NinoMember> members, ITypeSymbol type,
-                    string valName)
+                void WriteMembers(NinoType type, string valName)
                 {
-                    foreach (var (name, declaredType, attrs, _, isPrivate, isProperty) in members)
+                    foreach (var member in type.Members)
                     {
+                        var name = member.Name;
+                        var isPrivate = member.IsPrivate;
+                        var isProperty = member.IsProperty;
+                        var declaredType = member.Type;
+
                         var val = $"{valName}.{name}";
 
                         if (isPrivate)
                         {
                             var accessName = valName;
-                            if (type.IsValueType)
+                            if (type.TypeSymbol.IsValueType)
                             {
                                 accessName = $"ref {valName}";
                             }
@@ -108,7 +104,7 @@ public class SerializerGenerator : NinoCommonGenerator
                         if (declaredType.SpecialType == SpecialType.System_String)
                         {
                             //check if this member is annotated with [NinoUtf8]
-                            var isUtf8 = attrs.Any(a => a.AttributeClass!.Name == "NinoUtf8Attribute");
+                            var isUtf8 = member.IsUtf8String;
 
                             sb.AppendLine(
                                 isUtf8
@@ -123,45 +119,38 @@ public class SerializerGenerator : NinoCommonGenerator
                     }
                 }
 
-                if (subTypeMap.TryGetValue(typeFullName, out var lst))
+                if (NinoGraph.SubTypes.TryGetValue(ninoType, out var lst))
                 {
                     //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
                     lst.Sort((a, b) =>
                     {
-                        int aCount = inheritanceMap[a].Count;
-                        int bCount = inheritanceMap[b].Count;
+                        int aCount = NinoGraph.BaseTypes[a].Count;
+                        int bCount = NinoGraph.BaseTypes[b].Count;
                         return bCount.CompareTo(aCount);
                     });
 
                     foreach (var subType in lst)
                     {
-                        var subTypeSymbol = ninoSymbols.First(s => s.GetTypeFullName() == subType);
-                        if (subTypeSymbol.IsInstanceType())
+                        if (subType.TypeSymbol.IsInstanceType())
                         {
-                            if (!visited.Add(subType))
+                            if (!visited.Add(subType.TypeSymbol.ToDisplayString()))
                             {
                                 continue;
                             }
 
-                            string valName = subType.Replace("global::", "").Replace(".", "_").ToLower();
-                            sb.AppendLine($"                case {subType} {valName}:");
+                            string valName = subType.TypeSymbol.ToDisplayString().Replace("global::", "")
+                                .Replace(".", "_").ToLower();
+                            sb.AppendLine($"                case {subType.TypeSymbol.ToDisplayString()} {valName}:");
                             sb.AppendLine(
-                                $"                    writer.Write(NinoTypeConst.{subTypeSymbol.GetTypeFullName().GetTypeConstName()});");
-                            if (subTypeSymbol.IsUnmanagedType)
+                                $"                    writer.Write(NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
+                            if (subType.TypeSymbol.IsUnmanagedType)
                             {
                                 sb.AppendLine(
                                     $"                    writer.Write({valName});");
                             }
                             else
                             {
-                                List<ITypeSymbol> subTypeParentSymbols =
-                                    ninoSymbols.Where(m => inheritanceMap[subType]
-                                        .Contains(m.GetTypeFullName())).ToList();
-
-                                var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
-                                //get distinct members
-                                members = members.Distinct().ToList();
-                                WriteMembers(members, subTypeSymbol, valName);
+                                WriteMembers(subType, valName);
                             }
 
                             sb.AppendLine("                    return;");
@@ -169,9 +158,9 @@ public class SerializerGenerator : NinoCommonGenerator
                     }
                 }
 
-                if (typeSymbol.IsInstanceType())
+                if (ninoType.TypeSymbol.IsInstanceType())
                 {
-                    if (typeSymbol.IsReferenceType)
+                    if (ninoType.TypeSymbol.IsReferenceType)
                     {
                         sb.AppendLine("                default:");
                     }
@@ -179,24 +168,20 @@ public class SerializerGenerator : NinoCommonGenerator
                     if (isPolymorphicType)
                     {
                         sb.AppendLine(
-                            $"                    writer.Write(NinoTypeConst.{typeSymbol.GetTypeFullName().GetTypeConstName()});");
+                            $"                    writer.Write(NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
                     }
 
 
-                    if (typeSymbol.IsUnmanagedType)
+                    if (ninoType.TypeSymbol.IsUnmanagedType)
                     {
                         sb.AppendLine("                    writer.Write(value);");
                     }
                     else
                     {
-                        List<ITypeSymbol> parentTypeSymbols =
-                            ninoSymbols.Where(m => inheritanceMap[typeFullName]
-                                .Contains(m.GetTypeFullName())).ToList();
-                        var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
-                        WriteMembers(defaultMembers, typeSymbol, "value");
+                        WriteMembers(ninoType, "value");
                     }
 
-                    if (isPolymorphicType && typeSymbol.IsReferenceType)
+                    if (isPolymorphicType && ninoType.TypeSymbol.IsReferenceType)
                     {
                         sb.AppendLine("                    return;");
                     }
@@ -204,7 +189,7 @@ public class SerializerGenerator : NinoCommonGenerator
                     visited.Add("default");
                 }
 
-                if (isPolymorphicType && typeSymbol.IsReferenceType)
+                if (isPolymorphicType && ninoType.TypeSymbol.IsReferenceType)
                 {
                     if (!visited.Contains("default"))
                     {
@@ -221,7 +206,7 @@ public class SerializerGenerator : NinoCommonGenerator
             }
             catch (Exception e)
             {
-                sb.AppendLine($"/* Error: {e.Message} for type {typeSymbol.GetTypeFullName()}");
+                sb.AppendLine($"/* Error: {e.Message} for type {ninoType.TypeSymbol.GetTypeFullName()}");
                 //add stacktrace
                 foreach (var line in e.StackTrace.Split('\n'))
                 {

@@ -1,30 +1,25 @@
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
 public class TypeConstGenerator : NinoCommonGenerator
 {
-    public TypeConstGenerator(
-        Compilation compilation,
-        List<ITypeSymbol> ninoSymbols,
-        Dictionary<string, List<string>> inheritanceMap,
-        Dictionary<string, List<string>> subTypeMap,
-        ImmutableArray<string> topNinoTypes) : base(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+    public TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+        : base(compilation, ninoGraph, ninoTypes)
     {
     }
 
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
-        var ninoSymbols = NinoSymbols;
 
         // get type full names from models (namespaces + type names)
-        var serializableTypes = ninoSymbols
+        var serializableTypes = NinoTypes.Select(type => type.TypeSymbol)
             .Where(symbol => symbol.IsPolymorphicType())
             .Where(symbol => symbol.IsInstanceType()).ToList();
 

@@ -1,67 +1,63 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
 public class UnsafeAccessorGenerator : NinoCommonGenerator
 {
-    public UnsafeAccessorGenerator(Compilation compilation,
-        List<ITypeSymbol> ninoSymbols,
-        Dictionary<string, List<string>> inheritanceMap,
-        Dictionary<string, List<string>> subTypeMap,
-        ImmutableArray<string> topNinoTypes) : base(compilation, ninoSymbols, inheritanceMap, subTypeMap, topNinoTypes)
+    public UnsafeAccessorGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+        : base(compilation, ninoGraph, ninoTypes)
     {
     }
 
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
-        var ninoSymbols = NinoSymbols;
-        var inheritanceMap = InheritanceMap;
-        var subTypeMap = SubTypeMap;
 
         var sb = new StringBuilder();
-        var generatedTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        var generatedTypes = new HashSet<NinoType>();
 
-        foreach (var typeSymbol in ninoSymbols)
+        foreach (var ninoType in NinoTypes)
         {
             try
             {
-                string typeFullName = typeSymbol.GetTypeFullName();
-                bool isPolymorphicType = typeSymbol.IsPolymorphicType();
+                bool isPolymorphicType = ninoType.TypeSymbol.IsPolymorphicType();
 
                 // check if struct is unmanaged
-                if (typeSymbol.IsUnmanagedType && !isPolymorphicType)
+                if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
                 {
                     continue;
                 }
 
-                void WriteMembers(List<NinoTypeHelper.NinoMember> members, ITypeSymbol type,
-                    string typeName)
+                void WriteMembers(NinoType type)
                 {
                     if (!generatedTypes.Add(type))
                     {
                         return;
                     }
 
-                    foreach (var (name, declaredType, _, _, isPrivate, isProperty) in members)
+                    foreach (var member in type.Members)
                     {
-                        if (!isPrivate)
+                        if (!member.IsPrivate)
                         {
                             continue;
                         }
 
-                        if (type.IsValueType)
+                        string typeName = type.TypeSymbol.ToDisplayString();
+
+                        if (type.TypeSymbol.IsValueType)
                         {
                             typeName = $"ref {typeName}";
                         }
 
-                        if (isProperty)
+                        var name = member.Name;
+                        var declaredType = member.Type;
+
+                        if (member.IsProperty)
                         {
                             sb.AppendLine(
                                 $"        [UnsafeAccessor(UnsafeAccessorKind.Method, Name = \"get_{name}\")]");
@@ -83,19 +79,19 @@ public class UnsafeAccessorGenerator : NinoCommonGenerator
                     }
                 }
 
-                if (subTypeMap.TryGetValue(typeFullName, out var lst))
+                if (NinoGraph.SubTypes.TryGetValue(ninoType, out var lst))
                 {
                     //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
                     lst.Sort((a, b) =>
                     {
-                        int aCount = inheritanceMap[a].Count;
-                        int bCount = inheritanceMap[b].Count;
+                        int aCount = NinoGraph.BaseTypes[a].Count;
+                        int bCount = NinoGraph.BaseTypes[b].Count;
                         return bCount.CompareTo(aCount);
                     });
 
                     foreach (var subType in lst)
                     {
-                        var subTypeSymbol = ninoSymbols.First(s => s.GetTypeFullName() == subType);
+                        var subTypeSymbol = subType.TypeSymbol;
                         if (subTypeSymbol.IsInstanceType())
                         {
                             if (subTypeSymbol.IsUnmanagedType)
@@ -103,35 +99,24 @@ public class UnsafeAccessorGenerator : NinoCommonGenerator
                                 continue;
                             }
 
-                            List<ITypeSymbol> subTypeParentSymbols =
-                                ninoSymbols.Where(m => inheritanceMap[subType]
-                                    .Contains(m.GetTypeFullName())).ToList();
-
-                            var members = subTypeSymbol.GetNinoTypeMembers(subTypeParentSymbols);
-                            //get distinct members
-                            members = members.Distinct().ToList();
-                            WriteMembers(members, subTypeSymbol, subTypeSymbol.ToDisplayString());
+                            WriteMembers(subType);
                         }
                     }
                 }
 
-                if (typeSymbol.IsInstanceType())
+                if (ninoType.TypeSymbol.IsInstanceType())
                 {
-                    if (typeSymbol.IsUnmanagedType)
+                    if (ninoType.TypeSymbol.IsUnmanagedType)
                     {
                         continue;
                     }
 
-                    List<ITypeSymbol> parentTypeSymbols =
-                        ninoSymbols.Where(m => inheritanceMap[typeFullName]
-                            .Contains(m.GetTypeFullName())).ToList();
-                    var defaultMembers = typeSymbol.GetNinoTypeMembers(parentTypeSymbols);
-                    WriteMembers(defaultMembers, typeSymbol, typeSymbol.ToDisplayString());
+                    WriteMembers(ninoType);
                 }
             }
             catch (Exception e)
             {
-                sb.AppendLine($"/* Error: {e.Message} for type {typeSymbol.GetTypeFullName()}");
+                sb.AppendLine($"/* Error: {e.Message} for type {ninoType.TypeSymbol.GetTypeFullName()}");
                 //add stacktrace
                 foreach (var line in e.StackTrace.Split('\n'))
                 {
