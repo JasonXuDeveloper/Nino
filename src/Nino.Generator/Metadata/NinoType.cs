@@ -47,7 +47,6 @@ public class NinoType
     {
         StringBuilder sb = new();
         sb.AppendLine($"Type: {TypeSymbol.ToDisplayString()}");
-        sb.AppendLine("Dynamic: " + (TypeSymbol.TypeKind == TypeKind.Dynamic));
         sb.AppendLine("Parents:");
         foreach (var parent in Parents)
         {
