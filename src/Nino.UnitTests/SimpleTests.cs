@@ -745,7 +745,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(default, result.NewField2);
 #else
             //should throw out of range exception
-            Assert.ThrowsException<IndexOutOfRangeException>(() =>
+            Assert.ThrowsException<ArgumentOutOfRangeException>(() =>
             {
                 Deserializer.Deserialize(oldData, out SaveData _);
             });

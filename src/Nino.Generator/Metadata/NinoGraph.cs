@@ -154,7 +154,8 @@ public class NinoGraph
         sb.AppendLine();
         sb.AppendLine("Top Types:");
         sb.AppendLine(string.Join("\n",
-            TopTypes.Where(t => t.Members.Count > 0).Select(x => x.TypeSymbol.ToDisplayString())));
+            TopTypes.Where(t => t.Members.Count > 0 && !t.TypeSymbol.IsUnmanagedType)
+                .Select(x => x.TypeSymbol.ToDisplayString())));
 
         sb.AppendLine();
         sb.AppendLine("Circular Types:");

@@ -144,70 +144,109 @@ public class DeserializerGenerator : NinoCommonGenerator
             List<(string, string)> vars = new List<(string, string)>();
             List<(string, string, bool)> privateVars = new List<(string, string, bool)>();
             Dictionary<string, string> args = new Dictionary<string, string>();
-            foreach (var member in nt.Members)
+
+            List<string> valNames = new();
+            List<List<NinoMember>> groups = nt.GroupByPrimitivity().ToList();
+            for (var index1 = 0; index1 < groups.Count; index1++)
             {
-                var name = member.Name;
-                var declaredType = member.Type;
-                var isCtorParam = member.IsCtorParameter;
-                var isPrivate = member.IsPrivate;
-                var isProperty = member.IsProperty;
-                
-                var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
-                    .Aggregate("", (a, b) => a + b);
-                var tempName = $"{t}_temp_{name}";
-                //check if the typesymbol declaredType is string
-                if (declaredType.SpecialType == SpecialType.System_String)
+                var members = groups[index1];
+                valNames.Clear();
+                foreach (var member in members)
                 {
-                    var isUtf8 = member.IsUtf8String;
+                    var name = member.Name;
+                    var declaredType = member.Type;
+                    var isCtorParam = member.IsCtorParameter;
+                    var isPrivate = member.IsPrivate;
+                    var isProperty = member.IsProperty;
 
-                    var str = isUtf8
-                        ? $"reader.ReadUtf8(out {tempName});"
-                        : $"reader.Read(out {tempName});";
+                    var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
+                        .Aggregate("", (a, b) => a + b);
+                    var tempName = $"{t}_temp_{name}";
 
-                    //weak version tolerance
-                    var toleranceCode = $$$"""
-                                                               {{{declaredType.ToDisplayString()}}} {{{tempName}}};
-                                                               #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
-                                                               if (reader.Eof)
-                                                               {
-                                                                  {{{tempName}}} = default;
-                                                               }
-                                                               else
-                                                               {
-                                                                  {{{str}}}
-                                                               }
-                                                               #else
-                                                               {{{str}}}
-                                                               #endif
-                                           """;
 
-                    sb.AppendLine(toleranceCode);
-                    sb.AppendLine();
-                }
-                else
-                {
-                    sb.AppendLine(
-                        $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
-                }
-
-                if (constructorMember.Any(c => c.ToLower().Equals(name.ToLower())))
-                {
-                    args.Add(name, tempName);
-                }
-                else
-                {
-                    // we dont want init-only properties from the primary constructor
-                    if (!isCtorParam)
+                    if (constructorMember.Any(c => c.ToLower().Equals(name.ToLower())))
                     {
-                        if (!isPrivate)
+                        args.Add(name, tempName);
+                    }
+                    else
+                    {
+                        // we dont want init-only properties from the primary constructor
+                        if (!isCtorParam)
                         {
-                            vars.Add((name, tempName));
-                        }
-                        else
-                        {
-                            privateVars.Add((name, tempName, isProperty));
+                            if (!isPrivate)
+                            {
+                                vars.Add((name, tempName));
+                            }
+                            else
+                            {
+                                privateVars.Add((name, tempName, isProperty));
+                            }
                         }
                     }
+
+                    valNames.Add(tempName);
+                }
+
+                if (members.Count == 1)
+                {
+                    var member = members[0];
+                    var name = member.Name;
+                    var declaredType = member.Type;
+
+                    var tempName = valNames[0];
+                    //check if the typesymbol declaredType is string
+                    if (declaredType.SpecialType == SpecialType.System_String)
+                    {
+                        var isUtf8 = member.IsUtf8String;
+
+                        var str = isUtf8
+                            ? $"reader.ReadUtf8(out {tempName});"
+                            : $"reader.Read(out {tempName});";
+
+                        //weak version tolerance
+                        var toleranceCode = $$$"""
+                                                                   {{{declaredType.ToDisplayString()}}} {{{tempName}}};
+                                                                   #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
+                                                                   if (reader.Eof)
+                                                                   {
+                                                                      {{{tempName}}} = default;
+                                                                   }
+                                                                   else
+                                                                   {
+                                                                      {{{str}}}
+                                                                   }
+                                                                   #else
+                                                                   {{{str}}}
+                                                                   #endif
+                                               """;
+
+                        sb.AppendLine(toleranceCode);
+                        sb.AppendLine();
+                    }
+                    else
+                    {
+                        sb.AppendLine(
+                            $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+                    }
+                }
+                else
+                {
+                    sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+                    for (var index = 0; index < valNames.Count; index++)
+                    {
+                        var val = valNames[index];
+                        sb.AppendLine(
+                            $"                    Deserialize(out {members[index].Type.ToDisplayString()} {val}, ref reader);");
+                    }
+
+                    sb.AppendLine("#else");
+                    sb.AppendLine(
+                        $"                    Deserialize(out ({string.Join(", ",
+                            Enumerable.Range(0, valNames.Count)
+                                .Select(i => $"{members[i].Type.ToDisplayString()}"))}) t{index1}, ref reader);");
+                    sb.AppendLine(
+                        $"                    var ({string.Join(", ", valNames)}) = t{index1};");
+                    sb.AppendLine("#endif");
                 }
             }
 
@@ -363,7 +402,8 @@ public class DeserializerGenerator : NinoCommonGenerator
         {
             if (subType.TypeSymbol.IsInstanceType())
             {
-                string valName = subType.TypeSymbol.ToDisplayString().Replace("global::", "").Replace(".", "_").ToLower();
+                string valName = subType.TypeSymbol.ToDisplayString().Replace("global::", "").Replace(".", "_")
+                    .ToLower();
                 sb.AppendLine(
                     $"                case NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
@@ -388,7 +428,8 @@ public class DeserializerGenerator : NinoCommonGenerator
         {
             if (isPolymorphicType)
             {
-                sb.AppendLine($"                case NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()}:");
+                sb.AppendLine(
+                    $"                case NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
             }
 

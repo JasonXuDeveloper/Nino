@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -25,6 +26,35 @@ public class NinoType
         if (Members.Count == 0)
         {
             Members = ImmutableList<NinoMember>.Empty;
+        }
+    }
+    
+    public IEnumerable<List<NinoMember>> GroupByPrimitivity()
+    {
+        List<NinoMember> unmanagedGroup = new();
+        foreach (var member in Members)
+        {
+            if (member.Type.IsUnmanagedType)
+            {
+                unmanagedGroup.Add(member);
+            }
+            else
+            {
+                // If any unmanaged members were accumulated, yield them first.
+                if (unmanagedGroup.Count > 0)
+                {
+                    yield return unmanagedGroup;
+                    unmanagedGroup = new List<NinoMember>();
+                }
+                // Yield the managed member as its own group.
+                yield return new List<NinoMember> { member };
+            }
+        }
+
+        // Yield any remaining unmanaged members.
+        if (unmanagedGroup.Count > 0)
+        {
+            yield return unmanagedGroup;
         }
     }
 

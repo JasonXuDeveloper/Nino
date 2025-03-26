@@ -77,58 +77,83 @@ public class SerializerGenerator : NinoCommonGenerator
 
                 void WriteMembers(NinoType type, string valName)
                 {
-                    foreach (var member in type.Members)
+                    List<string> valNames = new();
+                    foreach (var members in type.GroupByPrimitivity())
                     {
-                        var name = member.Name;
-                        var isPrivate = member.IsPrivate;
-                        var isProperty = member.IsProperty;
-                        var declaredType = member.Type;
-
-                        var val = $"{valName}.{name}";
-
-                        if (isPrivate)
+                        valNames.Clear();
+                        foreach (var member in members)
                         {
-                            var accessName = valName;
-                            if (type.TypeSymbol.IsValueType)
+                            var name = member.Name;
+                            var isPrivate = member.IsPrivate;
+                            var isProperty = member.IsProperty;
+                            var val = $"{valName}.{name}";
+
+                            if (isPrivate)
                             {
-                                accessName = $"ref {valName}";
+                                var accessName = valName;
+                                if (type.TypeSymbol.IsValueType)
+                                {
+                                    accessName = $"ref {valName}";
+                                }
+
+                                val = isProperty
+                                    ? $"PrivateAccessor.__get__{name}__({accessName})"
+                                    : $"PrivateAccessor.__{name}__({accessName})";
+                                var legacyVal = $"{valName}.__nino__generated__{name}";
+                                val = $"""
+
+                                       #if NET8_0_OR_GREATER
+                                                               {val}
+                                       #else
+                                                               {legacyVal}
+                                       #endif 
+                                                           
+                                       """;
                             }
 
-                            val = isProperty
-                                ? $"PrivateAccessor.__get__{name}__({accessName})"
-                                : $"PrivateAccessor.__{name}__({accessName})";
-                            var legacyVal = $"{valName}.__nino__generated__{name}";
-                            val = $"""
-
-                                   #if NET8_0_OR_GREATER
-                                                           {val}
-                                   #else
-                                                           {legacyVal}
-                                   #endif 
-                                                       
-                                   """;
+                            valNames.Add(val);
                         }
 
-                        //check if the typesymbol declaredType is string
-                        if (declaredType.SpecialType == SpecialType.System_String)
+                        if (members.Count == 1)
                         {
-                            //check if this member is annotated with [NinoUtf8]
-                            var isUtf8 = member.IsUtf8String;
+                            var member = members[0];
+                            var declaredType = member.Type;
+                            var val = valNames[0];
 
-                            sb.AppendLine(
-                                isUtf8
-                                    ? $"                    writer.WriteUtf8({val});"
-                                    : $"                    writer.Write({val});");
-                        }
-                        else if (_unmanagedFilter.Filter(declaredType))
-                        {
-                            sb.AppendLine(
-                                $"                    writer.Write({val});");
+                            //check if the typesymbol declaredType is string
+                            if (declaredType.SpecialType == SpecialType.System_String)
+                            {
+                                //check if this member is annotated with [NinoUtf8]
+                                var isUtf8 = member.IsUtf8String;
+
+                                sb.AppendLine(
+                                    isUtf8
+                                        ? $"                    writer.WriteUtf8({val});"
+                                        : $"                    writer.Write({val});");
+                            }
+                            else if (_unmanagedFilter.Filter(declaredType))
+                            {
+                                sb.AppendLine(
+                                    $"                    writer.Write({val});");
+                            }
+                            else
+                            {
+                                sb.AppendLine(
+                                    $"                    Serialize({val}, ref writer);");
+                            }
                         }
                         else
                         {
+                            sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+                            foreach (var val in valNames)
+                            {
+                                sb.AppendLine($"                    writer.Write({val});");
+                            }
+                            
+                            sb.AppendLine("#else");
                             sb.AppendLine(
-                                $"                    Serialize({val}, ref writer);");
+                                $"                    writer.Write(({string.Join(", ", valNames)}));");
+                            sb.AppendLine("#endif");
                         }
                     }
                 }
@@ -143,7 +168,7 @@ public class SerializerGenerator : NinoCommonGenerator
 
                     visited.Add("null");
                 }
-                
+
                 if (NinoGraph.SubTypes.TryGetValue(ninoType, out var lst))
                 {
                     //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first

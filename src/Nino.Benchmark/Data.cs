@@ -7,20 +7,23 @@ using Nino.Core;
 
 namespace Nino.Benchmark;
 
+#nullable disable
+
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
 public partial class SimpleClass
 {
     [Key(0)] public int Id;
-
-    [Key(1)] [NinoUtf8] public string Name { get; set; }
-    [Key(2)] public int[] Numbers { get; set; }
-    [Key(3)] public List<DateTime> Dates { get; set; }
-
-    [Key(4)] public Dictionary<int, string> Map1;
-
-    [Key(5)] public Dictionary<int, int> Map2 { get; set; }
+    [Key(1)] public bool Tag;
+    [Key(2)] public Guid Guid;
+    [Key(3)] public DateTime CreateTime;
+    [Key(4)] [NinoUtf8] public string Name { get; set; }
+    [Key(5)] public string Desc;
+    [Key(6)] public int[] Numbers { get; set; }
+    [Key(7)] public List<DateTime> Dates { get; set; }
+    [Key(8)] public Dictionary<int, string> Map1;
+    [Key(9)] public Dictionary<int, int> Map2 { get; set; }
 
     public static SimpleClass Create()
     {
@@ -28,9 +31,13 @@ public partial class SimpleClass
         return new SimpleClass
         {
             Id = random.Next(),
+            Tag = random.Next() % 2 == 0,
+            Guid = Guid.NewGuid(),
+            CreateTime = DateTime.Now,
             Name = Guid.NewGuid().ToString(),
-            Numbers = Enumerable.Range(0, 100).Select(n => random.Next()).ToArray(),
-            Dates = Enumerable.Range(0, 10).Select(n => DateTime.Now.AddSeconds(random.Next())).ToList(),
+            Desc = Enumerable.Range(0, 30).Select(_ => Guid.NewGuid().ToString()).Aggregate((a, b) => a + b),
+            Numbers = Enumerable.Range(0, 100).Select(_ => random.Next()).ToArray(),
+            Dates = Enumerable.Range(0, 10).Select(_ => DateTime.Now.AddSeconds(random.Next())).ToList(),
             Map1 = Enumerable.Range(0, 10).ToDictionary(n => n, n => n.ToString()),
             Map2 = Enumerable.Range(0, 10).ToDictionary(n => n, n => n * 2)
         };
