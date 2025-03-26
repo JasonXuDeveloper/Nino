@@ -19,8 +19,9 @@ public class TypeConstGenerator : NinoCommonGenerator
         var compilation = Compilation;
 
         // get type full names from models (namespaces + type names)
-        var serializableTypes = NinoTypes.Select(type => type.TypeSymbol)
-            .Where(symbol => symbol.IsPolymorphicType())
+        var serializableTypes = NinoTypes
+            .Where(ninoType => ninoType.IsPolymorphic())
+            .Select(type => type.TypeSymbol)
             .Where(symbol => symbol.IsInstanceType()).ToList();
 
         var types = new StringBuilder();

@@ -421,24 +421,6 @@ public static class NinoTypeHelper
         return typeKind;
     }
 
-    public static bool IsPolymorphicType(this ITypeSymbol typeDecl)
-    {
-        var baseType = typeDecl.BaseType;
-        while (baseType != null)
-        {
-            if (baseType.IsNinoType())
-                return true;
-            baseType = baseType.BaseType;
-        }
-
-        var interfaces = typeDecl.Interfaces;
-        if (interfaces.Any(i => i.IsNinoType()))
-            return true;
-
-        return typeDecl.IsReferenceType || typeDecl is { IsRecord: true, IsValueType: false } ||
-               typeDecl.TypeKind == TypeKind.Interface;
-    }
-
     public static bool IsInstanceType(this ITypeSymbol typeSymbol)
     {
         //can't be interface or abstract class
@@ -513,31 +495,14 @@ public static class NinoTypeHelper
 
         return hash1 + hash2 * 1566083941;
     }
-    
+
     public static void GenerateClassSerializeMethods(this StringBuilder sb, string typeFullName, string typeParam = "",
         string genericConstraint = "")
     {
-        sb.AppendLine($$"""
-                        {{typeFullName.GeneratePublicSerializeMethodBody("        ", typeParam, genericConstraint)}}
-                        """);
-    }
-
-    public static void GenerateClassDeserializeMethods(this StringBuilder sb, string typeFullName,
-        string typeParam = "",
-        string genericConstraint = "")
-    {
-        sb.AppendLine($$"""
-                        {{typeFullName.GeneratePublicDeserializeMethodBody("        ", typeParam, genericConstraint)}}
-                        """);
-    }
-
-    public static string GeneratePublicSerializeMethodBody(this string typeName, string indent = "",
-        string typeParam = "",
-        string genericConstraint = "")
-    {
+        var indent = "        ";
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static byte[] Serialize{{typeParam}}(this {{typeName}} value) {{genericConstraint}}
+                    public static byte[] Serialize{{typeParam}}(this {{typeFullName}} value) {{genericConstraint}}
                     {
                         var bufferWriter = GetBufferWriter();
                         Serialize(value, bufferWriter);
@@ -547,7 +512,7 @@ public static class NinoTypeHelper
                     }
 
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Serialize{{typeParam}}(this {{typeName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
+                    public static void Serialize{{typeParam}}(this {{typeFullName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
                     {
                         Writer writer = new Writer(bufferWriter);
                         value.Serialize(ref writer);
@@ -556,16 +521,20 @@ public static class NinoTypeHelper
 
         // indent
         ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
+
+        sb.AppendLine();
+        sb.AppendLine($"{indent}{ret}");
+        sb.AppendLine();
     }
 
-    public static string GeneratePublicDeserializeMethodBody(this string typeName, string indent = "",
+    public static void GenerateClassDeserializeMethods(this StringBuilder sb, string typeFullName,
         string typeParam = "",
         string genericConstraint = "")
     {
+        var indent = "        ";
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize{{typeParam}}(ReadOnlySpan<byte> data, out {{typeName}} value) {{genericConstraint}}
+                    public static void Deserialize{{typeParam}}(ReadOnlySpan<byte> data, out {{typeFullName}} value) {{genericConstraint}}
                     {
                         var reader = new Reader(data);
                         Deserialize(out value, ref reader);
@@ -574,7 +543,10 @@ public static class NinoTypeHelper
 
         // indent
         ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
+
+        sb.AppendLine();
+        sb.AppendLine($"{indent}{ret}");
+        sb.AppendLine();
     }
 
     public static string GetTypeFullName(this ITypeSymbol typeSymbol)

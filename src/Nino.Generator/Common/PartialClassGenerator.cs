@@ -23,7 +23,7 @@ public class PartialClassGenerator : NinoCommonGenerator
 
         foreach (var ninoType in NinoTypes)
         {
-            bool isPolymorphicType = ninoType.TypeSymbol.IsPolymorphicType();
+            bool isPolymorphicType = ninoType.IsPolymorphic();
 
             // check if struct is unmanaged
             if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)

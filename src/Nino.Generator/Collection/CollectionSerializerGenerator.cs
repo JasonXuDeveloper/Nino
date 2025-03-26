@@ -14,10 +14,25 @@ namespace Nino.Generator.Collection;
 
 public class CollectionSerializerGenerator : NinoCollectionGenerator
 {
+    private readonly IFilter _unmanagedFilter;
+
     public CollectionSerializerGenerator(
         Compilation compilation,
         List<ITypeSymbol> potentialCollectionSymbols) : base(compilation, potentialCollectionSymbols)
     {
+        _unmanagedFilter = new Union().With
+        (
+            new Joint().With
+            (
+                new Not(new String()),
+                new Unmanaged()
+            ),
+            new Interface("IEnumerable<T>", interfaceSymbol =>
+            {
+                var elementType = interfaceSymbol.TypeArguments[0];
+                return elementType.IsUnmanagedType;
+            })
+        );
     }
 
     protected override IFilter Selector => new Joint().With
@@ -68,6 +83,13 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
         sb.GenerateClassSerializeMethods(typeFullName);
     };
 
+    private string GetSerializeString(ITypeSymbol type, string value)
+    {
+        return _unmanagedFilter.Filter(type) || type.SpecialType == SpecialType.System_String
+            ? $"writer.Write({value});"
+            : $"Serialize({value}, ref writer);";
+    }
+
     protected override List<Transformer> Transformers => new List<Transformer>
     {
         // Nullable Ninotypes
@@ -94,7 +116,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                              }
                              
                              writer.Write(true);
-                             Serialize(value.Value, ref writer);
+                             {{GetSerializeString(elementType, "value.Value")}}
                          }
                          """;
             }
@@ -109,7 +131,9 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
             ),
             symbol =>
-                GenericTupleLikeMethods(symbol, "Key", "Value")
+                GenericTupleLikeMethods(symbol,
+                    ((INamedTypeSymbol)symbol).TypeArguments.ToArray(),
+                    "Key", "Value")
         ),
         // Tuple Ninotypes
         new
@@ -120,6 +144,8 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
             symbol => symbol.IsUnmanagedType
                 ? ""
                 : GenericTupleLikeMethods(symbol, ((INamedTypeSymbol)symbol)
+                    .TypeArguments.ToArray(),
+                    ((INamedTypeSymbol)symbol)
                     .TypeArguments.Select((_, i) => $"Item{i + 1}").ToArray())
         ),
         // Array Ninotypes
@@ -149,7 +175,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                             for (int i = 0; i < cnt; i++)
                             {
                                 pos = writer.Advance(4);
-                                Serialize(span[i], ref writer);
+                                {{GetSerializeString(((IArrayTypeSymbol)symbol).ElementType, "span[i]")}}
                                 writer.PutLength(pos);
                             }
                         }
@@ -181,7 +207,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                             for (int i = 0; i < cnt; i++)
                             {
                                 pos = writer.Advance(4);
-                                Serialize(value[i], ref writer);
+                                {{GetSerializeString(((INamedTypeSymbol)symbol).TypeArguments[0], "value[i]")}}
                                 writer.PutLength(pos);
                             }
                         }
@@ -209,15 +235,15 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
 
                 string nonTrivialUnmanagedCase = """
-                                                     Serialize(item, ref writer);
+                                                     writer.Write(item);
                                                  """;
 
-                string fallbackCase = """
-                                          int pos = writer.Advance(4);
-                                          Serialize(item.Key, ref writer);
-                                          Serialize(item.Value, ref writer);
-                                          writer.PutLength(pos);
-                                      """;
+                string fallbackCase = $$"""
+                                            int pos = writer.Advance(4);
+                                            {{GetSerializeString(keyType, "item.Key")}}
+                                            {{GetSerializeString(valType, "item.Value")}}// {{valType.ToDisplayString()}}
+                                            writer.PutLength(pos);
+                                        """;
 
                 IFilter equalityMethod = new ValidMethod((_, method) =>
                     method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
@@ -280,8 +306,8 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                             foreach (var item in value)
                             {
                                 pos = writer.Advance(4);
-                                Serialize(item.Key, ref writer);
-                                Serialize(item.Value, ref writer);
+                                {{GetSerializeString(((INamedTypeSymbol)symbol).TypeArguments[0], "item.Key")}}
+                                {{GetSerializeString(((INamedTypeSymbol)symbol).TypeArguments[1], "item.Value")}}
                                 writer.PutLength(pos);
                             }
                         }
@@ -316,14 +342,14 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
                 string nonTrivialUnmanagedCase = """
-                                                     Serialize(item, ref writer);
+                                                     writer.Write(item);
                                                  """;
 
-                string fallbackCase = """
-                                            int pos = writer.Advance(4);
-                                            Serialize(item, ref writer);
-                                            writer.PutLength(pos);
-                                      """;
+                string fallbackCase = $$"""
+                                              int pos = writer.Advance(4);
+                                              {{GetSerializeString(elemType, "item")}}
+                                              writer.PutLength(pos);
+                                        """;
 
                 IFilter equalityMethod = new ValidMethod((_, method) =>
                     method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
@@ -389,16 +415,20 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                             foreach (var item in value)
                             {
                                 pos = writer.Advance(4);
-                                Serialize(item, ref writer);
+                                {{GetSerializeString(((INamedTypeSymbol)symbol).TypeArguments[0], "item")}}
                                 writer.PutLength(pos);
                             }
                         }
                         """),
     };
 
-    private string GenericTupleLikeMethods(ITypeSymbol type, params string[] fields)
+    private string GenericTupleLikeMethods(ITypeSymbol type, ITypeSymbol[] types, params string[] fields)
     {
-        string[] serializeValues = fields.Select(field => $"Serialize(value.{field}, ref writer);").ToArray();
+        string[] serializeValues = new string[fields.Length];
+        for (int i = 0; i < fields.Length; i++)
+        {
+            serializeValues[i] = GetSerializeString(types[i], $"value.{fields[i]}");
+        }
 
         return $$"""
                  [MethodImpl(MethodImplOptions.AggressiveInlining)]

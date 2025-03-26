@@ -28,6 +28,17 @@ public class NinoType
         }
     }
 
+    public bool IsPolymorphic()
+    {
+        if (Parents.IsEmpty)
+        {
+            return TypeSymbol.IsReferenceType || TypeSymbol is { IsRecord: true, IsValueType: false } ||
+                   TypeSymbol.TypeKind == TypeKind.Interface;
+        }
+
+        return true;
+    }
+
     public void AddParent(NinoType parent)
     {
         if (parent == this || TypeSymbol.TypeKind == TypeKind.Dynamic)

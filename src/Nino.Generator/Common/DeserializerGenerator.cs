@@ -109,7 +109,7 @@ public class DeserializerGenerator : NinoCommonGenerator
 
     private void GenerateDeserializeImplementation(NinoType ninoType, StringBuilder sb)
     {
-        bool isPolymorphicType = ninoType.TypeSymbol.IsPolymorphicType();
+        bool isPolymorphicType = ninoType.IsPolymorphic();
 
         // check if struct is unmanaged
         if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
@@ -133,7 +133,7 @@ public class DeserializerGenerator : NinoCommonGenerator
                                      
                         """);
 
-        if (ninoType.TypeSymbol.IsPolymorphicType())
+        if (ninoType.IsPolymorphic())
         {
             sb.AppendLine("            reader.Read(out int typeId);");
             sb.AppendLine();

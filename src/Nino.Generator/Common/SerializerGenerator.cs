@@ -2,16 +2,34 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Filter;
+using Nino.Generator.Filter.Operation;
 using Nino.Generator.Metadata;
 using Nino.Generator.Template;
+using String = Nino.Generator.Filter.String;
 
 namespace Nino.Generator.Common;
 
 public class SerializerGenerator : NinoCommonGenerator
 {
+    private readonly IFilter _unmanagedFilter;
+
     public SerializerGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
         : base(compilation, ninoGraph, ninoTypes)
     {
+        _unmanagedFilter = new Union().With
+        (
+            new Joint().With
+            (
+                new Not(new String()),
+                new Unmanaged()
+            ),
+            new Interface("IEnumerable<T>", interfaceSymbol =>
+            {
+                var elementType = interfaceSymbol.TypeArguments[0];
+                return elementType.IsUnmanagedType;
+            })
+        );
     }
 
     protected override void Generate(SourceProductionContext spc)
@@ -39,7 +57,7 @@ public class SerializerGenerator : NinoCommonGenerator
             try
             {
                 string typeFullName = ninoType.TypeSymbol.GetTypeFullName();
-                bool isPolymorphicType = ninoType.TypeSymbol.IsPolymorphicType();
+                bool isPolymorphicType = ninoType.IsPolymorphic();
 
                 // check if struct is unmanaged
                 if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
@@ -48,23 +66,14 @@ public class SerializerGenerator : NinoCommonGenerator
                 }
 
                 sb.GenerateClassSerializeMethods(typeFullName);
+                sb.AppendLine();
 
                 HashSet<string> visited = new HashSet<string>();
 
-                sb.AppendLine($"        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.AppendLine(
                     $"        public static void Serialize(this {typeFullName} value, ref Writer writer)");
                 sb.AppendLine("        {");
-                if (isPolymorphicType && ninoType.TypeSymbol.IsReferenceType)
-                {
-                    sb.AppendLine("            switch (value)");
-                    sb.AppendLine("            {");
-                    sb.AppendLine("                case null:");
-                    sb.AppendLine("                    writer.Write(TypeCollector.Null);");
-                    sb.AppendLine("                    return;");
-
-                    visited.Add("null");
-                }
 
                 void WriteMembers(NinoType type, string valName)
                 {
@@ -110,15 +119,31 @@ public class SerializerGenerator : NinoCommonGenerator
                                 isUtf8
                                     ? $"                    writer.WriteUtf8({val});"
                                     : $"                    writer.Write({val});");
-
-                            continue;
                         }
-
-                        sb.AppendLine(
-                            $"                    Serialize({val}, ref writer);");
+                        else if (_unmanagedFilter.Filter(declaredType))
+                        {
+                            sb.AppendLine(
+                                $"                    writer.Write({val});");
+                        }
+                        else
+                        {
+                            sb.AppendLine(
+                                $"                    Serialize({val}, ref writer);");
+                        }
                     }
                 }
 
+                if (isPolymorphicType && ninoType.TypeSymbol.IsReferenceType)
+                {
+                    sb.AppendLine("            switch (value)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine("                case null:");
+                    sb.AppendLine("                    writer.Write(TypeCollector.Null);");
+                    sb.AppendLine("                    return;");
+
+                    visited.Add("null");
+                }
+                
                 if (NinoGraph.SubTypes.TryGetValue(ninoType, out var lst))
                 {
                     //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
