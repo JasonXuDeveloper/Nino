@@ -13,7 +13,7 @@ namespace Nino.Benchmark;
 [PayloadColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 [ShortRunJob(RuntimeMoniker.Net90)]
-[GcServer]
+[GcServer(true)]
 [MarkdownExporter]
 public class SimpleTest
 {
