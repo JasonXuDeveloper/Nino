@@ -18,8 +18,8 @@ public partial class SimpleClass
     [Key(1)] public bool Tag;
     [Key(2)] public Guid Guid;
     [Key(3)] public DateTime CreateTime;
-    [Key(4)] [NinoUtf8] public string Name { get; set; }
-    [Key(5)] public string Desc;
+    [Key(4)] public string Name { get; set; }
+    [Key(5)] [NinoUtf8] public string Desc;
     [Key(6)] public int[] Numbers { get; set; }
     [Key(7)] public List<DateTime> Dates { get; set; }
     [Key(8)] public Dictionary<int, string> Map1;
@@ -35,7 +35,7 @@ public partial class SimpleClass
             Guid = Guid.NewGuid(),
             CreateTime = DateTime.Now,
             Name = Guid.NewGuid().ToString(),
-            Desc = Enumerable.Range(0, 30).Select(_ => Guid.NewGuid().ToString()).Aggregate((a, b) => a + b),
+            Desc = Enumerable.Range(0, 10).Select(_ => Guid.NewGuid().ToString()).Aggregate((a, b) => a + b),
             Numbers = Enumerable.Range(0, 100).Select(_ => random.Next()).ToArray(),
             Dates = Enumerable.Range(0, 10).Select(_ => DateTime.Now.AddSeconds(random.Next())).ToList(),
             Map1 = Enumerable.Range(0, 10).ToDictionary(n => n, n => n.ToString()),
