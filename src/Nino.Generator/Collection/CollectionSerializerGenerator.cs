@@ -169,14 +169,17 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                         
                             var span = value.AsSpan();
                             int cnt = span.Length;
-                            int pos;
                             writer.Write(TypeCollector.GetCollectionHeader(cnt));
                             
                             for (int i = 0; i < cnt; i++)
                             {
-                                pos = writer.Advance(4);
+                            #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                var pos = writer.Advance(4);
+                            #endif
                                 {{GetSerializeString(((IArrayTypeSymbol)symbol).ElementType, "span[i]")}}
+                            #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                 writer.PutLength(pos);
+                            #endif
                             }
                         }
                         """
@@ -201,14 +204,17 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                             }
                         
                             int cnt = value.Length;
-                            int pos;
                             writer.Write(TypeCollector.GetCollectionHeader(cnt));
                             
                             for (int i = 0; i < cnt; i++)
                             {
-                                pos = writer.Advance(4);
+                            #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                var pos = writer.Advance(4);
+                            #endif
                                 {{GetSerializeString(((INamedTypeSymbol)symbol).TypeArguments[0], "value[i]")}}
+                            #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                 writer.PutLength(pos);
+                            #endif
                             }
                         }
                         """
@@ -239,10 +245,14 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                                                  """;
 
                 string fallbackCase = $$"""
-                                            int pos = writer.Advance(4);
+                                        #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                            var pos = writer.Advance(4);
+                                        #endif
                                             {{GetSerializeString(keyType, "item.Key")}}
-                                            {{GetSerializeString(valType, "item.Value")}}// {{valType.ToDisplayString()}}
+                                            {{GetSerializeString(valType, "item.Value")}}
+                                        #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                             writer.PutLength(pos);
+                                        #endif
                                         """;
 
                 IFilter equalityMethod = new ValidMethod((_, method) =>
@@ -273,7 +283,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                          
                              foreach (var item in value)
                              {
-                                 {{(isUnmanaged ? nonTrivialUnmanagedCase : fallbackCase)}}
+                             {{(isUnmanaged ? nonTrivialUnmanagedCase : fallbackCase)}}
                              }
                          }
                          """;
@@ -300,15 +310,18 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                             }
                         
                             int cnt = value.Count;
-                            int pos;
                             writer.Write(TypeCollector.GetCollectionHeader(cnt));
                         
                             foreach (var item in value)
                             {
-                                pos = writer.Advance(4);
+                            #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                var pos = writer.Advance(4);
+                            #endif
                                 {{GetSerializeString(((INamedTypeSymbol)symbol).TypeArguments[0], "item.Key")}}
                                 {{GetSerializeString(((INamedTypeSymbol)symbol).TypeArguments[1], "item.Value")}}
+                            #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                 writer.PutLength(pos);
+                            #endif
                             }
                         }
                         """),
@@ -346,9 +359,13 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                                                  """;
 
                 string fallbackCase = $$"""
-                                              int pos = writer.Advance(4);
+                                        #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                              var pos = writer.Advance(4);
+                                        #endif
                                               {{GetSerializeString(elemType, "item")}}
+                                        #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                               writer.PutLength(pos);
+                                        #endif
                                         """;
 
                 IFilter equalityMethod = new ValidMethod((_, method) =>
@@ -380,7 +397,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                          
                              foreach (var item in value)
                              {
-                                 {{(isUnmanaged ? nonTrivialUnmanagedCase : fallbackCase)}}
+                             {{(isUnmanaged ? nonTrivialUnmanagedCase : fallbackCase)}}
                              }
                          }
                          """;
@@ -409,14 +426,17 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                             }
                         
                             int cnt = value.Count;
-                            int pos;
                             writer.Write(TypeCollector.GetCollectionHeader(cnt));
                         
                             foreach (var item in value)
                             {
-                                pos = writer.Advance(4);
+                            #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                var pos = writer.Advance(4);
+                            #endif
                                 {{GetSerializeString(((INamedTypeSymbol)symbol).TypeArguments[0], "item")}}
+                            #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                 writer.PutLength(pos);
+                            #endif
                             }
                         }
                         """),

@@ -223,14 +223,20 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                  return;
                              }
                              
+                             #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                              Reader eleReader;
+                             #endif
                              
                              value = new {{creationDecl}};
                              var span = value.AsSpan();
                              for (int i = 0; i < length; i++)
                              {
+                             #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                  eleReader = reader.Slice();
                                  Deserialize(out span[i], ref eleReader);
+                             #else
+                                 Deserialize(out span[i], ref reader);
+                             #endif
                              }
                          }
                          """;
@@ -260,17 +266,22 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 var dictType = symbol.ToDisplayString();
                 bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
 
-                var reader = isUnmanaged ? "reader" : "eleReader";
                 var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
                 var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
                 var deserializeStr = isUnmanaged
                     ? $"""
-                               Deserialize(out KeyValuePair<{keyType.ToDisplayString()}, {valType.ToDisplayString()}> kvp, ref {reader});
+                               Deserialize(out KeyValuePair<{keyType.ToDisplayString()}, {valType.ToDisplayString()}> kvp, ref reader);
                                value[kvp.Key] = kvp.Value;
                        """
                     : $"""
-                               Deserialize(out {keyType.ToDisplayString()} key, ref {reader});
-                               Deserialize(out {valType.ToDisplayString()} val, ref {reader});
+                       #if {NinoTypeHelper.WeakVersionToleranceSymbol}
+                               {slice}
+                               Deserialize(out {keyType.ToDisplayString()} key, ref eleReader);
+                               Deserialize(out {valType.ToDisplayString()} val, ref eleReader);
+                       #else
+                               Deserialize(out {keyType.ToDisplayString()} key, ref reader);
+                               Deserialize(out {valType.ToDisplayString()} val, ref reader);
+                       #endif
                                value[key] = val;
                        """;
 
@@ -291,13 +302,14 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                  value = default;
                                  return;
                              }
-                         
+
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                              {{eleReaderDecl}}
+                         #endif
                              
                              value = new {{dictType}}({{(dictType.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
                              for (int i = 0; i < length; i++)
                              {
-                                 {{slice}}
                          {{deserializeStr}}
                              }
                          }
@@ -339,16 +351,23 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                  value = default;
                                  return;
                              }
-                         
+
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                              Reader eleReader;
+                         #endif
                              
                              value = new {{dictType}}({{(dictType.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
                              for (int i = 0; i < length; i++)
                              {
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                  eleReader = reader.Slice();
                                  Deserialize(out {{keyType.ToDisplayString()}} key, ref eleReader);
                                  Deserialize(out {{valType.ToDisplayString()}} val, ref eleReader);
-                                 value[key] = val;
+                         #else
+                                Deserialize(out {{keyType.ToDisplayString()}} key, ref reader);
+                                Deserialize(out {{valType.ToDisplayString()}} val, ref reader);
+                         #endif
+                                value[key] = val;
                              }
                          }
                          """;
@@ -398,12 +417,26 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 bool constructorWithNumArg = ienumSymbol.Constructors.Any(c =>
                     c.Parameters.Length == 1 && c.Parameters[0].Type.ToDisplayString() == "System.Int32");
 
-                var reader = isUnmanaged ? "reader" : "eleReader";
                 var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
                 var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
                 var creationDecl = constructorWithNumArg
                     ? $"new {collType}(length)"
                     : $"new {collType}()";
+                
+                var deserializeStr = isUnmanaged
+                    ? $"""
+                               Deserialize(out {elemType.ToDisplayString()} item, ref reader);
+                               value.Add(item);
+                       """
+                    : $"""
+                       #if {NinoTypeHelper.WeakVersionToleranceSymbol}
+                               {slice}
+                               Deserialize(out {elemType.ToDisplayString()} item, ref eleReader);
+                       #else
+                               Deserialize(out {elemType.ToDisplayString()} item, ref reader);
+                       #endif
+                               value.Add(item);
+                       """;
 
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -422,15 +455,15 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                  value = default;
                                  return;
                              }
-                         
+
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                              {{eleReaderDecl}}
+                         #endif
                              
                              value = {{creationDecl}};
                              for (int i = 0; i < length; i++)
                              {
-                                 {{slice}}
-                                 Deserialize(out {{elemType.ToDisplayString()}} item, ref {{reader}});
-                                 value.Add(item);
+                         {{deserializeStr}}
                              }
                          }
                          """;
@@ -452,11 +485,24 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 var typeDecl = symbol.ToDisplayString();
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
-                var reader = isUnmanaged ? "reader" : "eleReader";
                 var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
                 var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
                 var creationDecl = $"new {typeDecl}(arr)";
                 var arrCreationDecl = $"new {elemType.ToDisplayString()}[length]";
+                
+                var deserializeStr = isUnmanaged
+                    ? $"""
+                               Deserialize(out span[i], ref reader);
+                       """
+                    : $"""
+                       #if {NinoTypeHelper.WeakVersionToleranceSymbol}
+                               {slice}
+                               Deserialize(out span[i], ref eleReader);
+                       #else
+                               Deserialize(out span[i], ref reader);
+                       #endif
+                       """;
+                
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
                          public static void Deserialize(out {{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
@@ -474,14 +520,15 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                  value = default;
                                  return;
                              }
-                         
+
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                              {{eleReaderDecl}}
+                         #endif
                              var arr = {{arrCreationDecl}};
                              var span = arr.AsSpan();
                              for (int i = length - 1; i >= 0; i--)
                              {
-                                 {{slice}}
-                                 Deserialize(out span[i], ref {{reader}});
+                         {{deserializeStr}}
                              }
                          
                              value = {{creationDecl}};
@@ -530,13 +577,24 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 var typeDecl = symbol.ToDisplayString();
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
-                var reader = isUnmanaged ? "reader" : "eleReader";
                 var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
                 var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
                 var creationDecl = $"new {typeDecl}(arr)";
                 var arrCreationDecl = $"new {elemType.ToDisplayString()}[]";
                 //replace first `[` to `[length`
                 arrCreationDecl = arrCreationDecl.Insert(arrCreationDecl.IndexOf('[') + 1, "length");
+                var deserializeStr = isUnmanaged
+                    ? $"""
+                               Deserialize(out span[i], ref reader);
+                       """
+                    : $"""
+                       #if {NinoTypeHelper.WeakVersionToleranceSymbol}
+                               {slice}
+                               Deserialize(out span[i], ref eleReader);
+                       #else
+                               Deserialize(out span[i], ref reader);
+                       #endif
+                       """;
 
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -555,14 +613,16 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                  value = default;
                                  return;
                              }
-                         
+
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                              {{eleReaderDecl}}
+                         #endif
+                         
                              var arr = {{arrCreationDecl}};
                              var span = arr.AsSpan();
                              for (int i = 0; i < length; i++)
                              {
-                                 {{slice}}
-                                 Deserialize(out span[i], ref {{reader}});
+                         {{deserializeStr}}
                              }
                          
                              value = {{creationDecl}};
@@ -613,14 +673,20 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                  value = default;
                                  return;
                              }
-                         
+
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                              Reader eleReader;
+                         #endif
                              
                              value = {{creationDecl}};
                              for (int i = 0; i < length; i++)
                              {
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                  eleReader = reader.Slice();
                                  Deserialize(out {{elemType.ToDisplayString()}} item, ref eleReader);
+                         #else
+                                 Deserialize(out {{elemType.ToDisplayString()}} item, ref reader);
+                         #endif
                                  value.Add(item);
                              }
                          }
