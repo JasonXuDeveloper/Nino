@@ -8,6 +8,8 @@ namespace Nino.Core
     public static class TypeCollector
     {
         public const int Null = 0;
+        public const int Ref = ~0;
+        public const uint HasCircularMeta = 0xABCDDBCA;
         public const byte NullCollection = 0;
         public const uint EmptyCollectionHeader = 128;
 

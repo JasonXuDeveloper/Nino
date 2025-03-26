@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Metadata;
 
@@ -9,8 +10,9 @@ public class NinoGraph
     public Dictionary<NinoType, List<NinoType>> BaseTypes { get; set; } = new();
     public Dictionary<NinoType, List<NinoType>> SubTypes { get; set; } = new();
     public List<NinoType> TopTypes { get; set; } = new();
+    public HashSet<NinoType> CircularTypes { get; set; } = new();
 
-    public NinoGraph(List<NinoType> ninoTypes)
+    public NinoGraph(Compilation compilation, List<NinoType> ninoTypes)
     {
         foreach (var ninoType in ninoTypes)
         {
@@ -66,6 +68,65 @@ public class NinoGraph
                 SubTypes[baseType].Add(key);
             }
         }
+
+        // find circular types, i.e. a member (or member's member) is of the same type, or base type
+        void TraverseCircularTypes(NinoType type, NinoType desiredType)
+        {
+            bool Related(ITypeSymbol typeSymbol)
+            {
+                switch (typeSymbol)
+                {
+                    case INamedTypeSymbol namedTypeSymbol:
+                        if (namedTypeSymbol.IsGenericType)
+                        {
+                            return namedTypeSymbol.TypeArguments.Any(Related);
+                        }
+
+                        return compilation.HasImplicitConversion(desiredType.TypeSymbol, namedTypeSymbol) ||
+                               compilation.HasImplicitConversion(namedTypeSymbol, desiredType.TypeSymbol);
+
+                    case IArrayTypeSymbol arrayTypeSymbol:
+                        return Related(arrayTypeSymbol.ElementType);
+
+                    default:
+                        return compilation.HasImplicitConversion(desiredType.TypeSymbol, typeSymbol) ||
+                               compilation.HasImplicitConversion(typeSymbol, desiredType.TypeSymbol);
+                }
+            }
+
+            foreach (var member in type.Members)
+            {
+                if (member.Type.IsUnmanagedType)
+                {
+                    continue;
+                }
+
+                if (Related(member.Type))
+                {
+                    CircularTypes.Add(desiredType);
+                    return;
+                }
+
+                //if member.type is a nino type, check if it's a circular type
+                foreach (var ninoType in ninoTypes)
+                {
+                    if (SymbolEqualityComparer.Default.Equals(ninoType.TypeSymbol, member.Type))
+                    {
+                        TraverseCircularTypes(ninoType, desiredType);
+                    }
+                }
+            }
+        }
+
+        foreach (var ninoType in ninoTypes)
+        {
+            if (ninoType.TypeSymbol.IsValueType)
+            {
+                continue;
+            }
+
+            TraverseCircularTypes(ninoType, ninoType);
+        }
     }
 
     public override string ToString()
@@ -94,6 +155,11 @@ public class NinoGraph
         sb.AppendLine("Top Types:");
         sb.AppendLine(string.Join("\n",
             TopTypes.Where(t => t.Members.Count > 0).Select(x => x.TypeSymbol.ToDisplayString())));
+
+        sb.AppendLine();
+        sb.AppendLine("Circular Types:");
+        sb.AppendLine(string.Join("\n",
+            CircularTypes.Where(t => t.Members.Count > 0).Select(x => x.TypeSymbol.ToDisplayString())));
 
         return sb.ToString();
     }
