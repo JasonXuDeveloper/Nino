@@ -123,6 +123,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out List<T> ret) where T : unmanaged
         {
+#if NET8_0_OR_GREATER
+            if (!ReadCollectionHeader(out var length))
+            {
+                ret = null;
+                return;
+            }
+
+            ret = new List<T>(length);
+            CollectionsMarshal.SetCount(ret, length);
+            var span = CollectionsMarshal.AsSpan(ret);
+            GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+            ref byte first = ref Unsafe.As<T, byte>(ref span.GetPinnableReference());
+            Unsafe.CopyBlockUnaligned(ref first, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+#else
             Read(out T[] arr);
             if (arr == null)
             {
@@ -134,6 +148,7 @@ namespace Nino.Core
             ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref ret);
             lst._size = arr.Length;
             lst._items = arr;
+#endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

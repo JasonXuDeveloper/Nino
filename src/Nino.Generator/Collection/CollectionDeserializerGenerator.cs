@@ -383,6 +383,8 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 // Note that array is an IEnumerable, but we don't want to generate code for it
                 new Interface("IEnumerable<T>"),
                 new Not(new Array()),
+                // We don't want a dictionary fallback to this case
+                new Not(new Interface("IDictionary<TKey, TValue>")),
                 // We want to exclude the ones that already have a serializer
                 new Not(new NinoTyped()),
                 new Not(new String()),
@@ -422,7 +424,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 var creationDecl = constructorWithNumArg
                     ? $"new {collType}(length)"
                     : $"new {collType}()";
-                
+
                 var deserializeStr = isUnmanaged
                     ? $"""
                                Deserialize(out {elemType.ToDisplayString()} item, ref reader);
@@ -489,7 +491,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
                 var creationDecl = $"new {typeDecl}(arr)";
                 var arrCreationDecl = $"new {elemType.ToDisplayString()}[length]";
-                
+
                 var deserializeStr = isUnmanaged
                     ? $"""
                                Deserialize(out span[i], ref reader);
@@ -502,7 +504,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                Deserialize(out span[i], ref reader);
                        #endif
                        """;
-                
+
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
                          public static void Deserialize(out {{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
@@ -546,6 +548,8 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 // Note that array is an IEnumerable, but we don't want to generate code for it
                 new Interface("IEnumerable<T>"),
                 new Not(new Array()),
+                // We don't want a dictionary fallback to this case
+                new Not(new Interface("IDictionary<TKey, TValue>")),
                 // We want to exclude the ones that already have a serializer
                 new Not(new NinoTyped()),
                 new Not(new String()),

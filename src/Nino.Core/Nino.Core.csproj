@@ -21,7 +21,7 @@
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <BranchName>refs/heads/main</BranchName>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <TargetFrameworks>netstandard2.1;net6.0</TargetFrameworks>
+        <TargetFrameworks>net6.0;netstandard2.1;net8.0</TargetFrameworks>
         <!-- Enable embedding repository URL in the PDB -->
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <!-- Embed source files for files not tracked in source control -->
