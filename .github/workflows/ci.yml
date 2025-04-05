@@ -144,6 +144,7 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: |
+            8.0.x
             6.0.x
             2.1.x
 
@@ -194,6 +195,7 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: |
+            8.0.x
             6.0.x
             2.1.x
       
