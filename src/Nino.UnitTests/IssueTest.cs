@@ -2,6 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Runtime.CompilerServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.UnitTests.NinoGen;
 using Nino.Core;
@@ -40,6 +42,25 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
+        public class IssueValueTupleLayout : IssueTestTemplate
+        {
+            [TestMethod]
+            public override void RunTest()
+            {
+                var data = new NinoTuple<byte, int>(4, 1920);
+                var bytes = data.Serialize();
+
+                var data2 = new NinoTuple<int, byte>(1920, 4);
+                var bytes2 = data2.Serialize();
+
+                Console.WriteLine(string.Join(",", bytes));
+                Console.WriteLine(string.Join(",", bytes2));
+
+                Assert.AreNotEqual(string.Join(",", bytes), string.Join(",", bytes2));
+            }
+        }
+
+        [TestClass]
         public class Issue144 : IssueTestTemplate
         {
             /// <summary>
@@ -58,14 +79,14 @@ namespace Nino.UnitTests
                     m_StartIndex = 0;
                     m_Length = array?.Length ?? 0;
                 }
-                
+
                 public ReadOnlyArray(TValue[] array, int index, int length)
                 {
                     m_Array = array;
                     m_StartIndex = index;
                     m_Length = length;
                 }
-                
+
                 public TValue[] ToArray()
                 {
                     var result = new TValue[m_Length];
@@ -73,7 +94,7 @@ namespace Nino.UnitTests
                         Array.Copy(m_Array, m_StartIndex, result, 0, m_Length);
                     return result;
                 }
-                
+
                 public int IndexOf(Predicate<TValue> predicate)
                 {
                     if (predicate == null)
@@ -85,7 +106,7 @@ namespace Nino.UnitTests
 
                     return -1;
                 }
-                
+
                 public Enumerator GetEnumerator()
                 {
                     return new Enumerator(m_Array, m_StartIndex, m_Length);
@@ -100,7 +121,7 @@ namespace Nino.UnitTests
                 {
                     return GetEnumerator();
                 }
-                
+
                 [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage",
                     "CA2225:OperatorOverloadsHaveNamedAlternates",
                     Justification =
@@ -111,7 +132,7 @@ namespace Nino.UnitTests
                 }
 
                 public int Count => m_Length;
-                
+
                 public TValue this[int index]
                 {
                     get
@@ -123,7 +144,7 @@ namespace Nino.UnitTests
                         return m_Array[m_StartIndex + index];
                     }
                 }
-                
+
                 public struct Enumerator : IEnumerator<TValue>
                 {
                     private readonly TValue[] m_Array;
@@ -171,10 +192,10 @@ namespace Nino.UnitTests
 
             public override void RunTest()
             {
-                var array = new int[] {1, 2, 3, 4, 5};
+                var array = new int[] { 1, 2, 3, 4, 5 };
                 var readOnlyArray = new ReadOnlyArray<int>(array);
                 var bytes = readOnlyArray.Serialize();
-                
+
                 Assert.IsTrue(bytes.Length > 0);
                 Deserializer.Deserialize(bytes, out ReadOnlyArray<int> readOnlyArray2);
                 for (var i = 0; i < readOnlyArray.Count; i++)

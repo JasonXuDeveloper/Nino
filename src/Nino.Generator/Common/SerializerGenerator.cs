@@ -152,7 +152,7 @@ public class SerializerGenerator : NinoCommonGenerator
                             
                             sb.AppendLine("#else");
                             sb.AppendLine(
-                                $"                    writer.Write(({string.Join(", ", valNames)}));");
+                                $"                    writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
                             sb.AppendLine("#endif");
                         }
                     }

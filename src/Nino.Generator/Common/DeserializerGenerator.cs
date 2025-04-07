@@ -144,6 +144,7 @@ public class DeserializerGenerator : NinoCommonGenerator
             List<(string, string)> vars = new List<(string, string)>();
             List<(string, string, bool)> privateVars = new List<(string, string, bool)>();
             Dictionary<string, string> args = new Dictionary<string, string>();
+            Dictionary<string, string> tupleMap = new Dictionary<string, string>();
 
             List<string> valNames = new();
             List<List<NinoMember>> groups = nt.GroupByPrimitivity().ToList();
@@ -190,7 +191,6 @@ public class DeserializerGenerator : NinoCommonGenerator
                 if (members.Count == 1)
                 {
                     var member = members[0];
-                    var name = member.Name;
                     var declaredType = member.Type;
 
                     var tempName = valNames[0];
@@ -241,30 +241,83 @@ public class DeserializerGenerator : NinoCommonGenerator
 
                     sb.AppendLine("#else");
                     sb.AppendLine(
-                        $"                    Deserialize(out ({string.Join(", ",
+                        $"                    Deserialize(out NinoTuple<{string.Join(", ",
                             Enumerable.Range(0, valNames.Count)
-                                .Select(i => $"{members[i].Type.ToDisplayString()}"))}) t{index1}, ref reader);");
-                    sb.AppendLine(
-                        $"                    var ({string.Join(", ", valNames)}) = t{index1};");
+                                .Select(i => $"{members[i].Type.ToDisplayString()}"))}> t{index1}, ref reader);");
+                    for (int i = 0; i < members.Count; i++)
+                    {
+                        var name = members[i].Name;
+                        tupleMap[name] = $"t{index1}.Item{i + 1}";
+                    }
+
                     sb.AppendLine("#endif");
                 }
             }
 
-            sb.AppendLine(
-                $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
-                    constructorMember.Select(m =>
-                        args[args.Keys
-                            .FirstOrDefault(k =>
-                                k.ToLower()
-                                    .Equals(m.ToLower()))]
-                    ))}){(vars.Count > 0 ? "" : ";")}");
+            if (args.Keys.Any(tupleMap.ContainsKey))
+            {
+                sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+                sb.AppendLine(
+                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
+                        constructorMember.Select(m =>
+                            args[args.Keys
+                                .FirstOrDefault(k =>
+                                    k.ToLower()
+                                        .Equals(m.ToLower()))]
+                        ))}){(vars.Count > 0 ? "" : ";")}");
+                sb.AppendLine("#else");
+                sb.AppendLine(
+                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
+                        constructorMember.Select(m =>
+                            {
+                                var argKey = args.Keys
+                                    .FirstOrDefault(k =>
+                                        k.ToLower()
+                                            .Equals(m.ToLower()));
+                                var tupleKey = tupleMap.Keys
+                                    .FirstOrDefault(k =>
+                                        k.ToLower()
+                                            .Equals(m.ToLower()));
+                                if (tupleKey != null)
+                                    return tupleMap[tupleKey];
+
+                                return args[argKey];
+                            }
+                        ))}){(vars.Count > 0 ? "" : ";")}");
+                sb.AppendLine("#endif");
+            }
+            else
+            {
+                sb.AppendLine(
+                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
+                        constructorMember.Select(m =>
+                            args[args.Keys
+                                .FirstOrDefault(k =>
+                                    k.ToLower()
+                                        .Equals(m.ToLower()))]
+                        ))}){(vars.Count > 0 ? "" : ";")}");
+            }
+
             if (vars.Count > 0)
             {
                 sb.AppendLine($"                    {new string(' ', valName.Length)}   {{");
                 foreach (var (memberName, varName) in vars)
                 {
-                    sb.AppendLine(
-                        $"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
+                    if (tupleMap.TryGetValue(memberName, out var value))
+                    {
+                        sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+                        sb.AppendLine(
+                            $"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
+                        sb.AppendLine("#else");
+                        sb.AppendLine(
+                            $"                 {new string(' ', valName.Length)}      \t{memberName} = {value},");
+                        sb.AppendLine("#endif");
+                    }
+                    else
+                    {
+                        sb.AppendLine(
+                            $"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
+                    }
                 }
 
                 sb.AppendLine($"                    {new string(' ', valName.Length)}   }};");
@@ -282,16 +335,49 @@ public class DeserializerGenerator : NinoCommonGenerator
                 sb.AppendLine("#if NET8_0_OR_GREATER");
                 foreach (var (memberName, varName, isProperty) in privateVars)
                 {
-                    if (isProperty)
+                    if (tupleMap.TryGetValue(memberName, out var value))
                     {
-                        sb.AppendLine(
-                            $"                    PrivateAccessor.__set__{memberName}__({valName}, {varName});");
+                        sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+                        if (isProperty)
+                        {
+                            sb.AppendLine(
+                                $"                    PrivateAccessor.__set__{memberName}__({valName}, {varName});");
+                        }
+                        else
+                        {
+                            sb.AppendLine(
+                                $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
+                            sb.AppendLine($"                    __{varName} = {varName};");
+                        }
+
+                        sb.AppendLine("#else");
+                        if (isProperty)
+                        {
+                            sb.AppendLine(
+                                $"                    PrivateAccessor.__set__{memberName}__({valName}, {value});");
+                        }
+                        else
+                        {
+                            sb.AppendLine(
+                                $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
+                            sb.AppendLine($"                    __{varName} = {value};");
+                        }
+
+                        sb.AppendLine("#endif");
                     }
                     else
                     {
-                        sb.AppendLine(
-                            $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
-                        sb.AppendLine($"                    __{varName} = {varName};");
+                        if (isProperty)
+                        {
+                            sb.AppendLine(
+                                $"                    PrivateAccessor.__set__{memberName}__({valName}, {varName});");
+                        }
+                        else
+                        {
+                            sb.AppendLine(
+                                $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
+                            sb.AppendLine($"                    __{varName} = {varName};");
+                        }
                     }
                 }
 
@@ -299,7 +385,18 @@ public class DeserializerGenerator : NinoCommonGenerator
                 foreach (var (memberName, varName, _) in privateVars)
                 {
                     var legacyVal = $"{originalValName}.__nino__generated__{memberName}";
-                    sb.AppendLine($"                    {legacyVal} = {varName};");
+                    if (tupleMap.TryGetValue(memberName, out var value))
+                    {
+                        sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+                        sb.AppendLine($"                    {legacyVal} = {varName};");
+                        sb.AppendLine("#else");
+                        sb.AppendLine($"                    {legacyVal} = {value};");
+                        sb.AppendLine("#endif");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"                    {legacyVal} = {varName};");
+                    }
                 }
 
                 sb.AppendLine("#endif");
