@@ -412,7 +412,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 // Note that array is an IEnumerable, but we don't want to generate code for it
                 new Interface("IEnumerable<T>"),
                 new Not(new Array()),
-                new Not(new NonTrivial("IEnumerable", "ICollection", "IList", "List")),
+                new Not(new NonTrivial("IEnumerable", "IEnumerable", "ICollection", "IList", "List")),
                 new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
             ),
             symbol => $$"""
@@ -425,11 +425,12 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                                 return;
                             }
                         
-                            int cnt = value.Count;
-                            writer.Write(TypeCollector.GetCollectionHeader(cnt));
+                            int cnt = 0;
+                            int oldPos = writer.Advance(4);
                         
                             foreach (var item in value)
                             {
+                                cnt++;
                             #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                 var pos = writer.Advance(4);
                             #endif
@@ -438,6 +439,8 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                                 writer.PutLength(pos);
                             #endif
                             }
+                            
+                            writer.PutBack(TypeCollector.GetCollectionHeader(cnt), oldPos);
                         }
                         """),
     };

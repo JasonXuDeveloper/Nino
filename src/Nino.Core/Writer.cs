@@ -43,6 +43,15 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void PutBack<T>(T value, int oldPos)
+            where T : unmanaged
+        {
+            var diff = WrittenCount - oldPos;
+            ref byte oldPosByte = ref Unsafe.Subtract(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan()), diff);
+            Unsafe.WriteUnaligned(ref oldPosByte, value);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(T value) where T : unmanaged
         {
             int size = Unsafe.SizeOf<T>();
@@ -176,7 +185,7 @@ namespace Nino.Core
             ref byte header = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size));
             Unsafe.WriteUnaligned(ref header, TypeCollector.GetCollectionHeader(value.Count));
             int offset = 4;
-            
+
             foreach (var item in value)
             {
                 Unsafe.WriteUnaligned(ref Unsafe.Add(ref header, offset), item);

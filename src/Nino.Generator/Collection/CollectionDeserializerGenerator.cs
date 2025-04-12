@@ -647,7 +647,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 // We want to exclude the ones that already have a serializer
                 new Not(new NinoTyped()),
                 new Not(new String()),
-                new Not(new NonTrivial("IEnumerable", "ICollection", "IList", "List")),
+                new Not(new NonTrivial("IEnumerable", "IEnumerable", "ICollection", "IList", "List")),
                 new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
             ),
             symbol =>
@@ -682,7 +682,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                              Reader eleReader;
                          #endif
                              
-                             value = {{creationDecl}};
+                             var lst = {{creationDecl}};
                              for (int i = 0; i < length; i++)
                              {
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
@@ -691,8 +691,10 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                          #else
                                  Deserialize(out {{elemType.ToDisplayString()}} item, ref reader);
                          #endif
-                                 value.Add(item);
+                                 lst.Add(item);
                              }
+                             
+                             value = lst;
                          }
                          """;
             }

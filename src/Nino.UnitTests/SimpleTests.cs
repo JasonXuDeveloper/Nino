@@ -344,6 +344,32 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestCollections()
         {
+            IEnumerable<SimpleClass> collection = new List<SimpleClass>
+            {
+                new SimpleClass
+                {
+                    Id = 1,
+                    Name = "Test",
+                    CreateTime = DateTime.Today
+                },
+                new SimpleClass
+                {
+                    Id = 2,
+                    Name = "Test2",
+                    CreateTime = DateTime.Today
+                }
+            };
+            byte[] bytes = collection.Serialize();
+            Assert.IsNotNull(bytes);
+            Deserializer.Deserialize(bytes, out IEnumerable<SimpleClass> ienumerable);
+            Assert.AreEqual(collection.Count(), ienumerable.Count());
+            for (int i = 0; i < collection.Count(); i++)
+            {
+                Assert.AreEqual(collection.ElementAt(i).Id, ienumerable.ElementAt(i).Id);
+                Assert.AreEqual(collection.ElementAt(i).Name, ienumerable.ElementAt(i).Name);
+                Assert.AreEqual(collection.ElementAt(i).CreateTime, ienumerable.ElementAt(i).CreateTime);
+            }
+
             ConcurrentDictionary<int, int>[] dict = new ConcurrentDictionary<int, int>[10];
             for (int i = 0; i < dict.Length; i++)
             {
@@ -351,7 +377,7 @@ namespace Nino.UnitTests
                 dict[i].TryAdd(i, i);
             }
 
-            var bytes = dict.Serialize();
+            bytes = dict.Serialize();
             Assert.IsNotNull(bytes);
 
             Deserializer.Deserialize(bytes, out ConcurrentDictionary<int, int>[] result);
