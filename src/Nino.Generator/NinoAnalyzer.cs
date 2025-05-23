@@ -50,6 +50,15 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                         a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
                     bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
                     bool containNonPublic = attr != null && (bool)(attr.ConstructorArguments[1].Value ?? false);
+                    
+                    // check if the type is nested
+                    if (typeDeclarationSyntax.Parent is TypeDeclarationSyntax && containNonPublic)
+                    {
+                        syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                            SupportedDiagnostics[7],
+                            typeDeclarationSyntax.Identifier.GetLocation(),
+                            typeDeclarationSyntax.Identifier.Text));
+                    }
 
                     foreach (var member in typeSymbol.GetMembers())
                     {
@@ -174,6 +183,11 @@ public class NinoAnalyzer : DiagnosticAnalyzer
             new DiagnosticDescriptor("NINO007",
                 "Suspicious member",
                 "Member '{0}' of NinoType '{1}' is private but this type is not marked as containing non-public members",
+                "Nino",
+                DiagnosticSeverity.Error, true),
+            new DiagnosticDescriptor("NINO008",
+                "Nested type that may contain non-public members",
+                "NinoType '{0}' is allowed to contain non-public members so it cannot be nested",
                 "Nino",
                 DiagnosticSeverity.Error, true)
         );

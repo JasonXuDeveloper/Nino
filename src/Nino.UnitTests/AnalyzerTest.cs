@@ -316,4 +316,26 @@ public class TestClass2
             .WithSpan(8, 17, 8, 18)
             .WithArguments("A", "TestClass")).RunAsync();
     }
+
+    [TestMethod]
+    public async Task TestNino008()
+    {
+        var code = @"
+using Nino.Core;
+
+public class TestNested
+{
+    [NinoType(false, true)]
+    public class TestClass
+    {
+        [NinoMember(1)]
+        private int A;
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO008")
+                .WithSpan(7, 18, 7, 27)
+                .WithArguments("TestClass")).RunAsync();
+    }
 }

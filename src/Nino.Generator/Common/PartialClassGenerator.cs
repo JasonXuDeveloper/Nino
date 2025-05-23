@@ -41,13 +41,44 @@ public class PartialClassGenerator : NinoCommonGenerator
 
                 var sb = new StringBuilder();
                 bool hasPrivateMembers = false;
+                var ts = type.TypeSymbol;
+                Dictionary<string, ITypeSymbol> memberToDeclaringType = new();
+                if (ts is INamedTypeSymbol nts)
+                {
+                    ts = nts.ConstructedFrom;
+                    var members = new List<ISymbol>();
+                    var curType = ts;
+                    while (curType != null && curType.IsNinoType())
+                    {
+                        members.AddRange(curType.GetMembers());
+                        curType = curType.BaseType;
+                    }
+
+                    foreach (var member in type.Members)
+                    {
+                        var m = members.FirstOrDefault(m => m.Name == member.Name);
+                        if (m != null)
+                        {
+                            memberToDeclaringType[member.Name] = m switch
+                            {
+                                IFieldSymbol fieldSymbol => fieldSymbol.Type,
+                                IPropertySymbol propertySymbol => propertySymbol.Type,
+                                _ => member.Type
+                            };
+                        }
+                        else
+                        {
+                            memberToDeclaringType[member.Name] = member.Type;
+                        }
+                    }
+                }
 
                 try
                 {
                     foreach (var typeMember in type.Members)
                     {
                         var name = typeMember.Name;
-                        var declaredType = typeMember.Type;
+                        var declaredType = memberToDeclaringType[name];
                         var isPrivate = typeMember.IsPrivate;
                         var isProperty = typeMember.IsProperty;
 
@@ -57,24 +88,16 @@ public class PartialClassGenerator : NinoCommonGenerator
                         }
 
                         var declaringType = declaredType.ToDisplayString();
-
-                        if (type.TypeSymbol is INamedTypeSymbol nts)
+                        var member = ts.GetMembers().FirstOrDefault(m => m.Name == name);
+                        if (member != null)
                         {
-                            if (nts.TypeParameters.Length > 0)
+                            if (member is IFieldSymbol fieldSymbol)
                             {
-                                var member = nts.ConstructedFrom
-                                    .GetMembers().FirstOrDefault(m => m.Name == name);
-                                if (member != null)
-                                {
-                                    if (member is IFieldSymbol fieldSymbol)
-                                    {
-                                        declaringType = fieldSymbol.Type.ToDisplayString();
-                                    }
-                                    else if (member is IPropertySymbol propertySymbol)
-                                    {
-                                        declaringType = propertySymbol.Type.ToDisplayString();
-                                    }
-                                }
+                                declaringType = fieldSymbol.Type.ToDisplayString();
+                            }
+                            else if (member is IPropertySymbol propertySymbol)
+                            {
+                                declaringType = propertySymbol.Type.ToDisplayString();
                             }
                         }
 
@@ -110,14 +133,14 @@ public class PartialClassGenerator : NinoCommonGenerator
                     return;
                 }
 
-                var hasNamespace = !type.TypeSymbol.ContainingNamespace.IsGlobalNamespace &&
-                                   !string.IsNullOrEmpty(type.TypeSymbol.ContainingNamespace.ToDisplayString());
-                var typeNamespace = type.TypeSymbol.ContainingNamespace.ToDisplayString();
-                var modifer = type.TypeSymbol.GetTypeModifiers();
+                var hasNamespace = !ts.ContainingNamespace.IsGlobalNamespace &&
+                                   !string.IsNullOrEmpty(ts.ContainingNamespace.ToDisplayString());
+                var typeNamespace = ts.ContainingNamespace.ToDisplayString();
+                var modifer = ts.GetTypeModifiers();
                 //get typename, including type parameters if any
-                var typeSimpleName = type.TypeSymbol.Name;
+                var typeSimpleName = ts.Name;
                 //type arguments to type parameters
-                if (type.TypeSymbol is INamedTypeSymbol namedTypeSymbol)
+                if (ts is INamedTypeSymbol namedTypeSymbol)
                 {
                     var typeParameters = namedTypeSymbol.TypeParameters;
                     if (typeParameters.Length > 0)

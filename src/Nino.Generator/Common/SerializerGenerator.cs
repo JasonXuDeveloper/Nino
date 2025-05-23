@@ -188,8 +188,7 @@ public class SerializerGenerator : NinoCommonGenerator
                                 continue;
                             }
 
-                            string valName = subType.TypeSymbol.ToDisplayString().Replace("global::", "")
-                                .Replace(".", "_").ToLower();
+                            string valName = subType.TypeSymbol.GetTypeInstanceName();
                             sb.AppendLine($"                case {subType.TypeSymbol.ToDisplayString()} {valName}:");
                             sb.AppendLine(
                                 $"                    writer.Write(NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");

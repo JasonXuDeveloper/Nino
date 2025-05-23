@@ -2,8 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Runtime.CompilerServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.UnitTests.NinoGen;
 using Nino.Core;
@@ -18,8 +16,30 @@ namespace Nino.UnitTests
         [TestClass]
         public abstract class IssueTestTemplate
         {
-            [TestMethod]
-            public abstract void RunTest();
+            [TestMethod(nameof(Test))]
+            [Timeout(1000)]
+            public void Test()
+            {
+                RunTest();
+            }
+
+            protected abstract void RunTest();
+        }
+
+        [TestClass]
+#nullable disable
+        public class Issue145 : IssueTestTemplate
+        {
+            protected override void RunTest()
+            {
+                TestB<float> testB = new TestB<float>(123.4f);
+                var bytes = testB.Serialize();
+                Deserializer.Deserialize(bytes, out TestB<float> testB2);
+                Assert.AreEqual(testB.GetType(), testB2.GetType());
+                float input = testB;
+                float output = testB2;
+                Assert.AreEqual(input, output);
+            }
         }
 
         [TestClass]
@@ -31,8 +51,7 @@ namespace Nino.UnitTests
                 public List<int> List = new List<int>();
             }
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 var t = new MyTest();
                 var bytes = t.Serialize();
@@ -44,8 +63,7 @@ namespace Nino.UnitTests
         [TestClass]
         public class IssueValueTupleLayout : IssueTestTemplate
         {
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 var data = new NinoTuple<byte, int>(4, 1920);
                 var bytes = data.Serialize();
@@ -122,7 +140,7 @@ namespace Nino.UnitTests
                     return GetEnumerator();
                 }
 
-                [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Usage",
+                [SuppressMessage("Microsoft.Usage",
                     "CA2225:OperatorOverloadsHaveNamedAlternates",
                     Justification =
                         "`ToXXX` message only really makes sense as static, which is not recommended for generic types.")]
@@ -190,7 +208,7 @@ namespace Nino.UnitTests
                 }
             }
 
-            public override void RunTest()
+            protected override void RunTest()
             {
                 var array = new int[] { 1, 2, 3, 4, 5 };
                 var readOnlyArray = new ReadOnlyArray<int>(array);
@@ -222,8 +240,7 @@ namespace Nino.UnitTests
             }
 
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 var t = new TestClass<int>();
                 t.Dict.Add(TestEnum.A, 1);
@@ -285,8 +302,7 @@ namespace Nino.UnitTests
                 }
             }
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 MultiMap<long, long> TimeId = new MultiMap<long, long>();
                 TimeId[1].Add(1);
@@ -383,8 +399,7 @@ namespace Nino.UnitTests
                 CONS = 2,
             }
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 var pools = new Dictionary<DicePoolType, DicePool>();
                 pools.Add(DicePoolType.STR, new DicePool());
@@ -409,8 +424,7 @@ namespace Nino.UnitTests
                 public int A { get; set; }
             }
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 var impl = new Impl { A = 10 };
                 var bytes = impl.Serialize();
@@ -458,8 +472,7 @@ namespace Nino.UnitTests
                 public DateTime P1 { get; set; }
             }
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 MyPackPerson person = new MyPackPerson
                 {
@@ -504,8 +517,7 @@ namespace Nino.UnitTests
                 public int Ba;
             }
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 Data data = new Data();
                 data.A = 10;
@@ -534,8 +546,7 @@ namespace Nino.UnitTests
                 [NinoMember(2)] public long Y;
             }
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 var dt = new NinoTestData()
                 {
@@ -592,8 +603,7 @@ namespace Nino.UnitTests
                 [NinoMember(4)] public Sex sex;
             }
 
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 var list = new List<NinoTestData>();
                 list.Add(new NinoTestData
@@ -654,8 +664,7 @@ namespace Nino.UnitTests
         [TestClass]
         public class Issue32 : IssueTestTemplate
         {
-            [TestMethod]
-            public override void RunTest()
+            protected override void RunTest()
             {
                 MessagePackage package = new MessagePackage
                 {

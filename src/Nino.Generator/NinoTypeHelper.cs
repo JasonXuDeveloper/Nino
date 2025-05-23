@@ -15,6 +15,17 @@ namespace Nino.Generator;
 public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
+    
+    public static string GetTypeInstanceName(this ITypeSymbol typeSymbol)
+    {
+        var ret = typeSymbol.ToDisplayString()
+            .Replace("global::", "")
+            .Replace("<", "_")
+            .Replace(">", "_")
+            .Replace(".", "_").ToLower();
+
+        return $"@{ret}";
+    }
 
     public static List<ITypeSymbol> MergeTypes(this List<ITypeSymbol?> types, List<ITypeSymbol?> otherTypes)
     {

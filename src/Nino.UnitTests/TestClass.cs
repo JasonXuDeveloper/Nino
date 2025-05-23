@@ -6,6 +6,26 @@ using Nino.Core;
 
 #nullable disable
 
+[NinoType(false, true)]
+public partial class TestA<T>
+{
+    [NinoMember(0)] protected T Value;
+
+    [NinoConstructor(nameof(Value))]
+    public TestA(T val = default) => Value = val;
+
+    public static implicit operator T(TestA<T> val) => val.Value;
+}
+
+[NinoType(false, true)]
+public partial class TestB<T> : TestA<T>
+{
+    [NinoConstructor(nameof(Value))]
+    public TestB(T val = default) : base(val)
+    {
+    }
+}
+
 [NinoType]
 public class CursedGeneric<T>
 {
@@ -20,7 +40,7 @@ public class PrivateNestedCollection
         public int X;
         public string Y;
     }
-    
+
     private class MyClass
     {
         public int X;

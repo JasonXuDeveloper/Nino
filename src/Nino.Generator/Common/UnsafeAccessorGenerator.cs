@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Metadata;
@@ -20,6 +21,7 @@ public class UnsafeAccessorGenerator : NinoCommonGenerator
 
         var sb = new StringBuilder();
         var generatedTypes = new HashSet<NinoType>();
+        var generatedMembers = new HashSet<(string, string)>();
 
         foreach (var ninoType in NinoTypes)
         {
@@ -47,9 +49,32 @@ public class UnsafeAccessorGenerator : NinoCommonGenerator
                             continue;
                         }
 
-                        string typeName = type.TypeSymbol.ToDisplayString();
+                        var declaringType = type.TypeSymbol;
+                        while (declaringType != null && declaringType.IsNinoType())
+                        {
+                            var m = declaringType.GetMembers().FirstOrDefault(m => m.Name == member.Name);
+                            if (m != null)
+                            {
+                                declaringType = m.ContainingType;
+                                break;
+                            }
 
-                        if (type.TypeSymbol.IsValueType)
+                            declaringType = declaringType.BaseType;
+                        }
+
+                        if (declaringType == null)
+                        {
+                            continue;
+                        }
+
+                        string typeName = declaringType.ToDisplayString();
+
+                        if (!generatedMembers.Add((typeName, member.Name)))
+                        {
+                            continue;
+                        }
+
+                        if (declaringType.IsValueType)
                         {
                             typeName = $"ref {typeName}";
                         }

@@ -33,8 +33,19 @@ public class CSharpParser : NinoTypeParser
 
                 ninoType = new NinoType(typeSymbol, null, null);
 
+                bool IsNinoType(ITypeSymbol ts)
+                {
+                    if (!ts.IsNinoType())
+                        return false;
+                    
+                    if(!types.Contains(ts))
+                        GetNinoType(ts);
+                    
+                    return true;
+                }
+                
                 // collect base type
-                if (typeSymbol.BaseType != null && types.Contains(typeSymbol.BaseType))
+                if (typeSymbol.BaseType != null && IsNinoType(typeSymbol.BaseType))
                 {
                     ninoType.AddParent(GetNinoType(typeSymbol.BaseType));
                 }
@@ -42,7 +53,7 @@ public class CSharpParser : NinoTypeParser
                 // collect base interfaces
                 foreach (var interfaceType in typeSymbol.AllInterfaces)
                 {
-                    if (types.Contains(interfaceType))
+                    if (IsNinoType(interfaceType))
                     {
                         ninoType.AddParent(GetNinoType(interfaceType));
                     }

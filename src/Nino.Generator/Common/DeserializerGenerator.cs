@@ -288,14 +288,33 @@ public class DeserializerGenerator : NinoCommonGenerator
             }
             else
             {
+                List<string> ctorArgs = new List<string>();
+                string? missingArg = null;
+                foreach (var m in constructorMember)
+                {
+                    var k = args.Keys.FirstOrDefault(k =>
+                        k.ToLower().Equals(m.ToLower()));
+                    if (k != null)
+                    {
+                        ctorArgs.Add(args[k]);
+                    }
+                    else
+                    {
+                        sb.AppendLine($"                    // missing constructor member {m}");
+                        missingArg = m;
+                        break;
+                    }
+                }
+
+                if (missingArg != null)
+                {
+                    sb.AppendLine(
+                        $"                    throw new InvalidOperationException(\"Missing constructor member {missingArg}\");");
+                    return;
+                }
+
                 sb.AppendLine(
-                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
-                        constructorMember.Select(m =>
-                            args[args.Keys
-                                .FirstOrDefault(k =>
-                                    k.ToLower()
-                                        .Equals(m.ToLower()))]
-                        ))}){(vars.Count > 0 ? "" : ";")}");
+                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
             }
 
             if (vars.Count > 0)
@@ -499,8 +518,7 @@ public class DeserializerGenerator : NinoCommonGenerator
         {
             if (subType.TypeSymbol.IsInstanceType())
             {
-                string valName = subType.TypeSymbol.ToDisplayString().Replace("global::", "").Replace(".", "_")
-                    .ToLower();
+                string valName = subType.TypeSymbol.GetTypeInstanceName();
                 sb.AppendLine(
                     $"                case NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()}:");
                 sb.AppendLine("                {");
