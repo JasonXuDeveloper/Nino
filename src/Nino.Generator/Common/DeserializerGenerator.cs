@@ -34,7 +34,7 @@ public class DeserializerGenerator : NinoCommonGenerator
         {
             try
             {
-                GenerateDeserializeImplementation(ninoType, sb);
+                GenerateDeserializeImplementation(ninoType, sb, spc);
             }
             catch (Exception e)
             {
@@ -107,7 +107,7 @@ public class DeserializerGenerator : NinoCommonGenerator
         spc.AddSource("NinoDeserializer.g.cs", code);
     }
 
-    private void GenerateDeserializeImplementation(NinoType ninoType, StringBuilder sb)
+    private void GenerateDeserializeImplementation(NinoType ninoType, StringBuilder sb, SourceProductionContext spc)
     {
         bool isPolymorphicType = ninoType.IsPolymorphic();
 
@@ -139,7 +139,8 @@ public class DeserializerGenerator : NinoCommonGenerator
             sb.AppendLine();
         }
 
-        void WriteMembersWithCustomConstructor(NinoType nt, string valName, string[] constructorMember)
+        void WriteMembersWithCustomConstructor(NinoType nt, string valName, string[] constructorMember,
+            IMethodSymbol constructor)
         {
             List<(string, string)> vars = new List<(string, string)>();
             List<(string, string, bool)> privateVars = new List<(string, string, bool)>();
@@ -253,27 +254,48 @@ public class DeserializerGenerator : NinoCommonGenerator
                     sb.AppendLine("#endif");
                 }
             }
+            
+            List<string> ctorArgs = new List<string>();
+            string? missingArg = null;
+            foreach (var m in constructorMember)
+            {
+                var k = args.Keys.FirstOrDefault(k =>
+                    k.ToLower().Equals(m.ToLower()));
+                if (k != null)
+                {
+                    ctorArgs.Add(args[k]);
+                }
+                else
+                {
+                    sb.AppendLine($"                    // missing constructor member {m}");
+                    missingArg = m;
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        new DiagnosticDescriptor("NINO001", "Nino Generator",
+                            "Missing constructor member {0} for {1}",
+                            "Nino.Generator",
+                            DiagnosticSeverity.Error, true), constructor.Locations[0],
+                        m, nt.TypeSymbol.ToDisplayString()));
+                    break;
+                }
+            }
+
+            if (missingArg != null)
+            {
+                sb.AppendLine(
+                    $"                    throw new InvalidOperationException(\"Missing constructor member {missingArg}\");");
+                return;
+            }
 
             if (args.Keys.Any(tupleMap.ContainsKey))
             {
                 sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
                 sb.AppendLine(
-                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
-                        constructorMember.Select(m =>
-                            args[args.Keys
-                                .FirstOrDefault(k =>
-                                    k.ToLower()
-                                        .Equals(m.ToLower()))]
-                        ))}){(vars.Count > 0 ? "" : ";")}");
+                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
                 sb.AppendLine("#else");
                 sb.AppendLine(
                     $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
-                        constructorMember.Select(m =>
+                        ctorArgs.Select(m =>
                             {
-                                var argKey = args.Keys
-                                    .FirstOrDefault(k =>
-                                        k.ToLower()
-                                            .Equals(m.ToLower()));
                                 var tupleKey = tupleMap.Keys
                                     .FirstOrDefault(k =>
                                         k.ToLower()
@@ -281,65 +303,41 @@ public class DeserializerGenerator : NinoCommonGenerator
                                 if (tupleKey != null)
                                     return tupleMap[tupleKey];
 
-                                return args[argKey];
+                                return m;
                             }
                         ))}){(vars.Count > 0 ? "" : ";")}");
                 sb.AppendLine("#endif");
             }
             else
             {
-                List<string> ctorArgs = new List<string>();
-                string? missingArg = null;
-                foreach (var m in constructorMember)
-                {
-                    var k = args.Keys.FirstOrDefault(k =>
-                        k.ToLower().Equals(m.ToLower()));
-                    if (k != null)
-                    {
-                        ctorArgs.Add(args[k]);
-                    }
-                    else
-                    {
-                        sb.AppendLine($"                    // missing constructor member {m}");
-                        missingArg = m;
-                        break;
-                    }
-                }
-
-                if (missingArg != null)
-                {
-                    sb.AppendLine(
-                        $"                    throw new InvalidOperationException(\"Missing constructor member {missingArg}\");");
-                    return;
-                }
-
                 sb.AppendLine(
                     $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
             }
 
             if (vars.Count > 0)
             {
-                sb.AppendLine($"                    {new string(' ', valName.Length)}   {{");
+                string padding = new string(' ', valName.Length);
+                sb.AppendLine($"                    {padding}   {{");
                 foreach (var (memberName, varName) in vars)
                 {
                     if (tupleMap.TryGetValue(memberName, out var value))
                     {
                         sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
                         sb.AppendLine(
-                            $"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
+                            $"                 {padding}      \t{memberName} = {varName},");
                         sb.AppendLine("#else");
                         sb.AppendLine(
-                            $"                 {new string(' ', valName.Length)}      \t{memberName} = {value},");
+                            $"                 {padding}      \t{memberName} = {value},");
                         sb.AppendLine("#endif");
                     }
                     else
                     {
                         sb.AppendLine(
-                            $"                 {new string(' ', valName.Length)}      \t{memberName} = {varName},");
+                            $"                 {padding}      \t{memberName} = {varName},");
                     }
                 }
 
-                sb.AppendLine($"                    {new string(' ', valName.Length)}   }};");
+                sb.AppendLine($"                    {padding}   }};");
             }
 
             if (privateVars.Count > 0)
@@ -484,7 +482,7 @@ public class DeserializerGenerator : NinoCommonGenerator
                 args = constructor.Parameters.Select(p => p.Name).ToArray();
             }
 
-            WriteMembersWithCustomConstructor(nt, valName, args);
+            WriteMembersWithCustomConstructor(nt, valName, args, constructor);
         }
 
         if (!NinoGraph.SubTypes.TryGetValue(ninoType, out var lst))
