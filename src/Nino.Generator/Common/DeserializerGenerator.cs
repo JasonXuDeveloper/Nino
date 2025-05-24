@@ -64,7 +64,6 @@ public class DeserializerGenerator : NinoCommonGenerator
                      using System.Runtime.InteropServices;
                      using System.Runtime.CompilerServices;
 
-                     #nullable disable
                      namespace {{curNamespace}}
                      {
                          public static partial class Deserializer

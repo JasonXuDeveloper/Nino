@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 
@@ -77,15 +76,9 @@ public class NinoType
         return true;
     }
 
-    public void AddParent(NinoType? parent)
+    public void AddParent(NinoType parent)
     {
-        if (parent == null || parent == this || TypeSymbol.TypeKind == TypeKind.Dynamic)
-        {
-            return;
-        }
-
-        // Check if this parent is already in the Parents collection
-        if (Parents.Any(p => SymbolEqualityComparer.Default.Equals(p.TypeSymbol, parent.TypeSymbol)))
+        if (parent == this || TypeSymbol.TypeKind == TypeKind.Dynamic)
         {
             return;
         }
