@@ -161,7 +161,8 @@ public class UnsafeAccessorGenerator : NinoCommonGenerator
 
                      using System;
                      using System.Runtime.CompilerServices;
-
+                     
+                     #nullable disable
                      #if NET8_0_OR_GREATER
                      namespace {{curNamespace}}
                      {

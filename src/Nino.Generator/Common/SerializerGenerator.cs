@@ -281,7 +281,8 @@ public class SerializerGenerator : NinoCommonGenerator
                      using System.Collections.Concurrent;
                      using System.Runtime.InteropServices;
                      using System.Runtime.CompilerServices;
-
+                     
+                     #nullable disable
                      namespace {{curNamespace}}
                      {
                          public static partial class Serializer

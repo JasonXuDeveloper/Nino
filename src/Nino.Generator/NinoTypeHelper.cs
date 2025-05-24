@@ -15,16 +15,31 @@ namespace Nino.Generator;
 public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
-    
+
     public static string GetTypeInstanceName(this ITypeSymbol typeSymbol)
     {
         var ret = typeSymbol.ToDisplayString()
             .Replace("global::", "")
-            .Replace("<", "_")
-            .Replace(">", "_")
-            .Replace(".", "_").ToLower();
+            .ToLower()
+            .Select(c => char.IsLetterOrDigit(c) ? c : '_')
+            .Aggregate("", (current, c) => current + c);
 
         return $"@{ret}";
+    }
+
+    public static bool IsAccessibleFromCurrentAssembly(this ITypeSymbol type, Compilation compilation)
+    {
+        var asm = compilation.Assembly;
+        switch (type.DeclaredAccessibility)
+        {
+            case Accessibility.Public:
+                return true;
+            case Accessibility.Internal:
+            case Accessibility.ProtectedOrInternal:
+                return SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, asm);
+            default:
+                return false;
+        }
     }
 
     public static List<ITypeSymbol> MergeTypes(this List<ITypeSymbol?> types, List<ITypeSymbol?> otherTypes)
@@ -562,6 +577,11 @@ public static class NinoTypeHelper
 
     public static string GetTypeFullName(this ITypeSymbol typeSymbol)
     {
+        if (typeSymbol.SpecialType == SpecialType.System_Object)
+        {
+            return typeof(object).FullName!;
+        }
+
         return typeSymbol.ToDisplayString();
     }
 }

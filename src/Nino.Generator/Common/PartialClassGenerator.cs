@@ -168,7 +168,8 @@ public class PartialClassGenerator : NinoCommonGenerator
 
                              using System;
                              using System.Runtime.CompilerServices;
-
+                             
+                             #nullable disable
                              {{namespaceStr}}
                              #if !NET8_0_OR_GREATER
                                  [Nino.Core.NinoExplicitOrder({{order}})]
