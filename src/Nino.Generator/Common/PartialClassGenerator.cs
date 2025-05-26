@@ -104,7 +104,7 @@ public class PartialClassGenerator : NinoCommonGenerator
                         hasPrivateMembers = true;
                         var accessor = $$$"""
                                                   [Nino.Core.NinoPrivateProxy(nameof({{{name}}}), {{{isProperty.ToString().ToLower()}}})]
-                                                  public {{{declaringType}}} __nino__generated__{{{name}}}
+                                                  public new {{{declaringType}}} __nino__generated__{{{name}}}
                                                   {
                                                       [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                                       get => {{{name}}};
@@ -172,7 +172,7 @@ public class PartialClassGenerator : NinoCommonGenerator
                              {{namespaceStr}}
                              #if !NET8_0_OR_GREATER
                                  [Nino.Core.NinoExplicitOrder({{order}})]
-                                 public new partial {{modifer}} {{typeSimpleName}}
+                                 public partial {{modifer}} {{typeSimpleName}}
                                  {
                              {{sb}}    }
                              #endif
