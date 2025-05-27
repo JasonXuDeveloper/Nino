@@ -14,6 +14,10 @@ namespace Nino.Generator;
 
 public static class NinoTypeHelper
 {
+    internal const string NinoTypeAttributeFullName = "Nino.NinoTypeAttribute";
+    internal const string NinoFormerNameAttributeFullName = "Nino.NinoFormerNameAttribute";
+    internal const string NinoConstructorAttributeFullName = "Nino.NinoConstructorAttribute";
+    
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
     public static string GetTypeInstanceName(this ITypeSymbol typeSymbol)
@@ -44,17 +48,38 @@ public static class NinoTypeHelper
 
     public static List<ITypeSymbol> MergeTypes(this List<ITypeSymbol?> types, List<ITypeSymbol?> otherTypes)
     {
-        HashSet<ITypeSymbol?> typeSymbols = new(SymbolEqualityComparer.Default);
-        typeSymbols.UnionWith(types);
-        typeSymbols.UnionWith(otherTypes);
-        typeSymbols.RemoveWhere(ts => ts == null);
+        HashSet<ITypeSymbol> finalCollectedTypes = new(SymbolEqualityComparer.Default);
+        Queue<ITypeSymbol> workQueue = new();
 
-        foreach (var typeSymbol in typeSymbols.ToList())
+        void TryAddAndEnqueue(ITypeSymbol? typeSymbol)
         {
-            AddElementRecursively(typeSymbol!, typeSymbols!);
+            if (typeSymbol == null) return;
+            var pureType = typeSymbol.GetPureType();
+            // Add to set and if it's a new type, add to queue for further processing
+            if (finalCollectedTypes.Add(pureType))
+            {
+                workQueue.Enqueue(pureType);
+            }
         }
 
-        return typeSymbols.ToList()!;
+        foreach (var typeSymbol in types)
+        {
+            TryAddAndEnqueue(typeSymbol);
+        }
+
+        foreach (var typeSymbol in otherTypes)
+        {
+            TryAddAndEnqueue(typeSymbol);
+        }
+
+        while (workQueue.Count > 0)
+        {
+            var currentSymbol = workQueue.Dequeue();
+            // AddElementRecursively will add to finalCollectedTypes and workQueue if new types are found
+            AddElementRecursively(currentSymbol, finalCollectedTypes, workQueue);
+        }
+
+        return finalCollectedTypes.ToList();
     }
 
     public static (bool isValid, Compilation newCompilation) IsValidCompilation(this Compilation compilation)
@@ -65,26 +90,19 @@ public static class NinoTypeHelper
             return (false, compilation);
         }
 
-        //disable nullable reference types
-        Compilation newCompilation = compilation;
-        // Cast to CSharpCompilation to access the C#-specific options
-        if (compilation is CSharpCompilation csharpCompilation)
-        {
-            // Check if nullable reference types is enabled
-            if (csharpCompilation.Options.NullableContextOptions != NullableContextOptions.Disable)
-            {
-                // Create a new CSharpCompilationOptions with nullable warnings disabled
-                var newOptions = csharpCompilation.Options.WithNullableContextOptions(NullableContextOptions.Disable);
-
-                // Return a new compilation with the updated options
-                newCompilation = csharpCompilation.WithOptions(newOptions);
-            }
-        }
-
-        compilation = newCompilation;
+        // It is generally not recommended for a source generator to modify the input Compilation's options,
+        // as it can interfere with Roslyn's caching and incremental compilation.
+        // Nullable context should ideally be controlled by the user's project settings.
+        // If specific generated code requires a disabled nullable context, pragmas should be used in that generated code.
+        // For this reason, the modification of compilation options is removed here.
+        // The original compilation object is returned.
+        Compilation newCompilation = compilation; // Use the original compilation
 
         //make sure the compilation indeed uses Nino.Core
-        foreach (var syntaxTree in compilation.SyntaxTrees)
+        // Note: Iterating all syntax trees can be expensive.
+        // This check is okay for a bail-out, but generators usually rely on more specific triggers
+        // like attributes found via ForAttributeWithMetadataName.
+        foreach (var syntaxTree in newCompilation.SyntaxTrees) // Iterate on newCompilation which is same as compilation
         {
             var root = syntaxTree.GetRoot();
             var usingDirectives = root.DescendantNodes()
@@ -148,7 +166,7 @@ public static class NinoTypeHelper
         return curNamespace;
     }
 
-    private static bool CheckGenericValidity(ITypeSymbol containingType)
+    private static bool CheckGenericValidity(ITypeSymbol containingType, Compilation compilation, INamedTypeSymbol? ninoTypeAttributeSymbol)
     {
         //containing type can not be an uninstantiated generic type
         bool IsContainingTypeValid(ITypeSymbol type)
@@ -160,8 +178,8 @@ public static class NinoTypeHelper
                 INamedTypeSymbol { IsGenericType: true } namedTypeSymbol =>
                     namedTypeSymbol.TypeArguments.Length == namedTypeSymbol.TypeParameters.Length &&
                     namedTypeSymbol.TypeArguments.All(t => t.TypeKind != TypeKind.TypeParameter) &&
-                    namedTypeSymbol.TypeArguments.All(IsContainingTypeValid),
-                INamedTypeSymbol => true,
+                    namedTypeSymbol.TypeArguments.All(IsContainingTypeValid), // Recursive call, ninoTypeAttributeSymbol is implicitly captured if needed by IsNinoType here
+                INamedTypeSymbol => true, // Potentially needs IsNinoType check if that's part of validity for non-generics
                 _ => false
             };
         }
@@ -186,109 +204,135 @@ public static class NinoTypeHelper
     {
         var visited = new HashSet<string>();
         var typeSymbols = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        var ninoTypeAttributeSymbol = compilation.GetTypeByMetadataName(NinoTypeAttributeFullName);
 
         foreach (var syntax in syntaxes)
         {
             if (!visited.Add(syntax.ToFullString())) continue;
             var typeSymbol = syntax.GetTypeSymbol(compilation);
-            if (typeSymbol != null && typeSymbol.IsNinoType()
+            if (typeSymbol != null && typeSymbol.IsNinoType(ninoTypeAttributeSymbol)
                                    && typeSymbol is not ITypeParameterSymbol
-                                   && CheckGenericValidity(typeSymbol))
+                                   && CheckGenericValidity(typeSymbol, compilation, ninoTypeAttributeSymbol))
                 typeSymbols.Add(typeSymbol.GetPureType());
         }
 
-        foreach (var syntax in GetAllNinoRequiredTypes(syntaxes.Select(s => (TypeSyntax)s).ToImmutableArray()
-                     , compilation))
+        // GetAllNinoRequiredTypes will also need ninoTypeAttributeSymbol
+        foreach (var typeSymbolFromRequired in GetAllNinoRequiredTypes(syntaxes.Select(s => (TypeSyntax)s).ToImmutableArray(), compilation, ninoTypeAttributeSymbol))
         {
-            if (syntax != null && syntax.IsNinoType()
-                               && syntax is not ITypeParameterSymbol
-                               && CheckGenericValidity(syntax))
-                typeSymbols.Add(syntax.GetPureType());
+            // IsNinoType check might be redundant if GetAllNinoRequiredTypes already filters by it.
+            // However, CheckGenericValidity still needs to be performed.
+            if (typeSymbolFromRequired != null && typeSymbolFromRequired.IsNinoType(ninoTypeAttributeSymbol) // Potentially redundant if GetAllNinoRequiredTypes guarantees this
+                               && typeSymbolFromRequired is not ITypeParameterSymbol
+                               && CheckGenericValidity(typeSymbolFromRequired, compilation, ninoTypeAttributeSymbol))
+                typeSymbols.Add(typeSymbolFromRequired.GetPureType());
         }
 
         return typeSymbols.ToList();
     }
 
+    // Overload or modify existing to accept ninoTypeAttributeSymbol
     public static List<ITypeSymbol> GetAllNinoRequiredTypes(this ImmutableArray<TypeSyntax> syntaxes,
-        Compilation compilation)
+        Compilation compilation, INamedTypeSymbol? ninoTypeAttributeSymbol)
     {
-        HashSet<INamedTypeSymbol> validTypes = new(SymbolEqualityComparer.Default);
-        foreach (var type in GetAllTypes(compilation))
-        {
-            if (type.IsNinoType())
-            {
-                //if it is a generic type, check if it is valid
-                if (type.IsGenericType && !CheckGenericValidity(type))
-                    continue;
-                //add to valid types
-                validTypes.Add(type);
-            }
-        }
+        HashSet<ITypeSymbol> collectedTypes = new(SymbolEqualityComparer.Default);
+        Queue<ITypeSymbol> workQueue = new();
 
+        // Initial population from syntaxes
         foreach (var syntax in syntaxes)
         {
             if (syntax == null) continue;
             var typeSymbol = syntax.GetTypeSymbol(compilation);
-            if (typeSymbol != null && typeSymbol is INamedTypeSymbol namedTypeSymbol && typeSymbol.IsNinoType()
-                && typeSymbol is not ITypeParameterSymbol
-                && CheckGenericValidity(typeSymbol))
-                validTypes.Add((INamedTypeSymbol)namedTypeSymbol.GetPureType());
-        }
-
-        HashSet<ITypeSymbol> ret = new(SymbolEqualityComparer.Default);
-        foreach (var typeSymbol in validTypes)
-        {
-            ret.Add(typeSymbol.GetPureType());
-            var members = typeSymbol.GetMembers();
-            foreach (var member in members)
+            if (typeSymbol != null && typeSymbol.IsNinoType(ninoTypeAttributeSymbol) // Ensure it's a NinoType first
+                                   && typeSymbol is not ITypeParameterSymbol
+                                   && CheckGenericValidity(typeSymbol, compilation, ninoTypeAttributeSymbol))
             {
-                switch (member)
+                var pureType = typeSymbol.GetPureType();
+                if (collectedTypes.Add(pureType))
                 {
-                    case IFieldSymbol fieldSymbol:
-                        ret.Add(fieldSymbol.Type.GetPureType());
-                        break;
-                    case IPropertySymbol propertySymbol:
-                        ret.Add(propertySymbol.Type.GetPureType());
-                        break;
-                    case IParameterSymbol parameterSymbol:
-                        ret.Add(parameterSymbol.Type.GetPureType());
-                        break;
+                    workQueue.Enqueue(pureType);
                 }
             }
         }
 
-        foreach (var typeSymbol in ret.ToList())
+        while (workQueue.Count > 0)
         {
-            AddElementRecursively(typeSymbol, ret);
-        }
+            var currentSymbol = workQueue.Dequeue();
 
-        return ret.ToList();
+            // Add members' types
+            if (currentSymbol is INamedTypeSymbol currentNamedSymbol) 
+            {
+                var members = currentNamedSymbol.GetMembers();
+                foreach (var member in members)
+                {
+                    ITypeSymbol? memberType = null;
+                    switch (member)
+                    {
+                        case IFieldSymbol fieldSymbol:
+                            memberType = fieldSymbol.Type;
+                            break;
+                        case IPropertySymbol propertySymbol:
+                            memberType = propertySymbol.Type;
+                            break;
+                    }
+
+                    if (memberType != null)
+                    {
+                        var pureMemberType = memberType.GetPureType();
+                        if (pureMemberType is not ITypeParameterSymbol && 
+                            (pureMemberType.IsNinoType(ninoTypeAttributeSymbol) || pureMemberType.TypeKind == TypeKind.Array || (pureMemberType is INamedTypeSymbol nts && nts.IsGenericType)) && 
+                            collectedTypes.Add(pureMemberType))
+                        {
+                            workQueue.Enqueue(pureMemberType);
+                        }
+                    }
+                }
+            }
+            AddElementRecursively(currentSymbol, collectedTypes, workQueue, compilation, ninoTypeAttributeSymbol);
+        }
+        return collectedTypes.ToList();
     }
 
-    private static void AddElementRecursively(ITypeSymbol symbol, HashSet<ITypeSymbol> ret)
+    private static void AddElementRecursively(ITypeSymbol symbol, HashSet<ITypeSymbol> collectedTypes, Queue<ITypeSymbol> workQueue, Compilation compilation, INamedTypeSymbol? ninoTypeAttributeSymbol)
     {
-        if (symbol is INamedTypeSymbol namedTypeSymbol)
+        if (symbol is ITypeParameterSymbol) return; 
+        var pureSymbol = symbol.GetPureType();
+
+        if (pureSymbol is INamedTypeSymbol namedTypeSymbol)
         {
-            AddTypeArguments(namedTypeSymbol, ret);
+            AddTypeArguments(namedTypeSymbol, collectedTypes, workQueue, compilation, ninoTypeAttributeSymbol);
         }
-        else if (symbol is IArrayTypeSymbol arrayTypeSymbol)
+        else if (pureSymbol is IArrayTypeSymbol arrayTypeSymbol)
         {
-            AddArrayElementType(arrayTypeSymbol, ret);
+            AddArrayElementType(arrayTypeSymbol, collectedTypes, workQueue, compilation, ninoTypeAttributeSymbol);
         }
     }
 
-    private static void AddArrayElementType(IArrayTypeSymbol symbol, HashSet<ITypeSymbol> ret)
+    private static void AddArrayElementType(IArrayTypeSymbol symbol, HashSet<ITypeSymbol> collectedTypes, Queue<ITypeSymbol> workQueue, Compilation compilation, INamedTypeSymbol? ninoTypeAttributeSymbol)
     {
-        ret.Add(symbol.ElementType.GetPureType());
-        AddElementRecursively(symbol.ElementType.GetPureType(), ret);
+        var elementType = symbol.ElementType.GetPureType();
+        if (elementType is not ITypeParameterSymbol && 
+            (elementType.IsNinoType(ninoTypeAttributeSymbol) || elementType.TypeKind == TypeKind.Array || (elementType is INamedTypeSymbol nts && nts.IsGenericType)) &&
+            collectedTypes.Add(elementType))
+        {
+            workQueue.Enqueue(elementType);
+        }
+        AddElementRecursively(elementType, collectedTypes, workQueue, compilation, ninoTypeAttributeSymbol);
     }
 
-    private static void AddTypeArguments(INamedTypeSymbol symbol, HashSet<ITypeSymbol> ret)
+    private static void AddTypeArguments(INamedTypeSymbol symbol, HashSet<ITypeSymbol> collectedTypes, Queue<ITypeSymbol> workQueue, Compilation compilation, INamedTypeSymbol? ninoTypeAttributeSymbol)
     {
+        if (!symbol.IsGenericType) return;
+
         foreach (var typeArgument in symbol.TypeArguments)
         {
-            ret.Add(typeArgument.GetPureType());
-            AddElementRecursively(typeArgument, ret);
+            var pureTypeArgument = typeArgument.GetPureType();
+            if (pureTypeArgument is not ITypeParameterSymbol &&
+                (pureTypeArgument.IsNinoType(ninoTypeAttributeSymbol) || pureTypeArgument.TypeKind == TypeKind.Array || (pureTypeArgument is INamedTypeSymbol nts && nts.IsGenericType)) &&
+                collectedTypes.Add(pureTypeArgument))
+            {
+                workQueue.Enqueue(pureTypeArgument);
+            }
+            AddElementRecursively(pureTypeArgument, collectedTypes, workQueue, compilation, ninoTypeAttributeSymbol);
         }
     }
 
@@ -403,10 +447,22 @@ public static class NinoTypeHelper
         return typeSymbol.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
     }
 
+    // Public version for external compatibility or when compilation is not readily available
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
         return typeSymbol.IsUnmanagedType ||
-               typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
+               typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == NinoTypeAttributeFullName || a.AttributeClass?.ToDisplayString() == NinoTypeAttributeFullName);
+    }
+    
+    // Internal optimized version
+    internal static bool IsNinoType(this ITypeSymbol typeSymbol, INamedTypeSymbol? ninoTypeAttributeSymbol)
+    {
+        if (typeSymbol.IsUnmanagedType) return true;
+        if (ninoTypeAttributeSymbol == null) // Fallback or if attribute doesn't exist in compilation
+        {
+            return typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == NinoTypeAttributeFullName || a.AttributeClass?.ToDisplayString() == NinoTypeAttributeFullName);
+        }
+        return typeSymbol.GetAttributes().Any(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, ninoTypeAttributeSymbol));
     }
 
     public static string GetTypeModifiers(this ITypeSymbol typeSymbol)
@@ -460,24 +516,60 @@ public static class NinoTypeHelper
         };
     }
 
+    // Public version
     public static AttributeData? GetNinoConstructorAttribute(this IMethodSymbol? methodSymbol)
     {
-        if (methodSymbol == null)
-        {
-            return null;
-        }
-
+        if (methodSymbol == null) return null;
         return methodSymbol.GetAttributes()
-            .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoConstructorAttribute");
+            .FirstOrDefault(static a => a.AttributeClass?.Name == NinoConstructorAttributeFullName || a.AttributeClass?.ToDisplayString() == NinoConstructorAttributeFullName);
     }
 
-    public static int GetId(this ITypeSymbol typeSymbol)
+    // Internal optimized version
+    internal static AttributeData? GetNinoConstructorAttribute(this IMethodSymbol? methodSymbol, INamedTypeSymbol? ninoConstructorAttributeSymbol)
     {
-        var formerName = typeSymbol.GetAttributes()
-            .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoFormerNameAttribute");
+        if (methodSymbol == null) return null;
+        if (ninoConstructorAttributeSymbol == null) // Fallback
+        {
+            return methodSymbol.GetAttributes()
+                .FirstOrDefault(static a => a.AttributeClass?.Name == NinoConstructorAttributeFullName || a.AttributeClass?.ToDisplayString() == NinoConstructorAttributeFullName);
+        }
+        return methodSymbol.GetAttributes()
+            .FirstOrDefault(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, ninoConstructorAttributeSymbol));
+    }
+    
+    // Internal helper for NinoFormerNameAttribute
+    internal static AttributeData? GetNinoFormerNameAttribute(this ITypeSymbol typeSymbol, INamedTypeSymbol? ninoFormerNameAttributeSymbol)
+    {
+        if (ninoFormerNameAttributeSymbol == null) // Fallback
+        {
+            return typeSymbol.GetAttributes()
+                .FirstOrDefault(static a => a.AttributeClass?.Name == NinoFormerNameAttributeFullName || a.AttributeClass?.ToDisplayString() == NinoFormerNameAttributeFullName);
+        }
+        return typeSymbol.GetAttributes()
+            .FirstOrDefault(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, ninoFormerNameAttributeSymbol));
+    }
+
+    // Modified GetId to potentially use the resolved symbol
+    public static int GetId(this ITypeSymbol typeSymbol, INamedTypeSymbol? ninoFormerNameAttributeSymbol = null, Compilation? compilation = null)
+    {
+        AttributeData? formerName = null;
+        if (ninoFormerNameAttributeSymbol != null)
+        {
+            formerName = typeSymbol.GetNinoFormerNameAttribute(ninoFormerNameAttributeSymbol);
+        }
+        else if (compilation != null) // Attempt to resolve if compilation is provided
+        {
+            var resolvedSymbol = compilation.GetTypeByMetadataName(NinoFormerNameAttributeFullName);
+            formerName = typeSymbol.GetNinoFormerNameAttribute(resolvedSymbol);
+        }
+        else // Fallback to string comparison
+        {
+            formerName = typeSymbol.GetAttributes()
+                .FirstOrDefault(static a => a.AttributeClass?.Name == NinoFormerNameAttributeFullName || a.AttributeClass?.ToDisplayString() == NinoFormerNameAttributeFullName);
+        }
 
         if (formerName == null)
-            return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)
+            return typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) // This ToDisplayString is for ID generation, acceptable.
                 .GetLegacyNonRandomizedHashCode();
 
         //if not generic
@@ -526,7 +618,8 @@ public static class NinoTypeHelper
         string genericConstraint = "")
     {
         var indent = "        ";
-        var ret = $$"""
+        // Split the template into lines to append with indent individually
+        var template = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static byte[] Serialize{{typeParam}}(this {{typeFullName}} value) {{genericConstraint}}
                     {
@@ -544,13 +637,45 @@ public static class NinoTypeHelper
                         value.Serialize(ref writer);
                     }
                     """;
+        
+        var lines = template.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
 
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-
-        sb.AppendLine();
-        sb.AppendLine($"{indent}{ret}");
-        sb.AppendLine();
+        sb.AppendLine(); // Keep the initial blank line if intended
+        foreach (var line in lines)
+        {
+            // Append indent only if the line is not empty, otherwise just append a newline for blank lines
+            if (line.Length > 0 || (line.Length == 0 && lines.Length > 1)) // Check if it's not an empty string from a split or if it's a deliberate blank line
+            {
+                 sb.Append(indent).AppendLine(line);
+            }
+            else if (lines.Length == 1 && line.Length == 0) // Single empty line template? (Unlikely for these methods)
+            {
+                 //sb.Append(indent).AppendLine(line); // or just sb.AppendLine();
+            }
+            else
+            {
+                // This case handles if Split results in empty strings that were not intended as blank lines.
+                // For these specific templates, all lines have content or are intentional structure.
+                // If a line from split is empty, and it's not the only line, it might mean an extra newline at end of template.
+                // The current templates don't end with newlines that would cause extra empty strings from split.
+            }
+        }
+        // The final sb.AppendLine() can add an extra blank line after the block.
+        // The original logic had one before and one effectively after (due to AppendLine of indented block).
+        // If the template itself ends with a newline, AppendLine(line) already handles it.
+        // Let's ensure one blank line after the generated block.
+        // If the template does not end with a newline, the last AppendLine(line) adds one.
+        // If it does, then we might get two. The original `sb.AppendLine($"{indent}{ret}"); sb.AppendLine();`
+        // implies two newlines after the content of ret.
+        // Let's stick to one extra newline after the content.
+        // If the last line of template is empty, AppendLine(line) handles it. If not, it adds one.
+        // So, an additional sb.AppendLine() might not be needed if the template includes its own trailing newlines.
+        // The provided templates are self-contained blocks.
+        // The original code added an empty line, then the indented block (which itself ends with a newline via AppendLine), then another empty line.
+        // This means: Blank line -> Content -> Blank line.
+        // The loop with Append(indent).AppendLine(line) will ensure content ends with a newline.
+        // So, only one additional sb.AppendLine() is needed if we want a blank line AFTER the content block.
+        sb.AppendLine(); 
     }
 
     public static void GenerateClassDeserializeMethods(this StringBuilder sb, string typeFullName,
@@ -558,7 +683,7 @@ public static class NinoTypeHelper
         string genericConstraint = "")
     {
         var indent = "        ";
-        var ret = $$"""
+        var template = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static void Deserialize{{typeParam}}(ReadOnlySpan<byte> data, out {{typeFullName}} value) {{genericConstraint}}
                     {
@@ -566,12 +691,20 @@ public static class NinoTypeHelper
                         Deserialize(out value, ref reader);
                     }
                     """;
+        var lines = template.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
 
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-
-        sb.AppendLine();
-        sb.AppendLine($"{indent}{ret}");
+        sb.AppendLine(); 
+        foreach (var line in lines)
+        {
+            if (line.Length > 0 || (line.Length == 0 && lines.Length > 1))
+            {
+                 sb.Append(indent).AppendLine(line);
+            }
+            else if (lines.Length == 1 && line.Length == 0)
+            {
+                 //sb.Append(indent).AppendLine(line);
+            }
+        }
         sb.AppendLine();
     }
 

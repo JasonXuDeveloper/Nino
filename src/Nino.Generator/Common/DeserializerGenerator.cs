@@ -455,18 +455,33 @@ public class DeserializerGenerator : NinoCommonGenerator
                     $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
                 return;
             }
+            
+            // Resolve NinoConstructorAttribute symbol if not already done at a higher scope
+            // For this refactoring, assume it's resolved once per GenerateDeserializeImplementation or per Generate
+            // Here, we'll expect it to be passed or resolved once if CreateInstance is called multiple times.
+            // For simplicity in this diff, let's assume it's passed to CreateInstance or resolved once within it if needed frequently.
+            // The actual resolution should be done once per compilation run where possible.
+            // This specific call site is tricky as `constructor` changes.
+            // The most direct optimization is to pass the resolved symbol to `GetNinoConstructorAttribute`.
+            // Let's assume `ninoConstructorAttributeSymbol` is available in the scope of `GenerateDeserializeImplementation`.
+            // This change implies `ninoConstructorAttributeSymbol` would need to be obtained in `GenerateDeserializeImplementation`
+            // and passed down to `CreateInstance`.
 
-            var custom = constructors.FirstOrDefault(c => c.GetAttributes().Any(a =>
-                a.AttributeClass != null &&
-                a.AttributeClass.ToDisplayString().EndsWith("NinoConstructorAttribute")));
-            if (custom != null)
+            var ninoConstructorAttributeSymbol = Compilation.GetTypeByMetadataName(NinoTypeHelper.NinoConstructorAttributeFullName);
+
+            var customAttrCheck = constructors.FirstOrDefault(c => 
+                c.GetAttributes().Any(attrData => 
+                    SymbolEqualityComparer.Default.Equals(attrData.AttributeClass?.ConstructedFrom, ninoConstructorAttributeSymbol)
+                )
+            );
+            if (customAttrCheck != null)
             {
-                constructor = custom;
+                constructor = customAttrCheck;
             }
 
             sb.AppendLine($"                    // use {constructor.ToDisplayString()}");
 
-            var attr = constructor.GetNinoConstructorAttribute();
+            var attr = constructor.GetNinoConstructorAttribute(ninoConstructorAttributeSymbol);
             string[] args;
             if (attr != null)
             {

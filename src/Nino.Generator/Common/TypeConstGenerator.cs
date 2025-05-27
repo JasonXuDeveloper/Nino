@@ -25,11 +25,14 @@ public class TypeConstGenerator : NinoCommonGenerator
             .Where(symbol => symbol.IsInstanceType()).ToList();
 
         var types = new StringBuilder();
+        var ninoFormerNameAttributeSymbol = compilation.GetTypeByMetadataName(NinoTypeHelper.NinoFormerNameAttributeFullName);
+
         foreach (var type in serializableTypes)
         {
             string variableName = type.GetTypeFullName().GetTypeConstName();
             types.AppendLine($"\t\t// {type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}");
-            types.AppendLine($"\t\tpublic const int {variableName} = {type.GetId()};");
+            // Pass the resolved symbol and compilation to GetId
+            types.AppendLine($"\t\tpublic const int {variableName} = {type.GetId(ninoFormerNameAttributeSymbol, compilation)};");
         }
 
         //remove last newline

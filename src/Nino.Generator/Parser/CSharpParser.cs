@@ -10,298 +10,224 @@ public class CSharpParser : NinoTypeParser
 {
     private readonly List<ITypeSymbol> _ninoSymbols;
 
+    private const string NinoExplicitOrderAttributeFullName = "Nino.NinoExplicitOrderAttribute";
+    private const string NinoTypeAttributeFullName = "Nino.NinoTypeAttribute";
+    private const string NinoIgnoreAttributeFullName = "Nino.NinoIgnoreAttribute";
+    private const string NinoMemberAttributeFullName = "Nino.NinoMemberAttribute";
+    private const string NinoPrivateProxyAttributeFullName = "Nino.NinoPrivateProxyAttribute";
+    private const string NinoUtf8AttributeFullName = "Nino.NinoUtf8Attribute";
+
     public CSharpParser(List<ITypeSymbol> ninoSymbols)
     {
         _ninoSymbols = ninoSymbols;
     }
 
-    protected override List<NinoType> ParseTypes()
+    protected (List<NinoType> types, Dictionary<ITypeSymbol, NinoType> typeMap) ParseTypesAndMap(Compilation compilation)
     {
         List<NinoType> result = new();
-        var types = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
-        types.UnionWith(_ninoSymbols);
+        var processedOrKnownNinoSymbols = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        processedOrKnownNinoSymbols.UnionWith(_ninoSymbols);
+        
         Dictionary<ITypeSymbol, NinoType> typeMap = new(SymbolEqualityComparer.Default);
+
+        // Pre-resolve attribute symbols
+        var ninoExplicitOrderAttrSymbol = compilation.GetTypeByMetadataName(NinoExplicitOrderAttributeFullName);
+        var ninoTypeAttrSymbol = compilation.GetTypeByMetadataName(NinoTypeAttributeFullName);
+        var ninoIgnoreAttrSymbol = compilation.GetTypeByMetadataName(NinoIgnoreAttributeFullName);
+        var ninoMemberAttrSymbol = compilation.GetTypeByMetadataName(NinoMemberAttributeFullName);
+        var ninoPrivateProxyAttrSymbol = compilation.GetTypeByMetadataName(NinoPrivateProxyAttributeFullName);
+        var ninoUtf8AttrSymbol = compilation.GetTypeByMetadataName(NinoUtf8AttributeFullName);
 
         foreach (var ninoSymbol in _ninoSymbols)
         {
-            NinoType GetNinoType(ITypeSymbol typeSymbol)
+            result.Add(GetNinoType(ninoSymbol.GetPureType(), compilation, ninoExplicitOrderAttrSymbol, ninoTypeAttrSymbol, ninoIgnoreAttrSymbol, ninoMemberAttrSymbol, ninoPrivateProxyAttrSymbol, ninoUtf8AttrSymbol));
+        }
+
+        NinoType GetNinoType(ITypeSymbol typeSymbol, Compilation comp, 
+            INamedTypeSymbol? explicitOrderSym, 
+            INamedTypeSymbol? typeSym, 
+            INamedTypeSymbol? ignoreSym, 
+            INamedTypeSymbol? memberSym, 
+            INamedTypeSymbol? privateProxySym, 
+            INamedTypeSymbol? utf8Sym)
+        {
+            var pureTypeSymbol = typeSymbol.GetPureType();
+            if (typeMap.TryGetValue(pureTypeSymbol, out var ninoType))
             {
-                if (typeMap.TryGetValue(typeSymbol, out var ninoType))
-                {
-                    return ninoType;
-                }
-
-                ninoType = new NinoType(typeSymbol, null, null);
-
-                bool IsNinoType(ITypeSymbol ts)
-                {
-                    if (!ts.IsNinoType())
-                        return false;
-                    
-                    if(!types.Contains(ts))
-                        GetNinoType(ts);
-                    
-                    return true;
-                }
-                
-                // collect base type
-                if (typeSymbol.BaseType != null && IsNinoType(typeSymbol.BaseType))
-                {
-                    ninoType.AddParent(GetNinoType(typeSymbol.BaseType));
-                }
-
-                // collect base interfaces
-                foreach (var interfaceType in typeSymbol.AllInterfaces)
-                {
-                    if (IsNinoType(interfaceType))
-                    {
-                        ninoType.AddParent(GetNinoType(interfaceType));
-                    }
-                }
-
-                // collect members
-                List<NinoMember> ninoMembers = new();
-
-                //check if this type has attribute NinoExplicitOrder
-                var explicitOrder = typeSymbol.GetAttributes().FirstOrDefault(a =>
-                    a.AttributeClass != null &&
-                    a.AttributeClass.ToDisplayString().EndsWith("NinoExplicitOrderAttribute"));
-                Dictionary<string, int> order = new();
-                if (explicitOrder != null)
-                {
-                    //first arg of NinoExplicitOrderAttribute is param string[] order
-                    for (var index = 0; index < explicitOrder.ConstructorArguments[0].Values.Length; index++)
-                    {
-                        var value = explicitOrder.ConstructorArguments[0].Values[index];
-                        order[(string)value.Value!] = index;
-                    }
-                }
-
-                //get NinoType attribute first argument value from typeSymbol
-                var attr = typeSymbol.GetAttributes().FirstOrDefault(a =>
-                    a.AttributeClass != null &&
-                    a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
-                bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
-                bool containNonPublic = attr != null && (bool)(attr.ConstructorArguments[1].Value ?? false);
-
-                Dictionary<string, int> memberIndex = new Dictionary<string, int>();
-                HashSet<ISymbol> members = new(SymbolEqualityComparer.Default);
-                var primaryConstructorParams = new List<IParameterSymbol>();
-
-                void AddMembers(NinoType type)
-                {
-                    // direct members
-                    foreach (var member in type.TypeSymbol.GetMembers())
-                    {
-                        if (member.IsImplicitlyDeclared)
-                            continue;
-
-                        bool valid = false;
-                        if (member is IFieldSymbol fieldSymbol)
-                        {
-                            valid = (containNonPublic || fieldSymbol.DeclaredAccessibility == Accessibility.Public) &&
-                                    !fieldSymbol.IsStatic;
-                        }
-
-                        if (member is IPropertySymbol propertySymbol)
-                        {
-                            valid = propertySymbol.GetMethod != null &&
-                                    propertySymbol.SetMethod != null &&
-                                    (containNonPublic ||
-                                     propertySymbol.DeclaredAccessibility == Accessibility.Public) &&
-                                    !propertySymbol.IsStatic;
-                        }
-
-                        if (!valid)
-                            continue;
-
-                        members.Add(member);
-                    }
-
-                    //record ctor members
-                    if (type.TypeSymbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.IsRecord)
-                    {
-                        // Retrieve all public instance constructors
-                        var publicConstructors = namedTypeSymbol.InstanceConstructors
-                            .Where(c =>
-                                c.DeclaredAccessibility == Accessibility.Public
-                                && !c.IsImplicitlyDeclared
-                                && !c.IsStatic
-                            )
-                            .ToList();
-
-                        foreach (var constructor in publicConstructors)
-                        {
-                            // Check that each parameter in the constructor has a matching readonly property with the same name
-                            foreach (var parameter in constructor.Parameters)
-                            {
-                                var matchingProperty = namedTypeSymbol.GetMembers()
-                                    .OfType<IPropertySymbol>()
-                                    .FirstOrDefault(p =>
-                                        p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase)
-                                        && !p.IsStatic);
-
-                                // If any parameter does not have a matching readonly property, it’s likely not a primary constructor
-                                if (matchingProperty == null || !matchingProperty.IsReadOnly)
-                                {
-                                    break;
-                                }
-                            }
-
-                            primaryConstructorParams.AddRange(constructor.Parameters);
-                            break;
-                        }
-                    }
-
-                    // Parent members
-                    foreach (var parent in type.Parents)
-                    {
-                        AddMembers(parent);
-                    }
-                }
-
-                AddMembers(ninoType);
-                members.UnionWith(primaryConstructorParams);
-
-                //clean up
-                foreach (var symbol in members)
-                {
-                    var attrList = symbol.GetAttributes();
-                    //if has ninoignore attribute, ignore this member
-                    if (autoCollect && attrList.Any(a => a.AttributeClass?.Name.EndsWith("NinoIgnoreAttribute") ?? false))
-                    {
-                        continue;
-                    }
-
-                    //if has NinoPrivateProxyAttribute, it is a private proxy
-                    var ninoPrivateProxyAttribute = attrList.FirstOrDefault(a =>
-                        a.AttributeClass?.Name.EndsWith("NinoPrivateProxyAttribute") ?? false);
-                    bool isPrivateProxy = false;
-                    bool isProxyProperty = false;
-                    string proxyName = "";
-
-                    if (ninoPrivateProxyAttribute != null)
-                    {
-                        var args = ninoPrivateProxyAttribute.ConstructorArguments;
-                        isPrivateProxy = true;
-                        isProxyProperty = (bool)(args[1].Value ?? throw new InvalidOperationException());
-                        proxyName = (string)(args[0].Value ?? throw new InvalidOperationException());
-                    }
-
-                    var memberName = isPrivateProxy ? proxyName : symbol.Name;
-                    if (memberIndex.ContainsKey(memberName))
-                    {
-                        continue;
-                    }
-
-                    bool isPrivate = symbol.DeclaredAccessibility != Accessibility.Public;
-                    //we dont count primary constructor params as private
-                    if (primaryConstructorParams.Contains(symbol, SymbolEqualityComparer.Default))
-                    {
-                        isPrivate = false;
-                    }
-
-                    if (isPrivateProxy)
-                        isPrivate = true;
-
-                    var memberType = symbol switch
-                    {
-                        IFieldSymbol fieldSymbol => fieldSymbol.Type,
-                        IPropertySymbol propertySymbol => propertySymbol.Type,
-                        IParameterSymbol parameterSymbol => parameterSymbol.Type,
-                        _ => null
-                    };
-
-                    if (memberType == null)
-                    {
-                        continue;
-                    }
-
-                    //nullability check
-                    memberType = memberType.GetPureType();
-                    var isProperty = isPrivateProxy ? isProxyProperty : symbol is IPropertySymbol;
-
-                    if (autoCollect || isPrivateProxy)
-                    {
-                        memberIndex[memberName] = memberIndex.Count;
-                        ninoMembers.Add(new(memberName, memberType)
-                        {
-                            IsCtorParameter = symbol is IParameterSymbol,
-                            IsPrivate = isPrivate,
-                            IsProperty = isProperty,
-                            IsUtf8String = attrList.Any(a =>
-                                a.AttributeClass?.Name.EndsWith("NinoUtf8Attribute") ?? false),
-                        });
-                        continue;
-                    }
-
-                    //get nino member attribute's first argument on this member
-                    var arg = attrList.FirstOrDefault(a
-                            => a.AttributeClass?.Name.EndsWith("NinoMemberAttribute") ?? false)?
-                        .ConstructorArguments.FirstOrDefault();
-                    if (arg == null)
-                    {
-                        continue;
-                    }
-
-                    //get index value from NinoMemberAttribute
-                    var indexValue = arg.Value.Value;
-                    if (indexValue == null)
-                    {
-                        continue;
-                    }
-
-                    memberIndex[memberName] = (ushort)indexValue;
-                    ninoMembers.Add(new(memberName, memberType)
-                    {
-                        IsCtorParameter = symbol is IParameterSymbol,
-                        IsPrivate = isPrivate,
-                        IsProperty = isProperty,
-                        IsUtf8String = attrList.Any(a =>
-                            a.AttributeClass?.Name.EndsWith("NinoUtf8Attribute") ?? false),
-                    });
-                }
-
-                //sort by name
-                ninoMembers.Sort((a, b) =>
-                {
-                    var aName = a.Name;
-                    var bName = b.Name;
-                    return string.Compare(aName, bName, StringComparison.Ordinal);
-                });
-                //sort by index
-                ninoMembers.Sort((a, b) =>
-                {
-                    var aName = a.Name;
-                    var bName = b.Name;
-                    return memberIndex[aName].CompareTo(memberIndex[bName]);
-                });
-
-                if (order.Count > 0)
-                {
-                    ninoMembers.Sort((a, b) =>
-                    {
-                        var aName = a.Name;
-                        var bName = b.Name;
-                        return order[aName].CompareTo(order[bName]);
-                    });
-                }
-
-                //add members
-                foreach (var member in ninoMembers)
-                {
-                    ninoType.AddMember(member);
-                }
-
-                //add to map
-                typeMap[typeSymbol] = ninoType;
-
                 return ninoType;
             }
 
-            result.Add(GetNinoType(ninoSymbol));
-        }
+            ninoType = new NinoType(pureTypeSymbol, null, null);
+            typeMap[pureTypeSymbol] = ninoType; 
+            
+            bool IsNinoTypeAndProcessIfNeeded(ITypeSymbol ts)
+            {
+                // Check IsNinoType using pre-resolved symbol
+                bool isType = ts.IsUnmanagedType || ts.GetAttributes().Any(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, typeSym));
+                if (!isType) return false;
+                
+                var pureTs = ts.GetPureType();
+                if (!typeMap.ContainsKey(pureTs)) 
+                {
+                     GetNinoType(pureTs, comp, explicitOrderSym, typeSym, ignoreSym, memberSym, privateProxySym, utf8Sym);
+                }
+                return true;
+            }
+            
+            if (pureTypeSymbol.BaseType != null && IsNinoTypeAndProcessIfNeeded(pureTypeSymbol.BaseType))
+            {
+                ninoType.AddParent(GetNinoType(pureTypeSymbol.BaseType.GetPureType(), comp, explicitOrderSym, typeSym, ignoreSym, memberSym, privateProxySym, utf8Sym));
+            }
 
-        return result;
+            foreach (var interfaceType in pureTypeSymbol.AllInterfaces)
+            {
+                if (IsNinoTypeAndProcessIfNeeded(interfaceType))
+                {
+                    ninoType.AddParent(GetNinoType(interfaceType.GetPureType(), comp, explicitOrderSym, typeSym, ignoreSym, memberSym, privateProxySym, utf8Sym));
+                }
+            }
+
+            List<NinoMember> ninoMembers = new();
+            var explicitOrderAttrData = pureTypeSymbol.GetAttributes().FirstOrDefault(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, explicitOrderSym));
+            Dictionary<string, int> order = new();
+            if (explicitOrderAttrData != null && explicitOrderAttrData.ConstructorArguments.Length > 0)
+            {
+                foreach(var val in explicitOrderAttrData.ConstructorArguments[0].Values)
+                {
+                    if(val.Value is string strVal)
+                    {
+                        order[strVal] = order.Count; // Keep original logic of using .Count for index
+                    }
+                }
+            }
+            
+            var ninoTypeAttrData = pureTypeSymbol.GetAttributes().FirstOrDefault(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, typeSym));
+            bool autoCollect = ninoTypeAttrData == null || (ninoTypeAttrData.ConstructorArguments.Length > 0 && (bool)(ninoTypeAttrData.ConstructorArguments[0].Value ?? false));
+            bool containNonPublic = ninoTypeAttrData != null && (ninoTypeAttrData.ConstructorArguments.Length > 1 && (bool)(ninoTypeAttrData.ConstructorArguments[1].Value ?? false));
+
+            Dictionary<string, int> memberNinoIndex = new Dictionary<string, int>(); // Renamed to avoid confusion with 'order'
+            HashSet<ISymbol> members = new(SymbolEqualityComparer.Default);
+            var primaryConstructorParams = new List<IParameterSymbol>();
+
+            void AddMembersRecursively(NinoType typeToScanMembersFrom)
+            {
+                var symbolToScan = typeToScanMembersFrom.TypeSymbol;
+                foreach (var member in symbolToScan.GetMembers())
+                {
+                    if (member.IsImplicitlyDeclared) continue;
+                    bool valid = false;
+                    if (member is IFieldSymbol fieldSymbol)
+                    {
+                        valid = (containNonPublic || fieldSymbol.DeclaredAccessibility == Accessibility.Public) && !fieldSymbol.IsStatic;
+                    }
+                    else if (member is IPropertySymbol propertySymbol)
+                    {
+                        valid = propertySymbol.GetMethod != null && propertySymbol.SetMethod != null &&
+                                (containNonPublic || propertySymbol.DeclaredAccessibility == Accessibility.Public) && !propertySymbol.IsStatic;
+                    }
+                    if (valid) members.Add(member);
+                }
+                if (symbolToScan is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.IsRecord)
+                {
+                    var publicConstructors = namedTypeSymbol.InstanceConstructors
+                        .Where(c => c.DeclaredAccessibility == Accessibility.Public && !c.IsImplicitlyDeclared && !c.IsStatic)
+                        .ToList();
+                    foreach (var constructor in publicConstructors)
+                    {
+                        bool isPrimaryLike = true;
+                        foreach (var parameter in constructor.Parameters)
+                        {
+                            var matchingProperty = namedTypeSymbol.GetMembers()
+                                .OfType<IPropertySymbol>()
+                                .FirstOrDefault(p => p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase) && !p.IsStatic);
+                            if (matchingProperty == null || !matchingProperty.IsReadOnly) { isPrimaryLike = false; break; }
+                        }
+                        if (isPrimaryLike) { primaryConstructorParams.AddRange(constructor.Parameters); break; }
+                    }
+                }
+                foreach (var parentNinoType in typeToScanMembersFrom.Parents)
+                {
+                    AddMembersRecursively(parentNinoType);
+                }
+            }
+
+            AddMembersRecursively(ninoType);
+            members.UnionWith(primaryConstructorParams.Cast<ISymbol>());
+
+            foreach (var symbol in members)
+            {
+                var attrList = symbol.GetAttributes();
+                if (autoCollect && attrList.Any(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, ignoreSym))) continue;
+
+                var ninoPrivateProxyAttributeData = attrList.FirstOrDefault(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, privateProxySym));
+                bool isPrivateProxy = false;
+                bool isProxyProperty = false;
+                string proxyName = "";
+
+                if (ninoPrivateProxyAttribute != null)
+                {
+                    var args = ninoPrivateProxyAttribute.ConstructorArguments;
+                    isPrivateProxy = true;
+                    isProxyProperty = (args.Length > 1 && (bool)(args[1].Value ?? false));
+                    proxyName = (args.Length > 0 && args[0].Value is string pName) ? pName : "";
+                }
+
+                var memberName = isPrivateProxy ? proxyName : symbol.Name;
+                if (memberNinoIndex.ContainsKey(memberName)) continue; // Already processed (e.g. from a base class but explicitly re-declared)
+
+                bool isPrivate = symbol.DeclaredAccessibility != Accessibility.Public;
+                if (primaryConstructorParams.Contains(symbol, SymbolEqualityComparer.Default)) isPrivate = false;
+                if (isPrivateProxy) isPrivate = true;
+
+                var memberTypeSymbol = symbol switch { IFieldSymbol fs => fs.Type, IPropertySymbol ps => ps.Type, IParameterSymbol pms => pms.Type, _ => null };
+                if (memberTypeSymbol == null) continue;
+
+                memberTypeSymbol = memberTypeSymbol.GetPureType();
+                var isProperty = isPrivateProxy ? isProxyProperty : symbol is IPropertySymbol;
+                bool isUtf8 = attrList.Any(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, utf8Sym));
+
+                if (autoCollect || isPrivateProxy)
+                {
+                    memberNinoIndex[memberName] = memberNinoIndex.Count; // Auto-increment index for auto-collected members
+                    ninoMembers.Add(new NinoMember(memberName, memberTypeSymbol)
+                    {
+                        IsCtorParameter = symbol is IParameterSymbol, IsPrivate = isPrivate, IsProperty = isProperty, IsUtf8String = isUtf8,
+                    });
+                }
+                else 
+                {
+                    var ninoMemberAttrData = attrList.FirstOrDefault(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, memberSym));
+                    if (ninoMemberAttrData?.ConstructorArguments.FirstOrDefault().Value is ushort indexValue)
+                    {
+                        memberNinoIndex[memberName] = indexValue;
+                        ninoMembers.Add(new NinoMember(memberName, memberTypeSymbol)
+                        {
+                            IsCtorParameter = symbol is IParameterSymbol, IsPrivate = isPrivate, IsProperty = isProperty, IsUtf8String = isUtf8,
+                        });
+                    }
+                }
+            }
+            
+            ninoMembers.Sort((a, b) => {
+                int valA = order.TryGetValue(a.Name, out int oa) ? oa : (memberNinoIndex.TryGetValue(a.Name, out int ia) ? ia : int.MaxValue);
+                int valB = order.TryGetValue(b.Name, out int ob) ? ob : (memberNinoIndex.TryGetValue(b.Name, out int ib) ? ib : int.MaxValue);
+                int comparison = valA.CompareTo(valB);
+                return comparison == 0 ? string.Compare(a.Name, b.Name, StringComparison.Ordinal) : comparison;
+            });
+
+            foreach (var member in ninoMembers)
+            {
+                ninoType.AddMember(member);
+            }
+            return ninoType;
+        }
+        return (result.Select(nt => typeMap[nt.TypeSymbol.GetPureType()]).Distinct().ToList(), typeMap);
+    }
+
+    public (NinoGraph graph, List<NinoType> types) Parse(Compilation compilation)
+    {
+        var (ninoTypes, typeMap) = ParseTypesAndMap(compilation); // Pass compilation here
+        NinoGraph graph = new NinoGraph(compilation, ninoTypes, typeMap);
+        return (graph, ninoTypes);
     }
 }
