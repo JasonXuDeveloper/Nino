@@ -43,9 +43,11 @@ public class CollectionGenerator : IIncrementalGenerator
         var result = compilation.IsValidCompilation();
         if (!result.isValid) return;
         compilation = result.newCompilation;
-        var allNinoRequiredTypes = types.GetAllNinoRequiredTypes(compilation);
+        // Resolve the NinoTypeAttribute symbol
+        var ninoTypeAttributeSymbol = compilation.GetTypeByMetadataName(NinoTypeHelper.NinoTypeAttributeFullName);
+        var allNinoRequiredTypes = types.GetAllNinoRequiredTypes(compilation, ninoTypeAttributeSymbol);
         var potentialTypes =
-            allNinoRequiredTypes!.MergeTypes(types.Select(syntax => syntax.GetTypeSymbol(compilation)).ToList());
+            allNinoRequiredTypes!.MergeTypes(types.Select(syntax => syntax.GetTypeSymbol(compilation)).ToList(), compilation, ninoTypeAttributeSymbol);
         potentialTypes.Sort((x, y) =>
             string.Compare(x.ToDisplayString(), y.ToDisplayString(), StringComparison.Ordinal));
 

@@ -46,7 +46,7 @@ public static class NinoTypeHelper
         }
     }
 
-    public static List<ITypeSymbol> MergeTypes(this List<ITypeSymbol?> types, List<ITypeSymbol?> otherTypes)
+    public static List<ITypeSymbol> MergeTypes(this List<ITypeSymbol?> types, List<ITypeSymbol?> otherTypes, Compilation compilation, INamedTypeSymbol? ninoTypeAttributeSymbol)
     {
         HashSet<ITypeSymbol> finalCollectedTypes = new(SymbolEqualityComparer.Default);
         Queue<ITypeSymbol> workQueue = new();
@@ -76,7 +76,7 @@ public static class NinoTypeHelper
         {
             var currentSymbol = workQueue.Dequeue();
             // AddElementRecursively will add to finalCollectedTypes and workQueue if new types are found
-            AddElementRecursively(currentSymbol, finalCollectedTypes, workQueue);
+            AddElementRecursively(currentSymbol, finalCollectedTypes, workQueue, compilation, ninoTypeAttributeSymbol);
         }
 
         return finalCollectedTypes.ToList();

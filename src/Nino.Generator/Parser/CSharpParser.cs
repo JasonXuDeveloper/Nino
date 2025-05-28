@@ -164,9 +164,9 @@ public class CSharpParser : NinoTypeParser
                 bool isProxyProperty = false;
                 string proxyName = "";
 
-                if (ninoPrivateProxyAttribute != null)
+                if (ninoPrivateProxyAttributeData != null)
                 {
-                    var args = ninoPrivateProxyAttribute.ConstructorArguments;
+                    var args = ninoPrivateProxyAttributeData.ConstructorArguments;
                     isPrivateProxy = true;
                     isProxyProperty = (args.Length > 1 && (bool)(args[1].Value ?? false));
                     proxyName = (args.Length > 0 && args[0].Value is string pName) ? pName : "";
