@@ -22,7 +22,7 @@ public class CSharpParser : NinoTypeParser
         _ninoSymbols = ninoSymbols;
     }
 
-    protected (List<NinoType> types, Dictionary<ITypeSymbol, NinoType> typeMap) ParseTypesAndMap(Compilation compilation)
+    protected override (List<NinoType> types, Dictionary<ITypeSymbol, NinoType> typeMap) ParseTypes(Compilation compilation)
     {
         List<NinoType> result = new();
         var processedOrKnownNinoSymbols = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
@@ -221,12 +221,15 @@ public class CSharpParser : NinoTypeParser
             }
             return ninoType;
         }
-        return (result.Select(nt => typeMap[nt.TypeSymbol.GetPureType()]).Distinct().ToList(), typeMap);
+        // GetNinoType ensures that for a given pureTypeSymbol, the same NinoType instance is returned (from typeMap).
+        // If _ninoSymbols (input) contains multiple ITypeSymbols that normalize to the same pureTypeSymbol,
+        // 'result' could have duplicate NinoType instances added. Distinct() ensures uniqueness of these instances.
+        return (result.Distinct().ToList(), typeMap);
     }
 
-    public (NinoGraph graph, List<NinoType> types) Parse(Compilation compilation)
+    public override (NinoGraph graph, List<NinoType> types) Parse(Compilation compilation)
     {
-        var (ninoTypes, typeMap) = ParseTypesAndMap(compilation); // Pass compilation here
+        var (ninoTypes, typeMap) = ParseTypes(compilation); // Call the overridden ParseTypes
         NinoGraph graph = new NinoGraph(compilation, ninoTypes, typeMap);
         return (graph, ninoTypes);
     }
