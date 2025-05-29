@@ -458,11 +458,31 @@ public static class NinoTypeHelper
     internal static bool IsNinoType(this ITypeSymbol typeSymbol, INamedTypeSymbol? ninoTypeAttributeSymbol)
     {
         if (typeSymbol.IsUnmanagedType) return true;
-        if (ninoTypeAttributeSymbol == null) // Fallback or if attribute doesn't exist in compilation
+
+        var attributes = typeSymbol.GetAttributes(); // Get attributes once to avoid multiple enumerations
+
+        if (ninoTypeAttributeSymbol != null)
         {
-            return typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == NinoTypeAttributeFullName || a.AttributeClass?.ToDisplayString() == NinoTypeAttributeFullName);
+            // Try preferred symbol equality first
+            if (attributes.Any(ad => ad.AttributeClass != null && SymbolEqualityComparer.Default.Equals(ad.AttributeClass.ConstructedFrom, ninoTypeAttributeSymbol)))
+            {
+                return true;
+            }
+            // Fallback to fully qualified name comparison if symbol equality failed, but ninoTypeAttributeSymbol was resolved.
+            // This handles cases where symbols might not be perfectly identical across different resolutions but names match.
+            if (attributes.Any(ad => ad.AttributeClass != null && ad.AttributeClass.ToDisplayString() == NinoTypeAttributeFullName))
+            {
+                // Optional: Log a warning here if this path is taken, as it might indicate subtle symbol issues.
+                // Example: // Console.WriteLine($"Warning: NinoTypeAttribute on {typeSymbol.ToDisplayString()} identified by name, not symbol equality.");
+                return true;
+            }
         }
-        return typeSymbol.GetAttributes().Any(ad => SymbolEqualityComparer.Default.Equals(ad.AttributeClass?.ConstructedFrom, ninoTypeAttributeSymbol));
+        
+        // Fallback if ninoTypeAttributeSymbol was initially null OR if both symbol and name checks above failed (when ninoTypeAttributeSymbol was not null).
+        // This primarily covers the ninoTypeAttributeSymbol == null case but also acts as a final catch.
+        return attributes.Any(static ad => ad.AttributeClass != null && 
+                                         (ad.AttributeClass.Name == "NinoTypeAttribute" || // Simple name check (less robust but was part of original fallback)
+                                          ad.AttributeClass.ToDisplayString() == NinoTypeAttributeFullName));
     }
 
     public static string GetTypeModifiers(this ITypeSymbol typeSymbol)

@@ -39,15 +39,36 @@ public class CollectionGenerator : IIncrementalGenerator
     private void GenerateSource(SourceProductionContext context,
         (Compilation Compilation, ImmutableArray<TypeSyntax> Types) input)
     {
-        var (compilation, types) = input;
-        var result = compilation.IsValidCompilation();
-        if (!result.isValid) return;
-        compilation = result.newCompilation;
-        // Resolve the NinoTypeAttribute symbol
-        var ninoTypeAttributeSymbol = compilation.GetTypeByMetadataName(NinoTypeHelper.NinoTypeAttributeFullName);
-        var allNinoRequiredTypes = types.GetAllNinoRequiredTypes(compilation, ninoTypeAttributeSymbol);
+        var (originalInputCompilation, types) = input; // Renamed for clarity
+        var validResult = originalInputCompilation.IsValidCompilation();
+        if (!validResult.isValid) return;
+        Compilation baseCompilation = validResult.newCompilation; // This is the compilation to be used for non-analysis tasks
+
+        Compilation analysisCompilation = baseCompilation;
+        if (baseCompilation is CSharpCompilation csBaseCompilation)
+        {
+            if (csBaseCompilation.Options.NullableContextOptions != NullableContextOptions.Disable)
+            {
+                analysisCompilation = csBaseCompilation.WithOptions(
+                    csBaseCompilation.Options.WithNullableContextOptions(NullableContextOptions.Disable)
+                );
+            }
+        }
+
+        // Resolve the NinoTypeAttribute symbol using analysisCompilation
+        var ninoTypeAttributeSymbol = analysisCompilation.GetTypeByMetadataName(NinoTypeHelper.NinoTypeAttributeFullName);
+        var allNinoRequiredTypes = types.GetAllNinoRequiredTypes(analysisCompilation, ninoTypeAttributeSymbol);
+        
+        // Note: types.Select(syntax => syntax.GetTypeSymbol(compilation)) should use analysisCompilation if GetTypeSymbol is sensitive to nullable context
+        // However, GetTypeSymbol typically gets the symbol as-is, and pureType is used later.
+        // For safety, if GetTypeSymbol's behavior under different nullable contexts for the *same syntax* could differ,
+        // then analysisCompilation should be used. Assuming GetTypeSymbol is robust enough or that downstream pureType handles it.
+        // Let's use analysisCompilation for GetTypeSymbol for consistency in analysis.
+        var selectedTypeSymbols = types.Select(syntax => syntax.GetTypeSymbol(analysisCompilation)).ToList();
+
         var potentialTypes =
-            allNinoRequiredTypes!.MergeTypes(types.Select(syntax => syntax.GetTypeSymbol(compilation)).ToList(), compilation, ninoTypeAttributeSymbol);
+            allNinoRequiredTypes!.MergeTypes(selectedTypeSymbols, analysisCompilation, ninoTypeAttributeSymbol);
+        
         potentialTypes.Sort((x, y) =>
             string.Compare(x.ToDisplayString(), y.ToDisplayString(), StringComparison.Ordinal));
 
@@ -59,7 +80,8 @@ public class CollectionGenerator : IIncrementalGenerator
 
         foreach (Type type in generatorTypes)
         {
-            var generator = (NinoCollectionGenerator)Activator.CreateInstance(type, compilation, potentialTypes);
+            // Pass analysisCompilation to sub-generators
+            var generator = (NinoCollectionGenerator)Activator.CreateInstance(type, analysisCompilation, potentialTypes);
             generator.Execute(context);
         }
     }
