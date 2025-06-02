@@ -13,6 +13,21 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestStaticMethodConstructor()
+        {
+            TestMethodCtor testMethodCtor = new TestMethodCtor()
+            {
+                A = 999,
+                B = "Test"
+            };
+            byte[] bytes = testMethodCtor.Serialize();
+            Assert.IsNotNull(bytes);
+            Deserializer.Deserialize(bytes, out TestMethodCtor result);
+            Assert.AreEqual(testMethodCtor.A, result.A);
+            Assert.AreEqual(testMethodCtor.B, result.B);
+        }
+
+        [TestMethod]
         public void TestCursedGeneric()
         {
             CursedGeneric<int> cursedGeneric = new CursedGeneric<int>

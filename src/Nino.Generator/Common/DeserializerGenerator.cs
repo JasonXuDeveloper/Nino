@@ -310,8 +310,11 @@ public class DeserializerGenerator : NinoCommonGenerator
             }
             else
             {
+                var ctorStmt = constructor.IsStatic
+                    ? $"{nt.TypeSymbol.ToDisplayString()}.{constructor.Name}"
+                    : $"new {nt.TypeSymbol.ToDisplayString()}";
                 sb.AppendLine(
-                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
+                    $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
             }
 
             if (vars.Count > 0)
@@ -427,7 +430,14 @@ public class DeserializerGenerator : NinoCommonGenerator
             //get constructors of the symbol
             var constructors = (nt.TypeSymbol as INamedTypeSymbol)?.Constructors.ToList();
 
-            if (constructors == null)
+            // append static methods that return an instance of the type
+            constructors ??= [];
+            constructors.AddRange(nt.TypeSymbol.GetMembers().OfType<IMethodSymbol>()
+                .Where(m => m.DeclaredAccessibility == Accessibility.Public &&
+                            m.IsStatic &&
+                            SymbolEqualityComparer.Default.Equals(m.ReturnType, nt.TypeSymbol)));
+            
+            if (constructors.Count == 0)
             {
                 sb.AppendLine(
                     $"                    // no constructor found, symbol is not a named type symbol but a {nt.TypeSymbol.GetType()}");
@@ -448,20 +458,20 @@ public class DeserializerGenerator : NinoCommonGenerator
             if (constructor == null)
                 constructor = constructors.OrderBy(c => c.Parameters.Length).FirstOrDefault();
 
-            if (constructor == null)
-            {
-                sb.AppendLine("                    // no constructor found");
-                sb.AppendLine(
-                    $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
-                return;
-            }
-
             var custom = constructors.FirstOrDefault(c => c.GetAttributes().Any(a =>
                 a.AttributeClass != null &&
                 a.AttributeClass.ToDisplayString().EndsWith("NinoConstructorAttribute")));
             if (custom != null)
             {
                 constructor = custom;
+            }
+
+            if (constructor == null)
+            {
+                sb.AppendLine("                    // no constructor found");
+                sb.AppendLine(
+                    $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
+                return;
             }
 
             sb.AppendLine($"                    // use {constructor.ToDisplayString()}");

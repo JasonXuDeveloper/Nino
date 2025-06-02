@@ -7,6 +7,30 @@ using Nino.Core;
 #nullable disable
 
 [NinoType(false, true)]
+public partial class TestMethodCtor
+{
+    [NinoMember(0)] public int A;
+    [NinoMember(1)] private string _b;
+
+    public string B
+    {
+        get => _b;
+        set => _b = value ?? string.Empty;
+    }
+
+    [NinoConstructor(nameof(A), nameof(_b))]
+    public static TestMethodCtor Create(int a = 0, string b = null)
+    {
+        Console.WriteLine(111);
+        return new TestMethodCtor()
+        {
+            A = a,
+            _b = b ?? string.Empty
+        };
+    }
+}
+
+[NinoType(false, true)]
 public partial class TestA<T>
 {
     [NinoMember(0)] protected T Value;

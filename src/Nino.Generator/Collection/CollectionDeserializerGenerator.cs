@@ -336,6 +336,40 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
 
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                         public static void Deserialize({{dictSymbol.ToDisplayString()}} value, ref Reader reader)
+                         {
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                              if (reader.Eof)
+                              {
+                                 return;
+                              }
+                         #endif
+                             
+                             if (!reader.ReadCollectionHeader(out var length))
+                             {
+                                 return;
+                             }
+
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                             Reader eleReader;
+                         #endif
+                             
+                             value.Clear();
+                             for (int i = 0; i < length; i++)
+                             {
+                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                 eleReader = reader.Slice();
+                                 Deserialize(out {{keyType.ToDisplayString()}} key, ref eleReader);
+                                 Deserialize(out {{valType.ToDisplayString()}} val, ref eleReader);
+                         #else
+                                Deserialize(out {{keyType.ToDisplayString()}} key, ref reader);
+                                Deserialize(out {{valType.ToDisplayString()}} val, ref reader);
+                         #endif
+                                value[key] = val;
+                             }
+                         }
+
+                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
                          public static void Deserialize(out {{dictSymbol.ToDisplayString()}} value, ref Reader reader)
                          {
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
@@ -532,7 +566,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                              {
                          {{deserializeStr}}
                              }
-                         
+
                              value = {{creationDecl}};
                          }
                          """;
@@ -621,14 +655,14 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                              {{eleReaderDecl}}
                          #endif
-                         
+
                              var arr = {{arrCreationDecl}};
                              var span = arr.AsSpan();
                              for (int i = 0; i < length; i++)
                              {
                          {{deserializeStr}}
                              }
-                         
+
                              value = {{creationDecl}};
                          }
                          """;
@@ -658,6 +692,68 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                   ?? namedTypeSymbol;
                 var elemType = ienumSymbol.TypeArguments[0];
                 var typeDecl = $"System.Collections.Generic.List<{elemType.ToDisplayString()}>";
+
+                var hasAddAndClear = new Joint().With(
+                    new ValidMethod((s, method) =>
+                    {
+                        if (s.TypeKind == TypeKind.Interface) return false;
+                        if (s is not INamedTypeSymbol ns) return false;
+                        var es = ns.AllInterfaces.FirstOrDefault(i =>
+                                              i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                          ?? ns;
+                        var elementType = es.TypeArguments[0];
+
+                        return method.Name == "Add"
+                               && method.Parameters.Length == 1
+                               && method.Parameters[0].Type.Equals(elementType, SymbolEqualityComparer.Default);
+                    }),
+                    new ValidMethod((s, method) =>
+                    {
+                        if (s.TypeKind == TypeKind.Interface) return false;
+                        if (s is not INamedTypeSymbol) return false;
+
+                        return method.Name == "Clear"
+                               && method.Parameters.Length == 0;
+                    }));
+                var extra = "";
+                if (hasAddAndClear.Filter(symbol))
+                {
+                    extra = $$"""
+                              
+                              
+                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                              public static void Deserialize({{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
+                              {
+                              #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                   if (reader.Eof)
+                                   {
+                                      return;
+                                   }
+                              #endif
+                                  
+                                  if (!reader.ReadCollectionHeader(out var length))
+                                  {
+                                      return;
+                                  }
+                              
+                              #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                  Reader eleReader;
+                              #endif
+                                  
+                                  value.Clear();
+                                  for (int i = 0; i < length; i++)
+                                  {
+                              #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                      eleReader = reader.Slice();
+                                      Deserialize(out {{elemType.ToDisplayString()}} item, ref eleReader);
+                              #else
+                                      Deserialize(out {{elemType.ToDisplayString()}} item, ref reader);
+                              #endif
+                                      value.Add(item);
+                                  }
+                              }
+                              """;
+                }
 
                 var creationDecl = $"new {typeDecl}(length)";
                 return $$"""
@@ -695,7 +791,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                              }
                              
                              value = lst;
-                         }
+                         }{{extra}}
                          """;
             }
         ),
@@ -719,7 +815,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                          return;
                       }
                  #endif
-                 
+
                      {{string.Join("\n    ", deserializeValues)}};
                      value = {{(isValueTuple ? "" : $"new {type.ToDisplayString()}")}}({{
                          string.Join(", ",

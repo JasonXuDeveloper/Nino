@@ -6,7 +6,7 @@ namespace Nino.Core
     /// Mark a constructor to be used when deserializing
     /// <see href="https://nino.xgamedev.net/en/doc/advanced#custom-constructors"/>
     /// </summary>
-    [AttributeUsage(AttributeTargets.Constructor)]
+    [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method)]
     public class NinoConstructorAttribute : Attribute
     {
         public string[] Parameters;
