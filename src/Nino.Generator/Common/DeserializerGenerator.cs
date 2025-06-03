@@ -286,14 +286,17 @@ public class DeserializerGenerator : NinoCommonGenerator
                 return;
             }
 
+            var ctorStmt = constructor.MethodKind == MethodKind.Constructor
+                ? $"new {nt.TypeSymbol.ToDisplayString()}"
+                : $"{nt.TypeSymbol.ToDisplayString()}.{constructor.Name}";
             if (args.Keys.Any(tupleMap.ContainsKey))
             {
                 sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
                 sb.AppendLine(
-                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
+                    $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
                 sb.AppendLine("#else");
                 sb.AppendLine(
-                    $"                    {valName} = new {nt.TypeSymbol.ToDisplayString()}({string.Join(", ",
+                    $"                    {valName} = {ctorStmt}({string.Join(", ",
                         ctorArgs.Select(m =>
                             {
                                 var tupleKey = tupleMap.Keys
@@ -310,9 +313,6 @@ public class DeserializerGenerator : NinoCommonGenerator
             }
             else
             {
-                var ctorStmt = constructor.MethodKind == MethodKind.Constructor
-                    ? $"new {nt.TypeSymbol.ToDisplayString()}"
-                    : $"{nt.TypeSymbol.ToDisplayString()}.{constructor.Name}";
                 sb.AppendLine(
                     $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
             }
