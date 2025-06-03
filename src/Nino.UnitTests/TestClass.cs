@@ -6,6 +6,28 @@ using Nino.Core;
 
 #nullable disable
 
+[NinoType]
+public class Move
+{
+    public ushort ClientX;
+
+    public ushort ClientY;
+
+    private Move()
+    {
+    }
+
+    [NinoConstructor(nameof(ClientX), nameof(ClientY))]
+    public static Move Create(ushort clientX, ushort clientY)
+    {
+        return new Move
+        {
+            ClientX = clientX,
+            ClientY = clientY,
+        };
+    }
+}
+
 [NinoType(false, true)]
 public partial class TestMethodCtor
 {

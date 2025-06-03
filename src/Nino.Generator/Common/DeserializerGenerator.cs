@@ -263,7 +263,7 @@ public class DeserializerGenerator : NinoCommonGenerator
                     k.ToLower().Equals(m.ToLower()));
                 if (k != null)
                 {
-                    ctorArgs.Add(args[k]);
+                    ctorArgs.Add(k);
                 }
                 else
                 {
@@ -293,28 +293,24 @@ public class DeserializerGenerator : NinoCommonGenerator
             {
                 sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
                 sb.AppendLine(
-                    $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
+                    $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs.Select(k => args[k]))}){(vars.Count > 0 ? "" : ";")}");
                 sb.AppendLine("#else");
                 sb.AppendLine(
-                    $"                    {valName} = {ctorStmt}({string.Join(", ",
-                        ctorArgs.Select(m =>
-                            {
-                                var tupleKey = tupleMap.Keys
-                                    .FirstOrDefault(k =>
-                                        k.ToLower()
-                                            .Equals(m.ToLower()));
-                                if (tupleKey != null)
-                                    return tupleMap[tupleKey];
+                    $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs.Select(k =>
+                    {
+                        if (!tupleMap.TryGetValue(k, out var value))
+                        {
+                            return args[k];
+                        }
 
-                                return m;
-                            }
-                        ))}){(vars.Count > 0 ? "" : ";")}");
+                        return value;
+                    }))}){(vars.Count > 0 ? "" : ";")}");
                 sb.AppendLine("#endif");
             }
             else
             {
                 sb.AppendLine(
-                    $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
+                    $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs.Select(k => args[k]))}){(vars.Count > 0 ? "" : ";")}");
             }
 
             if (vars.Count > 0)
