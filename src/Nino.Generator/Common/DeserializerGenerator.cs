@@ -254,7 +254,7 @@ public class DeserializerGenerator : NinoCommonGenerator
                     sb.AppendLine("#endif");
                 }
             }
-            
+
             List<string> ctorArgs = new List<string>();
             string? missingArg = null;
             foreach (var m in constructorMember)
@@ -310,9 +310,9 @@ public class DeserializerGenerator : NinoCommonGenerator
             }
             else
             {
-                var ctorStmt = constructor.IsStatic
-                    ? $"{nt.TypeSymbol.ToDisplayString()}.{constructor.Name}"
-                    : $"new {nt.TypeSymbol.ToDisplayString()}";
+                var ctorStmt = constructor.MethodKind == MethodKind.Constructor
+                    ? $"new {nt.TypeSymbol.ToDisplayString()}"
+                    : $"{nt.TypeSymbol.ToDisplayString()}.{constructor.Name}";
                 sb.AppendLine(
                     $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs)}){(vars.Count > 0 ? "" : ";")}");
             }
@@ -436,7 +436,7 @@ public class DeserializerGenerator : NinoCommonGenerator
                 .Where(m => m.DeclaredAccessibility == Accessibility.Public &&
                             m.IsStatic &&
                             SymbolEqualityComparer.Default.Equals(m.ReturnType, nt.TypeSymbol)));
-            
+
             if (constructors.Count == 0)
             {
                 sb.AppendLine(
