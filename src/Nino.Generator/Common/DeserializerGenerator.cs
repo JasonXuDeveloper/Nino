@@ -1,6 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Metadata;
@@ -8,166 +6,107 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
-public class DeserializerGenerator : NinoCommonGenerator
+public partial class DeserializerGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+    : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
-    public DeserializerGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
-        : base(compilation, ninoGraph, ninoTypes)
-    {
-    }
-
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
-
-        var sb = new StringBuilder();
-
-        sb.GenerateClassDeserializeMethods("T?", "<T>", "where T : unmanaged");
-        sb.GenerateClassDeserializeMethods("T[]", "<T>", "where T : unmanaged");
-        sb.GenerateClassDeserializeMethods("T?[]", "<T>", "where T : unmanaged");
-        sb.GenerateClassDeserializeMethods("List<T>", "<T>", "where T : unmanaged");
-        sb.GenerateClassDeserializeMethods("List<T?>", "<T>", "where T : unmanaged");
-        sb.GenerateClassDeserializeMethods("Dictionary<TKey, TValue>", "<TKey, TValue>",
-            "where TKey : unmanaged where TValue : unmanaged");
-        sb.GenerateClassDeserializeMethods("string");
-
-        foreach (var ninoType in NinoTypes)
-        {
-            if (!ninoType.IsPolymorphic() || !ninoType.TypeSymbol.IsInstanceType() ||
-                !string.IsNullOrEmpty(ninoType.CustomDeserializer))
-                continue;
-            sb.AppendLine();
-            sb.AppendLine($$"""
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    [EditorBrowsable(EditorBrowsableState.Never)]
-                                    [System.Diagnostics.DebuggerNonUserCode]
-                                    [System.Runtime.CompilerServices.CompilerGenerated]
-                                    [Obsolete("Internal implementation, use Deserialize(...)")]
-                                    public static void DeserializeImpl(out {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
-                                    {
-                                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                         if (reader.Eof)
-                                         {
-                                            value = default;
-                                            return;
-                                         }
-                                    #endif
-                                         
-                            """);
-            CreateInstance(spc, sb, ninoType, "value");
-            sb.AppendLine("        }");
-            sb.AppendLine();
-        }
-
         HashSet<ITypeSymbol> generatedTypes = new(SymbolEqualityComparer.Default);
+        GenerateTrivialCode(spc, generatedTypes);
 
-        foreach (var ninoType in NinoTypes)
-        {
-            try
-            {
-                GenerateDeserializeImplementation(ninoType, sb, spc);
-                generatedTypes.Add(ninoType.TypeSymbol);
-            }
-            catch (Exception e)
-            {
-                sb.AppendLine($"/* Error: {e.Message} for type {ninoType.TypeSymbol.GetTypeFullName()}");
-                //add stacktrace
-                foreach (var line in e.StackTrace.Split('\n'))
-                {
-                    sb.AppendLine($" * {line}");
-                }
-
-                //end error
-                sb.AppendLine(" */");
-            }
-        }
-
-        StringBuilder sb2 = new();
-        sb2.AppendLine("""
-                               private delegate object DeserializeDelegate(ref Reader reader);
-                               private static Dictionary<IntPtr, DeserializeDelegate> _deserializers = new()
-                               {
-                       """);
+        StringBuilder sb = new();
+        sb.AppendLine("""
+                              private delegate object DeserializeDelegate(ref Reader reader);
+                              private static Dictionary<IntPtr, DeserializeDelegate> _deserializers = new()
+                              {
+                      """);
         foreach (var type in generatedTypes)
         {
             if (type.IsUnmanagedType && !type.IsPolyMorphicType())
                 continue;
-            sb2.AppendLine($$"""
-                                         {
-                                             typeof({{type.ToDisplayString()}}).TypeHandle.Value, 
-                                             (ref Reader reader) => 
-                                                 {
-                                                     Deserialize(out {{type.ToDisplayString()}} value, ref reader);
-                                                     return value;
-                                                 }
-                                         },
-                             """);
+            sb.AppendLine($$"""
+                                        {
+                                            typeof({{type.ToDisplayString()}}).TypeHandle.Value, 
+                                            (ref Reader reader) => 
+                                                {
+                                                    Deserialize(out {{type.ToDisplayString()}} value, ref reader);
+                                                    return value;
+                                                }
+                                        },
+                            """);
         }
 
-        sb2.AppendLine("        };");
+        sb.AppendLine("        };");
 
-        sb2.AppendLine($$"""
-                         
-                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                 public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value)
-                                 {
-                                     var reader = new Reader(data);
-                                     Deserialize(out value, ref reader);
-                                 }
-                                 
-                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                 public static void Deserialize<T>(out T value, ref Reader reader)
-                                 {
-                                 #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                      if (reader.Eof)
-                                      {
-                                         value = default;
-                                         return;
-                                      }
-                                 #endif
+        sb.AppendLine($$"""
 
-                                     if(!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value)
+                                {
+                                    var reader = new Reader(data);
+                                    Deserialize(out value, ref reader);
+                                }
+                                
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                public static void Deserialize<T>(out T value, ref Reader reader)
+                                {
+                                #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                     if (reader.Eof)
                                      {
-                                         reader.Read(out value);
-                                         return;
+                                        value = default;
+                                        return;
                                      }
+                                #endif
 
-                                     if (!_deserializers.TryGetValue(typeof(T).TypeHandle.Value, out var deserializer))
-                                     {
-                                         throw new Exception($"Deserializer not found for type {typeof(T).FullName}");
-                                     }
+                                    if(!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                                    {
+                                        reader.Read(out value);
+                                        return;
+                                    }
 
-                                     value = (T)deserializer.Invoke(ref reader);
-                                 }
-                                 
-                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                 public static T Deserialize<T>(ReadOnlySpan<byte> data)
-                                 {
-                                     var reader = new Reader(data);
-                                     return Deserialize<T>(ref reader);
-                                 }
-                                 
-                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                 public static T Deserialize<T>(ref Reader reader)
-                                 {
-                                     Deserialize(out T value, ref reader);
-                                     return value;
-                                 }
-                                 
-                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                 public static object Deserialize(ref Reader reader, Type type)
-                                 {
-                                     if (!_deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
-                                     {
-                                         throw new Exception($"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
-                                     }
+                                    if (!_deserializers.TryGetValue(typeof(T).TypeHandle.Value, out var deserializer))
+                                    {
+                                        throw new Exception($"Deserializer not found for type {typeof(T).FullName}");
+                                    }
 
-                                     return deserializer.Invoke(ref reader);
-                                 }
-                         """);
+                                    value = (T)deserializer.Invoke(ref reader);
+                                }
+                                
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                public static T Deserialize<T>(ReadOnlySpan<byte> data)
+                                {
+                                    var reader = new Reader(data);
+                                    return Deserialize<T>(ref reader);
+                                }
+                                
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                public static T Deserialize<T>(ref Reader reader)
+                                {
+                                    Deserialize(out T value, ref reader);
+                                    return value;
+                                }
+                                
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                public static object Deserialize(ReadOnlySpan<byte> data, Type type)
+                                {
+                                    var reader = new Reader(data);
+                                    return Deserialize(ref reader, type);
+                                }
+                                
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                public static object Deserialize(ref Reader reader, Type type)
+                                {
+                                    if (!_deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
+                                    {
+                                        throw new Exception($"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
+                                    }
+
+                                    return deserializer.Invoke(ref reader);
+                                }
+                        """);
 
         var curNamespace = compilation.AssemblyName!.GetNamespace();
-
-
         // generate code
         var genericCode = $$"""
                             // <auto-generated/>
@@ -184,589 +123,10 @@ public class DeserializerGenerator : NinoCommonGenerator
                             {
                                 public static partial class Deserializer
                                 {
-                            {{sb2}}    }
+                            {{sb}}    }
                             }
                             """;
 
         spc.AddSource("NinoDeserializer.Generic.g.cs", genericCode);
-
-        // generate code
-        var code = $$"""
-                     // <auto-generated/>
-
-                     using System;
-                     using global::Nino.Core;
-                     using System.Buffers;
-                     using System.ComponentModel;
-                     using System.Collections.Generic;
-                     using System.Collections.Concurrent;
-                     using System.Runtime.InteropServices;
-                     using System.Runtime.CompilerServices;
-
-                     namespace {{curNamespace}}
-                     {
-                         public static partial class Deserializer
-                         {
-                     {{GeneratePrivateDeserializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("IList<T>", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("ICollection<T>", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("T?", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("T?[]", "        ", "<T>", "where T : unmanaged")}}
-                             
-                     {{GeneratePrivateDeserializeImplMethodBody("List<T?>", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("IList<T?>", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("ICollection<T?>", "        ", "<T>", "where T : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("Dictionary<TKey, TValue>", "        ", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("IDictionary<TKey, TValue>", "        ", "<TKey, TValue>", "where TKey : unmanaged where TValue : unmanaged")}}
-
-                     {{GeneratePrivateDeserializeImplMethodBody("string", "        ")}}
-                             
-                     {{sb}}    }
-                     }
-                     """;
-
-        spc.AddSource("NinoDeserializer.g.cs", code);
-    }
-
-
-    private void WriteMembersWithCustomConstructor(SourceProductionContext spc, StringBuilder sb, NinoType nt,
-        string valName,
-        string[] constructorMember,
-        IMethodSymbol constructor)
-    {
-        List<(string, string)> vars = new List<(string, string)>();
-        List<(string, string, bool)> privateVars = new List<(string, string, bool)>();
-        Dictionary<string, string> args = new Dictionary<string, string>();
-        Dictionary<string, string> tupleMap = new Dictionary<string, string>();
-
-        List<string> valNames = new();
-        List<List<NinoMember>> groups = nt.GroupByPrimitivity().ToList();
-        for (var index1 = 0; index1 < groups.Count; index1++)
-        {
-            var members = groups[index1];
-            valNames.Clear();
-            foreach (var member in members)
-            {
-                var name = member.Name;
-                var declaredType = member.Type;
-                var isCtorParam = member.IsCtorParameter;
-                var isPrivate = member.IsPrivate;
-                var isProperty = member.IsProperty;
-
-                var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
-                    .Aggregate("", (a, b) => a + b);
-                var tempName = $"{t}_temp_{name}";
-
-
-                if (constructorMember.Any(c => c.ToLower().Equals(name.ToLower())))
-                {
-                    args.Add(name, tempName);
-                }
-                else
-                {
-                    // we dont want init-only properties from the primary constructor
-                    if (!isCtorParam)
-                    {
-                        if (!isPrivate)
-                        {
-                            vars.Add((name, tempName));
-                        }
-                        else
-                        {
-                            privateVars.Add((name, tempName, isProperty));
-                        }
-                    }
-                }
-
-                valNames.Add(tempName);
-            }
-
-            if (members.Count == 1)
-            {
-                var member = members[0];
-                var declaredType = member.Type;
-
-                var tempName = valNames[0];
-                //check if the typesymbol declaredType is string
-                if (declaredType.SpecialType == SpecialType.System_String)
-                {
-                    var isUtf8 = member.IsUtf8String;
-
-                    var str = isUtf8
-                        ? $"reader.ReadUtf8(out {tempName});"
-                        : $"reader.Read(out {tempName});";
-
-                    //weak version tolerance
-                    var toleranceCode = $$$"""
-                                                               {{{declaredType.ToDisplayString()}}} {{{tempName}}};
-                                                               #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
-                                                               if (reader.Eof)
-                                                               {
-                                                                  {{{tempName}}} = default;
-                                                               }
-                                                               else
-                                                               {
-                                                                  {{{str}}}
-                                                               }
-                                                               #else
-                                                               {{{str}}}
-                                                               #endif
-                                           """;
-
-                    sb.AppendLine(toleranceCode);
-                    sb.AppendLine();
-                }
-                else
-                {
-                    if (!string.IsNullOrEmpty(nt.CustomDeserializer))
-                    {
-                        sb.AppendLine(
-                            $"                    {nt.CustomDeserializer}.DeserializeImpl(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
-                        continue;
-                    }
-
-                    sb.AppendLine(
-                        $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
-                }
-            }
-            else
-            {
-                sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
-                for (var index = 0; index < valNames.Count; index++)
-                {
-                    var val = valNames[index];
-                    sb.AppendLine(
-                        $"                    Deserialize(out {members[index].Type.ToDisplayString()} {val}, ref reader);");
-                }
-
-                sb.AppendLine("#else");
-                sb.AppendLine(
-                    $"                    Deserialize(out NinoTuple<{string.Join(", ",
-                        Enumerable.Range(0, valNames.Count)
-                            .Select(i => $"{members[i].Type.ToDisplayString()}"))}> t{index1}, ref reader);");
-                for (int i = 0; i < members.Count; i++)
-                {
-                    var name = members[i].Name;
-                    tupleMap[name] = $"t{index1}.Item{i + 1}";
-                }
-
-                sb.AppendLine("#endif");
-            }
-        }
-
-        List<string> ctorArgs = new List<string>();
-        string? missingArg = null;
-        foreach (var m in constructorMember)
-        {
-            var k = args.Keys.FirstOrDefault(k =>
-                k.ToLower().Equals(m.ToLower()));
-            if (k != null)
-            {
-                ctorArgs.Add(k);
-            }
-            else
-            {
-                sb.AppendLine($"                    // missing constructor member {m}");
-                missingArg = m;
-                spc.ReportDiagnostic(Diagnostic.Create(
-                    new DiagnosticDescriptor("NINO001", "Nino Generator",
-                        "Missing constructor member {0} for {1}",
-                        "Nino.Generator",
-                        DiagnosticSeverity.Error, true), constructor.Locations[0],
-                    m, nt.TypeSymbol.ToDisplayString()));
-                break;
-            }
-        }
-
-        if (missingArg != null)
-        {
-            sb.AppendLine(
-                $"                    throw new InvalidOperationException(\"Missing constructor member {missingArg}\");");
-            return;
-        }
-
-        var ctorStmt = constructor.MethodKind == MethodKind.Constructor
-            ? $"new {nt.TypeSymbol.ToDisplayString()}"
-            : $"{nt.TypeSymbol.ToDisplayString()}.{constructor.Name}";
-        if (args.Keys.Any(tupleMap.ContainsKey))
-        {
-            sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
-            sb.AppendLine(
-                $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs.Select(k => args[k]))}){(vars.Count > 0 ? "" : ";")}");
-            sb.AppendLine("#else");
-            sb.AppendLine(
-                $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs.Select(k =>
-                {
-                    if (!tupleMap.TryGetValue(k, out var value))
-                    {
-                        return args[k];
-                    }
-
-                    return value;
-                }))}){(vars.Count > 0 ? "" : ";")}");
-            sb.AppendLine("#endif");
-        }
-        else
-        {
-            sb.AppendLine(
-                $"                    {valName} = {ctorStmt}({string.Join(", ", ctorArgs.Select(k => args[k]))}){(vars.Count > 0 ? "" : ";")}");
-        }
-
-        if (vars.Count > 0)
-        {
-            string padding = new string(' ', valName.Length);
-            sb.AppendLine($"                    {padding}   {{");
-            foreach (var (memberName, varName) in vars)
-            {
-                if (tupleMap.TryGetValue(memberName, out var value))
-                {
-                    sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
-                    sb.AppendLine(
-                        $"                 {padding}      \t{memberName} = {varName},");
-                    sb.AppendLine("#else");
-                    sb.AppendLine(
-                        $"                 {padding}      \t{memberName} = {value},");
-                    sb.AppendLine("#endif");
-                }
-                else
-                {
-                    sb.AppendLine(
-                        $"                 {padding}      \t{memberName} = {varName},");
-                }
-            }
-
-            sb.AppendLine($"                    {padding}   }};");
-        }
-
-        if (privateVars.Count > 0)
-        {
-            var originalValName = valName;
-
-            if (nt.TypeSymbol.IsValueType)
-            {
-                valName = $"ref {valName}";
-            }
-
-            sb.AppendLine("#if NET8_0_OR_GREATER");
-            foreach (var (memberName, varName, isProperty) in privateVars)
-            {
-                if (tupleMap.TryGetValue(memberName, out var value))
-                {
-                    sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
-                    if (isProperty)
-                    {
-                        sb.AppendLine(
-                            $"                    PrivateAccessor.__set__{memberName}__({valName}, {varName});");
-                    }
-                    else
-                    {
-                        sb.AppendLine(
-                            $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
-                        sb.AppendLine($"                    __{varName} = {varName};");
-                    }
-
-                    sb.AppendLine("#else");
-                    if (isProperty)
-                    {
-                        sb.AppendLine(
-                            $"                    PrivateAccessor.__set__{memberName}__({valName}, {value});");
-                    }
-                    else
-                    {
-                        sb.AppendLine(
-                            $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
-                        sb.AppendLine($"                    __{varName} = {value};");
-                    }
-
-                    sb.AppendLine("#endif");
-                }
-                else
-                {
-                    if (isProperty)
-                    {
-                        sb.AppendLine(
-                            $"                    PrivateAccessor.__set__{memberName}__({valName}, {varName});");
-                    }
-                    else
-                    {
-                        sb.AppendLine(
-                            $"                    ref var __{varName} = ref PrivateAccessor.__{memberName}__({valName});");
-                        sb.AppendLine($"                    __{varName} = {varName};");
-                    }
-                }
-            }
-
-            sb.AppendLine("#else");
-            foreach (var (memberName, varName, _) in privateVars)
-            {
-                var legacyVal = $"{originalValName}.__nino__generated__{memberName}";
-                if (tupleMap.TryGetValue(memberName, out var value))
-                {
-                    sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
-                    sb.AppendLine($"                    {legacyVal} = {varName};");
-                    sb.AppendLine("#else");
-                    sb.AppendLine($"                    {legacyVal} = {value};");
-                    sb.AppendLine("#endif");
-                }
-                else
-                {
-                    sb.AppendLine($"                    {legacyVal} = {varName};");
-                }
-            }
-
-            sb.AppendLine("#endif");
-        }
-    }
-
-    private void CreateInstance(SourceProductionContext spc, StringBuilder sb, NinoType nt, string valName)
-    {
-        //if this subtype contains a custom constructor, use it
-        //go through all constructors and find the one with the NinoConstructor attribute
-        //get constructors of the symbol
-        var constructors = (nt.TypeSymbol as INamedTypeSymbol)?.Constructors.ToList();
-
-        // append static methods that return an instance of the type
-        constructors ??= [];
-        constructors.AddRange(nt.TypeSymbol.GetMembers().OfType<IMethodSymbol>()
-            .Where(m => m.DeclaredAccessibility == Accessibility.Public &&
-                        m.IsStatic &&
-                        SymbolEqualityComparer.Default.Equals(m.ReturnType, nt.TypeSymbol)));
-
-        if (constructors.Count == 0)
-        {
-            sb.AppendLine(
-                $"                    // no constructor found, symbol is not a named type symbol but a {nt.TypeSymbol.GetType()}");
-            sb.AppendLine(
-                $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
-            return;
-        }
-
-        IMethodSymbol? constructor = null;
-
-        // if typesymbol is a record, try get the primary constructor
-        if (nt.TypeSymbol.IsRecord)
-        {
-            constructor = constructors.FirstOrDefault(c => c.Parameters.Length == 0 || c.Parameters.All(p =>
-                nt.Members.Any(m => m.Name == p.Name)));
-        }
-
-        if (constructor == null)
-            constructor = constructors.OrderBy(c => c.Parameters.Length).FirstOrDefault();
-
-        var custom = constructors.FirstOrDefault(c => c.GetAttributes().Any(a =>
-            a.AttributeClass != null &&
-            a.AttributeClass.ToDisplayString().EndsWith("NinoConstructorAttribute")));
-        if (custom != null)
-        {
-            constructor = custom;
-        }
-
-        if (constructor == null)
-        {
-            sb.AppendLine("                    // no constructor found");
-            sb.AppendLine(
-                $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
-            return;
-        }
-
-        sb.AppendLine($"                    // use {constructor.ToDisplayString()}");
-
-        var attr = constructor.GetNinoConstructorAttribute();
-        string[] args;
-        if (attr != null)
-        {
-            //attr is         [NinoConstructor(nameof(a), nameof(b), nameof(c), ...)]
-            //we need to get a, b, c, ...
-            var args0 = attr.ConstructorArguments[0].Values;
-            //should be a string array
-            args = args0.Select(a =>
-                a.Value as string).ToArray()!;
-        }
-        else
-        {
-            args = constructor.Parameters.Select(p => p.Name).ToArray();
-        }
-
-        WriteMembersWithCustomConstructor(spc, sb, nt, valName, args, constructor);
-    }
-
-
-    private void GenerateDeserializeImplementation(NinoType ninoType, StringBuilder sb, SourceProductionContext spc)
-    {
-        bool isPolymorphicType = ninoType.IsPolymorphic();
-
-        // check if struct is unmanaged
-        if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
-        {
-            return;
-        }
-
-        sb.GenerateClassDeserializeMethods(ninoType.TypeSymbol.GetTypeFullName());
-
-        sb.AppendLine($$"""
-                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                public static void Deserialize(out {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
-                                {
-                                #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                     if (reader.Eof)
-                                     {
-                                        value = default;
-                                        return;
-                                     }
-                                #endif
-                                     
-                        """);
-
-        if (ninoType.IsPolymorphic())
-        {
-            sb.AppendLine("            reader.Read(out int typeId);");
-            sb.AppendLine();
-        }
-
-        if (!NinoGraph.SubTypes.TryGetValue(ninoType, out var lst))
-        {
-            lst = new List<NinoType>();
-        }
-
-        //sort lst by how deep the inheritance is (i.e. how many levels of inheritance), the deepest first
-        lst.Sort((a, b) =>
-        {
-            int aCount = NinoGraph.BaseTypes[a].Count;
-            int bCount = NinoGraph.BaseTypes[b].Count;
-            return bCount.CompareTo(aCount);
-        });
-
-        if (isPolymorphicType)
-        {
-            sb.AppendLine("            switch (typeId)");
-            sb.AppendLine("            {");
-            if (ninoType.TypeSymbol.IsReferenceType)
-            {
-                sb.AppendLine("""
-                                              case TypeCollector.Null:
-                                                  value = null;
-                                                  return;
-                              """);
-            }
-        }
-
-        foreach (var subType in lst)
-        {
-            if (subType.TypeSymbol.IsInstanceType())
-            {
-                string valName = subType.TypeSymbol.GetTypeInstanceName();
-                sb.AppendLine(
-                    $"                case NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()}:");
-                sb.AppendLine("                {");
-                sb.AppendLine($"                    {subType.TypeSymbol.GetTypeFullName()} {valName};");
-
-                if (subType.TypeSymbol.IsUnmanagedType)
-                {
-                    sb.AppendLine($"                    reader.Read(out {valName});");
-                }
-                else
-                {
-                    if (!string.IsNullOrEmpty(subType.CustomDeserializer))
-                    {
-                        sb.AppendLine(
-                            $"                    {subType.CustomDeserializer}.DeserializeImpl(out {valName}, ref reader);");
-                    }
-                    else
-                    {
-                        sb.AppendLine(
-                            $"                    DeserializeImpl(out {valName}, ref reader);");
-                    }
-                }
-
-                sb.AppendLine($"                    value = {valName};");
-                sb.AppendLine("                    return;");
-                sb.AppendLine("                }");
-            }
-        }
-
-        if (ninoType.TypeSymbol.IsInstanceType())
-        {
-            if (isPolymorphicType)
-            {
-                sb.AppendLine(
-                    $"                case NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()}:");
-                sb.AppendLine("                {");
-            }
-
-            if (ninoType.TypeSymbol.IsUnmanagedType)
-            {
-                sb.AppendLine($"                    reader.Read(out value);");
-            }
-            else if (isPolymorphicType)
-            {
-                string valName = "value";
-                if (!string.IsNullOrEmpty(ninoType.CustomDeserializer))
-                {
-                    sb.AppendLine(
-                        $"                    {ninoType.CustomDeserializer}.DeserializeImpl(out {valName}, ref reader);");
-                }
-                else
-                {
-                    sb.AppendLine(
-                        $"                    DeserializeImpl(out {valName}, ref reader);");
-                }
-            }
-            else
-            {
-                CreateInstance(spc, sb, ninoType, "value");
-            }
-
-            if (isPolymorphicType)
-            {
-                sb.AppendLine("                    return;");
-                sb.AppendLine("                }");
-            }
-        }
-
-        if (isPolymorphicType)
-        {
-            sb.AppendLine("                default:");
-            sb.AppendLine(
-                "                    throw new InvalidOperationException($\"Invalid type id {typeId}\");");
-            sb.AppendLine("            }");
-        }
-
-        sb.AppendLine("        }");
-        sb.AppendLine();
-    }
-
-    private static string GeneratePrivateDeserializeImplMethodBody(string typeName, string indent = "",
-        string typeParam = "",
-        string genericConstraint = "")
-    {
-        var ret = $$"""
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize{{typeParam}}(out {{typeName}} value, ref Reader reader) {{genericConstraint}}
-                    {
-                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                         if (reader.Eof)
-                         {
-                            value = default;
-                            return;
-                         }
-                    #endif
-                        
-                        reader.Read(out value);
-                    }
-                    """;
-
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-        return $"{indent}{ret}";
     }
 }
