@@ -14,6 +14,13 @@ public class SimpleCrossRefTest
 public partial class NotSoSimpleCrossRefTest : SubsetClassWithPrivateField
 {
     public bool NewField;
-    
-    private int NewField2;
+
+    private int _newField2;
+
+    [NinoIgnore]
+    public int NewField2Prop
+    {
+        get => _newField2;
+        set => _newField2 = value;
+    }
 }
