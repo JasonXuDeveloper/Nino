@@ -13,7 +13,7 @@ namespace Nino.Core
         public const uint HasCircularMeta = 0xABCDDBCA;
         public const byte NullCollection = 0;
         public const uint EmptyCollectionHeader = 128;
-        public static readonly bool Is64Bit = Unsafe.SizeOf<IntPtr>() == 8;
+        public static readonly bool Is64Bit = IntPtr.Size == 8;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint GetCollectionHeader(int size)
