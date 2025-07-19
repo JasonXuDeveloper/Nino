@@ -130,7 +130,7 @@ public class DeserializerGenerator : NinoCommonGenerator
 
         if (ninoType.IsPolymorphic())
         {
-            sb.AppendLine("            reader.Read(out int typeId);");
+            sb.AppendLine("            reader.Peak(out int typeId);");
             sb.AppendLine();
         }
 
@@ -514,6 +514,7 @@ public class DeserializerGenerator : NinoCommonGenerator
             {
                 sb.AppendLine("""
                                               case TypeCollector.Null:
+                                                  reader.Advance(4);
                                                   value = null;
                                                   return;
                               """);
@@ -532,6 +533,7 @@ public class DeserializerGenerator : NinoCommonGenerator
 
                 if (subType.TypeSymbol.IsUnmanagedType)
                 {
+                    sb.AppendLine("                    reader.Advance(4);");
                     sb.AppendLine($"                    reader.Read(out {valName});");
                 }
                 else
@@ -543,6 +545,7 @@ public class DeserializerGenerator : NinoCommonGenerator
                     }
                     else
                     {
+                        sb.AppendLine("                    reader.Advance(4);");
                         CreateInstance(subType, valName);
                     }
                 }
@@ -564,7 +567,8 @@ public class DeserializerGenerator : NinoCommonGenerator
 
             if (ninoType.TypeSymbol.IsUnmanagedType)
             {
-                sb.AppendLine($"                    reader.Read(out value);");
+                sb.AppendLine("                    reader.Advance(4);");
+                sb.AppendLine("                    reader.Read(out value);");
             }
             else
             {
@@ -576,6 +580,7 @@ public class DeserializerGenerator : NinoCommonGenerator
                 }
                 else
                 {
+                    sb.AppendLine("                    reader.Advance(4);");
                     CreateInstance(ninoType, valName);
                 }
             }

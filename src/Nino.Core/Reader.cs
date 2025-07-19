@@ -42,6 +42,29 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Advance(int count)
+        {
+            _data = _data.Slice(count);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Peak<T>(out T value) where T : unmanaged
+        {
+            if (TypeCollector.Is64Bit)
+            {
+                value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
+            }
+            else
+            {
+                value = default;
+                Span<byte> dst = MemoryMarshal.AsBytes(
+                    MemoryMarshal.CreateSpan(ref value, 1));
+
+                _data.Slice(0, dst.Length).CopyTo(dst);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ReadCollectionHeader(out int length)
         {
             if (_data[0] == TypeCollector.NullCollection)
@@ -87,19 +110,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged
         {
-            if (TypeCollector.Is64Bit)
-            {
-                value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
-            }
-            else
-            {
-                value = default;
-                Span<byte> dst = MemoryMarshal.AsBytes(
-                    MemoryMarshal.CreateSpan(ref value, 1));
-
-                _data.Slice(0, dst.Length).CopyTo(dst);
-            }
-
+            Peak(out value);
             _data = _data.Slice(Unsafe.SizeOf<T>());
         }
 
