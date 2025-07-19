@@ -98,15 +98,23 @@ namespace Nino.Core
         public void Write<T>(T value) where T : unmanaged
         {
             int size = Unsafe.SizeOf<T>();
-            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+            if (TypeCollector.Is64Bit)
+            {
+                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size)), value);
+            }
+            else
+            {
+                ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                    MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
 #if NET8_0_OR_GREATER
                     ref value
 #else
-                    value
+                        value
 #endif
-                ), 1));
-            src.CopyTo(_bufferWriter.GetSpan(size));
+                    ), 1));
+                src.CopyTo(_bufferWriter.GetSpan(size));
+            }
+
             _bufferWriter.Advance(size);
             WrittenCount += size;
         }
