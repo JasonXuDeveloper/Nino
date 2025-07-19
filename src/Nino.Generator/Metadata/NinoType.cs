@@ -98,8 +98,7 @@ public class NinoType
     {
         if (Parents.IsEmpty)
         {
-            return TypeSymbol.IsReferenceType || TypeSymbol is { IsRecord: true, IsValueType: false } ||
-                   TypeSymbol.TypeKind == TypeKind.Interface;
+            return TypeSymbol.IsPolyMorphicType();
         }
 
         return true;

@@ -135,6 +135,12 @@ public static class NinoTypeHelper
             .Aggregate("", (a, b) => a + b);
     }
 
+    public static bool IsPolyMorphicType(this ITypeSymbol typeSymbol)
+    {
+        return typeSymbol.IsReferenceType || typeSymbol is { IsRecord: true, IsValueType: false } ||
+            typeSymbol.TypeKind == TypeKind.Interface;
+    }
+
     public static string GetNamespace(this string assemblyName)
     {
         var curNamespace = assemblyName;

@@ -85,7 +85,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read<T>(out T value) where T : unmanaged
+        public void Read<T>(out T value)
         {
             if (TypeCollector.Is64Bit)
             {
@@ -94,10 +94,13 @@ namespace Nino.Core
             else
             {
                 value = default;
-                Span<byte> dst = MemoryMarshal.AsBytes(
-                    MemoryMarshal.CreateSpan(ref value, 1));
-
-                _data.Slice(0, dst.Length).CopyTo(dst);
+                Span<T> valSpan = MemoryMarshal.CreateSpan(ref value, 1);
+                unsafe
+                {
+                    Span<byte> dst = new Span<byte>(Unsafe.AsPointer(ref valSpan.GetPinnableReference()),
+                        Unsafe.SizeOf<T>());
+                    _data.Slice(0, dst.Length).CopyTo(dst);
+                }
             }
 
             _data = _data.Slice(Unsafe.SizeOf<T>());
@@ -282,7 +285,7 @@ namespace Nino.Core
                         var src = new Span<byte>((byte*)ptr, length);
                         if (System.Text.Unicode.Utf8.ToUtf16(src, dst, out _, out _,
                                 replaceInvalidSequences: false) !=
-                            System.Buffers.OperationStatus.Done)
+                            OperationStatus.Done)
                             throw new InvalidOperationException("Invalid utf8 string");
                     });
             }

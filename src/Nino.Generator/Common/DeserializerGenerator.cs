@@ -21,7 +21,6 @@ public class DeserializerGenerator : NinoCommonGenerator
 
         var sb = new StringBuilder();
 
-        sb.GenerateClassDeserializeMethods("T", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T?", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T[]", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T?[]", "<T>", "where T : unmanaged");
@@ -59,11 +58,14 @@ public class DeserializerGenerator : NinoCommonGenerator
             sb.AppendLine();
         }
 
+        HashSet<ITypeSymbol> generatedTypes = new(SymbolEqualityComparer.Default);
+
         foreach (var ninoType in NinoTypes)
         {
             try
             {
                 GenerateDeserializeImplementation(ninoType, sb, spc);
+                generatedTypes.Add(ninoType.TypeSymbol);
             }
             catch (Exception e)
             {
@@ -79,7 +81,114 @@ public class DeserializerGenerator : NinoCommonGenerator
             }
         }
 
+        StringBuilder sb2 = new();
+        sb2.AppendLine("""
+                               private delegate object DeserializeDelegate(ref Reader reader);
+                               private static Dictionary<IntPtr, DeserializeDelegate> _deserializers = new()
+                               {
+                       """);
+        foreach (var type in generatedTypes)
+        {
+            if (type.IsUnmanagedType && !type.IsPolyMorphicType())
+                continue;
+            sb2.AppendLine($$"""
+                                         {
+                                             typeof({{type.ToDisplayString()}}).TypeHandle.Value, 
+                                             (ref Reader reader) => 
+                                                 {
+                                                     Deserialize(out {{type.ToDisplayString()}} value, ref reader);
+                                                     return value;
+                                                 }
+                                         },
+                             """);
+        }
+
+        sb2.AppendLine("        };");
+
+        sb2.AppendLine($$"""
+                         
+                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                 public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value)
+                                 {
+                                     var reader = new Reader(data);
+                                     Deserialize(out value, ref reader);
+                                 }
+                                 
+                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                 public static void Deserialize<T>(out T value, ref Reader reader)
+                                 {
+                                 #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                      if (reader.Eof)
+                                      {
+                                         value = default;
+                                         return;
+                                      }
+                                 #endif
+
+                                     if(!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                                     {
+                                         reader.Read(out value);
+                                         return;
+                                     }
+
+                                     if (!_deserializers.TryGetValue(typeof(T).TypeHandle.Value, out var deserializer))
+                                     {
+                                         throw new Exception($"Deserializer not found for type {typeof(T).FullName}");
+                                     }
+
+                                     value = (T)deserializer.Invoke(ref reader);
+                                 }
+                                 
+                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                 public static T Deserialize<T>(ReadOnlySpan<byte> data)
+                                 {
+                                     var reader = new Reader(data);
+                                     return Deserialize<T>(ref reader);
+                                 }
+                                 
+                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                 public static T Deserialize<T>(ref Reader reader)
+                                 {
+                                     Deserialize(out T value, ref reader);
+                                     return value;
+                                 }
+                                 
+                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                 public static object Deserialize(ref Reader reader, Type type)
+                                 {
+                                     if (!_deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
+                                     {
+                                         throw new Exception($"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
+                                     }
+
+                                     return deserializer.Invoke(ref reader);
+                                 }
+                         """);
+
         var curNamespace = compilation.AssemblyName!.GetNamespace();
+
+
+        // generate code
+        var genericCode = $$"""
+                            // <auto-generated/>
+                            using System;
+                            using global::Nino.Core;
+                            using System.Buffers;
+                            using System.ComponentModel;
+                            using System.Collections.Generic;
+                            using System.Collections.Concurrent;
+                            using System.Runtime.InteropServices;
+                            using System.Runtime.CompilerServices;
+
+                            namespace {{curNamespace}}
+                            {
+                                public static partial class Deserializer
+                                {
+                            {{sb2}}    }
+                            }
+                            """;
+
+        spc.AddSource("NinoDeserializer.Generic.g.cs", genericCode);
 
         // generate code
         var code = $$"""
@@ -98,8 +207,6 @@ public class DeserializerGenerator : NinoCommonGenerator
                      {
                          public static partial class Deserializer
                          {
-                     {{GeneratePrivateDeserializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
-                            
                      {{GeneratePrivateDeserializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateDeserializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
