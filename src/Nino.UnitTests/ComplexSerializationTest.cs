@@ -113,7 +113,9 @@ namespace Nino.UnitTests
 
             var buf = dt.Serialize();
             Deserializer.Deserialize(buf, out Data dt2);
+            var dt3 = Deserializer.Deserialize<Data>(buf);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
+            Assert.IsTrue(dt.ToString() == dt3.ToString());
         }
 
         [TestMethod]
@@ -398,7 +400,9 @@ namespace Nino.UnitTests
             };
             var buf = Serializer.Serialize(data);
             Deserializer.Deserialize(buf, out ComplexData data2);
+            var data3 = Deserializer.Deserialize<ComplexData>(buf);
             Assert.AreEqual(data.ToString(), data2.ToString());
+            Assert.AreEqual(data.ToString(), data3.ToString());
         }
     }
 }
