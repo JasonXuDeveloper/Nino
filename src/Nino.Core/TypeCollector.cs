@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -12,6 +13,7 @@ namespace Nino.Core
         public const uint HasCircularMeta = 0xABCDDBCA;
         public const byte NullCollection = 0;
         public const uint EmptyCollectionHeader = 128;
+        public static readonly bool Is64Bit = Unsafe.SizeOf<IntPtr>() == 8;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint GetCollectionHeader(int size)
@@ -22,11 +24,7 @@ namespace Nino.Core
             return ret;
 #else
             //to big endian
-#if NET5_0_OR_GREATER
             return System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(ret);
-#else
-            return (ret << 24) | (ret >> 24) | ((ret & 0x0000FF00) << 8) | ((ret & 0x00FF0000) >> 8);
-#endif
 #endif
         }
 

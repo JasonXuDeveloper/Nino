@@ -39,7 +39,15 @@ namespace Nino.Core
         {
             var diff = WrittenCount - oldPos;
             ref byte oldPosByte = ref Unsafe.Subtract(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan()), diff);
-            Unsafe.WriteUnaligned(ref oldPosByte, diff);
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                    ref diff
+#else
+                    diff
+#endif
+                ), 1));
+            src.CopyTo(MemoryMarshal.CreateSpan(ref oldPosByte, 4));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -48,14 +56,57 @@ namespace Nino.Core
         {
             var diff = WrittenCount - oldPos;
             ref byte oldPosByte = ref Unsafe.Subtract(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan()), diff);
-            Unsafe.WriteUnaligned(ref oldPosByte, value);
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                    ref value
+#else
+                    value
+#endif
+                ), 1));
+            src.CopyTo(MemoryMarshal.CreateSpan(ref oldPosByte, Unsafe.SizeOf<T>()));
         }
-        
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write(byte value)
+        {
+            ref byte ret = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(1));
+            ret = value;
+            _bufferWriter.Advance(1);
+            WrittenCount += 1;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write(sbyte value)
+        {
+            ref byte ret = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(1));
+            ret = (byte)value;
+            _bufferWriter.Advance(1);
+            WrittenCount += 1;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write(bool value)
+        {
+            ref byte ret = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(1));
+            ret = value ? (byte)1 : (byte)0;
+            _bufferWriter.Advance(1);
+            WrittenCount += 1;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(T value) where T : unmanaged
         {
             int size = Unsafe.SizeOf<T>();
-            Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size)), value);
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                    ref value
+#else
+                    value
+#endif
+                ), 1));
+            src.CopyTo(_bufferWriter.GetSpan(size));
             _bufferWriter.Advance(size);
             WrittenCount += size;
         }
@@ -70,9 +121,19 @@ namespace Nino.Core
             }
 
             int size = Unsafe.SizeOf<T>() + 1;
-            ref byte header = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size));
+            var span = _bufferWriter.GetSpan(size);
+            ref byte header = ref MemoryMarshal.GetReference(span);
+            T val = value.Value;
             header = 1;
-            Unsafe.WriteUnaligned(ref Unsafe.Add(ref header, 1), value.Value);
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                    ref val
+#else
+                    val
+#endif
+                ), 1));
+            src.CopyTo(span.Slice(1));
             _bufferWriter.Advance(size);
             WrittenCount += size;
         }
@@ -112,10 +173,19 @@ namespace Nino.Core
 
             var valueSpan = MemoryMarshal.AsBytes(value);
             int size = sizeof(int) + valueSpan.Length;
-            ref byte header = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size));
-            Unsafe.WriteUnaligned(ref header, TypeCollector.GetCollectionHeader(value.Length));
-            Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref header, 4), ref MemoryMarshal.GetReference(valueSpan),
-                (uint)valueSpan.Length);
+            var span = _bufferWriter.GetSpan(size);
+            var header = TypeCollector.GetCollectionHeader(value.Length);
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                    ref header
+#else
+                    header
+#endif
+                ), 1));
+            src.CopyTo(span);
+            valueSpan.CopyTo(span.Slice(4));
+
             _bufferWriter.Advance(size);
             WrittenCount += size;
         }
@@ -182,14 +252,34 @@ namespace Nino.Core
             int eleSize = Unsafe.SizeOf<KeyValuePair<TKey, TValue>>();
             int byteLength = value.Count * eleSize;
             int size = sizeof(int) + byteLength;
-            ref byte header = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size));
-            Unsafe.WriteUnaligned(ref header, TypeCollector.GetCollectionHeader(value.Count));
-            int offset = 4;
+            var span = _bufferWriter.GetSpan(size);
+            var header = TypeCollector.GetCollectionHeader(value.Count);
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                    ref header
+#else
+                    header
+#endif
+                ), 1));
+            src.CopyTo(span);
+            span = span.Slice(4);
 
             foreach (var item in value)
             {
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref header, offset), item);
-                offset += eleSize;
+#if NET8_0_OR_GREATER
+                KeyValuePair<TKey, TValue> temp = item;
+#endif
+                ReadOnlySpan<byte> src2 = MemoryMarshal.AsBytes(
+                    MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                        ref temp
+#else
+                        item
+#endif
+                    ), 1));
+                src2.CopyTo(span);
+                span = span.Slice(eleSize);
             }
 
             _bufferWriter.Advance(size);
@@ -208,13 +298,33 @@ namespace Nino.Core
             int eleSize = Unsafe.SizeOf<T>();
             int byteLength = value.Count * eleSize;
             int size = sizeof(int) + byteLength;
-            ref byte header = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size));
-            Unsafe.WriteUnaligned(ref header, TypeCollector.GetCollectionHeader(value.Count));
-            int offset = 4;
+            var span = _bufferWriter.GetSpan(size);
+            var header = TypeCollector.GetCollectionHeader(value.Count);
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                    ref header
+#else
+                    header
+#endif
+                ), 1));
+            src.CopyTo(span);
+            span = span.Slice(4);
             foreach (var item in value)
             {
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref header, offset), item);
-                offset += eleSize;
+#if NET8_0_OR_GREATER
+                T temp = item;
+#endif
+                ReadOnlySpan<byte> src2 = MemoryMarshal.AsBytes(
+                    MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                        ref temp
+#else
+                        item
+#endif
+                    ), 1));
+                src2.CopyTo(span);
+                span = span.Slice(eleSize);
             }
 
             _bufferWriter.Advance(size);
@@ -251,13 +361,23 @@ namespace Nino.Core
                 default:
                     int spanLength = sizeof(int) + value.Length;
                     var span = _bufferWriter.GetSpan(spanLength);
-                    Unsafe.WriteUnaligned(ref span[0], TypeCollector.GetCollectionHeader(value.Length));
+                    var header = TypeCollector.GetCollectionHeader(value.Length);
+                    ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                            ref header
+#else
+                            header
+#endif
+                        ), 1));
+                    src.CopyTo(span);
+                    span = span.Slice(4);
 #if NET5_0_OR_GREATER
-                    if (System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), span.Slice(4), out _, out _,
+                    if (System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), span, out _, out _,
                             replaceInvalidSequences: false) != OperationStatus.Done)
                         throw new InvalidOperationException("Failed to convert utf16 to utf8");
 #else
-                    System.Text.Encoding.UTF8.GetBytes(value, span.Slice(4));
+                    System.Text.Encoding.UTF8.GetBytes(value, span);
 #endif
                     _bufferWriter.Advance(spanLength);
                     WrittenCount += spanLength;
@@ -280,9 +400,17 @@ namespace Nino.Core
                     var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
                     int spanLength = sizeof(int) + valueSpan.Length;
                     var span = _bufferWriter.GetSpan(spanLength);
-                    Unsafe.WriteUnaligned(ref span[0], TypeCollector.GetCollectionHeader(value.Length));
-                    Unsafe.CopyBlockUnaligned(ref span[4], ref MemoryMarshal.GetReference(valueSpan),
-                        (uint)valueSpan.Length);
+                    var header = TypeCollector.GetCollectionHeader(value.Length);
+                    ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+#if NET8_0_OR_GREATER
+                            ref header
+#else
+                            header
+#endif
+                        ), 1));
+                    src.CopyTo(span);
+                    valueSpan.CopyTo(span.Slice(4));
                     _bufferWriter.Advance(spanLength);
                     WrittenCount += spanLength;
                     break;

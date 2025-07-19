@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
@@ -23,7 +24,18 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Reader Slice()
         {
-            int length = Unsafe.ReadUnaligned<int>(ref MemoryMarshal.GetReference(_data));
+            int length = 0;
+            if (TypeCollector.Is64Bit)
+            {
+                length = Unsafe.ReadUnaligned<int>(ref MemoryMarshal.GetReference(_data));
+            }
+            else
+            {
+                Span<byte> dst = MemoryMarshal.AsBytes(
+                    MemoryMarshal.CreateSpan(ref length, 1));
+                _data.Slice(0, dst.Length).CopyTo(dst);
+            }
+
             var slice = _data.Slice(4, length - 4);
             _data = _data.Slice(length);
             return new Reader(slice);
@@ -45,21 +57,49 @@ namespace Nino.Core
             length = (int)(value & 0x7FFFFFFF);
             return true;
 #else
-#if NET5_0_OR_GREATER
             value = System.Buffers.Binary.BinaryPrimitives.ReverseEndianness(value);
-#else
-            //to little endian
-            value = (value << 24) | (value >> 24) | ((value & 0x0000FF00) << 8) | ((value & 0x00FF0000) >> 8);
-#endif
             length = (int)(value & 0x7FFFFFFF);
             return true;
 #endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read(out bool value)
+        {
+            value = _data[0] == 1;
+            _data = _data.Slice(1);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read(out byte value)
+        {
+            value = _data[0];
+            _data = _data.Slice(1);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read(out sbyte value)
+        {
+            value = (sbyte)_data[0];
+            _data = _data.Slice(1);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged
         {
-            value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
+            if (TypeCollector.Is64Bit)
+            {
+                value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
+            }
+            else
+            {
+                value = default;
+                Span<byte> dst = MemoryMarshal.AsBytes(
+                    MemoryMarshal.CreateSpan(ref value, 1));
+
+                _data.Slice(0, dst.Length).CopyTo(dst);
+            }
+
             _data = _data.Slice(Unsafe.SizeOf<T>());
         }
 
@@ -95,12 +135,11 @@ namespace Nino.Core
             GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
 #if NET5_0_OR_GREATER
             ret = bytes.Length <= 2048 ? new T[length] : GC.AllocateUninitializedArray<T>(length);
-            ref byte first = ref Unsafe.As<T, byte>(ref MemoryMarshal.GetArrayDataReference(ret));
 #else
             ret = new T[length];
-            ref byte first = ref Unsafe.As<T, byte>(ref ret[0]);
 #endif
-            Unsafe.CopyBlockUnaligned(ref first, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+            Span<byte> dst = MemoryMarshal.AsBytes(ret.AsSpan());
+            bytes.CopyTo(dst);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -134,8 +173,8 @@ namespace Nino.Core
             CollectionsMarshal.SetCount(ret, length);
             var span = CollectionsMarshal.AsSpan(ret);
             GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
-            ref byte first = ref Unsafe.As<T, byte>(ref span.GetPinnableReference());
-            Unsafe.CopyBlockUnaligned(ref first, ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+            Span<byte> dst = MemoryMarshal.AsBytes(span);
+            bytes.CopyTo(dst);
 #else
             Read(out T[] arr);
             if (arr == null)
@@ -269,9 +308,46 @@ namespace Nino.Core
 
             GetBytes(length * sizeof(char), out var utf16Bytes);
 #if NET5_0_OR_GREATER
-            ret = new string(MemoryMarshal.Cast<byte, char>(utf16Bytes));
+            if (TypeCollector.Is64Bit)
+            {
+                ret = new string(MemoryMarshal.Cast<byte, char>(utf16Bytes));
+            }
+            else
+            {
+                unsafe
+                {
+                    ret = string.Create(length, (IntPtr)Unsafe.AsPointer(
+                            ref MemoryMarshal.GetReference(utf16Bytes)),
+                        (dst, ptr) =>
+                        {
+                            Buffer.MemoryCopy(ptr.ToPointer(),
+                                Unsafe.AsPointer(ref MemoryMarshal.GetReference(
+                                    MemoryMarshal.AsBytes(dst))),
+                                length * sizeof(char), length * sizeof(char));
+                        });
+                }
+            }
 #else
-            ret = MemoryMarshal.Cast<byte, char>(utf16Bytes).ToString();
+            if (TypeCollector.Is64Bit)
+            {
+                ret = MemoryMarshal.Cast<byte, char>(utf16Bytes).ToString();
+            }
+            else if (length <= 1024)
+            {
+                Span<char> tmp = stackalloc char[length];
+                Span<byte> dst = MemoryMarshal.AsBytes(tmp);
+                utf16Bytes.CopyTo(dst);
+                ret = new string(tmp);
+            }
+            else
+            {
+                char[] tmp = ArrayPool<char>.Shared.Rent(length);
+                Span<char> tmpSpan = tmp.AsSpan(0, length);
+                Span<byte> dst = MemoryMarshal.AsBytes(tmpSpan);
+                utf16Bytes.CopyTo(dst);
+                ret = new string(tmpSpan);
+                ArrayPool<char>.Shared.Return(tmp);
+            }
 #endif
         }
 
