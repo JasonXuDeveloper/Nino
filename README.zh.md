@@ -10,7 +10,7 @@
 
 [官网](https://nino.xgamedev.net/zh/)
 
-大概率是C#里最快速、最灵活的二进制序列化库。
+大概率是C#里最快速、最灵活的二进制序列化库。QQ群：[1054653934](https://qm.qq.com/q/cvalwQWRvU)
 
 ![Activity](https://repobeats.axiom.co/api/embed/a9aea9d0b7b75f40c14af83e3c1f20eca39486c4.svg "Repobeats analytics image")
 
