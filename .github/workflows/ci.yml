@@ -47,15 +47,7 @@ jobs:
       # Run unit tests
       - name: Test
         run: dotnet test --no-build --verbosity normal
-      
-      # Cache Unity Project
-      - uses: actions/cache@v3
-        with:
-          path: ./src/Nino.Unity/Library
-          key: Library-${{ hashFiles('Assets/**', 'ProjectSettings/**') }}
-          restore-keys: |
-            Library-
-
+        
       # Test on Unity
       - uses: game-ci/unity-test-runner@v4
         id: unity-tests
