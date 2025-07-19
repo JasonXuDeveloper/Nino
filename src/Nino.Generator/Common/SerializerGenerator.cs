@@ -56,7 +56,8 @@ public class SerializerGenerator : NinoCommonGenerator
         {
             try
             {
-                string typeFullName = ninoType.TypeSymbol.GetTypeFullName();
+                var classType = ninoType.TypeSymbol;
+                string typeFullName = classType.GetTypeFullName();
                 bool isPolymorphicType = ninoType.IsPolymorphic();
 
                 // check if struct is unmanaged
@@ -138,6 +139,13 @@ public class SerializerGenerator : NinoCommonGenerator
                             }
                             else
                             {
+                                if (!string.IsNullOrEmpty(type.CustomSerializer))
+                                {
+                                    sb.AppendLine(
+                                        $"                    {type.CustomSerializer}.Serialize({val}, ref writer);");
+                                    continue;
+                                }
+
                                 sb.AppendLine(
                                     $"                    Serialize({val}, ref writer);");
                             }
@@ -149,7 +157,7 @@ public class SerializerGenerator : NinoCommonGenerator
                             {
                                 sb.AppendLine($"                    writer.Write({val});");
                             }
-                            
+
                             sb.AppendLine("#else");
                             sb.AppendLine(
                                 $"                    writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
@@ -199,7 +207,15 @@ public class SerializerGenerator : NinoCommonGenerator
                             }
                             else
                             {
-                                WriteMembers(subType, valName);
+                                if (!string.IsNullOrEmpty(subType.CustomSerializer))
+                                {
+                                    sb.AppendLine(
+                                        $"                    {subType.CustomSerializer}.Serialize({valName}, ref writer);");
+                                }
+                                else
+                                {
+                                    WriteMembers(subType, valName);
+                                }
                             }
 
                             sb.AppendLine("                    return;");
@@ -227,7 +243,15 @@ public class SerializerGenerator : NinoCommonGenerator
                     }
                     else
                     {
-                        WriteMembers(ninoType, "value");
+                        if (!string.IsNullOrEmpty(ninoType.CustomSerializer))
+                        {
+                            sb.AppendLine(
+                                $"                    {ninoType.CustomSerializer}.Serialize(value, ref writer);");
+                        }
+                        else
+                        {
+                            WriteMembers(ninoType, "value");
+                        }
                     }
 
                     if (isPolymorphicType && ninoType.TypeSymbol.IsReferenceType)
@@ -288,10 +312,10 @@ public class SerializerGenerator : NinoCommonGenerator
                          {
                              private static readonly ConcurrentQueue<ArrayBufferWriter<byte>> BufferWriters =
                                  new ConcurrentQueue<ArrayBufferWriter<byte>>();
-                     
+
                              private static readonly ArrayBufferWriter<byte> DefaultBufferWriter = new ArrayBufferWriter<byte>(1024);
                              private static int _defaultUsed;
-                     
+
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
                              public static ArrayBufferWriter<byte> GetBufferWriter()
                              {
@@ -300,20 +324,20 @@ public class SerializerGenerator : NinoCommonGenerator
                                  {
                                      return DefaultBufferWriter;
                                  }
-                     
+
                                  if (BufferWriters.Count == 0)
                                  {
                                      return new ArrayBufferWriter<byte>(1024);
                                  }
-                     
+
                                  if (BufferWriters.TryDequeue(out var bufferWriter))
                                  {
                                      return bufferWriter;
                                  }
-                     
+
                                  return new ArrayBufferWriter<byte>(1024);
                              }
-                     
+
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
                              public static void ReturnBufferWriter(ArrayBufferWriter<byte> bufferWriter)
                              {
@@ -330,10 +354,10 @@ public class SerializerGenerator : NinoCommonGenerator
                                      {
                                          throw new InvalidOperationException("The returned buffer writer is not in use.");
                                      }
-                     
+
                                      return;
                                  }
-                     
+
                                  BufferWriters.Enqueue(bufferWriter);
                              }
                              
@@ -341,7 +365,15 @@ public class SerializerGenerator : NinoCommonGenerator
                              public static byte[] Serialize<T>(this T value) where T : unmanaged
                              {
                                  byte[] ret = new byte[Unsafe.SizeOf<T>()];
-                                 Unsafe.WriteUnaligned(ref ret[0], value);
+                                 ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                                     MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+                     #if NET8_0_OR_GREATER
+                                         ref value
+                     #else
+                                         value
+                     #endif
+                                     ), 1));
+                                 src.CopyTo(ret);
                                  return ret;
                              }
                              
@@ -349,7 +381,15 @@ public class SerializerGenerator : NinoCommonGenerator
                              public static void Serialize<T>(this T value, IBufferWriter<byte> bufferWriter) where T : unmanaged
                              {
                                  int size = Unsafe.SizeOf<T>();
-                                 Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(bufferWriter.GetSpan(size)), value);
+                                 ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
+                                     MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+                     #if NET8_0_OR_GREATER
+                                         ref value
+                     #else
+                                         value
+                     #endif
+                                     ), 1));
+                                 src.CopyTo(bufferWriter.GetSpan(size));
                                  bufferWriter.Advance(size);
                              }
                              

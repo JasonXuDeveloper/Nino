@@ -21,6 +21,7 @@ public class DeserializerGenerator : NinoCommonGenerator
 
         var sb = new StringBuilder();
 
+        sb.GenerateClassDeserializeMethods("T", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T?", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T[]", "<T>", "where T : unmanaged");
         sb.GenerateClassDeserializeMethods("T?[]", "<T>", "where T : unmanaged");
@@ -70,12 +71,6 @@ public class DeserializerGenerator : NinoCommonGenerator
                          {
                      {{GeneratePrivateDeserializeImplMethodBody("T", "        ", "<T>", "where T : unmanaged")}}
                             
-                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value) where T : unmanaged
-                             {
-                                 value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(data));
-                             }
-
                      {{GeneratePrivateDeserializeImplMethodBody("T[]", "        ", "<T>", "where T : unmanaged")}}
 
                      {{GeneratePrivateDeserializeImplMethodBody("List<T>", "        ", "<T>", "where T : unmanaged")}}
@@ -226,6 +221,13 @@ public class DeserializerGenerator : NinoCommonGenerator
                     }
                     else
                     {
+                        if (!string.IsNullOrEmpty(nt.CustomDeserializer))
+                        {
+                            sb.AppendLine(
+                                $"                    {nt.CustomDeserializer}.Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+                            continue;
+                        }
+
                         sb.AppendLine(
                             $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
                     }
@@ -534,7 +536,15 @@ public class DeserializerGenerator : NinoCommonGenerator
                 }
                 else
                 {
-                    CreateInstance(subType, valName);
+                    if (!string.IsNullOrEmpty(subType.CustomDeserializer))
+                    {
+                        sb.AppendLine(
+                            $"                    {subType.CustomDeserializer}.Deserialize(out {valName}, ref reader);");
+                    }
+                    else
+                    {
+                        CreateInstance(subType, valName);
+                    }
                 }
 
                 sb.AppendLine($"                    value = {valName};");
@@ -559,7 +569,15 @@ public class DeserializerGenerator : NinoCommonGenerator
             else
             {
                 string valName = "value";
-                CreateInstance(ninoType, valName);
+                if (!string.IsNullOrEmpty(ninoType.CustomDeserializer))
+                {
+                    sb.AppendLine(
+                        $"                    {ninoType.CustomDeserializer}.Deserialize(out {valName}, ref reader);");
+                }
+                else
+                {
+                    CreateInstance(ninoType, valName);
+                }
             }
 
             if (isPolymorphicType)

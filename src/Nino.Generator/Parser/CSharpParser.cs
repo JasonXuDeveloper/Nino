@@ -15,7 +15,7 @@ public class CSharpParser : NinoTypeParser
         _ninoSymbols = ninoSymbols;
     }
 
-    protected override List<NinoType> ParseTypes()
+    protected override List<NinoType> ParseTypes(Compilation compilation)
     {
         List<NinoType> result = new();
         var types = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
@@ -31,19 +31,19 @@ public class CSharpParser : NinoTypeParser
                     return ninoType;
                 }
 
-                ninoType = new NinoType(typeSymbol, null, null);
+                ninoType = new NinoType(compilation, typeSymbol, null, null);
 
                 bool IsNinoType(ITypeSymbol ts)
                 {
                     if (!ts.IsNinoType())
                         return false;
-                    
-                    if(!types.Contains(ts))
+
+                    if (!types.Contains(ts))
                         GetNinoType(ts);
-                    
+
                     return true;
                 }
-                
+
                 // collect base type
                 if (typeSymbol.BaseType != null && IsNinoType(typeSymbol.BaseType))
                 {
@@ -168,7 +168,8 @@ public class CSharpParser : NinoTypeParser
                 {
                     var attrList = symbol.GetAttributes();
                     //if has ninoignore attribute, ignore this member
-                    if (autoCollect && attrList.Any(a => a.AttributeClass?.Name.EndsWith("NinoIgnoreAttribute") ?? false))
+                    if (autoCollect &&
+                        attrList.Any(a => a.AttributeClass?.Name.EndsWith("NinoIgnoreAttribute") ?? false))
                     {
                         continue;
                     }
@@ -203,6 +204,15 @@ public class CSharpParser : NinoTypeParser
 
                     if (isPrivateProxy)
                         isPrivate = true;
+
+                    // if is private and the type that contains this member is from another type, ignore it
+                    // since this is not allowed in C#
+                    if (isPrivate && !SymbolEqualityComparer.Default.Equals(symbol.ContainingType, typeSymbol))
+                    {
+                        // in fact, protected is allowed, through the inheritance chain
+                        if (symbol.DeclaredAccessibility != Accessibility.Protected)
+                            continue;
+                    }
 
                     var memberType = symbol switch
                     {

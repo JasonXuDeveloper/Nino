@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <Nullable>disable</Nullable>
+        <LangVersion>default</LangVersion>
+    </PropertyGroup>
+
+
+    <ItemGroup>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
+        <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="true"/>
+    </ItemGroup>
+</Project>

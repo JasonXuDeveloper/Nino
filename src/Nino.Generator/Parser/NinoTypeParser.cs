@@ -6,11 +6,11 @@ namespace Nino.Generator.Parser;
 
 public abstract class NinoTypeParser
 {
-    protected abstract List<NinoType> ParseTypes();
+    protected abstract List<NinoType> ParseTypes(Compilation compilation);
 
     public (NinoGraph graph, List<NinoType> types) Parse(Compilation compilation)
     {
-        var types = ParseTypes();
+        var types = ParseTypes(compilation);
         var graph = new NinoGraph(compilation, types);
         return (graph, types);
     }

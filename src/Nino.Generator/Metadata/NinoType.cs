@@ -10,8 +10,10 @@ public class NinoType
     public ITypeSymbol TypeSymbol { get; }
     public ImmutableList<NinoMember> Members { get; set; }
     public ImmutableList<NinoType> Parents { get; set; }
+    public string CustomSerializer { get; set; }
+    public string CustomDeserializer { get; set; }
 
-    public NinoType(ITypeSymbol typeSymbol, ImmutableList<NinoMember>? members,
+    public NinoType(Compilation compilation, ITypeSymbol typeSymbol, ImmutableList<NinoMember>? members,
         ImmutableList<NinoType>? parents)
     {
         TypeSymbol = typeSymbol;
@@ -27,8 +29,34 @@ public class NinoType
         {
             Members = ImmutableList<NinoMember>.Empty;
         }
+
+        CustomSerializer = "";
+        CustomDeserializer = "";
+
+        var declaredTypeAssembly = typeSymbol.ContainingAssembly;
+        bool isSameAssembly = declaredTypeAssembly.Equals(compilation.Assembly,
+            SymbolEqualityComparer.Default);
+        if (!isSameAssembly)
+        {
+            // check if the referenced assembly has nino generated code (NinoGen.Serializer)
+            var ninoGen =
+                declaredTypeAssembly.GetTypeByMetadataName(
+                    $"{declaredTypeAssembly.Name.GetNamespace()}.Serializer");
+            if (ninoGen != null)
+            {
+                CustomSerializer = ninoGen.ToDisplayString();
+            }
+
+            ninoGen =
+                declaredTypeAssembly.GetTypeByMetadataName(
+                    $"{declaredTypeAssembly.Name.GetNamespace()}.Deserializer");
+            if (ninoGen != null)
+            {
+                CustomDeserializer = ninoGen.ToDisplayString();
+            }
+        }
     }
-    
+
     public IEnumerable<List<NinoMember>> GroupByPrimitivity()
     {
         List<NinoMember> unmanagedGroup = new();
@@ -46,10 +74,11 @@ public class NinoType
                     yield return unmanagedGroup;
                     unmanagedGroup = new List<NinoMember>();
                 }
+
                 // Yield the managed member as its own group.
                 yield return new List<NinoMember> { member };
             }
-            
+
             // one group can contain at most 8 members
             if (unmanagedGroup.Count >= 8)
             {
@@ -95,6 +124,17 @@ public class NinoType
     {
         StringBuilder sb = new();
         sb.AppendLine($"Type: {TypeSymbol.ToDisplayString()}");
+
+        if (!string.IsNullOrEmpty(CustomSerializer))
+        {
+            sb.AppendLine($"CustomSerializer: {CustomSerializer}");
+        }
+
+        if (!string.IsNullOrEmpty(CustomDeserializer))
+        {
+            sb.AppendLine($"CustomDeserializer: {CustomDeserializer}");
+        }
+
         sb.AppendLine("Parents:");
         foreach (var parent in Parents)
         {

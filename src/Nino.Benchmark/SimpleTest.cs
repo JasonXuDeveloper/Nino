@@ -68,22 +68,6 @@ public class SimpleTest
         _serializedVectors[2] = NinoGen.Serializer.Serialize(_vectors);
     }
 
-    [Benchmark, BenchmarkCategory("SimpleClassSerialize")]
-    public int MessagePackSerializeSimpleClass()
-    {
-        BufferWriter.ResetWrittenCount();
-        MessagePackSerializer.Serialize(BufferWriter, _simpleClass);
-        return BufferWriter.WrittenCount;
-    }
-
-    [Benchmark, BenchmarkCategory("SimpleClassSerialize")]
-    public int MemoryPackSerializeSimpleClass()
-    {
-        BufferWriter.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(BufferWriter, _simpleClass);
-        return BufferWriter.WrittenCount;
-    }
-
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassSerialize")]
     public int NinoSerializeSimpleClass()
     {
@@ -91,20 +75,18 @@ public class SimpleTest
         NinoGen.Serializer.Serialize(_simpleClass, BufferWriter);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleStructSerialize")]
-    public int MessagePackSerializeSimpleStruct()
+    [Benchmark, BenchmarkCategory("SimpleClassSerialize")]
+    public int MemoryPackSerializeSimpleClass()
     {
         BufferWriter.ResetWrittenCount();
-        MessagePackSerializer.Serialize(BufferWriter, _simpleStruct);
+        MemoryPackSerializer.Serialize(BufferWriter, _simpleClass);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleStructSerialize")]
-    public int MemoryPackSerializeSimpleStruct()
+    [Benchmark, BenchmarkCategory("SimpleClassSerialize")]
+    public int MessagePackSerializeSimpleClass()
     {
         BufferWriter.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(BufferWriter, _simpleStruct);
+        MessagePackSerializer.Serialize(BufferWriter, _simpleClass);
         return BufferWriter.WrittenCount;
     }
 
@@ -115,20 +97,18 @@ public class SimpleTest
         NinoGen.Serializer.Serialize(_simpleStruct, BufferWriter);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleClassesSerialize")]
-    public int MessagePackSerializeSimpleClasses()
+    [Benchmark, BenchmarkCategory("SimpleStructSerialize")]
+    public int MemoryPackSerializeSimpleStruct()
     {
         BufferWriter.ResetWrittenCount();
-        MessagePackSerializer.Serialize(BufferWriter, _simpleClasses);
+        MemoryPackSerializer.Serialize(BufferWriter, _simpleStruct);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleClassesSerialize")]
-    public int MemoryPackSerializeSimpleClasses()
+    [Benchmark, BenchmarkCategory("SimpleStructSerialize")]
+    public int MessagePackSerializeSimpleStruct()
     {
         BufferWriter.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(BufferWriter, _simpleClasses);
+        MessagePackSerializer.Serialize(BufferWriter, _simpleStruct);
         return BufferWriter.WrittenCount;
     }
 
@@ -139,20 +119,18 @@ public class SimpleTest
         NinoGen.Serializer.Serialize(_simpleClasses, BufferWriter);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleStructsSerialize")]
-    public int MessagePackSerializeSimpleStructs()
+    [Benchmark, BenchmarkCategory("SimpleClassesSerialize")]
+    public int MemoryPackSerializeSimpleClasses()
     {
         BufferWriter.ResetWrittenCount();
-        MessagePackSerializer.Serialize(BufferWriter, _simpleStructs);
+        MemoryPackSerializer.Serialize(BufferWriter, _simpleClasses);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleStructsSerialize")]
-    public int MemoryPackSerializeSimpleStructs()
+    [Benchmark, BenchmarkCategory("SimpleClassesSerialize")]
+    public int MessagePackSerializeSimpleClasses()
     {
         BufferWriter.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(BufferWriter, _simpleStructs);
+        MessagePackSerializer.Serialize(BufferWriter, _simpleClasses);
         return BufferWriter.WrittenCount;
     }
 
@@ -163,20 +141,18 @@ public class SimpleTest
         NinoGen.Serializer.Serialize(_simpleStructs, BufferWriter);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("VectorsSerialize")]
-    public int MessagePackSerializeVectors()
+    [Benchmark, BenchmarkCategory("SimpleStructsSerialize")]
+    public int MemoryPackSerializeSimpleStructs()
     {
         BufferWriter.ResetWrittenCount();
-        MessagePackSerializer.Serialize(BufferWriter, _vectors);
+        MemoryPackSerializer.Serialize(BufferWriter, _simpleStructs);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("VectorsSerialize")]
-    public int MemoryPackSerializeVectors()
+    [Benchmark, BenchmarkCategory("SimpleStructsSerialize")]
+    public int MessagePackSerializeSimpleStructs()
     {
         BufferWriter.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(BufferWriter, _vectors);
+        MessagePackSerializer.Serialize(BufferWriter, _simpleStructs);
         return BufferWriter.WrittenCount;
     }
 
@@ -187,17 +163,19 @@ public class SimpleTest
         NinoGen.Serializer.Serialize(_vectors, BufferWriter);
         return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleClassDeserialize")]
-    public SimpleClass MessagePackDeserializeSimpleClass()
+    [Benchmark, BenchmarkCategory("VectorsSerialize")]
+    public int MemoryPackSerializeVectors()
     {
-        return MessagePackSerializer.Deserialize<SimpleClass>(_serializedSimpleClass[0]);
+        BufferWriter.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(BufferWriter, _vectors);
+        return BufferWriter.WrittenCount;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleClassDeserialize")]
-    public SimpleClass MemoryPackDeserializeSimpleClass()
+    [Benchmark, BenchmarkCategory("VectorsSerialize")]
+    public int MessagePackSerializeVectors()
     {
-        return MemoryPackSerializer.Deserialize<SimpleClass>(_serializedSimpleClass[1]);
+        BufferWriter.ResetWrittenCount();
+        MessagePackSerializer.Serialize(BufferWriter, _vectors);
+        return BufferWriter.WrittenCount;
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassDeserialize")]
@@ -206,17 +184,15 @@ public class SimpleTest
         NinoGen.Deserializer.Deserialize(_serializedSimpleClass[2], out SimpleClass ret);
         return ret;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleStructDeserialize")]
-    public SimpleStruct MessagePackDeserializeSimpleStruct()
+    [Benchmark, BenchmarkCategory("SimpleClassDeserialize")]
+    public SimpleClass MemoryPackDeserializeSimpleClass()
     {
-        return MessagePackSerializer.Deserialize<SimpleStruct>(_serializedSimpleStruct[0]);
+        return MemoryPackSerializer.Deserialize<SimpleClass>(_serializedSimpleClass[1]);
     }
-
-    [Benchmark, BenchmarkCategory("SimpleStructDeserialize")]
-    public SimpleStruct MemoryPackDeserializeSimpleStruct()
+    [Benchmark, BenchmarkCategory("SimpleClassDeserialize")]
+    public SimpleClass MessagePackDeserializeSimpleClass()
     {
-        return MemoryPackSerializer.Deserialize<SimpleStruct>(_serializedSimpleStruct[1]);
+        return MessagePackSerializer.Deserialize<SimpleClass>(_serializedSimpleClass[0]);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructDeserialize")]
@@ -225,17 +201,15 @@ public class SimpleTest
         NinoGen.Deserializer.Deserialize(_serializedSimpleStruct[2], out SimpleStruct ret);
         return ret;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleClassesDeserialize")]
-    public SimpleClass[] MessagePackDeserializeSimpleClasses()
+    [Benchmark, BenchmarkCategory("SimpleStructDeserialize")]
+    public SimpleStruct MemoryPackDeserializeSimpleStruct()
     {
-        return MessagePackSerializer.Deserialize<SimpleClass[]>(_serializedSimpleClasses[0]);
+        return MemoryPackSerializer.Deserialize<SimpleStruct>(_serializedSimpleStruct[1]);
     }
-
-    [Benchmark, BenchmarkCategory("SimpleClassesDeserialize")]
-    public SimpleClass[] MemoryPackDeserializeSimpleClasses()
+    [Benchmark, BenchmarkCategory("SimpleStructDeserialize")]
+    public SimpleStruct MessagePackDeserializeSimpleStruct()
     {
-        return MemoryPackSerializer.Deserialize<SimpleClass[]>(_serializedSimpleClasses[1]);
+        return MessagePackSerializer.Deserialize<SimpleStruct>(_serializedSimpleStruct[0]);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleClassesDeserialize")]
@@ -244,17 +218,15 @@ public class SimpleTest
         NinoGen.Deserializer.Deserialize(_serializedSimpleClasses[2], out SimpleClass[] ret);
         return ret;
     }
-
-    [Benchmark, BenchmarkCategory("SimpleStructsDeserialize")]
-    public SimpleStruct[] MessagePackDeserializeSimpleStructs()
+    [Benchmark, BenchmarkCategory("SimpleClassesDeserialize")]
+    public SimpleClass[] MemoryPackDeserializeSimpleClasses()
     {
-        return MessagePackSerializer.Deserialize<SimpleStruct[]>(_serializedSimpleStructs[0]);
+        return MemoryPackSerializer.Deserialize<SimpleClass[]>(_serializedSimpleClasses[1]);
     }
-
-    [Benchmark, BenchmarkCategory("SimpleStructsDeserialize")]
-    public SimpleStruct[] MemoryPackDeserializeSimpleStructs()
+    [Benchmark, BenchmarkCategory("SimpleClassesDeserialize")]
+    public SimpleClass[] MessagePackDeserializeSimpleClasses()
     {
-        return MemoryPackSerializer.Deserialize<SimpleStruct[]>(_serializedSimpleStructs[1]);
+        return MessagePackSerializer.Deserialize<SimpleClass[]>(_serializedSimpleClasses[0]);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("SimpleStructsDeserialize")]
@@ -263,17 +235,15 @@ public class SimpleTest
         NinoGen.Deserializer.Deserialize(_serializedSimpleStructs[2], out SimpleStruct[] ret);
         return ret;
     }
-
-    [Benchmark, BenchmarkCategory("VectorsDeserialize")]
-    public Vector4[] MessagePackDeserializeVectors()
+    [Benchmark, BenchmarkCategory("SimpleStructsDeserialize")]
+    public SimpleStruct[] MemoryPackDeserializeSimpleStructs()
     {
-        return MessagePackSerializer.Deserialize<Vector4[]>(_serializedVectors[0]);
+        return MemoryPackSerializer.Deserialize<SimpleStruct[]>(_serializedSimpleStructs[1]);
     }
-
-    [Benchmark, BenchmarkCategory("VectorsDeserialize")]
-    public Vector4[] MemoryPackDeserializeVectors()
+    [Benchmark, BenchmarkCategory("SimpleStructsDeserialize")]
+    public SimpleStruct[] MessagePackDeserializeSimpleStructs()
     {
-        return MemoryPackSerializer.Deserialize<Vector4[]>(_serializedVectors[1]);
+        return MessagePackSerializer.Deserialize<SimpleStruct[]>(_serializedSimpleStructs[0]);
     }
 
     [Benchmark(Baseline = true), BenchmarkCategory("VectorsDeserialize")]
@@ -281,5 +251,15 @@ public class SimpleTest
     {
         NinoGen.Deserializer.Deserialize(_serializedVectors[2], out Vector4[] ret);
         return ret;
+    }
+    [Benchmark, BenchmarkCategory("VectorsDeserialize")]
+    public Vector4[] MemoryPackDeserializeVectors()
+    {
+        return MemoryPackSerializer.Deserialize<Vector4[]>(_serializedVectors[1]);
+    }
+    [Benchmark, BenchmarkCategory("VectorsDeserialize")]
+    public Vector4[] MessagePackDeserializeVectors()
+    {
+        return MessagePackSerializer.Deserialize<Vector4[]>(_serializedVectors[0]);
     }
 }
