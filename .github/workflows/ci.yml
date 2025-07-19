@@ -68,19 +68,18 @@ jobs:
           testMode: editmode
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           unityVersion: '2022.3.51f1'
-          artifactsPath: unity-test-artifacts
 
       # Upload test results artifacts (always run, even if tests fail)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Unity Test Results
-          path: ${{ steps.unity-tests.outputs.artifactsPath }}
+          path: artifacts
           retention-days: 30
 
       # Upload coverage results if available
       - uses: actions/upload-artifact@v4
-        if: always() && steps.unity-tests.outputs.coveragePath != ''
+        if: always()
         with:
           name: Unity Coverage Results
           path: ${{ steps.unity-tests.outputs.coveragePath }}

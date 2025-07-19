@@ -198,19 +198,19 @@ public class SerializerGenerator : NinoCommonGenerator
 
                             string valName = subType.TypeSymbol.GetTypeInstanceName();
                             sb.AppendLine($"                case {subType.TypeSymbol.ToDisplayString()} {valName}:");
-                            sb.AppendLine(
-                                $"                    writer.Write(NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
-                            if (subType.TypeSymbol.IsUnmanagedType)
+                            if (!string.IsNullOrEmpty(subType.CustomSerializer))
                             {
                                 sb.AppendLine(
-                                    $"                    writer.Write({valName});");
+                                    $"                    {subType.CustomSerializer}.Serialize({valName}, ref writer);");
                             }
                             else
                             {
-                                if (!string.IsNullOrEmpty(subType.CustomSerializer))
+                                sb.AppendLine(
+                                    $"                    writer.Write(NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
+                                if (subType.TypeSymbol.IsUnmanagedType)
                                 {
                                     sb.AppendLine(
-                                        $"                    {subType.CustomSerializer}.Serialize({valName}, ref writer);");
+                                        $"                    writer.Write({valName});");
                                 }
                                 else
                                 {
@@ -230,23 +230,24 @@ public class SerializerGenerator : NinoCommonGenerator
                         sb.AppendLine("                default:");
                     }
 
-                    if (isPolymorphicType)
+
+                    if (!string.IsNullOrEmpty(ninoType.CustomSerializer))
                     {
                         sb.AppendLine(
-                            $"                    writer.Write(NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
-                    }
-
-
-                    if (ninoType.TypeSymbol.IsUnmanagedType)
-                    {
-                        sb.AppendLine("                    writer.Write(value);");
+                            $"                    {ninoType.CustomSerializer}.Serialize(value, ref writer);");
                     }
                     else
                     {
-                        if (!string.IsNullOrEmpty(ninoType.CustomSerializer))
+                        if (isPolymorphicType)
                         {
                             sb.AppendLine(
-                                $"                    {ninoType.CustomSerializer}.Serialize(value, ref writer);");
+                                $"                    writer.Write(NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
+                        }
+
+
+                        if (ninoType.TypeSymbol.IsUnmanagedType)
+                        {
+                            sb.AppendLine("                    writer.Write(value);");
                         }
                         else
                         {

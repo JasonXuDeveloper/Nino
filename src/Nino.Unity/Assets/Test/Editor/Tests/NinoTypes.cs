@@ -15,10 +15,8 @@ namespace Test.Editor.Tests
         [Test]
         public void TestCommonClass()
         {
-            // Use a fixed DateTime to ensure deterministic serialization
-            var fixedDateTime = new DateTime(2025, 7, 19, 10, 25, 2, DateTimeKind.Utc);
-
             //custom type
+            var fixedDateTime = new DateTime(2025, 7, 19, 10, 25, 2, DateTimeKind.Utc);
             PrimitiveTypeTest c = new PrimitiveTypeTest()
             {
                 ni = null,
@@ -51,19 +49,14 @@ namespace Test.Editor.Tests
             Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
             var bs2 = global::Test.NinoGen.Serializer.Serialize(c);
             Debug.Log($"serialized to {bs2.Length} bytes: {string.Join(",", bs2)}");
+            
+            Assert.True(bs.SequenceEqual(bs2));
+            
+            Debug.Log("will deserialize");
+            global::Editor.Tests.NinoGen.Deserializer.Deserialize(bs, out PrimitiveTypeTest cc);
+            Debug.Log($"deserialized as cc: {cc}");
 
-            // Instead of comparing byte arrays directly (which might differ between assemblies),
-            // let's test that both can deserialize correctly and produce the same result
-            global::Editor.Tests.NinoGen.Deserializer.Deserialize(bs, out PrimitiveTypeTest cc1);
-            global::Test.NinoGen.Deserializer.Deserialize(bs2, out PrimitiveTypeTest cc2);
-
-            Debug.Log($"deserialized from Editor.Tests as cc1: {cc1}");
-            Debug.Log($"deserialized from Test as cc2: {cc2}");
-
-            // Test that both deserializations produce the same result
-            Assert.AreEqual(c.ToString(), cc1.ToString(), "Editor.Tests serializer/deserializer failed");
-            Assert.AreEqual(c.ToString(), cc2.ToString(), "Test serializer/deserializer failed");
-            Assert.AreEqual(cc1.ToString(), cc2.ToString(), "Both serializers should produce equivalent results");
+            Assert.AreEqual(c.ToString(), cc.ToString());
         }
 
         [Test]
