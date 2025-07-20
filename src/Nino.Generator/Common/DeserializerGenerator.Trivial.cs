@@ -400,7 +400,7 @@ public partial class DeserializerGenerator
         if (constructor == null)
             constructor = constructors.OrderBy(c => c.Parameters.Length).FirstOrDefault();
 
-        var custom = constructors.FirstOrDefault(c => c.GetAttributes().Any(a =>
+        var custom = constructors.FirstOrDefault(c => c.GetAttributesCache().Any(a =>
             a.AttributeClass != null &&
             a.AttributeClass.GetDisplayString().EndsWith("NinoConstructorAttribute")));
         if (custom != null)

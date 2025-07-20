@@ -15,10 +15,16 @@ namespace Nino.Generator;
 public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
-    private static readonly Dictionary<ITypeSymbol, bool> IsNinoTypeCache = new(SymbolEqualityComparer.Default);
-    private static readonly Dictionary<ITypeSymbol, string> ToDisplayStringCache = new(SymbolEqualityComparer.Default);
-    private static readonly Dictionary<(Compilation, SyntaxTree), SemanticModel> SemanticModelCache = new();
-    private static readonly Dictionary<(SyntaxTree, CSharpSyntaxNode), ITypeSymbol?> TypeSymbolCache = new();
+    private static readonly Dictionary<ITypeSymbol, bool> IsNinoTypeCache = new(10_000, SymbolEqualityComparer.Default);
+
+    private static readonly Dictionary<ITypeSymbol, string> ToDisplayStringCache =
+        new(10_000, SymbolEqualityComparer.Default);
+
+    private static readonly Dictionary<(Compilation, SyntaxTree), SemanticModel> SemanticModelCache = new(10_000);
+    private static readonly Dictionary<(SyntaxTree, CSharpSyntaxNode), ITypeSymbol?> TypeSymbolCache = new(10_000);
+
+    private static readonly Dictionary<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
+        new(10_000, SymbolEqualityComparer.Default);
 
     public static string GetTypeInstanceName(this ITypeSymbol typeSymbol)
     {
@@ -29,6 +35,18 @@ public static class NinoTypeHelper
             .Aggregate("", (current, c) => current + c);
 
         return $"@{ret}";
+    }
+
+    public static ImmutableArray<AttributeData> GetAttributesCache<T>(this T typeSymbol) where T : ISymbol
+    {
+        if (AttributeCache.TryGetValue(typeSymbol, out var ret))
+        {
+            return ret;
+        }
+
+        ret = typeSymbol.GetAttributes();
+        AttributeCache[typeSymbol] = ret;
+        return ret;
     }
 
     public static string GetDisplayString(this ITypeSymbol typeSymbol)
@@ -390,7 +408,7 @@ public static class NinoTypeHelper
         SemanticModelCache[key] = semanticModel;
         return semanticModel;
     }
-    
+
     public static ITypeSymbol? GetTypeSymbol(this CSharpSyntaxNode syntax, Compilation compilation)
     {
         // Check direct cache first for maximum performance
@@ -414,25 +432,22 @@ public static class NinoTypeHelper
         // Use cached semantic model to avoid repeated expensive calls
         var semanticModel = GetCachedSemanticModel(compilation, syntax.SyntaxTree);
 
-        // Use if-else instead of switch for potentially better performance with type checks
-        if (syntax is TupleTypeSyntax tupleTypeSyntax)
+        switch (syntax)
         {
-            return semanticModel.GetTypeInfo(tupleTypeSyntax).Type;
+            // Use if-else instead of switch for potentially better performance with type checks
+            case TupleTypeSyntax tupleTypeSyntax:
+                return semanticModel.GetTypeInfo(tupleTypeSyntax).Type;
+            case TypeDeclarationSyntax typeDeclaration:
+                return semanticModel.GetDeclaredSymbol(typeDeclaration);
+            case TypeSyntax typeSyntax:
+            {
+                // Try GetTypeInfo first as it's more direct for type syntax
+                var typeInfo = semanticModel.GetTypeInfo(typeSyntax);
+                return typeInfo.Type ?? semanticModel.GetSymbolInfo(typeSyntax).Symbol as ITypeSymbol;
+            }
+            default:
+                return null;
         }
-
-        if (syntax is TypeDeclarationSyntax typeDeclaration)
-        {
-            return semanticModel.GetDeclaredSymbol(typeDeclaration);
-        }
-
-        if (syntax is TypeSyntax typeSyntax)
-        {
-            // Try GetTypeInfo first as it's more direct for type syntax
-            var typeInfo = semanticModel.GetTypeInfo(typeSyntax);
-            return typeInfo.Type ?? semanticModel.GetSymbolInfo(typeSyntax).Symbol as ITypeSymbol;
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -455,7 +470,7 @@ public static class NinoTypeHelper
     {
         return typeSymbol.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
     }
-    
+
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
         if (typeSymbol.IsUnmanagedType)
@@ -468,7 +483,7 @@ public static class NinoTypeHelper
             return isNinoType;
         }
 
-        foreach (var attribute in typeSymbol.GetAttributes())
+        foreach (var attribute in typeSymbol.GetAttributesCache())
         {
             if (!string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute", StringComparison.Ordinal)) continue;
             IsNinoTypeCache[typeSymbol] = true;
@@ -537,13 +552,13 @@ public static class NinoTypeHelper
             return null;
         }
 
-        return methodSymbol.GetAttributes()
+        return methodSymbol.GetAttributesCache()
             .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoConstructorAttribute");
     }
 
     public static int GetId(this ITypeSymbol typeSymbol)
     {
-        var formerName = typeSymbol.GetAttributes()
+        var formerName = typeSymbol.GetAttributesCache()
             .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoFormerNameAttribute");
 
         if (formerName == null)

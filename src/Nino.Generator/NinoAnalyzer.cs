@@ -45,7 +45,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 if (typeSymbol.IsNinoType())
                 {
                     // check redundant NinoMemberAttribute and NinoIgnoreAttribute
-                    var attr = typeSymbol.GetAttributes().FirstOrDefault(a =>
+                    var attr = typeSymbol.GetAttributesCache().FirstOrDefault(a =>
                         a.AttributeClass != null &&
                         a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
                     bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
@@ -62,10 +62,10 @@ public class NinoAnalyzer : DiagnosticAnalyzer
 
                     foreach (var member in typeSymbol.GetMembers())
                     {
-                        bool definedNinoMember = member.GetAttributes()
+                        bool definedNinoMember = member.GetAttributesCache()
                             .Any(x => x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
                         bool definedNinoIgnore =
-                            member.GetAttributes().Any(x => x.AttributeClass?.Name == "NinoIgnoreAttribute");
+                            member.GetAttributesCache().Any(x => x.AttributeClass?.Name == "NinoIgnoreAttribute");
 
                         // auto collect but manually annotated - nino004
                         if (autoCollect && definedNinoMember)

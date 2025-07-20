@@ -56,7 +56,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                 List<NinoMember> ninoMembers = new();
 
                 //check if this type has attribute NinoExplicitOrder
-                var explicitOrder = typeSymbol.GetAttributes().FirstOrDefault(a =>
+                var explicitOrder = typeSymbol.GetAttributesCache().FirstOrDefault(a =>
                     a.AttributeClass != null &&
                     a.AttributeClass.ToDisplayString().EndsWith("NinoExplicitOrderAttribute"));
                 Dictionary<string, int> order = new();
@@ -71,7 +71,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                 }
 
                 //get NinoType attribute first argument value from typeSymbol
-                var attr = typeSymbol.GetAttributes().FirstOrDefault(a =>
+                var attr = typeSymbol.GetAttributesCache().FirstOrDefault(a =>
                     a.AttributeClass != null &&
                     a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
                 bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
@@ -159,7 +159,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                 //clean up
                 foreach (var symbol in members)
                 {
-                    var attrList = symbol.GetAttributes();
+                    var attrList = symbol.GetAttributesCache();
                     //if has ninoignore attribute, ignore this member
                     if (autoCollect &&
                         attrList.Any(a => a.AttributeClass?.Name.EndsWith("NinoIgnoreAttribute") ?? false))
