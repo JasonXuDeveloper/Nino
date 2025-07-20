@@ -6,6 +6,6 @@ public class Span: IFilter
 {
     public bool Filter(ITypeSymbol symbol)
     {
-        return symbol.OriginalDefinition.ToDisplayString() == "System.Span<T>";
+        return symbol.OriginalDefinition.GetDisplayString() == "System.Span<T>";
     }
 }

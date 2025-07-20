@@ -15,10 +15,12 @@ namespace Nino.Generator;
 public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
+    private static readonly Dictionary<ITypeSymbol, bool> IsNinoTypeCache = new(SymbolEqualityComparer.Default);
+    private static readonly Dictionary<ITypeSymbol, string> ToDisplayStringCache = new(SymbolEqualityComparer.Default);
 
     public static string GetTypeInstanceName(this ITypeSymbol typeSymbol)
     {
-        var ret = typeSymbol.ToDisplayString()
+        var ret = typeSymbol.GetDisplayString()
             .Replace("global::", "")
             .ToLower()
             .Select(c => char.IsLetterOrDigit(c) ? c : '_')
@@ -26,20 +28,17 @@ public static class NinoTypeHelper
 
         return $"@{ret}";
     }
-
-    public static bool IsAccessibleFromCurrentAssembly(this ITypeSymbol type, Compilation compilation)
+    
+    public static string GetDisplayString(this ITypeSymbol typeSymbol)
     {
-        var asm = compilation.Assembly;
-        switch (type.DeclaredAccessibility)
+        if (ToDisplayStringCache.TryGetValue(typeSymbol, out var ret))
         {
-            case Accessibility.Public:
-                return true;
-            case Accessibility.Internal:
-            case Accessibility.ProtectedOrInternal:
-                return SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, asm);
-            default:
-                return false;
+            return ret;
         }
+
+        ret = typeSymbol.ToDisplayString();
+        ToDisplayStringCache[typeSymbol] = ret;
+        return ret;
     }
 
     public static List<ITypeSymbol> MergeTypes(this List<ITypeSymbol?> types, List<ITypeSymbol?> otherTypes)
@@ -378,22 +377,26 @@ public static class NinoTypeHelper
 
     public static ITypeSymbol? GetTypeSymbol(this CSharpSyntaxNode syntax, Compilation compilation)
     {
+        // Get semantic model once to avoid repeated expensive calls
+        var semanticModel = compilation.GetSemanticModel(syntax.SyntaxTree);
+
         switch (syntax)
         {
             case TupleTypeSyntax tupleTypeSyntax:
-                return compilation.GetSemanticModel(tupleTypeSyntax.SyntaxTree).GetTypeInfo(tupleTypeSyntax).Type;
+                return semanticModel.GetTypeInfo(tupleTypeSyntax).Type;
             case TypeDeclarationSyntax typeDeclaration:
-                return compilation.GetSemanticModel(typeDeclaration.SyntaxTree).GetDeclaredSymbol(typeDeclaration);
+                return semanticModel.GetDeclaredSymbol(typeDeclaration);
             case TypeSyntax typeSyntax:
-                var semanticModel = compilation.GetSemanticModel(typeSyntax.SyntaxTree);
+                // Try GetTypeInfo first as it's more direct for type syntax
                 var typeInfo = semanticModel.GetTypeInfo(typeSyntax);
-                ITypeSymbol? typeSymbol = typeInfo.Type;
-                if (typeSymbol is null)
+                if (typeInfo.Type is not null)
                 {
-                    return semanticModel.GetSymbolInfo(typeSyntax).Symbol as ITypeSymbol;
+                    return typeInfo.Type;
                 }
 
-                return typeSymbol;
+                // Fallback to GetSymbolInfo only if GetTypeInfo didn't work
+                var symbolInfo = semanticModel.GetSymbolInfo(typeSyntax);
+                return symbolInfo.Symbol as ITypeSymbol;
         }
 
         return null;
@@ -411,8 +414,15 @@ public static class NinoTypeHelper
 
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
-        return typeSymbol.IsUnmanagedType ||
-               typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
+        if (IsNinoTypeCache.TryGetValue(typeSymbol, out var isNinoType))
+        {
+            return isNinoType;
+        }
+
+        var ret = typeSymbol.IsUnmanagedType ||
+                  typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
+        IsNinoTypeCache[typeSymbol] = ret;
+        return ret;
     }
 
     public static string GetTypeModifiers(this ITypeSymbol typeSymbol)
@@ -581,6 +591,6 @@ public static class NinoTypeHelper
             return typeof(object).FullName!;
         }
 
-        return typeSymbol.ToDisplayString();
+        return typeSymbol.GetDisplayString();
     }
 }

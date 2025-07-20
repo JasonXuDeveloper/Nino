@@ -24,7 +24,7 @@ public partial class DeserializerGenerator(
         {
             if (type.IsUnmanagedType && !type.IsPolyMorphicType())
                 continue;
-            var typeFullName = type.ToDisplayString();
+            var typeFullName = type.GetDisplayString();
             sb.AppendLine($$"""
                                         _deserializers[typeof({{typeFullName}}).TypeHandle.Value] = 
                                         (ref Reader reader) => 

@@ -14,7 +14,7 @@ public class NinoMember(string name, ITypeSymbol type)
     public override string ToString()
     {
         return
-            $"{Type.ToDisplayString()} {Name} " +
+            $"{Type.GetDisplayString()} {Name} " +
             $"[Ctor: {IsCtorParameter}, " +
             $"Private: {IsPrivate}, " +
             $"Property: {IsProperty}, " +

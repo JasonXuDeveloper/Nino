@@ -44,7 +44,7 @@ public class NinoType
                     $"{declaredTypeAssembly.Name.GetNamespace()}.Serializer");
             if (ninoGen != null)
             {
-                CustomSerializer = ninoGen.ToDisplayString();
+                CustomSerializer = ninoGen.GetDisplayString();
             }
 
             ninoGen =
@@ -52,7 +52,7 @@ public class NinoType
                     $"{declaredTypeAssembly.Name.GetNamespace()}.Deserializer");
             if (ninoGen != null)
             {
-                CustomDeserializer = ninoGen.ToDisplayString();
+                CustomDeserializer = ninoGen.GetDisplayString();
             }
         }
     }
@@ -122,7 +122,7 @@ public class NinoType
     public override string ToString()
     {
         StringBuilder sb = new();
-        sb.AppendLine($"Type: {TypeSymbol.ToDisplayString()}");
+        sb.AppendLine($"Type: {TypeSymbol.GetDisplayString()}");
 
         if (!string.IsNullOrEmpty(CustomSerializer))
         {
@@ -137,7 +137,7 @@ public class NinoType
         sb.AppendLine("Parents:");
         foreach (var parent in Parents)
         {
-            sb.AppendLine($"\t{parent.TypeSymbol.ToDisplayString()}");
+            sb.AppendLine($"\t{parent.TypeSymbol.GetDisplayString()}");
         }
 
         sb.AppendLine("Members:");

@@ -138,7 +138,7 @@ public class NinoGraph
             var key = kvp.Key;
             var value = kvp.Value;
             sb.AppendLine(
-                $"{key.TypeSymbol.ToDisplayString()} -> {string.Join(", ", value.Select(x => x.TypeSymbol.ToDisplayString()))}");
+                $"{key.TypeSymbol.GetDisplayString()} -> {string.Join(", ", value.Select(x => x.TypeSymbol.GetDisplayString()))}");
         }
 
         sb.AppendLine();
@@ -148,19 +148,19 @@ public class NinoGraph
             var key = kvp.Key;
             var value = kvp.Value;
             sb.AppendLine(
-                $"{key.TypeSymbol.ToDisplayString()} -> {string.Join(", ", value.Select(x => x.TypeSymbol.ToDisplayString()))}");
+                $"{key.TypeSymbol.GetDisplayString()} -> {string.Join(", ", value.Select(x => x.TypeSymbol.GetDisplayString()))}");
         }
 
         sb.AppendLine();
         sb.AppendLine("Top Types:");
         sb.AppendLine(string.Join("\n",
             TopTypes.Where(t => t.Members.Count > 0 && !t.TypeSymbol.IsUnmanagedType)
-                .Select(x => x.TypeSymbol.ToDisplayString())));
+                .Select(x => x.TypeSymbol.GetDisplayString())));
 
         sb.AppendLine();
         sb.AppendLine("Circular Types:");
         sb.AppendLine(string.Join("\n",
-            CircularTypes.Where(t => t.Members.Count > 0).Select(x => x.TypeSymbol.ToDisplayString())));
+            CircularTypes.Where(t => t.Members.Count > 0).Select(x => x.TypeSymbol.GetDisplayString())));
 
         return sb.ToString();
     }

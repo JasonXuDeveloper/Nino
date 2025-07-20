@@ -63,7 +63,7 @@ public class UnsafeAccessorGenerator(Compilation compilation, NinoGraph ninoGrap
                             continue;
                         }
 
-                        string typeName = declaringType.ToDisplayString();
+                        string typeName = declaringType.GetDisplayString();
 
                         if (!generatedMembers.Add((typeName, member.Name)))
                         {
@@ -83,19 +83,19 @@ public class UnsafeAccessorGenerator(Compilation compilation, NinoGraph ninoGrap
                             sb.AppendLine(
                                 $"        [UnsafeAccessor(UnsafeAccessorKind.Method, Name = \"get_{name}\")]");
                             sb.AppendLine(
-                                $"        internal extern static {declaredType.ToDisplayString()} __get__{name}__({typeName} @this);");
+                                $"        internal extern static {declaredType.GetDisplayString()} __get__{name}__({typeName} @this);");
 
                             sb.AppendLine(
                                 $"        [UnsafeAccessor(UnsafeAccessorKind.Method, Name = \"set_{name}\")]");
                             sb.AppendLine(
-                                $"        internal extern static void __set__{name}__({typeName} @this, {declaredType.ToDisplayString()} value);");
+                                $"        internal extern static void __set__{name}__({typeName} @this, {declaredType.GetDisplayString()} value);");
                         }
                         else
                         {
                             sb.AppendLine(
                                 $"        [UnsafeAccessor(UnsafeAccessorKind.Field, Name = \"{name}\")]");
                             sb.AppendLine(
-                                $"        internal extern static ref {declaredType.ToDisplayString()} __{name}__({typeName} @this);");
+                                $"        internal extern static ref {declaredType.GetDisplayString()} __{name}__({typeName} @this);");
                         }
                     }
                 }

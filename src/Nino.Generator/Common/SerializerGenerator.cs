@@ -191,13 +191,13 @@ public class SerializerGenerator : NinoCommonGenerator
                     {
                         if (subType.TypeSymbol.IsInstanceType())
                         {
-                            if (!visited.Add(subType.TypeSymbol.ToDisplayString()))
+                            if (!visited.Add(subType.TypeSymbol.GetDisplayString()))
                             {
                                 continue;
                             }
 
                             string valName = subType.TypeSymbol.GetTypeInstanceName();
-                            sb.AppendLine($"                case {subType.TypeSymbol.ToDisplayString()} {valName}:");
+                            sb.AppendLine($"                case {subType.TypeSymbol.GetDisplayString()} {valName}:");
                             if (!string.IsNullOrEmpty(subType.CustomSerializer))
                             {
                                 sb.AppendLine(

@@ -31,7 +31,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                     symbolContext.ReportDiagnostic(Diagnostic.Create(
                         SupportedDiagnostics[1],
                         typeSymbol.Locations.First(),
-                        typeSymbol.ToDisplayString()));
+                        typeSymbol.GetDisplayString()));
             },
             SymbolKind.NamedType);
 

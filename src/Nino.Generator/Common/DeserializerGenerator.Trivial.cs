@@ -116,7 +116,7 @@ public partial class DeserializerGenerator
                 var isPrivate = member.IsPrivate;
                 var isProperty = member.IsProperty;
 
-                var t = declaredType.ToDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
+                var t = declaredType.GetDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
                     .Aggregate("", (a, b) => a + b);
                 var tempName = $"{t}_temp_{name}";
 
@@ -161,7 +161,7 @@ public partial class DeserializerGenerator
 
                     //weak version tolerance
                     var toleranceCode = $$$"""
-                                                               {{{declaredType.ToDisplayString()}}} {{{tempName}}};
+                                                               {{{declaredType.GetDisplayString()}}} {{{tempName}}};
                                                                #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
                                                                if (reader.Eof)
                                                                {
@@ -184,12 +184,12 @@ public partial class DeserializerGenerator
                     if (!string.IsNullOrEmpty(nt.CustomDeserializer))
                     {
                         sb.AppendLine(
-                            $"                    {nt.CustomDeserializer}.DeserializeImpl(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+                            $"                    {nt.CustomDeserializer}.DeserializeImpl(out {declaredType.GetDisplayString()} {tempName}, ref reader);");
                         continue;
                     }
 
                     sb.AppendLine(
-                        $"                    Deserialize(out {declaredType.ToDisplayString()} {tempName}, ref reader);");
+                        $"                    Deserialize(out {declaredType.GetDisplayString()} {tempName}, ref reader);");
                 }
             }
             else
@@ -199,14 +199,14 @@ public partial class DeserializerGenerator
                 {
                     var val = valNames[index];
                     sb.AppendLine(
-                        $"                    Deserialize(out {members[index].Type.ToDisplayString()} {val}, ref reader);");
+                        $"                    Deserialize(out {members[index].Type.GetDisplayString()} {val}, ref reader);");
                 }
 
                 sb.AppendLine("#else");
                 sb.AppendLine(
                     $"                    Deserialize(out NinoTuple<{string.Join(", ",
                         Enumerable.Range(0, valNames.Count)
-                            .Select(i => $"{members[i].Type.ToDisplayString()}"))}> t{index1}, ref reader);");
+                            .Select(i => $"{members[i].Type.GetDisplayString()}"))}> t{index1}, ref reader);");
                 for (int i = 0; i < members.Count; i++)
                 {
                     var name = members[i].Name;
@@ -236,7 +236,7 @@ public partial class DeserializerGenerator
                         "Missing constructor member {0} for {1}",
                         "Nino.Generator",
                         DiagnosticSeverity.Error, true), constructor.Locations[0],
-                    m, nt.TypeSymbol.ToDisplayString()));
+                    m, nt.TypeSymbol.GetDisplayString()));
                 break;
             }
         }
@@ -249,8 +249,8 @@ public partial class DeserializerGenerator
         }
 
         var ctorStmt = constructor.MethodKind == MethodKind.Constructor
-            ? $"new {nt.TypeSymbol.ToDisplayString()}"
-            : $"{nt.TypeSymbol.ToDisplayString()}.{constructor.Name}";
+            ? $"new {nt.TypeSymbol.GetDisplayString()}"
+            : $"{nt.TypeSymbol.GetDisplayString()}.{constructor.Name}";
         if (args.Keys.Any(tupleMap.ContainsKey))
         {
             sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
@@ -384,7 +384,7 @@ public partial class DeserializerGenerator
             sb.AppendLine(
                 $"                    // no constructor found, symbol is not a named type symbol but a {nt.TypeSymbol.GetType()}");
             sb.AppendLine(
-                $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
+                $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.GetDisplayString()}\");");
             return;
         }
 
@@ -402,7 +402,7 @@ public partial class DeserializerGenerator
 
         var custom = constructors.FirstOrDefault(c => c.GetAttributes().Any(a =>
             a.AttributeClass != null &&
-            a.AttributeClass.ToDisplayString().EndsWith("NinoConstructorAttribute")));
+            a.AttributeClass.GetDisplayString().EndsWith("NinoConstructorAttribute")));
         if (custom != null)
         {
             constructor = custom;
@@ -412,7 +412,7 @@ public partial class DeserializerGenerator
         {
             sb.AppendLine("                    // no constructor found");
             sb.AppendLine(
-                $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.ToDisplayString()}\");");
+                $"                    throw new InvalidOperationException(\"No constructor found for {nt.TypeSymbol.GetDisplayString()}\");");
             return;
         }
 

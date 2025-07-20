@@ -107,7 +107,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 ITypeSymbol elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
                 var ret = $$"""
                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                            public static void Serialize(this {{elementType.ToDisplayString()}}? value, ref Writer writer)
+                            public static void Serialize(this {{elementType.GetDisplayString()}}? value, ref Writer writer)
                             {
                                 if (!value.HasValue)
                                 {
@@ -174,7 +174,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.Append("public static void Serialize(this ");
-                sb.Append(symbol.ToDisplayString());
+                sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
                 sb.AppendLine("    if (value == null)");
@@ -218,7 +218,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.Append("public static void Serialize(this ");
-                sb.Append(symbol.ToDisplayString());
+                sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
                 sb.AppendLine("    if (value.IsEmpty)");
@@ -279,7 +279,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.Append("public static void Serialize(this ");
-                sb.Append(symbol.ToDisplayString());
+                sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
 
@@ -344,7 +344,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.Append("public static void Serialize(this ");
-                sb.Append(symbol.ToDisplayString());
+                sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
                 sb.Append("    if (value == ");
@@ -398,7 +398,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
             {
                 INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
                 var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
-                                      i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                      i.OriginalDefinition.GetDisplayString().EndsWith("IEnumerable<T>"))
                                   ?? namedTypeSymbol;
                 var elemType = ienumSymbol.TypeArguments[0];
                 if (!Selector.Filter(elemType)) return false;
@@ -417,7 +417,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.Append("public static void Serialize(this ");
-                sb.Append(symbol.ToDisplayString());
+                sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
 
@@ -480,7 +480,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
                 sb.Append("public static void Serialize(this ");
-                sb.Append(symbol.ToDisplayString());
+                sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
                 sb.Append("    if (value == ");
@@ -525,7 +525,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
         return $$"""
                  [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                 public static void Serialize(this {{type.ToDisplayString()}} value, ref Writer writer)
+                 public static void Serialize(this {{type.GetDisplayString()}} value, ref Writer writer)
                  {
                      {{string.Join("\n    ", serializeValues)}};
                  }

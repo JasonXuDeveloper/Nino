@@ -67,17 +67,17 @@ public class PartialClassGenerator(Compilation compilation, NinoGraph ninoGraph,
                     continue;
                 }
 
-                var declaringType = declaredType.ToDisplayString();
+                var declaringType = declaredType.GetDisplayString();
                 var member = ts.GetMembers().FirstOrDefault(m => m.Name == name);
                 if (member != null)
                 {
                     if (member is IFieldSymbol fieldSymbol)
                     {
-                        declaringType = fieldSymbol.Type.ToDisplayString();
+                        declaringType = fieldSymbol.Type.GetDisplayString();
                     }
                     else if (member is IPropertySymbol propertySymbol)
                     {
-                        declaringType = propertySymbol.Type.ToDisplayString();
+                        declaringType = propertySymbol.Type.GetDisplayString();
                     }
                 }
 
@@ -125,7 +125,7 @@ public class PartialClassGenerator(Compilation compilation, NinoGraph ninoGraph,
             var typeParameters = namedTypeSymbol.TypeParameters;
             if (typeParameters.Length > 0)
             {
-                typeSimpleName += $"<{string.Join(",", typeParameters.Select(t => t.ToDisplayString()))}>";
+                typeSimpleName += $"<{string.Join(",", typeParameters.Select(t => t.GetDisplayString()))}>";
             }
         }
 

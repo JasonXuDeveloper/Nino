@@ -90,7 +90,7 @@ public class CollectionDeserializerGenerator(
                         {
                             if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
                             var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
-                                                  i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                                  i.OriginalDefinition.GetDisplayString().EndsWith("IEnumerable<T>"))
                                               ?? namedTypeSymbol;
                             var elemType = ienumSymbol.TypeArguments[0];
                             // make array type from element type
@@ -131,6 +131,29 @@ public class CollectionDeserializerGenerator(
 
     private static readonly string Inline = "[MethodImpl(MethodImplOptions.AggressiveInlining)]";
 
+    private static readonly Joint HasAddAndClear = new Joint().With(
+        new ValidMethod((s, method) =>
+        {
+            if (s.TypeKind == TypeKind.Interface) return false;
+            if (s is not INamedTypeSymbol ns) return false;
+            var es = ns.AllInterfaces.FirstOrDefault(i =>
+                         i.OriginalDefinition.GetDisplayString().EndsWith("IEnumerable<T>"))
+                     ?? ns;
+            var elementType = es.TypeArguments[0];
+
+            return method.Name == "Add"
+                   && method.Parameters.Length == 1
+                   && method.Parameters[0].Type.Equals(elementType, SymbolEqualityComparer.Default);
+        }),
+        new ValidMethod((s, method) =>
+        {
+            if (s.TypeKind == TypeKind.Interface) return false;
+            if (s is not INamedTypeSymbol) return false;
+
+            return method.Name == "Clear"
+                   && method.Parameters.Length == 0;
+        }));
+
     protected override List<Transformer> Transformers =>
     [
         new
@@ -145,7 +168,7 @@ public class CollectionDeserializerGenerator(
             , (symbol, sb) =>
             {
                 ITypeSymbol elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
-                var elementTypeFullName = elementType.ToDisplayString();
+                var elementTypeFullName = elementType.GetDisplayString();
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
                 sb.Append(elementTypeFullName);
@@ -180,7 +203,7 @@ public class CollectionDeserializerGenerator(
                 GenericTupleLikeMethods(symbol, sb,
                     ((INamedTypeSymbol)symbol).TypeArguments
                     .Select(typeSymbol =>
-                        typeSymbol.ToDisplayString()).ToArray(),
+                        typeSymbol.GetDisplayString()).ToArray(),
                     "K", "V");
                 return true;
             }),
@@ -197,7 +220,7 @@ public class CollectionDeserializerGenerator(
                 GenericTupleLikeMethods(symbol, sb,
                     ((INamedTypeSymbol)symbol).TypeArguments
                     .Select(typeSymbol =>
-                        typeSymbol.ToDisplayString()).ToArray(),
+                        typeSymbol.GetDisplayString()).ToArray(),
                     ((INamedTypeSymbol)symbol)
                     .TypeArguments.Select((_, i) => $"Item{i + 1}").ToArray());
                 return true;
@@ -209,11 +232,11 @@ public class CollectionDeserializerGenerator(
             new Array(_ => true),
             (symbol, sb) =>
             {
-                var elemType = ((IArrayTypeSymbol)symbol).ElementType.ToDisplayString();
+                var elemType = ((IArrayTypeSymbol)symbol).ElementType.GetDisplayString();
                 var creationDecl = elemType.EndsWith("[]")
                     ? elemType.Insert(elemType.IndexOf("[]", StringComparison.Ordinal), "[length]")
                     : $"{elemType}[length]";
-                var typeName = symbol.ToDisplayString();
+                var typeName = symbol.GetDisplayString();
                 bool isUnmanaged = ((IArrayTypeSymbol)symbol).ElementType.IsUnmanagedType;
                 if (isUnmanaged)
                 {
@@ -284,12 +307,12 @@ public class CollectionDeserializerGenerator(
                 var valType = idictSymbol.TypeArguments[1];
                 if (!ValidFilter(keyType) || !ValidFilter(valType)) return false;
 
-                var dictType = symbol.ToDisplayString();
+                var dictType = symbol.GetDisplayString();
                 bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
 
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
-                sb.Append(dictSymbol.ToDisplayString());
+                sb.Append(dictSymbol.GetDisplayString());
                 sb.AppendLine(" value, ref Reader reader)");
                 sb.AppendLine("{");
                 EofCheck(sb);
@@ -318,9 +341,9 @@ public class CollectionDeserializerGenerator(
                 if (isUnmanaged)
                 {
                     sb.Append("        Deserialize(out KeyValuePair<");
-                    sb.Append(keyType.ToDisplayString());
+                    sb.Append(keyType.GetDisplayString());
                     sb.Append(", ");
-                    sb.Append(valType.ToDisplayString());
+                    sb.Append(valType.GetDisplayString());
                     sb.AppendLine("> kvp, ref reader);");
                     sb.AppendLine("        value[kvp.Key] = kvp.Value;");
                 }
@@ -331,19 +354,19 @@ public class CollectionDeserializerGenerator(
                         {
                             w.AppendLine("        eleReader = reader.Slice();");
                             w.Append("        Deserialize(out ");
-                            w.Append(keyType.ToDisplayString());
+                            w.Append(keyType.GetDisplayString());
                             w.AppendLine(" key, ref eleReader);");
                             w.Append("        Deserialize(out ");
-                            w.Append(valType.ToDisplayString());
+                            w.Append(valType.GetDisplayString());
                             w.AppendLine(" val, ref eleReader);");
                         },
                         w =>
                         {
                             w.Append("        Deserialize(out ");
-                            w.Append(keyType.ToDisplayString());
+                            w.Append(keyType.GetDisplayString());
                             w.AppendLine(" key, ref reader);");
                             w.Append("        Deserialize(out ");
-                            w.Append(valType.ToDisplayString());
+                            w.Append(valType.GetDisplayString());
                             w.AppendLine(" val, ref reader);");
                         });
                     sb.AppendLine("        value[key] = val;");
@@ -369,13 +392,13 @@ public class CollectionDeserializerGenerator(
                 var keyType = dictSymbol.TypeArguments[0];
                 var valType = dictSymbol.TypeArguments[1];
                 var dictType =
-                    $"System.Collections.Generic.Dictionary<{keyType.ToDisplayString()}, {valType.ToDisplayString()}>";
+                    $"System.Collections.Generic.Dictionary<{keyType.GetDisplayString()}, {valType.GetDisplayString()}>";
                 bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
 
                 // First method: Deserialize(TDict value, ref Reader reader)
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(");
-                sb.Append(dictSymbol.ToDisplayString());
+                sb.Append(dictSymbol.GetDisplayString());
                 sb.AppendLine(" value, ref Reader reader)");
                 sb.AppendLine("{");
                 EofCheck(sb);
@@ -400,9 +423,9 @@ public class CollectionDeserializerGenerator(
                 if (isUnmanaged)
                 {
                     sb.Append("        Deserialize(out KeyValuePair<");
-                    sb.Append(keyType.ToDisplayString());
+                    sb.Append(keyType.GetDisplayString());
                     sb.Append(", ");
-                    sb.Append(valType.ToDisplayString());
+                    sb.Append(valType.GetDisplayString());
                     sb.AppendLine("> kvp, ref reader);");
                     sb.AppendLine("        value[kvp.Key] = kvp.Value;");
                 }
@@ -413,19 +436,19 @@ public class CollectionDeserializerGenerator(
                         {
                             w.AppendLine("        eleReader = reader.Slice();");
                             w.Append("        Deserialize(out ");
-                            w.Append(keyType.ToDisplayString());
+                            w.Append(keyType.GetDisplayString());
                             w.AppendLine(" key, ref eleReader);");
                             w.Append("        Deserialize(out ");
-                            w.Append(valType.ToDisplayString());
+                            w.Append(valType.GetDisplayString());
                             w.AppendLine(" val, ref eleReader);");
                         },
                         w =>
                         {
                             w.Append("        Deserialize(out ");
-                            w.Append(keyType.ToDisplayString());
+                            w.Append(keyType.GetDisplayString());
                             w.AppendLine(" key, ref reader);");
                             w.Append("        Deserialize(out ");
-                            w.Append(valType.ToDisplayString());
+                            w.Append(valType.GetDisplayString());
                             w.AppendLine(" val, ref reader);");
                         });
                     sb.AppendLine("        value[key] = val;");
@@ -438,7 +461,7 @@ public class CollectionDeserializerGenerator(
                 // Second method: Deserialize(out TDict value, ref Reader reader)
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
-                sb.Append(dictSymbol.ToDisplayString());
+                sb.Append(dictSymbol.GetDisplayString());
                 sb.AppendLine(" value, ref Reader reader)");
                 sb.AppendLine("{");
                 EofCheck(sb);
@@ -468,9 +491,9 @@ public class CollectionDeserializerGenerator(
                 if (isUnmanaged)
                 {
                     sb.Append("        Deserialize(out KeyValuePair<");
-                    sb.Append(keyType.ToDisplayString());
+                    sb.Append(keyType.GetDisplayString());
                     sb.Append(", ");
-                    sb.Append(valType.ToDisplayString());
+                    sb.Append(valType.GetDisplayString());
                     sb.AppendLine("> kvp, ref reader);");
                     sb.AppendLine("        value[kvp.Key] = kvp.Value;");
                 }
@@ -481,19 +504,19 @@ public class CollectionDeserializerGenerator(
                         {
                             w.AppendLine("        eleReader = reader.Slice();");
                             w.Append("        Deserialize(out ");
-                            w.Append(keyType.ToDisplayString());
+                            w.Append(keyType.GetDisplayString());
                             w.AppendLine(" key, ref eleReader);");
                             w.Append("        Deserialize(out ");
-                            w.Append(valType.ToDisplayString());
+                            w.Append(valType.GetDisplayString());
                             w.AppendLine(" val, ref eleReader);");
                         },
                         w =>
                         {
                             w.Append("        Deserialize(out ");
-                            w.Append(keyType.ToDisplayString());
+                            w.Append(keyType.GetDisplayString());
                             w.AppendLine(" key, ref reader);");
                             w.Append("        Deserialize(out ");
-                            w.Append(valType.ToDisplayString());
+                            w.Append(valType.GetDisplayString());
                             w.AppendLine(" val, ref reader);");
                         });
                     sb.AppendLine("        value[key] = val;");
@@ -526,7 +549,7 @@ public class CollectionDeserializerGenerator(
                     if (symbol.TypeKind == TypeKind.Interface) return false;
                     if (symbol is not INamedTypeSymbol namedTypeSymbol) return false;
                     var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
-                                          i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                          i.OriginalDefinition.GetDisplayString().EndsWith("IEnumerable<T>"))
                                       ?? namedTypeSymbol;
                     var elementType = ienumSymbol.TypeArguments[0];
 
@@ -539,16 +562,16 @@ public class CollectionDeserializerGenerator(
             {
                 INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
                 var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
-                                      i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                      i.OriginalDefinition.GetDisplayString().EndsWith("IEnumerable<T>"))
                                   ?? namedTypeSymbol;
                 var elemType = ienumSymbol.TypeArguments[0];
                 if (!ValidFilter(elemType)) return false;
 
-                var collType = symbol.ToDisplayString();
+                var collType = symbol.GetDisplayString();
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
                 bool constructorWithNumArg = ienumSymbol.Constructors.Any(c =>
-                    c.Parameters.Length == 1 && c.Parameters[0].Type.ToDisplayString() == "System.Int32");
+                    c.Parameters.Length == 1 && c.Parameters[0].Type.GetDisplayString() == "System.Int32");
 
                 var creationDecl = constructorWithNumArg
                     ? $"new {collType}(length)"
@@ -556,7 +579,7 @@ public class CollectionDeserializerGenerator(
 
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
-                sb.Append(namedTypeSymbol.ToDisplayString());
+                sb.Append(namedTypeSymbol.GetDisplayString());
                 sb.AppendLine(" value, ref Reader reader)");
                 sb.AppendLine("{");
                 EofCheck(sb);
@@ -584,7 +607,7 @@ public class CollectionDeserializerGenerator(
                 if (isUnmanaged)
                 {
                     sb.Append("        Deserialize(out ");
-                    sb.Append(elemType.ToDisplayString());
+                    sb.Append(elemType.GetDisplayString());
                     sb.AppendLine(" item, ref reader);");
                     sb.AppendLine("        value.Add(item);");
                 }
@@ -595,13 +618,13 @@ public class CollectionDeserializerGenerator(
                         {
                             w.AppendLine("        eleReader = reader.Slice();");
                             w.Append("        Deserialize(out ");
-                            w.Append(elemType.ToDisplayString());
+                            w.Append(elemType.GetDisplayString());
                             w.AppendLine(" item, ref eleReader);");
                         },
                         w =>
                         {
                             w.Append("        Deserialize(out ");
-                            w.Append(elemType.ToDisplayString());
+                            w.Append(elemType.GetDisplayString());
                             w.AppendLine(" item, ref reader);");
                         });
                     sb.AppendLine("        value.Add(item);");
@@ -621,15 +644,15 @@ public class CollectionDeserializerGenerator(
             {
                 INamedTypeSymbol namedTypeSymbol = (INamedTypeSymbol)symbol;
                 var ienumSymbol = namedTypeSymbol.AllInterfaces.FirstOrDefault(i =>
-                                      i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                      i.OriginalDefinition.GetDisplayString().EndsWith("IEnumerable<T>"))
                                   ?? namedTypeSymbol;
                 var elemType = ienumSymbol.TypeArguments[0];
                 if (!ValidFilter(elemType)) return false;
-                var typeDecl = symbol.ToDisplayString();
+                var typeDecl = symbol.GetDisplayString();
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
                 var creationDecl = $"new {typeDecl}(arr)";
-                var arrCreationDecl = $"new {elemType.ToDisplayString()}[length]";
+                var arrCreationDecl = $"new {elemType.GetDisplayString()}[length]";
 
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
@@ -807,30 +830,6 @@ public class CollectionDeserializerGenerator(
                 var elemType = ienumSymbol.TypeArguments[0];
                 var typeDecl = $"System.Collections.Generic.List<{elemType.ToDisplayString()}>";
                 bool isUnmanaged = elemType.IsUnmanagedType;
-
-                var hasAddAndClear = new Joint().With(
-                    new ValidMethod((s, method) =>
-                    {
-                        if (s.TypeKind == TypeKind.Interface) return false;
-                        if (s is not INamedTypeSymbol ns) return false;
-                        var es = ns.AllInterfaces.FirstOrDefault(i =>
-                                     i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
-                                 ?? ns;
-                        var elementType = es.TypeArguments[0];
-
-                        return method.Name == "Add"
-                               && method.Parameters.Length == 1
-                               && method.Parameters[0].Type.Equals(elementType, SymbolEqualityComparer.Default);
-                    }),
-                    new ValidMethod((s, method) =>
-                    {
-                        if (s.TypeKind == TypeKind.Interface) return false;
-                        if (s is not INamedTypeSymbol) return false;
-
-                        return method.Name == "Clear"
-                               && method.Parameters.Length == 0;
-                    }));
-
                 var creationDecl = "new " + typeDecl + "(length)";
 
                 // First method: Deserialize(out T value, ref Reader reader)
@@ -892,7 +891,7 @@ public class CollectionDeserializerGenerator(
                 sb.AppendLine("}");
 
                 // Second method: Deserialize(T value, ref Reader reader) - only if hasAddAndClear
-                if (hasAddAndClear.Filter(symbol))
+                if (HasAddAndClear.Filter(symbol))
                 {
                     sb.AppendLine();
                     sb.AppendLine();

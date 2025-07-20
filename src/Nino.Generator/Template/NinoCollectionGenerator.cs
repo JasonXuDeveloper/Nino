@@ -96,7 +96,8 @@ public abstract class NinoCollectionGenerator(Compilation compilation, List<ITyp
     public void Generate(SourceProductionContext spc, HashSet<ITypeSymbol> generatedTypes)
     {
         if (potentialCollectionSymbols.Count == 0) return;
-        if (Transformers == null || Transformers?.Count == 0) return;
+        var generatedTransformers = Transformers;
+        if (generatedTransformers == null || generatedTransformers.Count == 0) return;
 
         var filteredSymbols = potentialCollectionSymbols
             .Where(symbol =>
@@ -131,13 +132,13 @@ public abstract class NinoCollectionGenerator(Compilation compilation, List<ITyp
                 type = namedTypeSymbol.TupleUnderlyingType ?? symbol;
             }
 
-            var typeFullName = type.ToDisplayString();
+            var typeFullName = type.GetDisplayString();
             if (!addedType.Add(typeFullName)) continue;
 
             writer.Clear();
-            for (var index = 0; index < Transformers!.Count; index++)
+            for (var index = 0; index < generatedTransformers.Count; index++)
             {
-                var transformer = Transformers![index];
+                var transformer = generatedTransformers[index];
                 try
                 {
                     if (!transformer.Filter.Filter(type)) continue;
