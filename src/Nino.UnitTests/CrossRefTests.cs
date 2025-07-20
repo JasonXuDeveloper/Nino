@@ -24,7 +24,9 @@ public class CrossRefTests
 
         byte[] bytes = test.Serialize();
         byte[] bytes2 = Serializer.Serialize<SimpleCrossRefTest>(test);
+        byte[] byte3 = Serializer.Serialize(test);
         Assert.IsTrue(bytes.SequenceEqual(bytes2));
+        Assert.IsTrue(bytes.SequenceEqual(byte3));
         Console.WriteLine(string.Join(", ", bytes));
         Deserializer.Deserialize(bytes, out SimpleCrossRefTest result);
         Assert.AreEqual(test.A.Id, result.A.Id);
