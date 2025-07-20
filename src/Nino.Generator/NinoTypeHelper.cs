@@ -17,6 +17,8 @@ public static class NinoTypeHelper
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
     private static readonly Dictionary<ITypeSymbol, bool> IsNinoTypeCache = new(SymbolEqualityComparer.Default);
     private static readonly Dictionary<ITypeSymbol, string> ToDisplayStringCache = new(SymbolEqualityComparer.Default);
+    private static readonly Dictionary<(Compilation, SyntaxTree), SemanticModel> SemanticModelCache = new();
+    private static readonly Dictionary<(SyntaxTree, CSharpSyntaxNode), ITypeSymbol?> TypeSymbolCache = new();
 
     public static string GetTypeInstanceName(this ITypeSymbol typeSymbol)
     {
@@ -28,7 +30,7 @@ public static class NinoTypeHelper
 
         return $"@{ret}";
     }
-    
+
     public static string GetDisplayString(this ITypeSymbol typeSymbol)
     {
         if (ToDisplayStringCache.TryGetValue(typeSymbol, out var ret))
@@ -375,31 +377,73 @@ public static class NinoTypeHelper
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static SemanticModel GetCachedSemanticModel(Compilation compilation, SyntaxTree syntaxTree)
+    {
+        var key = (compilation, syntaxTree);
+        if (SemanticModelCache.TryGetValue(key, out var cachedModel))
+        {
+            return cachedModel;
+        }
+
+        var semanticModel = compilation.GetSemanticModel(syntaxTree);
+        SemanticModelCache[key] = semanticModel;
+        return semanticModel;
+    }
+    
     public static ITypeSymbol? GetTypeSymbol(this CSharpSyntaxNode syntax, Compilation compilation)
     {
-        // Get semantic model once to avoid repeated expensive calls
-        var semanticModel = compilation.GetSemanticModel(syntax.SyntaxTree);
-
-        switch (syntax)
+        // Check direct cache first for maximum performance
+        var cacheKey = (syntax.SyntaxTree, syntax);
+        if (TypeSymbolCache.TryGetValue(cacheKey, out var cachedResult))
         {
-            case TupleTypeSyntax tupleTypeSyntax:
-                return semanticModel.GetTypeInfo(tupleTypeSyntax).Type;
-            case TypeDeclarationSyntax typeDeclaration:
-                return semanticModel.GetDeclaredSymbol(typeDeclaration);
-            case TypeSyntax typeSyntax:
-                // Try GetTypeInfo first as it's more direct for type syntax
-                var typeInfo = semanticModel.GetTypeInfo(typeSyntax);
-                if (typeInfo.Type is not null)
-                {
-                    return typeInfo.Type;
-                }
+            return cachedResult;
+        }
 
-                // Fallback to GetSymbolInfo only if GetTypeInfo didn't work
-                var symbolInfo = semanticModel.GetSymbolInfo(typeSyntax);
-                return symbolInfo.Symbol as ITypeSymbol;
+        // Cache miss - compute the result using optimized path
+        var result = GetTypeSymbolUncached(syntax, compilation);
+
+        // Cache the result for future lookups
+        TypeSymbolCache[cacheKey] = result;
+        return result;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ITypeSymbol? GetTypeSymbolUncached(CSharpSyntaxNode syntax, Compilation compilation)
+    {
+        // Use cached semantic model to avoid repeated expensive calls
+        var semanticModel = GetCachedSemanticModel(compilation, syntax.SyntaxTree);
+
+        // Use if-else instead of switch for potentially better performance with type checks
+        if (syntax is TupleTypeSyntax tupleTypeSyntax)
+        {
+            return semanticModel.GetTypeInfo(tupleTypeSyntax).Type;
+        }
+
+        if (syntax is TypeDeclarationSyntax typeDeclaration)
+        {
+            return semanticModel.GetDeclaredSymbol(typeDeclaration);
+        }
+
+        if (syntax is TypeSyntax typeSyntax)
+        {
+            // Try GetTypeInfo first as it's more direct for type syntax
+            var typeInfo = semanticModel.GetTypeInfo(typeSyntax);
+            return typeInfo.Type ?? semanticModel.GetSymbolInfo(typeSyntax).Symbol as ITypeSymbol;
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Clears all caches to prevent memory leaks. Call this when compilation context changes.
+    /// </summary>
+    public static void ClearCaches()
+    {
+        IsNinoTypeCache.Clear();
+        ToDisplayStringCache.Clear();
+        SemanticModelCache.Clear();
+        TypeSymbolCache.Clear();
     }
 
     public static ITypeSymbol? GetTypeSymbol(this TypeDeclarationSyntax syntax, SyntaxNodeAnalysisContext context)
@@ -411,18 +455,28 @@ public static class NinoTypeHelper
     {
         return typeSymbol.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
     }
-
+    
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
+        if (typeSymbol.IsUnmanagedType)
+        {
+            return true;
+        }
+
         if (IsNinoTypeCache.TryGetValue(typeSymbol, out var isNinoType))
         {
             return isNinoType;
         }
 
-        var ret = typeSymbol.IsUnmanagedType ||
-                  typeSymbol.GetAttributes().Any(static a => a.AttributeClass?.Name == "NinoTypeAttribute");
-        IsNinoTypeCache[typeSymbol] = ret;
-        return ret;
+        foreach (var attribute in typeSymbol.GetAttributes())
+        {
+            if (!string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute", StringComparison.Ordinal)) continue;
+            IsNinoTypeCache[typeSymbol] = true;
+            return true;
+        }
+
+        IsNinoTypeCache[typeSymbol] = false;
+        return false;
     }
 
     public static string GetTypeModifiers(this ITypeSymbol typeSymbol)
