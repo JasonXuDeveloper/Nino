@@ -2,20 +2,14 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Metadata;
 
-public class NinoMember
+public class NinoMember(string name, ITypeSymbol type)
 {
-    public string Name { get; set; }
-    public ITypeSymbol Type { get; set; }
+    public string Name { get; set; } = name;
+    public ITypeSymbol Type { get; set; } = type;
     public bool IsCtorParameter { get; set; }
     public bool IsPrivate { get; set; }
     public bool IsProperty { get; set; }
     public bool IsUtf8String { get; set; }
-
-    public NinoMember(string name, ITypeSymbol type)
-    {
-        Name = name;
-        Type = type;
-    }
 
     public override string ToString()
     {

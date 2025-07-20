@@ -12,14 +12,11 @@ using String = Nino.Generator.Filter.String;
 
 namespace Nino.Generator.Collection;
 
-public class CollectionDeserializerGenerator : NinoCollectionGenerator
+public class CollectionDeserializerGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> potentialCollectionSymbols)
+    : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
 {
-    public CollectionDeserializerGenerator(
-        Compilation compilation,
-        List<ITypeSymbol> potentialCollectionSymbols) : base(compilation, potentialCollectionSymbols)
-    {
-    }
-
     protected override IFilter Selector =>
         new Joint().With
         (
@@ -70,7 +67,8 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                         var keySymbol = idictSymbol.TypeArguments[0];
                         var valueSymbol = idictSymbol.TypeArguments[1];
 
-                        return indexer.Parameters.Length == 1
+                        return indexer.DeclaredAccessibility == Accessibility.Public &&
+                               indexer.Parameters.Length == 1
                                && indexer.Parameters[0].Type
                                    .Equals(keySymbol, SymbolEqualityComparer.Default)
                                && indexer.Type.Equals(valueSymbol, SymbolEqualityComparer.Default);
@@ -129,7 +127,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
             new Joint().With
             (
                 new Nullable(),
-                new TypeArgument(0, symbol => !symbol.IsUnmanagedType && Selector.Filter(symbol))
+                new TypeArgument(0, symbol => Selector.Filter(symbol))
             )
             , symbol =>
             {
@@ -165,8 +163,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
             "KeyValuePair",
             // We only want KeyValuePair for non-unmanaged ninotypes
             new Joint().With(
-                new Trivial("KeyValuePair"),
-                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+                new Trivial("KeyValuePair")
             ),
             symbol =>
                 GenericTupleLikeMethods(symbol,
@@ -181,7 +178,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
             "Tuple",
             // We only want Tuple for non-unmanaged ninotypes
             new Trivial("ValueTuple", "Tuple"),
-            symbol => symbol.IsUnmanagedType
+            symbol => symbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.TypeArguments.IsEmpty
                 ? ""
                 : GenericTupleLikeMethods(symbol,
                     ((INamedTypeSymbol)symbol).TypeArguments
@@ -194,17 +191,33 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
         new
         (
             "Array",
-            new Array(arraySymbol =>
-            {
-                var elementType = arraySymbol.ElementType;
-                return !elementType.IsUnmanagedType;
-            }),
+            new Array(_ => true),
             symbol =>
             {
                 var elemType = ((IArrayTypeSymbol)symbol).ElementType.ToDisplayString();
                 var creationDecl = elemType.EndsWith("[]")
                     ? elemType.Insert(elemType.IndexOf("[]", StringComparison.Ordinal), "[length]")
                     : $"{elemType}[length]";
+                bool isUnmanaged = ((IArrayTypeSymbol)symbol).ElementType.IsUnmanagedType;
+                if (isUnmanaged)
+                {
+                    return $$"""
+                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                             public static void Deserialize(out {{symbol.ToDisplayString()}} value, ref Reader reader)
+                             {
+                             #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                  if (reader.Eof)
+                                  {
+                                     value = null;
+                                     return;
+                                  }
+                             #endif
+
+                                 reader.Read(out value);
+                             }
+                             """;
+                }
+
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
                          public static void Deserialize(out {{symbol.ToDisplayString()}} value, ref Reader reader)
@@ -323,8 +336,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
             new Joint().With
             (
                 new Interface("IDictionary<TKey, TValue>"),
-                new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary")),
-                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+                new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary"))
             ),
             symbol =>
             {
@@ -333,6 +345,26 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 var valType = dictSymbol.TypeArguments[1];
                 var dictType =
                     $"System.Collections.Generic.Dictionary<{keyType.ToDisplayString()}, {valType.ToDisplayString()}>";
+                bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
+
+                var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
+                var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
+                var deserializeStr = isUnmanaged
+                    ? $"""
+                               Deserialize(out KeyValuePair<{keyType.ToDisplayString()}, {valType.ToDisplayString()}> kvp, ref reader);
+                               value[kvp.Key] = kvp.Value;
+                       """
+                    : $"""
+                       #if {NinoTypeHelper.WeakVersionToleranceSymbol}
+                               {slice}
+                               Deserialize(out {keyType.ToDisplayString()} key, ref eleReader);
+                               Deserialize(out {valType.ToDisplayString()} val, ref eleReader);
+                       #else
+                               Deserialize(out {keyType.ToDisplayString()} key, ref reader);
+                               Deserialize(out {valType.ToDisplayString()} val, ref reader);
+                       #endif
+                               value[key] = val;
+                       """;
 
                 return $$"""
                          [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -351,21 +383,13 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                              }
 
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                             Reader eleReader;
+                             {{eleReaderDecl}}
                          #endif
                              
                              value.Clear();
                              for (int i = 0; i < length; i++)
                              {
-                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                 eleReader = reader.Slice();
-                                 Deserialize(out {{keyType.ToDisplayString()}} key, ref eleReader);
-                                 Deserialize(out {{valType.ToDisplayString()}} val, ref eleReader);
-                         #else
-                                Deserialize(out {{keyType.ToDisplayString()}} key, ref reader);
-                                Deserialize(out {{valType.ToDisplayString()}} val, ref reader);
-                         #endif
-                                value[key] = val;
+                         {{deserializeStr}}
                              }
                          }
 
@@ -387,21 +411,13 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                              }
 
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                             Reader eleReader;
+                             {{eleReaderDecl}}
                          #endif
                              
                              value = new {{dictType}}({{(dictType.StartsWith("System.Collections.Generic.Dictionary") ? "length" : "")}});
                              for (int i = 0; i < length; i++)
                              {
-                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                 eleReader = reader.Slice();
-                                 Deserialize(out {{keyType.ToDisplayString()}} key, ref eleReader);
-                                 Deserialize(out {{valType.ToDisplayString()}} val, ref eleReader);
-                         #else
-                                Deserialize(out {{keyType.ToDisplayString()}} key, ref reader);
-                                Deserialize(out {{valType.ToDisplayString()}} val, ref reader);
-                         #endif
-                                value[key] = val;
+                         {{deserializeStr}}
                              }
                          }
                          """;
@@ -681,8 +697,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 // We want to exclude the ones that already have a serializer
                 new Not(new NinoTyped()),
                 new Not(new String()),
-                new Not(new NonTrivial("IEnumerable", "IEnumerable", "ICollection", "IList", "List")),
-                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+                new Not(new NonTrivial("IEnumerable", "IEnumerable", "ICollection", "IList", "List"))
             ),
             symbol =>
             {
@@ -692,6 +707,22 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                   ?? namedTypeSymbol;
                 var elemType = ienumSymbol.TypeArguments[0];
                 var typeDecl = $"System.Collections.Generic.List<{elemType.ToDisplayString()}>";
+                bool isUnmanaged = elemType.IsUnmanagedType;
+
+                var slice = isUnmanaged ? "" : "eleReader = reader.Slice();";
+                var eleReaderDecl = isUnmanaged ? "" : "Reader eleReader;";
+                var deserializeStr = isUnmanaged
+                    ? $"""
+                               Deserialize(out {elemType.ToDisplayString()} item, ref reader);
+                       """
+                    : $"""
+                       #if {NinoTypeHelper.WeakVersionToleranceSymbol}
+                               {slice}
+                               Deserialize(out {elemType.ToDisplayString()} item, ref eleReader);
+                       #else
+                               Deserialize(out {elemType.ToDisplayString()} item, ref reader);
+                       #endif
+                       """;
 
                 var hasAddAndClear = new Joint().With(
                     new ValidMethod((s, method) =>
@@ -699,8 +730,8 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                         if (s.TypeKind == TypeKind.Interface) return false;
                         if (s is not INamedTypeSymbol ns) return false;
                         var es = ns.AllInterfaces.FirstOrDefault(i =>
-                                              i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
-                                          ?? ns;
+                                     i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
+                                 ?? ns;
                         var elementType = es.TypeArguments[0];
 
                         return method.Name == "Add"
@@ -719,8 +750,8 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                 if (hasAddAndClear.Filter(symbol))
                 {
                     extra = $$"""
-                              
-                              
+
+
                               [MethodImpl(MethodImplOptions.AggressiveInlining)]
                               public static void Deserialize({{namedTypeSymbol.ToDisplayString()}} value, ref Reader reader)
                               {
@@ -730,25 +761,20 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                       return;
                                    }
                               #endif
-                                  
+
                                   if (!reader.ReadCollectionHeader(out var length))
                                   {
                                       return;
                                   }
-                              
+
                               #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                  Reader eleReader;
+                                  {{eleReaderDecl}}
                               #endif
-                                  
+
                                   value.Clear();
                                   for (int i = 0; i < length; i++)
                                   {
-                              #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                      eleReader = reader.Slice();
-                                      Deserialize(out {{elemType.ToDisplayString()}} item, ref eleReader);
-                              #else
-                                      Deserialize(out {{elemType.ToDisplayString()}} item, ref reader);
-                              #endif
+                              {{deserializeStr}}
                                       value.Add(item);
                                   }
                               }
@@ -767,7 +793,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                                  return;
                               }
                          #endif
-                             
+
                              if (!reader.ReadCollectionHeader(out var length))
                              {
                                  value = default;
@@ -775,21 +801,16 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                              }
 
                          #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                             Reader eleReader;
+                             {{eleReaderDecl}}
                          #endif
-                             
+
                              var lst = {{creationDecl}};
                              for (int i = 0; i < length; i++)
                              {
-                         #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                 eleReader = reader.Slice();
-                                 Deserialize(out {{elemType.ToDisplayString()}} item, ref eleReader);
-                         #else
-                                 Deserialize(out {{elemType.ToDisplayString()}} item, ref reader);
-                         #endif
+                         {{deserializeStr}}
                                  lst.Add(item);
                              }
-                             
+
                              value = lst;
                          }{{extra}}
                          """;
@@ -803,10 +824,23 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
             fields.Select((field, i) =>
                 $"Deserialize(out {types[i]} {field.ToLower()}, ref reader);").ToArray();
         bool isValueTuple = type.Name == "ValueTuple";
+        var typeName = type.ToDisplayString();
+        bool isUnmanaged = type.IsUnmanagedType;
+        string deserializeStr = isUnmanaged
+            ? """
+               reader.Read(out value);
+               """
+            : $$"""
+               {{string.Join("\n    ", deserializeValues)}};
+               value = {{(isValueTuple ? "" : $"new {type.ToDisplayString()}")}}({{
+                         string.Join(", ",
+                             fields.Select(field => field.ToLower()))
+                     }});
+               """;
 
         return $$"""
                  [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                 public static void Deserialize(out {{type.ToDisplayString()}} value, ref Reader reader)
+                 public static void Deserialize(out {{typeName}} value, ref Reader reader)
                  {
                  #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                       if (reader.Eof)
@@ -816,11 +850,7 @@ public class CollectionDeserializerGenerator : NinoCollectionGenerator
                       }
                  #endif
 
-                     {{string.Join("\n    ", deserializeValues)}};
-                     value = {{(isValueTuple ? "" : $"new {type.ToDisplayString()}")}}({{
-                         string.Join(", ",
-                             fields.Select(field => field.ToLower()))
-                     }});
+                     {{deserializeStr}}
                  }
                  """;
     }

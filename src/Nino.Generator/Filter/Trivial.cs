@@ -4,14 +4,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Filter;
 
-public class Trivial : IFilter
+public class Trivial(params string[] trivialTypes) : IFilter
 {
-    private readonly HashSet<string> _trivialTypes;
-
-    public Trivial(params string[] trivialTypes)
-    {
-        _trivialTypes = new HashSet<string>(trivialTypes);
-    }
+    private readonly HashSet<string> _trivialTypes = new(trivialTypes);
 
     public bool Filter(ITypeSymbol symbol)
     {

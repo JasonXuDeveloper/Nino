@@ -323,6 +323,7 @@ namespace Nino.UnitTests
             KeyValuePair<int, long> kvp = new KeyValuePair<int, long>(1, 1234567890);
             byte[] bytes = kvp.Serialize();
             Assert.IsNotNull(bytes);
+            Console.WriteLine(string.Join(", ", bytes));
 
             Deserializer.Deserialize(bytes, out KeyValuePair<int, long> result);
             Assert.AreEqual(kvp.Key, result.Key);

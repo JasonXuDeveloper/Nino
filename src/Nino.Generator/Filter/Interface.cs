@@ -4,27 +4,19 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Filter;
 
-public class Interface : IFilter
+public class Interface(string interfaceName, Func<INamedTypeSymbol, bool>? restriction = null)
+    : IFilter
 {
-    private readonly string _interfaceName;
-    private readonly Func<INamedTypeSymbol, bool>? _restriction;
-
-    public Interface(string interfaceName, Func<INamedTypeSymbol, bool>? restriction = null)
-    {
-        _interfaceName = interfaceName;
-        _restriction = restriction;
-    }
-
     public bool Filter(ITypeSymbol symbol)
     {
         var baseType = symbol;
         while (baseType != null)
         {
-            if (baseType.OriginalDefinition.ToDisplayString().EndsWith(_interfaceName))
+            if (baseType.OriginalDefinition.ToDisplayString().EndsWith(interfaceName))
             {
-                if (_restriction != null)
+                if (restriction != null)
                 {
-                    return _restriction((INamedTypeSymbol)baseType);
+                    return restriction((INamedTypeSymbol)baseType);
                 }
 
                 return true;
@@ -33,11 +25,11 @@ public class Interface : IFilter
             baseType = baseType.BaseType;
         }
 
-        if (symbol.OriginalDefinition.ToDisplayString().EndsWith(_interfaceName))
+        if (symbol.OriginalDefinition.ToDisplayString().EndsWith(interfaceName))
         {
-            if (_restriction != null)
+            if (restriction != null)
             {
-                return _restriction((INamedTypeSymbol)symbol);
+                return restriction((INamedTypeSymbol)symbol);
             }
 
             return true;
@@ -45,12 +37,12 @@ public class Interface : IFilter
 
         var interfaceSymbol =
             symbol.AllInterfaces.FirstOrDefault(type =>
-                type.OriginalDefinition.ToDisplayString().EndsWith(_interfaceName));
+                type.OriginalDefinition.ToDisplayString().EndsWith(interfaceName));
         if (interfaceSymbol != null)
         {
-            if (_restriction != null)
+            if (restriction != null)
             {
-                return _restriction(interfaceSymbol);
+                return restriction(interfaceSymbol);
             }
 
             return true;

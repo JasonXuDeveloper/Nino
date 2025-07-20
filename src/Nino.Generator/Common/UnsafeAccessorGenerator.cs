@@ -8,13 +8,9 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
-public class UnsafeAccessorGenerator : NinoCommonGenerator
+public class UnsafeAccessorGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+    : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
-    public UnsafeAccessorGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
-        : base(compilation, ninoGraph, ninoTypes)
-    {
-    }
-
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;

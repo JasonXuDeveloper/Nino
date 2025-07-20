@@ -6,23 +6,16 @@ using System.Linq;
 
 namespace Nino.Generator.Parser;
 
-public class CSharpParser : NinoTypeParser
+public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
 {
-    private readonly List<ITypeSymbol> _ninoSymbols;
-
-    public CSharpParser(List<ITypeSymbol> ninoSymbols)
-    {
-        _ninoSymbols = ninoSymbols;
-    }
-
     protected override List<NinoType> ParseTypes(Compilation compilation)
     {
         List<NinoType> result = new();
         var types = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
-        types.UnionWith(_ninoSymbols);
+        types.UnionWith(ninoSymbols);
         Dictionary<ITypeSymbol, NinoType> typeMap = new(SymbolEqualityComparer.Default);
 
-        foreach (var ninoSymbol in _ninoSymbols)
+        foreach (var ninoSymbol in ninoSymbols)
         {
             NinoType GetNinoType(ITypeSymbol typeSymbol)
             {

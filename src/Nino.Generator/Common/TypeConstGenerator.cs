@@ -7,13 +7,9 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
-public class TypeConstGenerator : NinoCommonGenerator
+public class TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+    : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
-    public TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
-        : base(compilation, ninoGraph, ninoTypes)
-    {
-    }
-
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;

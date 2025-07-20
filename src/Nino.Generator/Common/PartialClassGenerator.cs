@@ -8,13 +8,9 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.Common;
 
-public class PartialClassGenerator : NinoCommonGenerator
+public class PartialClassGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
+    : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
-    public PartialClassGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
-        : base(compilation, ninoGraph, ninoTypes)
-    {
-    }
-
     string WriteMembers(Compilation compilation, HashSet<string> generatedTypes, NinoType type)
     {
         //ensure type is in this compilation, not from referenced assemblies

@@ -2,17 +2,10 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Filter.Operation;
 
-public class Not: IFilter
+public class Not(IFilter filter) : IFilter
 {
-    private readonly IFilter _filter;
-
-    public Not(IFilter filter)
-    {
-        _filter = filter;
-    }
-
     public bool Filter(ITypeSymbol symbol)
     {
-        return !_filter.Filter(symbol);
+        return !filter.Filter(symbol);
     }
 }

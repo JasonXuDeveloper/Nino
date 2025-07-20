@@ -2,14 +2,9 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Template;
 
-public abstract class NinoGenerator
+public abstract class NinoGenerator(Compilation compilation)
 {
-    protected readonly Compilation Compilation;
-
-    protected NinoGenerator(Compilation compilation)
-    {
-        Compilation = compilation;
-    }
+    protected readonly Compilation Compilation = compilation;
 
     protected abstract void Generate(SourceProductionContext spc);
 

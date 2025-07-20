@@ -52,7 +52,6 @@ public class CollectionGenerator : IIncrementalGenerator
         Type[] generatorTypes =
         {
             typeof(CollectionSerializerGenerator),
-            typeof(CollectionDeserializerGenerator),
         };
 
         foreach (Type type in generatorTypes)

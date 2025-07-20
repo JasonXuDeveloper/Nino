@@ -4,23 +4,15 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Filter;
 
-public class ValidProperty
-    : IFilter
+public class ValidProperty(Func<ITypeSymbol, IPropertySymbol, bool> validMethod) : IFilter
 {
-    private readonly Func<ITypeSymbol, IPropertySymbol, bool> _validMethod;
-    
-    public ValidProperty(Func<ITypeSymbol, IPropertySymbol, bool> validMethod)
-    {
-        _validMethod = validMethod;
-    }
-    
     public bool Filter(ITypeSymbol symbol)
     {
         var properties = symbol.GetMembers().OfType<IPropertySymbol>().ToList();
 
         if (!properties.Any()) return false;
 
-        var validProperty = properties.Where(c => _validMethod(symbol, c)).ToList();
+        var validProperty = properties.Where(c => validMethod(symbol, c)).ToList();
 
         if (!validProperty.Any()) return false;
         

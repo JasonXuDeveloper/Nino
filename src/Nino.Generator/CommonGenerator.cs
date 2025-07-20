@@ -4,10 +4,10 @@ using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Nino.Generator.Common;
 using Nino.Generator.Metadata;
 using Nino.Generator.Parser;
-using Nino.Generator.Template;
 
 namespace Nino.Generator;
 
@@ -18,18 +18,58 @@ public class CommonGenerator : IIncrementalGenerator
     {
         var ninoTypeModels = context.GetTypeSyntaxes();
         var compilationAndClasses = context.CompilationProvider.Combine(ninoTypeModels.Collect());
-        context.RegisterSourceOutput(compilationAndClasses, (spc, source) => Execute(source.Left, source.Right, spc));
+
+        // Register the syntax receiver
+        var typeDeclarations = context.SyntaxProvider
+            .CreateSyntaxProvider(
+                static (node, _) =>
+                    node is GenericNameSyntax or ArrayTypeSyntax or StackAllocArrayCreationExpressionSyntax
+                        or TupleTypeSyntax,
+                static (context, _) =>
+                    context.Node switch
+                    {
+                        GenericNameSyntax genericNameSyntax => genericNameSyntax,
+                        ArrayTypeSyntax arrayTypeSyntax => arrayTypeSyntax,
+                        StackAllocArrayCreationExpressionSyntax stackAllocArrayCreationExpressionSyntax =>
+                            stackAllocArrayCreationExpressionSyntax.Type,
+                        TupleTypeSyntax tupleTypeSyntax => tupleTypeSyntax,
+                        _ => null
+                    })
+            .Where(type => type != null)
+            .Select((type, _) => type!);
+
+        // Combine the results and generate source code
+        var compilationAndTypes = context.CompilationProvider.Combine(typeDeclarations.Collect());
+
+        // merge
+        var merged = compilationAndTypes.Combine(compilationAndClasses);
+
+        context.RegisterSourceOutput(merged, (spc, source) =>
+        {
+            var compilation = source.Left.Left;
+            var collectionTypes = source.Left.Right;
+            var syntaxes = source.Right.Right;
+            Execute(compilation, syntaxes, collectionTypes, spc);
+        });
     }
 
     private static void Execute(Compilation compilation, ImmutableArray<CSharpSyntaxNode> syntaxes,
+        ImmutableArray<TypeSyntax> collectionTypes,
         SourceProductionContext spc)
     {
         var result = compilation.IsValidCompilation();
         if (!result.isValid) return;
         compilation = result.newCompilation;
 
+        var allNinoRequiredTypes = collectionTypes.GetAllNinoRequiredTypes(compilation);
+        var potentialTypesLst =
+            allNinoRequiredTypes!.MergeTypes(collectionTypes.Select(syntax => syntax.GetTypeSymbol(compilation))
+                .ToList());
+        potentialTypesLst.Sort((x, y) =>
+            string.Compare(x.ToDisplayString(), y.ToDisplayString(), StringComparison.Ordinal));
+        var potentialTypes = new HashSet<ITypeSymbol>(potentialTypesLst, SymbolEqualityComparer.Default).ToList();
+
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
-        if (ninoSymbols.Count == 0) return;
 
         NinoGraph graph;
         List<NinoType> ninoTypes;
@@ -49,20 +89,11 @@ public class CommonGenerator : IIncrementalGenerator
                     DiagnosticSeverity.Error, true), Location.None));
             return;
         }
-
-        Type[] types =
-        {
-            typeof(TypeConstGenerator),
-            typeof(UnsafeAccessorGenerator),
-            typeof(PartialClassGenerator),
-            typeof(SerializerGenerator),
-            typeof(DeserializerGenerator)
-        };
-
-        foreach (Type type in types)
-        {
-            var generator = (NinoCommonGenerator)Activator.CreateInstance(type, compilation, graph, ninoTypes);
-            generator.Execute(spc);
-        }
+        
+        new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc);
+        new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc);
+        new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc);
+        new SerializerGenerator(compilation, graph, ninoTypes).Execute(spc);
+        new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc);
     }
 }

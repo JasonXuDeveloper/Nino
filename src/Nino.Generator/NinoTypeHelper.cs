@@ -138,7 +138,7 @@ public static class NinoTypeHelper
     public static bool IsPolyMorphicType(this ITypeSymbol typeSymbol)
     {
         return typeSymbol.IsReferenceType || typeSymbol is { IsRecord: true, IsValueType: false } ||
-            typeSymbol.TypeKind == TypeKind.Interface;
+               typeSymbol.TypeKind == TypeKind.Interface;
     }
 
     public static string GetNamespace(this string assemblyName)
@@ -563,21 +563,14 @@ public static class NinoTypeHelper
         string typeParam = "",
         string genericConstraint = "")
     {
-        var indent = "        ";
-        var ret = $$"""
-                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Deserialize{{typeParam}}(ReadOnlySpan<byte> data, out {{typeFullName}} value) {{genericConstraint}}
-                    {
-                        var reader = new Reader(data);
-                        Deserialize(out value, ref reader);
-                    }
-                    """;
-
-        // indent
-        ret = ret.Replace("\n", $"\n{indent}");
-
-        sb.AppendLine();
-        sb.AppendLine($"{indent}{ret}");
+        sb.AppendLine($$"""
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                public static void Deserialize{{typeParam}}(ReadOnlySpan<byte> data, out {{typeFullName}} value) {{genericConstraint}}
+                                {
+                                    var reader = new Reader(data);
+                                    Deserialize(out value, ref reader);
+                                }
+                        """);
         sb.AppendLine();
     }
 
