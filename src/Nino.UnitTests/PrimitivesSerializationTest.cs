@@ -574,7 +574,7 @@ namespace Nino.UnitTests
         public void TestNullable()
         {
             int? val = 123;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out int? result);
             Assert.AreEqual(val, result);
 

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.UnitTests.NinoGen;
 using Nino.UnitTests.Subset;
@@ -22,6 +23,8 @@ public class CrossRefTests
         };
 
         byte[] bytes = test.Serialize();
+        byte[] bytes2 = Serializer.Serialize<SimpleCrossRefTest>(test);
+        Assert.IsTrue(bytes.SequenceEqual(bytes2));
         Console.WriteLine(string.Join(", ", bytes));
         Deserializer.Deserialize(bytes, out SimpleCrossRefTest result);
         Assert.AreEqual(test.A.Id, result.A.Id);

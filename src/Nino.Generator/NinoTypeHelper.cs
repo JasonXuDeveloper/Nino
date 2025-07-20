@@ -26,6 +26,11 @@ public static class NinoTypeHelper
     private static readonly Dictionary<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
         new(10_000, SymbolEqualityComparer.Default);
 
+    public static bool IsRefStruct(this ITypeSymbol typeSymbol)
+    {
+        return typeSymbol.IsRefLikeType && typeSymbol.IsValueType;
+    }
+
     public static string GetTypeInstanceName(this ITypeSymbol typeSymbol)
     {
         var ret = typeSymbol.GetDisplayString()
@@ -450,17 +455,6 @@ public static class NinoTypeHelper
         }
     }
 
-    /// <summary>
-    /// Clears all caches to prevent memory leaks. Call this when compilation context changes.
-    /// </summary>
-    public static void ClearCaches()
-    {
-        IsNinoTypeCache.Clear();
-        ToDisplayStringCache.Clear();
-        SemanticModelCache.Clear();
-        TypeSymbolCache.Clear();
-    }
-
     public static ITypeSymbol? GetTypeSymbol(this TypeDeclarationSyntax syntax, SyntaxNodeAnalysisContext context)
     {
         return context.SemanticModel.GetDeclaredSymbol(syntax);
@@ -613,7 +607,7 @@ public static class NinoTypeHelper
         var indent = "        ";
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static byte[] Serialize{{typeParam}}(this {{typeFullName}} value) {{genericConstraint}}
+                    public static byte[] Serialize{{typeParam}}({{typeFullName}} value) {{genericConstraint}}
                     {
                         var bufferWriter = GetBufferWriter();
                         Serialize(value, bufferWriter);
@@ -623,10 +617,10 @@ public static class NinoTypeHelper
                     }
 
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Serialize{{typeParam}}(this {{typeFullName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
+                    public static void Serialize{{typeParam}}({{typeFullName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
                     {
                         Writer writer = new Writer(bufferWriter);
-                        value.Serialize(ref writer);
+                        Serialize(value, ref writer);
                     }
                     """;
 

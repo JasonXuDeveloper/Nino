@@ -159,6 +159,8 @@ namespace Nino.UnitTests
             };
 
             var buf = nd.Serialize();
+            var buf2 = Serializer.Serialize<NestedData>(nd);
+            Assert.IsTrue(buf.SequenceEqual(buf2));
             Deserializer.Deserialize(buf, out NestedData nd2);
             Assert.AreEqual(nd.Name, nd2.Name);
             Assert.AreEqual(nd.Ps.Length, nd2.Ps.Length);
@@ -399,6 +401,8 @@ namespace Nino.UnitTests
                 data.G,
             };
             var buf = Serializer.Serialize(data);
+            var buf2 = Serializer.Serialize<ComplexData>(data);
+            Assert.IsTrue(buf.SequenceEqual(buf2));
             Deserializer.Deserialize(buf, out ComplexData data2);
             var data3 = Deserializer.Deserialize<ComplexData>(buf);
             Assert.AreEqual(data.ToString(), data2.ToString());

@@ -11,11 +11,14 @@ public class NinoGraph
     public Dictionary<NinoType, List<NinoType>> SubTypes { get; set; } = new();
     public List<NinoType> TopTypes { get; set; } = new();
     public HashSet<NinoType> CircularTypes { get; set; } = new();
+    public Dictionary<ITypeSymbol, NinoType> TypeMap { get; set; } = new(SymbolEqualityComparer.Default);
 
     public NinoGraph(Compilation compilation, List<NinoType> ninoTypes)
     {
         foreach (var ninoType in ninoTypes)
         {
+            TypeMap.Add(ninoType.TypeSymbol, ninoType);
+            
             List<NinoType> baseTypes = new();
             BaseTypes.Add(ninoType, baseTypes);
 

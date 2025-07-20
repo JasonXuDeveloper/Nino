@@ -95,7 +95,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(T value) where T : unmanaged
+        public void Write<T>(T value)
         {
             int size = Unsafe.SizeOf<T>();
             if (TypeCollector.Is64Bit)
@@ -104,15 +104,21 @@ namespace Nino.Core
             }
             else
             {
-                ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                    MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
+                ReadOnlySpan<T> valSpan = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
 #if NET8_0_OR_GREATER
                     ref value
 #else
                         value
 #endif
-                    ), 1));
-                src.CopyTo(_bufferWriter.GetSpan(size));
+                ), 1);
+                unsafe
+                {
+                    Span<T> srcSpan = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(valSpan), 1);
+                    ReadOnlySpan<byte> src = new ReadOnlySpan<byte>(
+                        Unsafe.AsPointer(ref srcSpan.GetPinnableReference()),
+                        Unsafe.SizeOf<T>());
+                    src.CopyTo(_bufferWriter.GetSpan(size));
+                }
             }
 
             _bufferWriter.Advance(size);

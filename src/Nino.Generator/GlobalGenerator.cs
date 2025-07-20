@@ -94,8 +94,7 @@ public class GlobalGenerator : IIncrementalGenerator
         new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc);
         new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc);
         new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc);
-        new SerializerGenerator(compilation, graph, ninoTypes).Execute(spc);
+        new SerializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc);
         new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc);
-        new CollectionSerializerGenerator(compilation, potentialTypes).Execute(spc);
     }
 }

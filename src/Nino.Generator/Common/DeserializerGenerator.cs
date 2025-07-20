@@ -22,12 +22,19 @@ public partial class DeserializerGenerator(
                         """);
         foreach (var type in generatedTypes)
         {
-            if (type.IsUnmanagedType && !type.IsPolyMorphicType())
+            // no pure unmanaged types
+            if (type.IsUnmanagedType)
+            {
+                if (!NinoGraph.TypeMap.TryGetValue(type, out var nt) || !nt.IsPolymorphic())
+                    continue;
+            }
+
+            // no ref struct types
+            if (type.IsRefStruct())
                 continue;
             var typeFullName = type.GetDisplayString();
             sb.AppendLine($$"""
-                                        _deserializers[typeof({{typeFullName}}).TypeHandle.Value] = 
-                                        (ref Reader reader) => 
+                                        _deserializers[typeof({{typeFullName}}).TypeHandle.Value] = (ref Reader reader) => 
                                             {
                                                 Deserialize(out {{typeFullName}} value, ref reader);
                                                 return value;
@@ -46,11 +53,11 @@ public partial class DeserializerGenerator(
         HashSet<ITypeSymbol> generatedTypes = new(SymbolEqualityComparer.Default);
         GenerateTrivialCode(spc, generatedTypes);
         GenerateGenericRegister(sb, "Trivial", generatedTypes);
-        
+
         generatedTypes.Clear();
         new CollectionDeserializerGenerator(compilation, potentialTypes).Generate(spc, generatedTypes);
         GenerateGenericRegister(sb, "Collection", generatedTypes);
-        
+
         var curNamespace = compilation.AssemblyName!.GetNamespace();
         // generate code
         var genericCode = $$"""
@@ -76,7 +83,7 @@ public partial class DeserializerGenerator(
                                         RegisterTrivialDeserializers();
                                         RegisterCollectionDeserializers();
                                     }
-                            
+
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value)
                                     {
@@ -95,18 +102,19 @@ public partial class DeserializerGenerator(
                                          }
                                     #endif
                                     
+                                        if (_deserializers.TryGetValue(typeof(T).TypeHandle.Value, out var deserializer))
+                                        {
+                                            value = (T)deserializer.Invoke(ref reader);
+                                            return;
+                                        }
+                                    
                                         if(!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                                         {
                                             reader.Read(out value);
                                             return;
                                         }
-                                    
-                                        if (!_deserializers.TryGetValue(typeof(T).TypeHandle.Value, out var deserializer))
-                                        {
-                                            throw new Exception($"Deserializer not found for type {typeof(T).FullName}");
-                                        }
-                                    
-                                        value = (T)deserializer.Invoke(ref reader);
+                                        
+                                        throw new Exception($"Deserializer not found for type {typeof(T).FullName}");
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]

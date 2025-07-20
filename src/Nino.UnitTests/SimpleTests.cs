@@ -393,7 +393,7 @@ namespace Nino.UnitTests
                 dict[i].TryAdd(i, i);
             }
 
-            bytes = dict.Serialize();
+            bytes = Serializer.Serialize(dict);
             Assert.IsNotNull(bytes);
 
             Deserializer.Deserialize(bytes, out ConcurrentDictionary<int, int>[] result);
@@ -1026,8 +1026,8 @@ namespace Nino.UnitTests
             Test(h.Serialize());
             Test(i.Serialize());
             Test(j.Serialize());
-            Test(k.Serialize());
-            Test(l.Serialize());
+            Test(Serializer.Serialize(k));
+            Test(Serializer.Serialize(l));
             Test(m.Serialize());
             Test(n.Serialize());
             Deserializer.Deserialize(n.Serialize(), out TestStruct? nn);

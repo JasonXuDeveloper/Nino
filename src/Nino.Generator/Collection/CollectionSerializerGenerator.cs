@@ -12,29 +12,11 @@ using String = Nino.Generator.Filter.String;
 
 namespace Nino.Generator.Collection;
 
-public class CollectionSerializerGenerator : NinoCollectionGenerator
+public class CollectionSerializerGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> potentialCollectionSymbols)
+    : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
 {
-    private readonly IFilter _unmanagedFilter;
-
-    public CollectionSerializerGenerator(
-        Compilation compilation,
-        List<ITypeSymbol> potentialCollectionSymbols) : base(compilation, potentialCollectionSymbols)
-    {
-        _unmanagedFilter = new Union().With
-        (
-            new Joint().With
-            (
-                new Not(new String()),
-                new Unmanaged()
-            ),
-            new Interface("IEnumerable<T>", interfaceSymbol =>
-            {
-                var elementType = interfaceSymbol.TypeArguments[0];
-                return elementType.IsUnmanagedType;
-            })
-        );
-    }
-
     protected override IFilter Selector => new Joint().With
     (
         // We want to ensure the type we are using is accessible (i.e. not private)
@@ -83,43 +65,40 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
         sb.GenerateClassSerializeMethods(typeFullName);
     };
 
-    private string GetSerializeString(ITypeSymbol type, string value)
+    private string GetSerializeString(string value)
     {
-        return _unmanagedFilter.Filter(type) || type.SpecialType == SpecialType.System_String
-            ? $"writer.Write({value});"
-            : $"Serialize({value}, ref writer);";
+        return $"Serialize({value}, ref writer);";
     }
 
-    protected override List<Transformer> Transformers => new List<Transformer>
-    {
-        // Nullable Ninotypes
+    protected override List<Transformer> Transformers =>
+    [
         new
         (
             "Nullable",
-            // We want nullable for non-unmanaged ninotypes
+            // We want nullable for ninotypes (both unmanaged and managed)
             new Joint().With
             (
                 new Nullable(),
-                new TypeArgument(0, symbol => !symbol.IsUnmanagedType && Selector.Filter(symbol))
+                new TypeArgument(0, symbol => Selector.Filter(symbol))
             )
             , (symbol, sb) =>
             {
                 ITypeSymbol elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
-                var ret = $$"""
-                            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                            public static void Serialize(this {{elementType.GetDisplayString()}}? value, ref Writer writer)
-                            {
-                                if (!value.HasValue)
-                                {
-                                    writer.Write(false);
-                                    return;
-                                }
-                                
-                                writer.Write(true);
-                                {{GetSerializeString(elementType, "value.Value")}}
-                            }
-                            """;
-                sb.Append(ret);
+                sb.AppendLine(Inline);
+                sb.Append("public static void Serialize(this ");
+                sb.Append(elementType.GetDisplayString());
+                sb.AppendLine("? value, ref Writer writer)");
+                sb.AppendLine("{");
+                sb.AppendLine("    if (!value.HasValue)");
+                sb.AppendLine("    {");
+                sb.AppendLine("        writer.Write(false);");
+                sb.AppendLine("        return;");
+                sb.AppendLine("    }");
+                sb.AppendLine();
+                sb.AppendLine("    writer.Write(true);");
+                sb.Append("    ");
+                sb.AppendLine(GetSerializeString("value.Value"));
+                sb.AppendLine("}");
                 return true;
             }
         ),
@@ -127,18 +106,12 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
         new
         (
             "KeyValuePair",
-            // We only want KeyValuePair for non-unmanaged ninotypes
-            new Joint().With(
-                new Trivial("KeyValuePair"),
-                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
-            ),
+            // We want KeyValuePair for ninotypes (both unmanaged and managed)
+            new Trivial("KeyValuePair"),
             (symbol, sb) =>
             {
-                var ret =
-                    GenericTupleLikeMethods(symbol,
-                        ((INamedTypeSymbol)symbol).TypeArguments.ToArray(),
-                        "Key", "Value");
-                sb.Append(ret);
+                GenericTupleLikeMethods(symbol, sb,
+                    "Key", "Value");
                 return true;
             }
         ),
@@ -150,56 +123,54 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
             new Trivial("ValueTuple", "Tuple"),
             (symbol, sb) =>
             {
-                if (symbol.IsUnmanagedType)
-                    return false;
-                var ret = GenericTupleLikeMethods(symbol, ((INamedTypeSymbol)symbol)
-                    .TypeArguments.ToArray(),
+                GenericTupleLikeMethods(symbol, sb,
                     ((INamedTypeSymbol)symbol)
                     .TypeArguments.Select((_, i) => $"Item{i + 1}").ToArray());
-                sb.Append(ret);
                 return true;
             }),
         // Array Ninotypes
         new
         (
             "Array",
-            new Array(arraySymbol =>
-            {
-                var elementType = arraySymbol.ElementType;
-                return !elementType.IsUnmanagedType;
-            }),
+            new Array(_ => true),
             (symbol, sb) =>
             {
                 var elementType = ((IArrayTypeSymbol)symbol).ElementType;
+                bool isUnmanaged = elementType.IsUnmanagedType;
 
-                sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine(Inline);
                 sb.Append("public static void Serialize(this ");
                 sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
-                sb.AppendLine("    if (value == null)");
-                sb.AppendLine("    {");
-                sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-                sb.AppendLine("        return;");
-                sb.AppendLine("    }");
-                sb.AppendLine();
-                sb.AppendLine("    var span = value.AsSpan();");
-                sb.AppendLine("    int cnt = span.Length;");
-                sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
-                sb.AppendLine();
-                sb.AppendLine("    for (int i = 0; i < cnt; i++)");
-                sb.AppendLine("    {");
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
+
+                if (isUnmanaged)
                 {
-                    w.AppendLine("        var pos = writer.Advance(4);");
-                });
-                sb.Append("        ");
-                sb.AppendLine(GetSerializeString(elementType, "span[i]"));
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
+                    sb.AppendLine("        writer.Write(value);");
+                }
+                else
                 {
-                    w.AppendLine("        writer.PutLength(pos);");
-                });
-                sb.AppendLine("    }");
+                    sb.AppendLine("    if (value == null)");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
+                    sb.AppendLine("        return;");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                    sb.AppendLine("    var span = value.AsSpan();");
+                    sb.AppendLine("    int cnt = span.Length;");
+                    sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
+                    sb.AppendLine();
+                    sb.AppendLine("    for (int i = 0; i < cnt; i++)");
+                    sb.AppendLine("    {");
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+                    sb.Append("        ");
+                    sb.AppendLine(GetSerializeString("span[i]"));
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        writer.PutLength(pos);"); });
+                    sb.AppendLine("    }");
+                }
+
                 sb.AppendLine("}");
                 return true;
             }),
@@ -207,42 +178,44 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
         new
         (
             "Span",
-            new Joint().With
-            (
-                new Span(),
-                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
-            ),
+            new Span(),
             (symbol, sb) =>
             {
                 var elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
+                bool isUnmanaged = elementType.IsUnmanagedType;
 
-                sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine(Inline);
                 sb.Append("public static void Serialize(this ");
                 sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
-                sb.AppendLine("    if (value.IsEmpty)");
-                sb.AppendLine("    {");
-                sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-                sb.AppendLine("        return;");
-                sb.AppendLine("    }");
-                sb.AppendLine();
-                sb.AppendLine("    int cnt = value.Length;");
-                sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
-                sb.AppendLine();
-                sb.AppendLine("    for (int i = 0; i < cnt; i++)");
-                sb.AppendLine("    {");
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
+
+                if (isUnmanaged)
                 {
-                    w.AppendLine("        var pos = writer.Advance(4);");
-                });
-                sb.Append("        ");
-                sb.AppendLine(GetSerializeString(elementType, "value[i]"));
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
+                    sb.AppendLine("        writer.Write(value);");
+                }
+                else
                 {
-                    w.AppendLine("        writer.PutLength(pos);");
-                });
-                sb.AppendLine("    }");
+                    sb.AppendLine("    if (value.IsEmpty)");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
+                    sb.AppendLine("        return;");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                    sb.AppendLine("    int cnt = value.Length;");
+                    sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
+                    sb.AppendLine();
+                    sb.AppendLine("    for (int i = 0; i < cnt; i++)");
+                    sb.AppendLine("    {");
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+                    sb.Append("        ");
+                    sb.AppendLine(GetSerializeString("value[i]"));
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        writer.PutLength(pos);"); });
+                    sb.AppendLine("    }");
+                }
+
                 sb.AppendLine("}");
                 return true;
             }),
@@ -277,7 +250,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 bool shouldHaveIfDefaultCheck = !symbol.IsValueType || equalityMethod.Filter(dictSymbol);
 
-                sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine(Inline);
                 sb.Append("public static void Serialize(this ");
                 sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
@@ -303,23 +276,18 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 if (isUnmanaged)
                 {
-                    sb.AppendLine("        writer.Write(item.Key);");
-                    sb.AppendLine("        writer.Write(item.Value);");
+                    sb.AppendLine("        writer.Write(item);");
                 }
                 else
                 {
-                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
-                    {
-                        w.AppendLine("        var pos = writer.Advance(4);");
-                    });
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(keyType, "item.Key"));
+                    sb.AppendLine(GetSerializeString("item.Key"));
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(valType, "item.Value"));
-                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
-                    {
-                        w.AppendLine("        writer.PutLength(pos);");
-                    });
+                    sb.AppendLine(GetSerializeString("item.Value"));
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
 
                 sb.AppendLine("    }");
@@ -334,15 +302,15 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
             new Joint().With
             (
                 new Interface("IDictionary<TKey, TValue>"),
-                new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary")),
-                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+                new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary"))
             ),
             (symbol, sb) =>
             {
                 var keyType = ((INamedTypeSymbol)symbol).TypeArguments[0];
                 var valueType = ((INamedTypeSymbol)symbol).TypeArguments[1];
+                bool isUnmanaged = keyType.IsUnmanagedType && valueType.IsUnmanagedType;
 
-                sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine(Inline);
                 sb.Append("public static void Serialize(this ");
                 sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
@@ -360,18 +328,23 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 sb.AppendLine();
                 sb.AppendLine("    foreach (var item in value)");
                 sb.AppendLine("    {");
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
+
+                if (isUnmanaged)
                 {
-                    w.AppendLine("        var pos = writer.Advance(4);");
-                });
-                sb.Append("        ");
-                sb.AppendLine(GetSerializeString(keyType, "item.Key"));
-                sb.Append("        ");
-                sb.AppendLine(GetSerializeString(valueType, "item.Value"));
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
+                    sb.AppendLine("        writer.Write(item);");
+                }
+                else
                 {
-                    w.AppendLine("        writer.PutLength(pos);");
-                });
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+                    sb.Append("        ");
+                    sb.AppendLine(GetSerializeString("item.Key"));
+                    sb.Append("        ");
+                    sb.AppendLine(GetSerializeString("item.Value"));
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        writer.PutLength(pos);"); });
+                }
+
                 sb.AppendLine("    }");
                 sb.AppendLine("}");
                 return true;
@@ -415,7 +388,7 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
 
                 bool shouldHaveIfDefaultCheck = !symbol.IsValueType || equalityMethod.Filter(namedTypeSymbol);
 
-                sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine(Inline);
                 sb.Append("public static void Serialize(this ");
                 sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
@@ -445,16 +418,12 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 }
                 else
                 {
-                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
-                    {
-                        w.AppendLine("        var pos = writer.Advance(4);");
-                    });
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(elemType, "item"));
-                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
-                    {
-                        w.AppendLine("        writer.PutLength(pos);");
-                    });
+                    sb.AppendLine(GetSerializeString("item"));
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
 
                 sb.AppendLine("    }");
@@ -471,14 +440,14 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 // Note that array is an IEnumerable, but we don't want to generate code for it
                 new Interface("IEnumerable<T>"),
                 new Not(new Array()),
-                new Not(new NonTrivial("IEnumerable", "IEnumerable", "ICollection", "IList", "List")),
-                new AnyTypeArgument(symbol => !symbol.IsUnmanagedType)
+                new Not(new NonTrivial("IEnumerable", "IEnumerable", "ICollection", "IList", "List"))
             ),
             (symbol, sb) =>
             {
                 var elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
+                bool isUnmanaged = elementType.IsUnmanagedType;
 
-                sb.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                sb.AppendLine(Inline);
                 sb.Append("public static void Serialize(this ");
                 sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
@@ -497,38 +466,50 @@ public class CollectionSerializerGenerator : NinoCollectionGenerator
                 sb.AppendLine("    foreach (var item in value)");
                 sb.AppendLine("    {");
                 sb.AppendLine("        cnt++;");
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
+
+                if (isUnmanaged)
                 {
-                    w.AppendLine("        var pos = writer.Advance(4);");
-                });
-                sb.Append("        ");
-                sb.AppendLine(GetSerializeString(elementType, "item"));
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb, w =>
+                    sb.AppendLine("        writer.Write(item);");
+                }
+                else
                 {
-                    w.AppendLine("        writer.PutLength(pos);");
-                });
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+                    sb.Append("        ");
+                    sb.AppendLine(GetSerializeString("item"));
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("        writer.PutLength(pos);"); });
+                }
+
                 sb.AppendLine("    }");
                 sb.AppendLine();
                 sb.AppendLine("    writer.PutBack(TypeCollector.GetCollectionHeader(cnt), oldPos);");
                 sb.AppendLine("}");
                 return true;
-            }),
-    };
+            })
+    ];
 
-    private string GenericTupleLikeMethods(ITypeSymbol type, ITypeSymbol[] types, params string[] fields)
+    private void GenericTupleLikeMethods(ITypeSymbol type, Writer writer, params string[] fields)
     {
-        string[] serializeValues = new string[fields.Length];
-        for (int i = 0; i < fields.Length; i++)
+        bool isUnmanaged = type.IsUnmanagedType;
+        writer.AppendLine(Inline);
+        writer.Append("public static void Serialize(this ");
+        writer.Append(type.GetDisplayString());
+        writer.AppendLine(" value, ref Writer writer)");
+        writer.AppendLine("{");
+        if (isUnmanaged)
         {
-            serializeValues[i] = GetSerializeString(types[i], $"value.{fields[i]}");
+            writer.AppendLine("    writer.Write(value);");
+        }
+        else
+        {
+            for (int i = 0; i < fields.Length; i++)
+            {
+                writer.Append("    ");
+                writer.AppendLine(GetSerializeString($"value.{fields[i]}"));
+            }
         }
 
-        return $$"""
-                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                 public static void Serialize(this {{type.GetDisplayString()}} value, ref Writer writer)
-                 {
-                     {{string.Join("\n    ", serializeValues)}};
-                 }
-                 """;
+        writer.AppendLine("}");
     }
 }

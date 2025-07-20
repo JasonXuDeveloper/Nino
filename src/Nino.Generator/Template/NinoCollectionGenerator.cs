@@ -67,6 +67,8 @@ public abstract class NinoCollectionGenerator(Compilation compilation, List<ITyp
     {
         return _filteredSymbols.GetOrAdd(symbol, Selector.Filter);
     }
+
+    protected static readonly string Inline = "[MethodImpl(MethodImplOptions.AggressiveInlining)]";
     
     protected static readonly Action<string, Writer, Action<Writer>> IfDirective = (str, writer, action) =>
     {

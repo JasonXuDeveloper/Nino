@@ -129,8 +129,6 @@ public class CollectionDeserializerGenerator(
         });
     };
 
-    private static readonly string Inline = "[MethodImpl(MethodImplOptions.AggressiveInlining)]";
-
     private static readonly Joint HasAddAndClear = new Joint().With(
         new ValidMethod((s, method) =>
         {

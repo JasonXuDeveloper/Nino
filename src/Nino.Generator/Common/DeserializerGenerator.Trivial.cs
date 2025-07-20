@@ -17,6 +17,25 @@ public partial class DeserializerGenerator
 
         foreach (var ninoType in NinoTypes)
         {
+            try
+            {
+                if (!generatedTypes.Add(ninoType.TypeSymbol))
+                    continue;
+                GenerateDeserializeImplementation(ninoType, sb, spc);
+            }
+            catch (Exception e)
+            {
+                sb.AppendLine($"/* Error: {e.Message} for type {ninoType.TypeSymbol.GetTypeFullName()}");
+                //add stacktrace
+                foreach (var line in e.StackTrace.Split('\n'))
+                {
+                    sb.AppendLine($" * {line}");
+                }
+
+                //end error
+                sb.AppendLine(" */");
+            }
+            
             if (!ninoType.IsPolymorphic() || !ninoType.TypeSymbol.IsInstanceType() ||
                 !string.IsNullOrEmpty(ninoType.CustomDeserializer))
                 continue;
@@ -40,27 +59,6 @@ public partial class DeserializerGenerator
             CreateInstance(spc, sb, ninoType, "value");
             sb.AppendLine("        }");
             sb.AppendLine();
-        }
-
-        foreach (var ninoType in NinoTypes)
-        {
-            try
-            {
-                GenerateDeserializeImplementation(ninoType, sb, spc);
-                generatedTypes.Add(ninoType.TypeSymbol);
-            }
-            catch (Exception e)
-            {
-                sb.AppendLine($"/* Error: {e.Message} for type {ninoType.TypeSymbol.GetTypeFullName()}");
-                //add stacktrace
-                foreach (var line in e.StackTrace.Split('\n'))
-                {
-                    sb.AppendLine($" * {line}");
-                }
-
-                //end error
-                sb.AppendLine(" */");
-            }
         }
 
         var curNamespace = compilation.AssemblyName!.GetNamespace();
