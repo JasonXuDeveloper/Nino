@@ -1072,7 +1072,7 @@ namespace Nino.UnitTests
             };
             byte[] bytes = a.Serialize();
 
-            Deserializer.Deserialize(bytes, out Generic<int> result);
+            var result = Deserializer.Deserialize<Generic<int>>(bytes);
             Assert.AreEqual(a.Val, result.Val);
 
             Generic<string> b = new Generic<string>()

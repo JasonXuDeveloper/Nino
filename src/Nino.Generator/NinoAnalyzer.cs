@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
@@ -50,7 +51,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                         a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
                     bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
                     bool containNonPublic = attr != null && (bool)(attr.ConstructorArguments[1].Value ?? false);
-                    
+
                     // check if the type is nested
                     if (typeDeclarationSyntax.Parent is TypeDeclarationSyntax && containNonPublic)
                     {
@@ -107,6 +108,60 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                                 member.Locations.First(),
                                 member.Name,
                                 typeSymbol.Name));
+                        }
+                    }
+
+                    // Check for duplicate member indices - nino009
+                    if (!autoCollect)
+                    {
+                        // top -> bottom
+                        LinkedList<ITypeSymbol> chain = new();
+                        ITypeSymbol? currentType = typeSymbol;
+                        while (currentType != null && currentType.IsNinoType())
+                        {
+                            chain.AddFirst(currentType);
+                            currentType = currentType.BaseType;
+                        }
+
+                        var memberIndices = new Dictionary<ushort, (string memberName, ISymbol member)>();
+                        HashSet<ushort> reported = new();
+                        HashSet<ISymbol> visited = new(SymbolEqualityComparer.Default);
+                        foreach (var type in chain)
+                        {
+                            foreach (var member in type.GetMembers())
+                            {
+                                if (!visited.Add(member)) continue;
+                                
+                                var ninoMemberAttr = member.GetAttributesCache()
+                                    .FirstOrDefault(x =>
+                                        x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
+
+                                if (ninoMemberAttr != null && ninoMemberAttr.ConstructorArguments.Length > 0)
+                                {
+                                    var indexArg = ninoMemberAttr.ConstructorArguments[0];
+                                    if (indexArg.Value != null)
+                                    {
+                                        var index = (ushort)indexArg.Value;
+
+                                        if (memberIndices.TryGetValue(index, out var existingMember))
+                                        {
+                                            if (!reported.Add(index)) continue;
+                                            // Report duplicate for current member
+                                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                                                SupportedDiagnostics[8],
+                                                member.Locations.First(),
+                                                typeSymbol.Name,
+                                                member.Name,
+                                                existingMember.member.ContainingType.Name,
+                                                existingMember.memberName));
+                                        }
+                                        else
+                                        {
+                                            memberIndices[index] = (member.Name, member);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -188,6 +243,11 @@ public class NinoAnalyzer : DiagnosticAnalyzer
             new DiagnosticDescriptor("NINO008",
                 "Nested type that may contain non-public members",
                 "NinoType '{0}' is allowed to contain non-public members so it cannot be nested",
+                "Nino",
+                DiagnosticSeverity.Error, true),
+            new DiagnosticDescriptor("NINO009",
+                "Duplicate member index",
+                "Member '{0}.{1}' has the same index as another member '{2}.{3}'",
                 "Nino",
                 DiagnosticSeverity.Error, true)
         );

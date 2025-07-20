@@ -335,7 +335,46 @@ public class TestNested
 ";
 
         await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO008")
-                .WithSpan(7, 18, 7, 27)
-                .WithArguments("TestClass")).RunAsync();
+            .WithSpan(7, 18, 7, 27)
+            .WithArguments("TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino009()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(false)]
+public class TestClass : TestBase
+{
+    [NinoMember(3)]
+    public float C;
+
+    [NinoMember(3)]
+    public double D;
+
+    [NinoMember(2)]
+    public bool E;
+}
+
+[NinoType(false)]
+public class TestBase
+{
+    [NinoMember(1)]
+    public int A;
+
+    [NinoMember(2)]
+    public string B;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO009")
+                .WithSpan(11, 19, 11, 20)
+                .WithArguments("TestClass", "D", "TestClass", "C"),
+            Verify.Diagnostic("NINO009")
+                .WithSpan(14, 17, 14, 18)
+                .WithArguments("TestClass", "E", "TestBase", "B")).RunAsync();
     }
 }
