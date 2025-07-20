@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,11 +11,49 @@ namespace Nino.Generator.Template;
 public abstract class NinoCollectionGenerator(Compilation compilation, List<ITypeSymbol> potentialCollectionSymbols)
     : NinoGenerator(compilation)
 {
-    protected class Transformer(string name, IFilter filter, Func<ITypeSymbol, string> ruleBasedGenerator)
+    protected class Transformer(string name, IFilter filter, Func<ITypeSymbol, Writer, bool> ruleBasedGenerator)
     {
         public readonly string Name = name;
         public readonly IFilter Filter = filter;
-        public readonly Func<ITypeSymbol, string> RuleBasedGenerator = ruleBasedGenerator;
+        public readonly Func<ITypeSymbol, Writer, bool> RuleBasedGenerator = ruleBasedGenerator;
+    }
+
+    protected class Writer(string indent)
+    {
+        private readonly StringBuilder _sb = new(16_000);
+
+        public void Append(string str)
+        {
+            _sb.Append(str);
+        }
+
+        public void AppendLine()
+        {
+            _sb.AppendLine();
+            _sb.Append(indent);
+        }
+
+        public void AppendLine(string str)
+        {
+            _sb.AppendLine(str);
+            _sb.Append(indent);
+        }
+
+        public void Clear()
+        {
+            _sb.Clear();
+        }
+
+        public void CopyTo(StringBuilder sb)
+        {
+            sb.Append(indent);
+            sb.Append(_sb);
+        }
+
+        public override string ToString()
+        {
+            return _sb.ToString();
+        }
     }
 
     protected readonly List<ITypeSymbol> PotentialCollectionSymbols = potentialCollectionSymbols;
@@ -23,11 +62,36 @@ public abstract class NinoCollectionGenerator(Compilation compilation, List<ITyp
     protected abstract string OutputFileName { get; }
     protected abstract Action<StringBuilder, string>? PublicMethod { get; }
     protected abstract List<Transformer>? Transformers { get; }
+    private readonly ConcurrentDictionary<ITypeSymbol, bool> _filteredSymbols = new(SymbolEqualityComparer.Default);
+
+    protected bool ValidFilter(ITypeSymbol symbol)
+    {
+        return _filteredSymbols.GetOrAdd(symbol, Selector.Filter);
+    }
+    
+    protected static readonly Action<string, Writer, Action<Writer>> IfDirective = (str, writer, action) =>
+    {
+        writer.Append("#if ");
+        writer.AppendLine(str);
+        action(writer);
+        writer.AppendLine("#endif");
+    };
+
+    protected static readonly Action<string, Writer, Action<Writer>, Action<Writer>> IfElseDirective =
+        (str, writer, actionIf, actionElse) =>
+        {
+            writer.Append("#if ");
+            writer.AppendLine(str);
+            actionIf(writer);
+            writer.AppendLine("#else");
+            actionElse(writer);
+            writer.AppendLine("#endif");
+        };
 
     protected override void Generate(SourceProductionContext spc)
     {
         HashSet<ITypeSymbol> generatedTypes = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
-        Generate(spc, generatedTypes);   
+        Generate(spc, generatedTypes);
     }
 
     public void Generate(SourceProductionContext spc, HashSet<ITypeSymbol> generatedTypes)
@@ -38,33 +102,28 @@ public abstract class NinoCollectionGenerator(Compilation compilation, List<ITyp
         var filteredSymbols = PotentialCollectionSymbols
             .Where(symbol =>
             {
-                if (!Selector.Filter(symbol)) return false;
+                if (!ValidFilter(symbol)) return false;
 
                 if (symbol is INamedTypeSymbol namedTypeSymbol)
                 {
                     if (namedTypeSymbol.IsGenericType)
-                        return namedTypeSymbol.TypeArguments.All(Selector.Filter);
+                        return namedTypeSymbol.TypeArguments.All(ValidFilter);
 
                     return true;
                 }
 
                 if (symbol is IArrayTypeSymbol arrayTypeSymbol)
                 {
-                    return Selector.Filter(arrayTypeSymbol.ElementType);
+                    return ValidFilter(arrayTypeSymbol.ElementType);
                 }
 
                 return false;
             }).ToList();
 
         var compilation = Compilation;
-        var sb = new StringBuilder();
-        sb.AppendLine(
-            $"        /* Will process types: \n         " +
-            $"{string.Join(", \n         ",
-                filteredSymbols.Select(s => s.ToDisplayString()))}\n        */");
-        sb.AppendLine("");
-
+        var sb = new StringBuilder(1_000_000);
         HashSet<string> addedType = new HashSet<string>();
+        Writer writer = new Writer("        ");
         foreach (var symbol in filteredSymbols)
         {
             var type = symbol;
@@ -75,25 +134,24 @@ public abstract class NinoCollectionGenerator(Compilation compilation, List<ITyp
 
             var typeFullName = type.ToDisplayString();
             if (!addedType.Add(typeFullName)) continue;
+
+            writer.Clear();
             for (var index = 0; index < Transformers!.Count; index++)
             {
                 var transformer = Transformers![index];
                 try
                 {
-                    if (transformer.Filter.Filter(type))
-                    {
-                        var indent = "        ";
-                        var generated = transformer.RuleBasedGenerator(type);
-                        if (string.IsNullOrEmpty(generated)) continue;
-                        sb.AppendLine($"#region {typeFullName} - Generated by transformer {transformer.Name}");
-                        PublicMethod?.Invoke(sb, typeFullName);
-                        generated = generated.Replace("\n", $"\n{indent}");
-                        sb.AppendLine($"{indent}{generated}");
-                        sb.AppendLine("#endregion");
-                        sb.AppendLine();
-                        generatedTypes.Add(type);
-                        break;
-                    }
+                    if (!transformer.Filter.Filter(type)) continue;
+                    var generated = transformer.RuleBasedGenerator(type, writer);
+                    if (!generated) continue;
+                    sb.AppendLine($"#region {typeFullName} - Generated by transformer {transformer.Name}");
+                    PublicMethod?.Invoke(sb, typeFullName);
+                    writer.CopyTo(sb);
+                    sb.AppendLine();
+                    sb.AppendLine("#endregion");
+                    sb.AppendLine();
+                    generatedTypes.Add(type);
+                    break;
                 }
                 catch (Exception e)
                 {
