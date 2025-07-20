@@ -5,6 +5,7 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Nino.Generator.Collection;
 using Nino.Generator.Common;
 using Nino.Generator.Metadata;
 using Nino.Generator.Parser;
@@ -12,7 +13,7 @@ using Nino.Generator.Parser;
 namespace Nino.Generator;
 
 [Generator(LanguageNames.CSharp)]
-public class CommonGenerator : IIncrementalGenerator
+public class GlobalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -89,11 +90,12 @@ public class CommonGenerator : IIncrementalGenerator
                     DiagnosticSeverity.Error, true), Location.None));
             return;
         }
-        
+
         new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc);
         new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc);
         new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc);
         new SerializerGenerator(compilation, graph, ninoTypes).Execute(spc);
         new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc);
+        new CollectionSerializerGenerator(compilation, potentialTypes).Execute(spc);
     }
 }

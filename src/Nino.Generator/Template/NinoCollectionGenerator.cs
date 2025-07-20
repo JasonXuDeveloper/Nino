@@ -56,7 +56,6 @@ public abstract class NinoCollectionGenerator(Compilation compilation, List<ITyp
         }
     }
 
-    protected readonly List<ITypeSymbol> PotentialCollectionSymbols = potentialCollectionSymbols;
     protected abstract IFilter Selector { get; }
     protected abstract string ClassName { get; }
     protected abstract string OutputFileName { get; }
@@ -96,10 +95,10 @@ public abstract class NinoCollectionGenerator(Compilation compilation, List<ITyp
 
     public void Generate(SourceProductionContext spc, HashSet<ITypeSymbol> generatedTypes)
     {
-        if (PotentialCollectionSymbols.Count == 0) return;
+        if (potentialCollectionSymbols.Count == 0) return;
         if (Transformers == null || Transformers?.Count == 0) return;
 
-        var filteredSymbols = PotentialCollectionSymbols
+        var filteredSymbols = potentialCollectionSymbols
             .Where(symbol =>
             {
                 if (!ValidFilter(symbol)) return false;

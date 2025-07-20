@@ -10,3 +10,5 @@ src/Nino.sln.DotSettings.user
 src/Nino.Shared/Nino.Shared.csproj.user
 **/BenchmarkDotNet.Artifacts
 src/Nino.Core/.AssemblyAttributes
+src/Nino.UnitTests/build.binlog
+src/Nino.UnitTests/args.rsp
