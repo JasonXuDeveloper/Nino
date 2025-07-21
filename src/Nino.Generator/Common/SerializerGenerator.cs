@@ -22,10 +22,10 @@ public partial class SerializerGenerator(
                         """);
         foreach (var type in generatedTypes)
         {
-            // no pure unmanaged types
+            // no non-ninotyped unmanaged types
             if (type.IsUnmanagedType)
             {
-                if (!NinoGraph.TypeMap.TryGetValue(type, out var nt) || !nt.IsPolymorphic())
+                if (!NinoGraph.TypeMap.ContainsKey(type))
                     continue;
             }
 
@@ -49,15 +49,15 @@ public partial class SerializerGenerator(
         var compilation = Compilation;
 
         StringBuilder sb = new(32_000_000);
-        HashSet<ITypeSymbol> generatedTypes = new(SymbolEqualityComparer.Default);
-        GenerateTrivialCode(spc, generatedTypes);
-        // add string type
-        generatedTypes.Add(compilation.GetSpecialType(SpecialType.System_String));
-        GenerateGenericRegister(sb, "Trivial", generatedTypes);
+        HashSet<ITypeSymbol> collectionTypes = new(SymbolEqualityComparer.Default);
+        new CollectionSerializerGenerator(compilation, potentialTypes).Generate(spc, collectionTypes);
+        GenerateGenericRegister(sb, "Collection", collectionTypes);
 
-        generatedTypes.Clear();
-        new CollectionSerializerGenerator(compilation, potentialTypes).Generate(spc, generatedTypes);
-        GenerateGenericRegister(sb, "Collection", generatedTypes);
+        HashSet<ITypeSymbol> trivialTypes = new(SymbolEqualityComparer.Default);
+        GenerateTrivialCode(spc, collectionTypes, trivialTypes);
+        // add string type
+        trivialTypes.Add(compilation.GetSpecialType(SpecialType.System_String));
+        GenerateGenericRegister(sb, "Trivial", trivialTypes);
 
         var curNamespace = compilation.AssemblyName!.GetNamespace();
         // generate code
@@ -86,13 +86,13 @@ public partial class SerializerGenerator(
                                     }
 
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static byte[] Serialize<T>(this T value)
+                                    public static byte[] Serialize<T>(T value)
                                     {
                                         var bufferWriter = GetBufferWriter();
                                         try
                                         {
                                             var writer = new Writer(bufferWriter);
-                                            Serialize(value, ref writer);
+                                            SerializeGeneric(value, ref writer);
                                             return bufferWriter.WrittenSpan.ToArray();
                                         }
                                         finally
@@ -102,14 +102,14 @@ public partial class SerializerGenerator(
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static void Serialize<T>(this T value, IBufferWriter<byte> bufferWriter)
+                                    public static void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
                                     {
                                         Writer writer = new Writer(bufferWriter);
-                                        Serialize(value, ref writer);
+                                        SerializeGeneric(value, ref writer);
                                     }
 
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    private static void Serialize<T>(T value, ref Writer writer)
+                                    private static void SerializeGeneric<T>(T value, ref Writer writer)
                                     {
                                         if (_serializers.TryGetValue(typeof(T).TypeHandle.Value, out var serializer))
                                         {
@@ -119,7 +119,7 @@ public partial class SerializerGenerator(
 
                                         if(!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                                         {
-                                            writer.Write(value);
+                                            writer.UnsafeWrite(value);
                                             return;
                                         }
                                         
@@ -133,7 +133,7 @@ public partial class SerializerGenerator(
                                         try
                                         {
                                             var writer = new Writer(bufferWriter);
-                                            Serialize(value, ref writer, type);
+                                            SerializeBoxed(value, ref writer, type);
                                             return bufferWriter.WrittenSpan.ToArray();
                                         }
                                         finally
@@ -146,11 +146,11 @@ public partial class SerializerGenerator(
                                     public static void Serialize(object value, IBufferWriter<byte> bufferWriter, Type type)
                                     {
                                         Writer writer = new Writer(bufferWriter);
-                                        Serialize(value, ref writer, type);
+                                        SerializeBoxed(value, ref writer, type);
                                     }
 
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    private static void Serialize(object value, ref Writer writer, Type type)
+                                    private static void SerializeBoxed(object value, ref Writer writer, Type type)
                                     {
                                         if (!_serializers.TryGetValue(type.TypeHandle.Value, out var serializer))
                                         {

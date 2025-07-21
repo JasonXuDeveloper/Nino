@@ -85,7 +85,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read<T>(out T value)
+        public void UnsafeRead<T>(out T value)
         {
             if (TypeCollector.Is64Bit)
             {
@@ -104,6 +104,12 @@ namespace Nino.Core
             }
 
             _data = _data.Slice(Unsafe.SizeOf<T>());
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T>(out T value) where T : unmanaged
+        {
+            UnsafeRead(out value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

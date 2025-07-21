@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -36,13 +35,13 @@ public class CollectionSerializerGenerator(
             new Joint().With
             (
                 new Trivial("KeyValuePair"),
-                new Not(new AnyTypeArgument(symbol => !Selector.Filter(symbol)))
+                new Not(new AnyTypeArgument(symbol => !ValidFilter(symbol)))
             ),
             // We want tuples
             new Joint().With
             (
                 new Trivial("ValueTuple", "Tuple"),
-                new Not(new AnyTypeArgument(symbol => !Selector.Filter(symbol)))
+                new Not(new AnyTypeArgument(symbol => !ValidFilter(symbol)))
             ),
             // We want nullables
             new Nullable(),
@@ -50,24 +49,29 @@ public class CollectionSerializerGenerator(
             new Interface("IEnumerable<T>", interfaceSymbol =>
             {
                 var elementType = interfaceSymbol.TypeArguments[0];
-                return Selector.Filter(elementType);
+                return ValidFilter(elementType);
             }),
             // We want span
-            new Span()
+            new Joint().With(
+                new Span(),
+                new TypeArgument(0, ValidFilter)
+            )
         )
     );
 
     protected override string ClassName => "Serializer";
     protected override string OutputFileName => "NinoSerializer.Collection.g.cs";
 
-    protected override Action<StringBuilder, string> PublicMethod => (sb, typeFullName) =>
+    protected override void PublicMethod(StringBuilder sb, string typeFullName)
     {
         sb.GenerateClassSerializeMethods(typeFullName);
-    };
+    }
 
-    private string GetSerializeString(string value)
+    private string GetSerializeString(ITypeSymbol type, string value)
     {
-        return $"Serialize({value}, ref writer);";
+        return type.IsUnmanagedType || type.SpecialType == SpecialType.System_String
+            ? $"writer.Write({value});"
+            : $"Serialize({value}, ref writer);";
     }
 
     protected override List<Transformer> Transformers =>
@@ -79,7 +83,7 @@ public class CollectionSerializerGenerator(
             new Joint().With
             (
                 new Nullable(),
-                new TypeArgument(0, symbol => Selector.Filter(symbol))
+                new TypeArgument(0, ValidFilter)
             )
             , (symbol, sb) =>
             {
@@ -97,7 +101,7 @@ public class CollectionSerializerGenerator(
                 sb.AppendLine();
                 sb.AppendLine("    writer.Write(true);");
                 sb.Append("    ");
-                sb.AppendLine(GetSerializeString("value.Value"));
+                sb.AppendLine(GetSerializeString(elementType, "value.Value"));
                 sb.AppendLine("}");
                 return true;
             }
@@ -111,6 +115,7 @@ public class CollectionSerializerGenerator(
             (symbol, sb) =>
             {
                 GenericTupleLikeMethods(symbol, sb,
+                    ((INamedTypeSymbol)symbol).TypeArguments.ToArray(),
                     "Key", "Value");
                 return true;
             }
@@ -123,16 +128,17 @@ public class CollectionSerializerGenerator(
             new Trivial("ValueTuple", "Tuple"),
             (symbol, sb) =>
             {
+                var types = ((INamedTypeSymbol)symbol).TypeArguments.ToArray();
                 GenericTupleLikeMethods(symbol, sb,
-                    ((INamedTypeSymbol)symbol)
-                    .TypeArguments.Select((_, i) => $"Item{i + 1}").ToArray());
+                    types,
+                    types.Select((_, i) => $"Item{i + 1}").ToArray());
                 return true;
             }),
         // Array Ninotypes
         new
         (
             "Array",
-            new Array(_ => true),
+            new Array(symbol => ValidFilter(symbol.ElementType)),
             (symbol, sb) =>
             {
                 var elementType = ((IArrayTypeSymbol)symbol).ElementType;
@@ -165,7 +171,7 @@ public class CollectionSerializerGenerator(
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString("span[i]"));
+                    sb.AppendLine(GetSerializeString(elementType, "span[i]"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                     sb.AppendLine("    }");
@@ -210,7 +216,7 @@ public class CollectionSerializerGenerator(
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString("value[i]"));
+                    sb.AppendLine(GetSerializeString(elementType, "value[i]"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                     sb.AppendLine("    }");
@@ -236,19 +242,9 @@ public class CollectionSerializerGenerator(
                                   ?? dictSymbol;
                 var keyType = idictSymbol.TypeArguments[0];
                 var valType = idictSymbol.TypeArguments[1];
-                if (!Selector.Filter(keyType) || !Selector.Filter(valType)) return false;
+                if (!ValidFilter(keyType) || !ValidFilter(valType)) return false;
 
                 bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
-
-                IFilter equalityMethod = new ValidMethod((_, method) =>
-                    method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
-                    && method is { Name: "op_Equality", Parameters.Length: 2 }
-                    && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
-                        dictSymbol)
-                    && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type,
-                        dictSymbol));
-
-                bool shouldHaveIfDefaultCheck = !symbol.IsValueType || equalityMethod.Filter(dictSymbol);
 
                 sb.AppendLine(Inline);
                 sb.Append("public static void Serialize(this ");
@@ -256,41 +252,49 @@ public class CollectionSerializerGenerator(
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
 
-                if (shouldHaveIfDefaultCheck)
-                {
-                    sb.Append("    if (value == ");
-                    sb.Append(symbol.IsValueType ? "default" : "null");
-                    sb.AppendLine(")");
-                    sb.AppendLine("    {");
-                    sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-                    sb.AppendLine("        return;");
-                    sb.AppendLine("    }");
-                    sb.AppendLine();
-                }
-
-                sb.AppendLine("    int cnt = value.Count;");
-                sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
-                sb.AppendLine();
-                sb.AppendLine("    foreach (var item in value)");
-                sb.AppendLine("    {");
-
                 if (isUnmanaged)
                 {
-                    sb.AppendLine("        writer.Write(item);");
+                    sb.AppendLine("        writer.Write(value);");
                 }
                 else
                 {
+                    ValidMethod equalityMethod = new ValidMethod((_, method) =>
+                        method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
+                        && method is { Name: "op_Equality", Parameters.Length: 2 }
+                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
+                            dictSymbol)
+                        && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type,
+                            dictSymbol));
+
+                    bool shouldHaveIfDefaultCheck = !symbol.IsValueType || equalityMethod.Filter(dictSymbol);
+                    if (shouldHaveIfDefaultCheck)
+                    {
+                        sb.Append("    if (value == ");
+                        sb.Append(symbol.IsValueType ? "default" : "null");
+                        sb.AppendLine(")");
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
+                        sb.AppendLine("        return;");
+                        sb.AppendLine("    }");
+                        sb.AppendLine();
+                    }
+
+                    sb.AppendLine("    int cnt = value.Count;");
+                    sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
+                    sb.AppendLine();
+                    sb.AppendLine("    foreach (var item in value)");
+                    sb.AppendLine("    {");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString("item.Key"));
+                    sb.AppendLine(GetSerializeString(keyType, "item.Key"));
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString("item.Value"));
+                    sb.AppendLine(GetSerializeString(valType, "item.Value"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
+                    sb.AppendLine("    }");
                 }
 
-                sb.AppendLine("    }");
                 sb.AppendLine("}");
                 return true;
             }
@@ -315,37 +319,36 @@ public class CollectionSerializerGenerator(
                 sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
-                sb.Append("    if (value == ");
-                sb.Append(symbol.IsValueType ? "default" : "null");
-                sb.AppendLine(")");
-                sb.AppendLine("    {");
-                sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-                sb.AppendLine("        return;");
-                sb.AppendLine("    }");
-                sb.AppendLine();
-                sb.AppendLine("    int cnt = value.Count;");
-                sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
-                sb.AppendLine();
-                sb.AppendLine("    foreach (var item in value)");
-                sb.AppendLine("    {");
-
                 if (isUnmanaged)
                 {
-                    sb.AppendLine("        writer.Write(item);");
+                    sb.AppendLine("        writer.Write(value);");
                 }
                 else
                 {
+                    sb.Append("    if (value == ");
+                    sb.Append(symbol.IsValueType ? "default" : "null");
+                    sb.AppendLine(")");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
+                    sb.AppendLine("        return;");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                    sb.AppendLine("    int cnt = value.Count;");
+                    sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
+                    sb.AppendLine();
+                    sb.AppendLine("    foreach (var item in value)");
+                    sb.AppendLine("    {");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString("item.Key"));
+                    sb.AppendLine(GetSerializeString(keyType, "item.Key"));
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString("item.Value"));
+                    sb.AppendLine(GetSerializeString(valueType, "item.Value"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
+                    sb.AppendLine("    }");
                 }
 
-                sb.AppendLine("    }");
                 sb.AppendLine("}");
                 return true;
             }),
@@ -374,7 +377,7 @@ public class CollectionSerializerGenerator(
                                       i.OriginalDefinition.GetDisplayString().EndsWith("IEnumerable<T>"))
                                   ?? namedTypeSymbol;
                 var elemType = ienumSymbol.TypeArguments[0];
-                if (!Selector.Filter(elemType)) return false;
+                if (!ValidFilter(elemType)) return false;
 
                 bool isUnmanaged = elemType.IsUnmanagedType;
 
@@ -421,12 +424,34 @@ public class CollectionSerializerGenerator(
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString("item"));
+                    sb.AppendLine(GetSerializeString(elemType, "item"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
 
                 sb.AppendLine("    }");
+                sb.AppendLine("}");
+                return true;
+            }
+        ),
+        // trivial unmanaged IList Ninotypes
+        new
+        (
+            "TrivialUnmanagedIList",
+            new Joint().With
+            (
+                new Interface("IList<T>"),
+                new TypeArgument(0, symbol => symbol.IsUnmanagedType),
+                new Not(new Array())
+            ),
+            (symbol, sb) =>
+            {
+                sb.AppendLine(Inline);
+                sb.Append("public static void Serialize(this ");
+                sb.Append(symbol.GetDisplayString());
+                sb.AppendLine(" value, ref Writer writer)");
+                sb.AppendLine("{");
+                sb.AppendLine("        writer.Write(value);");
                 sb.AppendLine("}");
                 return true;
             }
@@ -476,7 +501,7 @@ public class CollectionSerializerGenerator(
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString("item"));
+                    sb.AppendLine(GetSerializeString(elementType, "item"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
@@ -486,10 +511,11 @@ public class CollectionSerializerGenerator(
                 sb.AppendLine("    writer.PutBack(TypeCollector.GetCollectionHeader(cnt), oldPos);");
                 sb.AppendLine("}");
                 return true;
-            })
+            }
+        )
     ];
 
-    private void GenericTupleLikeMethods(ITypeSymbol type, Writer writer, params string[] fields)
+    private void GenericTupleLikeMethods(ITypeSymbol type, Writer writer, ITypeSymbol[] types, params string[] fields)
     {
         bool isUnmanaged = type.IsUnmanagedType;
         writer.AppendLine(Inline);
@@ -506,7 +532,7 @@ public class CollectionSerializerGenerator(
             for (int i = 0; i < fields.Length; i++)
             {
                 writer.Append("    ");
-                writer.AppendLine(GetSerializeString($"value.{fields[i]}"));
+                writer.AppendLine(GetSerializeString(types[i], $"value.{fields[i]}"));
             }
         }
 

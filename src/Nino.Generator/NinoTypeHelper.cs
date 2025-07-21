@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -15,16 +16,18 @@ namespace Nino.Generator;
 public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
-    private static readonly Dictionary<ITypeSymbol, bool> IsNinoTypeCache = new(10_000, SymbolEqualityComparer.Default);
 
-    private static readonly Dictionary<ITypeSymbol, string> ToDisplayStringCache =
-        new(10_000, SymbolEqualityComparer.Default);
+    private static readonly ConcurrentDictionary<ITypeSymbol, bool> IsNinoTypeCache =
+        new(SymbolEqualityComparer.Default);
 
-    private static readonly Dictionary<(Compilation, SyntaxTree), SemanticModel> SemanticModelCache = new(10_000);
-    private static readonly Dictionary<(SyntaxTree, CSharpSyntaxNode), ITypeSymbol?> TypeSymbolCache = new(10_000);
+    private static readonly ConcurrentDictionary<ITypeSymbol, string> ToDisplayStringCache =
+        new(SymbolEqualityComparer.Default);
 
-    private static readonly Dictionary<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
-        new(10_000, SymbolEqualityComparer.Default);
+    private static readonly ConcurrentDictionary<(Compilation, SyntaxTree), SemanticModel> SemanticModelCache = new();
+    private static readonly ConcurrentDictionary<(SyntaxTree, CSharpSyntaxNode), ITypeSymbol?> TypeSymbolCache = new();
+
+    private static readonly ConcurrentDictionary<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
+        new(SymbolEqualityComparer.Default);
 
     public static bool IsRefStruct(this ITypeSymbol typeSymbol)
     {
@@ -607,7 +610,7 @@ public static class NinoTypeHelper
         var indent = "        ";
         var ret = $$"""
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static byte[] Serialize{{typeParam}}({{typeFullName}} value) {{genericConstraint}}
+                    public static byte[] Serialize{{typeParam}}(this {{typeFullName}} value) {{genericConstraint}}
                     {
                         var bufferWriter = GetBufferWriter();
                         Serialize(value, bufferWriter);
@@ -617,7 +620,7 @@ public static class NinoTypeHelper
                     }
 
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Serialize{{typeParam}}({{typeFullName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
+                    public static void Serialize{{typeParam}}(this {{typeFullName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
                     {
                         Writer writer = new Writer(bufferWriter);
                         Serialize(value, ref writer);

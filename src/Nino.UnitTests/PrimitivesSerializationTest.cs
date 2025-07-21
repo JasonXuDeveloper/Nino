@@ -43,7 +43,7 @@ namespace Nino.UnitTests
         public void TestByte()
         {
             byte val = 10;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out byte result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(10, val);
@@ -53,7 +53,7 @@ namespace Nino.UnitTests
         public void TestSByte()
         {
             sbyte val = -95;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out sbyte result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(-95, val);
@@ -63,7 +63,7 @@ namespace Nino.UnitTests
         public void TestShort()
         {
             short val = short.MinValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out short result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(short.MinValue, val);
@@ -73,7 +73,7 @@ namespace Nino.UnitTests
         public void TestUShort()
         {
             ushort val = ushort.MaxValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out ushort result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(ushort.MaxValue, val);
@@ -83,7 +83,7 @@ namespace Nino.UnitTests
         public void TestInt()
         {
             int val = int.MinValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out int result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(int.MinValue, val);
@@ -93,7 +93,7 @@ namespace Nino.UnitTests
         public void TestUInt()
         {
             uint val = uint.MaxValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out uint result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(uint.MaxValue, val);
@@ -103,7 +103,7 @@ namespace Nino.UnitTests
         public void TestLong()
         {
             long val = long.MinValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out long result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(long.MinValue, val);
@@ -113,7 +113,7 @@ namespace Nino.UnitTests
         public void TestULong()
         {
             ulong val = ulong.MaxValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out ulong result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(ulong.MaxValue, val);
@@ -134,7 +134,7 @@ namespace Nino.UnitTests
         {
             bool val = true;
             // ReSharper disable ConditionIsAlwaysTrueOrFalse
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out bool result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(true, val);
@@ -145,7 +145,7 @@ namespace Nino.UnitTests
         public void TestDecimal()
         {
             decimal val = decimal.MaxValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out decimal result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(decimal.MaxValue, val);
@@ -155,7 +155,7 @@ namespace Nino.UnitTests
         public void TestDouble()
         {
             double val = double.MaxValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out double result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(double.MaxValue, val);
@@ -165,7 +165,7 @@ namespace Nino.UnitTests
         public void TestFloat()
         {
             float val = float.MaxValue;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out float result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(float.MaxValue, val);
@@ -175,7 +175,7 @@ namespace Nino.UnitTests
         public void TestChar()
         {
             char val = 'a';
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out char result);
             Assert.AreEqual(val, result);
             Assert.AreEqual('a', val);
@@ -185,7 +185,7 @@ namespace Nino.UnitTests
         public void TestDateTime()
         {
             DateTime val = new DateTime(2000, 1, 1);
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(buf, out DateTime result);
             Assert.AreEqual(val, result);
             Assert.AreEqual(new DateTime(2000, 1, 1), val);

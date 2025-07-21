@@ -66,10 +66,10 @@ namespace Nino.UnitTests
             protected override void RunTest()
             {
                 var data = new NinoTuple<byte, int>(4, 1920);
-                var bytes = data.Serialize();
+                var bytes = Serializer.Serialize(data);
 
                 var data2 = new NinoTuple<int, byte>(1920, 4);
-                var bytes2 = data2.Serialize();
+                var bytes2 = Serializer.Serialize(data2);
 
                 Console.WriteLine(string.Join(",", bytes));
                 Console.WriteLine(string.Join(",", bytes2));

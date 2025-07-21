@@ -17,6 +17,20 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
 
         foreach (var ninoSymbol in ninoSymbols)
         {
+            if (!SymbolEqualityComparer.Default.Equals(ninoSymbol.ContainingAssembly, compilation.Assembly))
+            {
+                bool isNinoType = false;
+                foreach (var attribute in ninoSymbol.GetAttributesCache())
+                {
+                    if (!string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute",
+                            StringComparison.Ordinal)) continue;
+                    isNinoType = true;
+                    break;
+                }
+
+                if (!isNinoType) continue;
+            }
+
             NinoType GetNinoType(ITypeSymbol typeSymbol)
             {
                 if (typeMap.TryGetValue(typeSymbol, out var ninoType))
@@ -227,7 +241,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                     if (autoCollect || isPrivateProxy)
                     {
                         memberIndex[memberName] = memberIndex.Count;
-                        ninoMembers.Add(new(memberName, memberType)
+                        ninoMembers.Add(new(memberName, memberType, symbol)
                         {
                             IsCtorParameter = symbol is IParameterSymbol,
                             IsPrivate = isPrivate,
@@ -255,7 +269,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                     }
 
                     memberIndex[memberName] = (ushort)indexValue;
-                    ninoMembers.Add(new(memberName, memberType)
+                    ninoMembers.Add(new(memberName, memberType, symbol)
                     {
                         IsCtorParameter = symbol is IParameterSymbol,
                         IsPrivate = isPrivate,

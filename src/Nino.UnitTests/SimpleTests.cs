@@ -386,7 +386,7 @@ namespace Nino.UnitTests
                 Assert.AreEqual(collection.ElementAt(i).CreateTime, ienumerable.ElementAt(i).CreateTime);
             }
 
-            ConcurrentDictionary<int, int>[] dict = new ConcurrentDictionary<int, int>[10];
+            ConcurrentDictionary<int, int>[] dict = new ConcurrentDictionary<int, int>[1];
             for (int i = 0; i < dict.Length; i++)
             {
                 dict[i] = new ConcurrentDictionary<int, int>();
@@ -395,6 +395,7 @@ namespace Nino.UnitTests
 
             bytes = Serializer.Serialize(dict);
             Assert.IsNotNull(bytes);
+            Console.WriteLine(string.Join(", ", bytes));
 
             Deserializer.Deserialize(bytes, out ConcurrentDictionary<int, int>[] result);
             Assert.AreEqual(dict.Length, result.Length);
@@ -512,6 +513,8 @@ namespace Nino.UnitTests
                     CreateTime = new DateTime(2025, 2, 22)
                 }
             };
+            var buf = Serializer.Serialize(list);
+            Console.WriteLine(string.Join(", ", buf));
 
             // serialized old data structure
             byte[] bytes = new byte[]

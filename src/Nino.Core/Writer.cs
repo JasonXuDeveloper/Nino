@@ -95,7 +95,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(T value)
+        public void UnsafeWrite<T>(T value)
         {
             int size = Unsafe.SizeOf<T>();
             if (TypeCollector.Is64Bit)
@@ -123,6 +123,12 @@ namespace Nino.Core
 
             _bufferWriter.Advance(size);
             WrittenCount += size;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T>(T value) where T : unmanaged
+        {
+            UnsafeWrite(value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -255,7 +261,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<TKey, TValue>(Dictionary<TKey, TValue> value) where TKey : unmanaged where TValue : unmanaged
+        public void Write<TKey, TValue>(IDictionary<TKey, TValue> value) where TKey : unmanaged where TValue : unmanaged
         {
             if (value == null)
             {

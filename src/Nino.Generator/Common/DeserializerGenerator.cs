@@ -22,10 +22,10 @@ public partial class DeserializerGenerator(
                         """);
         foreach (var type in generatedTypes)
         {
-            // no pure unmanaged types
+            // no non-ninotyped unmanaged types
             if (type.IsUnmanagedType)
             {
-                if (!NinoGraph.TypeMap.TryGetValue(type, out var nt) || !nt.IsPolymorphic())
+                if (!NinoGraph.TypeMap.ContainsKey(type))
                     continue;
             }
 
@@ -50,14 +50,14 @@ public partial class DeserializerGenerator(
         var compilation = Compilation;
 
         StringBuilder sb = new(32_000_000);
-        HashSet<ITypeSymbol> generatedTypes = new(SymbolEqualityComparer.Default);
-        GenerateTrivialCode(spc, generatedTypes);
-        GenerateGenericRegister(sb, "Trivial", generatedTypes);
+        HashSet<ITypeSymbol> collectionTypes = new(SymbolEqualityComparer.Default);
+        new CollectionDeserializerGenerator(compilation, potentialTypes).Generate(spc, collectionTypes);
+        GenerateGenericRegister(sb, "Collection", collectionTypes);
 
-        generatedTypes.Clear();
-        new CollectionDeserializerGenerator(compilation, potentialTypes).Generate(spc, generatedTypes);
-        GenerateGenericRegister(sb, "Collection", generatedTypes);
-
+        HashSet<ITypeSymbol> trivialTypes = new(SymbolEqualityComparer.Default);
+        GenerateTrivialCode(spc, collectionTypes, trivialTypes);
+        GenerateGenericRegister(sb, "Trivial", trivialTypes);
+        
         var curNamespace = compilation.AssemblyName!.GetNamespace();
         // generate code
         var genericCode = $$"""
@@ -88,11 +88,19 @@ public partial class DeserializerGenerator(
                                     public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value)
                                     {
                                         var reader = new Reader(data);
-                                        Deserialize(out value, ref reader);
+                                        DeserializeGeneric(out value, ref reader);
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static void Deserialize<T>(out T value, ref Reader reader)
+                                    public static T Deserialize<T>(ReadOnlySpan<byte> data)
+                                    {
+                                        var reader = new Reader(data);
+                                        DeserializeGeneric(out T value, ref reader);
+                                        return value;
+                                    }
+                                    
+                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                    private static void DeserializeGeneric<T>(out T value, ref Reader reader)
                                     {
                                     #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                          if (reader.Eof)
@@ -110,36 +118,22 @@ public partial class DeserializerGenerator(
                                     
                                         if(!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                                         {
-                                            reader.Read(out value);
+                                            reader.UnsafeRead(out value);
                                             return;
                                         }
                                         
                                         throw new Exception($"Deserializer not found for type {typeof(T).FullName}");
                                     }
-                                    
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static T Deserialize<T>(ReadOnlySpan<byte> data)
-                                    {
-                                        var reader = new Reader(data);
-                                        return Deserialize<T>(ref reader);
-                                    }
-                                    
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static T Deserialize<T>(ref Reader reader)
-                                    {
-                                        Deserialize(out T value, ref reader);
-                                        return value;
-                                    }
-                                    
+
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     public static object Deserialize(ReadOnlySpan<byte> data, Type type)
                                     {
                                         var reader = new Reader(data);
-                                        return Deserialize(ref reader, type);
+                                        return DeserializeBoxed(ref reader, type);
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static object Deserialize(ref Reader reader, Type type)
+                                    private static object DeserializeBoxed(ref Reader reader, Type type)
                                     {
                                         if (!_deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
                                         {

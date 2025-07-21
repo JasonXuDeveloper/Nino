@@ -9,11 +9,18 @@ namespace Nino.Generator.Common;
 
 public partial class DeserializerGenerator
 {
-    private void GenerateTrivialCode(SourceProductionContext spc, HashSet<ITypeSymbol> generatedTypes)
+    private void GenerateTrivialCode(SourceProductionContext spc, HashSet<ITypeSymbol> validTypes,
+        HashSet<ITypeSymbol> generatedTypes)
     {
         var compilation = Compilation;
         var sb = new StringBuilder();
         sb.GenerateClassDeserializeMethods("string");
+        HashSet<string> generatedTypeNames = new();
+        HashSet<string> validTypeNames = new();
+        foreach (var type in validTypes)
+        {
+            validTypeNames.Add(type.GetDisplayString());
+        }
 
         foreach (var ninoType in NinoTypes)
         {
@@ -21,7 +28,57 @@ public partial class DeserializerGenerator
             {
                 if (!generatedTypes.Add(ninoType.TypeSymbol))
                     continue;
+                if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
+                    continue;
+
+                if (!ninoType.TypeSymbol.IsUnmanagedType)
+                {
+                    bool hasInvalidMember = false;
+                    foreach (var member in ninoType.Members)
+                    {
+                        if (member.Type.SpecialType == SpecialType.System_String) continue;
+                        if (member.Type.IsUnmanagedType) continue;
+                        if (validTypeNames.Contains(member.Type.GetDisplayString())) continue;
+                        if (NinoGraph.TypeMap.ContainsKey(member.Type)) continue;
+
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            new DiagnosticDescriptor("NINO001", "Nino Generator",
+                                "Nino cannot find suitable deserializer for member type '{0}' in type '{1}'",
+                                "Nino.Generator",
+                                DiagnosticSeverity.Error, true),
+                            member.MemberSymbol.Locations.First(),
+                            member.Type.GetDisplayString(), ninoType.TypeSymbol.GetDisplayString()));
+                        hasInvalidMember = true;
+                    }
+
+                    if (hasInvalidMember) continue;
+                }
+
                 GenerateDeserializeImplementation(ninoType, sb, spc);
+
+                if (!ninoType.IsPolymorphic() || !ninoType.TypeSymbol.IsInstanceType() ||
+                    !string.IsNullOrEmpty(ninoType.CustomDeserializer))
+                    continue;
+                sb.AppendLine();
+                sb.AppendLine($$"""
+                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                        [EditorBrowsable(EditorBrowsableState.Never)]
+                                        [System.Diagnostics.DebuggerNonUserCode]
+                                        [System.Runtime.CompilerServices.CompilerGenerated]
+                                        public static void DeserializeImpl(out {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
+                                        {
+                                        #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                             if (reader.Eof)
+                                             {
+                                                value = default;
+                                                return;
+                                             }
+                                        #endif
+                                             
+                                """);
+                CreateInstance(spc, sb, ninoType, "value");
+                sb.AppendLine("        }");
+                sb.AppendLine();
             }
             catch (Exception e)
             {
@@ -35,30 +92,6 @@ public partial class DeserializerGenerator
                 //end error
                 sb.AppendLine(" */");
             }
-            
-            if (!ninoType.IsPolymorphic() || !ninoType.TypeSymbol.IsInstanceType() ||
-                !string.IsNullOrEmpty(ninoType.CustomDeserializer))
-                continue;
-            sb.AppendLine();
-            sb.AppendLine($$"""
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    [EditorBrowsable(EditorBrowsableState.Never)]
-                                    [System.Diagnostics.DebuggerNonUserCode]
-                                    [System.Runtime.CompilerServices.CompilerGenerated]
-                                    public static void DeserializeImpl(out {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
-                                    {
-                                    #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                         if (reader.Eof)
-                                         {
-                                            value = default;
-                                            return;
-                                         }
-                                    #endif
-                                         
-                            """);
-            CreateInstance(spc, sb, ninoType, "value");
-            sb.AppendLine("        }");
-            sb.AppendLine();
         }
 
         var curNamespace = compilation.AssemblyName!.GetNamespace();
@@ -159,13 +192,28 @@ public partial class DeserializerGenerator
 
                     //weak version tolerance
                     var toleranceCode = $$$"""
-                                                               {{{declaredType.GetDisplayString()}}} {{{tempName}}};
+                                                               {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
                                                                #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
-                                                               if (reader.Eof)
+                                                               if (!reader.Eof)
                                                                {
-                                                                  {{{tempName}}} = default;
+                                                                  {{{str}}}
                                                                }
-                                                               else
+                                                               #else
+                                                               {{{str}}}
+                                                               #endif
+                                           """;
+
+                    sb.AppendLine(toleranceCode);
+                    sb.AppendLine();
+                }
+                else if (declaredType.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(declaredType))
+                {
+                    var str = $"reader.Read(out {tempName});";
+                    //weak version tolerance
+                    var toleranceCode = $$$"""
+                                                               {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
+                                                               #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
+                                                               if (!reader.Eof)
                                                                {
                                                                   {{{str}}}
                                                                }
@@ -197,14 +245,17 @@ public partial class DeserializerGenerator
                 {
                     var val = valNames[index];
                     sb.AppendLine(
-                        $"                    Deserialize(out {members[index].Type.GetDisplayString()} {val}, ref reader);");
+                        $"                    {members[index].Type.GetDisplayString()} {val} = default;");
+                    sb.AppendLine(
+                        $"                    if (!reader.Eof) reader.Read(out {val});");
                 }
 
                 sb.AppendLine("#else");
                 sb.AppendLine(
-                    $"                    Deserialize(out NinoTuple<{string.Join(", ",
+                    $"                    reader.Read(out NinoTuple<{string.Join(", ",
                         Enumerable.Range(0, valNames.Count)
-                            .Select(i => $"{members[i].Type.GetDisplayString()}"))}> t{index1}, ref reader);");
+                            .Select(i => $"{members[i].Type.GetDisplayString()}"))}> t{index1});");
+
                 for (int i = 0; i < members.Count; i++)
                 {
                     var name = members[i].Name;
@@ -216,6 +267,7 @@ public partial class DeserializerGenerator
         }
 
         List<string> ctorArgs = new List<string>();
+
         string? missingArg = null;
         foreach (var m in constructorMember)
         {
@@ -440,12 +492,6 @@ public partial class DeserializerGenerator
     {
         bool isPolymorphicType = ninoType.IsPolymorphic();
 
-        // check if struct is unmanaged
-        if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
-        {
-            return;
-        }
-
         sb.GenerateClassDeserializeMethods(ninoType.TypeSymbol.GetTypeFullName());
 
         sb.AppendLine($$"""
@@ -461,6 +507,14 @@ public partial class DeserializerGenerator
                                 #endif
                                      
                         """);
+
+        // check if struct is unmanaged
+        if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
+        {
+            sb.AppendLine("                    reader.Read(out value);");
+            sb.AppendLine("        }");
+            return;
+        }
 
         if (ninoType.IsPolymorphic())
         {

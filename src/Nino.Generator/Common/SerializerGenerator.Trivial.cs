@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Metadata;
@@ -8,18 +9,51 @@ namespace Nino.Generator.Common;
 
 public partial class SerializerGenerator
 {
-    private void GenerateTrivialCode(SourceProductionContext spc, HashSet<ITypeSymbol> generatedTypes)
+    private void GenerateTrivialCode(SourceProductionContext spc, HashSet<ITypeSymbol> validTypes,
+        HashSet<ITypeSymbol> generatedTypes)
     {
         var compilation = Compilation;
         var sb = new StringBuilder();
         sb.GenerateClassSerializeMethods("string");
-        
+        HashSet<string> generatedTypeNames = new();
+        HashSet<string> validTypeNames = new();
+        foreach (var type in validTypes)
+        {
+            validTypeNames.Add(type.GetDisplayString());
+        }
+
         foreach (var ninoType in NinoTypes)
         {
             try
             {
                 if (!generatedTypes.Add(ninoType.TypeSymbol))
                     continue;
+                if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
+                    continue;
+
+                if (!ninoType.TypeSymbol.IsUnmanagedType)
+                {
+                    bool hasInvalidMember = false;
+                    foreach (var member in ninoType.Members)
+                    {
+                        if (member.Type.SpecialType == SpecialType.System_String) continue;
+                        if (member.Type.IsUnmanagedType) continue;
+                        if (validTypeNames.Contains(member.Type.GetDisplayString())) continue;
+                        if (NinoGraph.TypeMap.ContainsKey(member.Type)) continue;
+
+                        spc.ReportDiagnostic(Diagnostic.Create(
+                            new DiagnosticDescriptor("NINO001", "Nino Generator",
+                                "Nino cannot find suitable serializer for member type '{0}' in type '{1}'",
+                                "Nino.Generator",
+                                DiagnosticSeverity.Error, true),
+                            member.MemberSymbol.Locations.First(),
+                            member.Type.GetDisplayString(), ninoType.TypeSymbol.GetDisplayString()));
+                        hasInvalidMember = true;
+                    }
+
+                    if (hasInvalidMember) continue;
+                }
+
                 GenerateSerializeImplementation(ninoType, sb);
             }
             catch (Exception e)
@@ -153,12 +187,6 @@ public partial class SerializerGenerator
         string typeFullName = classType.GetTypeFullName();
         bool isPolymorphicType = ninoType.IsPolymorphic();
 
-        // check if struct is unmanaged
-        if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
-        {
-            return;
-        }
-
         sb.GenerateClassSerializeMethods(typeFullName);
         sb.AppendLine();
 
@@ -225,7 +253,7 @@ public partial class SerializerGenerator
                                 ? $"                    writer.WriteUtf8({val});"
                                 : $"                    writer.Write({val});");
                     }
-                    else if (declaredType.IsUnmanagedType && !declaredType.IsPolyMorphicType())
+                    else if (declaredType.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(declaredType))
                     {
                         sb.AppendLine(
                             $"                    writer.Write({val});");
@@ -257,6 +285,15 @@ public partial class SerializerGenerator
                     sb.AppendLine("#endif");
                 }
             }
+        }
+
+        // check if struct is unmanaged
+        if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
+        {
+            sb.AppendLine("            writer.Write(value);");
+            sb.AppendLine("        }");
+            sb.AppendLine();
+            return;
         }
 
         if (isPolymorphicType && ninoType.TypeSymbol.IsReferenceType)
