@@ -6,6 +6,49 @@ using Nino.Core;
 
 #nullable disable
 
+[NinoType(false, true)]
+public partial class HierarchicalBase
+{
+    [NinoMember(0)] protected int A;
+    [NinoMember(1)] public string B;
+}
+
+[NinoType(false, true)]
+public partial class HierarchicalSub1: HierarchicalBase
+{
+    [NinoMember(0)] protected bool C;
+    [NinoMember(1)] public float D;
+}
+
+[NinoType(false, true)]
+public partial class HierarchicalSub2: HierarchicalSub1
+{
+    [NinoMember(0)] protected bool E;
+    [NinoMember(1)] public List<int> F;
+}
+
+[NinoType]
+public class SomeNestedPrivateEnum
+{
+    public int Id;
+
+    [NinoIgnore] private PrivateEnum _someEnum = PrivateEnum.B;
+
+    [NinoIgnore]
+    public int EnumVal
+    {
+        get => (int)_someEnum;
+        set => _someEnum = (PrivateEnum)value;
+    }
+
+    [Flags]
+    private enum PrivateEnum
+    {
+        A = 1,
+        B = 2
+    }
+}
+
 [NinoType]
 public class Move
 {

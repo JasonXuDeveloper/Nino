@@ -22,10 +22,27 @@ public partial class DeserializerGenerator
             validTypeNames.Add(type.GetDisplayString());
         }
 
+        bool ValidType(ITypeSymbol type)
+        {
+            if (type.SpecialType == SpecialType.System_String) return true;
+            if (type.IsUnmanagedType) return true;
+            if (validTypeNames.Contains(type.GetDisplayString())) return true;
+            if (NinoGraph.TypeMap.ContainsKey(type)) return true;
+            return false;
+        }
+
         foreach (var ninoType in NinoTypes)
         {
             try
             {
+                if (ninoType.TypeSymbol is INamedTypeSymbol namedType && namedType.IsGenericType)
+                {
+                    if (namedType.TypeArguments.Any(t => !ValidType(t)))
+                    {
+                        continue;
+                    }
+                }
+
                 if (!generatedTypes.Add(ninoType.TypeSymbol))
                     continue;
                 if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
@@ -36,10 +53,7 @@ public partial class DeserializerGenerator
                     bool hasInvalidMember = false;
                     foreach (var member in ninoType.Members)
                     {
-                        if (member.Type.SpecialType == SpecialType.System_String) continue;
-                        if (member.Type.IsUnmanagedType) continue;
-                        if (validTypeNames.Contains(member.Type.GetDisplayString())) continue;
-                        if (NinoGraph.TypeMap.ContainsKey(member.Type)) continue;
+                        if (ValidType(member.Type)) continue;
 
                         spc.ReportDiagnostic(Diagnostic.Create(
                             new DiagnosticDescriptor("NINO001", "Nino Generator",

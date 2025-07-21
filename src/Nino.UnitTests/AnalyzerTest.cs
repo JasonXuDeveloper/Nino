@@ -372,9 +372,6 @@ public class TestBase
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO009")
                 .WithSpan(11, 19, 11, 20)
-                .WithArguments("TestClass", "D", "TestClass", "C"),
-            Verify.Diagnostic("NINO009")
-                .WithSpan(14, 17, 14, 18)
-                .WithArguments("TestClass", "E", "TestBase", "B")).RunAsync();
+                .WithArguments("TestClass", "D", "TestClass", "C")).RunAsync();
     }
 }

@@ -13,6 +13,23 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestSomeNestedPrivateEnum()
+        {
+            SomeNestedPrivateEnum data = new SomeNestedPrivateEnum()
+            {
+                Id = 1,
+                EnumVal = 1
+            };
+
+            byte[] bytes = data.Serialize();
+            Assert.IsNotNull(bytes);
+
+            Deserializer.Deserialize(bytes, out SomeNestedPrivateEnum result);
+            Assert.AreEqual(data.Id, result.Id);
+            Assert.AreEqual(2, result.EnumVal); // not 1 because we discarded Enum during serialization
+        }
+
+        [TestMethod]
         public void TestStaticMethodConstructor()
         {
             TestMethodCtor testMethodCtor = new TestMethodCtor()
@@ -1069,6 +1086,11 @@ namespace Nino.UnitTests
         [TestMethod]
         public void TestGeneric()
         {
+#pragma warning disable CS0219 // Variable is assigned but its value is never used
+            Generic<object> placeholder1 = null;
+            Generic<Task[]> placeholder2 = null;
+#pragma warning restore CS0219 // Variable is assigned but its value is never used
+
             Generic<int> a = new Generic<int>()
             {
                 Val = 1

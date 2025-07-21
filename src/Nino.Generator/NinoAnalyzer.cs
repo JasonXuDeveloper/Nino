@@ -114,51 +114,39 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                     // Check for duplicate member indices - nino009
                     if (!autoCollect)
                     {
-                        // top -> bottom
-                        LinkedList<ITypeSymbol> chain = new();
-                        ITypeSymbol? currentType = typeSymbol;
-                        while (currentType != null && currentType.IsNinoType())
-                        {
-                            chain.AddFirst(currentType);
-                            currentType = currentType.BaseType;
-                        }
-
                         var memberIndices = new Dictionary<ushort, (string memberName, ISymbol member)>();
                         HashSet<ushort> reported = new();
                         HashSet<ISymbol> visited = new(SymbolEqualityComparer.Default);
-                        foreach (var type in chain)
+                        foreach (var member in typeSymbol.GetMembers())
                         {
-                            foreach (var member in type.GetMembers())
+                            if (!visited.Add(member)) continue;
+
+                            var ninoMemberAttr = member.GetAttributesCache()
+                                .FirstOrDefault(x =>
+                                    x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
+
+                            if (ninoMemberAttr != null && ninoMemberAttr.ConstructorArguments.Length > 0)
                             {
-                                if (!visited.Add(member)) continue;
-                                
-                                var ninoMemberAttr = member.GetAttributesCache()
-                                    .FirstOrDefault(x =>
-                                        x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
-
-                                if (ninoMemberAttr != null && ninoMemberAttr.ConstructorArguments.Length > 0)
+                                var indexArg = ninoMemberAttr.ConstructorArguments[0];
+                                if (indexArg.Value != null)
                                 {
-                                    var indexArg = ninoMemberAttr.ConstructorArguments[0];
-                                    if (indexArg.Value != null)
-                                    {
-                                        var index = (ushort)indexArg.Value;
+                                    var index = (ushort)indexArg.Value;
 
-                                        if (memberIndices.TryGetValue(index, out var existingMember))
-                                        {
-                                            if (!reported.Add(index)) continue;
-                                            // Report duplicate for current member
-                                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                                                SupportedDiagnostics[8],
-                                                member.Locations.First(),
-                                                typeSymbol.Name,
-                                                member.Name,
-                                                existingMember.member.ContainingType.Name,
-                                                existingMember.memberName));
-                                        }
-                                        else
-                                        {
-                                            memberIndices[index] = (member.Name, member);
-                                        }
+                                    if (memberIndices.TryGetValue(index, out var existingMember))
+                                    {
+                                        if (!reported.Add(index)) continue;
+                                        // Report duplicate for current member
+                                        syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                                            SupportedDiagnostics[8],
+                                            member.Locations.First(),
+                                            typeSymbol.Name,
+                                            member.Name,
+                                            existingMember.member.ContainingType.Name,
+                                            existingMember.memberName));
+                                    }
+                                    else
+                                    {
+                                        memberIndices[index] = (member.Name, member);
                                     }
                                 }
                             }
