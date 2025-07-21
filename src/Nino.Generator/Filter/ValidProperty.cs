@@ -15,7 +15,7 @@ public class ValidProperty(Func<ITypeSymbol, IPropertySymbol, bool> validMethod)
         var validProperty = properties.Where(c => validMethod(symbol, c)).ToList();
 
         if (!validProperty.Any()) return false;
-        
+
         // ensure valid constructors are public
         return validProperty.Any(p => p.DeclaredAccessibility == Accessibility.Public);
     }

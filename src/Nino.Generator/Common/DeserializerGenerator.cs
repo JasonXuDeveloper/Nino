@@ -59,7 +59,7 @@ public partial class DeserializerGenerator(
         trivialTypes.Add(compilation.GetSpecialType(SpecialType.System_String));
         GenerateTrivialCode(spc, collectionTypes, trivialTypes);
         GenerateGenericRegister(sb, "Trivial", trivialTypes);
-        
+
         var curNamespace = compilation.AssemblyName!.GetNamespace();
         // generate code
         var genericCode = $$"""
@@ -148,6 +148,6 @@ public partial class DeserializerGenerator(
                             }
                             """;
 
-        spc.AddSource("NinoDeserializer.Generic.g.cs", genericCode);
+        spc.AddSource($"{curNamespace}.Deserializer.Generic.g.cs", genericCode);
     }
 }

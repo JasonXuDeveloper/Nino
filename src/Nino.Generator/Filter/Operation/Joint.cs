@@ -71,7 +71,7 @@ public class Joint : IFilter
         _filters.Add(filter7);
         return this;
     }
-    
+
     public Joint With(IFilter filter1, IFilter filter2, IFilter filter3, IFilter filter4, IFilter filter5,
         IFilter filter6, IFilter filter7, IFilter filter8)
     {

@@ -220,6 +220,6 @@ public class PartialClassGenerator(Compilation compilation, NinoGraph ninoGraph,
 
                      {{string.Join("\n", generatedCode.Where(c => !string.IsNullOrEmpty(c)))}}
                      """;
-        spc.AddSource("NinoPartialClass.g.cs", code);
+        spc.AddSource($"{Compilation.AssemblyName!.GetNamespace()}.PartialClass.g.cs", code);
     }
 }

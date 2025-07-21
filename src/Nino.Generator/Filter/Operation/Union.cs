@@ -71,7 +71,7 @@ public class Union : IFilter
         _filters.Add(filter7);
         return this;
     }
-    
+
     public Union With(IFilter filter1, IFilter filter2, IFilter filter3, IFilter filter4, IFilter filter5,
         IFilter filter6, IFilter filter7, IFilter filter8)
     {
@@ -85,7 +85,7 @@ public class Union : IFilter
         _filters.Add(filter8);
         return this;
     }
-    
+
     public Union With(IFilter filter1, IFilter filter2, IFilter filter3, IFilter filter4, IFilter filter5,
         IFilter filter6, IFilter filter7, IFilter filter8, IFilter filter9)
     {

@@ -121,7 +121,7 @@ namespace Nino.Test.Editor.Serialization
             BeginSample("Nino - Serialize");
             sw.Restart();
             
-                byte[] ret = points.Serialize();
+                byte[] ret = Serializer.Serialize(points);
                 sw.Stop();
                 EndSample();
                 Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");

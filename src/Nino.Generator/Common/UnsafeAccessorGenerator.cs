@@ -168,6 +168,6 @@ public class UnsafeAccessorGenerator(Compilation compilation, NinoGraph ninoGrap
                      #endif
                      """;
 
-        spc.AddSource("NinoPrivateAccessor.g.cs", code);
+        spc.AddSource($"{curNamespace}.PrivateAccessor.g.cs", code);
     }
 }

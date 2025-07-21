@@ -76,7 +76,7 @@ namespace Test.Editor.Tests
             Debug.Log($"will serialize codeGen: {codeGen}");
             sw.Reset();
             sw.Start();
-            var bs = codeGen.Serialize();
+            var bs = Serializer.Serialize(codeGen);
             sw.Stop();
             Debug.Log(
                 $"serialized to {bs.Length} bytes in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {string.Join(",", bs)}");
@@ -101,7 +101,7 @@ namespace Test.Editor.Tests
             Debug.Log($"will serialize d in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {d}");
             sw.Reset();
             sw.Start();
-            bs = d.Serialize();
+            bs = Serializer.Serialize(d);
             sw.Stop();
             Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
 

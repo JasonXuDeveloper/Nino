@@ -5,7 +5,6 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Nino.Generator.Collection;
 using Nino.Generator.Common;
 using Nino.Generator.Metadata;
 using Nino.Generator.Parser;
@@ -68,9 +67,12 @@ public class GlobalGenerator : IIncrementalGenerator
                 .ToList());
         potentialTypesLst.Sort((x, y) =>
             string.Compare(x.GetDisplayString(), y.GetDisplayString(), StringComparison.Ordinal));
-        var potentialTypes = new HashSet<ITypeSymbol>(potentialTypesLst, SymbolEqualityComparer.Default).ToList();
+        var potentialTypes = new HashSet<ITypeSymbol>
+                (potentialTypesLst, SymbolEqualityComparer.Default)
+            .ToList();
 
-        var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation);
+        var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation)
+            .ToList();
 
         NinoGraph graph;
         List<NinoType> ninoTypes;
@@ -78,8 +80,10 @@ public class GlobalGenerator : IIncrementalGenerator
         {
             CSharpParser parser = new(ninoSymbols);
             (graph, ninoTypes) = parser.Parse(compilation);
-            spc.AddSource("NinoGraph.g.cs", $"/*\n{graph}\n*/");
-            spc.AddSource("NinoTypes.g.cs", $"/*\n{string.Join("\n", ninoTypes.Where(t => t.Members.Count > 0))}\n*/");
+            var curNamespace = compilation.AssemblyName!.GetNamespace();
+            spc.AddSource($"{curNamespace}.Graph.g.cs", $"/*\n{graph}\n*/");
+            spc.AddSource($"{curNamespace}.Types.g.cs",
+                $"/*\n{string.Join("\n", ninoTypes.Where(t => t.Members.Count > 0))}\n*/");
         }
         catch (Exception e)
         {

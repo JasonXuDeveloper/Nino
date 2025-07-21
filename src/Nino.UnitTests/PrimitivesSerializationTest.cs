@@ -24,7 +24,7 @@ namespace Nino.UnitTests
         public void TestEmptyStruct()
         {
             var val = new EmptyStruct();
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(new ArraySegment<byte>(buf, 0, buf.Length), out EmptyStruct val2);
             Assert.AreEqual(val, val2);
         }
@@ -33,7 +33,7 @@ namespace Nino.UnitTests
         public void TestEnum()
         {
             TestEnumVal val = TestEnumVal.B;
-            byte[] buf = val.Serialize();
+            byte[] buf = Serializer.Serialize(val);
             Deserializer.Deserialize(new ArraySegment<byte>(buf, 0, buf.Length), out TestEnumVal val2);
             Assert.AreEqual(val, val2);
             Assert.AreEqual(TestEnumVal.B, val2);

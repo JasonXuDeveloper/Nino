@@ -95,7 +95,9 @@ public class CollectionDeserializerGenerator(
         );
 
     protected override string ClassName => "Deserializer";
-    protected override string OutputFileName => "NinoDeserializer.Collection.g.cs";
+
+    protected override string OutputFileName =>
+        $"{Compilation.AssemblyName!.GetNamespace()}.Deserializer.Collection.g.cs";
 
     protected override void PublicMethod(StringBuilder sb, string typeFullName)
     {

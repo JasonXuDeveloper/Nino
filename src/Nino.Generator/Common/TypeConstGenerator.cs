@@ -49,6 +49,6 @@ public class TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, Li
                      }
                      """;
 
-        spc.AddSource("NinoTypeConst.g.cs", code);
+        spc.AddSource($"{curNamespace}.TypeConst.g.cs", code);
     }
 }

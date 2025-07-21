@@ -831,13 +831,13 @@ namespace Nino.UnitTests
             Assert.AreEqual(record, result);
 
             SimpleRecordStruct2 record2 = new SimpleRecordStruct2(1, DateTime.Today);
-            bytes = record2.Serialize();
+            bytes = Serializer.Serialize(record2);
 
             Deserializer.Deserialize(bytes, out SimpleRecordStruct2 result2);
             Assert.AreEqual(record2, result2);
 
             SimpleRecordStruct2<int> record3 = new SimpleRecordStruct2<int>(1, 1234);
-            bytes = record3.Serialize();
+            bytes = Serializer.Serialize(record3);
             Assert.IsNotNull(bytes);
 
             Deserializer.Deserialize(bytes, out SimpleRecordStruct2<int> result3);
@@ -1068,7 +1068,7 @@ namespace Nino.UnitTests
             {
                 Val = 1
             };
-            byte[] bytes = a.Serialize();
+            byte[] bytes = Serializer.Serialize(a);
 
             Deserializer.Deserialize(bytes, out GenericStruct<int> result);
             Assert.AreEqual(a.Val, result.Val);

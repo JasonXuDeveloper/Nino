@@ -43,11 +43,6 @@ public partial class SerializerGenerator
                     }
                 }
 
-                if (!generatedTypes.Add(ninoType.TypeSymbol))
-                    continue;
-                if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
-                    continue;
-
                 if (!ninoType.TypeSymbol.IsUnmanagedType)
                 {
                     bool hasInvalidMember = false;
@@ -67,6 +62,11 @@ public partial class SerializerGenerator
 
                     if (hasInvalidMember) continue;
                 }
+
+                if (!generatedTypes.Add(ninoType.TypeSymbol))
+                    continue;
+                if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
+                    continue;
 
                 GenerateSerializeImplementation(ninoType, sb);
             }
@@ -175,7 +175,7 @@ public partial class SerializerGenerator
                      }
                      """;
 
-        spc.AddSource("NinoSerializer.g.cs", code);
+        spc.AddSource($"{curNamespace}.Serializer.g.cs", code);
     }
 
     private static string GenerateWriterAccessMethodBody(string typeName, string indent = "",

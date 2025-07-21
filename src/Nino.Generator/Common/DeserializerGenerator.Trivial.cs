@@ -43,11 +43,6 @@ public partial class DeserializerGenerator
                     }
                 }
 
-                if (!generatedTypes.Add(ninoType.TypeSymbol))
-                    continue;
-                if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
-                    continue;
-
                 if (!ninoType.TypeSymbol.IsUnmanagedType)
                 {
                     bool hasInvalidMember = false;
@@ -67,6 +62,11 @@ public partial class DeserializerGenerator
 
                     if (hasInvalidMember) continue;
                 }
+
+                if (!generatedTypes.Add(ninoType.TypeSymbol))
+                    continue;
+                if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
+                    continue;
 
                 GenerateDeserializeImplementation(ninoType, sb, spc);
 
@@ -133,7 +133,7 @@ public partial class DeserializerGenerator
                      }
                      """;
 
-        spc.AddSource("NinoDeserializer.g.cs", code);
+        spc.AddSource($"{curNamespace}.Deserializer.g.cs", code);
     }
 
 
@@ -220,7 +220,8 @@ public partial class DeserializerGenerator
                     sb.AppendLine(toleranceCode);
                     sb.AppendLine();
                 }
-                else if (declaredType.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(declaredType))
+                else if (declaredType.IsUnmanagedType &&
+                         (!NinoGraph.TypeMap.TryGetValue(declaredType, out var ninoType) || !ninoType.IsPolymorphic()))
                 {
                     var str = $"reader.Read(out {tempName});";
                     //weak version tolerance

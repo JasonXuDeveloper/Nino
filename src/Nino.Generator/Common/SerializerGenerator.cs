@@ -92,7 +92,7 @@ public partial class SerializerGenerator(
                                         try
                                         {
                                             var writer = new Writer(bufferWriter);
-                                            SerializeGeneric(value, ref writer);
+                                            Serialize<T>(value, ref writer);
                                             return bufferWriter.WrittenSpan.ToArray();
                                         }
                                         finally
@@ -105,11 +105,11 @@ public partial class SerializerGenerator(
                                     public static void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
                                     {
                                         Writer writer = new Writer(bufferWriter);
-                                        SerializeGeneric(value, ref writer);
+                                        Serialize<T>(value, ref writer);
                                     }
 
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    private static void SerializeGeneric<T>(T value, ref Writer writer)
+                                    private static void Serialize<T>(T value, ref Writer writer)
                                     {
                                         if (_serializers.TryGetValue(typeof(T).TypeHandle.Value, out var serializer))
                                         {
@@ -163,6 +163,6 @@ public partial class SerializerGenerator(
                             }
                             """;
 
-        spc.AddSource("NinoSerializer.Generic.g.cs", genericCode);
+        spc.AddSource($"{curNamespace}.Serializer.Generic.g.cs", genericCode);
     }
 }

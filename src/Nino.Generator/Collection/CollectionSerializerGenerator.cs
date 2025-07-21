@@ -60,7 +60,9 @@ public class CollectionSerializerGenerator(
     );
 
     protected override string ClassName => "Serializer";
-    protected override string OutputFileName => "NinoSerializer.Collection.g.cs";
+
+    protected override string OutputFileName =>
+        $"{Compilation.AssemblyName!.GetNamespace()}.Serializer.Collection.g.cs";
 
     protected override void PublicMethod(StringBuilder sb, string typeFullName)
     {
@@ -128,6 +130,8 @@ public class CollectionSerializerGenerator(
             new Trivial("ValueTuple", "Tuple"),
             (symbol, sb) =>
             {
+                if (symbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.TypeArguments.IsEmpty)
+                    return false;
                 var types = ((INamedTypeSymbol)symbol).TypeArguments.ToArray();
                 GenericTupleLikeMethods(symbol, sb,
                     types,

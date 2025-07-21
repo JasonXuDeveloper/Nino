@@ -89,7 +89,7 @@ namespace Nino.Test.Editor.Serialization
 
             //Nino
             var sw = new Stopwatch();
-            var bs = points.Serialize();
+            var bs = Serializer.Serialize(points);
             BeginSample("Nino");
             sw.Restart();
             Deserializer.Deserialize(bs, out NestedData d);

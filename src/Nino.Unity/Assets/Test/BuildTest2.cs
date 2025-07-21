@@ -127,7 +127,7 @@ namespace Nino.Test
                     {
                         sw.Reset();
                         sw.Start();
-                        ninoBuffer = nd.Serialize();
+                        ninoBuffer = Serializer.Serialize(nd);
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;
                         ninoResultText.text =
