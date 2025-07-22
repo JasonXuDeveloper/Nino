@@ -9,4 +9,13 @@ public abstract class NinoCommonGenerator(Compilation compilation, NinoGraph nin
 {
     protected readonly NinoGraph NinoGraph = ninoGraph;
     protected readonly List<NinoType> NinoTypes = ninoTypes;
+
+    protected bool ValidType(ITypeSymbol type, HashSet<string> validTypeNames)
+    {
+        if (type.SpecialType == SpecialType.System_String) return true;
+        if (type.IsUnmanagedType) return true;
+        if (validTypeNames.Contains(type.GetDisplayString())) return true;
+        if (NinoGraph.TypeMap.ContainsKey(type)) return true;
+        return false;
+    }
 }

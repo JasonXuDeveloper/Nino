@@ -22,22 +22,13 @@ public partial class SerializerGenerator
             validTypeNames.Add(type.GetDisplayString());
         }
 
-        bool ValidType(ITypeSymbol type)
-        {
-            if (type.SpecialType == SpecialType.System_String) return true;
-            if (type.IsUnmanagedType) return true;
-            if (validTypeNames.Contains(type.GetDisplayString())) return true;
-            if (NinoGraph.TypeMap.ContainsKey(type)) return true;
-            return false;
-        }
-
         foreach (var ninoType in NinoTypes)
         {
             try
             {
                 if (ninoType.TypeSymbol is INamedTypeSymbol namedType && namedType.IsGenericType)
                 {
-                    if (namedType.TypeArguments.Any(t => !ValidType(t)))
+                    if (namedType.TypeArguments.Any(t => !ValidType(t, validTypeNames)))
                     {
                         continue;
                     }
@@ -48,7 +39,7 @@ public partial class SerializerGenerator
                     bool hasInvalidMember = false;
                     foreach (var member in ninoType.Members)
                     {
-                        if (ValidType(member.Type)) continue;
+                        if (ValidType(member.Type, validTypeNames)) continue;
 
                         spc.ReportDiagnostic(Diagnostic.Create(
                             new DiagnosticDescriptor("NINO001", "Nino Generator",
@@ -69,6 +60,22 @@ public partial class SerializerGenerator
                     continue;
 
                 GenerateSerializeImplementation(ninoType, sb);
+
+                if (!ninoType.IsPolymorphic() || !ninoType.TypeSymbol.IsInstanceType() ||
+                    !string.IsNullOrEmpty(ninoType.CustomSerializer))
+                    continue;
+                sb.AppendLine();
+                sb.AppendLine($$"""
+                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                        [EditorBrowsable(EditorBrowsableState.Never)]
+                                        [System.Diagnostics.DebuggerNonUserCode]
+                                        [System.Runtime.CompilerServices.CompilerGenerated]
+                                        public static void SerializeImpl({{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Writer writer)
+                                        {
+                                """);
+                WriteMembers(ninoType, "value", sb);
+                sb.AppendLine("        }");
+                sb.AppendLine();
             }
             catch (Exception e)
             {
@@ -94,6 +101,7 @@ public partial class SerializerGenerator
                      using System.Buffers;
                      using System.Threading;
                      using global::Nino.Core;
+                     using System.ComponentModel;
                      using System.Collections.Generic;
                      using System.Collections.Concurrent;
                      using System.Runtime.InteropServices;
@@ -195,6 +203,89 @@ public partial class SerializerGenerator
         return $"{indent}{ret}";
     }
 
+    private void WriteMembers(NinoType type, string valName, StringBuilder sb)
+    {
+        List<string> valNames = new();
+        foreach (var members in type.GroupByPrimitivity())
+        {
+            valNames.Clear();
+            foreach (var member in members)
+            {
+                var name = member.Name;
+                var isPrivate = member.IsPrivate;
+                var isProperty = member.IsProperty;
+                var val = $"{valName}.{name}";
+
+                if (isPrivate)
+                {
+                    var accessName = valName;
+                    if (type.TypeSymbol.IsValueType)
+                    {
+                        accessName = $"ref {valName}";
+                    }
+
+                    val = isProperty
+                        ? $"PrivateAccessor.__get__{name}__({accessName})"
+                        : $"PrivateAccessor.__{name}__({accessName})";
+                    var legacyVal = $"{valName}.__nino__generated__{name}";
+                    val = $"""
+
+                           #if NET8_0_OR_GREATER
+                                                   {val}
+                           #else
+                                                   {legacyVal}
+                           #endif
+
+                           """;
+                }
+
+                valNames.Add(val);
+            }
+
+            if (members.Count == 1)
+            {
+                var member = members[0];
+                var declaredType = member.Type;
+                var val = valNames[0];
+
+                //check if the typesymbol declaredType is string
+                if (declaredType.SpecialType == SpecialType.System_String)
+                {
+                    //check if this member is annotated with [NinoUtf8]
+                    var isUtf8 = member.IsUtf8String;
+
+                    sb.AppendLine(
+                        isUtf8
+                            ? $"                    writer.WriteUtf8({val});"
+                            : $"                    writer.Write({val});");
+                }
+                else if (declaredType.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(declaredType))
+                {
+                    sb.AppendLine(
+                        $"                    writer.Write({val});");
+                }
+                else
+                {
+                    sb.AppendLine(
+                        $"                    Serialize({val}, ref writer);");
+                }
+            }
+            else
+            {
+                sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+                foreach (var val in valNames)
+                {
+                    sb.AppendLine($"                    writer.Write({val});");
+                }
+
+                sb.AppendLine("#else");
+                sb.AppendLine(
+                    $"                    writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
+                sb.AppendLine("#endif");
+            }
+        }
+    }
+
     private void GenerateSerializeImplementation(NinoType ninoType, StringBuilder sb)
     {
         var classType = ninoType.TypeSymbol;
@@ -210,96 +301,6 @@ public partial class SerializerGenerator
         sb.AppendLine(
             $"        public static void Serialize({typeFullName} value, ref Writer writer)");
         sb.AppendLine("        {");
-
-        void WriteMembers(NinoType type, string valName)
-        {
-            List<string> valNames = new();
-            foreach (var members in type.GroupByPrimitivity())
-            {
-                valNames.Clear();
-                foreach (var member in members)
-                {
-                    var name = member.Name;
-                    var isPrivate = member.IsPrivate;
-                    var isProperty = member.IsProperty;
-                    var val = $"{valName}.{name}";
-
-                    if (isPrivate)
-                    {
-                        var accessName = valName;
-                        if (type.TypeSymbol.IsValueType)
-                        {
-                            accessName = $"ref {valName}";
-                        }
-
-                        val = isProperty
-                            ? $"PrivateAccessor.__get__{name}__({accessName})"
-                            : $"PrivateAccessor.__{name}__({accessName})";
-                        var legacyVal = $"{valName}.__nino__generated__{name}";
-                        val = $"""
-
-                               #if NET8_0_OR_GREATER
-                                                       {val}
-                               #else
-                                                       {legacyVal}
-                               #endif
-
-                               """;
-                    }
-
-                    valNames.Add(val);
-                }
-
-                if (members.Count == 1)
-                {
-                    var member = members[0];
-                    var declaredType = member.Type;
-                    var val = valNames[0];
-
-                    //check if the typesymbol declaredType is string
-                    if (declaredType.SpecialType == SpecialType.System_String)
-                    {
-                        //check if this member is annotated with [NinoUtf8]
-                        var isUtf8 = member.IsUtf8String;
-
-                        sb.AppendLine(
-                            isUtf8
-                                ? $"                    writer.WriteUtf8({val});"
-                                : $"                    writer.Write({val});");
-                    }
-                    else if (declaredType.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(declaredType))
-                    {
-                        sb.AppendLine(
-                            $"                    writer.Write({val});");
-                    }
-                    else
-                    {
-                        if (!string.IsNullOrEmpty(type.CustomSerializer))
-                        {
-                            sb.AppendLine(
-                                $"                    {type.CustomSerializer}.Serialize({val}, ref writer);");
-                            continue;
-                        }
-
-                        sb.AppendLine(
-                            $"                    Serialize({val}, ref writer);");
-                    }
-                }
-                else
-                {
-                    sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
-                    foreach (var val in valNames)
-                    {
-                        sb.AppendLine($"                    writer.Write({val});");
-                    }
-
-                    sb.AppendLine("#else");
-                    sb.AppendLine(
-                        $"                    writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
-                    sb.AppendLine("#endif");
-                }
-            }
-        }
 
         // check if struct is unmanaged
         if (ninoType.TypeSymbol.IsUnmanagedType && !isPolymorphicType)
@@ -358,7 +359,15 @@ public partial class SerializerGenerator
                         }
                         else
                         {
-                            WriteMembers(subType, valName);
+                            if (subType.IsPolymorphic())
+                            {
+                                sb.AppendLine(
+                                    $"                    SerializeImpl({valName}, ref writer);");
+                            }
+                            else
+                            {
+                                WriteMembers(subType, valName, sb);
+                            }
                         }
                     }
 
@@ -395,7 +404,14 @@ public partial class SerializerGenerator
                 }
                 else
                 {
-                    WriteMembers(ninoType, "value");
+                    if (isPolymorphicType)
+                    {
+                        sb.AppendLine("                    SerializeImpl(value, ref writer);");
+                    }
+                    else
+                    {
+                        WriteMembers(ninoType, "value", sb);
+                    }
                 }
             }
 

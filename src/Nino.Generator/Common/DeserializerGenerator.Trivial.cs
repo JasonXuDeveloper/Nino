@@ -22,22 +22,13 @@ public partial class DeserializerGenerator
             validTypeNames.Add(type.GetDisplayString());
         }
 
-        bool ValidType(ITypeSymbol type)
-        {
-            if (type.SpecialType == SpecialType.System_String) return true;
-            if (type.IsUnmanagedType) return true;
-            if (validTypeNames.Contains(type.GetDisplayString())) return true;
-            if (NinoGraph.TypeMap.ContainsKey(type)) return true;
-            return false;
-        }
-
         foreach (var ninoType in NinoTypes)
         {
             try
             {
                 if (ninoType.TypeSymbol is INamedTypeSymbol namedType && namedType.IsGenericType)
                 {
-                    if (namedType.TypeArguments.Any(t => !ValidType(t)))
+                    if (namedType.TypeArguments.Any(t => !ValidType(t, validTypeNames)))
                     {
                         continue;
                     }
@@ -48,7 +39,7 @@ public partial class DeserializerGenerator
                     bool hasInvalidMember = false;
                     foreach (var member in ninoType.Members)
                     {
-                        if (ValidType(member.Type)) continue;
+                        if (ValidType(member.Type, validTypeNames)) continue;
 
                         spc.ReportDiagnostic(Diagnostic.Create(
                             new DiagnosticDescriptor("NINO001", "Nino Generator",

@@ -39,14 +39,7 @@ namespace Nino.Core
         {
             var diff = WrittenCount - oldPos;
             ref byte oldPosByte = ref Unsafe.Subtract(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan()), diff);
-            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                    ref diff
-#else
-                    diff
-#endif
-                ), 1));
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref diff, 1));
             src.CopyTo(MemoryMarshal.CreateSpan(ref oldPosByte, 4));
         }
 
@@ -56,22 +49,14 @@ namespace Nino.Core
         {
             var diff = WrittenCount - oldPos;
             ref byte oldPosByte = ref Unsafe.Subtract(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan()), diff);
-            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                    ref value
-#else
-                    value
-#endif
-                ), 1));
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref value, 1));
             src.CopyTo(MemoryMarshal.CreateSpan(ref oldPosByte, Unsafe.SizeOf<T>()));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write(byte value)
         {
-            ref byte ret = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(1));
-            ret = value;
+            _bufferWriter.GetSpan(1)[0] = value;
             _bufferWriter.Advance(1);
             WrittenCount += 1;
         }
@@ -79,8 +64,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write(sbyte value)
         {
-            ref byte ret = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(1));
-            ret = (byte)value;
+            _bufferWriter.GetSpan(1)[0] = (byte)value;
             _bufferWriter.Advance(1);
             WrittenCount += 1;
         }
@@ -88,8 +72,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write(bool value)
         {
-            ref byte ret = ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(1));
-            ret = value ? (byte)1 : (byte)0;
+            _bufferWriter.GetSpan(1)[0] = value ? (byte)1 : (byte)0;
             _bufferWriter.Advance(1);
             WrittenCount += 1;
         }
@@ -104,16 +87,9 @@ namespace Nino.Core
             }
             else
             {
-                ReadOnlySpan<T> valSpan = MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                    ref value
-#else
-                        value
-#endif
-                ), 1);
                 unsafe
                 {
-                    Span<T> srcSpan = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(valSpan), 1);
+                    Span<T> srcSpan = MemoryMarshal.CreateSpan(ref value, 1);
                     ReadOnlySpan<byte> src = new ReadOnlySpan<byte>(
                         Unsafe.AsPointer(ref srcSpan.GetPinnableReference()),
                         Unsafe.SizeOf<T>());
@@ -142,17 +118,10 @@ namespace Nino.Core
 
             int size = Unsafe.SizeOf<T>() + 1;
             var span = _bufferWriter.GetSpan(size);
-            ref byte header = ref MemoryMarshal.GetReference(span);
             T val = value.Value;
-            header = 1;
+            span[0] = 1;
             ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                    ref val
-#else
-                    val
-#endif
-                ), 1));
+                MemoryMarshal.CreateReadOnlySpan(ref val, 1));
             src.CopyTo(span.Slice(1));
             _bufferWriter.Advance(size);
             WrittenCount += size;
@@ -195,14 +164,7 @@ namespace Nino.Core
             int size = sizeof(int) + valueSpan.Length;
             var span = _bufferWriter.GetSpan(size);
             var header = TypeCollector.GetCollectionHeader(value.Length);
-            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                    ref header
-#else
-                    header
-#endif
-                ), 1));
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
             src.CopyTo(span);
             valueSpan.CopyTo(span.Slice(4));
 
@@ -274,30 +236,15 @@ namespace Nino.Core
             int size = sizeof(int) + byteLength;
             var span = _bufferWriter.GetSpan(size);
             var header = TypeCollector.GetCollectionHeader(value.Count);
-            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                    ref header
-#else
-                    header
-#endif
-                ), 1));
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
             src.CopyTo(span);
             span = span.Slice(4);
 
             foreach (var item in value)
             {
-#if NET8_0_OR_GREATER
                 KeyValuePair<TKey, TValue> temp = item;
-#endif
                 ReadOnlySpan<byte> src2 = MemoryMarshal.AsBytes(
-                    MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                        ref temp
-#else
-                        item
-#endif
-                    ), 1));
+                    MemoryMarshal.CreateReadOnlySpan(ref temp, 1));
                 src2.CopyTo(span);
                 span = span.Slice(eleSize);
             }
@@ -320,29 +267,13 @@ namespace Nino.Core
             int size = sizeof(int) + byteLength;
             var span = _bufferWriter.GetSpan(size);
             var header = TypeCollector.GetCollectionHeader(value.Count);
-            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                    ref header
-#else
-                    header
-#endif
-                ), 1));
+            ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
             src.CopyTo(span);
             span = span.Slice(4);
             foreach (var item in value)
             {
-#if NET8_0_OR_GREATER
                 T temp = item;
-#endif
-                ReadOnlySpan<byte> src2 = MemoryMarshal.AsBytes(
-                    MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                        ref temp
-#else
-                        item
-#endif
-                    ), 1));
+                ReadOnlySpan<byte> src2 = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref temp, 1));
                 src2.CopyTo(span);
                 span = span.Slice(eleSize);
             }
@@ -382,14 +313,7 @@ namespace Nino.Core
                     int spanLength = sizeof(int) + value.Length;
                     var span = _bufferWriter.GetSpan(spanLength);
                     var header = TypeCollector.GetCollectionHeader(value.Length);
-                    ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                            ref header
-#else
-                            header
-#endif
-                        ), 1));
+                    ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
                     src.CopyTo(span);
                     span = span.Slice(4);
 #if NET5_0_OR_GREATER
@@ -421,14 +345,7 @@ namespace Nino.Core
                     int spanLength = sizeof(int) + valueSpan.Length;
                     var span = _bufferWriter.GetSpan(spanLength);
                     var header = TypeCollector.GetCollectionHeader(value.Length);
-                    ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(
-                        MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(
-#if NET8_0_OR_GREATER
-                            ref header
-#else
-                            header
-#endif
-                        ), 1));
+                    ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
                     src.CopyTo(span);
                     valueSpan.CopyTo(span.Slice(4));
                     _bufferWriter.Advance(spanLength);

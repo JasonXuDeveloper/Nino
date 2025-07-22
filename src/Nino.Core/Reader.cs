@@ -87,6 +87,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnsafeRead<T>(out T value)
         {
+            int size = Unsafe.SizeOf<T>();
             if (TypeCollector.Is64Bit)
             {
                 value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
@@ -94,18 +95,16 @@ namespace Nino.Core
             else
             {
                 value = default;
-                Span<T> valSpan = MemoryMarshal.CreateSpan(ref value, 1);
                 unsafe
                 {
-                    Span<byte> dst = new Span<byte>(Unsafe.AsPointer(ref valSpan.GetPinnableReference()),
-                        Unsafe.SizeOf<T>());
+                    Span<byte> dst = new Span<byte>(Unsafe.AsPointer(ref value), size);
                     _data.Slice(0, dst.Length).CopyTo(dst);
                 }
             }
 
-            _data = _data.Slice(Unsafe.SizeOf<T>());
+            _data = _data.Slice(size);
         }
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T value) where T : unmanaged
         {
@@ -214,6 +213,37 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T>(out List<T?> ret) where T : unmanaged
+        {
+            if (!ReadCollectionHeader(out var length))
+            {
+                ret = null;
+                return;
+            }
+
+            ret = new List<T?>(length);
+            for (int i = 0; i < length; i++)
+            {
+                Read(out T? item);
+                ret.Add(item);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T>(out IList<T?> ret) where T : unmanaged
+        {
+            Read(out List<T?> list);
+            ret = list;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T>(out ICollection<T?> ret) where T : unmanaged
+        {
+            Read(out List<T?> list);
+            ret = list;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<TKey, TValue>(out Dictionary<TKey, TValue> ret) where TKey : unmanaged where TValue : unmanaged
         {
             if (!ReadCollectionHeader(out var length))
@@ -236,33 +266,6 @@ namespace Nino.Core
         {
             Read(out Dictionary<TKey, TValue> dictionary);
             ret = dictionary;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read<T>(out List<T?> ret) where T : unmanaged
-        {
-            Read(out T?[] arr);
-            if (arr == null)
-            {
-                ret = null;
-                return;
-            }
-
-            ret = new List<T?>(arr);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read<T>(out IList<T?> ret) where T : unmanaged
-        {
-            Read(out List<T?> list);
-            ret = list;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read<T>(out ICollection<T?> ret) where T : unmanaged
-        {
-            Read(out List<T?> list);
-            ret = list;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
