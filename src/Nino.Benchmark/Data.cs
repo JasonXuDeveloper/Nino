@@ -12,12 +12,21 @@ namespace Nino.Benchmark;
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
-public partial class SimpleClass
+[MemoryPackUnion(0, typeof(SimpleClass))]
+[Union(0, typeof(SimpleClass))]
+public abstract partial class SimpleClassBase
 {
     [Key(0)] public int Id;
     [Key(1)] public bool Tag;
     [Key(2)] public Guid Guid;
     [Key(3)] public DateTime CreateTime;
+}
+
+[NinoType]
+[MemoryPackable]
+[MessagePackObject]
+public partial class SimpleClass : SimpleClassBase
+{
     [Key(4)] public string Name { get; set; }
     [Key(5)] [NinoUtf8] public string Desc;
     [Key(6)] public int[] Numbers { get; set; }

@@ -111,14 +111,13 @@ public partial class SerializerGenerator
                      {
                          public static partial class Serializer
                          {
-                             private static readonly ConcurrentQueue<ArrayBufferWriter<byte>> BufferWriters =
-                                 new ConcurrentQueue<ArrayBufferWriter<byte>>();
+                             private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
 
-                             private static readonly ArrayBufferWriter<byte> DefaultBufferWriter = new ArrayBufferWriter<byte>(1024);
+                             private static readonly NinoArrayBufferWriter DefaultBufferWriter = new NinoArrayBufferWriter(1024);
                              private static int _defaultUsed;
 
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static ArrayBufferWriter<byte> GetBufferWriter()
+                             public static NinoArrayBufferWriter GetBufferWriter()
                              {
                                  // Fast path
                                  if (Interlocked.CompareExchange(ref _defaultUsed, 1, 0) == 0)
@@ -128,7 +127,7 @@ public partial class SerializerGenerator
 
                                  if (BufferWriters.Count == 0)
                                  {
-                                     return new ArrayBufferWriter<byte>(1024);
+                                     return new NinoArrayBufferWriter(1024);
                                  }
 
                                  if (BufferWriters.TryDequeue(out var bufferWriter))
@@ -136,11 +135,11 @@ public partial class SerializerGenerator
                                      return bufferWriter;
                                  }
 
-                                 return new ArrayBufferWriter<byte>(1024);
+                                 return new NinoArrayBufferWriter(1024);
                              }
 
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static void ReturnBufferWriter(ArrayBufferWriter<byte> bufferWriter)
+                             public static void ReturnBufferWriter(NinoArrayBufferWriter bufferWriter)
                              {
                      #if NET8_0_OR_GREATER
                                  bufferWriter.ResetWrittenCount();

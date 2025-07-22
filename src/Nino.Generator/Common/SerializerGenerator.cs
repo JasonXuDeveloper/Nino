@@ -102,7 +102,7 @@ public partial class SerializerGenerator(
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
+                                    public static void Serialize<T>(T value, INinoBufferWriter bufferWriter)
                                     {
                                         Writer writer = new Writer(bufferWriter);
                                         Serialize<T>(value, ref writer);
@@ -143,7 +143,7 @@ public partial class SerializerGenerator(
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static void Serialize(object value, IBufferWriter<byte> bufferWriter, Type type)
+                                    public static void Serialize(object value, INinoBufferWriter bufferWriter, Type type)
                                     {
                                         Writer writer = new Writer(bufferWriter);
                                         SerializeBoxed(value, ref writer, type);

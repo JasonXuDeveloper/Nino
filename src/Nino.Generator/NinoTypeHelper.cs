@@ -620,7 +620,7 @@ public static class NinoTypeHelper
                     }
 
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                    public static void Serialize{{typeParam}}(this {{typeFullName}} value, IBufferWriter<byte> bufferWriter) {{genericConstraint}}
+                    public static void Serialize{{typeParam}}(this {{typeFullName}} value, INinoBufferWriter bufferWriter) {{genericConstraint}}
                     {
                         Writer writer = new Writer(bufferWriter);
                         Serialize(value, ref writer);
