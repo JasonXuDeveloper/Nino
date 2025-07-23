@@ -1,4 +1,5 @@
 using System;
+// ReSharper disable once RedundantUsingDirective
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -285,22 +286,23 @@ namespace Nino.Core
 
             GetBytes(length, out var utf8Bytes);
 
-#if NET5_0_OR_GREATER
             unsafe
             {
-                ret = string.Create(length, (IntPtr)Unsafe.AsPointer(ref MemoryMarshal.GetReference(utf8Bytes)),
-                    (dst, ptr) =>
+                ret = string.Create(length,
+                    (length, (IntPtr)Unsafe.AsPointer(ref MemoryMarshal.GetReference(utf8Bytes))),
+                    static (dst, state) =>
                     {
-                        var src = new Span<byte>((byte*)ptr, length);
+                        var (length, ptr) = state;
+                        var src = new ReadOnlySpan<byte>((byte*)ptr, length);
+#if NET5_0_OR_GREATER
                         if (System.Text.Unicode.Utf8.ToUtf16(src, dst, out _, out _,
-                                replaceInvalidSequences: false) !=
-                            OperationStatus.Done)
+                                replaceInvalidSequences: false) != OperationStatus.Done)
                             throw new InvalidOperationException("Invalid utf8 string");
+#else
+                        System.Text.Encoding.UTF8.GetChars(src, dst);
+#endif
                     });
             }
-#else
-            ret = System.Text.Encoding.UTF8.GetString(utf8Bytes);
-#endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -319,7 +321,6 @@ namespace Nino.Core
             }
 
             GetBytes(length * sizeof(char), out var utf16Bytes);
-#if NET5_0_OR_GREATER
             if (TypeCollector.Is64Bit)
             {
                 ret = new string(MemoryMarshal.Cast<byte, char>(utf16Bytes));
@@ -328,10 +329,11 @@ namespace Nino.Core
             {
                 unsafe
                 {
-                    ret = string.Create(length, (IntPtr)Unsafe.AsPointer(
-                            ref MemoryMarshal.GetReference(utf16Bytes)),
-                        (dst, ptr) =>
+                    ret = string.Create(length, (length, (IntPtr)Unsafe.AsPointer(
+                            ref MemoryMarshal.GetReference(utf16Bytes))),
+                        static (dst, state) =>
                         {
+                            var (length, ptr) = state;
                             Buffer.MemoryCopy(ptr.ToPointer(),
                                 Unsafe.AsPointer(ref MemoryMarshal.GetReference(
                                     MemoryMarshal.AsBytes(dst))),
@@ -339,28 +341,6 @@ namespace Nino.Core
                         });
                 }
             }
-#else
-            if (TypeCollector.Is64Bit)
-            {
-                ret = MemoryMarshal.Cast<byte, char>(utf16Bytes).ToString();
-            }
-            else if (length <= 1024)
-            {
-                Span<char> tmp = stackalloc char[length];
-                Span<byte> dst = MemoryMarshal.AsBytes(tmp);
-                utf16Bytes.CopyTo(dst);
-                ret = new string(tmp);
-            }
-            else
-            {
-                char[] tmp = ArrayPool<char>.Shared.Rent(length);
-                Span<char> tmpSpan = tmp.AsSpan(0, length);
-                Span<byte> dst = MemoryMarshal.AsBytes(tmpSpan);
-                utf16Bytes.CopyTo(dst);
-                ret = new string(tmpSpan);
-                ArrayPool<char>.Shared.Return(tmp);
-            }
-#endif
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
