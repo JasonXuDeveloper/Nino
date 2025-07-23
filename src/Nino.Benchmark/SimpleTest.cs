@@ -5,7 +5,6 @@ using System.Linq;
 using System.Numerics;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
-using BenchmarkDotNet.Order;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -14,7 +13,8 @@ using Nino.Core;
 namespace Nino.Benchmark;
 
 [PayloadColumn]
-[HideColumns("StdDev", "RatioSD")]
+[HideColumns("StdDev", "RatioSD", "Error")]
+[MinColumn, MaxColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
 [ShortRunJob(RuntimeMoniker.Net90)]
 [GcServer(true)]

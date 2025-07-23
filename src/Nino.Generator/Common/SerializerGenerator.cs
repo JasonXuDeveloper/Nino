@@ -34,14 +34,17 @@ public partial class SerializerGenerator(
                 continue;
             var typeFullName = type.GetDisplayString();
             sb.AppendLine($$"""
+                                        _fastSerializers[typeof({{typeFullName}}).TypeHandle.Value] = (SerializeDelegate<{{typeFullName}}>)Serialize;
                                         _serializers[typeof({{typeFullName}}).TypeHandle.Value] = (object value, ref Writer writer) =>
                                             {
                                                 Serialize(({{typeFullName}})value, ref writer);
                                             };
                             """);
+            sb.AppendLine();
         }
 
         sb.AppendLine("        }");
+        sb.AppendLine();
     }
 
     protected override void Generate(SourceProductionContext spc)
@@ -77,7 +80,9 @@ public partial class SerializerGenerator(
                                 public static partial class Serializer
                                 {
                                     private delegate void SerializeDelegate(object value, ref Writer writer);
+                                    public delegate void SerializeDelegate<T>(T value, ref Writer writer);
                                     private static Dictionary<IntPtr, SerializeDelegate> _serializers = new();
+                                    private static Dictionary<IntPtr, Delegate> _fastSerializers = new();
 
                                     static Serializer()
                                     {
@@ -111,9 +116,9 @@ public partial class SerializerGenerator(
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     private static void Serialize<T>(T value, ref Writer writer)
                                     {
-                                        if (_serializers.TryGetValue(typeof(T).TypeHandle.Value, out var serializer))
+                                        if (_fastSerializers.TryGetValue(typeof(T).TypeHandle.Value, out var serializer))
                                         {
-                                            serializer.Invoke(value, ref writer);
+                                            ((SerializeDelegate<T>)serializer).Invoke(value, ref writer);
                                             return;
                                         }
 
@@ -127,13 +132,13 @@ public partial class SerializerGenerator(
                                     }
 
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static byte[] Serialize(object value, Type type)
+                                    public static byte[] Serialize(object value)
                                     {
                                         var bufferWriter = GetBufferWriter();
                                         try
                                         {
                                             var writer = new Writer(bufferWriter);
-                                            SerializeBoxed(value, ref writer, type);
+                                            SerializeBoxed(value, ref writer, value?.GetType());
                                             return bufferWriter.WrittenSpan.ToArray();
                                         }
                                         finally
@@ -143,15 +148,21 @@ public partial class SerializerGenerator(
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static void Serialize(object value, INinoBufferWriter bufferWriter, Type type)
+                                    public static void Serialize(object value, INinoBufferWriter bufferWriter)
                                     {
                                         Writer writer = new Writer(bufferWriter);
-                                        SerializeBoxed(value, ref writer, type);
+                                        SerializeBoxed(value, ref writer, value?.GetType());
                                     }
 
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     private static void SerializeBoxed(object value, ref Writer writer, Type type)
                                     {
+                                        if (value == null || type == null)
+                                        {
+                                            writer.Write(TypeCollector.Null);
+                                            return;
+                                        }
+                                    
                                         if (!_serializers.TryGetValue(type.TypeHandle.Value, out var serializer))
                                         {
                                             throw new Exception($"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");
