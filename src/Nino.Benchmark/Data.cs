@@ -18,8 +18,6 @@ public abstract partial class SimpleClassBase
 {
     [Key(0)] public int Id;
     [Key(1)] public bool Tag;
-    [Key(2)] public Guid Guid;
-    [Key(3)] public DateTime CreateTime;
 }
 
 [NinoType]
@@ -27,6 +25,8 @@ public abstract partial class SimpleClassBase
 [MessagePackObject]
 public partial class SimpleClass : SimpleClassBase
 {
+    [Key(2)] public Guid Guid;
+    [Key(3)] public DateTime CreateTime;
     [Key(4)] public string Name { get; set; }
     [Key(5)] [NinoUtf8] public string Desc;
     [Key(6)] public int[] Numbers { get; set; }

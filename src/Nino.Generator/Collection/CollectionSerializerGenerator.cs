@@ -256,38 +256,39 @@ public class CollectionSerializerGenerator(
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
 
+                ValidMethod equalityMethod = new ValidMethod((_, method) =>
+                    method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
+                    && method is { Name: "op_Equality", Parameters.Length: 2 }
+                    && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
+                        dictSymbol)
+                    && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type,
+                        dictSymbol));
+
+                bool shouldHaveIfDefaultCheck = !symbol.IsValueType || equalityMethod.Filter(dictSymbol);
+                if (shouldHaveIfDefaultCheck)
+                {
+                    sb.Append("    if (value == ");
+                    sb.Append(symbol.IsValueType ? "default" : "null");
+                    sb.AppendLine(")");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
+                    sb.AppendLine("        return;");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine("    int cnt = value.Count;");
+                sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
+                sb.AppendLine();
+                sb.AppendLine("    foreach (var item in value)");
+                sb.AppendLine("    {");
+
                 if (isUnmanaged)
                 {
-                    sb.AppendLine("        writer.Write(value);");
+                    sb.AppendLine("        writer.Write(item);");
                 }
                 else
                 {
-                    ValidMethod equalityMethod = new ValidMethod((_, method) =>
-                        method.MethodKind is MethodKind.BuiltinOperator or MethodKind.UserDefinedOperator
-                        && method is { Name: "op_Equality", Parameters.Length: 2 }
-                        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type,
-                            dictSymbol)
-                        && SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type,
-                            dictSymbol));
-
-                    bool shouldHaveIfDefaultCheck = !symbol.IsValueType || equalityMethod.Filter(dictSymbol);
-                    if (shouldHaveIfDefaultCheck)
-                    {
-                        sb.Append("    if (value == ");
-                        sb.Append(symbol.IsValueType ? "default" : "null");
-                        sb.AppendLine(")");
-                        sb.AppendLine("    {");
-                        sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-                        sb.AppendLine("        return;");
-                        sb.AppendLine("    }");
-                        sb.AppendLine();
-                    }
-
-                    sb.AppendLine("    int cnt = value.Count;");
-                    sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
-                    sb.AppendLine();
-                    sb.AppendLine("    foreach (var item in value)");
-                    sb.AppendLine("    {");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
@@ -296,9 +297,9 @@ public class CollectionSerializerGenerator(
                     sb.AppendLine(GetSerializeString(valType, "item.Value"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
-                    sb.AppendLine("    }");
                 }
 
+                sb.AppendLine("    }");
                 sb.AppendLine("}");
                 return true;
             }
@@ -323,25 +324,27 @@ public class CollectionSerializerGenerator(
                 sb.Append(symbol.GetDisplayString());
                 sb.AppendLine(" value, ref Writer writer)");
                 sb.AppendLine("{");
+
+                sb.Append("    if (value == ");
+                sb.Append(symbol.IsValueType ? "default" : "null");
+                sb.AppendLine(")");
+                sb.AppendLine("    {");
+                sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
+                sb.AppendLine("        return;");
+                sb.AppendLine("    }");
+                sb.AppendLine();
+                sb.AppendLine("    int cnt = value.Count;");
+                sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
+                sb.AppendLine();
+                sb.AppendLine("    foreach (var item in value)");
+                sb.AppendLine("    {");
+
                 if (isUnmanaged)
                 {
-                    sb.AppendLine("        writer.Write(value);");
+                    sb.AppendLine("        writer.Write(item);");
                 }
                 else
                 {
-                    sb.Append("    if (value == ");
-                    sb.Append(symbol.IsValueType ? "default" : "null");
-                    sb.AppendLine(")");
-                    sb.AppendLine("    {");
-                    sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-                    sb.AppendLine("        return;");
-                    sb.AppendLine("    }");
-                    sb.AppendLine();
-                    sb.AppendLine("    int cnt = value.Count;");
-                    sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
-                    sb.AppendLine();
-                    sb.AppendLine("    foreach (var item in value)");
-                    sb.AppendLine("    {");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
@@ -350,9 +353,9 @@ public class CollectionSerializerGenerator(
                     sb.AppendLine(GetSerializeString(valueType, "item.Value"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
-                    sb.AppendLine("    }");
                 }
 
+                sb.AppendLine("    }");
                 sb.AppendLine("}");
                 return true;
             }),
