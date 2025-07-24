@@ -612,10 +612,10 @@ public static class NinoTypeHelper
                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                     public static byte[] Serialize{{typeParam}}(this {{typeFullName}} value) {{genericConstraint}}
                     {
-                        var bufferWriter = GetBufferWriter();
+                        var bufferWriter = NinoSerializer.GetBufferWriter();
                         Serialize(value, bufferWriter);
                         var ret = bufferWriter.WrittenSpan.ToArray();
-                        ReturnBufferWriter(bufferWriter);
+                        NinoSerializer.ReturnBufferWriter(bufferWriter);
                         return ret;
                     }
 

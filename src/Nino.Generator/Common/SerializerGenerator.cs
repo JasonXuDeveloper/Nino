@@ -34,6 +34,7 @@ public partial class SerializerGenerator(
                 continue;
             var typeFullName = type.GetDisplayString();
             sb.AppendLine($$"""
+                                        NinoSerializer.Register<{{typeFullName}}>(Serialize);
                                         _serializers[typeof({{typeFullName}}).TypeHandle.Value] = new CachedSerializer<{{typeFullName}}>(Serialize);
                             """);
             sb.AppendLine();
@@ -113,6 +114,11 @@ public partial class SerializerGenerator(
                                     }
 
                                     static Serializer()
+                                    {
+                                        Init();
+                                    }
+                                    
+                                    public static void Init()
                                     {
                                         RegisterTrivialSerializers();
                                         RegisterCollectionSerializers();

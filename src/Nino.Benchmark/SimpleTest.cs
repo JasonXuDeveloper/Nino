@@ -43,6 +43,10 @@ public class SimpleTest
 
     static SimpleTest()
     {
+        var assembly = typeof(SimpleTest).Assembly;
+        NinoSerializer.InitAssembly(assembly);
+        NinoDeserializer.InitAssembly(assembly);
+        
         SimpleClass = SimpleClass.Create();
         SimpleClasses = Enumerable.Range(0, 100).Select(_ => SimpleClass.Create()).ToArray();
         SimpleStruct = SimpleStruct.Create();
@@ -114,7 +118,7 @@ public class SimpleTest
     public int NinoSerializeSimpleClassGeneric()
     {
         NinoGenericBuffer.ResetWrittenCount();
-        NinoGen.Serializer.Serialize<SimpleClass>(SimpleClass, NinoGenericBuffer);
+        NinoSerializer.Serialize(SimpleClass, NinoGenericBuffer);
         return NinoGenericBuffer.WrittenCount;
     }
     
@@ -146,7 +150,7 @@ public class SimpleTest
     public int NinoSerializeSimpleStructGeneric()
     {
         NinoGenericBuffer.ResetWrittenCount();
-        NinoGen.Serializer.Serialize<SimpleStruct>(SimpleStruct, NinoGenericBuffer);
+        NinoSerializer.Serialize(SimpleStruct, NinoGenericBuffer);
         return NinoGenericBuffer.WrittenCount;
     }
     
@@ -178,7 +182,7 @@ public class SimpleTest
     public int NinoSerializeSimpleClassesGeneric()
     {
         NinoGenericBuffer.ResetWrittenCount();
-        NinoGen.Serializer.Serialize<SimpleClass[]>(SimpleClasses, NinoGenericBuffer);
+        NinoSerializer.Serialize(SimpleClasses, NinoGenericBuffer);
         return NinoGenericBuffer.WrittenCount;
     }
     
@@ -210,7 +214,7 @@ public class SimpleTest
     public int NinoSerializeSimpleStructsGeneric()
     {
         NinoGenericBuffer.ResetWrittenCount();
-        NinoGen.Serializer.Serialize<SimpleStruct[]>(SimpleStructs, NinoGenericBuffer);
+        NinoSerializer.Serialize(SimpleStructs, NinoGenericBuffer);
         return NinoGenericBuffer.WrittenCount;
     }
     
@@ -242,7 +246,7 @@ public class SimpleTest
     public int NinoSerializeVectorsGeneric()
     {
         NinoGenericBuffer.ResetWrittenCount();
-        NinoGen.Serializer.Serialize<Vector4[]>(Vectors, NinoGenericBuffer);
+        NinoSerializer.Serialize(Vectors, NinoGenericBuffer);
         return NinoGenericBuffer.WrittenCount;
     }
     
@@ -272,7 +276,7 @@ public class SimpleTest
     [Benchmark, BenchmarkCategory("SimpleClassDeserialize")]
     public SimpleClass NinoDeserializeSimpleClassGeneric()
     {
-        return NinoGen.Deserializer.Deserialize<SimpleClass>(SerializedSimpleClass[2]);
+        return NinoDeserializer.Deserialize<SimpleClass>(SerializedSimpleClass[2]);
     }
     
     [Benchmark, BenchmarkCategory("SimpleClassDeserialize")]
@@ -297,7 +301,7 @@ public class SimpleTest
     [Benchmark, BenchmarkCategory("SimpleStructDeserialize")]
     public SimpleStruct NinoDeserializeSimpleStructGeneric()
     {
-        return NinoGen.Deserializer.Deserialize<SimpleStruct>(SerializedSimpleStruct[2]);
+        return NinoDeserializer.Deserialize<SimpleStruct>(SerializedSimpleStruct[2]);
     }
     
     [Benchmark, BenchmarkCategory("SimpleStructDeserialize")]
@@ -322,7 +326,7 @@ public class SimpleTest
     [Benchmark, BenchmarkCategory("SimpleClassesDeserialize")]
     public SimpleClass[] NinoDeserializeSimpleClassesGeneric()
     {
-        return NinoGen.Deserializer.Deserialize<SimpleClass[]>(SerializedSimpleClasses[2]);
+        return NinoDeserializer.Deserialize<SimpleClass[]>(SerializedSimpleClasses[2]);
     }
     
     [Benchmark, BenchmarkCategory("SimpleClassesDeserialize")]
@@ -347,7 +351,7 @@ public class SimpleTest
     [Benchmark, BenchmarkCategory("SimpleStructsDeserialize")]
     public SimpleStruct[] NinoDeserializeSimpleStructsGeneric()
     {
-        return NinoGen.Deserializer.Deserialize<SimpleStruct[]>(SerializedSimpleStructs[2]);
+        return NinoDeserializer.Deserialize<SimpleStruct[]>(SerializedSimpleStructs[2]);
     }
     
     [Benchmark, BenchmarkCategory("SimpleStructsDeserialize")]
@@ -372,7 +376,7 @@ public class SimpleTest
     [Benchmark, BenchmarkCategory("VectorsDeserialize")]
     public Vector4[] NinoDeserializeVectorsGeneric()
     {
-        return NinoGen.Deserializer.Deserialize<Vector4[]>(SerializedVectors[2]);
+        return NinoDeserializer.Deserialize<Vector4[]>(SerializedVectors[2]);
     }
     
     [Benchmark, BenchmarkCategory("VectorsDeserialize")]

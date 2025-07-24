@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Nino.Core;
 using Nino.UnitTests.NinoGen;
 
 #nullable disable
@@ -12,6 +13,13 @@ namespace Nino.UnitTests
     [TestClass]
     public class SimpleTests
     {
+        [TestInitialize]
+        public void Init()
+        {
+            Serializer.Init();
+            Deserializer.Init();
+        }
+
         [TestMethod]
         public void TestSomeNestedPrivateEnum()
         {
@@ -1097,7 +1105,7 @@ namespace Nino.UnitTests
             };
             byte[] bytes = a.Serialize();
 
-            var result = Deserializer.Deserialize<Generic<int>>(bytes);
+            var result = NinoDeserializer.Deserialize<Generic<int>>(bytes);
             Assert.AreEqual(a.Val, result.Val);
 
             Generic<string> b = new Generic<string>()
