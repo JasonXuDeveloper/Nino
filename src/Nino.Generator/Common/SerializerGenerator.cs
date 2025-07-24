@@ -34,11 +34,7 @@ public partial class SerializerGenerator(
                 continue;
             var typeFullName = type.GetDisplayString();
             sb.AppendLine($$"""
-                                        _fastSerializers[typeof({{typeFullName}}).TypeHandle.Value] = (SerializeDelegate<{{typeFullName}}>)Serialize;
-                                        _serializers[typeof({{typeFullName}}).TypeHandle.Value] = (object value, ref Writer writer) =>
-                                            {
-                                                Serialize(({{typeFullName}})value, ref writer);
-                                            };
+                                        _serializers[typeof({{typeFullName}}).TypeHandle.Value] = new CachedSerializer<{{typeFullName}}>(Serialize);
                             """);
             sb.AppendLine();
         }
@@ -79,10 +75,42 @@ public partial class SerializerGenerator(
                             {
                                 public static partial class Serializer
                                 {
-                                    private delegate void SerializeDelegate(object value, ref Writer writer);
                                     public delegate void SerializeDelegate<T>(T value, ref Writer writer);
-                                    private static Dictionary<IntPtr, SerializeDelegate> _serializers = new();
-                                    private static Dictionary<IntPtr, Delegate> _fastSerializers = new();
+                                    private static Dictionary<IntPtr, ICachedSerializer> _serializers = new();
+                                    
+                                    private interface ICachedSerializer
+                                    {
+                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]   
+                                        void SerializeBoxed(object value, ref Writer writer);
+                                    }
+                                    
+                                    private class CachedSerializer<T> : ICachedSerializer
+                                    {
+                                        public static SerializeDelegate<T> Serializer;
+                                        
+                                        public CachedSerializer(SerializeDelegate<T> serializer)
+                                        {
+                                            Serializer = serializer;
+                                        }
+                                        
+                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                        public void SerializeBoxed(object value, ref Writer writer)
+                                        {
+                                            if (Serializer == null)
+                                                throw new Exception($"Serializer not found for type {typeof(T).FullName}");
+                                                
+                                            if (value == null)
+                                            {
+                                                writer.Write(TypeCollector.Null);
+                                                return;
+                                            }
+                                            
+                                            if (!(value is T val))
+                                                throw new Exception($"Cannot cast object to type {typeof(T).FullName}");
+                                            
+                                            Serializer.Invoke(val, ref writer);
+                                        }
+                                    }
 
                                     static Serializer()
                                     {
@@ -116,19 +144,19 @@ public partial class SerializerGenerator(
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     private static void Serialize<T>(T value, ref Writer writer)
                                     {
-                                        if (_fastSerializers.TryGetValue(typeof(T).TypeHandle.Value, out var serializer))
+                                        var serializer = CachedSerializer<T>.Serializer;
+                                        if (serializer != null)
                                         {
-                                            ((SerializeDelegate<T>)serializer).Invoke(value, ref writer);
+                                            serializer.Invoke(value, ref writer);
                                             return;
-                                        }
-
-                                        if(!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                                        }    
+                                        else if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                                         {
                                             writer.UnsafeWrite(value);
                                             return;
                                         }
                                         
-                                        throw new Exception($"Serializer not found for type {typeof(T).FullName}");
+                                        throw new Exception($"Serializer not found for type {typeof(T).FullName}");    
                                     }
 
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -168,7 +196,7 @@ public partial class SerializerGenerator(
                                             throw new Exception($"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");
                                         }
 
-                                        serializer.Invoke(value, ref writer);
+                                        serializer.SerializeBoxed(value, ref writer);
                                     }
                             {{sb}}    }
                             }

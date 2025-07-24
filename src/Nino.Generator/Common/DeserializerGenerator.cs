@@ -34,11 +34,7 @@ public partial class DeserializerGenerator(
                 continue;
             var typeFullName = type.GetDisplayString();
             sb.AppendLine($$"""
-                                        _deserializers[typeof({{typeFullName}}).TypeHandle.Value] = (ref Reader reader) => 
-                                            {
-                                                Deserialize(out {{typeFullName}} value, ref reader);
-                                                return value;
-                                            };
+                                        _deserializers[typeof({{typeFullName}}).TypeHandle.Value] = new CachedDeserializer<{{typeFullName}}>(Deserialize);
                             """);
         }
 
@@ -77,8 +73,37 @@ public partial class DeserializerGenerator(
                             {
                                 public static partial class Deserializer
                                 {
-                                    private delegate object DeserializeDelegate(ref Reader reader);
-                                    private static Dictionary<IntPtr, DeserializeDelegate> _deserializers = new();
+                                    private delegate void DeserializeDelegate<T>(out T result, ref Reader reader);
+                                    private static Dictionary<IntPtr, ICachedDeserializer> _deserializers = new();
+                                    
+                                    private interface ICachedDeserializer
+                                    {
+                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]   
+                                        object DeserializeBoxed(ref Reader reader);
+                                    }
+                                    
+                                    private class CachedDeserializer<T> : ICachedDeserializer
+                                    {
+                                        public static DeserializeDelegate<T> Deserializer;
+                                        
+                                        public CachedDeserializer(DeserializeDelegate<T> deserializer)
+                                        {
+                                            Deserializer = deserializer;
+                                        }
+                                        
+                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                        public object DeserializeBoxed(ref Reader reader)
+                                        {
+                                            if (Deserializer == null)
+                                                throw new Exception($"Deserializer not found for type {typeof(T).FullName}");
+                                                
+                                            if (reader.Eof)
+                                                return default;
+                                            
+                                            Deserializer.Invoke(out T value, ref reader);
+                                            return value;
+                                        }
+                                    }
                                     
                                     static Deserializer()
                                     {
@@ -90,38 +115,36 @@ public partial class DeserializerGenerator(
                                     public static void Deserialize<T>(ReadOnlySpan<byte> data, out T value)
                                     {
                                         var reader = new Reader(data);
-                                        DeserializeGeneric(out value, ref reader);
+                                        value = DeserializeGeneric<T>(ref reader);
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                     public static T Deserialize<T>(ReadOnlySpan<byte> data)
                                     {
                                         var reader = new Reader(data);
-                                        DeserializeGeneric(out T value, ref reader);
-                                        return value;
+                                        return DeserializeGeneric<T>(ref reader);
                                     }
                                     
                                     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    private static void DeserializeGeneric<T>(out T value, ref Reader reader)
+                                    private static T DeserializeGeneric<T>(ref Reader reader)
                                     {
                                     #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
                                          if (reader.Eof)
                                          {
-                                            value = default;
-                                            return;
+                                            return default;
                                          }
                                     #endif
-                                    
-                                        if (_deserializers.TryGetValue(typeof(T).TypeHandle.Value, out var deserializer))
+                                        
+                                        var deserializer = CachedDeserializer<T>.Deserializer;
+                                        if (deserializer != null)
                                         {
-                                            value = (T)deserializer.Invoke(ref reader);
-                                            return;
-                                        }
-                                    
-                                        if(!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+                                            deserializer.Invoke(out T value, ref reader);
+                                            return value;
+                                        }   
+                                        else if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                                         {
-                                            reader.UnsafeRead(out value);
-                                            return;
+                                            reader.UnsafeRead(out T value);
+                                            return value;
                                         }
                                         
                                         throw new Exception($"Deserializer not found for type {typeof(T).FullName}");
@@ -142,7 +165,7 @@ public partial class DeserializerGenerator(
                                             throw new Exception($"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
                                         }
                                     
-                                        return deserializer.Invoke(ref reader);
+                                        return deserializer.DeserializeBoxed(ref reader);
                                     }
                             {{sb}}    }
                             }
