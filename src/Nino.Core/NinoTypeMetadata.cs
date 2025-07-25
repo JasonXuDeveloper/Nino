@@ -11,11 +11,24 @@ namespace Nino.Core
         void SerializeBoxed(object value, ref Writer writer);
     }
 
+#pragma warning disable CA1000 // Do not declare static members on generic types
     public class CachedSerializer<T> : ICachedSerializer
     {
         public SerializeDelegate<T> Serializer;
         private readonly FastMap<IntPtr, SerializeDelegate<T>> _subTypeSerializers = new();
         public static CachedSerializer<T> Instance;
+
+        // Cache expensive type checks
+        internal static readonly bool IsReferenceOrContainsReferences =
+            RuntimeHelpers.IsReferenceOrContainsReferences<T>();
+
+        private static readonly Type TypeOfT = typeof(T);
+
+        // ReSharper disable once StaticMemberInGenericType
+        private static readonly IntPtr TypeHandle = TypeOfT.TypeHandle.Value;
+
+        // ReSharper disable once StaticMemberInGenericType
+        internal static readonly bool HasBaseTypeFlag = NinoTypeMetadata.HasBaseType(TypeOfT);
 
         public void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
         {
@@ -42,49 +55,46 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T val, ref Writer writer)
         {
-            var typeofT = typeof(T);
-
-            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>() && !NinoTypeMetadata.HasBaseType(typeofT))
+            // Fast path for simple types - use cached flags
+            if (!IsReferenceOrContainsReferences && !HasBaseTypeFlag)
             {
                 writer.UnsafeWrite(val);
                 return;
             }
 
-            if (NinoTypeMetadata.HasSubType(typeofT))
+            IntPtr actualTypeHandle = TypeHandle;
+
+            // Only get actual type if polymorphism is possible
+            if (_subTypeSerializers.Count == 0)
             {
-                typeofT = val.GetType();
+                actualTypeHandle = val.GetType().TypeHandle.Value;
             }
 
-            if (typeofT.TypeHandle.Value == typeof(T).TypeHandle.Value)
+            // Check if it's the same type (most common case)
+            if (actualTypeHandle == TypeHandle)
             {
-                if (Serializer == null)
-                    throw new Exception($"Serializer not found for type {typeofT.FullName}");
-
                 Serializer(val, ref writer);
                 return;
             }
 
-            if (!_subTypeSerializers.TryGetValue(typeofT.TypeHandle.Value, out var subTypeSerializer))
+            // Handle subtype serialization
+            if (!_subTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-                if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                {
-                    writer.UnsafeWrite(val);
-                    return;
-                }
-
                 throw new Exception(
-                    $"Serializer not found for type {typeofT.FullName}");
+                    $"Serializer not found for type {val.GetType().FullName}");
             }
 
             subTypeSerializer(val, ref writer);
         }
     }
+#pragma warning restore CA1000
 
     public static class NinoTypeMetadata
     {
-        private static readonly FastMap<IntPtr, bool> HasSubTypes = new();
-        private static readonly FastMap<IntPtr, bool> HasBaseTypes = new();
+        private static readonly FastMap<IntPtr, byte> TypeFlags = new();
         private static readonly object Lock = new();
+        private const byte HasSubTypeBit = 1;
+        private const byte HasBaseTypeBit = 2;
 
         public static readonly FastMap<IntPtr, ICachedSerializer> Serializers = new();
 
@@ -104,27 +114,30 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasSubType(Type type)
         {
-            lock (Lock)
-            {
-                return HasSubTypes.ContainsKey(type.TypeHandle.Value);
-            }
+            var typeHandle = type.TypeHandle.Value;
+            return TypeFlags.TryGetValue(typeHandle, out var flags) && (flags & HasSubTypeBit) != 0;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasBaseType(Type type)
         {
-            lock (Lock)
-            {
-                return HasBaseTypes.ContainsKey(type.TypeHandle.Value);
-            }
+            var typeHandle = type.TypeHandle.Value;
+            return TypeFlags.TryGetValue(typeHandle, out var flags) && (flags & HasBaseTypeBit) != 0;
         }
 
         public static void RecordSubType<TBase, TSub>(SerializeDelegate<TSub> subTypeSerializer)
         {
             lock (Lock)
             {
-                HasSubTypes.Add(typeof(TBase).TypeHandle.Value, true);
-                HasBaseTypes.Add(typeof(TSub).TypeHandle.Value, true);
+                var baseTypeHandle = typeof(TBase).TypeHandle.Value;
+                var subTypeHandle = typeof(TSub).TypeHandle.Value;
+
+                TypeFlags.TryGetValue(baseTypeHandle, out var baseFlags);
+                TypeFlags.Add(baseTypeHandle, (byte)(baseFlags | HasSubTypeBit));
+
+                TypeFlags.TryGetValue(subTypeHandle, out var subFlags);
+                TypeFlags.Add(subTypeHandle, (byte)(subFlags | HasBaseTypeBit));
+
                 CachedSerializer<TBase>.Instance.AddSubTypeSerializer(subTypeSerializer);
             }
         }

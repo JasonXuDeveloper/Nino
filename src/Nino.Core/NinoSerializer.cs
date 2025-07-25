@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Nino.Core
@@ -60,6 +61,32 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T>(T value)
         {
+            // Fast path for simple unmanaged types - use cached HasBaseType
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseTypeFlag)
+            {
+                var size = Unsafe.SizeOf<T>();
+                var result = new byte[size];
+                
+                // Use span-based copying for 32-bit compatibility (like Writer.cs)
+                if (TypeCollector.Is64Bit)
+                {
+                    Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(result.AsSpan()), value);
+                }
+                else
+                {
+                    unsafe
+                    {
+                        // Create a span over the value, then get bytes from it (like Writer.cs)
+                        T temp = value;
+                        Span<T> srcSpan = MemoryMarshal.CreateSpan(ref temp, 1);
+                        ReadOnlySpan<byte> src = new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
+                        src.CopyTo(result);
+                    }
+                }
+                
+                return result;
+            }
+            
             var bufferWriter = GetBufferWriter();
             try
             {
@@ -80,10 +107,12 @@ namespace Nino.Core
             Serialize(value, ref writer);
         }
 
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
-            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>() && !NinoTypeMetadata.HasBaseType(typeof(T)))
+            // Fast path for simple unmanaged types - use cached HasBaseType
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseTypeFlag)
             {
                 writer.UnsafeWrite(value);
                 return;
@@ -95,8 +124,8 @@ namespace Nino.Core
                 return;
             }
             
-            var serializer = CachedSerializer<T>.Instance ?? throw new Exception($"Serializer not found for type {typeof(T).FullName}");
-            serializer.Serialize(value, ref writer);
+            // Direct access to cached serializer
+            CachedSerializer<T>.Instance.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
