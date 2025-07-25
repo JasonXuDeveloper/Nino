@@ -22,13 +22,6 @@ public partial class DeserializerGenerator(
                         """);
         foreach (var type in generatedTypes)
         {
-            // no non-ninotyped unmanaged types
-            if (type.IsUnmanagedType)
-            {
-                if (!NinoGraph.TypeMap.ContainsKey(type))
-                    continue;
-            }
-
             // no ref struct types
             if (type.IsRefStruct())
                 continue;
@@ -48,7 +41,7 @@ public partial class DeserializerGenerator(
 
         StringBuilder sb = new(32_000_000);
         HashSet<ITypeSymbol> collectionTypes = new(SymbolEqualityComparer.Default);
-        new CollectionDeserializerGenerator(compilation, potentialTypes).Generate(spc, collectionTypes);
+        new CollectionDeserializerGenerator(compilation, potentialTypes, NinoGraph).Generate(spc, collectionTypes);
         GenerateGenericRegister(sb, "Collection", collectionTypes);
 
         HashSet<ITypeSymbol> trivialTypes = new(SymbolEqualityComparer.Default);

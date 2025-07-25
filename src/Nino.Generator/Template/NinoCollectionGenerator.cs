@@ -5,12 +5,18 @@ using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Filter;
+using Nino.Generator.Metadata;
 
 namespace Nino.Generator.Template;
 
-public abstract class NinoCollectionGenerator(Compilation compilation, List<ITypeSymbol> potentialCollectionSymbols)
+public abstract class NinoCollectionGenerator(
+    Compilation compilation,
+    List<ITypeSymbol> potentialCollectionSymbols,
+    NinoGraph ninoGraph)
     : NinoGenerator(compilation)
 {
+    protected readonly NinoGraph NinoGraph = ninoGraph;
+
     protected class Transformer(string name, IFilter filter, Func<ITypeSymbol, Writer, bool> ruleBasedGenerator)
     {
         public readonly string Name = name;

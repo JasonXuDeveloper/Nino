@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Filter;
 using Nino.Generator.Filter.Operation;
+using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 using Array = Nino.Generator.Filter.Array;
 using Nullable = Nino.Generator.Filter.Nullable;
@@ -14,8 +15,9 @@ namespace Nino.Generator.Collection;
 
 public class CollectionDeserializerGenerator(
     Compilation compilation,
-    List<ITypeSymbol> potentialCollectionSymbols)
-    : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
+    List<ITypeSymbol> potentialCollectionSymbols,
+    NinoGraph ninoGraph)
+    : NinoCollectionGenerator(compilation, potentialCollectionSymbols, ninoGraph)
 {
     protected override IFilter Selector =>
         new Joint().With

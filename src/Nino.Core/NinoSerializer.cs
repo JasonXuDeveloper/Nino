@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -8,23 +7,10 @@ namespace Nino.Core
 {
     public static class NinoSerializer
     {
-        public delegate void SerializeDelegate<in T>(T value, ref Writer writer);
-
-        private static readonly ConcurrentDictionary<IntPtr, ICachedSerializer> Serializers = new();
-
         private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
 
         private static readonly NinoArrayBufferWriter DefaultBufferWriter = new(1024);
         private static int _defaultUsed;
-
-        public static void InitAssembly(Assembly assembly)
-        {
-            var @namespace = assembly.GetName().Name.GetNamespace();
-            var type = assembly.GetType($"{@namespace}.Serializer");
-            var method = type?.GetMethod("Init", BindingFlags.Static | BindingFlags.Public);
-            method?.Invoke(null, null);
-        }
-
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoArrayBufferWriter GetBufferWriter()
@@ -72,53 +58,13 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Register<T>(SerializeDelegate<T> serializer)
-        {
-            Serializers[typeof(T).TypeHandle.Value] = new CachedSerializer<T>(serializer);
-        }
-
-        private interface ICachedSerializer
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            void SerializeBoxed(object value, ref Writer writer);
-        }
-
-        private class CachedSerializer<T> : ICachedSerializer
-        {
-            public static SerializeDelegate<T> Serializer;
-
-            public CachedSerializer(SerializeDelegate<T> serializer)
-            {
-                Serializer = serializer;
-            }
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public void SerializeBoxed(object value, ref Writer writer)
-            {
-                if (Serializer == null)
-                    throw new Exception($"Serializer not found for type {typeof(T).FullName}");
-
-                if (value == null)
-                {
-                    writer.Write(TypeCollector.Null);
-                    return;
-                }
-
-                if (!(value is T val))
-                    throw new Exception($"Cannot cast object to type {typeof(T).FullName}");
-
-                Serializer.Invoke(val, ref writer);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T>(T value)
         {
             var bufferWriter = GetBufferWriter();
             try
             {
                 var writer = new Writer(bufferWriter);
-                Serialize<T>(value, ref writer);
+                Serialize(value, ref writer);
                 return bufferWriter.WrittenSpan.ToArray();
             }
             finally
@@ -135,22 +81,22 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Serialize<T>(T value, ref Writer writer)
+        public static void Serialize<T>(T value, ref Writer writer)
         {
-            var serializer = CachedSerializer<T>.Serializer;
-            if (serializer != null)
-            {
-                serializer.Invoke(value, ref writer);
-                return;
-            }
-
-            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+            if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>() && !NinoTypeMetadata.HasBaseType(typeof(T)))
             {
                 writer.UnsafeWrite(value);
                 return;
             }
-
-            throw new Exception($"Serializer not found for type {typeof(T).FullName}");
+            
+            if (value is null)
+            {
+                writer.Write(TypeCollector.Null);
+                return;
+            }
+            
+            var serializer = CachedSerializer<T>.Instance ?? throw new Exception($"Serializer not found for type {typeof(T).FullName}");
+            serializer.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -185,7 +131,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (!Serializers.TryGetValue(type.TypeHandle.Value, out var serializer))
+            if (!NinoTypeMetadata.Serializers.TryGetValue(type.TypeHandle.Value, out var serializer))
             {
                 throw new Exception(
                     $"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");

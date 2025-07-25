@@ -16,10 +16,10 @@ public partial class DeserializerGenerator
         var sb = new StringBuilder();
         sb.GenerateClassDeserializeMethods("string");
         HashSet<string> generatedTypeNames = new();
-        HashSet<string> validTypeNames = new();
+        HashSet<ITypeSymbol> validTypeNames = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
         foreach (var type in validTypes)
         {
-            validTypeNames.Add(type.GetDisplayString());
+            validTypeNames.Add(type);
         }
 
         foreach (var ninoType in NinoTypes)
@@ -212,7 +212,7 @@ public partial class DeserializerGenerator
                     sb.AppendLine();
                 }
                 else if (declaredType.IsUnmanagedType &&
-                         (!NinoGraph.TypeMap.TryGetValue(declaredType, out var ninoType) || !ninoType.IsPolymorphic()))
+                         (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoType) || !ninoType.IsPolymorphic()))
                 {
                     var str = $"reader.Read(out {tempName});";
                     //weak version tolerance

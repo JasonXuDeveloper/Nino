@@ -14,7 +14,8 @@ public partial class SerializerGenerator(
     List<ITypeSymbol> potentialTypes)
     : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
-    private void GenerateGenericRegister(StringBuilder sb, string name, HashSet<ITypeSymbol> generatedTypes)
+    private void GenerateGenericRegister(StringBuilder sb, string name, HashSet<ITypeSymbol> generatedTypes,
+        HashSet<ITypeSymbol> registeredTypes)
     {
         sb.AppendLine($$"""
                                 private static void Register{{name}}Serializers()
@@ -22,22 +23,55 @@ public partial class SerializerGenerator(
                         """);
         foreach (var type in generatedTypes)
         {
-            // no non-ninotyped unmanaged types
-            if (type.IsUnmanagedType)
-            {
-                if (!NinoGraph.TypeMap.ContainsKey(type))
-                    continue;
-            }
-
             // no ref struct types
             if (type.IsRefStruct())
                 continue;
+
             var typeFullName = type.GetDisplayString();
-            sb.AppendLine($$"""
-                                        NinoSerializer.Register<{{typeFullName}}>(Serialize);
-                                        _serializers[typeof({{typeFullName}}).TypeHandle.Value] = new CachedSerializer<{{typeFullName}}>(Serialize);
-                            """);
-            sb.AppendLine();
+            if (NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType))
+            {
+                var baseTypes = NinoGraph.BaseTypes[ninoType];
+                string prefix = "";
+                foreach (var baseType in baseTypes)
+                {
+                    if (registeredTypes.Add(baseType.TypeSymbol))
+                    {
+                        var baseTypeName = baseType.TypeSymbol.GetDisplayString();
+                        prefix = !string.IsNullOrEmpty(baseType.CustomSerializer)
+                            ? $"{baseType.CustomSerializer}."
+                            : "";
+                        var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
+                        sb.AppendLine($$"""
+                                                    NinoTypeMetadata.Register<{{baseTypeName}}>({{method}});
+                                        """);
+                    }
+                }
+
+                if (registeredTypes.Add(type))
+                {
+                    prefix = !string.IsNullOrEmpty(ninoType.CustomSerializer) ? $"{ninoType.CustomSerializer}." : "";
+                    var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
+                    sb.AppendLine($$"""
+                                                NinoTypeMetadata.Register<{{typeFullName}}>({{method}});
+                                    """);
+                }
+
+                foreach (var baseType in baseTypes)
+                {
+                    var baseTypeName = baseType.TypeSymbol.GetDisplayString();
+                    var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
+                    sb.AppendLine($$"""
+                                                NinoTypeMetadata.RecordSubType<{{baseTypeName}}, {{typeFullName}}>({{method}});
+                                    """);
+                }
+
+                continue;
+            }
+
+            if (registeredTypes.Add(type))
+                sb.AppendLine($$"""
+                                            NinoTypeMetadata.Register<{{typeFullName}}>(Serialize);
+                                """);
         }
 
         sb.AppendLine("        }");
@@ -47,17 +81,18 @@ public partial class SerializerGenerator(
     protected override void Generate(SourceProductionContext spc)
     {
         var compilation = Compilation;
+        HashSet<ITypeSymbol> registeredTypes = new(SymbolEqualityComparer.Default);
 
         StringBuilder sb = new(32_000_000);
         HashSet<ITypeSymbol> collectionTypes = new(SymbolEqualityComparer.Default);
-        new CollectionSerializerGenerator(compilation, potentialTypes).Generate(spc, collectionTypes);
-        GenerateGenericRegister(sb, "Collection", collectionTypes);
+        new CollectionSerializerGenerator(compilation, potentialTypes, NinoGraph).Generate(spc, collectionTypes);
+        GenerateGenericRegister(sb, "Collection", collectionTypes, registeredTypes);
 
         HashSet<ITypeSymbol> trivialTypes = new(SymbolEqualityComparer.Default);
         GenerateTrivialCode(spc, collectionTypes, trivialTypes);
         // add string type
         trivialTypes.Add(compilation.GetSpecialType(SpecialType.System_String));
-        GenerateGenericRegister(sb, "Trivial", trivialTypes);
+        GenerateGenericRegister(sb, "Trivial", trivialTypes, registeredTypes);
 
         var curNamespace = compilation.AssemblyName!.GetNamespace();
         // generate code
@@ -76,43 +111,6 @@ public partial class SerializerGenerator(
                             {
                                 public static partial class Serializer
                                 {
-                                    public delegate void SerializeDelegate<T>(T value, ref Writer writer);
-                                    private static Dictionary<IntPtr, ICachedSerializer> _serializers = new();
-                                    
-                                    private interface ICachedSerializer
-                                    {
-                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]   
-                                        void SerializeBoxed(object value, ref Writer writer);
-                                    }
-                                    
-                                    private class CachedSerializer<T> : ICachedSerializer
-                                    {
-                                        public static SerializeDelegate<T> Serializer;
-                                        
-                                        public CachedSerializer(SerializeDelegate<T> serializer)
-                                        {
-                                            Serializer = serializer;
-                                        }
-                                        
-                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                        public void SerializeBoxed(object value, ref Writer writer)
-                                        {
-                                            if (Serializer == null)
-                                                throw new Exception($"Serializer not found for type {typeof(T).FullName}");
-                                                
-                                            if (value == null)
-                                            {
-                                                writer.Write(TypeCollector.Null);
-                                                return;
-                                            }
-                                            
-                                            if (!(value is T val))
-                                                throw new Exception($"Cannot cast object to type {typeof(T).FullName}");
-                                            
-                                            Serializer.Invoke(val, ref writer);
-                                        }
-                                    }
-
                                     static Serializer()
                                     {
                                         Init();
@@ -123,87 +121,7 @@ public partial class SerializerGenerator(
                                         RegisterTrivialSerializers();
                                         RegisterCollectionSerializers();
                                     }
-
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static byte[] Serialize<T>(T value)
-                                    {
-                                        var bufferWriter = GetBufferWriter();
-                                        try
-                                        {
-                                            var writer = new Writer(bufferWriter);
-                                            Serialize<T>(value, ref writer);
-                                            return bufferWriter.WrittenSpan.ToArray();
-                                        }
-                                        finally
-                                        {
-                                            ReturnBufferWriter(bufferWriter);
-                                        }
-                                    }
                                     
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static void Serialize<T>(T value, INinoBufferWriter bufferWriter)
-                                    {
-                                        Writer writer = new Writer(bufferWriter);
-                                        Serialize<T>(value, ref writer);
-                                    }
-
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    private static void Serialize<T>(T value, ref Writer writer)
-                                    {
-                                        var serializer = CachedSerializer<T>.Serializer;
-                                        if (serializer != null)
-                                        {
-                                            serializer.Invoke(value, ref writer);
-                                            return;
-                                        }    
-                                        else if (!RuntimeHelpers.IsReferenceOrContainsReferences<T>())
-                                        {
-                                            writer.UnsafeWrite(value);
-                                            return;
-                                        }
-                                        
-                                        throw new Exception($"Serializer not found for type {typeof(T).FullName}");    
-                                    }
-
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static byte[] Serialize(object value)
-                                    {
-                                        var bufferWriter = GetBufferWriter();
-                                        try
-                                        {
-                                            var writer = new Writer(bufferWriter);
-                                            SerializeBoxed(value, ref writer, value?.GetType());
-                                            return bufferWriter.WrittenSpan.ToArray();
-                                        }
-                                        finally
-                                        {
-                                            ReturnBufferWriter(bufferWriter);
-                                        }
-                                    }
-                                    
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    public static void Serialize(object value, INinoBufferWriter bufferWriter)
-                                    {
-                                        Writer writer = new Writer(bufferWriter);
-                                        SerializeBoxed(value, ref writer, value?.GetType());
-                                    }
-
-                                    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                    private static void SerializeBoxed(object value, ref Writer writer, Type type)
-                                    {
-                                        if (value == null || type == null)
-                                        {
-                                            writer.Write(TypeCollector.Null);
-                                            return;
-                                        }
-                                    
-                                        if (!_serializers.TryGetValue(type.TypeHandle.Value, out var serializer))
-                                        {
-                                            throw new Exception($"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");
-                                        }
-
-                                        serializer.SerializeBoxed(value, ref writer);
-                                    }
                             {{sb}}    }
                             }
                             """;

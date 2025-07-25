@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Filter;
 using Nino.Generator.Filter.Operation;
+using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 using Array = Nino.Generator.Filter.Array;
 using Nullable = Nino.Generator.Filter.Nullable;
@@ -13,8 +14,9 @@ namespace Nino.Generator.Collection;
 
 public class CollectionSerializerGenerator(
     Compilation compilation,
-    List<ITypeSymbol> potentialCollectionSymbols)
-    : NinoCollectionGenerator(compilation, potentialCollectionSymbols)
+    List<ITypeSymbol> potentialCollectionSymbols,
+    NinoGraph ninoGraph)
+    : NinoCollectionGenerator(compilation, potentialCollectionSymbols, ninoGraph)
 {
     protected override IFilter Selector => new Joint().With
     (
@@ -71,9 +73,37 @@ public class CollectionSerializerGenerator(
 
     private string GetSerializeString(ITypeSymbol type, string value)
     {
+        // unmanaged
+        if (type.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(type.GetDisplayString()))
+        {
+            return $"writer.Write({value});";
+        }
+
+        // bottom type
+        if (NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType) &&
+            !NinoGraph.SubTypes.ContainsKey(ninoType))
+        {
+            // cross project referenced ninotype
+            if (!string.IsNullOrEmpty(ninoType.CustomSerializer))
+            {
+                // for the sake of unity asmdef, fallback to dynamic resolve
+                return $"""
+                        #if UNITY_2020_3_OR_NEWER
+                            NinoSerializer.Serialize({value}, ref writer);
+                        #else
+                            {ninoType.CustomSerializer}.Serializer.SerializeImpl({value}, ref writer);
+                        #endif
+                        """;
+            }
+
+            // the impl is implemented in the same assembly
+            return $"SerializeImpl({value}, ref writer);";
+        }
+        
+        // dynamically resolved type
         return type.IsUnmanagedType || type.SpecialType == SpecialType.System_String
             ? $"writer.Write({value});"
-            : $"Serialize({value}, ref writer);";
+            : $"NinoSerializer.Serialize({value}, ref writer);";
     }
 
     protected override List<Transformer> Transformers =>
@@ -156,7 +186,7 @@ public class CollectionSerializerGenerator(
 
                 if (isUnmanaged)
                 {
-                    sb.AppendLine("        writer.Write(value);");
+                    sb.AppendLine("    writer.Write(value);");
                 }
                 else
                 {
@@ -202,7 +232,7 @@ public class CollectionSerializerGenerator(
 
                 if (isUnmanaged)
                 {
-                    sb.AppendLine("        writer.Write(value);");
+                    sb.AppendLine("    writer.Write(value);");
                 }
                 else
                 {
