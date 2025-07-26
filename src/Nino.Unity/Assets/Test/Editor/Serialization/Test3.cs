@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Diagnostics;
 using System.Collections.Generic;
+using Nino.Core;
 using Test.Editor.NinoGen;
 
 
@@ -89,10 +90,10 @@ namespace Nino.Test.Editor.Serialization
 
             //Nino
             var sw = new Stopwatch();
-            var bs = Serializer.Serialize(points);
+            var bs = NinoSerializer.Serialize(points);
             BeginSample("Nino");
             sw.Restart();
-            Deserializer.Deserialize(bs, out NestedData d);
+            var d = NinoDeserializer.Deserialize<NestedData>(bs);
             sw.Stop();
             EndSample();
             Logger.D("Deserialization Test", d);

@@ -6,6 +6,7 @@ using System.Diagnostics;
 using Test.Editor.NinoGen;
 
 using MongoDB.Bson.Serialization;
+using Nino.Core;
 
 
 // ReSharper disable RedundantJumpStatement
@@ -98,7 +99,7 @@ namespace Nino.Test.Editor.Serialization
             var sw = new Stopwatch();
             BeginSample("Nino - Serialize");
             sw.Restart();
-            byte[] ret = Serializer.Serialize(points);
+            byte[] ret = NinoSerializer.Serialize(points);
             sw.Stop();
             EndSample();
             Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");
@@ -143,7 +144,7 @@ namespace Nino.Test.Editor.Serialization
 
             BeginSample("Nino - Deserialize");
             sw.Restart();
-            Deserializer.Deserialize(ret, out NestedData d);
+            var d = NinoDeserializer.Deserialize<NestedData>(ret);
             sw.Stop();
             EndSample();
             Logger.D("Deserialization Test", d);

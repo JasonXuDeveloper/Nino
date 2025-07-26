@@ -45,15 +45,11 @@ namespace Test.Editor.Tests
             };
 
             Debug.Log($"will serialize c: {c}");
-            var bs = global::Editor.Tests.NinoGen.Serializer.Serialize(c);
+            var bs = NinoSerializer.Serialize(c);
             Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
-            var bs2 = global::Test.NinoGen.Serializer.Serialize(c);
-            Debug.Log($"serialized to {bs2.Length} bytes: {string.Join(",", bs2)}");
-            
-            Assert.True(bs.SequenceEqual(bs2));
             
             Debug.Log("will deserialize");
-            global::Editor.Tests.NinoGen.Deserializer.Deserialize(bs, out PrimitiveTypeTest cc);
+           NinoDeserializer.Deserialize(bs, out PrimitiveTypeTest cc);
             Debug.Log($"deserialized as cc: {cc}");
 
             Assert.AreEqual(c.ToString(), cc.ToString());
@@ -76,7 +72,7 @@ namespace Test.Editor.Tests
             Debug.Log($"will serialize codeGen: {codeGen}");
             sw.Reset();
             sw.Start();
-            var bs = Serializer.Serialize(codeGen);
+            var bs = NinoSerializer.Serialize(codeGen);
             sw.Stop();
             Debug.Log(
                 $"serialized to {bs.Length} bytes in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {string.Join(",", bs)}");
@@ -84,7 +80,7 @@ namespace Test.Editor.Tests
             Debug.Log("will deserialize");
             sw.Reset();
             sw.Start();
-            Deserializer.Deserialize(bs, out IncludeAllClassCodeGen codeGenR);
+            var codeGenR = NinoDeserializer.Deserialize<IncludeAllClassCodeGen>(bs);
             sw.Stop();
             Debug.Log(
                 $"deserialized as codeGenR in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {codeGenR}");
@@ -101,14 +97,14 @@ namespace Test.Editor.Tests
             Debug.Log($"will serialize d in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {d}");
             sw.Reset();
             sw.Start();
-            bs = Serializer.Serialize(d);
+            bs = NinoSerializer.Serialize(d);
             sw.Stop();
             Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
 
             Debug.Log("will deserialize");
             sw.Reset();
             sw.Start();
-            Deserializer.Deserialize(bs, out NotIncludeAllClass dd);
+            var dd = NinoDeserializer.Deserialize<NotIncludeAllClass>(bs);
             sw.Stop();
             Debug.Log($"deserialized as dd in {((float)sw.ElapsedTicks / Stopwatch.Frequency) * 1000} ms: {dd}");
 
@@ -330,9 +326,9 @@ namespace Test.Editor.Tests
                 data.g,
             };
             Debug.Log(data);
-            var buf = Serializer.Serialize(data);
+            var buf = NinoSerializer.Serialize(data);
             Debug.Log($"Serialized data: {buf.Length} bytes, {string.Join(",", buf)}");
-            Deserializer.Deserialize(buf, out ComplexData result);
+            var result = NinoDeserializer.Deserialize<ComplexData>(buf);
             Debug.Log($"Deserialized as: {result}");
 
             Assert.AreEqual(data.ToString(), result.ToString());

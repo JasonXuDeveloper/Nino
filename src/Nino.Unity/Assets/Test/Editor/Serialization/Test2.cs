@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Diagnostics;
 using System.Runtime.Serialization.Formatters.Binary;
+using Nino.Core;
 using Test.Editor.NinoGen;
 
 // ReSharper disable RedundantJumpStatement
@@ -91,7 +92,7 @@ namespace Nino.Test.Editor.Serialization
             BeginSample("Nino");
             sw.Restart();
             byte[] bs;
-            var ret = Serializer.Serialize(points);
+            var ret = NinoSerializer.Serialize(points);
             sw.Stop();
             EndSample();
             Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");

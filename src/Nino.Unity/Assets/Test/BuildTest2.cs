@@ -12,6 +12,7 @@ using MongoDB.Bson.Serialization;
 using UnityEngine.SceneManagement;
 using System.Runtime.Serialization.Formatters.Binary;
 using Test.NinoGen;
+using Nino.Core;
 using Debug = UnityEngine.Debug;
 
 
@@ -113,7 +114,7 @@ namespace Nino.Test
                     {
                         sw.Reset();
                         sw.Start();
-                        Deserializer.Deserialize(ninoBuffer, out NestedData dd1);
+                        var dd1 = NinoDeserializer.Deserialize<NestedData>(ninoBuffer);
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;
                         sw.Reset();
@@ -127,7 +128,7 @@ namespace Nino.Test
                     {
                         sw.Reset();
                         sw.Start();
-                        ninoBuffer = Serializer.Serialize(nd);
+                        ninoBuffer = NinoSerializer.Serialize(nd);
                         sw.Stop();
                         var m1 = sw.ElapsedTicks;
                         ninoResultText.text =

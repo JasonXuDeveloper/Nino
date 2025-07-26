@@ -92,7 +92,7 @@ namespace Nino.Test.Editor.Serialization
             var sw = new Stopwatch();
             BeginSample("Nino");
             sw.Restart();
-            var ret = Serializer.Serialize(points);
+            var ret = NinoSerializer.Serialize(points);
             sw.Stop();
             EndSample();
             Logger.D("Serialization Test", $"Nino: {ret.Length} bytes in {sw.ElapsedMilliseconds}ms");

@@ -22,12 +22,23 @@ public partial class SerializerGenerator(
                                 private static void Register{{name}}Serializers()
                                 {
                         """);
-        foreach (var type in generatedTypes)
-        {
-            // no ref struct types
-            if (type.IsRefStruct())
-                continue;
+        // Order types: top types first, then types with base types, then others
+        var orderedTypes = generatedTypes
+            .Where(t => !t.IsRefStruct())
+            .ToList(); // Convert to list first to avoid ordering issues
+        
+        // Manual ordering instead of OrderBy to avoid IComparable issues
+        var topTypes = orderedTypes.Where(t => 
+            NinoGraph.TopTypes.Any(topType => SymbolEqualityComparer.Default.Equals(topType.TypeSymbol, t))).ToList();
+        var typeMapTypes = orderedTypes.Where(t => 
+            NinoGraph.TypeMap.ContainsKey(t.GetDisplayString()) && 
+            !NinoGraph.TopTypes.Any(topType => SymbolEqualityComparer.Default.Equals(topType.TypeSymbol, t))).ToList();
+        var otherTypes = orderedTypes.Where(t => 
+            !NinoGraph.TypeMap.ContainsKey(t.GetDisplayString()) && 
+            !NinoGraph.TopTypes.Any(topType => SymbolEqualityComparer.Default.Equals(topType.TypeSymbol, t))).ToList();
 
+        foreach (var type in topTypes.Concat(typeMapTypes).Concat(otherTypes))
+        {
             var typeFullName = type.GetDisplayString();
             if (NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType))
             {
