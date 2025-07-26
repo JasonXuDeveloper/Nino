@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Collection;
@@ -42,7 +43,7 @@ public partial class DeserializerGenerator(
                             : "";
                         var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
                         sb.AppendLine($$"""
-                                                    NinoTypeMetadata.RegisterDeserializer<{{baseTypeName}}>({{method}});
+                                                    NinoTypeMetadata.RegisterDeserializer<{{baseTypeName}}>({{method}}, {{baseType.Parents.Any().ToString().ToLower()}});
                                         """);
                     }
                 }
@@ -52,7 +53,7 @@ public partial class DeserializerGenerator(
                 {
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>({{method}});
+                                                NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>({{method}}, {{ninoType.Parents.Any().ToString().ToLower()}});
                                     """);
                 }
 
@@ -70,7 +71,7 @@ public partial class DeserializerGenerator(
 
             if (registeredTypes.Add(type))
                 sb.AppendLine($$"""
-                                            NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(Deserialize);
+                                            NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(Deserialize, false);
                                 """);
         }
 
@@ -110,6 +111,9 @@ public partial class DeserializerGenerator(
                             {
                                 public static partial class Deserializer
                                 {
+                                    private static bool _initialized;
+                                    private static object _lock = new object();
+                                    
                                     static Deserializer()
                                     {
                                         Init();
@@ -117,8 +121,15 @@ public partial class DeserializerGenerator(
                                     
                                     public static void Init()
                                     {
-                                        RegisterTrivialDeserializers();
-                                        RegisterCollectionDeserializers();
+                                        lock (_lock)
+                                        {
+                                            if (_initialized)
+                                                return;
+                                                
+                                            RegisterTrivialDeserializers();
+                                            RegisterCollectionDeserializers();
+                                            _initialized = true;
+                                        }
                                     }
                             {{sb}}    }
                             }

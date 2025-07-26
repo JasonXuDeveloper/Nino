@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Collection;
@@ -42,7 +43,7 @@ public partial class SerializerGenerator(
                             : "";
                         var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                         sb.AppendLine($$"""
-                                                    NinoTypeMetadata.RegisterSerializer<{{baseTypeName}}>({{method}});
+                                                    NinoTypeMetadata.RegisterSerializer<{{baseTypeName}}>({{method}}, {{baseType.Parents.Any().ToString().ToLower()}});
                                         """);
                     }
                 }
@@ -52,7 +53,7 @@ public partial class SerializerGenerator(
                 {
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>({{method}});
+                                                NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>({{method}}, {{ninoType.Parents.Any().ToString().ToLower()}});
                                     """);
                 }
 
@@ -70,7 +71,7 @@ public partial class SerializerGenerator(
 
             if (registeredTypes.Add(type))
                 sb.AppendLine($$"""
-                                            NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>(Serialize);
+                                            NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>(Serialize, false);
                                 """);
         }
 
@@ -116,10 +117,20 @@ public partial class SerializerGenerator(
                                         Init();
                                     }
                                     
+                                    private static bool _initialized;
+                                    private static object _lock = new object();
+                                    
                                     public static void Init()
                                     {
-                                        RegisterTrivialSerializers();
-                                        RegisterCollectionSerializers();
+                                        lock (_lock)
+                                        {
+                                            if (_initialized)
+                                                return;
+                                                
+                                            RegisterTrivialSerializers();
+                                            RegisterCollectionSerializers();
+                                            _initialized = true;
+                                        }
                                     }
                                     
                             {{sb}}    }

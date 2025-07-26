@@ -62,7 +62,7 @@ namespace Nino.Core
         public static byte[] Serialize<T>(T value)
         {
             // Fast path for simple unmanaged types
-            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !NinoTypeMetadata.HasBaseType(typeof(T)))
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseType)
             {
                 var size = Unsafe.SizeOf<T>();
                 var result = new byte[size];
@@ -127,7 +127,7 @@ namespace Nino.Core
         public static void Serialize<T>(T value, ref Writer writer)
         {
             // Fast path for simple unmanaged types
-            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !NinoTypeMetadata.HasBaseType(typeof(T)))
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseType)
             {
                 writer.UnsafeWrite(value);
                 return;
@@ -217,6 +217,9 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
+        // ReSharper disable once StaticMemberInGenericType
+        internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
+
         public void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
         {
             if (typeof(TSub).IsValueType)
@@ -257,7 +260,7 @@ namespace Nino.Core
             }
 
             // Fast path for simple types
-            if (!IsReferenceOrContainsReferences && !NinoTypeMetadata.HasBaseType(typeof(T)))
+            if (!IsReferenceOrContainsReferences && !HasBaseType)
             {
                 writer.UnsafeWrite(val);
                 return;
