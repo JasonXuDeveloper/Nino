@@ -42,9 +42,6 @@ public class SimpleTest
 
     static SimpleTest()
     {
-        NinoGen.Serializer.Init();
-        NinoGen.Deserializer.Init();
-        
         SimpleClass = SimpleClass.Create();
         SimpleClasses = Enumerable.Range(0, 100).Select(_ => SimpleClass.Create()).ToArray();
         SimpleStruct = SimpleStruct.Create();

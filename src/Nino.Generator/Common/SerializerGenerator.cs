@@ -131,6 +131,10 @@ public partial class SerializerGenerator(
                                     private static bool _initialized;
                                     private static object _lock = new object();
                                     
+                            
+                                    #if NET5_0_OR_GREATER
+                                        [ModuleInitializer]
+                                    #endif
                                     public static void Init()
                                     {
                                         lock (_lock)
@@ -143,6 +147,16 @@ public partial class SerializerGenerator(
                                             _initialized = true;
                                         }
                                     }
+                                    
+                                #if UNITY_2020_2_OR_NEWER
+                                #if UNITY_EDITOR
+                                    [UnityEditor.InitializeOnLoadMethod]
+                                    private static void InitEditor() => Init();
+                                #endif
+                                
+                                    [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.BeforeSceneLoad)]
+                                    private static void InitRuntime() => Init();
+                                #endif
                                     
                             {{sb}}    }
                             }

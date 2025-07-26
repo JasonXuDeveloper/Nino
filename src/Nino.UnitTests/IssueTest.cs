@@ -12,14 +12,6 @@ namespace Nino.UnitTests
     [SuppressMessage("ReSharper", "SpecifyACultureInStringConversionExplicitly")]
     public class IssueTest
     {
-        [TestInitialize]
-        public void Init()
-        {
-            UnitTests.NinoGen.Serializer.Init();
-            UnitTests.NinoGen.Deserializer.Init();
-            UnitTests.NinoGen.NinoTypeConst.Init();
-        }
-        
         [TestClass]
         public abstract class IssueTestTemplate
         {

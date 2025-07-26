@@ -47,9 +47,9 @@ namespace Test.Editor.Tests
             Debug.Log($"will serialize c: {c}");
             var bs = NinoSerializer.Serialize(c);
             Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
-            
+
             Debug.Log("will deserialize");
-           NinoDeserializer.Deserialize(bs, out PrimitiveTypeTest cc);
+            NinoDeserializer.Deserialize(bs, out PrimitiveTypeTest cc);
             Debug.Log($"deserialized as cc: {cc}");
 
             Assert.AreEqual(c.ToString(), cc.ToString());

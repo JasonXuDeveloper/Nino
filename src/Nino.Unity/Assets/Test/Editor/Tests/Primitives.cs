@@ -9,7 +9,7 @@ namespace Test.Editor.Tests
 {
     public class Primitives
     {
-        private void Test<T>(T input, string inputName, Func<T, string> toString = null,
+        private void RunTest<T>(T input, string inputName, Func<T, string> toString = null,
             Func<T, T, bool> equality = null)
         {
             var bytes = NinoSerializer.Serialize(input);
@@ -45,23 +45,23 @@ namespace Test.Editor.Tests
             DateTime r = DateTime.Now;
             Guid s = Guid.NewGuid();
 
-            Test(a, nameof(a));
-            Test(b, nameof(b));
-            Test(c, nameof(c));
-            Test(d, nameof(d));
-            Test(e, nameof(e));
-            Test(f, nameof(f));
-            Test(g, nameof(g));
-            Test(h, nameof(h));
-            Test(i, nameof(i));
-            Test(j, nameof(j));
-            Test(k, nameof(k));
-            Test(l, nameof(l));
-            Test(m, nameof(m));
-            Test(n, nameof(n));
-            Test(o, nameof(o), x => string.Join(",", x), (input, output) => input.SequenceEqual(output));
-            Test(p, nameof(p), x => string.Join(",", x), (input, output) => input.SequenceEqual(output));
-            Test(q, nameof(q),
+            RunTest(a, nameof(a));
+            RunTest(b, nameof(b));
+            RunTest(c, nameof(c));
+            RunTest(d, nameof(d));
+            RunTest(e, nameof(e));
+            RunTest(f, nameof(f));
+            RunTest(g, nameof(g));
+            RunTest(h, nameof(h));
+            RunTest(i, nameof(i));
+            RunTest(j, nameof(j));
+            RunTest(k, nameof(k));
+            RunTest(l, nameof(l));
+            RunTest(m, nameof(m));
+            RunTest(n, nameof(n));
+            RunTest(o, nameof(o), x => string.Join(",", x), (input, output) => input.SequenceEqual(output));
+            RunTest(p, nameof(p), x => string.Join(",", x), (input, output) => input.SequenceEqual(output));
+            RunTest(q, nameof(q),
                 x =>
                     string.Join(",", x.ToList().SelectMany(kvp => $"{kvp.Key}-{kvp.Value}")),
                 (input, output) =>
@@ -81,8 +81,8 @@ namespace Test.Editor.Tests
 
                     return true;
                 });
-            Test(r, nameof(r));
-            Test(s, nameof(s));
+            RunTest(r, nameof(r));
+            RunTest(s, nameof(s));
         }
 
         [Test]
@@ -111,7 +111,7 @@ namespace Test.Editor.Tests
             // Test(g, nameof(g));
             // Test(h, nameof(h));
             // Test(i, nameof(i));
-            Test(j, nameof(j),
+            RunTest(j, nameof(j),
                 gradientColorKey =>
                     string.Join(",", gradientColorKey.Select(x => $"{x.color},{x.time}")),
                 (input, output) =>
@@ -126,7 +126,7 @@ namespace Test.Editor.Tests
 
                     return true;
                 });
-            Test(k, nameof(k),
+            RunTest(k, nameof(k),
                 gradientAlphaKey =>
                     string.Join(",", gradientAlphaKey.Select(x => $"{x.alpha},{x.time}")),
                 (input, output) =>
@@ -142,7 +142,7 @@ namespace Test.Editor.Tests
 
                     return true;
                 });
-            Test(l, nameof(l), keyframe =>
+            RunTest(l, nameof(l), keyframe =>
                     string.Join(",", keyframe.Select(x => $"{x.time},{x.value}")),
                 (input, output) =>
                 {
@@ -157,7 +157,7 @@ namespace Test.Editor.Tests
 
                     return true;
                 });
-            Test(m, nameof(m));
+            RunTest(m, nameof(m));
         }
     }
 }

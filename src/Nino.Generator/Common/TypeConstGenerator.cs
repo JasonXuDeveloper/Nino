@@ -32,8 +32,10 @@ public class TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, Li
         foreach (var type in serializableTypes)
         {
             string variableName = type.GetTypeFullName().GetTypeConstName();
-            types.AppendLine($"\t\t\t\tNinoTypeMetadata.RegisterType<{type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>({variableName});");
+            types.AppendLine(
+                $"\t\t\t\tNinoTypeMetadata.RegisterType<{type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>({variableName});");
         }
+
         types.AppendLine("\t\t\t}");
         types.AppendLine("\t\t}");
 
@@ -53,6 +55,7 @@ public class TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, Li
 
                      using System;
                      using Nino.Core;
+                     using System.Runtime.CompilerServices;
 
                      namespace {{curNamespace}}
                      {
@@ -65,7 +68,20 @@ public class TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, Li
                              {
                                  Init();
                              }
+                                    
+                         #if UNITY_2020_2_OR_NEWER
+                         #if UNITY_EDITOR
+                             [UnityEditor.InitializeOnLoadMethod]
+                             private static void InitEditor() => Init();
+                         #endif
+                        
+                             [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.BeforeSceneLoad)]
+                             private static void InitRuntime() => Init();
+                         #endif
                             
+                         #if NET5_0_OR_GREATER
+                             [ModuleInitializer]
+                         #endif
                      {{types}}
                          }
                      }
