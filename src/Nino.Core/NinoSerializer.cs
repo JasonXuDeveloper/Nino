@@ -66,21 +66,38 @@ namespace Nino.Core
             {
                 var size = Unsafe.SizeOf<T>();
                 var result = new byte[size];
+                var span = result.AsSpan();
                 
-                // Use span-based copying for 32-bit compatibility (like Writer.cs)
                 if (TypeCollector.Is64Bit)
                 {
-                    Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(result.AsSpan()), value);
+                    Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), value);
                 }
                 else
                 {
-                    unsafe
+                    // Optimized paths for common sizes on 32-bit
+                    switch (size)
                     {
-                        // Create a span over the value, then get bytes from it (like Writer.cs)
-                        T temp = value;
-                        Span<T> srcSpan = MemoryMarshal.CreateSpan(ref temp, 1);
-                        ReadOnlySpan<byte> src = new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
-                        src.CopyTo(result);
+                        case 1:
+                            span[0] = Unsafe.As<T, byte>(ref value);
+                            break;
+                        case 2:
+                            Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, ushort>(ref value));
+                            break;
+                        case 4:
+                            Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, uint>(ref value));
+                            break;
+                        case 8:
+                            Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, ulong>(ref value));
+                            break;
+                        default:
+                            unsafe
+                            {
+                                T temp = value;
+                                Span<T> srcSpan = MemoryMarshal.CreateSpan(ref temp, 1);
+                                ReadOnlySpan<byte> src = new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
+                                src.CopyTo(span);
+                            }
+                            break;
                     }
                 }
                 
@@ -103,7 +120,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, INinoBufferWriter bufferWriter)
         {
-            Writer writer = new Writer(bufferWriter);
+            var writer = new Writer(bufferWriter);
             Serialize(value, ref writer);
         }
 
@@ -124,8 +141,18 @@ namespace Nino.Core
                 return;
             }
             
-            // Direct access to cached serializer
-            CachedSerializer<T>.Instance.Serialize(value, ref writer);
+            // Direct access to cached serializer - inline for performance
+            var serializer = CachedSerializer<T>.Instance;
+            
+            // Fast path for most common case: no polymorphism
+            if (serializer.SubTypeSerializers.Count == 0)
+            {
+                serializer.Serializer(value, ref writer);
+                return;
+            }
+            
+            // Handle polymorphism
+            serializer.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

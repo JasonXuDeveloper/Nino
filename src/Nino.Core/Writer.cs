@@ -88,18 +88,38 @@ namespace Nino.Core
         public void UnsafeWrite<T>(T value)
         {
             int size = Unsafe.SizeOf<T>();
+            var span = _bufferWriter.GetSpan(size);
+            
             if (TypeCollector.Is64Bit)
             {
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.GetSpan(size)), value);
+                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), value);
             }
             else
             {
-                unsafe
+                // Optimized paths for common sizes on 32-bit
+                switch (size)
                 {
-                    Span<T> srcSpan = MemoryMarshal.CreateSpan(ref value, 1);
-                    ReadOnlySpan<byte> src =
-                        new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
-                    src.CopyTo(_bufferWriter.GetSpan(size));
+                    case 1:
+                        span[0] = Unsafe.As<T, byte>(ref value);
+                        break;
+                    case 2:
+                        Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, ushort>(ref value));
+                        break;
+                    case 4:
+                        Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, uint>(ref value));
+                        break;
+                    case 8:
+                        Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, ulong>(ref value));
+                        break;
+                    default:
+                        unsafe
+                        {
+                            Span<T> srcSpan = MemoryMarshal.CreateSpan(ref value, 1);
+                            ReadOnlySpan<byte> src =
+                                new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
+                            src.CopyTo(span);
+                        }
+                        break;
                 }
             }
 

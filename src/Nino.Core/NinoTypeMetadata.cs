@@ -15,7 +15,7 @@ namespace Nino.Core
     public class CachedSerializer<T> : ICachedSerializer
     {
         public SerializeDelegate<T> Serializer;
-        private readonly FastMap<IntPtr, SerializeDelegate<T>> _subTypeSerializers = new();
+        internal readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
         public static CachedSerializer<T> Instance;
 
         // Cache expensive type checks
@@ -35,13 +35,13 @@ namespace Nino.Core
             if (typeof(TSub).IsValueType)
             {
                 // cast TSub to T via boxing, T here must be interface, then add to the map
-                _subTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
+                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
                     serializer((TSub)(object)val, ref writer));
             }
             else
             {
                 // simply cast TSub to T directly, then add to the map
-                _subTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
+                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
                     serializer(Unsafe.As<T, TSub>(ref val), ref writer));
             }
         }
@@ -62,29 +62,31 @@ namespace Nino.Core
                 return;
             }
 
-            IntPtr actualTypeHandle = TypeHandle;
-
-            // Only get actual type if polymorphism is possible
-            if (_subTypeSerializers.Count == 0)
+            // Only check for polymorphism if we have subtypes registered
+            if (SubTypeSerializers.Count > 0)
             {
-                actualTypeHandle = val.GetType().TypeHandle.Value;
-            }
+                IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
+                
+                // Check if it's the same type (most common case)
+                if (actualTypeHandle == TypeHandle)
+                {
+                    Serializer(val, ref writer);
+                    return;
+                }
+                
+                // Handle subtype serialization
+                if (!SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
+                {
+                    throw new Exception(
+                        $"Serializer not found for type {val.GetType().FullName}");
+                }
 
-            // Check if it's the same type (most common case)
-            if (actualTypeHandle == TypeHandle)
-            {
-                Serializer(val, ref writer);
+                subTypeSerializer(val, ref writer);
                 return;
             }
-
-            // Handle subtype serialization
-            if (!_subTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
-            {
-                throw new Exception(
-                    $"Serializer not found for type {val.GetType().FullName}");
-            }
-
-            subTypeSerializer(val, ref writer);
+            
+            // No polymorphism - direct serialization
+            Serializer(val, ref writer);
         }
     }
 #pragma warning restore CA1000
