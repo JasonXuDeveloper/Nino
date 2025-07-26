@@ -42,7 +42,7 @@ public partial class SerializerGenerator(
                             : "";
                         var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                         sb.AppendLine($$"""
-                                                    NinoTypeMetadata.Register<{{baseTypeName}}>({{method}});
+                                                    NinoTypeMetadata.RegisterSerializer<{{baseTypeName}}>({{method}});
                                         """);
                     }
                 }
@@ -52,7 +52,7 @@ public partial class SerializerGenerator(
                     prefix = !string.IsNullOrEmpty(ninoType.CustomSerializer) ? $"{ninoType.CustomSerializer}." : "";
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.Register<{{typeFullName}}>({{method}});
+                                                NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>({{method}});
                                     """);
                 }
 
@@ -70,7 +70,7 @@ public partial class SerializerGenerator(
 
             if (registeredTypes.Add(type))
                 sb.AppendLine($$"""
-                                            NinoTypeMetadata.Register<{{typeFullName}}>(Serialize);
+                                            NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>(Serialize);
                                 """);
         }
 

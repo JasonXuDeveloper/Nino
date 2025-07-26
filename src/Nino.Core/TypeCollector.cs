@@ -15,21 +15,7 @@ namespace Nino.Core
         public const byte NullCollection = 0;
         public const uint EmptyCollectionHeader = 128;
         public static readonly bool Is64Bit = IntPtr.Size == 8;
-
-        internal static string GetNamespace(this string assemblyName)
-        {
-            var curNamespace = assemblyName;
-            if (!string.IsNullOrEmpty(curNamespace))
-                curNamespace = $"{curNamespace}.";
-            if (curNamespace != null && curNamespace.Length > 0 && !char.IsLetter(curNamespace[0]))
-                curNamespace = $"_{curNamespace}";
-            //replace special characters with _
-            curNamespace =
-                new string(curNamespace.Select(c => char.IsLetterOrDigit(c) || c == '.' ? c : '_').ToArray());
-            curNamespace += "NinoGen";
-            return curNamespace;
-        }
-
+        
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static uint GetCollectionHeader(int size)
         {

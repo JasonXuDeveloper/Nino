@@ -27,8 +27,7 @@ public partial class DeserializerGenerator(
                 continue;
             var typeFullName = type.GetDisplayString();
             sb.AppendLine($$"""
-                                        NinoDeserializer.Register<{{typeFullName}}>(Deserialize);
-                                        _deserializers[typeof({{typeFullName}}).TypeHandle.Value] = new CachedDeserializer<{{typeFullName}}>(Deserialize);
+                                        NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(Deserialize);
                             """);
         }
 

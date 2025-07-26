@@ -11,8 +11,10 @@ namespace Nino.Core
         private const byte HasBaseTypeBit = 2;
 
         public static readonly FastMap<IntPtr, ICachedSerializer> Serializers = new();
+        public static readonly FastMap<IntPtr, ICachedDeserializer> Deserializers = new();
+        public static readonly FastMap<int, IntPtr> TypeIdToType = new();
 
-        public static void Register<T>(SerializeDelegate<T> serializer)
+        public static void RegisterSerializer<T>(SerializeDelegate<T> serializer)
         {
             lock (Lock)
             {
@@ -22,6 +24,19 @@ namespace Nino.Core
                     Serializer = serializer
                 };
                 Serializers.Add(typeof(T).TypeHandle.Value, CachedSerializer<T>.Instance);
+            }
+        }
+        
+        public static void RegisterDeserializer<T>(DeserializeDelegate<T> deserializer)
+        {
+            lock (Lock)
+            {
+                if (CachedDeserializer<T>.Instance != null) return;
+                CachedDeserializer<T>.Instance = new CachedDeserializer<T>
+                {
+                    Deserializer = deserializer
+                };
+                Deserializers.Add(typeof(T).TypeHandle.Value, CachedDeserializer<T>.Instance);
             }
         }
 
@@ -38,6 +53,14 @@ namespace Nino.Core
             var typeHandle = type.TypeHandle.Value;
             return TypeFlags.TryGetValue(typeHandle, out var flags) && (flags & HasBaseTypeBit) != 0;
         }
+        
+        public static void RegisterType<T>(int id)
+        {
+            lock (Lock)
+            {
+                TypeIdToType.Add(id, typeof(T).TypeHandle.Value);
+            }
+        }
 
         public static void RecordSubTypeSerializer<TBase, TSub>(SerializeDelegate<TSub> subTypeSerializer)
         {
@@ -53,6 +76,23 @@ namespace Nino.Core
                 TypeFlags.Add(subTypeHandle, (byte)(subFlags | HasBaseTypeBit));
 
                 CachedSerializer<TBase>.Instance.AddSubTypeSerializer(subTypeSerializer);
+            }
+        }
+        
+        public static void RecordSubTypeDeserializer<TBase, TSub>(DeserializeDelegate<TSub> subTypeDeserializer)
+        {
+            lock (Lock)
+            {
+                var baseTypeHandle = typeof(TBase).TypeHandle.Value;
+                var subTypeHandle = typeof(TSub).TypeHandle.Value;
+                
+                TypeFlags.TryGetValue(baseTypeHandle, out var baseFlags);
+                TypeFlags.Add(baseTypeHandle, (byte)(baseFlags | HasSubTypeBit));
+                
+                TypeFlags.TryGetValue(subTypeHandle, out var subFlags);
+                TypeFlags.Add(subTypeHandle, (byte)(subFlags | HasBaseTypeBit));
+                
+                CachedDeserializer<TBase>.Instance.AddSubTypeDeserializer(subTypeDeserializer);
             }
         }
     }

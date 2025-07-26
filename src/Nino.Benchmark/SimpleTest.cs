@@ -42,9 +42,8 @@ public class SimpleTest
 
     static SimpleTest()
     {
-        var assembly = typeof(SimpleTest).Assembly;
         NinoGen.Serializer.Init();
-        NinoDeserializer.InitAssembly(assembly);
+        NinoGen.Deserializer.Init();
         
         SimpleClass = SimpleClass.Create();
         SimpleClasses = Enumerable.Range(0, 100).Select(_ => SimpleClass.Create()).ToArray();

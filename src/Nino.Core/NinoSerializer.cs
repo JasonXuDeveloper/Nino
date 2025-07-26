@@ -123,7 +123,6 @@ namespace Nino.Core
             Serialize(value, ref writer);
         }
 
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
@@ -195,8 +194,7 @@ namespace Nino.Core
             serializer.SerializeBoxed(value, ref writer);
         }
     }
-
-
+    
     public delegate void SerializeDelegate<in TVal>(TVal value, ref Writer writer);
 
     public interface ICachedSerializer
