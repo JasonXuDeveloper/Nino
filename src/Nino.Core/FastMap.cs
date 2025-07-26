@@ -19,6 +19,8 @@ namespace Nino.Core
             _count = 0;
         }
 
+        public ReadOnlySpan<TKey> Keys => _keys.AsSpan(0, _count);
+
         public int Count => _count;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -59,9 +61,9 @@ namespace Nino.Core
                 value = default!;
                 return false;
             }
-            
-            int index = _count <= 16 ? LinearSearch(key) : 
-                       _count <= 128 ? SimdSearch(key) : BinarySearch(key);
+
+            int index = _count <= 16 ? LinearSearch(key) :
+                _count <= 128 ? SimdSearch(key) : BinarySearch(key);
 
             if (index >= 0)
             {
@@ -75,7 +77,7 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ContainsKey(TKey key) =>
-            _count <= 16 ? LinearSearch(key) >= 0 : 
+            _count <= 16 ? LinearSearch(key) >= 0 :
             _count <= 128 ? SimdSearch(key) >= 0 : BinarySearch(key) >= 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -88,12 +90,13 @@ namespace Nino.Core
         private int LinearSearch(TKey key)
         {
             var keySpan = _keys.AsSpan(0, _count);
-            
+
             for (int i = 0; i < keySpan.Length; i++)
             {
                 if (keySpan[i].Equals(key))
                     return i;
             }
+
             return -1;
         }
 
@@ -104,19 +107,19 @@ namespace Nino.Core
             {
                 return SimdSearchIntPtr(Unsafe.As<TKey, IntPtr>(ref key));
             }
-            
+
             // Only use long SIMD if TKey is actually 8 bytes
             if (Unsafe.SizeOf<TKey>() == 8 && (typeof(TKey) == typeof(long) || typeof(TKey) == typeof(ulong)))
             {
                 return SimdSearchLong(Unsafe.As<TKey, long>(ref key));
             }
-            
+
             // For 32-bit integers, use int SIMD
             if (Unsafe.SizeOf<TKey>() == 4 && (typeof(TKey) == typeof(int) || typeof(TKey) == typeof(uint)))
             {
                 return SimdSearchInt(Unsafe.As<TKey, int>(ref key));
             }
-            
+
             // Fallback for other types
             return LinearSearch(key);
         }
@@ -125,26 +128,26 @@ namespace Nino.Core
         private int SimdSearchIntPtr(IntPtr key)
         {
             var keySpan = _keys.AsSpan(0, _count);
-            
+
             // Ensure safe casting - only cast if sizes match
             if (Unsafe.SizeOf<TKey>() != IntPtr.Size)
             {
                 return LinearSearch(Unsafe.As<IntPtr, TKey>(ref key));
             }
-            
+
             var intPtrSpan = MemoryMarshal.Cast<TKey, IntPtr>(keySpan);
-            
+
             if (Vector.IsHardwareAccelerated && intPtrSpan.Length >= Vector<IntPtr>.Count)
             {
                 var keyVec = new Vector<IntPtr>(key);
                 int vectorLength = Vector<IntPtr>.Count;
                 int i = 0;
-                
+
                 for (; i <= intPtrSpan.Length - vectorLength; i += vectorLength)
                 {
                     var slice = intPtrSpan.Slice(i, vectorLength);
                     var vec = new Vector<IntPtr>(slice);
-                    
+
                     if (Vector.EqualsAny(vec, keyVec))
                     {
                         // Linear search within this vector segment
@@ -155,7 +158,7 @@ namespace Nino.Core
                         }
                     }
                 }
-                
+
                 // Handle remaining elements
                 for (; i < intPtrSpan.Length; i++)
                 {
@@ -172,7 +175,7 @@ namespace Nino.Core
                         return i;
                 }
             }
-            
+
             return -1;
         }
 
@@ -180,26 +183,26 @@ namespace Nino.Core
         private int SimdSearchLong(long key)
         {
             var keySpan = _keys.AsSpan(0, _count);
-            
+
             // Ensure safe casting - only cast if sizes match (8 bytes)
             if (Unsafe.SizeOf<TKey>() != 8)
             {
                 return LinearSearch(Unsafe.As<long, TKey>(ref key));
             }
-            
+
             var longSpan = MemoryMarshal.Cast<TKey, long>(keySpan);
-            
+
             if (Vector.IsHardwareAccelerated && longSpan.Length >= Vector<long>.Count)
             {
                 var keyVec = new Vector<long>(key);
                 int vectorLength = Vector<long>.Count;
                 int i = 0;
-                
+
                 for (; i <= longSpan.Length - vectorLength; i += vectorLength)
                 {
                     var slice = longSpan.Slice(i, vectorLength);
                     var vec = new Vector<long>(slice);
-                    
+
                     if (Vector.EqualsAny(vec, keyVec))
                     {
                         for (int j = 0; j < vectorLength; j++)
@@ -209,7 +212,7 @@ namespace Nino.Core
                         }
                     }
                 }
-                
+
                 for (; i < longSpan.Length; i++)
                 {
                     if (longSpan[i] == key)
@@ -224,7 +227,7 @@ namespace Nino.Core
                         return i;
                 }
             }
-            
+
             return -1;
         }
 
@@ -232,26 +235,26 @@ namespace Nino.Core
         private int SimdSearchInt(int key)
         {
             var keySpan = _keys.AsSpan(0, _count);
-            
+
             // Ensure safe casting - only cast if sizes match (4 bytes)
             if (Unsafe.SizeOf<TKey>() != 4)
             {
                 return LinearSearch(Unsafe.As<int, TKey>(ref key));
             }
-            
+
             var intSpan = MemoryMarshal.Cast<TKey, int>(keySpan);
-            
+
             if (Vector.IsHardwareAccelerated && intSpan.Length >= Vector<int>.Count)
             {
                 var keyVec = new Vector<int>(key);
                 int vectorLength = Vector<int>.Count;
                 int i = 0;
-                
+
                 for (; i <= intSpan.Length - vectorLength; i += vectorLength)
                 {
                     var slice = intSpan.Slice(i, vectorLength);
                     var vec = new Vector<int>(slice);
-                    
+
                     if (Vector.EqualsAny(vec, keyVec))
                     {
                         for (int j = 0; j < vectorLength; j++)
@@ -261,7 +264,7 @@ namespace Nino.Core
                         }
                     }
                 }
-                
+
                 for (; i < intSpan.Length; i++)
                 {
                     if (intSpan[i] == key)
@@ -276,7 +279,7 @@ namespace Nino.Core
                         return i;
                 }
             }
-            
+
             return -1;
         }
     }

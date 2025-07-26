@@ -23,8 +23,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(out T value, ref Reader reader)
         {
-            // Fast path for simple unmanaged types - use cached HasBaseType
-            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseTypeFlag)
+            // Fast path for simple unmanaged types
+            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !NinoTypeMetadata.HasBaseType(typeof(T)))
             {
                 reader.UnsafeRead(out value);
                 return;
@@ -89,14 +89,9 @@ namespace Nino.Core
         // Cache expensive type checks
         internal static readonly bool IsReferenceOrContainsReferences =
             RuntimeHelpers.IsReferenceOrContainsReferences<T>();
-
-        private static readonly Type TypeOfT = typeof(T);
-
+        
         // ReSharper disable once StaticMemberInGenericType
-        private static readonly IntPtr TypeHandle = TypeOfT.TypeHandle.Value;
-
-        // ReSharper disable once StaticMemberInGenericType
-        internal static readonly bool HasBaseTypeFlag = NinoTypeMetadata.HasBaseType(TypeOfT);
+        private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
         public void AddSubTypeDeserializer<TSub>(DeserializeDelegate<TSub> deserializer)
         {
@@ -137,8 +132,8 @@ namespace Nino.Core
                 return;
             }
 
-            // Fast path for simple types - use cached flags
-            if (!IsReferenceOrContainsReferences && !HasBaseTypeFlag)
+            // Fast path for simple types
+            if (!IsReferenceOrContainsReferences && !NinoTypeMetadata.HasBaseType(typeof(T)))
             {
                 reader.UnsafeRead(out value);
                 return;
@@ -153,6 +148,7 @@ namespace Nino.Core
                 if (typeId == TypeCollector.Null)
                 {
                     value = default;
+                    reader.Advance(4);
                     return;
                 }
 

@@ -14,6 +14,14 @@ namespace Nino.UnitTests
     [TestClass]
     public class PrimitivesSerializationTest
     {
+        [TestInitialize]
+        public void Init()
+        {
+            UnitTests.NinoGen.Serializer.Init();
+            UnitTests.NinoGen.Deserializer.Init();
+            UnitTests.NinoGen.NinoTypeConst.Init();
+        }
+        
         [NinoType]
         public struct EmptyStruct
         {

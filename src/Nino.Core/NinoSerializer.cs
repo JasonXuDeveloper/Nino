@@ -61,8 +61,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T>(T value)
         {
-            // Fast path for simple unmanaged types - use cached HasBaseType
-            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseTypeFlag)
+            // Fast path for simple unmanaged types
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !NinoTypeMetadata.HasBaseType(typeof(T)))
             {
                 var size = Unsafe.SizeOf<T>();
                 var result = new byte[size];
@@ -126,8 +126,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
-            // Fast path for simple unmanaged types - use cached HasBaseType
-            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseTypeFlag)
+            // Fast path for simple unmanaged types
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !NinoTypeMetadata.HasBaseType(typeof(T)))
             {
                 writer.UnsafeWrite(value);
                 return;
@@ -194,7 +194,7 @@ namespace Nino.Core
             serializer.SerializeBoxed(value, ref writer);
         }
     }
-    
+
     public delegate void SerializeDelegate<in TVal>(TVal value, ref Writer writer);
 
     public interface ICachedSerializer
@@ -214,13 +214,8 @@ namespace Nino.Core
         internal static readonly bool IsReferenceOrContainsReferences =
             RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
-        private static readonly Type TypeOfT = typeof(T);
-
         // ReSharper disable once StaticMemberInGenericType
-        private static readonly IntPtr TypeHandle = TypeOfT.TypeHandle.Value;
-
-        // ReSharper disable once StaticMemberInGenericType
-        internal static readonly bool HasBaseTypeFlag = NinoTypeMetadata.HasBaseType(TypeOfT);
+        private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
         public void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
         {
@@ -241,14 +236,28 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SerializeBoxed(object value, ref Writer writer)
         {
+            // null
+            if (value == null)
+            {
+                writer.Write(TypeCollector.Null);
+                return;
+            }
+
             Serialize((T)value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T val, ref Writer writer)
         {
-            // Fast path for simple types - use cached flags
-            if (!IsReferenceOrContainsReferences && !HasBaseTypeFlag)
+            // null
+            if (val == null)
+            {
+                writer.Write(TypeCollector.Null);
+                return;
+            }
+
+            // Fast path for simple types
+            if (!IsReferenceOrContainsReferences && !NinoTypeMetadata.HasBaseType(typeof(T)))
             {
                 writer.UnsafeWrite(val);
                 return;

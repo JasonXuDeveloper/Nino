@@ -11,36 +11,37 @@ namespace Nino.UnitTests
     [NinoType(false)]
     public class ComplexData
     {
-        [NinoMember(0)] public int[][] A;
-        [NinoMember(1)] public List<int[]> B;
-        [NinoMember(2)] public List<int>[] C;
-        [NinoMember(3)] public Dictionary<string, Dictionary<string, int>> D;
-        [NinoMember(4)] public Dictionary<string, Dictionary<string, int[][]>>[] E;
-        [NinoMember(5)] public Data[][] F;
-        [NinoMember(6)] public List<Data[]> G;
-        [NinoMember(7)] public Data[][][] H;
-        [NinoMember(8)] public List<Data>[] I;
-        [NinoMember(9)] public List<Data[]>[] J;
+        [NinoMember(0)] public int[][]? A;
+        [NinoMember(1)] public List<int[]>? B;
+        [NinoMember(2)] public List<int>[]? C;
+        [NinoMember(3)] public Dictionary<string, Dictionary<string, int>>? D;
+        [NinoMember(4)] public Dictionary<string, Dictionary<string, int[][]>>[]? E;
+        [NinoMember(5)] public Data[][]? F;
+        [NinoMember(6)] public List<Data[]>? G;
+        [NinoMember(7)] public Data[][][]? H;
+        [NinoMember(8)] public List<Data>[]? I;
+        [NinoMember(9)] public List<Data[]>[]? J;
 
         public override string ToString()
         {
-            return $"{string.Join(",", A.SelectMany(x => x).ToArray())},\n" +
-                   $"{string.Join(",", B.SelectMany(x => x).ToArray())},\n" +
-                   $"{string.Join(",", C.SelectMany(x => x).ToArray())},\n" +
+            return $"{string.Join(",", A?.SelectMany(x => x).ToArray() ?? Array.Empty<int>())},\n" +
+                   $"{string.Join(",", B?.SelectMany(x => x).ToArray() ?? Array.Empty<int>())},\n" +
+                   $"{string.Join(",", C?.SelectMany(x => x).ToArray() ?? Array.Empty<int>())},\n" +
                    $"{GetDictString(D)},\n" +
-                   $"{string.Join(",\n", E.Select(GetDictString).ToArray())}\n" +
-                   $"{string.Join(",\n", F.SelectMany(x => x).Select(x => x))}\n" +
-                   $"{string.Join(",\n", G.SelectMany(x => x).Select(x => x))}\n" +
-                   $"{string.Join(",\n", H.SelectMany(x => x).SelectMany(x => x).Select(x => x))}\n" +
-                   $"{string.Join(",\n", I.SelectMany(x => x).Select(x => x))}\n" +
-                   $"{string.Join(",\n", J.SelectMany(x => x).Select(x => x).SelectMany(x => x).Select(x => x))}\n";
+                   $"{string.Join(",\n", E?.Select(GetDictString).ToArray() ?? Array.Empty<string>())}\n" +
+                   $"{string.Join(",\n", F?.SelectMany(x => x).Select(x => x) ?? Array.Empty<Data>())}\n" +
+                   $"{string.Join(",\n", G?.SelectMany(x => x).Select(x => x) ?? Array.Empty<Data>())}\n" +
+                   $"{string.Join(",\n", H?.SelectMany(x => x).SelectMany(x => x)?.Select(x => x) ?? Array.Empty<Data>())}\n" +
+                   $"{string.Join(",\n", I?.SelectMany(x => x).Select(x => x) ?? Array.Empty<Data>())}\n" +
+                   $"{string.Join(",\n", J?.SelectMany(x => x).Select(x => x)?.SelectMany(x => x)?.Select(x => x) ?? Array.Empty<Data>())}\n";
         }
 
-        private string GetDictString<Tk, Tv>(Dictionary<Tk, Dictionary<Tk, Tv>> ddd)
+        private string GetDictString<Tk, Tv>(Dictionary<Tk, Dictionary<Tk, Tv>>? ddd)
         {
+            if (ddd == null) return "null";
             return $"{string.Join(",", ddd.Keys.ToList())},\n" +
-                   $"   {string.Join(",", ddd.Values.ToList().SelectMany(k => k.Keys))},\n" +
-                   $"   {string.Join(",", ddd.Values.ToList().SelectMany(k => k.Values))}";
+                   $"   {string.Join(",", ddd.Values.ToList().SelectMany(k => k?.Keys ?? Enumerable.Empty<Tk>()))},\n" +
+                   $"   {string.Join(",", ddd.Values.ToList().SelectMany(k => k?.Values ?? Enumerable.Empty<Tv>()))}";
         }
     }
 
@@ -94,6 +95,14 @@ namespace Nino.UnitTests
     [TestClass]
     public class ComplexSerializationTest
     {
+        [TestInitialize]
+        public void Init()
+        {
+            UnitTests.NinoGen.Serializer.Init();
+            UnitTests.NinoGen.Deserializer.Init();
+            UnitTests.NinoGen.NinoTypeConst.Init();
+        }
+
         [TestMethod]
         public void TestNonGenericNoCodeGen()
         {
@@ -454,7 +463,11 @@ namespace Nino.UnitTests
 
             // Test object Serialize(object value) - boxing serialization
             byte[] buf1 = NinoSerializer.Serialize((object)complexData);
+            byte[] buf1Generic = NinoSerializer.Serialize(complexData);
+            Console.WriteLine(string.Join(",", buf1));
+            Console.WriteLine(string.Join(",", buf1Generic));
             Assert.IsNotNull(buf1);
+            Assert.IsTrue(buf1.SequenceEqual(buf1Generic));
 
             // Test object Deserialize(ReadOnlySpan<byte> data, Type type) - boxing deserialization
             object result1 = NinoDeserializer.Deserialize(buf1, typeof(ComplexData));

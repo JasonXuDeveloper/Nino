@@ -72,6 +72,16 @@ public partial class SerializerGenerator
                                         {
                                 """);
 
+                if (!ninoType.TypeSymbol.IsValueType)
+                {
+                    sb.AppendLine("            if(value == null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine("                writer.Write(TypeCollector.Null);");
+                    sb.AppendLine("                return;");
+                    sb.AppendLine("            }");
+                    sb.AppendLine();
+                }
+
                 if (ninoType.IsPolymorphic())
                 {
                     sb.AppendLine(

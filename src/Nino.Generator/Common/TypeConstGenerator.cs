@@ -23,6 +23,12 @@ public class TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, Li
         var types = new StringBuilder();
         types.AppendLine("\t\tstatic NinoTypeConst()");
         types.AppendLine("\t\t{");
+        types.AppendLine("\t\t\tInit();");
+        types.AppendLine("\t\t}");
+        types.AppendLine();
+        
+        types.AppendLine("\t\tpublic static void Init()");
+        types.AppendLine("\t\t{");
         foreach (var type in serializableTypes)
         {
             string variableName = type.GetTypeFullName().GetTypeConstName();

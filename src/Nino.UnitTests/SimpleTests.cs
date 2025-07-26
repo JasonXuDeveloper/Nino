@@ -17,6 +17,7 @@ namespace Nino.UnitTests
         {
             UnitTests.NinoGen.Serializer.Init();
             UnitTests.NinoGen.Deserializer.Init();
+            UnitTests.NinoGen.NinoTypeConst.Init();
         }
 
         [TestMethod]
@@ -696,11 +697,13 @@ namespace Nino.UnitTests
             };
             //polymorphism serialization and real type deserialization
             byte[] bytes = NinoSerializer.Serialize((ISerializable)a);
+            Console.WriteLine(string.Join(",", bytes));
             NinoDeserializer.Deserialize(bytes, out Struct1 i11);
             Assert.AreEqual(a, i11);
 
             //real type serialization and deserialization with polymorphism
             bytes = NinoSerializer.Serialize(a);
+            Console.WriteLine(string.Join(",", bytes));
             NinoDeserializer.Deserialize(bytes, out ISerializable i1);
 
             Assert.AreEqual(i1, i11);
@@ -988,7 +991,7 @@ namespace Nino.UnitTests
             {
                 new() { A = 1, B = "Hello" },
                 new TestClass2 { A = 2, B = "World", C = 3 },
-                new TestClass3 { A = 3, B = "Test", C = 4, D = true },
+                new TestClass3 { A = 5, B = "Test", C = 4, D = true },
                 null
             };
             byte[] bytes = NinoSerializer.Serialize(arr);

@@ -70,6 +70,13 @@ public partial class DeserializerGenerator
                                         [System.Runtime.CompilerServices.CompilerGenerated]
                                         public static void DeserializeImpl(out {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
                                         {
+                                        #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                           if (reader.Eof)
+                                           {
+                                              value = default;
+                                              return;
+                                           }
+                                        #endif
                                 """);
 
                 if (ninoType.IsPolymorphic())

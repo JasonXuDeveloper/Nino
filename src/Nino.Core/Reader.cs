@@ -86,6 +86,12 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Advance(int count)
+        {
+            _data = _data.Slice(count);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Peak<T>(out T value) where T : unmanaged
         {
             int size = Unsafe.SizeOf<T>();
