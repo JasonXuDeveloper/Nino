@@ -31,7 +31,7 @@ public partial class SerializerGenerator(
             if (NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType))
             {
                 var baseTypes = NinoGraph.BaseTypes[ninoType];
-                string prefix = "";
+                string prefix;
                 foreach (var baseType in baseTypes)
                 {
                     if (registeredTypes.Add(baseType.TypeSymbol))
@@ -47,21 +47,21 @@ public partial class SerializerGenerator(
                     }
                 }
 
+                prefix = !string.IsNullOrEmpty(ninoType.CustomSerializer) ? $"{ninoType.CustomSerializer}." : "";
                 if (registeredTypes.Add(type))
                 {
-                    prefix = !string.IsNullOrEmpty(ninoType.CustomSerializer) ? $"{ninoType.CustomSerializer}." : "";
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                     sb.AppendLine($$"""
                                                 NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>({{method}});
                                     """);
                 }
 
+                var meth = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                 foreach (var baseType in baseTypes)
                 {
                     var baseTypeName = baseType.TypeSymbol.GetDisplayString();
-                    var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RecordSubTypeSerializer<{{baseTypeName}}, {{typeFullName}}>({{method}});
+                                                NinoTypeMetadata.RecordSubTypeSerializer<{{baseTypeName}}, {{typeFullName}}>({{meth}});
                                     """);
                 }
 

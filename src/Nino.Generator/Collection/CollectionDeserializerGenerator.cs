@@ -150,13 +150,41 @@ public class CollectionDeserializerGenerator(
             new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary"))
         )
     );
-
+    
     private string GetDeserializeString(ITypeSymbol type, bool assigned, string value, string reader = "reader")
     {
         var typeFullName = assigned ? "" : $" {type.GetDisplayString()}";
+        
+        // unmanaged
+        if (type.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(type.GetDisplayString()))
+        {
+            return $"{reader}.Read(out{typeFullName} {value});";
+        }
+
+        // bottom type
+        if (NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType) &&
+            !NinoGraph.SubTypes.ContainsKey(ninoType))
+        {
+            // cross project referenced ninotype
+            if (!string.IsNullOrEmpty(ninoType.CustomDeserializer))
+            {
+                // for the sake of unity asmdef, fallback to dynamic resolve
+                return $$"""
+                         #if UNITY_2020_3_OR_NEWER
+                             NinoDeserializer.Deserialize(out{{typeFullName}} {{value}}, ref {{reader}});
+                         #else
+                             {{ninoType.CustomDeserializer}}.Deserializer.DeserializeImpl(out{{typeFullName}} {{value}}, ref {{reader}});";
+                         #endif
+                         """;
+            }
+
+            // the impl is implemented in the same assembly
+            return $"DeserializeImpl(out{typeFullName} {value}, ref {reader});";
+        }
+        
         return UnmanagedFilter.Filter(type) || type.SpecialType == SpecialType.System_String
             ? $"{reader}.Read(out{typeFullName} {value});"
-            : $"Deserialize(out{typeFullName} {value}, ref {reader});";
+            : $"NinoDeserializer.Deserialize(out{typeFullName} {value}, ref {reader});";
     }
 
     private static readonly Joint HasAddAndClear = new Joint().With(

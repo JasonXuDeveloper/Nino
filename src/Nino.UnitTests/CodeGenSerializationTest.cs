@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Nino.UnitTests.NinoGen;
 using Nino.Core;
 
 #pragma warning disable 8618
@@ -73,15 +72,15 @@ namespace Nino.UnitTests
                     new B() { Val = 3 }
                 }
             };
-            
-            var bufC = c.Serialize();
-            var bufD = d.Serialize();
+
+            var bufC = NinoSerializer.Serialize(c);
+            var bufD = NinoSerializer.Serialize(d);
             
             Console.WriteLine(string.Join(", ", bufC));
             Console.WriteLine(string.Join(", ", bufD));
             
-            Deserializer.Deserialize(bufC, out C c2);
-            Deserializer.Deserialize(bufD, out D d2);
+            NinoDeserializer.Deserialize(bufC, out C c2);
+            NinoDeserializer.Deserialize(bufD, out D d2);
             
             Assert.AreEqual(c.ToString(), c.ToString());
             Assert.AreEqual(c.ToString(), d.ToString());

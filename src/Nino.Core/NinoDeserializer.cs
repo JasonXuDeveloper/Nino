@@ -148,7 +148,7 @@ namespace Nino.Core
             if (SubTypeDeserializers.Count > 0)
             {
                 // Read type info first for polymorphic types
-                reader.Read(out int typeId);
+                reader.Peak(out int typeId);
 
                 if (typeId == TypeCollector.Null)
                 {

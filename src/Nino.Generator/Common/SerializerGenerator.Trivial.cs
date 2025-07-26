@@ -271,7 +271,8 @@ public partial class SerializerGenerator
                             ? $"            writer.WriteUtf8({val});"
                             : $"            writer.Write({val});");
                 }
-                else if (declaredType.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(declaredType.GetDisplayString()))
+                else if (declaredType.IsUnmanagedType && 
+                         (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoType) || !ninoType.IsPolymorphic()))
                 {
                     sb.AppendLine(
                         $"            writer.Write({val});");

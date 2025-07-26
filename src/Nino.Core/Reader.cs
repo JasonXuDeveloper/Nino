@@ -86,6 +86,25 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Peak<T>(out T value) where T : unmanaged
+        {
+            int size = Unsafe.SizeOf<T>();
+            if (TypeCollector.Is64Bit)
+            {
+                value = Unsafe.ReadUnaligned<T>(ref MemoryMarshal.GetReference(_data));
+            }
+            else
+            {
+                value = default;
+                unsafe
+                {
+                    Span<byte> dst = new Span<byte>(Unsafe.AsPointer(ref value), size);
+                    _data.Slice(0, dst.Length).CopyTo(dst);
+                }
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnsafeRead<T>(out T value)
         {
             int size = Unsafe.SizeOf<T>();
