@@ -269,7 +269,7 @@ public partial class DeserializerGenerator
                             // net core project
                             sb.AppendLine("#else");
                             sb.AppendLine(
-                                $"            {memberNinoType.CustomDeserializer}.Deserializer.DeserializeImpl(out {declaredType.GetDisplayString()} {tempName}, ref reader);");
+                                $"            {memberNinoType.CustomDeserializer}.DeserializeImpl(out {declaredType.GetDisplayString()} {tempName}, ref reader);");
                             sb.AppendLine("#endif");
                         }
                         // the impl is implemented in the same assembly

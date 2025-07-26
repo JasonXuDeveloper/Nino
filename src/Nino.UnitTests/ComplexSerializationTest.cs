@@ -3,7 +3,6 @@ using System.Linq;
 using Nino.Core;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Nino.UnitTests.NinoGen;
 
 #pragma warning disable 8618
 
@@ -111,8 +110,8 @@ namespace Nino.UnitTests
                 Name = "aasdfghjhgtrewqwerftg"
             };
 
-            var buf = dt.Serialize();
-            Deserializer.Deserialize(buf, out Data dt2);
+            var buf = NinoSerializer.Serialize(dt);
+            NinoDeserializer.Deserialize(buf, out Data dt2);
             var dt3 = NinoDeserializer.Deserialize<Data>(buf);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
             Assert.IsTrue(dt.ToString() == dt3.ToString());
@@ -126,8 +125,8 @@ namespace Nino.UnitTests
                 Val = 1
             };
 
-            var buf = dt.Serialize();
-            Deserializer.Deserialize(buf, out A dt2);
+            var buf = NinoSerializer.Serialize(dt);
+            NinoDeserializer.Deserialize(buf, out A dt2);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
         }
 
@@ -158,10 +157,10 @@ namespace Nino.UnitTests
                 Ps = dt
             };
 
-            var buf = nd.Serialize();
+            var buf = NinoSerializer.Serialize(nd);
             var buf2 = NinoSerializer.Serialize(nd);
             Assert.IsTrue(buf.SequenceEqual(buf2));
-            Deserializer.Deserialize(buf, out NestedData nd2);
+            NinoDeserializer.Deserialize(buf, out NestedData nd2);
             Assert.AreEqual(nd.Name, nd2.Name);
             Assert.AreEqual(nd.Ps.Length, nd2.Ps.Length);
             for (int i = 0; i < nd.Ps.Length; i++)
@@ -400,13 +399,92 @@ namespace Nino.UnitTests
                 data.G,
                 data.G,
             };
-            var buf = Serializer.Serialize(data);
+            var buf = NinoSerializer.Serialize(data);
             var buf2 = NinoSerializer.Serialize<ComplexData>(data);
             Assert.IsTrue(buf.SequenceEqual(buf2));
-            Deserializer.Deserialize(buf, out ComplexData data2);
+            NinoDeserializer.Deserialize(buf, out ComplexData data2);
             var data3 = NinoDeserializer.Deserialize<ComplexData>(buf);
             Assert.AreEqual(data.ToString(), data2.ToString());
             Assert.AreEqual(data.ToString(), data3.ToString());
+        }
+
+        [TestMethod]
+        public void TestNewGenericAPIs()
+        {
+            Data testData = new Data()
+            {
+                X = 42,
+                Y = 123,
+                Z = 9876543210,
+                F = 3.14159f,
+                D = 123.456m,
+                Db = 987.654321,
+                Bo = true,
+                En = TestEnum.B,
+                Name = "TestNewAPIs"
+            };
+
+            // Test T Deserialize<T>(ReadOnlySpan<byte> data)
+            byte[] buf = NinoSerializer.Serialize(testData);
+            var result1 = NinoDeserializer.Deserialize<Data>(buf);
+            Assert.AreEqual(testData.ToString(), result1.ToString());
+
+            // Test void Deserialize<T>(ReadOnlySpan<byte> data, out T value)
+            NinoDeserializer.Deserialize<Data>(buf, out Data result2);
+            Assert.AreEqual(testData.ToString(), result2.ToString());
+
+            // Test with ReadOnlySpan<byte>
+            ReadOnlySpan<byte> span = new ReadOnlySpan<byte>(buf);
+            var result3 = NinoDeserializer.Deserialize<Data>(span);
+            Assert.AreEqual(testData.ToString(), result3.ToString());
+
+            NinoDeserializer.Deserialize<Data>(span, out Data result4);
+            Assert.AreEqual(testData.ToString(), result4.ToString());
+        }
+
+        [TestMethod]
+        public void TestBoxingAPIs()
+        {
+            // Test boxing API with complex non-primitive types
+            ComplexData complexData = new ComplexData();
+            complexData.A = new int[2][];
+            complexData.A[0] = new[] { 1, 2, 3 };
+            complexData.A[1] = new[] { 4, 5, 6 };
+            complexData.B = new List<int[]>() { new[] { 7, 8, 9 } };
+
+            // Test object Serialize(object value) - boxing serialization
+            byte[] buf1 = NinoSerializer.Serialize((object)complexData);
+            Assert.IsNotNull(buf1);
+
+            // Test object Deserialize(ReadOnlySpan<byte> data, Type type) - boxing deserialization
+            object result1 = NinoDeserializer.Deserialize(buf1, typeof(ComplexData));
+            Assert.IsInstanceOfType(result1, typeof(ComplexData));
+            var typedResult1 = (ComplexData)result1;
+            Assert.AreEqual(complexData.ToString(), typedResult1.ToString());
+
+            // Test with Data class
+            Data data = new Data()
+            {
+                X = 100,
+                Y = 200,
+                Z = 300,
+                F = 1.23f,
+                D = 4.56m,
+                Db = 7.89,
+                Bo = false,
+                En = TestEnum.A,
+                Name = "BoxingTest"
+            };
+
+            // Boxing serialize
+            byte[] buf2 = NinoSerializer.Serialize((object)data);
+            Assert.IsNotNull(buf2);
+
+            // Boxing deserialize
+            object result2 = NinoDeserializer.Deserialize(buf2, typeof(Data));
+            Assert.IsInstanceOfType(result2, typeof(Data));
+            var typedResult2 = (Data)result2;
+            Assert.AreEqual(data.ToString(), typedResult2.ToString());
         }
     }
 }

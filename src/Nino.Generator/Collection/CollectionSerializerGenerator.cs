@@ -52,12 +52,7 @@ public class CollectionSerializerGenerator(
             {
                 var elementType = interfaceSymbol.TypeArguments[0];
                 return ValidFilter(elementType);
-            }),
-            // We want span
-            new Joint().With(
-                new Span(),
-                new TypeArgument(0, ValidFilter)
-            )
+            })
         )
     );
 
@@ -74,7 +69,9 @@ public class CollectionSerializerGenerator(
     private string GetSerializeString(ITypeSymbol type, string value)
     {
         // unmanaged
-        if (type.IsUnmanagedType && !NinoGraph.TypeMap.ContainsKey(type.GetDisplayString()))
+        if (type.IsUnmanagedType &&
+            (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var nt) ||
+             !nt.IsPolymorphic()))
         {
             return $"writer.Write({value});";
         }
@@ -91,7 +88,7 @@ public class CollectionSerializerGenerator(
                         #if UNITY_2020_3_OR_NEWER
                             NinoSerializer.Serialize({value}, ref writer);
                         #else
-                            {ninoType.CustomSerializer}.Serializer.SerializeImpl({value}, ref writer);
+                            {ninoType.CustomSerializer}.SerializeImpl({value}, ref writer);
                         #endif
                         """;
             }
@@ -99,7 +96,7 @@ public class CollectionSerializerGenerator(
             // the impl is implemented in the same assembly
             return $"SerializeImpl({value}, ref writer);";
         }
-        
+
         // dynamically resolved type
         return type.IsUnmanagedType || type.SpecialType == SpecialType.System_String
             ? $"writer.Write({value});"
@@ -206,51 +203,6 @@ public class CollectionSerializerGenerator(
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
                     sb.Append("        ");
                     sb.AppendLine(GetSerializeString(elementType, "span[i]"));
-                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
-                        w => { w.AppendLine("        writer.PutLength(pos);"); });
-                    sb.AppendLine("    }");
-                }
-
-                sb.AppendLine("}");
-                return true;
-            }),
-        // Span Ninotypes
-        new
-        (
-            "Span",
-            new Span(),
-            (symbol, sb) =>
-            {
-                var elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
-                bool isUnmanaged = elementType.IsUnmanagedType;
-
-                sb.AppendLine(Inline);
-                sb.Append("public static void Serialize(this ");
-                sb.Append(symbol.GetDisplayString());
-                sb.AppendLine(" value, ref Writer writer)");
-                sb.AppendLine("{");
-
-                if (isUnmanaged)
-                {
-                    sb.AppendLine("    writer.Write(value);");
-                }
-                else
-                {
-                    sb.AppendLine("    if (value.IsEmpty)");
-                    sb.AppendLine("    {");
-                    sb.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-                    sb.AppendLine("        return;");
-                    sb.AppendLine("    }");
-                    sb.AppendLine();
-                    sb.AppendLine("    int cnt = value.Length;");
-                    sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
-                    sb.AppendLine();
-                    sb.AppendLine("    for (int i = 0; i < cnt; i++)");
-                    sb.AppendLine("    {");
-                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
-                        w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-                    sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(elementType, "value[i]"));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                     sb.AppendLine("    }");

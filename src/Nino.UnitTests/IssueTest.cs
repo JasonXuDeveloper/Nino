@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Nino.UnitTests.NinoGen;
 using Nino.Core;
 
 namespace Nino.UnitTests
@@ -33,8 +32,8 @@ namespace Nino.UnitTests
             protected override void RunTest()
             {
                 TestB<float> testB = new TestB<float>(123.4f);
-                var bytes = testB.Serialize();
-                Deserializer.Deserialize(bytes, out TestB<float> testB2);
+                var bytes = NinoSerializer.Serialize(testB);
+                NinoDeserializer.Deserialize(bytes, out TestB<float> testB2);
                 Assert.AreEqual(testB.GetType(), testB2.GetType());
                 float input = testB;
                 float output = testB2;
@@ -54,8 +53,8 @@ namespace Nino.UnitTests
             protected override void RunTest()
             {
                 var t = new MyTest();
-                var bytes = t.Serialize();
-                Deserializer.Deserialize(bytes, out MyTest t2);
+                var bytes = NinoSerializer.Serialize(t);
+                NinoDeserializer.Deserialize(bytes, out MyTest t2);
                 Assert.AreEqual(t.List.Count, t2.List.Count);
             }
         }
@@ -212,10 +211,10 @@ namespace Nino.UnitTests
             {
                 var array = new int[] { 1, 2, 3, 4, 5 };
                 var readOnlyArray = new ReadOnlyArray<int>(array);
-                var bytes = readOnlyArray.Serialize();
+                var bytes = NinoSerializer.Serialize(readOnlyArray);
 
                 Assert.IsTrue(bytes.Length > 0);
-                Deserializer.Deserialize(bytes, out ReadOnlyArray<int> readOnlyArray2);
+                NinoDeserializer.Deserialize(bytes, out ReadOnlyArray<int> readOnlyArray2);
                 for (var i = 0; i < readOnlyArray.Count; i++)
                 {
                     Assert.AreEqual(readOnlyArray[i], readOnlyArray2[i]);
@@ -247,8 +246,8 @@ namespace Nino.UnitTests
                 t.Dict.Add(TestEnum.B, 2);
                 t.Dict.Add(TestEnum.C, 3);
 
-                var bytes = t.Serialize();
-                Deserializer.Deserialize(bytes, out TestClass<int> t2);
+                var bytes = NinoSerializer.Serialize(t);
+                NinoDeserializer.Deserialize(bytes, out TestClass<int> t2);
 
                 Assert.AreEqual(t.Dict.Count, t2.Dict.Count);
                 Assert.AreEqual(t.Dict[TestEnum.A], t2.Dict[TestEnum.A]);
@@ -260,8 +259,8 @@ namespace Nino.UnitTests
                 tt.Dict.Add(TestEnum.B, "2");
                 tt.Dict.Add(TestEnum.C, "3");
 
-                bytes = tt.Serialize();
-                Deserializer.Deserialize(bytes, out TestClass<string> tt2);
+                bytes = NinoSerializer.Serialize(tt);
+                NinoDeserializer.Deserialize(bytes, out TestClass<string> tt2);
 
                 Assert.AreEqual(tt.Dict.Count, tt2.Dict.Count);
                 Assert.AreEqual(tt.Dict[TestEnum.A], tt2.Dict[TestEnum.A]);
@@ -309,8 +308,8 @@ namespace Nino.UnitTests
                 TimeId[1].Add(2);
                 TimeId[2].Add(3);
 
-                var bytes = TimeId.Serialize();
-                Deserializer.Deserialize(bytes, out MultiMap<long, long> TimeId2);
+                var bytes = NinoSerializer.Serialize(TimeId);
+                NinoDeserializer.Deserialize(bytes, out MultiMap<long, long> TimeId2);
 
                 Assert.AreEqual(TimeId.Count, TimeId2.Count);
                 Assert.AreEqual(TimeId[1].Count, TimeId2[1].Count);
@@ -325,8 +324,8 @@ namespace Nino.UnitTests
                 dict[1].Add("2");
                 dict[2].Add("3");
 
-                bytes = dict.Serialize();
-                Deserializer.Deserialize(bytes, out MultiMap<long, string> dict2);
+                bytes = NinoSerializer.Serialize(dict);
+                NinoDeserializer.Deserialize(bytes, out MultiMap<long, string> dict2);
 
                 Assert.AreEqual(dict.Count, dict2.Count);
                 Assert.AreEqual(dict[1].Count, dict2[1].Count);
@@ -404,8 +403,8 @@ namespace Nino.UnitTests
                 var pools = new Dictionary<DicePoolType, DicePool>();
                 pools.Add(DicePoolType.STR, new DicePool());
                 pools.Add(DicePoolType.CONS, new DicePool());
-                var bytes = Serializer.Serialize(pools);
-                Deserializer.Deserialize(bytes, out Dictionary<DicePoolType, DicePool> pools2);
+                var bytes = NinoSerializer.Serialize(pools);
+                NinoDeserializer.Deserialize(bytes, out Dictionary<DicePoolType, DicePool> pools2);
             }
         }
 
@@ -427,16 +426,16 @@ namespace Nino.UnitTests
             protected override void RunTest()
             {
                 var impl = new Impl { A = 10 };
-                var bytes = impl.Serialize();
-                Deserializer.Deserialize(bytes, out Impl impl2);
+                var bytes = NinoSerializer.Serialize(impl);
+                NinoDeserializer.Deserialize(bytes, out Impl impl2);
                 Assert.AreEqual(impl.A, impl2.A);
 
                 Dictionary<string, IBase> dict = new Dictionary<string, IBase>
                 {
                     { "A", new Impl { A = 10 } }
                 };
-                bytes = dict.Serialize();
-                Deserializer.Deserialize(bytes, out Dictionary<string, IBase> dict2);
+                bytes = NinoSerializer.Serialize(dict);
+                NinoDeserializer.Deserialize(bytes, out Dictionary<string, IBase> dict2);
                 Assert.AreEqual(dict["A"].A, dict2["A"].A);
             }
         }
@@ -486,8 +485,8 @@ namespace Nino.UnitTests
                         { 1, new MyClassModel { P1 = DateTime.Now } }
                     }
                 };
-                var bytes = person.Serialize();
-                Deserializer.Deserialize(bytes, out MyPackPerson person2);
+                var bytes = NinoSerializer.Serialize(person);
+                NinoDeserializer.Deserialize(bytes, out MyPackPerson person2);
                 Assert.AreEqual(person.P1, person2.P1);
                 Assert.AreEqual(person.P2, person2.P2);
                 Assert.AreEqual(person.P3, person2.P3);
@@ -526,8 +525,8 @@ namespace Nino.UnitTests
                 data.CompA.Aa = 30;
                 data.CompA.Ba = 40;
 
-                var bufForData = data.Serialize();
-                Deserializer.Deserialize(bufForData, out Data data2);
+                var bufForData = NinoSerializer.Serialize(data);
+                NinoDeserializer.Deserialize(bufForData, out Data data2);
 
                 Assert.IsTrue(data.A == data2.A);
                 Assert.IsTrue(data.B == data2.B);
@@ -553,8 +552,8 @@ namespace Nino.UnitTests
                     X = -136, Y = 8
                 };
 
-                var buf = dt.Serialize();
-                Deserializer.Deserialize(buf, out NinoTestData dt2);
+                var buf = NinoSerializer.Serialize(dt);
+                NinoDeserializer.Deserialize(buf, out NinoTestData dt2);
 
                 Assert.IsTrue(dt.X == dt2.X);
                 Assert.IsTrue(dt.Y == dt2.Y);
@@ -565,8 +564,8 @@ namespace Nino.UnitTests
                     Y = short.MinValue
                 };
 
-                buf = dt.Serialize();
-                Deserializer.Deserialize(buf, out dt2);
+                buf = NinoSerializer.Serialize(dt);
+                NinoDeserializer.Deserialize(buf, out dt2);
 
                 Assert.IsTrue(dt.X == dt2.X);
                 Assert.IsTrue(dt.Y == dt2.Y);
@@ -577,8 +576,8 @@ namespace Nino.UnitTests
                     Y = long.MinValue
                 };
 
-                buf = dt.Serialize();
-                Deserializer.Deserialize(buf, out dt2);
+                buf = NinoSerializer.Serialize(dt);
+                NinoDeserializer.Deserialize(buf, out dt2);
 
                 Assert.IsTrue(dt.X == dt2.X);
                 Assert.IsTrue(dt.Y == dt2.Y);
@@ -621,8 +620,8 @@ namespace Nino.UnitTests
                     isHasPet = true
                 });
 
-                var buf = list.Serialize();
-                Deserializer.Deserialize(buf, out List<NinoTestData> list2);
+                var buf = NinoSerializer.Serialize(list);
+                NinoDeserializer.Deserialize(buf, out List<NinoTestData> list2);
                 Assert.IsTrue(list2.Count == list.Count);
                 for (int i = 0; i < list.Count; i++)
                 {
@@ -648,8 +647,8 @@ namespace Nino.UnitTests
                     isHasPet = false
                 };
 
-                buf = arr.Serialize();
-                Deserializer.Deserialize(buf, out NinoTestData[] arr2);
+                buf = NinoSerializer.Serialize(arr);
+                NinoDeserializer.Deserialize(buf, out NinoTestData[] arr2);
                 Assert.IsTrue(arr2.Length == arr.Length);
                 for (int i = 0; i < arr.Length; i++)
                 {
@@ -673,9 +672,9 @@ namespace Nino.UnitTests
                 };
 
 
-                var a = package.Serialize();
+                var a = NinoSerializer.Serialize(package);
                 Console.WriteLine(string.Join(",", a));
-                Deserializer.Deserialize(a, out MessagePackage b);
+                NinoDeserializer.Deserialize(a, out MessagePackage b);
                 Assert.IsTrue(package.agreement == b.agreement);
                 Assert.IsTrue(package.move.id == b.move.id);
                 Assert.IsTrue(package.move.x.ToString() == b.move.x.ToString());

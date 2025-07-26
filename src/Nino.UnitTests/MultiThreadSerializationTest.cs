@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Nino.UnitTests.NinoGen;
+using Nino.Core;
 
 namespace Nino.UnitTests
 {
@@ -27,7 +27,7 @@ namespace Nino.UnitTests
             {
                 for (int i = 0; i < tests; i++)
                 {
-                    _ = c.Serialize();
+                    _ = NinoSerializer.Serialize(c);
                 }
             }
 
@@ -35,8 +35,8 @@ namespace Nino.UnitTests
                 Test, Test, Test, Test, Test, Test, Test, Test
             );
 
-            var buf2 = c.Serialize();
-            Deserializer.Deserialize(buf2, out C c2);
+            var buf2 = NinoSerializer.Serialize(c);
+            NinoDeserializer.Deserialize(buf2, out C c2);
             Assert.AreEqual(c.ToString(), c2.ToString());
         }
 
@@ -53,7 +53,7 @@ namespace Nino.UnitTests
                     new A() { Val = 3 }
                 }
             };
-            byte[] buf = c.Serialize();
+            byte[] buf = NinoSerializer.Serialize(c);
 
             int tests = 100;
 
@@ -61,7 +61,7 @@ namespace Nino.UnitTests
             {
                 for (int i = 0; i < tests; i++)
                 {
-                    Deserializer.Deserialize(buf, out C c2);
+                    NinoDeserializer.Deserialize(buf, out C c2);
                     Assert.AreEqual(c.ToString(), c2.ToString());
                 }
             }

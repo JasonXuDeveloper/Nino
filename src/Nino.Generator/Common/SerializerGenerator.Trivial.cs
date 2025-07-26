@@ -299,7 +299,7 @@ public partial class SerializerGenerator
                             // net core project
                             sb.AppendLine("#else");
                             sb.AppendLine(
-                                $"            {memberNinoType.CustomSerializer}.Serializer.SerializeImpl({val}, ref writer);");
+                                $"            {memberNinoType.CustomSerializer}.SerializeImpl({val}, ref writer);");
                             sb.AppendLine("#endif");
                         }
                         // the impl is implemented in the same assembly

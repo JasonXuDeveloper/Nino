@@ -53,7 +53,9 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                         return false;
 
                     if (!types.Contains(ts))
-                        GetNinoType(ts);
+                    {
+                        result.Add(GetNinoType(ts));
+                    }
 
                     return true;
                 }
@@ -98,8 +100,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                 // members for each type in the inheritance chain
                 List<(HashSet<ISymbol> members, List<IParameterSymbol> primaryCtorParms)> hierarchicalMembers =
                     new();
-
-
+                
                 void AddMembers(NinoType type)
                 {
                     var entry = (new HashSet<ISymbol>(SymbolEqualityComparer.Default), new List<IParameterSymbol>());
