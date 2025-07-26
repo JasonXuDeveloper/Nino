@@ -96,7 +96,7 @@ namespace Nino.Core
             }
             else
             {
-                // Optimized paths for common sizes on 32-bit
+                // Safe paths for 32-bit platforms - avoid potentially problematic unaligned 8-byte writes
                 switch (size)
                 {
                     case 1:
@@ -108,10 +108,8 @@ namespace Nino.Core
                     case 4:
                         Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, uint>(ref value));
                         break;
-                    case 8:
-                        Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, ulong>(ref value));
-                        break;
                     default:
+                        // Use safe memory copy for 8+ byte values on 32-bit to avoid alignment issues
                         unsafe
                         {
                             Span<T> srcSpan = MemoryMarshal.CreateSpan(ref value, 1);

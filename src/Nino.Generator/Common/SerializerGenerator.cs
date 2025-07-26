@@ -61,7 +61,7 @@ public partial class SerializerGenerator(
                     var baseTypeName = baseType.TypeSymbol.GetDisplayString();
                     var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RecordSubType<{{baseTypeName}}, {{typeFullName}}>({{method}});
+                                                NinoTypeMetadata.RecordSubTypeSerializer<{{baseTypeName}}, {{typeFullName}}>({{method}});
                                     """);
                 }
 
