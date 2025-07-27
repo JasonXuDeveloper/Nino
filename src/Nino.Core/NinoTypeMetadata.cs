@@ -27,7 +27,8 @@ namespace Nino.Core
             }
         }
 
-        public static void RegisterDeserializer<T>(DeserializeDelegate<T> deserializer, bool hasBaseType)
+        public static void RegisterDeserializer<T>(DeserializeDelegate<T> deserializer,
+            DeserializeDelegateRef<T> deserializerRef, bool hasBaseType)
         {
             lock (Lock)
             {
@@ -36,7 +37,8 @@ namespace Nino.Core
                 if (CachedDeserializer<T>.Instance != null) return;
                 CachedDeserializer<T>.Instance = new CachedDeserializer<T>
                 {
-                    Deserializer = deserializer
+                    Deserializer = deserializer,
+                    DeserializerRef = deserializerRef
                 };
                 Deserializers.Add(typeof(T).TypeHandle.Value, CachedDeserializer<T>.Instance);
             }
@@ -65,11 +67,12 @@ namespace Nino.Core
             }
         }
 
-        public static void RecordSubTypeDeserializer<TBase, TSub>(DeserializeDelegate<TSub> subTypeDeserializer)
+        public static void RecordSubTypeDeserializer<TBase, TSub>(DeserializeDelegate<TSub> subTypeDeserializer,
+            DeserializeDelegateRef<TSub> subTypeDeserializerRef)
         {
             lock (Lock)
             {
-                CachedDeserializer<TBase>.Instance.AddSubTypeDeserializer(subTypeDeserializer);
+                CachedDeserializer<TBase>.Instance.AddSubTypeDeserializer(subTypeDeserializer, subTypeDeserializerRef);
             }
         }
     }

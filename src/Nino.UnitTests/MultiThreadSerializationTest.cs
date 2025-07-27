@@ -36,7 +36,7 @@ namespace Nino.UnitTests
             );
 
             var buf2 = NinoSerializer.Serialize(c);
-            NinoDeserializer.Deserialize(buf2, out C c2);
+            C c2 = NinoDeserializer.Deserialize<C>(buf2);
             Assert.AreEqual(c.ToString(), c2.ToString());
         }
 
@@ -61,7 +61,7 @@ namespace Nino.UnitTests
             {
                 for (int i = 0; i < tests; i++)
                 {
-                    NinoDeserializer.Deserialize(buf, out C c2);
+                    C c2 = NinoDeserializer.Deserialize<C>(buf);
                     Assert.AreEqual(c.ToString(), c2.ToString());
                 }
             }

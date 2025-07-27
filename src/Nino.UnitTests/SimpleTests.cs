@@ -13,6 +13,70 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestRefOverload()
+        {
+            List<int> list = new List<int> { 1, 2, 3, 4, 5 };
+            byte[] bytes = NinoSerializer.Serialize(list);
+            Assert.IsNotNull(bytes);
+
+            List<int> temp = new List<int> { 0, 0 };
+            NinoDeserializer.Deserialize(bytes, ref temp);
+            Assert.AreEqual(5, temp.Count);
+            Assert.AreEqual(1, temp[0]);
+            Assert.AreEqual(2, temp[1]);
+            Assert.AreEqual(3, temp[2]);
+            Assert.AreEqual(4, temp[3]);
+            Assert.AreEqual(5, temp[4]);
+            
+            List<string> strs = new List<string> { "Hello", "World" };
+            bytes = NinoSerializer.Serialize(strs);
+            Assert.IsNotNull(bytes);
+            
+            List<string> tempStrs = new List<string> { "Test", "Test2", "Test3" };
+            NinoDeserializer.Deserialize(bytes, ref tempStrs);
+            Assert.AreEqual(2, tempStrs.Count);
+            Assert.AreEqual("Hello", tempStrs[0]);
+            Assert.AreEqual("World", tempStrs[1]);
+
+            Data dt = new()
+            {
+                X = 10,
+                En = TestEnum.B,
+                Name = "Hello"
+            };
+            bytes = NinoSerializer.Serialize(dt);
+            Assert.IsNotNull(bytes);
+
+            dt = new()
+            {
+                X = 1,
+                Y = 2,
+                En = TestEnum.A,
+                Name = "World"
+            };
+            NinoDeserializer.Deserialize(bytes, ref dt);
+            Assert.AreEqual(10, dt.X);
+            Assert.AreEqual(0, dt.Y); // Y should not be changed
+            Assert.AreEqual(TestEnum.B, dt.En);
+            Assert.AreEqual("Hello", dt.Name);
+
+            dt = new()
+            {
+                X = 100,
+                En = TestEnum.B,
+                Name = "Nino"
+            };
+            object boxed = dt;
+            NinoDeserializer.Deserialize(bytes, typeof(Data), ref boxed);
+            Assert.IsTrue(boxed is Data);
+            var data = (Data)boxed;
+            Assert.AreEqual(10, data.X);
+            Assert.AreEqual(0, data.Y); // Y should not be changed
+            Assert.AreEqual(TestEnum.B, data.En);
+            Assert.AreEqual("Hello", data.Name);
+        }
+
+        [TestMethod]
         public void TestSomeNestedPrivateEnum()
         {
             SomeNestedPrivateEnum data = new SomeNestedPrivateEnum()
@@ -24,7 +88,7 @@ namespace Nino.UnitTests
             byte[] bytes = NinoSerializer.Serialize(data);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SomeNestedPrivateEnum result);
+            SomeNestedPrivateEnum result = NinoDeserializer.Deserialize<SomeNestedPrivateEnum>(bytes);
             Assert.AreEqual(data.Id, result.Id);
             Assert.AreEqual(2, result.EnumVal); // not 1 because we discarded Enum during serialization
         }
@@ -39,7 +103,7 @@ namespace Nino.UnitTests
             };
             byte[] bytes = NinoSerializer.Serialize(testMethodCtor);
             Assert.IsNotNull(bytes);
-            NinoDeserializer.Deserialize(bytes, out TestMethodCtor result);
+            TestMethodCtor result = NinoDeserializer.Deserialize<TestMethodCtor>(bytes);
             Assert.AreEqual(testMethodCtor.A, result.A);
             Assert.AreEqual(testMethodCtor.B, result.B);
         }
@@ -58,7 +122,7 @@ namespace Nino.UnitTests
             byte[] bytes = NinoSerializer.Serialize(cursedGeneric);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out CursedGeneric<int> result);
+            CursedGeneric<int> result = NinoDeserializer.Deserialize<CursedGeneric<int>>(bytes);
             Assert.AreEqual(cursedGeneric.field.Count, result.field.Count);
             Assert.AreEqual(cursedGeneric.field["Test"].Length, result.field["Test"].Length);
             for (int i = 0; i < cursedGeneric.field["Test"].Length; i++)
@@ -77,7 +141,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(cursedGeneric2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out CursedGeneric<string> result2);
+            CursedGeneric<string> result2 = NinoDeserializer.Deserialize<CursedGeneric<string>>(bytes);
             Assert.AreEqual(cursedGeneric2.field.Count, result2.field.Count);
             Assert.AreEqual(cursedGeneric2.field["Test"].Length, result2.field["Test"].Length);
             for (int i = 0; i < cursedGeneric2.field["Test"].Length; i++)
@@ -96,7 +160,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(cursedGeneric3);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out CursedGeneric<TestClass> result3);
+            CursedGeneric<TestClass> result3 = NinoDeserializer.Deserialize<CursedGeneric<TestClass>>(bytes);
             Assert.AreEqual(cursedGeneric3.field.Count, result3.field.Count);
             Assert.AreEqual(cursedGeneric3.field["Test"].Length, result3.field["Test"].Length);
             for (int i = 0; i < cursedGeneric3.field["Test"].Length; i++)
@@ -116,7 +180,7 @@ namespace Nino.UnitTests
             byte[] bytes = NinoSerializer.Serialize(stack);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Stack<int> result);
+            Stack<int> result = NinoDeserializer.Deserialize<Stack<int>>(bytes);
             Assert.AreEqual(stack.Count, result.Count);
             Assert.AreEqual(stack.Pop(), result.Pop());
             Assert.AreEqual(stack.Pop(), result.Pop());
@@ -128,7 +192,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(queue);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Queue<int> result2);
+            Queue<int> result2 = NinoDeserializer.Deserialize<Queue<int>>(bytes);
             Assert.AreEqual(queue.Count, result2.Count);
 
             Assert.AreEqual(queue.Dequeue(), result2.Dequeue());
@@ -144,7 +208,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(stack2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Stack<TestClass> result3);
+            Stack<TestClass> result3 = NinoDeserializer.Deserialize<Stack<TestClass>>(bytes);
             Assert.AreEqual(stack2.Count, result3.Count);
             var item = stack2.Pop();
             var item2 = result3.Pop();
@@ -161,7 +225,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(queue2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Queue<TestClass> result4);
+            Queue<TestClass> result4 = NinoDeserializer.Deserialize<Queue<TestClass>>(bytes);
             Assert.AreEqual(queue2.Count, result4.Count);
             item = queue2.Dequeue();
             item2 = result4.Dequeue();
@@ -180,7 +244,8 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(stack3);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Stack<Queue<(TestClass, int)>> result5);
+            Stack<Queue<(TestClass, int)>>
+                result5 = NinoDeserializer.Deserialize<Stack<Queue<(TestClass, int)>>>(bytes);
             Assert.AreEqual(stack3.Count, result5.Count);
             var queue4 = stack3.Pop();
             var queue5 = result5.Pop();
@@ -200,7 +265,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(linkedList);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out LinkedList<TestClass> result6);
+            LinkedList<TestClass> result6 = NinoDeserializer.Deserialize<LinkedList<TestClass>>(bytes);
             Assert.AreEqual(linkedList.Count, result6.Count);
             var node = linkedList.First;
             var node2 = result6.First;
@@ -215,7 +280,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(queue6);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Queue<int> result7);
+            Queue<int> result7 = NinoDeserializer.Deserialize<Queue<int>>(bytes);
             Assert.AreEqual(queue6.Count, result7.Count);
             Assert.AreEqual(queue6.Dequeue(), result7.Dequeue());
             Assert.AreEqual(queue6.Dequeue(), result7.Dequeue());
@@ -229,7 +294,7 @@ namespace Nino.UnitTests
             byte[] bytes = NinoSerializer.Serialize(tuple);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Tuple<int, string> result);
+            Tuple<int, string> result = NinoDeserializer.Deserialize<Tuple<int, string>>(bytes);
             Assert.AreEqual(tuple.Item1, result.Item1);
             Assert.AreEqual(tuple.Item2, result.Item2);
 
@@ -237,7 +302,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(tuple2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Tuple<int, int> result2);
+            Tuple<int, int> result2 = NinoDeserializer.Deserialize<Tuple<int, int>>(bytes);
             Assert.AreEqual(tuple2.Item1, result2.Item1);
             Assert.AreEqual(tuple2.Item2, result2.Item2);
 
@@ -246,7 +311,8 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(tuple3);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Tuple<string, Tuple<int, string>> result3);
+            Tuple<string, Tuple<int, string>> result3 =
+                NinoDeserializer.Deserialize<Tuple<string, Tuple<int, string>>>(bytes);
             Assert.AreEqual(tuple3.Item1, result3.Item1);
             Assert.AreEqual(tuple3.Item2.Item1, result3.Item2.Item1);
             Assert.AreEqual(tuple3.Item2.Item2, result3.Item2.Item2);
@@ -261,7 +327,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(tuple4);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out Tuple<Data, Tuple<int, int>> result4);
+            Tuple<Data, Tuple<int, int>> result4 = NinoDeserializer.Deserialize<Tuple<Data, Tuple<int, int>>>(bytes);
             Assert.AreEqual(tuple4.Item1.En, result4.Item1.En);
             Assert.AreEqual(tuple4.Item1.Name, result4.Item1.Name);
             Assert.AreEqual(tuple4.Item1.X, result4.Item1.X);
@@ -277,7 +343,7 @@ namespace Nino.UnitTests
             byte[] bytes = NinoSerializer.Serialize(tuple);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out ValueTuple<int, string> result);
+            ValueTuple<int, string> result = NinoDeserializer.Deserialize<ValueTuple<int, string>>(bytes);
             Assert.AreEqual(tuple.Item1, result.Item1);
             Assert.AreEqual(tuple.Item2, result.Item2);
 
@@ -285,7 +351,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(tuple2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out ValueTuple<int, int> result2);
+            ValueTuple<int, int> result2 = NinoDeserializer.Deserialize<ValueTuple<int, int>>(bytes);
             Assert.AreEqual(tuple2.Item1, result2.Item1);
             Assert.AreEqual(tuple2.Item2, result2.Item2);
 
@@ -294,7 +360,8 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(tuple3);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out ValueTuple<string, ValueTuple<int, string>> result3);
+            ValueTuple<string, ValueTuple<int, string>> result3 =
+                NinoDeserializer.Deserialize<ValueTuple<string, ValueTuple<int, string>>>(bytes);
             Assert.AreEqual(tuple3.Item1, result3.Item1);
             Assert.AreEqual(tuple3.Item2.Item1, result3.Item2.Item1);
             Assert.AreEqual(tuple3.Item2.Item2, result3.Item2.Item2);
@@ -309,7 +376,8 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(tuple4);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out ValueTuple<Data, ValueTuple<int, int>> result4);
+            ValueTuple<Data, ValueTuple<int, int>> result4 =
+                NinoDeserializer.Deserialize<ValueTuple<Data, ValueTuple<int, int>>>(bytes);
             Assert.AreEqual(tuple4.Item1.En, result4.Item1.En);
             Assert.AreEqual(tuple4.Item1.Name, result4.Item1.Name);
             Assert.AreEqual(tuple4.Item1.X, result4.Item1.X);
@@ -321,7 +389,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(val);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out (bool, string) result5);
+            (bool, string) result5 = NinoDeserializer.Deserialize<(bool, string)>(bytes);
             Assert.AreEqual(val.a, result5.Item1);
             Assert.AreEqual(val.b, result5.Item2);
 
@@ -329,7 +397,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(val2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out (bool a, string b) result6);
+            (bool a, string b) result6 = NinoDeserializer.Deserialize<(bool a, string b)>(bytes);
             Assert.AreEqual(val2.Item1, result6.a);
             Assert.AreEqual(val2.Item2, result6.b);
         }
@@ -342,7 +410,7 @@ namespace Nino.UnitTests
             Assert.IsNotNull(bytes);
             Console.WriteLine(string.Join(", ", bytes));
 
-            NinoDeserializer.Deserialize(bytes, out KeyValuePair<int, long> result);
+            KeyValuePair<int, long> result = NinoDeserializer.Deserialize<KeyValuePair<int, long>>(bytes);
             Assert.AreEqual(kvp.Key, result.Key);
             Assert.AreEqual(kvp.Value, result.Value);
 
@@ -350,7 +418,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(kvp2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out KeyValuePair<int, string> result2);
+            KeyValuePair<int, string> result2 = NinoDeserializer.Deserialize<KeyValuePair<int, string>>(bytes);
             Assert.AreEqual(kvp2.Key, result2.Key);
             Assert.AreEqual(kvp2.Value, result2.Value);
 
@@ -359,7 +427,8 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(kvp3);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out KeyValuePair<int, KeyValuePair<int, long>> result3);
+            KeyValuePair<int, KeyValuePair<int, long>> result3 =
+                NinoDeserializer.Deserialize<KeyValuePair<int, KeyValuePair<int, long>>>(bytes);
             Assert.AreEqual(kvp3.Key, result3.Key);
             Assert.AreEqual(kvp3.Value.Key, result3.Value.Key);
 
@@ -369,7 +438,8 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(kvp4);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out KeyValuePair<string, KeyValuePair<bool, string>> result4);
+            KeyValuePair<string, KeyValuePair<bool, string>> result4 =
+                NinoDeserializer.Deserialize<KeyValuePair<string, KeyValuePair<bool, string>>>(bytes);
             Assert.AreEqual(kvp4.Key, result4.Key);
             Assert.AreEqual(kvp4.Value.Key, result4.Value.Key);
         }
@@ -394,7 +464,7 @@ namespace Nino.UnitTests
             };
             byte[] bytes = NinoSerializer.Serialize(collection);
             Assert.IsNotNull(bytes);
-            NinoDeserializer.Deserialize(bytes, out IEnumerable<SimpleClass> ienumerable);
+            IEnumerable<SimpleClass> ienumerable = NinoDeserializer.Deserialize<IEnumerable<SimpleClass>>(bytes);
             Assert.AreEqual(collection.Count(), ienumerable.Count());
             for (int i = 0; i < collection.Count(); i++)
             {
@@ -414,7 +484,8 @@ namespace Nino.UnitTests
             Assert.IsNotNull(bytes);
             Console.WriteLine(string.Join(", ", bytes));
 
-            NinoDeserializer.Deserialize(bytes, out ConcurrentDictionary<int, int>[] result);
+            ConcurrentDictionary<int, int>[] result =
+                NinoDeserializer.Deserialize<ConcurrentDictionary<int, int>[]>(bytes);
             Assert.AreEqual(dict.Length, result.Length);
             for (int i = 0; i < dict.Length; i++)
             {
@@ -432,7 +503,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(dict2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out IDictionary<int, string>[] result2);
+            IDictionary<int, string>[] result2 = NinoDeserializer.Deserialize<IDictionary<int, string>[]>(bytes);
             Assert.AreEqual(dict2.Length, result2.Length);
             for (int i = 0; i < dict2.Length; i++)
             {
@@ -451,7 +522,8 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(dict3);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out IDictionary<int, IDictionary<int, int[]>> result3);
+            IDictionary<int, IDictionary<int, int[]>> result3 =
+                NinoDeserializer.Deserialize<IDictionary<int, IDictionary<int, int[]>>>(bytes);
             Assert.AreEqual(dict3.Count, result3.Count);
             for (int i = 0; i < dict3.Count; i++)
             {
@@ -487,7 +559,7 @@ namespace Nino.UnitTests
             Assert.IsNotNull(bytes);
             Console.WriteLine(string.Join(", ", bytes));
 
-            NinoDeserializer.Deserialize(bytes, out List<IListElementClass> result);
+            List<IListElementClass> result = NinoDeserializer.Deserialize<List<IListElementClass>>(bytes);
             Assert.AreEqual(list.Count, result.Count);
             foreach (var item in list)
             {
@@ -541,7 +613,7 @@ namespace Nino.UnitTests
                 115, 0, 116, 0, 50, 0, 0, 64, 172, 217, 211, 82, 221, 136
             };
 
-            NinoDeserializer.Deserialize(bytes, out List<IListElementClass> result);
+            List<IListElementClass> result = NinoDeserializer.Deserialize<List<IListElementClass>>(bytes);
             Assert.AreEqual(list.Count, result.Count);
             foreach (var item in list)
             {
@@ -574,7 +646,8 @@ namespace Nino.UnitTests
                 Id = 991122
             };
             byte[] bytes = NinoSerializer.Serialize(protectedShouldInclude);
-            NinoDeserializer.Deserialize(bytes, out ProtectedShouldInclude protectedShouldInclude2);
+            ProtectedShouldInclude protectedShouldInclude2 =
+                NinoDeserializer.Deserialize<ProtectedShouldInclude>(bytes);
             Assert.AreEqual(protectedShouldInclude.Id, protectedShouldInclude2.Id);
 
             ShouldIgnorePrivate data = new ShouldIgnorePrivate
@@ -584,7 +657,7 @@ namespace Nino.UnitTests
                 CreateTime = DateTime.Today
             };
             bytes = NinoSerializer.Serialize(data);
-            NinoDeserializer.Deserialize(bytes, out ShouldIgnorePrivate shouldIgnorePrivate);
+            ShouldIgnorePrivate shouldIgnorePrivate = NinoDeserializer.Deserialize<ShouldIgnorePrivate>(bytes);
             Assert.AreNotEqual(data.Id, shouldIgnorePrivate.Id);
             Assert.AreEqual(data.Name, shouldIgnorePrivate.Name);
             Assert.AreEqual(data.CreateTime, shouldIgnorePrivate.CreateTime);
@@ -593,7 +666,7 @@ namespace Nino.UnitTests
             pcls.A = 1;
 
             bytes = NinoSerializer.Serialize(pcls);
-            NinoDeserializer.Deserialize(bytes, out TestPrivateMemberClass pcls2);
+            TestPrivateMemberClass pcls2 = NinoDeserializer.Deserialize<TestPrivateMemberClass>(bytes);
             Assert.AreEqual(pcls.A, pcls2.A);
             Assert.AreEqual(pcls.ReadonlyId, pcls2.ReadonlyId);
 
@@ -602,7 +675,7 @@ namespace Nino.UnitTests
             Assert.AreEqual("Test", record.Name);
 
             bytes = NinoSerializer.Serialize(record);
-            NinoDeserializer.Deserialize(bytes, out RecordWithPrivateMember r1);
+            RecordWithPrivateMember r1 = NinoDeserializer.Deserialize<RecordWithPrivateMember>(bytes);
             Assert.AreEqual(record.Name, r1.Name);
             Assert.AreEqual(record.ReadonlyId, r1.ReadonlyId);
 
@@ -611,7 +684,7 @@ namespace Nino.UnitTests
             Assert.AreEqual("Test", record2.Name);
 
             bytes = NinoSerializer.Serialize(record2);
-            NinoDeserializer.Deserialize(bytes, out RecordWithPrivateMember2 r2);
+            RecordWithPrivateMember2 r2 = NinoDeserializer.Deserialize<RecordWithPrivateMember2>(bytes);
             Assert.AreEqual(record2.Name, r2.Name);
             Assert.AreEqual(record2.ReadonlyId, r2.ReadonlyId);
 
@@ -623,7 +696,7 @@ namespace Nino.UnitTests
             Assert.AreEqual("Test", s.GetName());
 
             bytes = NinoSerializer.Serialize(s);
-            NinoDeserializer.Deserialize(bytes, out StructWithPrivateMember s2);
+            StructWithPrivateMember s2 = NinoDeserializer.Deserialize<StructWithPrivateMember>(bytes);
             Assert.AreEqual(s.Id, s2.Id);
             Assert.AreEqual(s.GetName(), s2.GetName());
 
@@ -638,7 +711,7 @@ namespace Nino.UnitTests
             Assert.IsNotNull(cls.Name);
 
             bytes = NinoSerializer.Serialize(cls);
-            NinoDeserializer.Deserialize(bytes, out ClassWithPrivateMember<float> result);
+            ClassWithPrivateMember<float> result = NinoDeserializer.Deserialize<ClassWithPrivateMember<float>>(bytes);
             Assert.AreEqual(cls.Id, result.Id);
             //private field
             Assert.AreEqual(cls.Name, result.Name);
@@ -662,7 +735,7 @@ namespace Nino.UnitTests
             Assert.IsNotNull(cls2.Name);
 
             bytes = NinoSerializer.Serialize(cls2);
-            NinoDeserializer.Deserialize(bytes, out ClassWithPrivateMember<int> result2);
+            ClassWithPrivateMember<int> result2 = NinoDeserializer.Deserialize<ClassWithPrivateMember<int>>(bytes);
             Assert.AreEqual(cls2.Id, result2.Id);
             Assert.AreEqual(cls2.Name, result2.Name);
             Assert.AreEqual(cls2.Flag, result2.Flag);
@@ -674,7 +747,7 @@ namespace Nino.UnitTests
 
             Bindable<int> bindable = new Bindable<int>(1);
             bytes = NinoSerializer.Serialize(bindable);
-            NinoDeserializer.Deserialize(bytes, out Bindable<int> bindable2);
+            Bindable<int> bindable2 = NinoDeserializer.Deserialize<Bindable<int>>(bytes);
             Assert.AreEqual(bindable.Value, bindable2.Value);
         }
 
@@ -690,13 +763,13 @@ namespace Nino.UnitTests
             //polymorphism serialization and real type deserialization
             byte[] bytes = NinoSerializer.Serialize((ISerializable)a);
             Console.WriteLine(string.Join(",", bytes));
-            NinoDeserializer.Deserialize(bytes, out Struct1 i11);
+            Struct1 i11 = NinoDeserializer.Deserialize<Struct1>(bytes);
             Assert.AreEqual(a, i11);
 
             //real type serialization and deserialization with polymorphism
             bytes = NinoSerializer.Serialize(a);
             Console.WriteLine(string.Join(",", bytes));
-            NinoDeserializer.Deserialize(bytes, out ISerializable i1);
+            ISerializable i1 = NinoDeserializer.Deserialize<ISerializable>(bytes);
 
             Assert.AreEqual(i1, i11);
 
@@ -713,7 +786,7 @@ namespace Nino.UnitTests
             };
 
             bytes = NinoSerializer.Serialize(b);
-            NinoDeserializer.Deserialize(bytes, out ISerializable i2);
+            ISerializable i2 = NinoDeserializer.Deserialize<ISerializable>(bytes);
             Assert.IsInstanceOfType(i2, typeof(Class1));
             var result2 = (Class1)i2;
             Assert.AreEqual(b.A, result2.A);
@@ -730,7 +803,7 @@ namespace Nino.UnitTests
             };
 
             bytes = NinoSerializer.Serialize(c);
-            NinoDeserializer.Deserialize(bytes, out ISerializable i3);
+            ISerializable i3 = NinoDeserializer.Deserialize<ISerializable>(bytes);
             Assert.IsInstanceOfType(i3, typeof(Struct2));
             var result3 = (Struct2)i3;
 
@@ -759,14 +832,14 @@ namespace Nino.UnitTests
             Console.WriteLine(string.Join(", ", bytes));
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out StringData result);
+            StringData result = NinoDeserializer.Deserialize<StringData>(bytes);
             Assert.AreEqual(data.Str, result.Str);
 
             bytes = NinoSerializer.Serialize(data2);
             Console.WriteLine(string.Join(", ", bytes));
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out StringData2 result2);
+            StringData2 result2 = NinoDeserializer.Deserialize<StringData2>(bytes);
             Assert.AreEqual(data2.Str, result2.Str);
 
             Assert.AreEqual(result.Str, result2.Str);
@@ -802,7 +875,7 @@ namespace Nino.UnitTests
             };
             //require symbol WEAK_VERSION_TOLERANCE to be defined
 #if WEAK_VERSION_TOLERANCE
-            NinoDeserializer.Deserialize(oldData, out SaveData result);
+            SaveData result = NinoDeserializer.Deserialize<SaveData>(oldData);
             Assert.AreEqual(data.Id, result.Id);
             Assert.AreEqual(data.Name, result.Name);
             Assert.AreEqual(default, result.NewField1);
@@ -811,7 +884,7 @@ namespace Nino.UnitTests
             //should throw out of range exception
             Assert.ThrowsException<ArgumentOutOfRangeException>(() =>
             {
-                NinoDeserializer.Deserialize(oldData, out SaveData _);
+                var _ = NinoDeserializer.Deserialize<SaveData>(oldData);
             });
 #endif
         }
@@ -829,26 +902,26 @@ namespace Nino.UnitTests
             byte[] bytes = NinoSerializer.Serialize(record);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecordStruct result);
+            SimpleRecordStruct result = NinoDeserializer.Deserialize<SimpleRecordStruct>(bytes);
             Assert.AreEqual(record, result);
 
             SimpleRecordStruct2 record2 = new SimpleRecordStruct2(1, DateTime.Today);
             bytes = NinoSerializer.Serialize(record2);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecordStruct2 result2);
+            SimpleRecordStruct2 result2 = NinoDeserializer.Deserialize<SimpleRecordStruct2>(bytes);
             Assert.AreEqual(record2, result2);
 
             SimpleRecordStruct2<int> record3 = new SimpleRecordStruct2<int>(1, 1234);
             bytes = NinoSerializer.Serialize(record3);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecordStruct2<int> result3);
+            SimpleRecordStruct2<int> result3 = NinoDeserializer.Deserialize<SimpleRecordStruct2<int>>(bytes);
             Assert.AreEqual(record3, result3);
 
             SimpleRecordStruct2<string> record4 = new SimpleRecordStruct2<string>(1, "Test");
             bytes = NinoSerializer.Serialize(record4);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecordStruct2<string> result4);
+            SimpleRecordStruct2<string> result4 = NinoDeserializer.Deserialize<SimpleRecordStruct2<string>>(bytes);
             Assert.AreEqual(record4, result4);
         }
 
@@ -865,14 +938,14 @@ namespace Nino.UnitTests
             byte[] bytes = NinoSerializer.Serialize(record);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecord result);
+            SimpleRecord result = NinoDeserializer.Deserialize<SimpleRecord>(bytes);
             Assert.AreEqual(record, result);
 
             SimpleRecord2 record2 = new SimpleRecord2(1, "Test", DateTime.Today);
             bytes = NinoSerializer.Serialize(record2);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecord2 result2);
+            SimpleRecord2 result2 = NinoDeserializer.Deserialize<SimpleRecord2>(bytes);
             Assert.AreEqual(record2, result2);
 
             SimpleRecord3 record3 = new SimpleRecord3(1, "Test", DateTime.Today)
@@ -883,7 +956,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(record3);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecord3 result3);
+            SimpleRecord3 result3 = NinoDeserializer.Deserialize<SimpleRecord3>(bytes);
             Assert.AreEqual(result3.Ignored, 0);
             result3.Ignored = 999;
             Assert.AreEqual(record3, result3);
@@ -896,7 +969,7 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(record4);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecord4 result4);
+            SimpleRecord4 result4 = NinoDeserializer.Deserialize<SimpleRecord4>(bytes);
             Assert.AreEqual(record4.ShouldNotIgnore, result4.ShouldNotIgnore);
             Assert.AreEqual(result4.Flag, false);
             result4.Flag = true;
@@ -911,14 +984,14 @@ namespace Nino.UnitTests
             bytes = NinoSerializer.Serialize(record5);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecord5 result5);
+            SimpleRecord5 result5 = NinoDeserializer.Deserialize<SimpleRecord5>(bytes);
             Assert.AreEqual(record5.ShouldNotIgnore, result5.ShouldNotIgnore);
 
             SimpleRecord6<int> record6 = new SimpleRecord6<int>(1, 1234);
             bytes = NinoSerializer.Serialize(record6);
             Assert.IsNotNull(bytes);
 
-            NinoDeserializer.Deserialize(bytes, out SimpleRecord6<int> result6);
+            SimpleRecord6<int> result6 = NinoDeserializer.Deserialize<SimpleRecord6<int>>(bytes);
             Assert.AreEqual(record6, result6);
         }
 
@@ -989,7 +1062,7 @@ namespace Nino.UnitTests
             byte[] bytes = NinoSerializer.Serialize(arr);
             Console.WriteLine(string.Join(", ", bytes));
             Assert.IsNotNull(bytes);
-            NinoDeserializer.Deserialize(bytes, out List<TestClass> result);
+            List<TestClass> result = NinoDeserializer.Deserialize<List<TestClass>>(bytes);
             Assert.AreEqual(4, result.Count);
             Assert.AreEqual(1, result[0].A);
             Assert.AreEqual("Hello", result[0].B);
@@ -1000,7 +1073,7 @@ namespace Nino.UnitTests
             //should throw error due to type mismatch in polymorphism
             Assert.ThrowsException<InvalidOperationException>(() =>
             {
-                NinoDeserializer.Deserialize(bytes, out List<TestClass3> _);
+                var _ = NinoDeserializer.Deserialize<List<TestClass3>>(bytes);
             });
         }
 
@@ -1048,10 +1121,10 @@ namespace Nino.UnitTests
             Test(NinoSerializer.Serialize(j));
             Test(NinoSerializer.Serialize(m));
             Test(NinoSerializer.Serialize(n));
-            NinoDeserializer.Deserialize(NinoSerializer.Serialize(n), out TestStruct? nn);
+            TestStruct? nn = NinoDeserializer.Deserialize<TestStruct?>(NinoSerializer.Serialize(n));
             Assert.AreEqual(1, nn!.Value.A);
             Assert.AreEqual("Test", nn.Value.B);
-            NinoDeserializer.Deserialize(NinoSerializer.Serialize(m), out m);
+            m = NinoDeserializer.Deserialize<HashSet<int>>(NinoSerializer.Serialize(m));
             Assert.AreEqual(3, m.Count);
             foreach (var item in m)
             {
@@ -1068,7 +1141,7 @@ namespace Nino.UnitTests
             };
             byte[] bytes = NinoSerializer.Serialize(a);
 
-            NinoDeserializer.Deserialize(bytes, out GenericStruct<int> result);
+            GenericStruct<int> result = NinoDeserializer.Deserialize<GenericStruct<int>>(bytes);
             Assert.AreEqual(a.Val, result.Val);
 
             GenericStruct<string> b = new GenericStruct<string>()
@@ -1076,7 +1149,7 @@ namespace Nino.UnitTests
                 Val = "Test"
             };
             bytes = NinoSerializer.Serialize(b);
-            NinoDeserializer.Deserialize(bytes, out GenericStruct<string> result2);
+            GenericStruct<string> result2 = NinoDeserializer.Deserialize<GenericStruct<string>>(bytes);
 
             Assert.AreEqual(b.Val, result2.Val);
         }
@@ -1103,7 +1176,7 @@ namespace Nino.UnitTests
                 Val = "Test"
             };
             bytes = NinoSerializer.Serialize(b);
-            NinoDeserializer.Deserialize(bytes, out Generic<string> result2);
+            Generic<string> result2 = NinoDeserializer.Deserialize<Generic<string>>(bytes);
 
             Assert.AreEqual(b.Val, result2.Val);
         }
@@ -1121,7 +1194,7 @@ namespace Nino.UnitTests
             };
 
             byte[] bytes = NinoSerializer.Serialize(a);
-            NinoDeserializer.Deserialize(bytes, out ComplexGeneric<List<int>> result);
+            ComplexGeneric<List<int>> result = NinoDeserializer.Deserialize<ComplexGeneric<List<int>>>(bytes);
             Assert.AreEqual(a.Val.Count, result.Val.Count);
             Assert.AreEqual(a.Val[0], result.Val[0]);
             Assert.AreEqual(a.Val[1], result.Val[1]);
@@ -1146,7 +1219,8 @@ namespace Nino.UnitTests
             };
 
             byte[] bytes = NinoSerializer.Serialize(a);
-            NinoDeserializer.Deserialize(bytes, out ComplexGeneric2<Generic<SimpleClass>> result);
+            ComplexGeneric2<Generic<SimpleClass>> result =
+                NinoDeserializer.Deserialize<ComplexGeneric2<Generic<SimpleClass>>>(bytes);
             Assert.AreEqual(a.Val.Val.Val.Id, result.Val.Val.Val.Id);
             Assert.AreEqual(a.Val.Val.Val.Name, result.Val.Val.Val.Name);
         }
@@ -1157,25 +1231,25 @@ namespace Nino.UnitTests
             List<int> a = null;
             byte[] bytes = NinoSerializer.Serialize(a);
             Console.WriteLine(string.Join(", ", bytes));
-            NinoDeserializer.Deserialize(bytes, out List<int> result);
+            List<int> result = NinoDeserializer.Deserialize<List<int>>(bytes);
             Assert.IsNull(result);
 
             List<int?> b = null;
             bytes = NinoSerializer.Serialize(b);
             Console.WriteLine(string.Join(", ", bytes));
-            NinoDeserializer.Deserialize(bytes, out List<int?> result2);
+            List<int?> result2 = NinoDeserializer.Deserialize<List<int?>>(bytes);
             Assert.IsNull(result2);
 
             List<SimpleClass> c = null;
             bytes = NinoSerializer.Serialize(c);
             Console.WriteLine(string.Join(", ", bytes));
-            NinoDeserializer.Deserialize(bytes, out List<SimpleClass> result3);
+            List<SimpleClass> result3 = NinoDeserializer.Deserialize<List<SimpleClass>>(bytes);
             Assert.IsNull(result3);
 
             List<SimpleClass?> d = null;
             bytes = NinoSerializer.Serialize(d);
             Console.WriteLine(string.Join(", ", bytes));
-            NinoDeserializer.Deserialize(bytes, out List<SimpleClass?> result4);
+            List<SimpleClass?> result4 = NinoDeserializer.Deserialize<List<SimpleClass?>>(bytes);
             Assert.IsNull(result4);
         }
     }

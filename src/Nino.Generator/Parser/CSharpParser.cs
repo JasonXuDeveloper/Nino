@@ -100,7 +100,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                 // members for each type in the inheritance chain
                 List<(HashSet<ISymbol> members, List<IParameterSymbol> primaryCtorParms)> hierarchicalMembers =
                     new();
-                
+
                 void AddMembers(NinoType type)
                 {
                     var entry = (new HashSet<ISymbol>(SymbolEqualityComparer.Default), new List<IParameterSymbol>());
@@ -154,6 +154,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                                 var matchingProperty = namedTypeSymbol.GetMembers()
                                     .OfType<IPropertySymbol>()
                                     .FirstOrDefault(p =>
+                                        p.IsImplicitlyDeclared &&
                                         p.Name.Equals(parameter.Name, StringComparison.OrdinalIgnoreCase)
                                         && !p.IsStatic);
 
@@ -219,10 +220,12 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                         }
 
                         bool isPrivate = symbol.DeclaredAccessibility != Accessibility.Public;
+                        bool isCtorParameter = false;
                         //we dont count primary constructor params as private
                         if (primaryConstructorParams.Contains(symbol, SymbolEqualityComparer.Default))
                         {
                             isPrivate = false;
+                            isCtorParameter = true;
                         }
 
                         if (isPrivateProxy)
@@ -254,12 +257,39 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                         memberType = memberType.GetPureType();
                         var isProperty = isPrivateProxy ? isProxyProperty : symbol is IPropertySymbol;
 
+                        // init only param
+                        if (symbol is IPropertySymbol ps)
+                        {
+                            isCtorParameter = ps.IsImplicitlyDeclared ||
+                                              ps.IsReadOnly ||
+                                              ps.SetMethod == null ||
+                                              ps.SetMethod.IsInitOnly;
+                            if (!isCtorParameter)
+                            {
+                                isCtorParameter = primaryConstructorParams.Any(p => p.Name.Equals(ps.Name));
+                            }
+                        }
+                        else if (symbol is IFieldSymbol fs)
+                        {
+                            isCtorParameter = fs.IsReadOnly ||
+                                              fs.IsConst ||
+                                              fs.IsImplicitlyDeclared ||
+                                              fs.IsStatic;
+                        }
+                        else if (symbol is IParameterSymbol parameterSymbol)
+                        {
+                            isCtorParameter = parameterSymbol.IsThis || parameterSymbol.IsParams ||
+                                              parameterSymbol.RefKind != RefKind.None ||
+                                              parameterSymbol.IsImplicitlyDeclared ||
+                                              parameterSymbol.IsDiscard;
+                        }
+
                         if (autoCollect || isPrivateProxy)
                         {
                             memberIndex[memberName] = memberIndex.Count;
                             ninoMembers.Add(new(memberName, memberType, symbol)
                             {
-                                IsCtorParameter = symbol is IParameterSymbol,
+                                IsCtorParameter = isCtorParameter || symbol.IsImplicitlyDeclared,
                                 IsPrivate = isPrivate,
                                 IsProperty = isProperty,
                                 IsUtf8String = attrList.Any(a =>
@@ -287,7 +317,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                         memberIndex[memberName] = (ushort)indexValue;
                         ninoMembers.Add(new(memberName, memberType, symbol)
                         {
-                            IsCtorParameter = symbol is IParameterSymbol,
+                            IsCtorParameter = isCtorParameter || symbol.IsImplicitlyDeclared,
                             IsPrivate = isPrivate,
                             IsProperty = isProperty,
                             IsUtf8String = attrList.Any(a =>

@@ -53,8 +53,9 @@ public partial class DeserializerGenerator(
                             ? $"{baseType.CustomSerializer}."
                             : "";
                         var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
+                        var methodRef = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImplRef" : "null";
                         sb.AppendLine($$"""
-                                                    NinoTypeMetadata.RegisterDeserializer<{{baseTypeName}}>({{method}}, {{baseType.Parents.Any().ToString().ToLower()}});
+                                                    NinoTypeMetadata.RegisterDeserializer<{{baseTypeName}}>({{method}}, {{methodRef}}, {{baseType.Parents.Any().ToString().ToLower()}});
                                         """);
                     }
                 }
@@ -63,17 +64,19 @@ public partial class DeserializerGenerator(
                 if (registeredTypes.Add(type))
                 {
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
+                    var methodRef = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImplRef" : "null";
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>({{method}}, {{ninoType.Parents.Any().ToString().ToLower()}});
+                                                NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>({{method}}, {{methodRef}}, {{ninoType.Parents.Any().ToString().ToLower()}});
                                     """);
                 }
 
                 var meth = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
+                var methRef = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImplRef" : "null";
                 foreach (var baseType in baseTypes)
                 {
                     var baseTypeName = baseType.TypeSymbol.GetDisplayString();
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RecordSubTypeDeserializer<{{baseTypeName}}, {{typeFullName}}>({{meth}});
+                                                NinoTypeMetadata.RecordSubTypeDeserializer<{{baseTypeName}}, {{typeFullName}}>({{meth}}, {{methRef}});
                                     """);
                 }
 
@@ -82,7 +85,7 @@ public partial class DeserializerGenerator(
 
             if (registeredTypes.Add(type))
                 sb.AppendLine($$"""
-                                            NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(Deserialize, false);
+                                            NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(Deserialize, DeserializeRef, false);
                                 """);
         }
 

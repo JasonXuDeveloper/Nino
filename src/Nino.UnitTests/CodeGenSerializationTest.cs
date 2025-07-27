@@ -79,8 +79,8 @@ namespace Nino.UnitTests
             Console.WriteLine(string.Join(", ", bufC));
             Console.WriteLine(string.Join(", ", bufD));
             
-            NinoDeserializer.Deserialize(bufC, out C c2);
-            NinoDeserializer.Deserialize(bufD, out D d2);
+            C c2 = NinoDeserializer.Deserialize<C>(bufC);
+            D d2 = NinoDeserializer.Deserialize<D>(bufD);
             
             Assert.AreEqual(c.ToString(), c.ToString());
             Assert.AreEqual(c.ToString(), d.ToString());

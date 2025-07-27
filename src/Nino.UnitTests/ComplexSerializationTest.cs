@@ -112,7 +112,7 @@ namespace Nino.UnitTests
             };
 
             var buf = NinoSerializer.Serialize(dt);
-            NinoDeserializer.Deserialize(buf, out Data dt2);
+            Data dt2 = NinoDeserializer.Deserialize<Data>(buf);
             var dt3 = NinoDeserializer.Deserialize<Data>(buf);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
             Assert.IsTrue(dt.ToString() == dt3.ToString());
@@ -127,7 +127,7 @@ namespace Nino.UnitTests
             };
 
             var buf = NinoSerializer.Serialize(dt);
-            NinoDeserializer.Deserialize(buf, out A dt2);
+            A dt2 = NinoDeserializer.Deserialize<A>(buf);
             Assert.IsTrue(dt.ToString() == dt2.ToString());
         }
 
@@ -161,7 +161,7 @@ namespace Nino.UnitTests
             var buf = NinoSerializer.Serialize(nd);
             var buf2 = NinoSerializer.Serialize(nd);
             Assert.IsTrue(buf.SequenceEqual(buf2));
-            NinoDeserializer.Deserialize(buf, out NestedData nd2);
+            NestedData nd2 = NinoDeserializer.Deserialize<NestedData>(buf);
             Assert.AreEqual(nd.Name, nd2.Name);
             Assert.AreEqual(nd.Ps.Length, nd2.Ps.Length);
             for (int i = 0; i < nd.Ps.Length; i++)
@@ -403,7 +403,7 @@ namespace Nino.UnitTests
             var buf = NinoSerializer.Serialize(data);
             var buf2 = NinoSerializer.Serialize<ComplexData>(data);
             Assert.IsTrue(buf.SequenceEqual(buf2));
-            NinoDeserializer.Deserialize(buf, out ComplexData data2);
+            ComplexData data2 = NinoDeserializer.Deserialize<ComplexData>(buf);
             var data3 = NinoDeserializer.Deserialize<ComplexData>(buf);
             Assert.AreEqual(data.ToString(), data2.ToString());
             Assert.AreEqual(data.ToString(), data3.ToString());
@@ -431,7 +431,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(testData.ToString(), result1.ToString());
 
             // Test void Deserialize<T>(ReadOnlySpan<byte> data, out T value)
-            NinoDeserializer.Deserialize<Data>(buf, out Data result2);
+            Data result2 = NinoDeserializer.Deserialize<Data>(buf);
             Assert.AreEqual(testData.ToString(), result2.ToString());
 
             // Test with ReadOnlySpan<byte>
@@ -439,7 +439,7 @@ namespace Nino.UnitTests
             var result3 = NinoDeserializer.Deserialize<Data>(span);
             Assert.AreEqual(testData.ToString(), result3.ToString());
 
-            NinoDeserializer.Deserialize<Data>(span, out Data result4);
+            Data result4 = NinoDeserializer.Deserialize<Data>(span);
             Assert.AreEqual(testData.ToString(), result4.ToString());
         }
 

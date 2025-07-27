@@ -227,6 +227,8 @@ public class CollectionDeserializerGenerator(
             {
                 ITypeSymbol elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
                 var elementTypeFullName = elementType.GetDisplayString();
+
+                // Out overload
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
                 sb.Append(elementTypeFullName);
@@ -244,6 +246,14 @@ public class CollectionDeserializerGenerator(
                 sb.AppendLine(GetDeserializeString(elementType, false, "ret"));
                 sb.AppendLine("    value = ret;");
                 sb.AppendLine("}");
+                sb.AppendLine();
+
+                // Ref overload - nullable is not modifiable, so just call out overload
+                sb.AppendLine(Inline);
+                sb.Append("public static void DeserializeRef(ref ");
+                sb.Append(elementTypeFullName);
+                sb.AppendLine("? value, ref Reader reader) => Deserialize(out value, ref reader);");
+
                 return true;
             }
         ),
@@ -291,57 +301,148 @@ public class CollectionDeserializerGenerator(
                     ? elemType.Insert(elemType.IndexOf("[]", StringComparison.Ordinal), "[length]")
                     : $"{elemType}[length]";
                 var typeName = symbol.GetDisplayString();
-                bool isUnmanaged = elementType.IsUnmanagedType;
-                if (isUnmanaged)
-                {
-                    sb.AppendLine(Inline);
-                    sb.Append("public static void Deserialize(out ");
-                    sb.Append(typeName);
-                    sb.AppendLine(" value, ref Reader reader)");
-                    sb.AppendLine("{");
-                    EofCheck(sb);
-                    sb.AppendLine("    reader.Read(out value);");
-                    sb.AppendLine("}");
-                    return true;
-                }
-
+                bool isUnmanaged = elementType.IsUnmanagedType &&
+                                   elementType.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T;
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
                 sb.Append(typeName);
                 sb.AppendLine(" value, ref Reader reader)");
                 sb.AppendLine("{");
                 EofCheck(sb);
+                if (isUnmanaged)
+                {
+                    sb.AppendLine("    reader.Read(out value);");
+                    sb.AppendLine("}");
+                }
+                else
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        value = null;");
+                    sb.AppendLine("        return;");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("    Reader eleReader;"); });
+                    sb.AppendLine();
+                    sb.Append("    value = new ");
+                    sb.Append(creationDecl);
+                    sb.AppendLine(";");
+                    sb.AppendLine("    var span = value.AsSpan();");
+                    sb.AppendLine("    for (int i = 0; i < length; i++)");
+                    sb.AppendLine("    {");
+                    IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w =>
+                        {
+                            w.AppendLine("        eleReader = reader.Slice();");
+                            w.Append("    ");
+                            w.Append("    ");
+                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "eleReader"));
+                        },
+                        w =>
+                        {
+                            w.Append("    ");
+                            w.Append("    ");
+                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]"));
+                        });
+                    sb.AppendLine("    }");
+                    sb.AppendLine("}");
+                }
+
                 sb.AppendLine();
-                sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
-                sb.AppendLine("    {");
-                sb.AppendLine("        value = null;");
-                sb.AppendLine("        return;");
-                sb.AppendLine("    }");
-                sb.AppendLine();
-                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
-                    w => { w.AppendLine("    Reader eleReader;"); });
-                sb.AppendLine();
-                sb.Append("    value = new ");
-                sb.Append(creationDecl);
-                sb.AppendLine(";");
-                sb.AppendLine("    var span = value.AsSpan();");
-                sb.AppendLine("    for (int i = 0; i < length; i++)");
-                sb.AppendLine("    {");
-                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
-                    w =>
+
+                // Ref overload - arrays are modifiable, resize and fill
+                sb.AppendLine(Inline);
+                sb.Append("public static void DeserializeRef(ref ");
+                sb.Append(typeName);
+                sb.AppendLine(" value, ref Reader reader)");
+                sb.AppendLine("{");
+                EofCheck(sb);
+                if (isUnmanaged)
+                {
+                    sb.AppendLine("    reader.ReadRef(ref value);");
+                    sb.AppendLine("}");
+                }
+                else
+                {
+                    sb.AppendLine();
+                    sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        value = null;");
+                    sb.AppendLine("        return;");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+
+                    if (!isUnmanaged)
                     {
-                        w.AppendLine("        eleReader = reader.Slice();");
-                        w.Append("    ");
-                        w.Append("    ");
-                        w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "eleReader"));
-                    },
-                    w =>
-                    {
-                        w.Append("    ");
-                        w.Append("    ");
-                        w.AppendLine(GetDeserializeString(elementType, true, "span[i]"));
-                    });
-                sb.AppendLine("    }");
+                        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                            w => { w.AppendLine("    Reader eleReader;"); });
+                        sb.AppendLine();
+                    }
+
+                    sb.AppendLine("    // Resize array if needed");
+                    sb.AppendLine("    if (value == null || value.Length != length)");
+                    sb.AppendLine("    {");
+                    sb.Append("        value = new ");
+                    sb.Append(creationDecl);
+                    sb.AppendLine(";");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                    sb.AppendLine("    var span = value.AsSpan();");
+                    sb.AppendLine("    for (int i = 0; i < length; i++)");
+                    sb.AppendLine("    {");
+                    IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w =>
+                        {
+                            w.AppendLine("        eleReader = reader.Slice();");
+                            w.Append("    ");
+                            w.Append("    ");
+                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "eleReader"));
+                        },
+                        w =>
+                        {
+                            w.Append("    ");
+                            w.Append("    ");
+                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]"));
+                        });
+                    sb.AppendLine("    }");
+                    sb.AppendLine("}");
+                }
+
+                return true;
+            }
+        ),
+        // trivial unmanaged IList Ninotypes
+        new
+        (
+            "TrivialUnmanagedIList",
+            new Joint().With
+            (
+                new Interface("IList<T>"),
+                new TypeArgument(0, symbol => symbol.IsUnmanagedType),
+                new Not(new Array())
+            ),
+            (symbol, sb) =>
+            {
+                sb.AppendLine(Inline);
+                sb.Append("public static void Deserialize(out ");
+                sb.Append(symbol.GetDisplayString());
+                sb.AppendLine(" value, ref Reader reader)");
+                sb.AppendLine("{");
+                EofCheck(sb);
+                sb.AppendLine("    reader.Read(out value);");
+                sb.AppendLine("}");
+                sb.AppendLine();
+
+                // Ref overload - trivial unmanaged IList, use direct ReadRef
+                sb.AppendLine(Inline);
+                sb.Append("public static void DeserializeRef(ref ");
+                sb.Append(symbol.GetDisplayString());
+                sb.AppendLine(" value, ref Reader reader)");
+                sb.AppendLine("{");
+                EofCheck(sb);
+                sb.AppendLine("    reader.ReadRef(ref value);");
                 sb.AppendLine("}");
 
                 return true;
@@ -383,7 +484,10 @@ public class CollectionDeserializerGenerator(
                 if (!validIndexer.Filter(symbol)) return false;
 
                 var dictType = symbol.GetDisplayString();
-                bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
+                bool isUnmanaged =
+                    keyType.IsUnmanagedType && keyType.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T
+                                            && valType.IsUnmanagedType && valType.OriginalDefinition.SpecialType !=
+                                            SpecialType.System_Nullable_T;
 
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
@@ -445,6 +549,79 @@ public class CollectionDeserializerGenerator(
 
                 sb.AppendLine("    }");
                 sb.AppendLine("}");
+                sb.AppendLine();
+
+                // Ref overload - dictionaries are modifiable, clear and repopulate
+                sb.AppendLine(Inline);
+                sb.Append("public static void DeserializeRef(ref ");
+                sb.Append(dictSymbol.GetDisplayString());
+                sb.AppendLine(" value, ref Reader reader)");
+                sb.AppendLine("{");
+                EofCheck(sb);
+                sb.AppendLine();
+                sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
+                sb.AppendLine("    {");
+                sb.AppendLine("        value = null;");
+                sb.AppendLine("        return;");
+                sb.AppendLine("    }");
+                sb.AppendLine();
+
+                if (!isUnmanaged)
+                {
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("    Reader eleReader;"); });
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine("    // Initialize if null, otherwise clear");
+                sb.AppendLine("    if (value == null)");
+                sb.AppendLine("    {");
+                sb.Append("        value = new ");
+                sb.Append(dictType);
+                sb.Append(dictType.StartsWith("System.Collections.Generic.Dictionary") ? "(length)" : "()");
+                sb.AppendLine(";");
+                sb.AppendLine("    }");
+                sb.AppendLine("    else");
+                sb.AppendLine("    {");
+                sb.AppendLine("        value.Clear();");
+                sb.AppendLine("    }");
+                sb.AppendLine();
+                sb.AppendLine("    for (int i = 0; i < length; i++)");
+                sb.AppendLine("    {");
+
+                if (isUnmanaged)
+                {
+                    sb.Append("        reader.Read(out KeyValuePair<");
+                    sb.Append(keyType.GetDisplayString());
+                    sb.Append(", ");
+                    sb.Append(valType.GetDisplayString());
+                    sb.AppendLine("> kvp);");
+                    sb.AppendLine("        value[kvp.Key] = kvp.Value;");
+                }
+                else
+                {
+                    IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w =>
+                        {
+                            w.AppendLine("        eleReader = reader.Slice();");
+                            w.Append("        ");
+                            w.AppendLine(GetDeserializeString(keyType, false, "key", "eleReader"));
+                            w.Append("        ");
+                            w.AppendLine(GetDeserializeString(valType, false, "val", "eleReader"));
+                        },
+                        w =>
+                        {
+                            w.Append("        ");
+                            w.AppendLine(GetDeserializeString(keyType, false, "key"));
+                            w.Append("        ");
+                            w.AppendLine(GetDeserializeString(valType, false, "val"));
+                        });
+                    sb.AppendLine("        value[key] = val;");
+                }
+
+                sb.AppendLine("    }");
+                sb.AppendLine("}");
+
                 return true;
             }
         ),
@@ -464,73 +641,17 @@ public class CollectionDeserializerGenerator(
                 var valType = dictSymbol.TypeArguments[1];
                 var dictType =
                     $"System.Collections.Generic.Dictionary<{keyType.GetDisplayString()}, {valType.GetDisplayString()}>";
-                bool isUnmanaged = keyType.IsUnmanagedType && valType.IsUnmanagedType;
+                bool isUnmanaged =
+                    keyType.IsUnmanagedType && keyType.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T
+                                            && valType.IsUnmanagedType && valType.OriginalDefinition.SpecialType !=
+                                            SpecialType.System_Nullable_T;
 
-                // First method: Deserialize(TDict value, ref Reader reader)
-                sb.AppendLine(Inline);
-                sb.Append("public static void Deserialize(");
-                sb.Append(dictSymbol.GetDisplayString());
-                sb.AppendLine(" value, ref Reader reader)");
-                sb.AppendLine("{");
-                EofCheck(sb);
-                sb.AppendLine();
-                sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
-                sb.AppendLine("    {");
-                sb.AppendLine("        return;");
-                sb.AppendLine("    }");
-                sb.AppendLine();
-
-                if (!isUnmanaged)
-                {
-                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
-                        w => { w.AppendLine("    Reader eleReader;"); });
-                    sb.AppendLine();
-                }
-
-                sb.AppendLine("    value.Clear();");
-                sb.AppendLine("    for (int i = 0; i < length; i++)");
-                sb.AppendLine("    {");
-
-                if (isUnmanaged)
-                {
-                    sb.Append("        reader.Read(out KeyValuePair<");
-                    sb.Append(keyType.GetDisplayString());
-                    sb.Append(", ");
-                    sb.Append(valType.GetDisplayString());
-                    sb.AppendLine("> kvp);");
-                    sb.AppendLine("        value[kvp.Key] = kvp.Value;");
-                }
-                else
-                {
-                    IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
-                        w =>
-                        {
-                            w.AppendLine("        eleReader = reader.Slice();");
-                            w.Append("    ");
-                            w.AppendLine(GetDeserializeString(keyType, false, "key", "eleReader"));
-                            w.Append("    ");
-                            w.AppendLine(GetDeserializeString(valType, false, "val", "eleReader"));
-                        },
-                        w =>
-                        {
-                            w.Append("    ");
-                            w.AppendLine(GetDeserializeString(keyType, false, "key"));
-                            w.Append("    ");
-                            w.AppendLine(GetDeserializeString(valType, false, "val"));
-                        });
-                    sb.AppendLine("        value[key] = val;");
-                }
-
-                sb.AppendLine("    }");
-                sb.AppendLine("}");
-                sb.AppendLine();
-
-                // Second method: Deserialize(out TDict value, ref Reader reader)
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
                 sb.Append(dictSymbol.GetDisplayString());
                 sb.AppendLine(" value, ref Reader reader)");
                 sb.AppendLine("{");
+                EofCheck(sb);
                 if (isUnmanaged)
                 {
                     sb.AppendLine("    reader.Read(out value);");
@@ -538,7 +659,6 @@ public class CollectionDeserializerGenerator(
                 }
                 else
                 {
-                    EofCheck(sb);
                     sb.AppendLine();
                     sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
                     sb.AppendLine("    {");
@@ -576,6 +696,86 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("    }");
                     sb.AppendLine("}");
                 }
+
+                sb.AppendLine();
+
+                // Ref overload for trivial dictionaries - proper implementation
+                sb.AppendLine(Inline);
+                sb.Append("public static void DeserializeRef(ref ");
+                sb.Append(dictSymbol.GetDisplayString());
+                sb.AppendLine(" value, ref Reader reader)");
+                sb.AppendLine("{");
+                EofCheck(sb);
+                if (isUnmanaged)
+                {
+                    sb.AppendLine("    reader.ReadRef(ref value);");
+                    sb.AppendLine("}");
+                    return true;
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
+                sb.AppendLine("    {");
+                sb.AppendLine("        value = null;");
+                sb.AppendLine("        return;");
+                sb.AppendLine("    }");
+                sb.AppendLine();
+
+                if (!isUnmanaged)
+                {
+                    IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w => { w.AppendLine("    Reader eleReader;"); });
+                    sb.AppendLine();
+                }
+
+                sb.AppendLine("    // Initialize if null, otherwise clear");
+                sb.AppendLine("    if (value == null)");
+                sb.AppendLine("    {");
+                sb.Append("        value = new ");
+                sb.Append(dictType);
+                sb.Append(dictType.StartsWith("System.Collections.Generic.Dictionary") ? "(length)" : "()");
+                sb.AppendLine(";");
+                sb.AppendLine("    }");
+                sb.AppendLine("    else");
+                sb.AppendLine("    {");
+                sb.AppendLine("        value.Clear();");
+                sb.AppendLine("    }");
+                sb.AppendLine();
+                sb.AppendLine("    for (int i = 0; i < length; i++)");
+                sb.AppendLine("    {");
+
+                if (isUnmanaged)
+                {
+                    sb.Append("        reader.Read(out KeyValuePair<");
+                    sb.Append(keyType.GetDisplayString());
+                    sb.Append(", ");
+                    sb.Append(valType.GetDisplayString());
+                    sb.AppendLine("> kvp);");
+                    sb.AppendLine("        value[kvp.Key] = kvp.Value;");
+                }
+                else
+                {
+                    IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                        w =>
+                        {
+                            w.AppendLine("        eleReader = reader.Slice();");
+                            w.Append("        ");
+                            w.AppendLine(GetDeserializeString(keyType, false, "key", "eleReader"));
+                            w.Append("        ");
+                            w.AppendLine(GetDeserializeString(valType, false, "val", "eleReader"));
+                        },
+                        w =>
+                        {
+                            w.Append("        ");
+                            w.AppendLine(GetDeserializeString(keyType, false, "key"));
+                            w.Append("        ");
+                            w.AppendLine(GetDeserializeString(valType, false, "val"));
+                        });
+                    sb.AppendLine("        value[key] = val;");
+                }
+
+                sb.AppendLine("    }");
+                sb.AppendLine("}");
 
                 return true;
             }
@@ -682,6 +882,83 @@ public class CollectionDeserializerGenerator(
 
                 sb.AppendLine("    }");
                 sb.AppendLine("}");
+                sb.AppendLine();
+
+                // Ref overload - check if enumerable has Clear method
+                if (HasAddAndClear.Filter(symbol))
+                {
+                    // Modifiable - has both Add and Clear methods
+                    sb.AppendLine(Inline);
+                    sb.Append("public static void DeserializeRef(ref ");
+                    sb.Append(namedTypeSymbol.GetDisplayString());
+                    sb.AppendLine(" value, ref Reader reader)");
+                    sb.AppendLine("{");
+                    EofCheck(sb);
+                    sb.AppendLine();
+                    sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        value = null;");
+                    sb.AppendLine("        return;");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+
+                    if (!isUnmanaged)
+                    {
+                        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                            w => { w.AppendLine("    Reader eleReader;"); });
+                        sb.AppendLine();
+                    }
+
+                    sb.AppendLine("    // Initialize if null");
+                    sb.AppendLine("    if (value == null)");
+                    sb.AppendLine("    {");
+                    sb.Append("        value = ");
+                    sb.Append(creationDecl);
+                    sb.AppendLine(";");
+                    sb.AppendLine("    }");
+                    sb.AppendLine("    else");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        value.Clear();");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                    sb.AppendLine("    for (int i = 0; i < length; i++)");
+                    sb.AppendLine("    {");
+
+                    if (isUnmanaged)
+                    {
+                        sb.Append("        ");
+                        sb.AppendLine(GetDeserializeString(elemType, false, "item"));
+                        sb.AppendLine("        value.Add(item);");
+                    }
+                    else
+                    {
+                        IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                            w =>
+                            {
+                                w.AppendLine("        eleReader = reader.Slice();");
+                                w.Append("        ");
+                                w.AppendLine(GetDeserializeString(elemType, false, "item", "eleReader"));
+                            },
+                            w =>
+                            {
+                                w.Append("        ");
+                                w.AppendLine(GetDeserializeString(elemType, false, "item"));
+                            });
+                        sb.AppendLine("        value.Add(item);");
+                    }
+
+                    sb.AppendLine("    }");
+                    sb.AppendLine("}");
+                }
+                else
+                {
+                    // Not modifiable - fallback to out overload
+                    sb.AppendLine(Inline);
+                    sb.Append("public static void DeserializeRef(ref ");
+                    sb.Append(namedTypeSymbol.GetDisplayString());
+                    sb.AppendLine(" value, ref Reader reader) => Deserialize(out value, ref reader);");
+                }
+
                 return true;
             }
         ),
@@ -758,6 +1035,14 @@ public class CollectionDeserializerGenerator(
                 sb.Append(creationDecl);
                 sb.AppendLine(";");
                 sb.AppendLine("}");
+                sb.AppendLine();
+
+                // Ref overload - Stack is not modifiable in-place, call out overload
+                sb.AppendLine(Inline);
+                sb.Append("public static void DeserializeRef(ref ");
+                sb.Append(namedTypeSymbol.ToDisplayString());
+                sb.AppendLine(" value, ref Reader reader) => Deserialize(out value, ref reader);");
+
                 return true;
             }
         ),
@@ -802,7 +1087,8 @@ public class CollectionDeserializerGenerator(
                 var elemType = ienumSymbol.TypeArguments[0];
                 if (!ValidFilter(elemType)) return false;
                 var typeDecl = symbol.ToDisplayString();
-                bool isUnmanaged = elemType.IsUnmanagedType;
+                bool isUnmanaged = elemType.IsUnmanagedType &&
+                                   elemType.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T;
 
                 var creationDecl = $"new {typeDecl}(arr)";
                 var arrCreationDecl = $"new {elemType.ToDisplayString()}[]";
@@ -863,29 +1149,14 @@ public class CollectionDeserializerGenerator(
                 sb.Append(creationDecl);
                 sb.AppendLine(";");
                 sb.AppendLine("}");
-                return true;
-            }
-        ),
-        // trivial unmanaged IList Ninotypes
-        new
-        (
-            "TrivialUnmanagedIList",
-            new Joint().With
-            (
-                new Interface("IList<T>"),
-                new TypeArgument(0, symbol => symbol.IsUnmanagedType),
-                new Not(new Array())
-            ),
-            (symbol, sb) =>
-            {
+                sb.AppendLine();
+
+                // Ref overload - non-trivial enumerable using ctor with array is not modifiable, call out overload
                 sb.AppendLine(Inline);
-                sb.Append("public static void Deserialize(out ");
-                sb.Append(symbol.GetDisplayString());
-                sb.AppendLine(" value, ref Reader reader)");
-                sb.AppendLine("{");
-                EofCheck(sb);
-                sb.AppendLine("    reader.Read(out value);");
-                sb.AppendLine("}");
+                sb.Append("public static void DeserializeRef(ref ");
+                sb.Append(namedTypeSymbol.ToDisplayString());
+                sb.AppendLine(" value, ref Reader reader) => Deserialize(out value, ref reader);");
+
                 return true;
             }
         ),
@@ -912,7 +1183,8 @@ public class CollectionDeserializerGenerator(
                                   ?? namedTypeSymbol;
                 var elemType = ienumSymbol.TypeArguments[0];
                 var typeDecl = $"System.Collections.Generic.List<{elemType.ToDisplayString()}>";
-                bool isUnmanaged = elemType.IsUnmanagedType;
+                bool isUnmanaged = elemType.IsUnmanagedType &&
+                                   elemType.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T;
                 var creationDecl = "new " + typeDecl + "(length)";
 
                 // First method: Deserialize(out T value, ref Reader reader)
@@ -1027,6 +1299,40 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("}");
                 }
 
+                sb.AppendLine();
+
+                // Ref overload - check if it's modifiable (has Add and Clear) or not
+                if (HasAddAndClear.Filter(symbol))
+                {
+                    // Modifiable - can use existing method that clears and adds
+                    sb.AppendLine(Inline);
+                    sb.Append("public static void DeserializeRef(ref ");
+                    sb.Append(namedTypeSymbol.ToDisplayString());
+                    sb.AppendLine(" value, ref Reader reader)");
+                    sb.AppendLine("{");
+                    EofCheck(sb);
+                    sb.AppendLine();
+                    sb.AppendLine("    // Initialize if null");
+                    sb.AppendLine("    if (value == null)");
+                    sb.AppendLine("    {");
+                    sb.Append("        value = new ");
+                    sb.Append(typeDecl);
+                    sb.AppendLine("();");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+                    sb.AppendLine("    // Use the existing method that clears and populates");
+                    sb.Append("    Deserialize(value, ref reader);");
+                    sb.AppendLine("}");
+                }
+                else
+                {
+                    // Not modifiable - call out overload
+                    sb.AppendLine(Inline);
+                    sb.Append("public static void DeserializeRef(ref ");
+                    sb.Append(namedTypeSymbol.ToDisplayString());
+                    sb.AppendLine(" value, ref Reader reader) => Deserialize(out value, ref reader);");
+                }
+
                 return true;
             }
         )
@@ -1036,8 +1342,9 @@ public class CollectionDeserializerGenerator(
     {
         bool isValueTuple = type.Name == "ValueTuple";
         var typeName = type.ToDisplayString();
-        bool isUnmanaged = type.IsUnmanagedType;
+        bool isUnmanaged = type.IsUnmanagedType && type.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T;
 
+        // Out overload
         writer.AppendLine(Inline);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
@@ -1077,6 +1384,22 @@ public class CollectionDeserializerGenerator(
 
             writer.AppendLine(");");
             writer.AppendLine("}");
+        }
+
+        writer.AppendLine();
+
+        // Ref overload - tuples are not modifiable
+        writer.AppendLine(Inline);
+        writer.Append("public static void DeserializeRef(ref ");
+        writer.Append(typeName);
+        writer.AppendLine(" value, ref Reader reader)");
+        if (isUnmanaged)
+        {
+            writer.AppendLine("    => reader.Read(out value);");
+        }
+        else
+        {
+            writer.AppendLine("    => Deserialize(out value, ref reader);");
         }
     }
 }

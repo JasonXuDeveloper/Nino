@@ -374,5 +374,201 @@ namespace Nino.Core
             bytes = _data.Slice(0, length);
             _data = _data.Slice(length);
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadRef<T>(ref T[] value) where T : unmanaged
+        {
+            if (!ReadCollectionHeader(out var length))
+            {
+                value = null;
+                return;
+            }
+
+            if (length == 0)
+            {
+                value = Array.Empty<T>();
+                return;
+            }
+
+            // Resize array if needed
+            if (value == null || value.Length != length)
+            {
+#if NET5_0_OR_GREATER
+                value = length <= 2048 / Unsafe.SizeOf<T>() ? new T[length] : GC.AllocateUninitializedArray<T>(length);
+#else
+                value = new T[length];
+#endif
+            }
+
+            GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+            Span<byte> dst = MemoryMarshal.AsBytes(value.AsSpan());
+            bytes.CopyTo(dst);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadRef<T>(ref List<T> value) where T : unmanaged
+        {
+            if (!ReadCollectionHeader(out var length))
+            {
+                value = null;
+                return;
+            }
+
+            // Initialize if null, otherwise clear
+            if (value == null)
+            {
+                value = new List<T>(length);
+            }
+            else
+            {
+                value.Clear();
+#if NET5_0_OR_GREATER
+                value.EnsureCapacity(length);
+#endif
+            }
+
+
+#if NET8_0_OR_GREATER
+            CollectionsMarshal.SetCount(value, length);
+            var span = CollectionsMarshal.AsSpan(value);
+            GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+            Span<byte> dst = MemoryMarshal.AsBytes(span);
+            bytes.CopyTo(dst);
+#else
+            ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref value);
+            lst._size = length;
+#if !NET5_0_OR_GREATER
+            Array.Resize(ref lst._items, length);
+#endif
+            GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+            Span<byte> dst = MemoryMarshal.AsBytes(lst._items.AsSpan());
+            bytes.CopyTo(dst);
+#endif
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadRef<T>(ref List<T?> value) where T : unmanaged
+        {
+            if (!ReadCollectionHeader(out var length))
+            {
+                value = null;
+                return;
+            }
+
+            // Initialize if null, otherwise clear
+            if (value == null)
+            {
+                value = new List<T?>(length);
+            }
+            else
+            {
+                value.Clear();
+#if NET5_0_OR_GREATER
+                value.EnsureCapacity(length);
+#endif
+            }
+
+            for (int i = 0; i < length; i++)
+            {
+                Read(out T? item);
+                value.Add(item);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadRef<T>(ref IList<T> value) where T : unmanaged
+        {
+            if (value is List<T> list)
+            {
+                ReadRef(ref list);
+                value = list;
+                return;
+            }
+
+            Read(out List<T> newList);
+            value = newList;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadRef<T>(ref IList<T?> value) where T : unmanaged
+        {
+            if (value is List<T?> list)
+            {
+                ReadRef(ref list);
+                value = list;
+                return;
+            }
+
+            Read(out List<T?> newList);
+            value = newList;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadRef<T>(ref ICollection<T> value) where T : unmanaged
+        {
+            if (value is List<T> list)
+            {
+                ReadRef(ref list);
+                value = list;
+                return;
+            }
+
+            Read(out List<T> newList);
+            value = newList;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadRef<TKey, TValue>(ref Dictionary<TKey, TValue> value)
+            where TKey : unmanaged where TValue : unmanaged
+        {
+            if (!ReadCollectionHeader(out var length))
+            {
+                value = null;
+                return;
+            }
+
+            // Initialize if null, otherwise clear
+            if (value == null)
+            {
+                value = new Dictionary<TKey, TValue>(length);
+            }
+            else
+            {
+                value.Clear();
+            }
+
+            for (int i = 0; i < length; i++)
+            {
+                Read(out KeyValuePair<TKey, TValue> pair);
+                value.Add(pair.Key, pair.Value);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadRef<TKey, TValue>(ref IDictionary<TKey, TValue> value)
+            where TKey : unmanaged where TValue : unmanaged
+        {
+            if (!ReadCollectionHeader(out var length))
+            {
+                value = null;
+                return;
+            }
+
+            // Initialize if null, otherwise clear
+            if (value == null)
+            {
+                value = new Dictionary<TKey, TValue>(length);
+            }
+            else
+            {
+                value.Clear();
+            }
+
+            for (int i = 0; i < length; i++)
+            {
+                Read(out KeyValuePair<TKey, TValue> pair);
+                value.Add(pair.Key, pair.Value);
+            }
+        }
     }
 }

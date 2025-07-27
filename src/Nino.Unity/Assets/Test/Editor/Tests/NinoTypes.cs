@@ -49,7 +49,7 @@ namespace Test.Editor.Tests
             Debug.Log($"serialized to {bs.Length} bytes: {string.Join(",", bs)}");
 
             Debug.Log("will deserialize");
-            NinoDeserializer.Deserialize(bs, out PrimitiveTypeTest cc);
+            PrimitiveTypeTest cc = NinoDeserializer.Deserialize<PrimitiveTypeTest>(bs);
             Debug.Log($"deserialized as cc: {cc}");
 
             Assert.AreEqual(c.ToString(), cc.ToString());

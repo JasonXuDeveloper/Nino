@@ -14,14 +14,14 @@ public partial class HierarchicalBase
 }
 
 [NinoType(false, true)]
-public partial class HierarchicalSub1: HierarchicalBase
+public partial class HierarchicalSub1 : HierarchicalBase
 {
     [NinoMember(0)] protected bool C;
     [NinoMember(1)] public float D;
 }
 
 [NinoType(false, true)]
-public partial class HierarchicalSub2: HierarchicalSub1
+public partial class HierarchicalSub2 : HierarchicalSub1
 {
     [NinoMember(0)] protected bool E;
     [NinoMember(1)] public List<int> F;
@@ -530,9 +530,9 @@ namespace Nino.UnitTests
 
     [NinoType(false)]
     public record SimpleRecord3(
-        [NinoMember(3)] int Id,
-        [NinoMember(2)] string Name,
-        [NinoMember(1)] DateTime CreateTime)
+        [property: NinoMember(3)] int Id,
+        [property: NinoMember(2)] string Name,
+        [property: NinoMember(1)] DateTime CreateTime)
     {
         [NinoMember(4)] public bool Flag;
 

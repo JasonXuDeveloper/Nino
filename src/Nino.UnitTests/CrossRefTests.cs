@@ -23,7 +23,7 @@ public class CrossRefTests
 
         byte[] bytes = NinoSerializer.Serialize(test);
         Console.WriteLine(string.Join(", ", bytes));
-        NinoDeserializer.Deserialize(bytes, out SimpleCrossRefTest result);
+        SimpleCrossRefTest result = NinoDeserializer.Deserialize<SimpleCrossRefTest>(bytes);
         Assert.AreEqual(test.A.Id, result.A.Id);
         Assert.AreEqual(test.A.Name, result.A.Name);
     }

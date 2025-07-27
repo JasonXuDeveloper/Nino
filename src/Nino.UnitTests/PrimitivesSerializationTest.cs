@@ -24,7 +24,7 @@ namespace Nino.UnitTests
         {
             var val = new EmptyStruct();
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(new ReadOnlySpan<byte>(buf, 0, buf.Length), out EmptyStruct val2);
+            EmptyStruct val2 = NinoDeserializer.Deserialize<EmptyStruct>(new ReadOnlySpan<byte>(buf, 0, buf.Length));
             Assert.AreEqual(val, val2);
         }
 
@@ -33,7 +33,7 @@ namespace Nino.UnitTests
         {
             TestEnumVal val = TestEnumVal.B;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(new ReadOnlySpan<byte>(buf, 0, buf.Length), out TestEnumVal val2);
+            TestEnumVal val2 = NinoDeserializer.Deserialize<TestEnumVal>(new ReadOnlySpan<byte>(buf, 0, buf.Length));
             Assert.AreEqual(val, val2);
             Assert.AreEqual(TestEnumVal.B, val2);
         }
@@ -43,7 +43,7 @@ namespace Nino.UnitTests
         {
             byte val = 10;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out byte result);
+            byte result = NinoDeserializer.Deserialize<byte>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(10, val);
         }
@@ -53,7 +53,7 @@ namespace Nino.UnitTests
         {
             sbyte val = -95;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out sbyte result);
+            sbyte result = NinoDeserializer.Deserialize<sbyte>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(-95, val);
         }
@@ -63,7 +63,7 @@ namespace Nino.UnitTests
         {
             short val = short.MinValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out short result);
+            short result = NinoDeserializer.Deserialize<short>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(short.MinValue, val);
         }
@@ -73,7 +73,7 @@ namespace Nino.UnitTests
         {
             ushort val = ushort.MaxValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out ushort result);
+            ushort result = NinoDeserializer.Deserialize<ushort>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(ushort.MaxValue, val);
         }
@@ -83,7 +83,7 @@ namespace Nino.UnitTests
         {
             int val = int.MinValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out int result);
+            int result = NinoDeserializer.Deserialize<int>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(int.MinValue, val);
         }
@@ -93,7 +93,7 @@ namespace Nino.UnitTests
         {
             uint val = uint.MaxValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out uint result);
+            uint result = NinoDeserializer.Deserialize<uint>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(uint.MaxValue, val);
         }
@@ -103,7 +103,7 @@ namespace Nino.UnitTests
         {
             long val = long.MinValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out long result);
+            long result = NinoDeserializer.Deserialize<long>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(long.MinValue, val);
         }
@@ -113,7 +113,7 @@ namespace Nino.UnitTests
         {
             ulong val = ulong.MaxValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out ulong result);
+            ulong result = NinoDeserializer.Deserialize<ulong>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(ulong.MaxValue, val);
         }
@@ -123,7 +123,7 @@ namespace Nino.UnitTests
         {
             string val = "test";
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out string result);
+            string result = NinoDeserializer.Deserialize<string>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual("test", val);
         }
@@ -134,7 +134,7 @@ namespace Nino.UnitTests
             bool val = true;
             // ReSharper disable ConditionIsAlwaysTrueOrFalse
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out bool result);
+            bool result = NinoDeserializer.Deserialize<bool>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(true, val);
             // ReSharper restore ConditionIsAlwaysTrueOrFalse
@@ -145,7 +145,7 @@ namespace Nino.UnitTests
         {
             decimal val = decimal.MaxValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out decimal result);
+            decimal result = NinoDeserializer.Deserialize<decimal>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(decimal.MaxValue, val);
         }
@@ -155,7 +155,7 @@ namespace Nino.UnitTests
         {
             double val = double.MaxValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out double result);
+            double result = NinoDeserializer.Deserialize<double>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(double.MaxValue, val);
         }
@@ -165,7 +165,7 @@ namespace Nino.UnitTests
         {
             float val = float.MaxValue;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out float result);
+            float result = NinoDeserializer.Deserialize<float>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(float.MaxValue, val);
         }
@@ -175,7 +175,7 @@ namespace Nino.UnitTests
         {
             char val = 'a';
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out char result);
+            char result = NinoDeserializer.Deserialize<char>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual('a', val);
         }
@@ -185,7 +185,7 @@ namespace Nino.UnitTests
         {
             DateTime val = new DateTime(2000, 1, 1);
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out DateTime result);
+            DateTime result = NinoDeserializer.Deserialize<DateTime>(buf);
             Assert.AreEqual(val, result);
             Assert.AreEqual(new DateTime(2000, 1, 1), val);
         }
@@ -195,7 +195,7 @@ namespace Nino.UnitTests
         {
             TestEnumVal[] val = new[] { TestEnumVal.A, TestEnumVal.B };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out TestEnumVal[] result);
+            TestEnumVal[] result = NinoDeserializer.Deserialize<TestEnumVal[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { TestEnumVal.A, TestEnumVal.B }));
         }
@@ -205,7 +205,7 @@ namespace Nino.UnitTests
         {
             byte[] val = new byte[] { 1, 2, 3, 4, 5 };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out byte[] result);
+            byte[] result = NinoDeserializer.Deserialize<byte[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new byte[] { 1, 2, 3, 4, 5 }));
         }
@@ -215,7 +215,7 @@ namespace Nino.UnitTests
         {
             sbyte[] val = new sbyte[] { -1, -2, -3, -4, -5 };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out sbyte[] result);
+            sbyte[] result = NinoDeserializer.Deserialize<sbyte[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new sbyte[] { -1, -2, -3, -4, -5 }));
         }
@@ -225,7 +225,7 @@ namespace Nino.UnitTests
         {
             short[] val = new[] { short.MinValue, short.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out short[] result);
+            short[] result = NinoDeserializer.Deserialize<short[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { short.MinValue, short.MaxValue }));
         }
@@ -235,7 +235,7 @@ namespace Nino.UnitTests
         {
             ushort[] val = new[] { ushort.MinValue, ushort.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out ushort[] result);
+            ushort[] result = NinoDeserializer.Deserialize<ushort[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { ushort.MinValue, ushort.MaxValue }));
         }
@@ -245,7 +245,7 @@ namespace Nino.UnitTests
         {
             int[] val = new[] { int.MinValue, int.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out int[] result);
+            int[] result = NinoDeserializer.Deserialize<int[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { int.MinValue, int.MaxValue }));
         }
@@ -255,7 +255,7 @@ namespace Nino.UnitTests
         {
             uint[] val = new[] { uint.MinValue, uint.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out uint[] result);
+            uint[] result = NinoDeserializer.Deserialize<uint[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { uint.MinValue, uint.MaxValue }));
         }
@@ -265,7 +265,7 @@ namespace Nino.UnitTests
         {
             long[] val = new[] { long.MinValue, long.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out long[] result);
+            long[] result = NinoDeserializer.Deserialize<long[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { long.MinValue, long.MaxValue }));
         }
@@ -275,7 +275,7 @@ namespace Nino.UnitTests
         {
             ulong[] val = new[] { ulong.MinValue, ulong.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out ulong[] result);
+            ulong[] result = NinoDeserializer.Deserialize<ulong[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { ulong.MinValue, ulong.MaxValue }));
         }
@@ -285,7 +285,7 @@ namespace Nino.UnitTests
         {
             string[] val = new[] { "a", "b", "c", "d", "e" };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out string[] result);
+            string[] result = NinoDeserializer.Deserialize<string[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { "a", "b", "c", "d", "e" }));
         }
@@ -295,7 +295,7 @@ namespace Nino.UnitTests
         {
             bool[] val = new[] { true, false };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out bool[] result);
+            bool[] result = NinoDeserializer.Deserialize<bool[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { true, false }));
         }
@@ -305,7 +305,7 @@ namespace Nino.UnitTests
         {
             float[] val = new[] { float.MinValue, float.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out float[] result);
+            float[] result = NinoDeserializer.Deserialize<float[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { float.MinValue, float.MaxValue }));
         }
@@ -315,7 +315,7 @@ namespace Nino.UnitTests
         {
             double[] val = new[] { double.MinValue, double.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out double[] result);
+            double[] result = NinoDeserializer.Deserialize<double[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { double.MinValue, double.MaxValue }));
         }
@@ -325,7 +325,7 @@ namespace Nino.UnitTests
         {
             char[] val = new[] { 'a', 'b', 'c', 'd', 'e' };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out char[] result);
+            char[] result = NinoDeserializer.Deserialize<char[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { 'a', 'b', 'c', 'd', 'e' }));
         }
@@ -335,7 +335,7 @@ namespace Nino.UnitTests
         {
             DateTime[] val = new[] { DateTime.Today, DateTime.Today.AddDays(-1234) };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out DateTime[] result);
+            DateTime[] result = NinoDeserializer.Deserialize<DateTime[]>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new[] { DateTime.Today, DateTime.Today.AddDays(-1234) }));
         }
@@ -346,7 +346,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<TestEnumVal> val = new System.Collections.Generic.List<TestEnumVal>()
                 { TestEnumVal.A, TestEnumVal.B };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<TestEnumVal> result);
+            System.Collections.Generic.List<TestEnumVal> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<TestEnumVal>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<TestEnumVal>()
                 { TestEnumVal.A, TestEnumVal.B }));
@@ -358,7 +358,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<byte> val = new System.Collections.Generic.List<byte>
                 { byte.MinValue, byte.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<byte> result);
+            System.Collections.Generic.List<byte> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<byte>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<byte>
                 { byte.MinValue, byte.MaxValue }));
@@ -370,7 +370,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<sbyte> val = new System.Collections.Generic.List<sbyte>
                 { sbyte.MinValue, sbyte.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<sbyte> result);
+            System.Collections.Generic.List<sbyte> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<sbyte>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<sbyte>
                 { sbyte.MinValue, sbyte.MaxValue }));
@@ -382,7 +382,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<short> val = new System.Collections.Generic.List<short>
                 { short.MinValue, short.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<short> result);
+            System.Collections.Generic.List<short> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<short>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<short>
                 { short.MinValue, short.MaxValue }));
@@ -394,7 +394,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<ushort> val = new System.Collections.Generic.List<ushort>
                 { ushort.MinValue, ushort.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<ushort> result);
+            System.Collections.Generic.List<ushort> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<ushort>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<ushort>
                 { ushort.MinValue, ushort.MaxValue }));
@@ -406,7 +406,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<int> val = new System.Collections.Generic.List<int>
                 { int.MinValue, int.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<int> result);
+            System.Collections.Generic.List<int> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<int>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<int>
                 { int.MinValue, int.MaxValue }));
@@ -418,7 +418,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<uint> val = new System.Collections.Generic.List<uint>
                 { uint.MinValue, uint.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<uint> result);
+            System.Collections.Generic.List<uint> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<uint>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<uint>
                 { uint.MinValue, uint.MaxValue }));
@@ -430,7 +430,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<long> val = new System.Collections.Generic.List<long>
                 { long.MinValue, long.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<long> result);
+            System.Collections.Generic.List<long> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<long>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<long>
                 { long.MinValue, long.MaxValue }));
@@ -442,7 +442,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<ulong> val = new System.Collections.Generic.List<ulong>
                 { ulong.MinValue, ulong.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<ulong> result);
+            System.Collections.Generic.List<ulong> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<ulong>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<ulong>
                 { ulong.MinValue, ulong.MaxValue }));
@@ -454,7 +454,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<float> val = new System.Collections.Generic.List<float>
                 { float.MinValue, float.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<float> result);
+            System.Collections.Generic.List<float> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<float>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<float>
                 { float.MinValue, float.MaxValue }));
@@ -466,7 +466,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<double> val = new System.Collections.Generic.List<double>
                 { double.MinValue, double.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<double> result);
+            System.Collections.Generic.List<double> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<double>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<double>
                 { double.MinValue, double.MaxValue }));
@@ -478,7 +478,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<decimal> val = new System.Collections.Generic.List<decimal>
                 { decimal.MinValue, decimal.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<decimal> result);
+            System.Collections.Generic.List<decimal> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<decimal>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<decimal>
                 { decimal.MinValue, decimal.MaxValue }));
@@ -490,7 +490,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<char> val = new System.Collections.Generic.List<char>
                 { char.MinValue, char.MaxValue };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<char> result);
+            System.Collections.Generic.List<char> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<char>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<char>
                 { char.MinValue, char.MaxValue }));
@@ -503,7 +503,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<string> val = new System.Collections.Generic.List<string>
                 { "Hello", "World" };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<string> result);
+            System.Collections.Generic.List<string> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<string>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<string> { "Hello", "World" }));
         }
@@ -514,7 +514,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<bool> val = new System.Collections.Generic.List<bool>
                 { true, false };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<bool> result);
+            System.Collections.Generic.List<bool> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<bool>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<bool> { true, false }));
         }
@@ -525,7 +525,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.List<DateTime> val = new System.Collections.Generic.List<DateTime>
                 { DateTime.Today, DateTime.Today.AddDays(-1234) };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.List<DateTime> result);
+            System.Collections.Generic.List<DateTime> result = NinoDeserializer.Deserialize<System.Collections.Generic.List<DateTime>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.List<DateTime>
                 { DateTime.Today, DateTime.Today.AddDays(-1234) }));
@@ -537,7 +537,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.Dictionary<byte, int> val = new System.Collections.Generic.Dictionary<byte, int>
                 { { byte.MinValue, int.MinValue }, { byte.MaxValue, int.MaxValue } };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.Dictionary<byte, int> result);
+            System.Collections.Generic.Dictionary<byte, int> result = NinoDeserializer.Deserialize<System.Collections.Generic.Dictionary<byte, int>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.Dictionary<byte, int>
                 { { byte.MinValue, int.MinValue }, { byte.MaxValue, int.MaxValue } }));
@@ -550,7 +550,7 @@ namespace Nino.UnitTests
                 new System.Collections.Generic.Dictionary<string, short>
                     { { "Hello", short.MinValue }, { "World", short.MaxValue } };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.Dictionary<string, short> result);
+            System.Collections.Generic.Dictionary<string, short> result = NinoDeserializer.Deserialize<System.Collections.Generic.Dictionary<string, short>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.Dictionary<string, short>
                 { { "Hello", short.MinValue }, { "World", short.MaxValue } }));
@@ -563,7 +563,7 @@ namespace Nino.UnitTests
                 new System.Collections.Generic.Dictionary<string, string>
                     { { "Hello", "World" }, { "World", "Hello" } };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.Dictionary<string, string> result);
+            System.Collections.Generic.Dictionary<string, string> result = NinoDeserializer.Deserialize<System.Collections.Generic.Dictionary<string, string>>(buf);
             Assert.IsTrue(val.SequenceEqual(result));
             Assert.IsTrue(result.SequenceEqual(new System.Collections.Generic.Dictionary<string, string>
                 { { "Hello", "World" }, { "World", "Hello" } }));
@@ -574,13 +574,13 @@ namespace Nino.UnitTests
         {
             int? val = 123;
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out int? result);
+            int? result = NinoDeserializer.Deserialize<int?>(buf);
             Assert.AreEqual(val, result);
 
             val = null;
             // ReSharper disable ExpressionIsAlwaysNull
             buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out result);
+            result = NinoDeserializer.Deserialize<int?>(buf);
             Assert.AreEqual(val, result);
             // ReSharper restore ExpressionIsAlwaysNull
         }
@@ -591,7 +591,7 @@ namespace Nino.UnitTests
             System.Collections.Generic.HashSet<int> val = new System.Collections.Generic.HashSet<int>
                 { 1, 2, 3, 4, 5 };
             byte[] buf = NinoSerializer.Serialize(val);
-            NinoDeserializer.Deserialize(buf, out System.Collections.Generic.HashSet<int> result);
+            System.Collections.Generic.HashSet<int> result = NinoDeserializer.Deserialize<System.Collections.Generic.HashSet<int>>(buf);
             Assert.IsTrue(val.SetEquals(result));
             Assert.IsTrue(result.SetEquals(new System.Collections.Generic.HashSet<int>
                 { 1, 2, 3, 4, 5 }));
