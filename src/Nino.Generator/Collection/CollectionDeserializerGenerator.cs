@@ -413,41 +413,6 @@ public class CollectionDeserializerGenerator(
                 return true;
             }
         ),
-        // trivial unmanaged IList Ninotypes
-        new
-        (
-            "TrivialUnmanagedIList",
-            new Joint().With
-            (
-                new Interface("IList<T>"),
-                new TypeArgument(0, symbol => symbol.IsUnmanagedType),
-                new Not(new Array())
-            ),
-            (symbol, sb) =>
-            {
-                sb.AppendLine(Inline);
-                sb.Append("public static void Deserialize(out ");
-                sb.Append(symbol.GetDisplayString());
-                sb.AppendLine(" value, ref Reader reader)");
-                sb.AppendLine("{");
-                EofCheck(sb);
-                sb.AppendLine("    reader.Read(out value);");
-                sb.AppendLine("}");
-                sb.AppendLine();
-
-                // Ref overload - trivial unmanaged IList, use direct ReadRef
-                sb.AppendLine(Inline);
-                sb.Append("public static void DeserializeRef(ref ");
-                sb.Append(symbol.GetDisplayString());
-                sb.AppendLine(" value, ref Reader reader)");
-                sb.AppendLine("{");
-                EofCheck(sb);
-                sb.AppendLine("    reader.ReadRef(ref value);");
-                sb.AppendLine("}");
-
-                return true;
-            }
-        ),
         // non trivial IDictionary Ninotypes
         new
         (
@@ -1156,6 +1121,41 @@ public class CollectionDeserializerGenerator(
                 sb.Append("public static void DeserializeRef(ref ");
                 sb.Append(namedTypeSymbol.ToDisplayString());
                 sb.AppendLine(" value, ref Reader reader) => Deserialize(out value, ref reader);");
+
+                return true;
+            }
+        ),
+        // trivial unmanaged IList Ninotypes
+        new
+        (
+            "TrivialUnmanagedIList",
+            new Joint().With
+            (
+                new Interface("IList<T>"),
+                new TypeArgument(0, symbol => symbol.IsUnmanagedType),
+                new Not(new Array())
+            ),
+            (symbol, sb) =>
+            {
+                sb.AppendLine(Inline);
+                sb.Append("public static void Deserialize(out ");
+                sb.Append(symbol.GetDisplayString());
+                sb.AppendLine(" value, ref Reader reader)");
+                sb.AppendLine("{");
+                EofCheck(sb);
+                sb.AppendLine("    reader.Read(out value);");
+                sb.AppendLine("}");
+                sb.AppendLine();
+
+                // Ref overload - trivial unmanaged IList, use direct ReadRef
+                sb.AppendLine(Inline);
+                sb.Append("public static void DeserializeRef(ref ");
+                sb.Append(symbol.GetDisplayString());
+                sb.AppendLine(" value, ref Reader reader)");
+                sb.AppendLine("{");
+                EofCheck(sb);
+                sb.AppendLine("    reader.ReadRef(ref value);");
+                sb.AppendLine("}");
 
                 return true;
             }

@@ -13,6 +13,20 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void ArraySegmentBytes()
+        {
+            ArraySegment<byte> bytes = new ArraySegment<byte>(new byte[] { 1, 2, 3, 4, 5 });
+            byte[] serialized = NinoSerializer.Serialize(bytes);
+            Assert.IsNotNull(serialized);
+            ArraySegment<byte> deserialized = NinoDeserializer.Deserialize<ArraySegment<byte>>(serialized);
+            Assert.AreEqual(bytes.Count, deserialized.Count);
+            for (int i = 0; i < bytes.Count; i++)
+            {
+                Assert.AreEqual(bytes.Array[bytes.Offset + i], deserialized.Array[deserialized.Offset + i]);
+            }
+        }
+        
+        [TestMethod]
         public void TestRefOverload()
         {
             List<int> list = new List<int> { 1, 2, 3, 4, 5 };
