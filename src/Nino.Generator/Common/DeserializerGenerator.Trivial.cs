@@ -63,47 +63,9 @@ public partial class DeserializerGenerator
                     !string.IsNullOrEmpty(ninoType.CustomDeserializer))
                     continue;
                 sb.AppendLine();
-                sb.AppendLine($$"""
-                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                        [EditorBrowsable(EditorBrowsableState.Never)]
-                                        [System.Diagnostics.DebuggerNonUserCode]
-                                        [System.Runtime.CompilerServices.CompilerGenerated]
-                                        public static void DeserializeImpl(out {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
-                                        {
-                                        #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
-                                           if (reader.Eof)
-                                           {
-                                              value = default;
-                                              return;
-                                           }
-                                        #endif
-                                """);
-
-                if (ninoType.IsPolymorphic())
-                {
-                    sb.AppendLine("            reader.Read(out int typeId);");
-                    sb.AppendLine("            if(typeId == TypeCollector.Null)");
-                    sb.AppendLine("            {");
-                    sb.AppendLine("                value = default;");
-                    sb.AppendLine("                return;");
-                    sb.AppendLine("            }");
-                    sb.AppendLine(
-                        $"            else if(typeId != NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()})");
-                    sb.AppendLine("                throw new InvalidOperationException(\"Invalid type id\");");
-                    sb.AppendLine();
-                }
-
-
-                if (ninoType.TypeSymbol.IsUnmanagedType)
-                {
-                    sb.AppendLine("            reader.Read(out value);");
-                }
-                else
-                {
-                    CreateInstance(spc, sb, validTypes, ninoType, "value");
-                }
-
-                sb.AppendLine("        }");
+                GenerateImpl(spc, validTypes, sb, ninoType, false);
+                sb.AppendLine();
+                GenerateImpl(spc, validTypes, sb, ninoType, true);
                 sb.AppendLine();
             }
             catch (Exception e)
@@ -148,12 +110,60 @@ public partial class DeserializerGenerator
         spc.AddSource($"{curNamespace}.Deserializer.g.cs", code);
     }
 
+    private void GenerateImpl(SourceProductionContext spc, HashSet<ITypeSymbol> validTypes,
+        StringBuilder sb, NinoType ninoType, bool byRef)
+    {
+        string decl = byRef ? "ref" : "out";
+        string suffix = byRef ? "Ref" : "";
 
-    private void WriteMembersWithCustomConstructor(SourceProductionContext spc, HashSet<ITypeSymbol> validTypes,
-        StringBuilder sb, NinoType nt,
-        string valName,
-        string[] constructorMember,
-        IMethodSymbol constructor)
+        sb.AppendLine($$"""
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                [EditorBrowsable(EditorBrowsableState.Never)]
+                                [System.Diagnostics.DebuggerNonUserCode]
+                                [System.Runtime.CompilerServices.CompilerGenerated]
+                                public static void DeserializeImpl{{suffix}}({{decl}} {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
+                                {
+                                #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
+                                   if (reader.Eof)
+                                   {
+                                      value = default;
+                                      return;
+                                   }
+                                #endif
+                        """);
+
+        if (ninoType.IsPolymorphic())
+        {
+            sb.AppendLine("            reader.Read(out int typeId);");
+            sb.AppendLine("            if(typeId == TypeCollector.Null)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                value = default;");
+            sb.AppendLine("                return;");
+            sb.AppendLine("            }");
+            sb.AppendLine(
+                $"            else if(typeId != NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()})");
+            sb.AppendLine("                throw new InvalidOperationException(\"Invalid type id\");");
+            sb.AppendLine();
+        }
+
+
+        if (ninoType.TypeSymbol.IsUnmanagedType)
+        {
+            sb.AppendLine("            reader.Read(out value);");
+        }
+        else
+        {
+            CreateInstance(spc, sb, validTypes, ninoType, "value", byRef);
+        }
+
+        sb.AppendLine("        }");
+    }
+
+    private (List<(string, string)> vars,
+        List<(string, string, bool)> privateVars,
+        Dictionary<string, string> args,
+        Dictionary<string, string> tupleMap) WriteMembers(HashSet<ITypeSymbol> validTypes,
+            string valName, StringBuilder sb, NinoType nt, string[] constructorMember, bool byRef)
     {
         List<(string, string)> vars = new List<(string, string)>();
         List<(string, string, bool)> privateVars = new List<(string, string, bool)>();
@@ -161,6 +171,7 @@ public partial class DeserializerGenerator
         Dictionary<string, string> tupleMap = new Dictionary<string, string>();
 
         List<string> valNames = new();
+
         List<List<NinoMember>> groups = nt.GroupByPrimitivity().ToList();
         for (var index1 = 0; index1 < groups.Count; index1++)
         {
@@ -322,6 +333,16 @@ public partial class DeserializerGenerator
             }
         }
 
+        return (vars, privateVars, args, tupleMap);
+    }
+
+    private void WriteMembersWithCustomConstructor(SourceProductionContext spc, HashSet<ITypeSymbol> validTypes,
+        StringBuilder sb, NinoType nt,
+        string valName,
+        string[] constructorMember,
+        IMethodSymbol constructor)
+    {
+        var (vars, privateVars, args, tupleMap) = WriteMembers(validTypes, valName, sb, nt, constructorMember, false);
         List<string> ctorArgs = new List<string>();
 
         string? missingArg = null;
@@ -472,8 +493,14 @@ public partial class DeserializerGenerator
     }
 
     private void CreateInstance(SourceProductionContext spc, StringBuilder sb, HashSet<ITypeSymbol> validTypes,
-        NinoType nt, string valName)
+        NinoType nt, string valName, bool byRef)
     {
+        if (byRef)
+        {
+            WriteMembers(validTypes, valName, sb, nt, [], true);
+            return;
+        }
+
         //if this subtype contains a custom constructor, use it
         //go through all constructors and find the one with the NinoConstructor attribute
         //get constructors of the symbol
