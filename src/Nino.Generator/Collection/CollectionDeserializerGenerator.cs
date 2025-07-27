@@ -1133,6 +1133,7 @@ public class CollectionDeserializerGenerator(
             (
                 new Interface("IList<T>"),
                 new TypeArgument(0, symbol => symbol.IsUnmanagedType),
+                new Not(new NonTrivial("IList",  "List", "List")),
                 new Not(new Array())
             ),
             (symbol, sb) =>

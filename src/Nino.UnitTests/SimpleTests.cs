@@ -25,7 +25,7 @@ namespace Nino.UnitTests
                 Assert.AreEqual(bytes.Array[bytes.Offset + i], deserialized.Array[deserialized.Offset + i]);
             }
         }
-        
+
         [TestMethod]
         public void TestRefOverload()
         {
@@ -41,16 +41,49 @@ namespace Nino.UnitTests
             Assert.AreEqual(3, temp[2]);
             Assert.AreEqual(4, temp[3]);
             Assert.AreEqual(5, temp[4]);
-            
+
             List<string> strs = new List<string> { "Hello", "World" };
             bytes = NinoSerializer.Serialize(strs);
             Assert.IsNotNull(bytes);
-            
+
             List<string> tempStrs = new List<string> { "Test", "Test2", "Test3" };
             NinoDeserializer.Deserialize(bytes, ref tempStrs);
             Assert.AreEqual(2, tempStrs.Count);
             Assert.AreEqual("Hello", tempStrs[0]);
             Assert.AreEqual("World", tempStrs[1]);
+
+            HierarchicalSub2 sub2 = new HierarchicalSub2
+            {
+                F = new List<int>() { 1, 2, 3 }
+            };
+            bytes = NinoSerializer.Serialize(sub2);
+            Assert.IsNotNull(bytes);
+            HierarchicalSub2 tempSub2 = new HierarchicalSub2();
+            NinoDeserializer.Deserialize(bytes, ref tempSub2);
+            Assert.IsNotNull(tempSub2.F);
+            Assert.AreEqual(3, tempSub2.F.Count);
+            Assert.AreEqual(1, tempSub2.F[0]);
+            Assert.AreEqual(2, tempSub2.F[1]);
+            Assert.AreEqual(3, tempSub2.F[2]);
+            
+            TestClass3 testClass3 = new TestClass3
+            {
+                A = 1,
+                B = "Test",
+                M = new TestClass3()
+                {
+                    A = 2
+                }
+            };
+            bytes = NinoSerializer.Serialize(testClass3);
+            Assert.IsNotNull(bytes);
+            
+            TestClass3 tempTestClass3 = new TestClass3();
+            NinoDeserializer.Deserialize(bytes, ref tempTestClass3);
+            Assert.AreEqual(testClass3.A, tempTestClass3.A);
+            Assert.AreEqual(testClass3.B, tempTestClass3.B);
+            Assert.IsNotNull(tempTestClass3.M);
+            Assert.AreEqual(testClass3.M.A, tempTestClass3.M.A);
 
             Data dt = new()
             {
