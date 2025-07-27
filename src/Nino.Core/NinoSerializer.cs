@@ -9,7 +9,6 @@ namespace Nino.Core
     public static class NinoSerializer
     {
         private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
-
         private static readonly NinoArrayBufferWriter DefaultBufferWriter = new(1024);
         private static int _defaultUsed;
 
@@ -62,7 +61,7 @@ namespace Nino.Core
         public static byte[] Serialize<T>(T value)
         {
             // Fast path for simple unmanaged types
-            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseType)
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.Instance.HasBaseType)
             {
                 var size = Unsafe.SizeOf<T>();
                 var result = new byte[size];
@@ -127,7 +126,7 @@ namespace Nino.Core
         public static void Serialize<T>(T value, ref Writer writer)
         {
             // Fast path for simple unmanaged types
-            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseType)
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.Instance.HasBaseType)
             {
                 writer.UnsafeWrite(value);
                 return;
@@ -208,7 +207,7 @@ namespace Nino.Core
     {
         public SerializeDelegate<T> Serializer;
         internal readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
-        public static CachedSerializer<T> Instance;
+        public static CachedSerializer<T> Instance = new();
 
         // Cache expensive type checks
         internal static readonly bool IsReferenceOrContainsReferences =
@@ -218,7 +217,7 @@ namespace Nino.Core
         private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
         // ReSharper disable once StaticMemberInGenericType
-        internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
+        internal readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
 
         public void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
         {

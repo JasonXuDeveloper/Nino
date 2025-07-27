@@ -28,7 +28,11 @@ namespace Nino.Core
         {
             int index = CustomBinarySearch(key);
             if (index >= 0)
+            {
+                // Key already exists, update the value
+                _values[index] = value;
                 return;
+            }
 
             int insertAt = ~index;
 

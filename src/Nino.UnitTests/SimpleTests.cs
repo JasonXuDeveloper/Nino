@@ -13,6 +13,32 @@ namespace Nino.UnitTests
     public class SimpleTests
     {
         [TestMethod]
+        public void TestCustomSerializer()
+        {
+            int a = 10;
+            NinoTypeMetadata.RegisterCustomSerializer(static (int val, ref Writer writer) =>
+            {
+                writer.Write(val.ToString());
+            });
+            NinoTypeMetadata.RegisterCustomDeserializer(
+                static (out int val, ref Reader reader) =>
+                {
+                    reader.Read(out string str);
+                    val = int.Parse(str);
+                },
+                static (ref int val, ref Reader reader) =>
+                {
+                    reader.Read(out string str);
+                    val = int.Parse(str);
+                });
+            byte[] bytes = NinoSerializer.Serialize(a);
+            Assert.IsNotNull(bytes);
+            Console.WriteLine(string.Join(", ", bytes));
+            int deserialized = NinoDeserializer.Deserialize<int>(bytes);
+            Assert.AreEqual(a, deserialized);
+        }
+
+        [TestMethod]
         public void ArraySegmentBytes()
         {
             ArraySegment<byte> bytes = new ArraySegment<byte>(new byte[] { 1, 2, 3, 4, 5 });
@@ -65,7 +91,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(1, tempSub2.F[0]);
             Assert.AreEqual(2, tempSub2.F[1]);
             Assert.AreEqual(3, tempSub2.F[2]);
-            
+
             TestClass3 testClass3 = new TestClass3
             {
                 A = 1,
@@ -77,7 +103,7 @@ namespace Nino.UnitTests
             };
             bytes = NinoSerializer.Serialize(testClass3);
             Assert.IsNotNull(bytes);
-            
+
             TestClass3 tempTestClass3 = new TestClass3();
             NinoDeserializer.Deserialize(bytes, ref tempTestClass3);
             Assert.AreEqual(testClass3.A, tempTestClass3.A);

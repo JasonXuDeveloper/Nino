@@ -24,7 +24,7 @@ namespace Nino.Core
         public static void DeserializeRef<T>(ref T value, ref Reader reader)
         {
             // Fast path for simple unmanaged types
-            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
+            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.Instance.HasBaseType)
             {
                 reader.UnsafeRead(out value);
                 return;
@@ -54,7 +54,7 @@ namespace Nino.Core
         public static void Deserialize<T>(out T value, ref Reader reader)
         {
             // Fast path for simple unmanaged types
-            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
+            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.Instance.HasBaseType)
             {
                 reader.UnsafeRead(out value);
                 return;
@@ -139,7 +139,7 @@ namespace Nino.Core
         public DeserializeDelegateRef<T> DeserializerRef;
         internal readonly FastMap<IntPtr, DeserializeDelegate<T>> SubTypeDeserializers = new();
         internal readonly FastMap<IntPtr, DeserializeDelegateRef<T>> SubTypeDeserializerRefs = new();
-        public static CachedDeserializer<T> Instance;
+        public static CachedDeserializer<T> Instance = new();
 
         // Cache expensive type checks
         internal static readonly bool IsReferenceOrContainsReferences =
@@ -149,7 +149,7 @@ namespace Nino.Core
         private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
         // ReSharper disable once StaticMemberInGenericType
-        internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
+        internal readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
 
         public void AddSubTypeDeserializer<TSub>(DeserializeDelegate<TSub> deserializer,
             DeserializeDelegateRef<TSub> deserializerRef)
