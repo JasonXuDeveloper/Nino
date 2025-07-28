@@ -79,8 +79,8 @@ public class NinoType
                 yield return new List<NinoMember> { member };
             }
 
-            // one group can contain at most 8 members
-            if (unmanagedGroup.Count >= 8)
+            // one group can contain at most 16 members
+            if (unmanagedGroup.Count >= 16)
             {
                 yield return unmanagedGroup;
                 unmanagedGroup = new List<NinoMember>();

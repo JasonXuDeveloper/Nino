@@ -790,6 +790,10 @@ public class CollectionDeserializerGenerator(
 
                 bool constructorWithNumArg = ienumSymbol.Constructors.Any(c =>
                     c.Parameters.Length == 1 && c.Parameters[0].Type.GetDisplayString() == "System.Int32");
+                
+                bool hasEnsureCapacity = namedTypeSymbol.
+                    GetMembers("EnsureCapacity").OfType<IMethodSymbol>()
+                    .Any(m => m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Int32);
 
                 var creationDecl = constructorWithNumArg
                     ? $"new {collType}(length)"
@@ -819,6 +823,12 @@ public class CollectionDeserializerGenerator(
                 sb.Append("    value = ");
                 sb.Append(creationDecl);
                 sb.AppendLine(";");
+                
+                if (hasEnsureCapacity)
+                {
+                    sb.AppendLine("    value.EnsureCapacity(length);");
+                }
+                
                 sb.AppendLine("    for (int i = 0; i < length; i++)");
                 sb.AppendLine("    {");
 
@@ -885,6 +895,11 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("    {");
                     sb.AppendLine("        value.Clear();");
                     sb.AppendLine("    }");
+                    if (hasEnsureCapacity)
+                    {
+                        sb.AppendLine("    value.EnsureCapacity(length);");
+                    }
+                    
                     sb.AppendLine();
                     sb.AppendLine("    for (int i = 0; i < length; i++)");
                     sb.AppendLine("    {");
