@@ -54,14 +54,21 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DeserializeRef<T>(ref T value, ref Reader reader)
         {
-            // Empty reader
+            // Empty reader check
             if (reader.Eof)
             {
                 value = default;
                 return;
             }
 
-            // Check if T is a custom serializer
+            // Fast path for simple types - check first to avoid lookups
+            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
+            {
+                reader.UnsafeRead(out value);
+                return;
+            }
+
+            // Check custom deserializer only if needed
             var customDeserializer = CustomDeserializer<T>.Instance;
             if (customDeserializer != null)
             {
@@ -69,6 +76,29 @@ namespace Nino.Core
                 return;
             }
 
+            // Inline the most common path to avoid additional method call
+            var cachedDeserializer = CachedDeserializer<T>.Instance;
+            if (cachedDeserializer.SubTypeDeserializerRefs.Count == 0)
+            {
+                // Direct delegate call for non-polymorphic types
+                cachedDeserializer.DeserializerRef(ref value, ref reader);
+                return;
+            }
+
+            // Handle complex cases through the instance method
+            cachedDeserializer.DeserializeRef(ref value, ref reader);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Deserialize<T>(out T value, ref Reader reader)
+        {
+            // Empty reader check
+            if (reader.Eof)
+            {
+                value = default;
+                return;
+            }
+
             // Fast path for simple types
             if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
             {
@@ -76,29 +106,7 @@ namespace Nino.Core
                 return;
             }
 
-            var cachedDeserializer = CachedDeserializer<T>.Instance;
-            if (cachedDeserializer.SubTypeDeserializerRefs.Count == 0)
-            {
-                // No polymorphism - direct deserialization
-                cachedDeserializer.DeserializerRef(ref value, ref reader);
-                return;
-            }
-
-            // Handle polymorphic types
-            cachedDeserializer.DeserializeRef(ref value, ref reader);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Deserialize<T>(out T value, ref Reader reader)
-        {
-            // Empty reader
-            if (reader.Eof)
-            {
-                value = default;
-                return;
-            }
-
-            // Check if T is a custom serializer
+            // Optimize the common case: check for custom deserializers first
             var customDeserializer = CustomDeserializer<T>.Instance;
             if (customDeserializer != null)
             {
@@ -106,22 +114,16 @@ namespace Nino.Core
                 return;
             }
 
-            // Fast path for simple types
-            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
-            {
-                reader.UnsafeRead(out value);
-                return;
-            }
-
+            // Inline the most common path to avoid additional method call
             var cachedDeserializer = CachedDeserializer<T>.Instance;
             if (cachedDeserializer.SubTypeDeserializers.Count == 0)
             {
-                // No polymorphism - direct deserialization
+                // Direct delegate call for non-polymorphic types
                 cachedDeserializer.Deserializer(out value, ref reader);
                 return;
             }
 
-            // Handle polymorphic types
+            // Handle complex cases through the instance method
             cachedDeserializer.Deserialize(out value, ref reader);
         }
 
@@ -280,14 +282,21 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(out T value, ref Reader reader)
         {
-            // Empty reader
+            // Empty reader check
             if (reader.Eof)
             {
                 value = default;
                 return;
             }
 
-            // Check if T is a custom serializer
+            // Fast path for simple types - check first
+            if (!IsReferenceOrContainsReferences && !HasBaseType)
+            {
+                reader.UnsafeRead(out value);
+                return;
+            }
+
+            // Check custom deserializer only if needed
             var customDeserializer = CustomDeserializer<T>.Instance;
             if (customDeserializer != null)
             {
@@ -295,17 +304,10 @@ namespace Nino.Core
                 return;
             }
 
-            // Fast path for simple types
-            if (!IsReferenceOrContainsReferences && !HasBaseType)
-            {
-                reader.UnsafeRead(out value);
-                return;
-            }
-
-            // Only check for polymorphism if we have subtypes registered
+            // Optimized polymorphism handling
             if (SubTypeDeserializers.Count > 0)
             {
-                // Read type info first for polymorphic types
+                // Peek type info for polymorphic types
                 reader.Peak(out int typeId);
 
                 if (typeId == TypeCollector.Null)
@@ -315,49 +317,40 @@ namespace Nino.Core
                     return;
                 }
 
+                // Single lookup for type metadata
                 if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr actualTypeHandle))
                 {
-                    throw new Exception(
-                        $"Deserializer not found for type with id {typeId}");
+                    throw new Exception($"Deserializer not found for type with id {typeId}");
                 }
 
-                // Check if it's the same type (most common case)
+                // Check same type first (most common case)
                 if (actualTypeHandle == TypeHandle)
                 {
                     Deserializer(out value, ref reader);
                     return;
                 }
 
-                // Handle subtype deserialization
-                if (!SubTypeDeserializers.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
+                // Handle subtype with single lookup
+                if (SubTypeDeserializers.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
                 {
-                    throw new Exception(
-                        $"Deserializer not found for type with id {typeId}");
+                    subTypeDeserializer(out value, ref reader);
+                    return;
                 }
 
-                subTypeDeserializer(out value, ref reader);
-                return;
+                throw new Exception($"Deserializer not found for type with id {typeId}");
             }
 
-            // No polymorphism - direct deserialization
+            // Direct deserialization path
             Deserializer(out value, ref reader);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void DeserializeRef(ref T value, ref Reader reader)
         {
-            // Empty reader
+            // Empty reader check
             if (reader.Eof)
             {
                 value = default;
-                return;
-            }
-
-            // Check if T is a custom serializer
-            var customDeserializer = CustomDeserializer<T>.Instance;
-            if (customDeserializer != null)
-            {
-                customDeserializer.DeserializerRef(ref value, ref reader);
                 return;
             }
 
@@ -368,45 +361,58 @@ namespace Nino.Core
                 return;
             }
 
-            // Only check for polymorphism if we have subtypes registered
-            if (SubTypeDeserializers.Count > 0)
+            // Fast path for non-polymorphic types (most common case for classes)
+            if (SubTypeDeserializerRefs.Count == 0)
             {
-                // Read type info first for polymorphic types
-                reader.Peak(out int typeId);
-
-                if (typeId == TypeCollector.Null)
+                // Check custom deserializer only if we don't have polymorphism
+                var customDeserializer = CustomDeserializer<T>.Instance;
+                if (customDeserializer != null)
                 {
-                    value = default;
-                    reader.Advance(4);
+                    customDeserializer.DeserializerRef(ref value, ref reader);
                     return;
                 }
+                
+                DeserializerRef(ref value, ref reader);
+                return;
+            }
 
-                if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr actualTypeHandle))
-                {
-                    throw new Exception(
-                        $"Deserializer not found for type with id {typeId}");
-                }
+            // Handle polymorphic case (less common)
+            DeserializeRefPolymorphic(ref value, ref reader);
+        }
 
-                // Check if it's the same type (most common case)
-                if (actualTypeHandle == TypeHandle)
-                {
-                    DeserializerRef(ref value, ref reader);
-                    return;
-                }
+        [MethodImpl(MethodImplOptions.NoInlining)] // Keep cold path out of hot path
+        private void DeserializeRefPolymorphic(ref T value, ref Reader reader)
+        {
+            // Read type info first for polymorphic types
+            reader.Peak(out int typeId);
 
-                // Handle subtype deserialization
-                if (!SubTypeDeserializerRefs.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
-                {
-                    throw new Exception(
-                        $"Deserializer not found for type with id {typeId}");
-                }
+            if (typeId == TypeCollector.Null)
+            {
+                value = default;
+                reader.Advance(4);
+                return;
+            }
 
+            if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr actualTypeHandle))
+            {
+                throw new Exception($"Deserializer not found for type with id {typeId}");
+            }
+
+            // Check if it's the same type (most common case)
+            if (actualTypeHandle == TypeHandle)
+            {
+                DeserializerRef(ref value, ref reader);
+                return;
+            }
+
+            // Handle subtype deserialization
+            if (SubTypeDeserializerRefs.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
+            {
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }
 
-            // No polymorphism - direct deserialization
-            DeserializerRef(ref value, ref reader);
+            throw new Exception($"Deserializer not found for type with id {typeId}");
         }
     }
 #pragma warning restore CA1000

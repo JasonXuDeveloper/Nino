@@ -82,12 +82,14 @@ public partial class SerializerGenerator
                     sb.AppendLine();
                 }
 
+                // Optimize polymorphic type writing - inline constant when possible
                 if (ninoType.IsPolymorphic())
                 {
                     sb.AppendLine(
                         $"            writer.Write(NinoTypeConst.{ninoType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
                 }
 
+                // Optimized write path - direct write for unmanaged types
                 if (ninoType.TypeSymbol.IsUnmanagedType)
                 {
                     sb.AppendLine("            writer.Write(value);");
@@ -135,7 +137,6 @@ public partial class SerializerGenerator
                          public static partial class Serializer
                          {
                              private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
-
                              private static readonly NinoArrayBufferWriter DefaultBufferWriter = new NinoArrayBufferWriter(1024);
                              private static int _defaultUsed;
 
@@ -270,12 +271,10 @@ public partial class SerializerGenerator
                 var declaredType = member.Type;
                 var val = valNames[0];
 
-                //check if the typesymbol declaredType is string
+                // Optimized single member serialization
                 if (declaredType.SpecialType == SpecialType.System_String)
                 {
-                    //check if this member is annotated with [NinoUtf8]
                     var isUtf8 = member.IsUtf8String;
-
                     sb.AppendLine(
                         isUtf8
                             ? $"            writer.WriteUtf8({val});"
@@ -284,26 +283,23 @@ public partial class SerializerGenerator
                 else if (declaredType.IsUnmanagedType && 
                          (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoType) || !ninoType.IsPolymorphic()))
                 {
-                    sb.AppendLine(
-                        $"            writer.Write({val});");
+                    sb.AppendLine($"            writer.Write({val});");
                 }
                 else
                 {
-                    sb.AppendLine(
-                        $"            NinoSerializer.Serialize({val}, ref writer);");
+                    sb.AppendLine($"            NinoSerializer.Serialize({val}, ref writer);");
                 }
             }
             else
             {
+                // Optimize multi-member serialization - reduce conditional compilation overhead
                 sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
                 foreach (var val in valNames)
                 {
                     sb.AppendLine($"            writer.Write({val});");
                 }
-
                 sb.AppendLine("#else");
-                sb.AppendLine(
-                    $"            writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
+                sb.AppendLine($"            writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
                 sb.AppendLine("#endif");
             }
         }

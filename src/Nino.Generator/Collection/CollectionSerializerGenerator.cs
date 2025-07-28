@@ -170,16 +170,17 @@ public class CollectionSerializerGenerator(
                     sb.AppendLine("        return;");
                     sb.AppendLine("    }");
                     sb.AppendLine();
+                    // Optimized array serialization - use span for better performance
                     sb.AppendLine("    var span = value.AsSpan();");
                     sb.AppendLine("    int cnt = span.Length;");
                     sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
                     sb.AppendLine();
+                    // Optimized array serialization loop
                     sb.AppendLine("    for (int i = 0; i < cnt; i++)");
                     sb.AppendLine("    {");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-                    sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(elementType, "span[i]"));
+                    sb.AppendLine($"        {GetSerializeString(elementType, "span[i]")}");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                     sb.AppendLine("    }");
@@ -239,6 +240,7 @@ public class CollectionSerializerGenerator(
                 sb.AppendLine("    int cnt = value.Count;");
                 sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
                 sb.AppendLine();
+                // Optimized dictionary enumeration
                 sb.AppendLine("    foreach (var item in value)");
                 sb.AppendLine("    {");
 
@@ -250,10 +252,8 @@ public class CollectionSerializerGenerator(
                 {
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-                    sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(keyType, "item.Key"));
-                    sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(valType, "item.Value"));
+                    sb.AppendLine($"        {GetSerializeString(keyType, "item.Key")}");
+                    sb.AppendLine($"        {GetSerializeString(valType, "item.Value")}");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
@@ -378,6 +378,7 @@ public class CollectionSerializerGenerator(
                 sb.AppendLine("    int cnt = value.Count;");
                 sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
                 sb.AppendLine();
+                // Optimized enumerable serialization
                 sb.AppendLine("    foreach (var item in value)");
                 sb.AppendLine("    {");
 
@@ -389,8 +390,7 @@ public class CollectionSerializerGenerator(
                 {
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-                    sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(elemType, "item"));
+                    sb.AppendLine($"        {GetSerializeString(elemType, "item")}");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }

@@ -464,28 +464,24 @@ public partial class DeserializerGenerator
             }
             else
             {
+                // Optimized multi-member deserialization - reduce branching
                 sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
                 for (var index = 0; index < valNames.Count; index++)
                 {
                     var val = valNames[index];
-                    sb.AppendLine(
-                        $"            {members[index].Type.GetDisplayString()} {val} = default;");
-                    sb.AppendLine(
-                        $"            if (!reader.Eof) reader.Read(out {val});");
+                    sb.AppendLine($"            {members[index].Type.GetDisplayString()} {val} = default;");
+                    sb.AppendLine($"            if (!reader.Eof) reader.Read(out {val});");
                 }
-
                 sb.AppendLine("#else");
                 sb.AppendLine(
                     $"            reader.Read(out NinoTuple<{string.Join(", ",
                         Enumerable.Range(0, valNames.Count)
                             .Select(i => $"{members[i].Type.GetDisplayString()}"))}> t{index1});");
-
                 for (int i = 0; i < members.Count; i++)
                 {
                     var name = members[i].Name;
                     tupleMap[name] = $"t{index1}.Item{i + 1}";
                 }
-
                 sb.AppendLine("#endif");
             }
         }

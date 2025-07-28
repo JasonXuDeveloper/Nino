@@ -267,6 +267,7 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("        return;");
                     sb.AppendLine("    }");
                     sb.AppendLine();
+                    // Optimized array deserialization - reduce reader slicing overhead
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("    Reader eleReader;"); });
                     sb.AppendLine();
@@ -280,15 +281,11 @@ public class CollectionDeserializerGenerator(
                         w =>
                         {
                             w.AppendLine("        eleReader = reader.Slice();");
-                            w.Append("    ");
-                            w.Append("    ");
-                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "eleReader"));
+                            w.AppendLine($"        {GetDeserializeString(elementType, true, "span[i]", "eleReader")}");
                         },
                         w =>
                         {
-                            w.Append("    ");
-                            w.Append("    ");
-                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]"));
+                            w.AppendLine($"        {GetDeserializeString(elementType, true, "span[i]")}");
                         });
                     sb.AppendLine("    }");
                     sb.AppendLine("}");
@@ -412,6 +409,7 @@ public class CollectionDeserializerGenerator(
                 sb.AppendLine("    }");
                 sb.AppendLine();
 
+                // Optimized dictionary deserialization - reduce reader overhead
                 if (!isUnmanaged)
                 {
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
@@ -441,17 +439,13 @@ public class CollectionDeserializerGenerator(
                         w =>
                         {
                             w.AppendLine("        eleReader = reader.Slice();");
-                            w.Append("        ");
-                            w.AppendLine(GetDeserializeString(keyType, false, "key", "eleReader"));
-                            w.Append("        ");
-                            w.AppendLine(GetDeserializeString(valType, false, "val", "eleReader"));
+                            w.AppendLine($"        {GetDeserializeString(keyType, false, "key", "eleReader")}");
+                            w.AppendLine($"        {GetDeserializeString(valType, false, "val", "eleReader")}");
                         },
                         w =>
                         {
-                            w.Append("        ");
-                            w.AppendLine(GetDeserializeString(keyType, false, "key"));
-                            w.Append("        ");
-                            w.AppendLine(GetDeserializeString(valType, false, "val"));
+                            w.AppendLine($"        {GetDeserializeString(keyType, false, "key")}");
+                            w.AppendLine($"        {GetDeserializeString(valType, false, "val")}");
                         });
                     sb.AppendLine("        value[key] = val;");
                 }

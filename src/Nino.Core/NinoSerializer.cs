@@ -10,7 +10,7 @@ namespace Nino.Core
         private static readonly object Lock = new();
 
         private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
-        private static readonly NinoArrayBufferWriter DefaultBufferWriter = new(1024);
+        private static readonly NinoArrayBufferWriter DefaultBufferWriter = new(2048); // Slightly larger but not excessive
         private static int _defaultUsed;
 
         /// <summary>
@@ -43,23 +43,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoArrayBufferWriter GetBufferWriter()
         {
-            // Fast path
+            // Fast path - use default buffer if available
             if (Interlocked.CompareExchange(ref _defaultUsed, 1, 0) == 0)
             {
                 return DefaultBufferWriter;
             }
 
-            if (BufferWriters.Count == 0)
-            {
-                return new NinoArrayBufferWriter(1024);
-            }
-
+            // Try to reuse from pool
             if (BufferWriters.TryDequeue(out var bufferWriter))
             {
                 return bufferWriter;
             }
 
-            return new NinoArrayBufferWriter(1024);
+            // Create new with reasonable initial capacity
+            return new NinoArrayBufferWriter(2048);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -78,7 +75,6 @@ namespace Nino.Core
                 {
                     throw new InvalidOperationException("The returned buffer writer is not in use.");
                 }
-
                 return;
             }
 
@@ -111,14 +107,6 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
-            // Check if T is a custom serializer
-            var customSerializer = CustomSerializer<T>.Instance;
-            if (customSerializer != null)
-            {
-                customSerializer.Serializer(value, ref writer);
-                return;
-            }
-
             // Fast path for simple types
             if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseType)
             {
@@ -126,15 +114,24 @@ namespace Nino.Core
                 return;
             }
 
+            // Optimize the common case: check for custom serializers first 
+            var customSerializer = CustomSerializer<T>.Instance;
+            if (customSerializer != null)
+            {
+                customSerializer.Serializer(value, ref writer);
+                return;
+            }
+
+            // Inline the most common path to avoid additional method call
             var cachedSerializer = CachedSerializer<T>.Instance;
             if (cachedSerializer.SubTypeSerializers.Count == 0)
             {
-                // No polymorphism - direct serialization
+                // Direct delegate call for non-polymorphic types
                 cachedSerializer.Serializer(value, ref writer);
                 return;
             }
 
-            // Handle polymorphism
+            // Handle complex cases through the instance method
             cachedSerializer.Serialize(value, ref writer);
         }
 
@@ -256,7 +253,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T val, ref Writer writer)
         {
-            // Check if T is a custom serializer
+            // Fast path for simple types - check first
+            if (!IsReferenceOrContainsReferences && !HasBaseType)
+            {
+                writer.UnsafeWrite(val);
+                return;
+            }
+
+            // Check custom serializer first - highest priority but rare
             var customSerializer = CustomSerializer<T>.Instance;
             if (customSerializer != null)
             {
@@ -264,38 +268,66 @@ namespace Nino.Core
                 return;
             }
 
-            // Fast path for simple types
-            if (!IsReferenceOrContainsReferences && !HasBaseType)
+            // Fast path for non-polymorphic types (most common case)
+            if (SubTypeSerializers.Count == 0)
             {
-                writer.UnsafeWrite(val);
+                // Use the delegate - JIT should be able to optimize this well
+                Serializer(val, ref writer);
                 return;
             }
 
-            // Only check for polymorphism if we have subtypes registered
-            if (SubTypeSerializers.Count > 0 && val != null)
+            // Handle polymorphic case (least common)
+            SerializePolymorphic(val, ref writer);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)] // Keep cold path out of hot path
+        private void SerializeComplexPath(T val, ref Writer writer)
+        {
+            // Check custom serializer first - less likely but higher priority
+            var customSerializer = CustomSerializer<T>.Instance;
+            if (customSerializer != null)
             {
-                IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
+                customSerializer.Serializer(val, ref writer);
+                return;
+            }
 
-                // Check if it's the same type (most common case)
-                if (actualTypeHandle == TypeHandle)
-                {
-                    Serializer(val, ref writer);
-                    return;
-                }
+            // Check for polymorphism
+            if (SubTypeSerializers.Count == 0)
+            {
+                Serializer(val, ref writer);
+                return;
+            }
 
-                // Handle subtype serialization
-                if (!SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
-                {
-                    throw new Exception(
-                        $"Serializer not found for type {val.GetType().FullName}");
-                }
+            // Handle polymorphic case (least common)
+            SerializePolymorphic(val, ref writer);
+        }
 
+        [MethodImpl(MethodImplOptions.NoInlining)] // Keep cold path out of hot path
+        private void SerializePolymorphic(T val, ref Writer writer)
+        {
+            if (val == null)
+            {
+                Serializer(val, ref writer);
+                return;
+            }
+
+            IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
+
+            // Check if it's the same type first (most common case)
+            if (actualTypeHandle == TypeHandle)
+            {
+                Serializer(val, ref writer);
+                return;
+            }
+
+            // Handle subtype serialization
+            if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
+            {
                 subTypeSerializer(val, ref writer);
                 return;
             }
 
-            // No polymorphism - direct serialization
-            Serializer(val, ref writer);
+            throw new Exception($"Serializer not found for type {val.GetType().FullName}");
         }
     }
 #pragma warning restore CA1000
