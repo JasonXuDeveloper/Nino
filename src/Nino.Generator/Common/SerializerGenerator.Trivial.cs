@@ -94,7 +94,7 @@ public partial class SerializerGenerator
                 }
                 else
                 {
-                    WriteMembers(ninoType, "value", sb, validTypes);
+                    WriteMembers(ninoType, "value", sb);
                 }
 
                 sb.AppendLine("        }");
@@ -225,7 +225,7 @@ public partial class SerializerGenerator
         return $"{indent}{ret}";
     }
 
-    private void WriteMembers(NinoType type, string valName, StringBuilder sb, HashSet<ITypeSymbol> validTypes)
+    private void WriteMembers(NinoType type, string valName, StringBuilder sb)
     {
         List<string> valNames = new();
         foreach (var members in type.GroupByPrimitivity())
@@ -289,42 +289,8 @@ public partial class SerializerGenerator
                 }
                 else
                 {
-                    // pre-generated
-                    if (validTypes.Contains(declaredType))
-                    {
-                        sb.AppendLine(
-                            $"            Serialize({val}, ref writer);");
-                    }
-                    // bottom type
-                    else if (NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var memberNinoType) &&
-                             !NinoGraph.SubTypes.ContainsKey(memberNinoType))
-                    {
-                        // cross project referenced ninotype
-                        if (!string.IsNullOrEmpty(memberNinoType.CustomSerializer))
-                        {
-                            // for the sake of unity asmdef, fallback to dynamic resolve
-                            sb.AppendLine("#if UNITY_2020_3_OR_NEWER");
-                            sb.AppendLine(
-                                $"            NinoSerializer.Serialize({val}, ref writer);");
-                            // net core project
-                            sb.AppendLine("#else");
-                            sb.AppendLine(
-                                $"            {memberNinoType.CustomSerializer}.SerializeImpl({val}, ref writer);");
-                            sb.AppendLine("#endif");
-                        }
-                        // the impl is implemented in the same assembly
-                        else
-                        {
-                            sb.AppendLine(
-                                $"            SerializeImpl({val}, ref writer);");
-                        }
-                    }
-                    // dynamically resolved type
-                    else
-                    {
-                        sb.AppendLine(
-                            $"            NinoSerializer.Serialize({val}, ref writer);");
-                    }
+                    sb.AppendLine(
+                        $"            NinoSerializer.Serialize({val}, ref writer);");
                 }
             }
             else

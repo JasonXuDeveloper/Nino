@@ -49,6 +49,26 @@ namespace Nino.Core
             _values[insertAt] = value;
             _count++;
         }
+        
+        public void Remove(TKey key)
+        {
+            if (_count == 0)
+                return;
+
+            int index = CustomBinarySearch(key);
+            if (index < 0)
+                return; // Key not found
+
+            // Shift elements to remove the key
+            if (index < _count - 1)
+            {
+                Array.Copy(_keys, index + 1, _keys, index, _count - index - 1);
+                Array.Copy(_values, index + 1, _values, index, _count - index - 1);
+            }
+
+            _keys[--_count] = default!; // Clear the last element
+            _values[_count] = default!;
+        }
 
         private void Grow()
         {

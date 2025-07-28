@@ -16,11 +16,11 @@ namespace Nino.UnitTests
         public void TestCustomSerializer()
         {
             int a = 10;
-            NinoSerializer.RegisterCustomSerializer(static (int val, ref Writer writer) =>
+            NinoSerializer.AddCustomSerializer(static (int val, ref Writer writer) =>
             {
                 writer.Write(val.ToString());
             });
-            NinoDeserializer.RegisterCustomDeserializer(
+            NinoDeserializer.AddCustomDeserializer(
                 static (out int val, ref Reader reader) =>
                 {
                     reader.Read(out string str);
@@ -36,6 +36,9 @@ namespace Nino.UnitTests
             Console.WriteLine(string.Join(", ", bytes));
             int deserialized = NinoDeserializer.Deserialize<int>(bytes);
             Assert.AreEqual(a, deserialized);
+            
+            NinoSerializer.RemoveCustomSerializer<int>();
+            NinoDeserializer.RemoveCustomDeserializer<int>();
         }
 
         [TestMethod]
@@ -103,6 +106,7 @@ namespace Nino.UnitTests
             };
             bytes = NinoSerializer.Serialize(testClass3);
             Assert.IsNotNull(bytes);
+            Console.WriteLine(string.Join(", ", bytes));
 
             TestClass3 tempTestClass3 = new TestClass3();
             NinoDeserializer.Deserialize(bytes, ref tempTestClass3);

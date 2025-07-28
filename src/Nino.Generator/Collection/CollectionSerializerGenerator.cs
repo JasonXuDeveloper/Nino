@@ -76,31 +76,8 @@ public class CollectionSerializerGenerator(
             return $"writer.Write({value});";
         }
 
-        // bottom type
-        if (NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType) &&
-            !NinoGraph.SubTypes.ContainsKey(ninoType))
-        {
-            // cross project referenced ninotype
-            if (!string.IsNullOrEmpty(ninoType.CustomSerializer))
-            {
-                // for the sake of unity asmdef, fallback to dynamic resolve
-                return $"""
-                        #if UNITY_2020_3_OR_NEWER
-                            NinoSerializer.Serialize({value}, ref writer);
-                        #else
-                            {ninoType.CustomSerializer}.SerializeImpl({value}, ref writer);
-                        #endif
-                        """;
-            }
-
-            // the impl is implemented in the same assembly
-            return $"SerializeImpl({value}, ref writer);";
-        }
-
         // dynamically resolved type
-        return type.IsUnmanagedType || type.SpecialType == SpecialType.System_String
-            ? $"writer.Write({value});"
-            : $"NinoSerializer.Serialize({value}, ref writer);";
+        return $"NinoSerializer.Serialize({value}, ref writer);";
     }
 
     protected override List<Transformer> Transformers =>

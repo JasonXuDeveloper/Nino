@@ -23,10 +23,7 @@ namespace Nino.Core
             {
                 if (hasBaseType)
                     HasBaseTypeMap.Add(typeof(T).TypeHandle.Value, true);
-                CachedSerializer<T>.Instance = new CachedSerializer<T>
-                {
-                    Serializer = serializer
-                };
+                CachedSerializer<T>.Instance = new CachedSerializer<T>(serializer);
                 Serializers.Add(typeof(T).TypeHandle.Value, CachedSerializer<T>.Instance);
             }
         }

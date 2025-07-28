@@ -118,39 +118,6 @@ public class CollectionDeserializerGenerator(
         });
     };
 
-    private static readonly IFilter UnmanagedFilter = new Union().With
-    (
-        new Joint().With
-        (
-            new Not(new String()),
-            new Unmanaged()
-        ),
-        new Array(symbol => symbol.ElementType.IsUnmanagedType),
-        new Joint().With
-        (
-            new Span(),
-            new TypeArgument(0, symbol => symbol.IsUnmanagedType)
-        ),
-        new Joint().With(
-            new Interface("ICollection<T>", interfaceSymbol =>
-            {
-                var elementType = interfaceSymbol.TypeArguments[0];
-                return elementType.IsUnmanagedType;
-            }),
-            new Not(new NonTrivial("ICollection", "List", "IList", "ICollection"))
-        ),
-        new Joint().With
-        (
-            new Interface("IDictionary<TKey, TValue>", interfaceSymbol =>
-            {
-                var keyType = interfaceSymbol.TypeArguments[0];
-                var valueType = interfaceSymbol.TypeArguments[1];
-                return keyType.IsUnmanagedType && valueType.IsUnmanagedType;
-            }),
-            new Not(new NonTrivial("IDictionary", "IDictionary", "Dictionary"))
-        )
-    );
-
     private string GetDeserializeString(ITypeSymbol type, bool assigned, string value, string reader = "reader")
     {
         var typeFullName = assigned ? "" : $" {type.GetDisplayString()}";
@@ -163,30 +130,7 @@ public class CollectionDeserializerGenerator(
             return $"{reader}.Read(out{typeFullName} {value});";
         }
 
-        // bottom type
-        if (NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType) &&
-            !NinoGraph.SubTypes.ContainsKey(ninoType))
-        {
-            // cross project referenced ninotype
-            if (!string.IsNullOrEmpty(ninoType.CustomDeserializer))
-            {
-                // for the sake of unity asmdef, fallback to dynamic resolve
-                return $$"""
-                         #if UNITY_2020_3_OR_NEWER
-                             NinoDeserializer.Deserialize(out{{typeFullName}} {{value}}, ref {{reader}});
-                         #else
-                             {{ninoType.CustomDeserializer}}.DeserializeImpl(out{{typeFullName}} {{value}}, ref {{reader}});";
-                         #endif
-                         """;
-            }
-
-            // the impl is implemented in the same assembly
-            return $"DeserializeImpl(out{typeFullName} {value}, ref {reader});";
-        }
-
-        return UnmanagedFilter.Filter(type) || type.SpecialType == SpecialType.System_String
-            ? $"{reader}.Read(out{typeFullName} {value});"
-            : $"NinoDeserializer.Deserialize(out{typeFullName} {value}, ref {reader});";
+        return $"NinoDeserializer.Deserialize(out{typeFullName} {value}, ref {reader});";
     }
 
     private static readonly Joint HasAddAndClear = new Joint().With(
@@ -790,9 +734,8 @@ public class CollectionDeserializerGenerator(
 
                 bool constructorWithNumArg = ienumSymbol.Constructors.Any(c =>
                     c.Parameters.Length == 1 && c.Parameters[0].Type.GetDisplayString() == "System.Int32");
-                
-                bool hasEnsureCapacity = namedTypeSymbol.
-                    GetMembers("EnsureCapacity").OfType<IMethodSymbol>()
+
+                bool hasEnsureCapacity = namedTypeSymbol.GetMembers("EnsureCapacity").OfType<IMethodSymbol>()
                     .Any(m => m.Parameters.Length == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Int32);
 
                 var creationDecl = constructorWithNumArg
@@ -823,12 +766,12 @@ public class CollectionDeserializerGenerator(
                 sb.Append("    value = ");
                 sb.Append(creationDecl);
                 sb.AppendLine(";");
-                
+
                 if (hasEnsureCapacity)
                 {
                     sb.AppendLine("    value.EnsureCapacity(length);");
                 }
-                
+
                 sb.AppendLine("    for (int i = 0; i < length; i++)");
                 sb.AppendLine("    {");
 
@@ -899,7 +842,7 @@ public class CollectionDeserializerGenerator(
                     {
                         sb.AppendLine("    value.EnsureCapacity(length);");
                     }
-                    
+
                     sb.AppendLine();
                     sb.AppendLine("    for (int i = 0; i < length; i++)");
                     sb.AppendLine("    {");
@@ -1148,7 +1091,7 @@ public class CollectionDeserializerGenerator(
             (
                 new Interface("IList<T>"),
                 new TypeArgument(0, symbol => symbol.IsUnmanagedType),
-                new Not(new NonTrivial("IList",  "List", "List")),
+                new Not(new NonTrivial("IList", "List", "List")),
                 new Not(new Array())
             ),
             (symbol, sb) =>
