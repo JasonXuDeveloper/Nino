@@ -1,16 +1,35 @@
 using System;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Nino.Core
 {
     public static class NinoSerializer
     {
+        private static readonly object Lock = new();
+        private static readonly FastMap<IntPtr, ICachedSerializer> CustomSerializers = new();
+
         private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
         private static readonly NinoArrayBufferWriter DefaultBufferWriter = new(1024);
         private static int _defaultUsed;
+
+
+        /// <summary>
+        /// Registers a custom serializer for a type.
+        /// This method allows you to provide a custom serialization logic for a specific type.
+        /// The serializer will be used when serializing instances of that type.
+        /// </summary>
+        /// <param name="serializer"></param>
+        /// <typeparam name="T"></typeparam>
+        public static void RegisterCustomSerializer<T>(SerializeDelegate<T> serializer)
+        {
+            lock (Lock)
+            {
+                CustomSerializer<T>.Instance = new CustomSerializer<T>(serializer);
+                CustomSerializers.Add(typeof(T).TypeHandle.Value, CustomSerializer<T>.Instance);
+            }
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoArrayBufferWriter GetBufferWriter()
@@ -60,48 +79,6 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T>(T value)
         {
-            // Fast path for simple unmanaged types
-            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.Instance.HasBaseType)
-            {
-                var size = Unsafe.SizeOf<T>();
-                var result = new byte[size];
-                var span = result.AsSpan();
-
-                if (TypeCollector.Is64Bit)
-                {
-                    Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), value);
-                }
-                else
-                {
-                    // Safe paths for 32-bit platforms - avoid potentially problematic unaligned 8-byte writes
-                    switch (size)
-                    {
-                        case 1:
-                            span[0] = Unsafe.As<T, byte>(ref value);
-                            break;
-                        case 2:
-                            Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, ushort>(ref value));
-                            break;
-                        case 4:
-                            Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, uint>(ref value));
-                            break;
-                        default:
-                            unsafe
-                            {
-                                T temp = value;
-                                Span<T> srcSpan = MemoryMarshal.CreateSpan(ref temp, 1);
-                                ReadOnlySpan<byte> src =
-                                    new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
-                                src.CopyTo(span);
-                            }
-
-                            break;
-                    }
-                }
-
-                return result;
-            }
-
             var bufferWriter = GetBufferWriter();
             try
             {
@@ -125,8 +102,16 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
+            // Check if T is a custom serializer
+            var customSerializer = CustomSerializer<T>.Instance;
+            if (customSerializer != null)
+            {
+                customSerializer.Serializer(value, ref writer);
+                return;
+            }
+
             // Fast path for simple unmanaged types
-            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.Instance.HasBaseType)
+            if (!CachedSerializer<T>.IsReferenceOrContainsReferences && !CachedSerializer<T>.HasBaseType)
             {
                 writer.UnsafeWrite(value);
                 return;
@@ -178,7 +163,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void SerializeBoxed(object value, ref Writer writer, Type type)
         {
-            if (value == null || type == null)
+            if (type == null)
+                throw new ArgumentNullException(nameof(type), "Type cannot be null when serializing boxed objects.");
+
+            // Check if the value is a custom serializer
+            lock (Lock)
+            {
+                if (CustomSerializers.TryGetValue(type.TypeHandle.Value, out var customSerializer))
+                {
+                    customSerializer.SerializeBoxed(value, ref writer);
+                    return;
+                }
+            }
+
+            if (value == null)
             {
                 writer.Write(TypeCollector.Null);
                 return;
@@ -202,6 +200,29 @@ namespace Nino.Core
         void SerializeBoxed(object value, ref Writer writer);
     }
 
+    internal class CustomSerializer<T> : ICachedSerializer
+    {
+        public readonly SerializeDelegate<T> Serializer;
+
+        public static CustomSerializer<T> Instance;
+
+        public CustomSerializer(SerializeDelegate<T> serializer)
+        {
+            Serializer = serializer;
+        }
+
+        public void SerializeBoxed(object value, ref Writer writer)
+        {
+            if (value == null)
+            {
+                writer.Write(TypeCollector.Null);
+                return;
+            }
+
+            Serializer((T)value, ref writer);
+        }
+    }
+
 #pragma warning disable CA1000 // Do not declare static members on generic types
     public class CachedSerializer<T> : ICachedSerializer
     {
@@ -217,7 +238,7 @@ namespace Nino.Core
         private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
         // ReSharper disable once StaticMemberInGenericType
-        internal readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
+        internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
 
         public void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
         {

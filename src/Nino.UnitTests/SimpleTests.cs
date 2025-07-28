@@ -16,11 +16,11 @@ namespace Nino.UnitTests
         public void TestCustomSerializer()
         {
             int a = 10;
-            NinoTypeMetadata.RegisterCustomSerializer(static (int val, ref Writer writer) =>
+            NinoSerializer.RegisterCustomSerializer(static (int val, ref Writer writer) =>
             {
                 writer.Write(val.ToString());
             });
-            NinoTypeMetadata.RegisterCustomDeserializer(
+            NinoDeserializer.RegisterCustomDeserializer(
                 static (out int val, ref Reader reader) =>
                 {
                     reader.Read(out string str);

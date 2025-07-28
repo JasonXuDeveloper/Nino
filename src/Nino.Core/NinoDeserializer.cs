@@ -5,6 +5,27 @@ namespace Nino.Core
 {
     public static class NinoDeserializer
     {
+        private static readonly object Lock = new();
+        private static readonly FastMap<IntPtr, ICachedDeserializer> CustomDeserializers = new();
+
+        /// <summary>
+        /// Registers a custom deserializer for a type.
+        /// This method allows you to provide a custom deserialization logic for a specific type.
+        /// The deserializer will be used when deserializing instances of that type.
+        /// </summary>
+        /// <param name="deserializer"></param>
+        /// <param name="deserializerRef"></param>
+        /// <typeparam name="T"></typeparam>
+        public static void RegisterCustomDeserializer<T>(DeserializeDelegate<T> deserializer,
+            DeserializeDelegateRef<T> deserializerRef)
+        {
+            lock (Lock)
+            {
+                CustomDeserializer<T>.Instance ??= new CustomDeserializer<T>(deserializer, deserializerRef);
+                CustomDeserializers.Add(typeof(T).TypeHandle.Value, CustomDeserializer<T>.Instance);
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(ReadOnlySpan<byte> data)
         {
@@ -23,8 +44,16 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DeserializeRef<T>(ref T value, ref Reader reader)
         {
+            // Check if T is a custom serializer
+            var customDeserializer = CustomDeserializer<T>.Instance;
+            if (customDeserializer != null)
+            {
+                customDeserializer.DeserializerRef(ref value, ref reader);
+                return;
+            }
+
             // Fast path for simple unmanaged types
-            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.Instance.HasBaseType)
+            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
             {
                 reader.UnsafeRead(out value);
                 return;
@@ -53,8 +82,16 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(out T value, ref Reader reader)
         {
+            // Check if T is a custom serializer
+            var customDeserializer = CustomDeserializer<T>.Instance;
+            if (customDeserializer != null)
+            {
+                customDeserializer.Deserializer(out value, ref reader);
+                return;
+            }
+
             // Fast path for simple unmanaged types
-            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.Instance.HasBaseType)
+            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
             {
                 reader.UnsafeRead(out value);
                 return;
@@ -97,6 +134,19 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object DeserializeBoxed(ref Reader reader, Type type)
         {
+            // Check if type is null
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+
+            // Check if type is a custom deserializer
+            lock (Lock)
+            {
+                if (CustomDeserializers.TryGetValue(type.TypeHandle.Value, out var customDeserializer))
+                {
+                    return customDeserializer.DeserializeBoxed(ref reader);
+                }
+            }
+
             if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
             {
                 throw new Exception(
@@ -109,6 +159,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void DeserializeRefBoxed(ref object val, ref Reader reader, Type type)
         {
+            // Check if type is null
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+
+            // Check if type is a custom deserializer
+            lock (Lock)
+            {
+                if (CustomDeserializers.TryGetValue(type.TypeHandle.Value, out var customDeserializer))
+                {
+                    customDeserializer.DeserializeBoxed(ref val, ref reader);
+                    return;
+                }
+            }
+
             if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
             {
                 throw new Exception(
@@ -132,6 +196,40 @@ namespace Nino.Core
         void DeserializeBoxed(ref object value, ref Reader reader);
     }
 
+
+    internal class CustomDeserializer<T> : ICachedDeserializer
+    {
+        public readonly DeserializeDelegate<T> Deserializer;
+        public readonly DeserializeDelegateRef<T> DeserializerRef;
+
+        public static CustomDeserializer<T> Instance;
+
+        public CustomDeserializer(DeserializeDelegate<T> deserializer,
+            DeserializeDelegateRef<T> deserializerRef)
+        {
+            Deserializer = deserializer;
+            DeserializerRef = deserializerRef;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public object DeserializeBoxed(ref Reader reader)
+        {
+            Deserializer(out T value, ref reader);
+            return value;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void DeserializeBoxed(ref object value, ref Reader reader)
+        {
+            if (!(value is T val))
+            {
+                throw new Exception($"Cannot cast {value.GetType().FullName} to {typeof(T).FullName}");
+            }
+
+            DeserializerRef(ref val, ref reader);
+        }
+    }
+
 #pragma warning disable CA1000 // Do not declare static members on generic types
     public class CachedDeserializer<T> : ICachedDeserializer
     {
@@ -149,7 +247,7 @@ namespace Nino.Core
         private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
         // ReSharper disable once StaticMemberInGenericType
-        internal readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
+        internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
 
         public void AddSubTypeDeserializer<TSub>(DeserializeDelegate<TSub> deserializer,
             DeserializeDelegateRef<TSub> deserializerRef)
