@@ -280,14 +280,16 @@ public partial class SerializerGenerator
                             ? $"            writer.WriteUtf8({val});"
                             : $"            writer.Write({val});");
                 }
-                else if (declaredType.IsUnmanagedType && 
-                         (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoType) || !ninoType.IsPolymorphic()))
+                else if (declaredType.IsUnmanagedType &&
+                         (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoType) ||
+                          !ninoType.IsPolymorphic()))
                 {
                     sb.AppendLine($"            writer.Write({val});");
                 }
                 else
                 {
-                    sb.AppendLine($"            NinoSerializer.Serialize({val}, ref writer);");
+                    sb.AppendLine(
+                        $"            CachedSerializer<{declaredType.GetDisplayString()}>.Instance.Serialize({val}, ref writer);");
                 }
             }
             else
@@ -298,6 +300,7 @@ public partial class SerializerGenerator
                 {
                     sb.AppendLine($"            writer.Write({val});");
                 }
+
                 sb.AppendLine("#else");
                 sb.AppendLine($"            writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
                 sb.AppendLine("#endif");

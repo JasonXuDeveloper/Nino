@@ -216,7 +216,7 @@ namespace Nino.Core
             Serializer = serializer;
         }
 
-        internal static CachedSerializer<T> Instance = new(null);
+        public static CachedSerializer<T> Instance = new(null);
 
         // Cache expensive type checks
         internal static readonly bool IsReferenceOrContainsReferences =
@@ -280,34 +280,13 @@ namespace Nino.Core
             SerializePolymorphic(val, ref writer);
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)] // Keep cold path out of hot path
-        private void SerializeComplexPath(T val, ref Writer writer)
-        {
-            // Check custom serializer first - less likely but higher priority
-            var customSerializer = CustomSerializer<T>.Instance;
-            if (customSerializer != null)
-            {
-                customSerializer.Serializer(val, ref writer);
-                return;
-            }
-
-            // Check for polymorphism
-            if (SubTypeSerializers.Count == 0)
-            {
-                Serializer(val, ref writer);
-                return;
-            }
-
-            // Handle polymorphic case (least common)
-            SerializePolymorphic(val, ref writer);
-        }
 
         [MethodImpl(MethodImplOptions.NoInlining)] // Keep cold path out of hot path
         private void SerializePolymorphic(T val, ref Writer writer)
         {
             if (val == null)
             {
-                Serializer(val, ref writer);
+                Serializer(default, ref writer);
                 return;
             }
 
