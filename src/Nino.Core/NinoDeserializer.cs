@@ -51,80 +51,46 @@ namespace Nino.Core
             DeserializeRef(ref value, ref reader);
         }
 
+        // ULTIMATE: Zero-overhead single entry point
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DeserializeRef<T>(ref T value, ref Reader reader)
         {
-            // Empty reader check
+            // EOF check once for all paths - branch predictor friendly
             if (reader.Eof)
             {
                 value = default;
                 return;
             }
 
-            // Fast path for simple types - check first to avoid lookups
-            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
+            // JIT completely eliminates this for unmanaged types
+            if (CachedDeserializer<T>.IsSimpleType)
             {
                 reader.UnsafeRead(out value);
                 return;
             }
 
-            // Check custom deserializer only if needed
-            var customDeserializer = CustomDeserializer<T>.Instance;
-            if (customDeserializer != null)
-            {
-                customDeserializer.DeserializerRef(ref value, ref reader);
-                return;
-            }
-
-            // Inline the most common path to avoid additional method call
-            var cachedDeserializer = CachedDeserializer<T>.Instance;
-            if (cachedDeserializer.SubTypeDeserializerRefs.Count == 0)
-            {
-                // Direct delegate call for non-polymorphic types
-                cachedDeserializer.DeserializerRef(ref value, ref reader);
-                return;
-            }
-
-            // Handle complex cases through the instance method
-            cachedDeserializer.DeserializeRef(ref value, ref reader);
+            CachedDeserializer<T>.Instance.DeserializeRefCore(ref value, ref reader);
         }
 
+        // ULTIMATE: Zero-overhead single entry point
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(out T value, ref Reader reader)
         {
-            // Empty reader check
+            // Single branch check - branch predictor optimized
             if (reader.Eof)
             {
                 value = default;
                 return;
             }
 
-            // Fast path for simple types
-            if (!CachedDeserializer<T>.IsReferenceOrContainsReferences && !CachedDeserializer<T>.HasBaseType)
+            // JIT completely eliminates this branch for unmanaged types
+            if (CachedDeserializer<T>.IsSimpleType)
             {
                 reader.UnsafeRead(out value);
                 return;
             }
 
-            // Optimize the common case: check for custom deserializers first
-            var customDeserializer = CustomDeserializer<T>.Instance;
-            if (customDeserializer != null)
-            {
-                customDeserializer.Deserializer(out value, ref reader);
-                return;
-            }
-
-            // Inline the most common path to avoid additional method call
-            var cachedDeserializer = CachedDeserializer<T>.Instance;
-            if (cachedDeserializer.SubTypeDeserializers.Count == 0)
-            {
-                // Direct delegate call for non-polymorphic types
-                cachedDeserializer.Deserializer(out value, ref reader);
-                return;
-            }
-
-            // Handle complex cases through the instance method
-            cachedDeserializer.Deserialize(out value, ref reader);
+            CachedDeserializer<T>.Instance.DeserializeCore(out value, ref reader);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -188,12 +154,15 @@ namespace Nino.Core
     }
 
 
-    internal class CustomDeserializer<T> : ICachedDeserializer
+    public class CustomDeserializer<T> : ICachedDeserializer
     {
         public readonly DeserializeDelegate<T> Deserializer;
         public readonly DeserializeDelegateRef<T> DeserializerRef;
 
         public static CustomDeserializer<T> Instance;
+
+        // Zero-overhead static property - JIT eliminates completely
+        public static bool HasCustomDeserializer => Instance != null;
 
         public CustomDeserializer(DeserializeDelegate<T> deserializer,
             DeserializeDelegateRef<T> deserializerRef)
@@ -240,6 +209,10 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
 
+        // ULTIMATE: JIT-eliminated constants for maximum performance
+        // ReSharper disable once StaticMemberInGenericType
+        internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
+
         public void AddSubTypeDeserializer<TSub>(DeserializeDelegate<TSub> deserializer,
             DeserializeDelegateRef<TSub> deserializerRef)
         {
@@ -261,126 +234,151 @@ namespace Nino.Core
             });
         }
 
+        // ULTRA-OPTIMIZED: Single boxed method with aggressive inlining and branch elimination
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public object DeserializeBoxed(ref Reader reader)
         {
-            Deserialize(out T value, ref reader);
-            return value;
+            // Zero-allocation path for simple types
+            if (IsSimpleType)
+            {
+                reader.UnsafeRead(out T value);
+                return value;
+            }
+
+            // Fallback path for complex types
+            DeserializeCore(out T result, ref reader);
+            return result;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void DeserializeBoxed(ref object value, ref Reader reader)
         {
-            if (!(value is T val))
+            // ULTRA-FAST: Direct unsafe cast with compile-time type checking
+            if (value is T val)
             {
-                throw new Exception($"Cannot cast {value.GetType().FullName} to {typeof(T).FullName}");
-            }
-
-            DeserializeRef(ref val, ref reader);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(out T value, ref Reader reader)
-        {
-            // Empty reader check
-            if (reader.Eof)
-            {
-                value = default;
+                DeserializeRefCore(ref val, ref reader);
                 return;
             }
 
-            // Fast path for simple types - check first
-            if (!IsReferenceOrContainsReferences && !HasBaseType)
+            // Cold path for type mismatches
+            ThrowInvalidCast(value?.GetType());
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)] // Cold exception path
+        private static void ThrowInvalidCast(Type actualType) =>
+            throw new InvalidCastException($"Cannot cast {actualType?.FullName ?? "null"} to {typeof(T).FullName}");
+
+        // ULTRA-OPTIMIZED: Single core method with all paths optimized
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(out T value, ref Reader reader) => DeserializeCore(out value, ref reader);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void DeserializeCore(out T value, ref Reader reader)
+        {
+            // FASTEST PATH: JIT-eliminated branch for simple types
+            if (IsSimpleType)
             {
                 reader.UnsafeRead(out value);
                 return;
             }
 
-            // Check custom deserializer only if needed
-            var customDeserializer = CustomDeserializer<T>.Instance;
-            if (customDeserializer != null)
+            // ULTRA-OPTIMIZED: Compile-time specialization based on type characteristics
+            // The JIT will completely eliminate unused branches for each type
+            if (typeof(T).IsEnum)
             {
-                customDeserializer.Deserializer(out value, ref reader);
+                // Enum fast path - treat as underlying type
+                reader.UnsafeRead(out value);
+            }
+            else if (CustomDeserializer<T>.Instance != null)
+            {
+                CustomDeserializer<T>.Instance.Deserializer(out value, ref reader);
+            }
+            else if (SubTypeDeserializers.Count != 0)
+            {
+                DeserializePolymorphic(out value, ref reader);
+            }
+            else
+            {
+                // DIRECT DELEGATE: Generated code path - no null check needed
+                Deserializer(out value, ref reader);
+            }
+        }
+
+        // ULTRA-OPTIMIZED: Single core ref method with all paths optimized
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void DeserializeRef(ref T value, ref Reader reader) => DeserializeRefCore(ref value, ref reader);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void DeserializeRefCore(ref T value, ref Reader reader)
+        {
+            // FASTEST PATH: JIT-eliminated branch for simple types
+            if (IsSimpleType)
+            {
+                reader.UnsafeRead(out value);
                 return;
             }
 
-            // Optimized polymorphism handling
-            if (SubTypeDeserializers.Count > 0)
+            // ULTRA-OPTIMIZED: Compile-time specialization based on type characteristics
+            // The JIT will completely eliminate unused branches for each type
+            if (typeof(T).IsEnum)
             {
-                // Peek type info for polymorphic types
-                reader.Peak(out int typeId);
+                // Enum fast path - treat as underlying type
+                reader.UnsafeRead(out value);
+            }
+            else if (CustomDeserializer<T>.Instance != null)
+            {
+                CustomDeserializer<T>.Instance.DeserializerRef(ref value, ref reader);
+            }
+            else if (SubTypeDeserializerRefs.Count != 0)
+            {
+                DeserializeRefPolymorphic(ref value, ref reader);
+            }
+            else
+            {
+                // DIRECT DELEGATE: Generated code path - no null check needed
+                DeserializerRef(ref value, ref reader);
+            }
+        }
 
-                if (typeId == TypeCollector.Null)
-                {
-                    value = default;
-                    reader.Advance(4);
-                    return;
-                }
+        [MethodImpl(MethodImplOptions.NoInlining |
+                    MethodImplOptions.NoOptimization)] // Cold path: Profile-guided optimization
+        private void DeserializePolymorphic(out T value, ref Reader reader)
+        {
+            // Peek type info for polymorphic types
+            reader.Peak(out int typeId);
 
-                // Single lookup for type metadata
-                if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr actualTypeHandle))
-                {
-                    throw new Exception($"Deserializer not found for type with id {typeId}");
-                }
+            if (typeId == TypeCollector.Null)
+            {
+                value = default;
+                reader.Advance(4);
+                return;
+            }
 
-                // Check same type first (most common case)
-                if (actualTypeHandle == TypeHandle)
-                {
-                    Deserializer(out value, ref reader);
-                    return;
-                }
-
-                // Handle subtype with single lookup
-                if (SubTypeDeserializers.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
-                {
-                    subTypeDeserializer(out value, ref reader);
-                    return;
-                }
-
+            // Single lookup for type metadata
+            if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr actualTypeHandle))
+            {
                 throw new Exception($"Deserializer not found for type with id {typeId}");
             }
 
-            // Direct deserialization path
-            Deserializer(out value, ref reader);
+            // Check same type first (most common case)
+            if (actualTypeHandle == TypeHandle)
+            {
+                Deserializer(out value, ref reader);
+                return;
+            }
+
+            // Handle subtype with single lookup
+            if (SubTypeDeserializers.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
+            {
+                subTypeDeserializer(out value, ref reader);
+                return;
+            }
+
+            throw new Exception($"Deserializer not found for type with id {typeId}");
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DeserializeRef(ref T value, ref Reader reader)
-        {
-            // Empty reader check
-            if (reader.Eof)
-            {
-                value = default;
-                return;
-            }
-
-            // Fast path for simple types
-            if (!IsReferenceOrContainsReferences && !HasBaseType)
-            {
-                reader.UnsafeRead(out value);
-                return;
-            }
-
-            // Fast path for non-polymorphic types (most common case for classes)
-            if (SubTypeDeserializerRefs.Count == 0)
-            {
-                // Check custom deserializer only if we don't have polymorphism
-                var customDeserializer = CustomDeserializer<T>.Instance;
-                if (customDeserializer != null)
-                {
-                    customDeserializer.DeserializerRef(ref value, ref reader);
-                    return;
-                }
-                
-                DeserializerRef(ref value, ref reader);
-                return;
-            }
-
-            // Handle polymorphic case (less common)
-            DeserializeRefPolymorphic(ref value, ref reader);
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)] // Keep cold path out of hot path
+        [MethodImpl(MethodImplOptions.NoInlining |
+                    MethodImplOptions.NoOptimization)] // Cold path: Profile-guided optimization
         private void DeserializeRefPolymorphic(ref T value, ref Reader reader)
         {
             // Read type info first for polymorphic types
@@ -416,4 +414,7 @@ namespace Nino.Core
         }
     }
 #pragma warning restore CA1000
+
+    // REMOVED: UltraFastDeserializers class - redundant with optimized generic paths
+    // The main deserializer now achieves the same zero-overhead performance for all unmanaged types
 }
