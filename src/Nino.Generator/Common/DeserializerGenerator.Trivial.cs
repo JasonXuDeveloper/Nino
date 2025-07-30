@@ -117,9 +117,6 @@ public partial class DeserializerGenerator
 
         sb.AppendLine($$"""
                                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                [EditorBrowsable(EditorBrowsableState.Never)]
-                                [System.Diagnostics.DebuggerNonUserCode]
-                                [System.Runtime.CompilerServices.CompilerGenerated]
                                 public static void DeserializeImpl{{suffix}}({{decl}} {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
                                 {
                                 #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
@@ -187,8 +184,7 @@ public partial class DeserializerGenerator
                 var t = declaredType.GetDisplayString().Select(c => char.IsLetterOrDigit(c) ? c : '_')
                     .Aggregate("", (a, b) => a + b);
                 var tempName = $"{t}_temp_{name}";
-
-
+                
                 if (constructorMember.Any(c => c.ToLower().Equals(name.ToLower())))
                 {
                     args.Add(name, tempName);
@@ -219,49 +215,13 @@ public partial class DeserializerGenerator
 
                 var tempName = valNames[0];
                 //check if the typesymbol declaredType is string
-                if (declaredType.SpecialType == SpecialType.System_String)
+                if (declaredType.SpecialType == SpecialType.System_String && member.IsUtf8String)
                 {
-                    var isUtf8 = member.IsUtf8String;
-
-                    var str = isUtf8
-                        ? $"reader.ReadUtf8(out {tempName});"
-                        : $"reader.Read(out {tempName});";
+                    var str = $"reader.ReadUtf8(out {tempName});";
 
                     //weak version tolerance
                     var toleranceCode = $$$"""
                                                        {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
-                                                       #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
-                                                       if (!reader.Eof)
-                                                       {
-                                                          {{{str}}}
-                                                       }
-                                                       #else
-                                                       {{{str}}}
-                                                       #endif
-                                           """;
-
-                    sb.AppendLine(toleranceCode);
-                    sb.AppendLine();
-                }
-                else if (declaredType.IsUnmanagedType &&
-                         (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoType) ||
-                          !ninoType.IsPolymorphic()))
-                {
-                    bool refParam = byRef && member is { IsProperty: false, IsPrivate: false };
-                    if (refParam)
-                    {
-                        vars.Remove((members[0].Name, valNames[0]));
-                        privateVars.Remove((members[0].Name, valNames[0], members[0].IsProperty));
-                        if (!member.IsCtorParameter)
-                        {
-                            tempName = $"{valName}.{member.Name}";
-                        }
-                    }
-
-                    // Direct unmanaged deserialization
-                    var str = $"reader.UnsafeRead(out {tempName});";
-                    var toleranceCode = $$$"""
-                                                       {{{(refParam ? "" : declaredType.GetDisplayString())}}} {{{tempName}}} = default;
                                                        #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
                                                        if (!reader.Eof)
                                                        {
@@ -293,18 +253,21 @@ public partial class DeserializerGenerator
                             if (declaredType.IsValueType)
                             {
                                 // Value types can't be null, use optimized ref deserialization
-                                sb.AppendLine($"            NinoDeserializer.DeserializeRef(ref {valName}.{name}, ref reader);");
+                                sb.AppendLine(
+                                    $"            NinoDeserializer.DeserializeRef(ref {valName}.{name}, ref reader);");
                             }
                             else
                             {
                                 // Reference types need null check
                                 sb.AppendLine($"            if ({valName}.{name} != null)");
                                 sb.AppendLine("            {");
-                                sb.AppendLine($"                NinoDeserializer.DeserializeRef(ref {valName}.{name}, ref reader);");
+                                sb.AppendLine(
+                                    $"                NinoDeserializer.DeserializeRef(ref {valName}.{name}, ref reader);");
                                 sb.AppendLine("            }");
                                 sb.AppendLine("            else");
                                 sb.AppendLine("            {");
-                                sb.AppendLine($"                NinoDeserializer.Deserialize(out {valName}.{name}, ref reader);");
+                                sb.AppendLine(
+                                    $"                NinoDeserializer.Deserialize(out {valName}.{name}, ref reader);");
                                 sb.AppendLine("            }");
                             }
                         }
@@ -334,7 +297,8 @@ public partial class DeserializerGenerator
                                 }
 
                                 // Call ref overload on temp, check for null if reference type
-                                sb.AppendLine($"            var deserializer_{tempName} = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
+                                sb.AppendLine(
+                                    $"            var deserializer_{tempName} = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
                                 if (declaredType.IsValueType)
                                 {
                                     // Value types can't be null, use ref directly
@@ -381,7 +345,8 @@ public partial class DeserializerGenerator
                             {
                                 // Private field - get ref directly
                                 sb.AppendLine("#if NET8_0_OR_GREATER");
-                                sb.AppendLine($"            var deserializer_{name} = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
+                                sb.AppendLine(
+                                    $"            var deserializer_{name} = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
                                 if (declaredType.IsValueType)
                                 {
                                     var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
@@ -416,7 +381,8 @@ public partial class DeserializerGenerator
                                 // Fallback for non-NET8.0 - use generated property
                                 sb.AppendLine(
                                     $"            {declaredType.GetDisplayString()} {tempName} = {valName}.__nino__generated__{name};");
-                                sb.AppendLine($"            var deserializer_{name}_fallback = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
+                                sb.AppendLine(
+                                    $"            var deserializer_{name}_fallback = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
 
                                 if (declaredType.IsValueType)
                                 {
@@ -457,43 +423,29 @@ public partial class DeserializerGenerator
                              !ninoTypeCheck.IsPolymorphic()))
                         {
                             // Direct unmanaged deserialization
-                            sb.AppendLine($"            reader.UnsafeRead(out {declaredType.GetDisplayString()} {tempName});");
+                            sb.AppendLine(
+                                $"            reader.UnsafeRead(out {declaredType.GetDisplayString()} {tempName});");
                         }
                         else
                         {
                             // Use optimized static entry point
-                            sb.AppendLine($"            NinoDeserializer.Deserialize(out {declaredType.GetDisplayString()} {tempName}, ref reader);");
+                            sb.AppendLine(
+                                $"            NinoDeserializer.Deserialize(out {declaredType.GetDisplayString()} {tempName}, ref reader);");
                         }
                     }
                 }
             }
             else
             {
-                // Batched multi-member deserialization
+                // Standard path with version tolerance
                 sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
-                
-                bool allUnmanaged = members.All(m => m.Type.IsUnmanagedType);
-                if (allUnmanaged && members.Count <= 4)
+                for (var index = 0; index < valNames.Count; index++)
                 {
-                    // Fast path: Batch read unmanaged types
-                    for (var index = 0; index < valNames.Count; index++)
-                    {
-                        var val = valNames[index];
-                        sb.AppendLine($"            {members[index].Type.GetDisplayString()} {val};");
-                        sb.AppendLine($"            if (!reader.Eof) reader.UnsafeRead(out {val}); else {val} = default;");
-                    }
+                    var val = valNames[index];
+                    sb.AppendLine($"            {members[index].Type.GetDisplayString()} {val} = default;");
+                    sb.AppendLine($"            if (!reader.Eof) reader.Read(out {val});");
                 }
-                else
-                {
-                    // Standard path for complex types
-                    for (var index = 0; index < valNames.Count; index++)
-                    {
-                        var val = valNames[index];
-                        sb.AppendLine($"            {members[index].Type.GetDisplayString()} {val} = default;");
-                        sb.AppendLine($"            if (!reader.Eof) reader.Read(out {val});");
-                    }
-                }
-                
+
                 sb.AppendLine("#else");
                 sb.AppendLine(
                     $"            reader.Read(out NinoTuple<{string.Join(", ",
@@ -504,6 +456,7 @@ public partial class DeserializerGenerator
                     var name = members[i].Name;
                     tupleMap[name] = $"t{index1}.Item{i + 1}";
                 }
+
                 sb.AppendLine("#endif");
             }
         }

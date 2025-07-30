@@ -627,9 +627,7 @@ public static class NinoTypeHelper
                     }
                     """;
 
-        // indent
         ret = ret.Replace("\n", $"\n{indent}");
-
         sb.AppendLine();
         sb.AppendLine($"{indent}{ret}");
         sb.AppendLine();

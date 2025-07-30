@@ -65,9 +65,6 @@ public partial class SerializerGenerator
                 sb.AppendLine();
                 sb.AppendLine($$"""
                                         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                        [EditorBrowsable(EditorBrowsableState.Never)]
-                                        [System.Diagnostics.DebuggerNonUserCode]
-                                        [System.Runtime.CompilerServices.CompilerGenerated]
                                         public static void SerializeImpl({{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Writer writer)
                                         {
                                 """);
@@ -271,18 +268,9 @@ public partial class SerializerGenerator
                 var declaredType = member.Type;
                 var val = valNames[0];
 
-                // ULTRA-OPTIMIZED: Single member serialization with type specialization
-                if (declaredType.SpecialType == SpecialType.System_String)
+                if (declaredType.SpecialType == SpecialType.System_String && member.IsUtf8String)
                 {
-                    sb.AppendLine(member.IsUtf8String 
-                        ? $"            writer.WriteUtf8({val});"
-                        : $"            writer.Write({val});");
-                }
-                else if (declaredType.IsUnmanagedType &&
-                         (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoType) ||
-                          !ninoType.IsPolymorphic()))
-                {
-                    sb.AppendLine($"            writer.UnsafeWrite({val});");
+                    sb.AppendLine($"            writer.WriteUtf8({val});");
                 }
                 else
                 {
@@ -291,28 +279,13 @@ public partial class SerializerGenerator
             }
             else
             {
-                // ULTRA-OPTIMIZED: Batched multi-member serialization
+                // Standard path with version tolerance support
                 sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
-                
-                // Check if all members are simple unmanaged types for batch optimization
-                bool allUnmanaged = members.All(m => m.Type.IsUnmanagedType);
-                if (allUnmanaged && members.Count <= 4)
+                foreach (var val in valNames)
                 {
-                    // Ultra-fast path: Batch write simple types
-                    foreach (var val in valNames)
-                    {
-                        sb.AppendLine($"            writer.UnsafeWrite({val});");
-                    }
+                    sb.AppendLine($"            writer.Write({val});");
                 }
-                else
-                {
-                    // Standard path: Use optimized direct calls
-                    foreach (var val in valNames)
-                    {
-                        sb.AppendLine($"            writer.Write({val});");
-                    }
-                }
-                
+
                 sb.AppendLine("#else");
                 sb.AppendLine($"            writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
                 sb.AppendLine("#endif");
