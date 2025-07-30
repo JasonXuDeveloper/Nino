@@ -225,6 +225,58 @@ public partial class SerializerGenerator
 
     private void WriteMembers(NinoType type, string valName, StringBuilder sb)
     {
+        // First pass: collect all types that need serializers  
+        HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
+        foreach (var members in type.GroupByPrimitivity())
+        {
+            // Collect types for single-member serialization that use NinoSerializer.Serialize
+            if (members.Count == 1)
+            {
+                var member = members[0];
+                if (!(member.Type.SpecialType == SpecialType.System_String && member.IsUtf8String))
+                {
+                    typesNeedingSerializers.Add(member.Type);
+                }
+            }
+        }
+        
+        // Generate serializer declarations for all required types
+        Dictionary<string, string> serializerVarsByType = new();
+        foreach (var serializerType in typesNeedingSerializers)
+        {
+            var typeDisplayName = serializerType.GetDisplayString();
+            var typeName = typeDisplayName
+                .Replace("global::", "")
+                .ToLower()
+                .Replace("[]", "_array")  // Handle arrays specifically before general replacement
+                .Replace("<", "_of_")     // Handle generics more clearly
+                .Replace(">", "_")
+                .Replace(", ", "_and_")   // Handle multiple generic parameters
+                .Select(c => char.IsLetterOrDigit(c) ? c : '_')
+                .Aggregate("", (current, c) => current + c)
+                .Replace("___", "_")      // Clean up multiple underscores
+                .Replace("__", "_");      // Clean up double underscores
+            var varName = $"serializer_{typeName}";
+            
+            // Handle potential duplicates by adding a counter
+            var originalVarName = varName;
+            int counter = 1;
+            while (serializerVarsByType.Values.Contains(varName))
+            {
+                varName = $"{originalVarName}_{counter}";
+                counter++;
+            }
+            
+            serializerVarsByType[typeDisplayName] = varName;
+            sb.AppendLine($"            var {varName} = CachedSerializer<{typeDisplayName}>.Instance;");
+        }
+        
+        // Helper to get serializer variable name for a type
+        string GetSerializerVarName(ITypeSymbol serializerType)
+        {
+            return serializerVarsByType[serializerType.GetDisplayString()];
+        }
+
         List<string> valNames = new();
         foreach (var members in type.GroupByPrimitivity())
         {
@@ -274,7 +326,8 @@ public partial class SerializerGenerator
                 }
                 else
                 {
-                    sb.AppendLine($"            NinoSerializer.Serialize({val}, ref writer);");
+                    var serializerVar = GetSerializerVarName(declaredType);
+                    sb.AppendLine($"            {serializerVar}.Serialize({val}, ref writer);");
                 }
             }
             else

@@ -167,8 +167,68 @@ public partial class DeserializerGenerator
         Dictionary<string, string> tupleMap = new Dictionary<string, string>();
 
         List<string> valNames = new();
-
+        
+        // First pass: collect all types that need deserializers  
+        HashSet<ITypeSymbol> typesNeedingDeserializers = new(SymbolEqualityComparer.Default);
         List<List<NinoMember>> groups = nt.GroupByPrimitivity().ToList();
+        
+        foreach (var memberGroup in groups)
+        {
+            foreach (var member in memberGroup)
+            {
+                // Collect types that will use CachedDeserializer:
+                // 1. All fields/properties in byRef mode (public and private)
+                // 2. All non-unmanaged, non-UTF8-string types for direct deserialization
+                if (byRef && !member.IsCtorParameter)
+                {
+                    typesNeedingDeserializers.Add(member.Type);
+                }
+                else if (!member.IsCtorParameter && 
+                         !member.Type.IsUnmanagedType && 
+                         !(member.Type.SpecialType == SpecialType.System_String && member.IsUtf8String))
+                {
+                    // Non-byRef case: collect types that will use CachedDeserializer.Deserialize
+                    typesNeedingDeserializers.Add(member.Type);
+                }
+            }
+        }
+        
+        // Generate deserializer declarations for all required types
+        Dictionary<string, string> deserializerVarsByType = new();
+        foreach (var type in typesNeedingDeserializers)
+        {
+            var typeDisplayName = type.GetDisplayString();
+            var typeName = typeDisplayName
+                .Replace("global::", "")
+                .ToLower()
+                .Replace("[]", "_array")  // Handle arrays specifically before general replacement
+                .Replace("<", "_of_")     // Handle generics more clearly
+                .Replace(">", "_")
+                .Replace(", ", "_and_")   // Handle multiple generic parameters
+                .Select(c => char.IsLetterOrDigit(c) ? c : '_')
+                .Aggregate("", (current, c) => current + c)
+                .Replace("___", "_")      // Clean up multiple underscores
+                .Replace("__", "_");      // Clean up double underscores
+            var varName = $"deserializer_{typeName}";
+            
+            // Handle potential duplicates by adding a counter
+            var originalVarName = varName;
+            int counter = 1;
+            while (deserializerVarsByType.Values.Contains(varName))
+            {
+                varName = $"{originalVarName}_{counter}";
+                counter++;
+            }
+            
+            deserializerVarsByType[typeDisplayName] = varName;
+            sb.AppendLine($"            var {varName} = CachedDeserializer<{typeDisplayName}>.Instance;");
+        }
+        
+        // Helper to get deserializer variable name for a type
+        string GetDeserializerVarName(ITypeSymbol type)
+        {
+            return deserializerVarsByType[type.GetDisplayString()];
+        }
         for (var index1 = 0; index1 < groups.Count; index1++)
         {
             var members = groups[index1];
@@ -249,12 +309,13 @@ public partial class DeserializerGenerator
 
                         if (!isPrivate && !isProperty)
                         {
-                            // Use direct ref for public fields, check for null if reference type
+                            // Use cached deserializer for public fields, check for null if reference type
+                            var deserializerVar = GetDeserializerVarName(declaredType);
                             if (declaredType.IsValueType)
                             {
                                 // Value types can't be null, use optimized ref deserialization
                                 sb.AppendLine(
-                                    $"            NinoDeserializer.DeserializeRef(ref {valName}.{name}, ref reader);");
+                                    $"            {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
                             }
                             else
                             {
@@ -262,12 +323,12 @@ public partial class DeserializerGenerator
                                 sb.AppendLine($"            if ({valName}.{name} != null)");
                                 sb.AppendLine("            {");
                                 sb.AppendLine(
-                                    $"                NinoDeserializer.DeserializeRef(ref {valName}.{name}, ref reader);");
+                                    $"                {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
                                 sb.AppendLine("            }");
                                 sb.AppendLine("            else");
                                 sb.AppendLine("            {");
                                 sb.AppendLine(
-                                    $"                NinoDeserializer.Deserialize(out {valName}.{name}, ref reader);");
+                                    $"                {deserializerVar}.Deserialize(out {valName}.{name}, ref reader);");
                                 sb.AppendLine("            }");
                             }
                         }
@@ -297,13 +358,12 @@ public partial class DeserializerGenerator
                                 }
 
                                 // Call ref overload on temp, check for null if reference type
-                                sb.AppendLine(
-                                    $"            var deserializer_{tempName} = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
+                                var deserializerVar = GetDeserializerVarName(declaredType);
                                 if (declaredType.IsValueType)
                                 {
                                     // Value types can't be null, use ref directly
                                     sb.AppendLine(
-                                        $"            deserializer_{tempName}.DeserializeRef(ref {tempName}, ref reader);");
+                                        $"            {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
                                 }
                                 else
                                 {
@@ -312,7 +372,7 @@ public partial class DeserializerGenerator
                                     sb.AppendLine("            {");
 
                                     sb.AppendLine(
-                                        $"                deserializer_{tempName}.DeserializeRef(ref {tempName}, ref reader);");
+                                        $"                {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
 
                                     sb.AppendLine("            }");
                                     sb.AppendLine("            else");
@@ -320,7 +380,7 @@ public partial class DeserializerGenerator
 
                                     // Fallback to out version for null reference types
                                     sb.AppendLine(
-                                        $"                deserializer_{tempName}.Deserialize(out {tempName}, ref reader);");
+                                        $"                {deserializerVar}.Deserialize(out {tempName}, ref reader);");
 
                                     sb.AppendLine("            }");
                                 }
@@ -345,14 +405,13 @@ public partial class DeserializerGenerator
                             {
                                 // Private field - get ref directly
                                 sb.AppendLine("#if NET8_0_OR_GREATER");
-                                sb.AppendLine(
-                                    $"            var deserializer_{name} = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
+                                var deserializerVar = GetDeserializerVarName(declaredType);
                                 if (declaredType.IsValueType)
                                 {
                                     var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
                                     // Value types can't be null, use ref directly
                                     sb.AppendLine(
-                                        $"            deserializer_{name}.DeserializeRef(ref PrivateAccessor.__{name}__({accessName}), ref reader);");
+                                        $"            {deserializerVar}.DeserializeRef(ref PrivateAccessor.__{name}__({accessName}), ref reader);");
                                 }
                                 else
                                 {
@@ -364,7 +423,7 @@ public partial class DeserializerGenerator
                                     sb.AppendLine("            {");
 
                                     sb.AppendLine(
-                                        $"                deserializer_{name}.DeserializeRef(ref field_{name}, ref reader);");
+                                        $"                {deserializerVar}.DeserializeRef(ref field_{name}, ref reader);");
 
                                     sb.AppendLine("            }");
                                     sb.AppendLine("            else");
@@ -372,7 +431,7 @@ public partial class DeserializerGenerator
 
                                     // Fallback to out version for null reference types
                                     sb.AppendLine(
-                                        $"                deserializer_{name}.Deserialize(out field_{name}, ref reader);");
+                                        $"                {deserializerVar}.Deserialize(out field_{name}, ref reader);");
 
                                     sb.AppendLine("            }");
                                 }
@@ -381,14 +440,13 @@ public partial class DeserializerGenerator
                                 // Fallback for non-NET8.0 - use generated property
                                 sb.AppendLine(
                                     $"            {declaredType.GetDisplayString()} {tempName} = {valName}.__nino__generated__{name};");
-                                sb.AppendLine(
-                                    $"            var deserializer_{name}_fallback = CachedDeserializer<{declaredType.GetDisplayString()}>.Instance;");
+                                var fallbackDeserializerVar = GetDeserializerVarName(declaredType);
 
                                 if (declaredType.IsValueType)
                                 {
                                     // Value types can't be null, use ref directly
                                     sb.AppendLine(
-                                        $"            deserializer_{name}_fallback.DeserializeRef(ref {tempName}, ref reader);");
+                                        $"            {fallbackDeserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
                                 }
                                 else
                                 {
@@ -397,7 +455,7 @@ public partial class DeserializerGenerator
                                     sb.AppendLine("            {");
 
                                     sb.AppendLine(
-                                        $"                deserializer_{name}_fallback.DeserializeRef(ref {tempName}, ref reader);");
+                                        $"                {fallbackDeserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
 
                                     sb.AppendLine("            }");
                                     sb.AppendLine("            else");
@@ -405,7 +463,7 @@ public partial class DeserializerGenerator
 
                                     // Fallback to out version for null reference types
                                     sb.AppendLine(
-                                        $"                deserializer_{name}_fallback.Deserialize(out {tempName}, ref reader);");
+                                        $"                {fallbackDeserializerVar}.Deserialize(out {tempName}, ref reader);");
 
                                     sb.AppendLine("            }");
                                 }
@@ -422,15 +480,55 @@ public partial class DeserializerGenerator
                             (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoTypeCheck) ||
                              !ninoTypeCheck.IsPolymorphic()))
                         {
-                            // Direct unmanaged deserialization
-                            sb.AppendLine(
-                                $"            reader.UnsafeRead(out {declaredType.GetDisplayString()} {tempName});");
+                            // Direct unmanaged deserialization with version tolerance
+                            var readStatement = $"reader.UnsafeRead(out {tempName});";
+                            var toleranceCode = $$$"""
+                                                           {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
+                                                           #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
+                                                           if (!reader.Eof)
+                                                           {
+                                                              {{{readStatement}}}
+                                                           }
+                                                           #else
+                                                           {{{readStatement}}}
+                                                           #endif
+                                               """;
+                            sb.AppendLine(toleranceCode);
+                        }
+                        else if (declaredType.SpecialType == SpecialType.System_String)
+                        {
+                            // Regular string deserialization with direct reader path
+                            var readStatement = $"reader.Read(out {tempName});";
+                            var toleranceCode = $$$"""
+                                                           {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
+                                                           #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
+                                                           if (!reader.Eof)
+                                                           {
+                                                              {{{readStatement}}}
+                                                           }
+                                                           #else
+                                                           {{{readStatement}}}
+                                                           #endif
+                                               """;
+                            sb.AppendLine(toleranceCode);
                         }
                         else
                         {
-                            // Use optimized static entry point
-                            sb.AppendLine(
-                                $"            NinoDeserializer.Deserialize(out {declaredType.GetDisplayString()} {tempName}, ref reader);");
+                            // Use cached deserializer with version tolerance
+                            var deserializerVar = GetDeserializerVarName(declaredType);
+                            var readStatement = $"{deserializerVar}.Deserialize(out {tempName}, ref reader);";
+                            var toleranceCode = $$$"""
+                                                           {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
+                                                           #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
+                                                           if (!reader.Eof)
+                                                           {
+                                                              {{{readStatement}}}
+                                                           }
+                                                           #else
+                                                           {{{readStatement}}}
+                                                           #endif
+                                               """;
+                            sb.AppendLine(toleranceCode);
                         }
                     }
                 }
