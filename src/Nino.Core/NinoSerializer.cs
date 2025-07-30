@@ -252,13 +252,7 @@ namespace Nino.Core
             }
             
             // ULTRA-OPTIMIZED: Compile-time specialization based on type characteristics
-            // The JIT will completely eliminate unused branches for each type
-            if (typeof(T).IsEnum)
-            {
-                // Enum fast path - treat as underlying type
-                writer.UnsafeWrite(val);
-            }
-            else if (CustomSerializer<T>.Instance != null)
+            if (CustomSerializer<T>.Instance != null)
             {
                 CustomSerializer<T>.Instance.Serializer(val, ref writer);
             }

@@ -283,13 +283,7 @@ namespace Nino.Core
             }
 
             // ULTRA-OPTIMIZED: Compile-time specialization based on type characteristics
-            // The JIT will completely eliminate unused branches for each type
-            if (typeof(T).IsEnum)
-            {
-                // Enum fast path - treat as underlying type
-                reader.UnsafeRead(out value);
-            }
-            else if (CustomDeserializer<T>.Instance != null)
+            if (CustomDeserializer<T>.Instance != null)
             {
                 CustomDeserializer<T>.Instance.Deserializer(out value, ref reader);
             }
@@ -319,13 +313,7 @@ namespace Nino.Core
             }
 
             // ULTRA-OPTIMIZED: Compile-time specialization based on type characteristics
-            // The JIT will completely eliminate unused branches for each type
-            if (typeof(T).IsEnum)
-            {
-                // Enum fast path - treat as underlying type
-                reader.UnsafeRead(out value);
-            }
-            else if (CustomDeserializer<T>.Instance != null)
+            if (CustomDeserializer<T>.Instance != null)
             {
                 CustomDeserializer<T>.Instance.DeserializerRef(ref value, ref reader);
             }
@@ -414,7 +402,4 @@ namespace Nino.Core
         }
     }
 #pragma warning restore CA1000
-
-    // REMOVED: UltraFastDeserializers class - redundant with optimized generic paths
-    // The main deserializer now achieves the same zero-overhead performance for all unmanaged types
 }
