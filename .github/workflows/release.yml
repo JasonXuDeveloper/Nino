@@ -84,72 +84,9 @@ jobs:
 
   build-and-test:
     name: Build and Test for Release
-    runs-on: ubuntu-latest
     needs: [validate-tag]
-    timeout-minutes: 30
-    
-    defaults:
-      run:
-        working-directory: ./src
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '8.0.x' }}
-            8.0.x
-            6.0.x
-            2.1.x
-      
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
-      
-      - name: Restore dependencies
-        run: dotnet restore
-      
-      - name: Build solution (Debug for tests)
-        run: dotnet build --no-restore --configuration Debug
-      
-      - name: Copy DLLs for Unity tests
-        run: |
-          cp ./Nino/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
-          cp ./Nino/bin/Debug/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
-      
-      - name: Run unit tests
-        run: dotnet test --no-build --verbosity normal --configuration Debug
-      
-      - name: Cache Unity Library
-        uses: actions/cache@v4
-        with:
-          path: src/Nino.Unity/Library
-          key: Library-Nino-Release-${{ runner.os }}-${{ hashFiles('Nino.Unity/Assets/**', 'Nino.Unity/ProjectSettings/**') }}
-          restore-keys: |
-            Library-Nino-Release-${{ runner.os }}-
-            Library-Nino-${{ runner.os }}-
-            Library-Nino-
-            Library-
-      
-      - name: Run Unity tests
-        uses: game-ci/unity-test-runner@v4
-        env:
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-        with:
-          projectPath: Nino.Unity
-          testMode: editmode
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
-          unityVersion: '2022.3.51f1'
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
 
   update-versions:
     name: Update Version Files
