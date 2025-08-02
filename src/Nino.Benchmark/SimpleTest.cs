@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using BenchmarkDotNet.Configs;
-using BenchmarkDotNet.Exporters;
 using BenchmarkDotNet.Jobs;
 using MemoryPack;
 using MessagePack;
@@ -20,7 +19,7 @@ namespace Nino.Benchmark;
 [ShortRunJob(RuntimeMoniker.Net90)]
 [GcServer(true)]
 [MemoryDiagnoser]
-[MarkdownExporterAttribute.GitHub, RPlotExporter, CsvMeasurementsExporter]
+[MarkdownExporterAttribute.GitHub]
 public class SimpleTest
 {
     private static readonly SimpleClass SimpleClass;

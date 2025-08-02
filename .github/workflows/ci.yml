@@ -133,47 +133,10 @@ jobs:
             6.0.x
             2.1.x
 
-      - name: Setup R for benchmark plots
-        uses: r-lib/actions/setup-r@v2
-        with:
-          r-version: '4.3.2'
-        continue-on-error: true
-        id: setup_r
-
-      - name: Cache R packages
-        if: steps.setup_r.outcome == 'success'
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/renv
-          key: ${{ runner.os }}-renv-${{ hashFiles('**/.Rprofile') }}
-          restore-keys: |
-            ${{ runner.os }}-renv-
-
-      - name: Install R dependencies for plots
-        if: steps.setup_r.outcome == 'success'
-        run: |
-          # Install required R packages for BenchmarkDotNet plots
-          Rscript -e "
-            if (!require('ggplot2', quietly = TRUE)) install.packages('ggplot2', repos = 'https://cran.rstudio.com/')
-            if (!require('dplyr', quietly = TRUE)) install.packages('dplyr', repos = 'https://cran.rstudio.com/')
-            if (!require('plotly', quietly = TRUE)) install.packages('plotly', repos = 'https://cran.rstudio.com/')
-            cat('R packages installed successfully\\n')
-          "
-        continue-on-error: true
-        id: install_r_packages
-
       - name: Run benchmarks
         run: |
           cd Nino.Benchmark
-          echo "Running benchmarks with R plot generation..."
-          
-          # Check R environment status
-          if [[ "${{ steps.setup_r.outcome }}" == "success" && "${{ steps.install_r_packages.outcome }}" == "success" ]]; then
-            echo "✅ R environment available - plots will be generated"
-          else
-            echo "⚠️ R environment not available - continuing without plots"
-          fi
-          
+          echo "Running benchmarks..."
           dotnet run -c Release
 
       - name: Upload benchmark results
