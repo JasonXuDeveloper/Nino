@@ -146,19 +146,27 @@ jobs:
           
           TAG_NAME="${{ env.tag_name }}"
           
-          # Check if benchmark file exists
-          BENCHMARK_FILE="Nino.Benchmark/BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md"
-          if [[ ! -f "$BENCHMARK_FILE" ]]; then
-            echo "❌ Benchmark report file not found: $BENCHMARK_FILE"
-            echo "Available files:"
-            if [[ -d "Nino.Benchmark/BenchmarkDotNet.Artifacts/results/" ]]; then
-              ls -la Nino.Benchmark/BenchmarkDotNet.Artifacts/results/
-            else
-              echo "Results directory not found, checking what's available:"
-              ls -la Nino.Benchmark/BenchmarkDotNet.Artifacts/ || echo "BenchmarkDotNet.Artifacts directory not found"
-            fi
+          # Find the generated markdown file (BenchmarkDotNet generates various filename patterns)
+          RESULTS_DIR="Nino.Benchmark/BenchmarkDotNet.Artifacts/results"
+          
+          if [[ ! -d "$RESULTS_DIR" ]]; then
+            echo "❌ Results directory not found: $RESULTS_DIR"
+            echo "Available in BenchmarkDotNet.Artifacts/:"
+            ls -la Nino.Benchmark/BenchmarkDotNet.Artifacts/ || echo "BenchmarkDotNet.Artifacts directory not found"
             exit 1
           fi
+          
+          # Look for any markdown file in results
+          BENCHMARK_FILE=$(find "$RESULTS_DIR" -name "*.md" | head -n1)
+          
+          if [[ -z "$BENCHMARK_FILE" || ! -f "$BENCHMARK_FILE" ]]; then
+            echo "❌ No markdown benchmark report found in $RESULTS_DIR"
+            echo "Available files:"
+            ls -la "$RESULTS_DIR"
+            exit 1
+          fi
+          
+          echo "✅ Found benchmark report: $BENCHMARK_FILE"
           
           # Read benchmark content
           PERF_CONTENT=$(cat "$BENCHMARK_FILE")
