@@ -110,12 +110,20 @@ jobs:
           echo "Running benchmarks for ${{ env.tag_name }}..."
           dotnet run -c Release --no-build
           
-          # Verify benchmark results exist
+          # Verify benchmark results exist (we're in src/Nino.Benchmark directory)
           if [[ -f "BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md" ]]; then
             echo "✅ Benchmark completed successfully"
           else
-            echo "❌ Benchmark results not found"
-            ls -la BenchmarkDotNet.Artifacts/results/ || echo "Results directory not found"
+            echo "❌ Benchmark results not found in $(pwd)"
+            echo "Looking for: BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md"
+            echo "Available files in results directory:"
+            if [[ -d "BenchmarkDotNet.Artifacts/results/" ]]; then
+              ls -la BenchmarkDotNet.Artifacts/results/
+            else
+              echo "❌ Results directory BenchmarkDotNet.Artifacts/results/ not found"
+              echo "Available in BenchmarkDotNet.Artifacts/:"
+              ls -la BenchmarkDotNet.Artifacts/ || echo "BenchmarkDotNet.Artifacts directory not found"
+            fi
             exit 1
           fi
       
@@ -130,6 +138,7 @@ jobs:
       
       - name: Update release notes with benchmark
         if: steps.check_benchmark.outputs.skip != 'true'
+        working-directory: ./src
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -142,7 +151,12 @@ jobs:
           if [[ ! -f "$BENCHMARK_FILE" ]]; then
             echo "❌ Benchmark report file not found: $BENCHMARK_FILE"
             echo "Available files:"
-            ls -la Nino.Benchmark/BenchmarkDotNet.Artifacts/results/ || echo "Results directory not found"
+            if [[ -d "Nino.Benchmark/BenchmarkDotNet.Artifacts/results/" ]]; then
+              ls -la Nino.Benchmark/BenchmarkDotNet.Artifacts/results/
+            else
+              echo "Results directory not found, checking what's available:"
+              ls -la Nino.Benchmark/BenchmarkDotNet.Artifacts/ || echo "BenchmarkDotNet.Artifacts directory not found"
+            fi
             exit 1
           fi
           
