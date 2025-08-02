@@ -8,9 +8,10 @@ on:
 # Security: Minimal required permissions
 permissions:
   contents: write      # Create releases and push commits
-  actions: read        # Read workflow artifacts
+  actions: write       # Upload artifacts (needed by called CI workflow)
   packages: write      # Publish to GitHub Packages (if needed)
   pull-requests: read  # Read PR info for context
+  checks: write        # Write test results (needed by called CI workflow)
 
 # Prevent concurrent releases
 concurrency:
