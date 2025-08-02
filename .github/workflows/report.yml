@@ -83,6 +83,36 @@ jobs:
             6.0.x
             2.1.x
       
+      - name: Setup R for benchmark plots
+        if: steps.check_benchmark.outputs.skip != 'true'
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.3.2'
+        continue-on-error: true
+        id: setup_r
+      
+      - name: Cache R packages
+        if: steps.check_benchmark.outputs.skip != 'true' && steps.setup_r.outcome == 'success'
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/renv
+          key: ${{ runner.os }}-renv-${{ hashFiles('**/.Rprofile') }}
+          restore-keys: |
+            ${{ runner.os }}-renv-
+      
+      - name: Install R dependencies for plots
+        if: steps.check_benchmark.outputs.skip != 'true' && steps.setup_r.outcome == 'success'
+        run: |
+          # Install required R packages for BenchmarkDotNet plots
+          Rscript -e "
+            if (!require('ggplot2', quietly = TRUE)) install.packages('ggplot2', repos = 'https://cran.rstudio.com/')
+            if (!require('dplyr', quietly = TRUE)) install.packages('dplyr', repos = 'https://cran.rstudio.com/')
+            if (!require('plotly', quietly = TRUE)) install.packages('plotly', repos = 'https://cran.rstudio.com/')
+            cat('R packages installed successfully\n')
+          "
+        continue-on-error: true
+        id: install_r_packages
+      
       - name: Cache NuGet packages
         if: steps.check_benchmark.outputs.skip != 'true'
         uses: actions/cache@v4
@@ -108,6 +138,14 @@ jobs:
         run: |
           cd Nino.Benchmark
           echo "Running benchmarks for ${{ env.tag_name }}..."
+          
+          # Check R environment status
+          if [[ "${{ steps.setup_r.outcome }}" == "success" && "${{ steps.install_r_packages.outcome }}" == "success" ]]; then
+            echo "✅ R environment available - plots will be generated"
+          else
+            echo "⚠️ R environment not available - continuing without plots"
+          fi
+          
           dotnet run -c Release --no-build
           
           # Verify benchmark results exist (we're in src/Nino.Benchmark directory)
@@ -171,6 +209,29 @@ jobs:
           # Read benchmark content
           PERF_CONTENT=$(cat "$BENCHMARK_FILE")
           
+          # Check for plot images if R was available
+          PLOT_IMAGES=""
+          if [[ "${{ steps.setup_r.outcome }}" == "success" && "${{ steps.install_r_packages.outcome }}" == "success" ]]; then
+            # Find generated plot images
+            PLOT_FILES=$(find "$RESULTS_DIR" -name "*.png" 2>/dev/null || true)
+            if [[ -n "$PLOT_FILES" ]]; then
+              echo "✅ Found plot images: $PLOT_FILES"
+              # Upload plot images as release assets
+              for plot_file in $PLOT_FILES; do
+                if [[ -f "$plot_file" ]]; then
+                  plot_name=$(basename "$plot_file")
+                  echo "Uploading plot: $plot_name"
+                  gh release upload "$TAG_NAME" "$plot_file" --clobber || echo "⚠️ Failed to upload $plot_name"
+                  # Add to plot images list for markdown
+                  PLOT_IMAGES="$PLOT_IMAGES
+![${plot_name%.*}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
+                done
+              done
+            else
+              echo "ℹ️ No plot images found (this is normal for some benchmark configurations)"
+            fi
+          fi
+          
           # Get current release body
           RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
           
@@ -192,6 +253,17 @@ jobs:
             cat "$BENCHMARK_FILE"
             echo ""
             echo "</details>"
+            
+            # Add plot images if available
+            if [[ -n "$PLOT_IMAGES" ]]; then
+              echo ""
+              echo "<details>"
+              echo "<summary>📈 Click to expand performance charts</summary>"
+              echo ""
+              echo "$PLOT_IMAGES"
+              echo ""
+              echo "</details>"
+            fi
             echo ""
             echo "---"
             echo "*Benchmark generated automatically on $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
