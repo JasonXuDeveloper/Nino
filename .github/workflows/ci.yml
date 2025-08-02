@@ -1,233 +1,145 @@
-name: Code Check and Release
+name: CI - Build and Test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "develop" ]
 
-# Set global defaults, including the working directory
+# Security: Minimal required permissions
+permissions:
+  contents: read        # Read repository contents
+  actions: write        # Upload artifacts
+  pull-requests: read   # Read PR context
+  checks: write         # Write test results
+
+# Prevent concurrent runs of the same workflow
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Set global defaults
 defaults:
   run:
-    working-directory: ./src  # Default working directory for all jobs and steps
+    working-directory: ./src
 
 jobs:
-  build:
+  build-test:
+    name: Build and Test
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      # Checkout the code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       
-      # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION }}
+            ${{ vars.DOTNET_VERSION || '8.0.x' }}
             8.0.x
             6.0.x
             2.1.x
       
-      # Restore dependencies
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      
       - name: Restore dependencies
         run: dotnet restore
       
-      # Build the solution
       - name: Build solution
-        run: dotnet build
+        run: dotnet build --no-restore --configuration Debug
 
-      # Copy DLLs for Unity Unit Test
-      - name: Copy DLLs
+      - name: Copy DLLs for Unity tests
         run: |
           cp ./Nino/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
           cp ./Nino/bin/Debug/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
       
-      # Run unit tests
-      - name: Test
-        run: dotnet test --no-build --verbosity normal
+      - name: Run unit tests
+        run: dotnet test --no-build --verbosity normal --configuration Debug --collect:"XPlat Code Coverage" --results-directory ./TestResults
       
-      # Cache Unity Project
-      - uses: actions/cache@v3
+      - name: Cache Unity Library
+        uses: actions/cache@v4
         with:
-          path: ./src/Nino.Unity/Library
-          key: Library-${{ hashFiles('Assets/**', 'ProjectSettings/**') }}
+          path: src/Nino.Unity/Library
+          key: Library-Nino-${{ runner.os }}-${{ hashFiles('Nino.Unity/Assets/**', 'Nino.Unity/ProjectSettings/**') }}
           restore-keys: |
+            Library-Nino-${{ runner.os }}-
+            Library-Nino-
             Library-
 
-      # Test on Unity
-      - uses: game-ci/unity-test-runner@v4
+      - name: Run Unity tests
+        uses: game-ci/unity-test-runner@v4
         id: unity-tests
         env:
           UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
           UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
           UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         with:
-          projectPath: ./src/Nino.Unity
+          projectPath: Nino.Unity
           testMode: editmode
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           unityVersion: '2022.3.51f1'
+          customParameters: '-quit -batchmode -nographics'
 
-      # Upload test results artifacts (always run, even if tests fail)
-      - uses: actions/upload-artifact@v4
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Unity Test Results
-          path: artifacts
+          name: test-results-${{ github.run_number }}
+          path: |
+            artifacts
+            ./src/TestResults
           retention-days: 30
 
-      # Upload coverage results if available
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - name: Upload Unity coverage
+        uses: actions/upload-artifact@v4
+        if: always() && steps.unity-tests.outputs.coveragePath
         with:
-          name: Unity Coverage Results
+          name: unity-coverage-${{ github.run_number }}
           path: ${{ steps.unity-tests.outputs.coveragePath }}
           retention-days: 30
 
-  bump-version:
+  # Run benchmarks on main branch pushes (not PRs)
+  benchmark:
+    name: Run Benchmarks
     runs-on: ubuntu-latest
-    if: ${{ startsWith(github.event.head_commit.message, 'release v') }}
-    needs: [ build ]
-
-    # override working directory for this job
+    needs: [build-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 60
+    
     defaults:
       run:
-        working-directory: ./
-
+        working-directory: ./src
+    
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0   # Ensures that we have access to the full commit history
-
-      - name: Extract Version and Description
-        id: extract_version_description
-        run: |
-          FULL_MESSAGE="${{ github.event.head_commit.message }}"
-
-          SUMMARY=$(echo "$FULL_MESSAGE" | head -n 1)
-          DESCRIPTION=$(echo "$FULL_MESSAGE" | tail -n +3)
-
-          if [[ $SUMMARY =~ ^release\ v([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-            VERSION="${BASH_REMATCH[1]}"
-          else
-            echo "Commit message does not match the pattern 'release vx.x.x'"
-            exit 1
-          fi
-
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          printf "DESCRIPTION<<EOF\n%s\nEOF\n" "$DESCRIPTION" >> $GITHUB_ENV
-
-          echo "Bumping version to $VERSION"
-
-      - name: Run Version Bump Script
-        run: |
-          echo "Current directory: $(pwd)"
-          chmod +x ./bump_version.sh
-          ./bump_version.sh "$VERSION"
-
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Check for Changes
-        id: check_changes
-        run: |
-          # Check if there are any changes to commit
-          if [[ -n "$(git status --porcelain)" ]]; then
-            echo "changes=true" >> $GITHUB_ENV
-          else
-            echo "changes=false" >> $GITHUB_ENV
-          fi
-
-      - name: Commit and Push Changes
-        id: commit_version_bump  # Capture this step ID to get the commit SHA
-        if: env.changes == 'true'
-        run: |
-          # Commit the changes with the specified message
-          git add .
-          git commit -m "Bump to v$VERSION"
-
-          # Push changes back to main
-          git push origin main
-        env:
-          VERSION: ${{ env.VERSION }}
-
-      # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
+        uses: actions/checkout@v4
+      
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: |
-            8.0.x
-            6.0.x
-            2.1.x
-
-      # Restore dependencies
-      - name: Restore dependencies
-        working-directory: ./src/Nino  # Override the default working directory
-        run: dotnet restore
-
-      # Build the solution
-      - name: Build solution
-        working-directory: ./src/Nino  # Override the default working directory
-        run: dotnet build --configuration Release
-
-      # Copy src/Nino/bin/Release/netstandard2.1/Nino.Core.dll and src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll
-      # to src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime, replacing the existing DLLs
-      - name: Copy DLLs
-        run: |
-          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
-          cp ./src/Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
-
-      # Commit the changes (only the 2 dlls)
-      - name: Commit Changes
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
-          git commit -m "Bump Unity Package DLLs to v$VERSION"
-          git push origin main
-
-      - name: Get Commit SHA
-        run: echo "COMMIT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
-
-      - name: Create GitHub Release
-        id: create_release  # Capture the release ID for uploading assets
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: "v${{ env.VERSION }}"                  # Release tag, like "v1.2.3"
-          commitish: "${{ env.COMMIT_SHA }}"     # Ensures the release points to the bump commit
-          release_name: "v${{ env.VERSION }}"              # Title of the release, same as the tag
-          body: "${{ env.DESCRIPTION }}"                   # Release notes from commit message
-          draft: false                                     # Make the release public immediately
-          prerelease: false                                # Mark it as a stable release
-
-      # Set up .NET Core using the repository-level DOTNET_VERSION environment variable
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
             8.0.x
             6.0.x
             2.1.x
       
-      # Push NuGet packages
-      - name: Push NuGet Packages
-        working-directory: ./src  # Override the default working directory
+      - name: Run benchmarks
         run: |
-          echo "Current directory: $(pwd)"
-          dotnet pack Nino.Core/Nino.Core.csproj  -c Release
-          dotnet pack Nino.Generator/Nino.Generator.csproj  -c Release
-          dotnet pack Nino/Nino.csproj  -c Release
-          for package in $(find ./Nino.Core/bin/Release ./Nino.Generator/bin/Release ./Nino/bin/Release -name "*.nupkg" -print0 | sort -z -u | xargs -0 -n1 echo); do
-            dotnet nuget push "$package" --api-key ${{ secrets.MYTOKEN }} --source https://api.nuget.org/v3/index.json --skip-duplicate
-          done
-  
-  benchmark:
-    needs: [ bump-version ]
-    uses: JasonXuDeveloper/Nino/.github/workflows/report.yml@main
+          cd Nino.Benchmark
+          dotnet run -c Release
+      
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_number }}
+          path: src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
+          retention-days: 30

@@ -1,0 +1,620 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.2.3, v1.2.3-beta.1, etc.
+
+# Security: Minimal required permissions
+permissions:
+  contents: write      # Create releases and push commits
+  actions: read        # Read workflow artifacts
+  packages: write      # Publish to GitHub Packages (if needed)
+  pull-requests: read  # Read PR info for context
+
+# Prevent concurrent releases
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-tag:
+    name: Validate Release Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
+      release_type: ${{ steps.parse.outputs.release_type }}
+    
+    steps:
+      - name: Parse version from tag
+        id: parse
+        run: |
+          set -euo pipefail  # Exit on error, undefined vars, pipe failures
+          
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "Processing tag: $TAG_NAME"
+          
+          # Security: Validate tag name doesn't contain dangerous characters
+          if [[ $TAG_NAME =~ [\$\`\;\|\&] ]]; then
+            echo "❌ Security: Tag contains dangerous characters: $TAG_NAME"
+            exit 1
+          fi
+          
+          # Validate semantic version format (v1.2.3, v1.2.3-beta.1, v1.2.3-alpha.1, etc.)
+          if [[ $TAG_NAME =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
+            VERSION="${BASH_REMATCH[1]}"
+            PRERELEASE_LABEL="${BASH_REMATCH[3]}"
+            PRERELEASE_NUM="${BASH_REMATCH[4]}"
+            
+            # Additional validation: Version components should be reasonable
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            if [[ $MAJOR -gt 999 || $MINOR -gt 999 || $PATCH -gt 999 ]]; then
+              echo "❌ Version components too large: $VERSION"
+              exit 1
+            fi
+            
+            if [[ -n "$PRERELEASE_LABEL" ]]; then
+              # Validate prerelease label
+              if [[ ! $PRERELEASE_LABEL =~ ^(alpha|beta|rc)$ ]]; then
+                echo "❌ Invalid prerelease label: $PRERELEASE_LABEL"
+                echo "Allowed: alpha, beta, rc"
+                exit 1
+              fi
+              IS_PRERELEASE=true
+              RELEASE_TYPE="$PRERELEASE_LABEL"
+              FULL_VERSION="$VERSION-$PRERELEASE_LABEL.$PRERELEASE_NUM"
+            else
+              IS_PRERELEASE=false
+              RELEASE_TYPE="stable"
+              FULL_VERSION="$VERSION"
+            fi
+            
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+            echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+            echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
+            
+            echo "✅ Valid version tag: $FULL_VERSION (prerelease: $IS_PRERELEASE)"
+          else
+            echo "❌ Invalid tag format: $TAG_NAME"
+            echo "Expected format: v1.2.3 or v1.2.3-beta.1"
+            exit 1
+          fi
+
+  build-and-test:
+    name: Build and Test for Release
+    runs-on: ubuntu-latest
+    needs: [validate-tag]
+    timeout-minutes: 30
+    
+    defaults:
+      run:
+        working-directory: ./src
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '8.0.x' }}
+            8.0.x
+            6.0.x
+            2.1.x
+      
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+      
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      - name: Build solution (Debug for tests)
+        run: dotnet build --no-restore --configuration Debug
+      
+      - name: Copy DLLs for Unity tests
+        run: |
+          cp ./Nino/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          cp ./Nino/bin/Debug/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+      
+      - name: Run unit tests
+        run: dotnet test --no-build --verbosity normal --configuration Debug
+      
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: src/Nino.Unity/Library
+          key: Library-Nino-Release-${{ runner.os }}-${{ hashFiles('Nino.Unity/Assets/**', 'Nino.Unity/ProjectSettings/**') }}
+          restore-keys: |
+            Library-Nino-Release-${{ runner.os }}-
+            Library-Nino-${{ runner.os }}-
+            Library-Nino-
+            Library-
+      
+      - name: Run Unity tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        with:
+          projectPath: Nino.Unity
+          testMode: editmode
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          unityVersion: '2022.3.51f1'
+
+  update-versions:
+    name: Update Version Files
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-and-test]
+    outputs:
+      commit_sha: ${{ steps.commit.outputs.commit_sha }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+      
+      - name: Update version files
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          FULL_VERSION="${{ needs.validate-tag.outputs.full_version }}"
+          IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
+          
+          echo "Updating files to version: $VERSION (full: $FULL_VERSION, prerelease: $IS_PRERELEASE)"
+          
+          # Update Version.cs (always use base version for assemblies)
+          sed -i "s/AssemblyVersion(\"[^\"]*\")/AssemblyVersion(\"$VERSION\")/" src/Version.cs
+          sed -i "s/AssemblyFileVersion(\"[^\"]*\")/AssemblyFileVersion(\"$VERSION\")/" src/Version.cs
+          
+          # Update .csproj files (use full version with pre-release suffix for NuGet)
+          for proj in src/Nino/Nino.csproj src/Nino.Core/Nino.Core.csproj src/Nino.Generator/Nino.Generator.csproj; do
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              sed -i "s/<Version>[^<]*<\/Version>/<Version>$FULL_VERSION<\/Version>/" "$proj"
+              echo "Updated $proj to pre-release version: $FULL_VERSION"
+            else
+              sed -i "s/<Version>[^<]*<\/Version>/<Version>$VERSION<\/Version>/" "$proj"
+              echo "Updated $proj to stable version: $VERSION"
+            fi
+          done
+          
+          # Unity UPM handling: Unity doesn't support semantic pre-release format well
+          # For pre-releases, we append a preview suffix that Unity understands
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            RELEASE_TYPE="${{ needs.validate-tag.outputs.release_type }}"
+            # Convert semantic pre-release to Unity preview format
+            # v1.2.3-beta.1 -> 1.2.3-preview.1 (Unity understands -preview)
+            UNITY_VERSION="$VERSION-preview"
+            
+            # Extract pre-release number if exists
+            if [[ "$FULL_VERSION" =~ -[a-zA-Z]+\.([0-9]+)$ ]]; then
+              PREVIEW_NUM="${BASH_REMATCH[1]}"
+              UNITY_VERSION="$VERSION-preview.$PREVIEW_NUM"
+            fi
+            
+            sed -i "s/\"version\": \"[^\"]*\",/\"version\": \"$UNITY_VERSION\",/" src/Nino.Unity/Packages/com.jasonxudeveloper.nino/package.json
+            echo "Updated Unity package.json to preview version: $UNITY_VERSION"
+          else
+            sed -i "s/\"version\": \"[^\"]*\",/\"version\": \"$VERSION\",/" src/Nino.Unity/Packages/com.jasonxudeveloper.nino/package.json
+            echo "Updated Unity package.json to stable version: $VERSION"
+          fi
+          
+          echo "✅ All version files updated"
+      
+      - name: Commit version updates
+        id: commit
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Check if there are changes
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add .
+            git commit -m "Bump version to v$VERSION"
+            
+            # Retry git push with exponential backoff
+            max_attempts=3
+            attempt=1
+            delay=5
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: Pushing version bump commit..."
+              
+              if git push origin main; then
+                echo "✅ Successfully pushed version bump"
+                break
+              fi
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "⚠️ Push failed, retrying in ${delay}s..."
+                sleep $delay
+                delay=$((delay * 2))
+              else
+                echo "❌ Failed to push after $max_attempts attempts"
+                exit 1
+              fi
+              
+              attempt=$((attempt + 1))
+            done
+            
+            COMMIT_SHA=$(git rev-parse HEAD)
+            echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+            echo "✅ Version files updated and committed"
+          else
+            echo "No version changes detected"
+            COMMIT_SHA=$(git rev-parse HEAD)
+            echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          fi
+
+  build-release:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: [validate-tag, update-versions]
+    
+    defaults:
+      run:
+        working-directory: ./src
+    
+    steps:
+      - name: Checkout updated code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.update-versions.outputs.commit_sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            6.0.x
+            2.1.x
+      
+      - name: Restore dependencies
+        run: dotnet restore
+      
+      - name: Build Release
+        run: dotnet build --configuration Release --no-restore
+      
+      - name: Copy Release DLLs to Unity
+        run: |
+          cp ./Nino/bin/Release/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          cp ./Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+      
+      - name: Commit Unity DLL updates
+        run: |
+          VERSION="${{ needs.validate-tag.outputs.version }}"
+          FULL_VERSION="${{ needs.validate-tag.outputs.full_version }}"
+          IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/*.dll
+            
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              # For pre-releases, create a separate branch
+              BRANCH_NAME="release/$FULL_VERSION"
+              git checkout -b "$BRANCH_NAME"
+              git commit -m "Update Unity Package DLLs to $FULL_VERSION (pre-release)"
+              git push origin "$BRANCH_NAME"
+              echo "✅ Unity DLLs updated on pre-release branch: $BRANCH_NAME"
+              echo "ℹ️ Pre-release Unity packages are available on branch $BRANCH_NAME"
+            else
+              # For stable releases, push to main
+              git commit -m "Update Unity Package DLLs to v$VERSION"
+              
+              # Retry logic for main branch push
+              max_attempts=3
+              attempt=1
+              delay=5
+              
+              while [ $attempt -le $max_attempts ]; do
+                echo "Attempt $attempt/$max_attempts: Pushing Unity DLL updates..."
+                
+                if git push origin main; then
+                  echo "✅ Unity DLLs updated on main branch"
+                  break
+                fi
+                
+                if [ $attempt -lt $max_attempts ]; then
+                  echo "⚠️ Push failed, retrying in ${delay}s..."
+                  sleep $delay
+                  delay=$((delay * 2))
+                else
+                  echo "❌ Failed to push Unity DLLs after $max_attempts attempts"
+                  exit 1
+                fi
+                
+                attempt=$((attempt + 1))
+              done
+            fi
+          else
+            echo "No Unity DLL changes detected"
+          fi
+      
+      - name: Create NuGet packages
+        run: |
+          dotnet pack Nino.Core/Nino.Core.csproj -c Release --no-build
+          dotnet pack Nino.Generator/Nino.Generator.csproj -c Release --no-build  
+          dotnet pack Nino/Nino.csproj -c Release --no-build
+      
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            src/Nino.Core/bin/Release/*.nupkg
+            src/Nino.Generator/bin/Release/*.nupkg
+            src/Nino/bin/Release/*.nupkg
+          retention-days: 30
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-release, update-versions]
+    outputs:
+      release_url: ${{ steps.create_release.outputs.html_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.update-versions.outputs.commit_sha }}
+          fetch-depth: 0
+      
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          set -euo pipefail
+          
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 $TAG_NAME^ 2>/dev/null || echo "")
+          
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            echo "Generating release notes from $PREVIOUS_TAG to $TAG_NAME"
+            
+            # Create comprehensive release notes
+            echo "## What's Changed" > release_notes.md
+            echo "" >> release_notes.md
+            
+            # Get all commits with better PR detection
+            temp_commits=$(mktemp)
+            git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%H|%s|%an" --reverse > "$temp_commits"
+            
+            while IFS='|' read -r commit_hash commit_msg author; do
+              # Skip version bump commits
+              if [[ $commit_msg =~ ^(Bump|Update\ Unity\ Package\ DLLs|release\ v) ]]; then
+                continue
+              fi
+              
+              # Format different types of commits
+              if [[ $commit_msg =~ ^Merge\ pull\ request\ #([0-9]+)\ from\ (.+)$ ]]; then
+                # PR merge: "Merge pull request #123 from branch"
+                PR_NUM="${BASH_REMATCH[1]}"
+                # Try to get the PR title from the merge commit body
+                PR_TITLE=$(git log --format=%B -n 1 "$commit_hash" | sed -n '3p' | sed 's/^[[:space:]]*//')
+                if [[ -n "$PR_TITLE" && "$PR_TITLE" != "$commit_msg" ]]; then
+                  echo "- $PR_TITLE (#$PR_NUM)" >> release_notes.md
+                else
+                  echo "- Merged PR #$PR_NUM" >> release_notes.md
+                fi
+              elif [[ $commit_msg =~ ^(.+)\ \(#([0-9]+)\)$ ]]; then
+                # Squashed PR: "Feature title (#123)"
+                TITLE="${BASH_REMATCH[1]}"
+                PR_NUM="${BASH_REMATCH[2]}"
+                echo "- $TITLE (#$PR_NUM)" >> release_notes.md
+              elif [[ $commit_msg =~ ^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?:(.+)$ ]]; then
+                # Conventional commit format
+                TYPE="${BASH_REMATCH[1]}"
+                SCOPE="${BASH_REMATCH[2]}"
+                DESC="${BASH_REMATCH[3]}"
+                echo "- **${TYPE}${SCOPE}**: ${DESC}" >> release_notes.md
+              else
+                # Direct commit
+                echo "- $commit_msg" >> release_notes.md
+              fi
+            done < "$temp_commits"
+            
+            rm -f "$temp_commits"
+            
+            # Add contributors
+            echo "" >> release_notes.md
+            echo "### Contributors" >> release_notes.md
+            git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%an" | sort -u | while IFS= read -r author; do
+              if [[ "$author" != "github-actions[bot]" ]]; then
+                echo "- $author" >> release_notes.md
+              fi
+            done
+            
+            echo "" >> release_notes.md
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG..$TAG_NAME" >> release_notes.md
+            
+            # Add installation instructions
+            echo "" >> release_notes.md
+            if [[ "${{ needs.validate-tag.outputs.is_prerelease }}" == "true" ]]; then
+              echo "⚠️ **Pre-release** - Use with caution in production" >> release_notes.md
+              echo "" >> release_notes.md
+              echo "### Installation" >> release_notes.md
+              echo "**NuGet:**" >> release_notes.md
+              echo '```' >> release_notes.md
+              echo "dotnet add package Nino --version ${{ needs.validate-tag.outputs.full_version }}" >> release_notes.md
+              echo '```' >> release_notes.md
+              echo "**Unity:** Preview version available via UPM" >> release_notes.md
+            else
+              echo "### Installation" >> release_notes.md
+              echo "**NuGet:**" >> release_notes.md
+              echo '```' >> release_notes.md
+              echo "dotnet add package Nino" >> release_notes.md
+              echo '```' >> release_notes.md
+              echo "**Unity:** Stable version available via UPM" >> release_notes.md
+            fi
+            
+          else
+            echo "No previous tag found, creating initial release notes"
+            echo "## Release $TAG_NAME" > release_notes.md
+            echo "" >> release_notes.md
+            echo "Initial release or no previous tags found." >> release_notes.md
+          fi
+          
+          # Read release notes into output
+          {
+            echo 'RELEASE_NOTES<<EOF'
+            cat release_notes.md
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          draft: false
+          prerelease: ${{ needs.validate-tag.outputs.is_prerelease }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-nuget:
+    name: Publish to NuGet
+    runs-on: ubuntu-latest
+    needs: [validate-tag, create-release]
+    environment: 
+      name: nuget-production
+      url: https://www.nuget.org/packages/Nino
+    
+    steps:
+      - name: Download NuGet packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./packages
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            6.0.x
+            2.1.x
+      
+      - name: Publish to NuGet
+        run: |
+          set -euo pipefail
+          echo "Publishing packages to NuGet..."
+          
+          # Function to retry NuGet push with exponential backoff
+          retry_push() {
+            local package="$1"
+            local max_attempts=3
+            local attempt=1
+            local delay=5
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: Publishing $package"
+              
+              if dotnet nuget push "$package" \
+                --api-key ${{ secrets.MYTOKEN }} \
+                --source https://api.nuget.org/v3/index.json \
+                --skip-duplicate \
+                --no-symbols \
+                --timeout 300; then
+                echo "✅ Successfully published: $package"
+                return 0
+              fi
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "⚠️ Push failed, retrying in ${delay}s..."
+                sleep $delay
+                delay=$((delay * 2))  # Exponential backoff
+              fi
+              
+              attempt=$((attempt + 1))
+            done
+            
+            echo "❌ Failed to publish after $max_attempts attempts: $package"
+            return 1
+          }
+          
+          # Publish each package with retry logic
+          failed_packages=()
+          for package in $(find ./packages -name "*.nupkg" | sort); do
+            if ! retry_push "$package"; then
+              failed_packages+=("$package")
+            fi
+          done
+          
+          if [ ${#failed_packages[@]} -gt 0 ]; then
+            echo "❌ Failed to publish packages:"
+            printf '%s\n' "${failed_packages[@]}"
+            exit 1
+          fi
+          
+          echo "✅ All packages published to NuGet successfully"
+
+  trigger-benchmark:
+    name: Trigger Benchmark
+    runs-on: ubuntu-latest
+    needs: [validate-tag, create-release]
+    if: success()
+    
+    steps:
+      - name: Trigger benchmark workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'report.yml',
+              ref: 'main',
+              inputs: {
+                tag_name: '${{ github.ref_name }}'
+              }
+            });
+            console.log('✅ Benchmark workflow triggered');
+
+  notify-completion:
+    name: Notify Release Completion
+    runs-on: ubuntu-latest
+    needs: [validate-tag, create-release, publish-nuget, trigger-benchmark]
+    if: always()
+    
+    steps:
+      - name: Release Summary
+        run: |
+          echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ needs.validate-tag.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type**: ${{ needs.validate-tag.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Prerelease**: ${{ needs.validate-tag.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release URL**: ${{ needs.create-release.outputs.release_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.publish-nuget.result }}" == "success" ]]; then
+            echo "✅ **NuGet**: Published successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **NuGet**: Publication failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "${{ needs.trigger-benchmark.result }}" == "success" ]]; then
+            echo "✅ **Benchmark**: Triggered successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Benchmark**: Failed to trigger" >> $GITHUB_STEP_SUMMARY
+          fi

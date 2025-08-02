@@ -1,80 +1,197 @@
-name: Performance Report
+name: Benchmark and Performance Report
 
 on:
   workflow_dispatch: # Allow manual triggering
-  workflow_call: # Allow calling from another workflow
+    inputs:
+      tag_name:
+        description: 'Tag to benchmark (optional, defaults to latest)'
+        required: false
+        type: string
+  workflow_call: # Allow calling from other workflows
+    inputs:
+      tag_name:
+        description: 'Tag to benchmark'
+        required: false
+        type: string
+  release:
+    types: [published] # Run when a release is published
+
+# Security: Minimal required permissions
+permissions:
+  contents: write       # Update release notes
+  actions: write        # Upload artifacts
+  
+# Prevent concurrent benchmark runs
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  report:
+  benchmark:
+    name: Run Performance Benchmarks
     runs-on: ubuntu-latest
-    timeout-minutes: 60  # Allow 1 hour for the job to complete
-
+    timeout-minutes: 60
+    
+    defaults:
+      run:
+        working-directory: ./src
+    
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0  # Ensure all tags are fetched
-
-      - name: Determine Tag Name
-        id: determine_tag
+      - name: Determine target tag/ref
+        id: determine_target
         run: |
-          # For manual trigger, get the latest tag
-          TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1))
-          echo "Using tag: $TAG_NAME"
-          echo "tag=$TAG_NAME" >> $GITHUB_ENV
-
-      - name: Check out Repository at Tag
-        uses: actions/checkout@v2
-        with:
-          ref: ${{ env.tag }}  # Checkout at the determined tag
-      
-      # Check if release notes are already updated
-      - name: Check Release Notes
-        id: check_release_notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set GH_TOKEN for GitHub CLI
-        run: |
-          RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
-          echo "Current release body: $RELEASE_BODY"
-          if [[ $RELEASE_BODY == *"Performance Report"* ]]; then
-            echo "changes=false" >> $GITHUB_ENV
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            echo "Using release tag: $TAG_NAME"
+          elif [[ -n "${{ inputs.tag_name }}" ]]; then
+            TAG_NAME="${{ inputs.tag_name }}"
+            echo "Using input tag: $TAG_NAME"
           else
-            echo "changes=true" >> $GITHUB_ENV
+            # Get latest tag
+            git fetch --tags
+            TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo "main")
+            echo "Using latest tag: $TAG_NAME"
           fi
-
+          
+          echo "target_ref=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_ENV
+      
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.determine_target.outputs.target_ref }}
+          fetch-depth: 0
+      
+      - name: Check if benchmark already exists
+        id: check_benchmark
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_BODY=$(gh release view "${{ env.tag_name }}" --json body --jq '.body')
+          if [[ $RELEASE_BODY == *"Performance Report"* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "⏭️ Benchmark already exists for this release"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "✅ No benchmark found, will run"
+          fi
+      
       - name: Setup .NET
-        if: env.changes == 'true'
-        uses: actions/setup-dotnet@v3
+        if: steps.check_benchmark.outputs.skip != 'true'
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION }} 
+            ${{ vars.DOTNET_VERSION || '8.0.x' }}
             8.0.x
             6.0.x
-
+            2.1.x
+      
+      - name: Cache NuGet packages
+        if: steps.check_benchmark.outputs.skip != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-benchmark-${{ hashFiles('**/*.csproj') }}
+      
+      - name: Restore dependencies
+        if: steps.check_benchmark.outputs.skip != 'true'
+        run: dotnet restore
+      
+      - name: Build benchmark project
+        if: steps.check_benchmark.outputs.skip != 'true'
+        run: |
+          cd Nino.Benchmark
+          dotnet build -c Release
+      
       - name: Run benchmarks
-        if: env.changes == 'true'
+        if: steps.check_benchmark.outputs.skip != 'true'
         run: |
-          cd src/Nino.Benchmark
-          dotnet run -c Release
-
-      - name: Update Release Body
-        if: env.changes == 'true'
+          cd Nino.Benchmark
+          echo "Running benchmarks for ${{ env.tag_name }}..."
+          dotnet run -c Release --no-build
+          
+          # Verify benchmark results exist
+          if [[ -f "BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md" ]]; then
+            echo "✅ Benchmark completed successfully"
+          else
+            echo "❌ Benchmark results not found"
+            ls -la BenchmarkDotNet.Artifacts/results/ || echo "Results directory not found"
+            exit 1
+          fi
+      
+      - name: Upload benchmark artifacts
+        if: steps.check_benchmark.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ env.tag_name }}
+          path: |
+            src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
+          retention-days: 90
+      
+      - name: Update release notes with benchmark
+        if: steps.check_benchmark.outputs.skip != 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Set GH_TOKEN for GitHub CLI
-          TAG_NAME: ${{ env.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Read PERF_CONTENT from the file
-          cd src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
-          PERF_CONTENT=$(cat Nino.Benchmark.SimpleTest-report-github.md)
-          echo "Performance report content: $PERF_CONTENT"
+          set -euo pipefail
           
-          # Retrieve the existing release body
+          TAG_NAME="${{ env.tag_name }}"
+          
+          # Check if benchmark file exists
+          BENCHMARK_FILE="Nino.Benchmark/BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md"
+          if [[ ! -f "$BENCHMARK_FILE" ]]; then
+            echo "❌ Benchmark report file not found: $BENCHMARK_FILE"
+            echo "Available files:"
+            ls -la Nino.Benchmark/BenchmarkDotNet.Artifacts/results/ || echo "Results directory not found"
+            exit 1
+          fi
+          
+          # Read benchmark content
+          PERF_CONTENT=$(cat "$BENCHMARK_FILE")
+          
+          # Get current release body
           RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
-          echo "Current release body: $RELEASE_BODY"
           
-          # Prepare the new content by using printf to handle multiline content correctly
-          NEW_CONTENT=$(printf "\n\n## Performance Report\n<details><summary>expand</summary>\n\n%s\n\n</details>\n" "$PERF_CONTENT")
-          UPDATED_BODY=$(printf "%s%s" "$RELEASE_BODY" "$NEW_CONTENT")
+          # Check if benchmark already exists in release notes
+          if [[ $RELEASE_BODY == *"Performance Report"* ]]; then
+            echo "⏭️ Benchmark already exists in release notes"
+            exit 0
+          fi
           
-          # Update the release notes
-          gh release edit "$TAG_NAME" --notes "$UPDATED_BODY"
+          # Create updated release notes with better formatting
+          cat > updated_notes.md << 'EOF'
+$RELEASE_BODY
+
+## 📊 Performance Report
+
+<details>
+<summary>Click to expand benchmark results</summary>
+
+$PERF_CONTENT
+
+</details>
+
+---
+*Benchmark generated automatically on $(date -u '+%Y-%m-%d %H:%M:%S UTC')*
+EOF
+          
+          # Substitute variables in the template
+          envsubst < updated_notes.md > final_notes.md
+          
+          # Update the release
+          gh release edit "$TAG_NAME" --notes-file final_notes.md
+          echo "✅ Release notes updated with benchmark results"
+      
+      - name: Benchmark summary
+        if: steps.check_benchmark.outputs.skip != 'true'
+        run: |
+          echo "## 📊 Benchmark Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target**: ${{ env.tag_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
+          echo "- **Results**: Uploaded as artifacts" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "- **Release Notes**: Updated automatically" >> $GITHUB_STEP_SUMMARY
+          fi
