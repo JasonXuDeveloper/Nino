@@ -266,7 +266,7 @@ Our automated workflow system provides:
 When you create a release tag, the CI automatically:
 
 1. **✅ Validates** the tag format and version
-2. **🔨 Builds & Tests** the code (fails if tests don't pass)
+2. **🔍 Verifies** CI passed for the commit (waits if still running)
 3. **📝 Updates** all version files (Version.cs, .csproj, package.json)
 4. **📚 Copies** Release DLLs to Unity package folder
 5. **🌱 Creates** appropriate branches (main for stable, release/* for pre-releases)
@@ -290,6 +290,17 @@ When you create a release tag, the CI automatically:
 ```
 
 ⚠️ **Important:** You only create the tag - CI handles everything else automatically!
+
+### 🔍 Smart CI Verification
+
+The release workflow intelligently handles CI status:
+
+- **✅ CI Already Passed**: Release continues immediately
+- **⏳ CI Still Running**: Waits up to 30 minutes for completion
+- **❌ CI Failed**: Blocks release with clear error message  
+- **⚠️ No CI Found**: Warns but continues (for edge cases)
+
+This ensures every release is from tested code while avoiding redundant test runs.
 
 ### Manual Way: Git Tags
 

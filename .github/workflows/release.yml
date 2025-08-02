@@ -83,16 +83,120 @@ jobs:
             exit 1
           fi
 
-  build-and-test:
-    name: Build and Test for Release
+  verify-ci-status:
+    name: Verify CI Status
+    runs-on: ubuntu-latest
     needs: [validate-tag]
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check CI status for commit
+        run: |
+          set -euo pipefail
+          
+          # Get the commit SHA that the tag points to
+          COMMIT_SHA=$(git rev-list -n 1 ${{ github.ref }})
+          echo "Checking CI status for commit: $COMMIT_SHA"
+          
+          # Wait for CI to complete with timeout
+          max_wait_minutes=30
+          wait_interval=30
+          elapsed=0
+          last_status=""
+          
+          while [ $elapsed -lt $((max_wait_minutes * 60)) ]; do
+            # Get CI runs for this commit (most recent first)
+            CI_RUNS=$(gh run list \
+              --workflow="CI - Build and Test" \
+              --limit=100 \
+              --json="headSha,conclusion,status,event" \
+              --jq="[.[] | select(.headSha == \"$COMMIT_SHA\")] | sort_by(.createdAt) | reverse")
+            
+            if [[ "$CI_RUNS" == "[]" || -z "$CI_RUNS" ]]; then
+              echo "⚠️ No CI run found for commit $COMMIT_SHA"
+              echo "This might be expected for the first commit or if CI was added later"
+              echo "Proceeding with release but consider running CI manually"
+              break
+            fi
+            
+            # Get the most relevant CI run (prefer push events over pull_request)
+            CI_INFO=$(echo "$CI_RUNS" | jq -r '
+              (.[] | select(.event == "push")) // 
+              (.[] | select(.event == "pull_request")) // 
+              .[0]')
+            
+            if [[ "$CI_INFO" == "null" || -z "$CI_INFO" ]]; then
+              echo "❌ Could not parse CI run information"
+              exit 1
+            fi
+            
+            CI_STATUS=$(echo "$CI_INFO" | jq -r '.status // "unknown"')
+            CI_CONCLUSION=$(echo "$CI_INFO" | jq -r '.conclusion // "none"')
+            CI_EVENT=$(echo "$CI_INFO" | jq -r '.event // "unknown"')
+            
+            # Only log status changes to reduce noise
+            current_status="$CI_STATUS:$CI_CONCLUSION"
+            if [[ "$current_status" != "$last_status" ]]; then
+              echo "CI Status: $CI_STATUS, Conclusion: $CI_CONCLUSION, Event: $CI_EVENT"
+              last_status="$current_status"
+            fi
+            
+            case "$CI_STATUS" in
+              "completed")
+                case "$CI_CONCLUSION" in
+                  "success")
+                    echo "✅ CI passed for commit $COMMIT_SHA"
+                    exit 0
+                    ;;
+                  "failure"|"cancelled"|"timed_out")
+                    echo "❌ CI failed with conclusion: $CI_CONCLUSION for commit $COMMIT_SHA"
+                    echo "Cannot release a commit with failed CI"
+                    exit 1
+                    ;;
+                  "skipped")
+                    echo "⚠️ CI was skipped for commit $COMMIT_SHA"
+                    echo "This may be intentional, proceeding with release"
+                    exit 0
+                    ;;
+                  *)
+                    echo "❌ CI completed with unexpected conclusion: $CI_CONCLUSION for commit $COMMIT_SHA"
+                    echo "Only 'success' or 'skipped' conclusions allow release"
+                    exit 1
+                    ;;
+                esac
+                ;;
+              "in_progress"|"queued"|"pending"|"waiting")
+                if [[ "$current_status" != "$last_status" ]]; then
+                  echo "⏳ CI is running (status: $CI_STATUS). Will check again in ${wait_interval}s..."
+                fi
+                sleep $wait_interval
+                elapsed=$((elapsed + wait_interval))
+                ;;
+              *)
+                echo "❌ Unexpected CI status: $CI_STATUS for commit $COMMIT_SHA"
+                exit 1
+                ;;
+            esac
+          done
+          
+          # Check if we timed out
+          if [ $elapsed -ge $((max_wait_minutes * 60)) ]; then
+            echo "⏰ Timeout: CI did not complete within $max_wait_minutes minutes"
+            echo "Last known status: $CI_STATUS, conclusion: $CI_CONCLUSION"
+            echo "Please wait for CI to complete and try the release again"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   update-versions:
     name: Update Version Files
     runs-on: ubuntu-latest
-    needs: [validate-tag, build-and-test]
+    needs: [validate-tag, verify-ci-status]
     outputs:
       commit_sha: ${{ steps.commit.outputs.commit_sha }}
     
@@ -200,7 +304,7 @@ jobs:
   build-release:
     name: Build Release Artifacts
     runs-on: ubuntu-latest
-    needs: [validate-tag, update-versions]
+    needs: [validate-tag, verify-ci-status, update-versions]
     
     defaults:
       run:
