@@ -7,7 +7,7 @@
         <IncludeContentInPack>true</IncludeContentInPack>
         <PackageId>Nino</PackageId>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Version>4.0.0-alpha.10</Version>
+        <Version>4.0.0-alpha.11</Version>
         <Title>Nino</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
