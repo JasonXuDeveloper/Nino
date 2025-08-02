@@ -588,12 +588,13 @@ jobs:
                     current_scope="$scope_key"
                   fi
                   
-                  # Remove scope from entry since it's now in the sub-header
+                  # Remove type and scope from entry since they're now in headers
                   if [[ "$scope_key" != "()" && -n "$scope_key" ]]; then
-                    # Remove the scope part from the entry: **feat(scope)**: -> **feat**:
-                    clean_entry=$(echo "$entry" | sed "s/\*\*\([^(]*\)${scope_key}\*\*:/\*\*\1\*\*:/")
+                    # Remove the entire **type(scope)**: part, keep only the description
+                    clean_entry=$(echo "$entry" | sed 's/\*\*[^:]*\*\*://')
                   else
-                    clean_entry="$entry"
+                    # Remove the entire **type**: part, keep only the description  
+                    clean_entry=$(echo "$entry" | sed 's/\*\*[^:]*\*\*://')
                   fi
                   echo "- $clean_entry" >> release_notes.md
                 done
@@ -601,14 +602,14 @@ jobs:
             }
             
             # Add sections in priority order
-            add_section "✨ Features" "$temp_feat" "✨"
-            add_section "🐛 Bug Fixes" "$temp_fix" "🐛"
-            add_section "🔧 Improvements" "$temp_refactor" "🔧"
-            add_section "📚 Documentation" "$temp_docs" "📚"
-            add_section "🧪 Testing" "$temp_test" "🧪"
-            add_section "🎨 Code Style" "$temp_style" "🎨"
-            add_section "🏗️ Maintenance" "$temp_chore" "🏗️"
-            add_section "🔀 Other Changes" "$temp_other" "🔀"
+            add_section "Features" "$temp_feat" "✨"
+            add_section "Bug Fixes" "$temp_fix" "🐛"
+            add_section "Improvements" "$temp_refactor" "🔧"
+            add_section "Documentation" "$temp_docs" "📚"
+            add_section "Testing" "$temp_test" "🧪"
+            add_section "Code Style" "$temp_style" "🎨"
+            add_section "Maintenance" "$temp_chore" "🏗️"
+            add_section "Other Changes" "$temp_other" "🔀"
             
             # Cleanup temp files
             rm -f "$temp_commits" "$temp_feat" "$temp_fix" "$temp_docs" "$temp_refactor" "$temp_test" "$temp_chore" "$temp_style" "$temp_other"
