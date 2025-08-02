@@ -201,12 +201,27 @@ jobs:
       commit_sha: ${{ steps.commit.outputs.commit_sha }}
     
     steps:
-      - name: Checkout code
+      - name: Checkout code at tagged commit
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: true
+      
+      - name: Setup git for pushing to main
+        run: |
+          # Get the tag commit and ensure we can push to main
+          TAG_COMMIT=$(git rev-parse HEAD)
+          echo "Working on tagged commit: $TAG_COMMIT"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create a branch from this commit to push changes
+          git checkout -b temp-release-branch
+          echo "✅ Ready to make version updates from tagged commit"
       
       - name: Update version files
         run: |
@@ -259,24 +274,21 @@ jobs:
         run: |
           VERSION="${{ needs.validate-tag.outputs.version }}"
           
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
           # Check if there are changes
           if [[ -n "$(git status --porcelain)" ]]; then
             git add .
             git commit -m "Bump version to v$VERSION"
             
-            # Retry git push with exponential backoff
+            # Push the changes to main branch
             max_attempts=3
             attempt=1
             delay=5
             
             while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: Pushing version bump commit..."
+              echo "Attempt $attempt/$max_attempts: Pushing version bump commit to main..."
               
-              if git push origin main; then
-                echo "✅ Successfully pushed version bump"
+              if git push origin temp-release-branch:main; then
+                echo "✅ Successfully pushed version bump to main"
                 break
               fi
               
@@ -295,6 +307,39 @@ jobs:
             COMMIT_SHA=$(git rev-parse HEAD)
             echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
             echo "✅ Version files updated and committed"
+            
+            # Move the tag to point to this new commit
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            echo "Moving tag $TAG_NAME to new commit $COMMIT_SHA"
+            
+            # Delete and recreate the tag
+            git tag -d "$TAG_NAME"
+            git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+            
+            # Push the updated tag
+            max_attempts=3
+            attempt=1
+            delay=5
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: Pushing updated tag $TAG_NAME..."
+              
+              if git push origin "$TAG_NAME" --force; then
+                echo "✅ Successfully moved tag $TAG_NAME to commit $COMMIT_SHA"
+                break
+              fi
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "⚠️ Tag push failed, retrying in ${delay}s..."
+                sleep $delay
+                delay=$((delay * 2))
+              else
+                echo "❌ Failed to push tag after $max_attempts attempts"
+                exit 1
+              fi
+              
+              attempt=$((attempt + 1))
+            done
           else
             echo "No version changes detected"
             COMMIT_SHA=$(git rev-parse HEAD)

@@ -268,10 +268,11 @@ When you create a release tag, the CI automatically:
 1. **✅ Validates** the tag format and version
 2. **🔍 Verifies** CI passed for the commit (waits if still running)
 3. **📝 Updates** all version files (Version.cs, .csproj, package.json)
-4. **📚 Copies** Release DLLs to Unity package folder
-5. **🌱 Creates** appropriate branches (main for stable, release/* for pre-releases)
-6. **📦 Publishes** to NuGet with proper versioning
-7. **📊 Runs** benchmarks and updates release notes
+4. **🏷️ Moves** the tag to point to the updated commit
+5. **📚 Copies** Release DLLs to Unity package folder
+6. **🌱 Creates** appropriate branches (main for stable, release/* for pre-releases)
+7. **📦 Publishes** to NuGet with proper versioning
+8. **📊 Runs** benchmarks and updates release notes
 
 ### Easy Way: Use the Helper Script
 
@@ -301,6 +302,17 @@ The release workflow intelligently handles CI status:
 - **⚠️ No CI Found**: Warns but continues (for edge cases)
 
 This ensures every release is from tested code while avoiding redundant test runs.
+
+### 🏷️ Smart Tag Management
+
+**Important:** The release workflow automatically moves your tag to ensure consistency:
+
+1. **You create tag** pointing to commit A (your latest code)
+2. **CI updates versions** and creates commit B (with version files + DLLs) 
+3. **CI moves your tag** to point to commit B (the actual release)
+4. **Release artifacts** are built from commit B (correct versions)
+
+This ensures the release tag always points to the exact commit that becomes the release, including all version updates and Unity DLLs.
 
 ### Manual Way: Git Tags
 
