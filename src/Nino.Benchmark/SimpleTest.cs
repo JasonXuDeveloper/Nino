@@ -19,7 +19,7 @@ namespace Nino.Benchmark;
 [ShortRunJob(RuntimeMoniker.Net90)]
 [GcServer(true)]
 [MemoryDiagnoser]
-[MarkdownExporter, RPlotExporter]
+[MarkdownExporterAttribute.GitHub]
 public class SimpleTest
 {
     private static readonly SimpleClass SimpleClass;
