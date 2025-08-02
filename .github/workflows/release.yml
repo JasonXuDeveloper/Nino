@@ -553,7 +553,7 @@ jobs:
               fi
             done < "$temp_commits"
             
-            # Function to add grouped section
+            # Function to add grouped section with scope sub-headers
             add_section() {
               local title="$1"
               local file="$2"
@@ -564,9 +564,37 @@ jobs:
                 echo "### $emoji $title" >> release_notes.md
                 echo "" >> release_notes.md
                 
-                # Sort by scope, then output
+                # Sort by scope, then group by scope with sub-headers
+                current_scope=""
                 sort -t'|' -k1,1 "$file" | while IFS='|' read -r scope_key entry; do
-                  echo "- $entry" >> release_notes.md
+                  # Clean scope for display (remove parentheses)
+                  display_scope=""
+                  if [[ "$scope_key" != "()" && -n "$scope_key" ]]; then
+                    display_scope=$(echo "$scope_key" | sed 's/[()]//g')
+                  fi
+                  
+                  # Add scope sub-header if scope changed
+                  if [[ "$scope_key" != "$current_scope" ]]; then
+                    if [[ -n "$display_scope" ]]; then
+                      echo "" >> release_notes.md
+                      echo "#### 📦 \`$display_scope\`" >> release_notes.md
+                      echo "" >> release_notes.md
+                    elif [[ "$scope_key" == "()" ]]; then
+                      echo "" >> release_notes.md
+                      echo "#### 🔧 General" >> release_notes.md
+                      echo "" >> release_notes.md
+                    fi
+                    current_scope="$scope_key"
+                  fi
+                  
+                  # Remove scope from entry since it's now in the sub-header
+                  if [[ "$scope_key" != "()" && -n "$scope_key" ]]; then
+                    # Remove the scope part from the entry: **feat(scope)**: -> **feat**:
+                    clean_entry=$(echo "$entry" | sed "s/\*\*\([^(]*\)${scope_key}\*\*:/\*\*\1\*\*:/")
+                  else
+                    clean_entry="$entry"
+                  fi
+                  echo "- $clean_entry" >> release_notes.md
                 done
               fi
             }

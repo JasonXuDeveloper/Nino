@@ -253,8 +253,7 @@ jobs:
                 if [[ -z "$PLOT_IMAGES" ]]; then
                   PLOT_IMAGES="![${plot_title}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
                 else
-                  PLOT_IMAGES="${PLOT_IMAGES}
-![${plot_title}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
+                  PLOT_IMAGES="${PLOT_IMAGES}"$'\n'"![${plot_title}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
                 fi
               fi
             done < <(find "$RESULTS_DIR" -name "*.png" -type f)
