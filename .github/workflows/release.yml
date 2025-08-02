@@ -482,45 +482,107 @@ jobs:
             echo "## What's Changed" > release_notes.md
             echo "" >> release_notes.md
             
-            # Get all commits with better PR detection
+            # Create temporary files for grouping commits
             temp_commits=$(mktemp)
+            temp_feat=$(mktemp)
+            temp_fix=$(mktemp)
+            temp_docs=$(mktemp)
+            temp_refactor=$(mktemp)
+            temp_test=$(mktemp)
+            temp_chore=$(mktemp)
+            temp_style=$(mktemp)
+            temp_other=$(mktemp)
+            
             git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%H|%s|%an" --reverse > "$temp_commits"
             
+            # Process commits and group by type and scope
             while IFS='|' read -r commit_hash commit_msg author; do
               # Skip version bump commits
               if [[ $commit_msg =~ ^(Bump|Update\ Unity\ Package\ DLLs|release\ v) ]]; then
                 continue
               fi
               
-              # Format different types of commits
+              # Parse different commit message formats
               if [[ $commit_msg =~ ^Merge\ pull\ request\ #([0-9]+)\ from\ (.+)$ ]]; then
                 # PR merge: "Merge pull request #123 from branch"
                 PR_NUM="${BASH_REMATCH[1]}"
-                # Try to get the PR title from the merge commit body
                 PR_TITLE=$(git log --format=%B -n 1 "$commit_hash" | sed -n '3p' | sed 's/^[[:space:]]*//')
                 if [[ -n "$PR_TITLE" && "$PR_TITLE" != "$commit_msg" ]]; then
-                  echo "- $PR_TITLE (#$PR_NUM)" >> release_notes.md
+                  echo "other|$PR_TITLE (#$PR_NUM)" >> "$temp_other"
                 else
-                  echo "- Merged PR #$PR_NUM" >> release_notes.md
+                  echo "other|Merged PR #$PR_NUM" >> "$temp_other"
                 fi
               elif [[ $commit_msg =~ ^(.+)\ \(#([0-9]+)\)$ ]]; then
                 # Squashed PR: "Feature title (#123)"
                 TITLE="${BASH_REMATCH[1]}"
                 PR_NUM="${BASH_REMATCH[2]}"
-                echo "- $TITLE (#$PR_NUM)" >> release_notes.md
+                echo "other|$TITLE (#$PR_NUM)" >> "$temp_other"
               elif [[ $commit_msg =~ ^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?:(.+)$ ]]; then
                 # Conventional commit format
                 TYPE="${BASH_REMATCH[1]}"
                 SCOPE="${BASH_REMATCH[2]}"
                 DESC="${BASH_REMATCH[3]}"
-                echo "- **${TYPE}${SCOPE}**: ${DESC}" >> release_notes.md
+                
+                # Group by type and scope for sorting
+                case "$TYPE" in
+                  "feat")
+                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_feat"
+                    ;;
+                  "fix")
+                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_fix"
+                    ;;
+                  "docs")
+                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_docs"
+                    ;;
+                  "refactor")
+                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_refactor"
+                    ;;
+                  "test")
+                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_test"
+                    ;;
+                  "chore")
+                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_chore"
+                    ;;
+                  "style")
+                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_style"
+                    ;;
+                esac
               else
                 # Direct commit
-                echo "- $commit_msg" >> release_notes.md
+                echo "other|$commit_msg" >> "$temp_other"
               fi
             done < "$temp_commits"
             
-            rm -f "$temp_commits"
+            # Function to add grouped section
+            add_section() {
+              local title="$1"
+              local file="$2"
+              local emoji="$3"
+              
+              if [[ -s "$file" ]]; then
+                echo "" >> release_notes.md
+                echo "### $emoji $title" >> release_notes.md
+                echo "" >> release_notes.md
+                
+                # Sort by scope, then output
+                sort -t'|' -k1,1 "$file" | while IFS='|' read -r scope_key entry; do
+                  echo "- $entry" >> release_notes.md
+                done
+              fi
+            }
+            
+            # Add sections in priority order
+            add_section "✨ Features" "$temp_feat" "✨"
+            add_section "🐛 Bug Fixes" "$temp_fix" "🐛"
+            add_section "🔧 Improvements" "$temp_refactor" "🔧"
+            add_section "📚 Documentation" "$temp_docs" "📚"
+            add_section "🧪 Testing" "$temp_test" "🧪"
+            add_section "🎨 Code Style" "$temp_style" "🎨"
+            add_section "🏗️ Maintenance" "$temp_chore" "🏗️"
+            add_section "🔀 Other Changes" "$temp_other" "🔀"
+            
+            # Cleanup temp files
+            rm -f "$temp_commits" "$temp_feat" "$temp_fix" "$temp_docs" "$temp_refactor" "$temp_test" "$temp_chore" "$temp_style" "$temp_other"
             
             # Add contributors
             echo "" >> release_notes.md
