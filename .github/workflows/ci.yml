@@ -142,5 +142,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-${{ github.run_number }}
-          path: src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
+          path: src/Nino.Benchmark/bin/Release/net8.0/BenchmarkDotNet.Artifacts/results
           retention-days: 30
