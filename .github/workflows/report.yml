@@ -209,32 +209,10 @@ jobs:
           # Read benchmark content
           PERF_CONTENT=$(cat "$BENCHMARK_FILE")
           
-          # Check for plot images if R was available
+          # TODO: Plot images functionality temporarily disabled due to YAML/bash complexity
+          # Will be re-enabled in a future update with a cleaner implementation
           PLOT_IMAGES=""
-          if [[ "${{ steps.setup_r.outcome }}" == "success" && "${{ steps.install_r_packages.outcome }}" == "success" ]]; then
-            # Find generated plot images
-            PLOT_FILES=$(find "$RESULTS_DIR" -name "*.png" 2>/dev/null || true)
-            if [[ -n "$PLOT_FILES" ]]; then
-              echo "✅ Found plot images: $PLOT_FILES"
-              # Upload plot images as release assets
-              for plot_file in $PLOT_FILES; do
-                if [[ -f "$plot_file" ]]; then
-                  plot_name=$(basename "$plot_file")
-                  echo "Uploading plot: $plot_name"
-                  gh release upload "$TAG_NAME" "$plot_file" --clobber || echo "⚠️ Failed to upload $plot_name"
-                  # Add to plot images list for markdown
-                  PLOT_IMAGE_LINE="![${plot_name%.*}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
-                  if [[ -n "$PLOT_IMAGES" ]]; then
-                    PLOT_IMAGES=$(printf "%s\n%s" "$PLOT_IMAGES" "$PLOT_IMAGE_LINE")
-                  else
-                    PLOT_IMAGES="$PLOT_IMAGE_LINE"
-                  fi
-                done
-              done
-            else
-              echo "ℹ️ No plot images found (this is normal for some benchmark configurations)"
-            fi
-          fi
+          echo "ℹ️ Plot images feature temporarily disabled"
           
           # Get current release body
           RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
