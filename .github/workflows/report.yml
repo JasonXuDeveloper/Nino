@@ -160,7 +160,7 @@ jobs:
           fi
           
           # Create updated release notes with better formatting
-          cat > updated_notes.md << 'EOF'
+          cat > updated_notes.md << EOF
 $RELEASE_BODY
 
 ## 📊 Performance Report
