@@ -273,6 +273,7 @@ When you create a release tag, the CI automatically:
 6. **🌱 Creates** appropriate branches (main for stable, release/* for pre-releases)
 7. **📦 Publishes** to NuGet with proper versioning
 8. **📊 Runs** benchmarks and updates release notes
+9. **🧹 Cleans up** pre-release branches after successful completion
 
 ### Easy Way: Use the Helper Script
 

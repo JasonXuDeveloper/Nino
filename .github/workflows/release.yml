@@ -706,3 +706,34 @@ jobs:
           else
             echo "⚠️ **Benchmark**: Failed to trigger" >> $GITHUB_STEP_SUMMARY
           fi
+
+  cleanup-release-branch:
+    name: Cleanup Pre-release Branch
+    runs-on: ubuntu-latest
+    needs: [validate-tag, create-release, publish-nuget]
+    if: success() && needs.validate-tag.outputs.is_prerelease == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Delete pre-release branch
+        run: |
+          FULL_VERSION="${{ needs.validate-tag.outputs.full_version }}"
+          BRANCH_NAME="release/$FULL_VERSION"
+          
+          echo "Cleaning up pre-release branch: $BRANCH_NAME"
+          
+          # Check if branch exists remotely
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Deleting remote branch: $BRANCH_NAME"
+            git push origin --delete "$BRANCH_NAME"
+            echo "✅ Pre-release branch $BRANCH_NAME deleted successfully"
+          else
+            echo "⚠️ Branch $BRANCH_NAME not found remotely, may have been already deleted"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
