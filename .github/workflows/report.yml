@@ -223,10 +223,11 @@ jobs:
                   echo "Uploading plot: $plot_name"
                   gh release upload "$TAG_NAME" "$plot_file" --clobber || echo "⚠️ Failed to upload $plot_name"
                   # Add to plot images list for markdown
+                  PLOT_IMAGE_LINE="![${plot_name%.*}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
                   if [[ -n "$PLOT_IMAGES" ]]; then
-                    PLOT_IMAGES="$PLOT_IMAGES"$'\n'"![${plot_name%.*}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
+                    PLOT_IMAGES=$(printf "%s\n%s" "$PLOT_IMAGES" "$PLOT_IMAGE_LINE")
                   else
-                    PLOT_IMAGES="![${plot_name%.*}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
+                    PLOT_IMAGES="$PLOT_IMAGE_LINE"
                   fi
                 done
               done
