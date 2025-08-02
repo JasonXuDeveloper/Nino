@@ -195,9 +195,15 @@ jobs:
             
             echo "$PNG_FILES" | while IFS= read -r plot_file; do
               if [[ -n "$plot_file" ]]; then
-                plot_name=$(basename "$plot_file")
-                echo "📈 Uploading: $plot_name"
-                gh release upload "$TAG_NAME" "$plot_file" --clobber || echo "⚠️ Failed to upload $plot_name"
+                original_name=$(basename "$plot_file")
+                # Trim verbose parts: remove "Nino.Benchmark.SimpleTest-", "ShortRun-.NET X.0-", etc.
+                clean_name=$(echo "$original_name" | sed -E 's/^Nino\.Benchmark\.SimpleTest-//; s/-ShortRun-\.NET [0-9.]+(-[0-9]+)?-/-/; s/^([^-]+)-([^-]+)-(.+)$/\1-\3/')
+                
+                echo "📈 Uploading: $original_name → $clean_name"
+                # Create a temporary copy with clean name for upload
+                cp "$plot_file" "/tmp/$clean_name"
+                gh release upload "$TAG_NAME" "/tmp/$clean_name" --clobber || echo "⚠️ Failed to upload $clean_name"
+                rm -f "/tmp/$clean_name"
               fi
             done
             
@@ -250,12 +256,15 @@ jobs:
             if [[ -n "$PNG_FILES_FOR_MARKDOWN" ]]; then
               while IFS= read -r plot_file; do
                 if [[ -n "$plot_file" ]]; then
-                  plot_name=$(basename "$plot_file")
-                  plot_title="${plot_name%.*}"
+                  original_name=$(basename "$plot_file")
+                  # Trim verbose parts for cleaner display names
+                  clean_name=$(echo "$original_name" | sed -E 's/^Nino\.Benchmark\.SimpleTest-//; s/-ShortRun-\.NET [0-9.]+(-[0-9]+)?-/-/; s/^([^-]+)-([^-]+)-(.+)$/\1-\3/')
+                  plot_title="${clean_name%.*}"
+                  
                   if [[ -z "$PLOT_IMAGES" ]]; then
-                    PLOT_IMAGES="![${plot_title}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
+                    PLOT_IMAGES="![${plot_title}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$clean_name)"
                   else
-                    PLOT_IMAGES="${PLOT_IMAGES}"$'\n'"![${plot_title}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$plot_name)"
+                    PLOT_IMAGES="${PLOT_IMAGES}"$'\n'"![${plot_title}](https://github.com/${{ github.repository }}/releases/download/$TAG_NAME/$clean_name)"
                   fi
                 fi
               done <<< "$PNG_FILES_FOR_MARKDOWN"
