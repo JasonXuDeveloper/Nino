@@ -160,27 +160,24 @@ jobs:
           fi
           
           # Create updated release notes with better formatting
-          cat > updated_notes.md << EOF
-$RELEASE_BODY
-
-## 📊 Performance Report
-
-<details>
-<summary>Click to expand benchmark results</summary>
-
-$PERF_CONTENT
-
-</details>
-
----
-*Benchmark generated automatically on $(date -u '+%Y-%m-%d %H:%M:%S UTC')*
-EOF
-          
-          # Substitute variables in the template
-          envsubst < updated_notes.md > final_notes.md
+          {
+            echo "$RELEASE_BODY"
+            echo ""
+            echo "## 📊 Performance Report"
+            echo ""
+            echo "<details>"
+            echo "<summary>Click to expand benchmark results</summary>"
+            echo ""
+            cat "$BENCHMARK_FILE"
+            echo ""
+            echo "</details>"
+            echo ""
+            echo "---"
+            echo "*Benchmark generated automatically on $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
+          } > updated_notes.md
           
           # Update the release
-          gh release edit "$TAG_NAME" --notes-file final_notes.md
+          gh release edit "$TAG_NAME" --notes-file updated_notes.md
           echo "✅ Release notes updated with benchmark results"
       
       - name: Benchmark summary
