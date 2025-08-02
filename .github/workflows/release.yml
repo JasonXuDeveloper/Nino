@@ -26,6 +26,7 @@ jobs:
       version: ${{ steps.parse.outputs.version }}
       is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
       release_type: ${{ steps.parse.outputs.release_type }}
+      full_version: ${{ steps.parse.outputs.full_version }}
     
     steps:
       - name: Parse version from tag
