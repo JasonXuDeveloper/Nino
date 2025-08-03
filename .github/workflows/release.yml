@@ -571,14 +571,17 @@ jobs:
             temp_style=$(mktemp)
             temp_other=$(mktemp)
             
-            git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%H|%s|%an" --reverse > "$temp_commits"
+            git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%H|%s|%an|%ae" --reverse > "$temp_commits"
             
             # Process commits and group by type and scope
-            while IFS='|' read -r commit_hash commit_msg author; do
+            while IFS='|' read -r commit_hash commit_msg author author_email; do
               # Skip version bump commits
               if [[ $commit_msg =~ ^(Bump|Update\ Unity\ Package\ DLLs|release\ v) ]]; then
                 continue
               fi
+              
+              # Get short commit hash for display
+              SHORT_HASH="${commit_hash:0:7}"
               
               # Parse different commit message formats
               if [[ $commit_msg =~ ^Merge\ pull\ request\ #([0-9]+)\ from\ (.+)$ ]]; then
@@ -586,15 +589,15 @@ jobs:
                 PR_NUM="${BASH_REMATCH[1]}"
                 PR_TITLE=$(git log --format=%B -n 1 "$commit_hash" | sed -n '3p' | sed 's/^[[:space:]]*//')
                 if [[ -n "$PR_TITLE" && "$PR_TITLE" != "$commit_msg" ]]; then
-                  echo "other|$PR_TITLE (#$PR_NUM)" >> "$temp_other"
+                  echo "other|$PR_TITLE (#$PR_NUM) [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
                 else
-                  echo "other|Merged PR #$PR_NUM" >> "$temp_other"
+                  echo "other|Merged PR #$PR_NUM [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
                 fi
               elif [[ $commit_msg =~ ^(.+)\ \(#([0-9]+)\)$ ]]; then
                 # Squashed PR: "Feature title (#123)"
                 TITLE="${BASH_REMATCH[1]}"
                 PR_NUM="${BASH_REMATCH[2]}"
-                echo "other|$TITLE (#$PR_NUM)" >> "$temp_other"
+                echo "other|$TITLE (#$PR_NUM) [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
               elif [[ $commit_msg =~ ^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?:(.+)$ ]]; then
                 # Conventional commit format
                 TYPE="${BASH_REMATCH[1]}"
@@ -604,30 +607,30 @@ jobs:
                 # Group by type and scope for sorting
                 case "$TYPE" in
                   "feat")
-                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_feat"
+                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_feat"
                     ;;
                   "fix")
-                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_fix"
+                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_fix"
                     ;;
                   "docs")
-                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_docs"
+                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_docs"
                     ;;
                   "refactor")
-                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_refactor"
+                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_refactor"
                     ;;
                   "test")
-                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_test"
+                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_test"
                     ;;
                   "chore")
-                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_chore"
+                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_chore"
                     ;;
                   "style")
-                    echo "${SCOPE:-()}|**${TYPE}${SCOPE}**:${DESC}" >> "$temp_style"
+                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_style"
                     ;;
                 esac
               else
                 # Direct commit
-                echo "other|$commit_msg" >> "$temp_other"
+                echo "other|$commit_msg [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
               fi
             done < "$temp_commits"
             
@@ -644,7 +647,7 @@ jobs:
                 
                 # Sort by scope, then group by scope with sub-headers
                 current_scope=""
-                sort -t'|' -k1,1 "$file" | while IFS='|' read -r scope_key entry; do
+                sort -t'|' -k1,1 "$file" | while IFS='|' read -r scope_key entry author author_email; do
                   # Clean scope for display (remove parentheses)
                   display_scope=""
                   if [[ "$scope_key" != "()" && -n "$scope_key" ]]; then
@@ -665,15 +668,23 @@ jobs:
                     current_scope="$scope_key"
                   fi
                   
-                  # Remove type and scope from entry since they're now in headers
-                  if [[ "$scope_key" != "()" && -n "$scope_key" ]]; then
-                    # Remove the entire **type(scope)**: part, keep only the description
-                    clean_entry=$(echo "$entry" | sed 's/\*\*[^:]*\*\*://')
-                  else
-                    # Remove the entire **type**: part, keep only the description  
-                    clean_entry=$(echo "$entry" | sed 's/\*\*[^:]*\*\*://')
+                  # Create GitHub user link if not a bot
+                  author_link=""
+                  if [[ "$author" != "github-actions[bot]" && -n "$author_email" && "$author_email" != *"@users.noreply.github.com" ]]; then
+                    # Try to extract GitHub username from email or use author name
+                    if [[ "$author_email" =~ ^([^@]+)@users\.noreply\.github\.com$ ]]; then
+                      github_username="${BASH_REMATCH[1]}"
+                      author_link=" by [@$github_username](https://github.com/$github_username)"
+                    else
+                      # Use author name as fallback, trying to create a reasonable GitHub link
+                      github_username=$(echo "$author" | tr '[:upper:]' '[:lower:]' | tr ' ' '')
+                      author_link=" by [@$author](https://github.com/$github_username)"
+                    fi
+                  elif [[ "$author" != "github-actions[bot]" ]]; then
+                    author_link=" by @$author"
                   fi
-                  echo "- $clean_entry" >> release_notes.md
+                  
+                  echo "- $entry$author_link" >> release_notes.md
                 done
               fi
             }
@@ -691,12 +702,33 @@ jobs:
             # Cleanup temp files
             rm -f "$temp_commits" "$temp_feat" "$temp_fix" "$temp_docs" "$temp_refactor" "$temp_test" "$temp_chore" "$temp_style" "$temp_other"
             
-            # Add contributors
+            # Add contributors with GitHub profile links
             echo "" >> release_notes.md
-            echo "### Contributors" >> release_notes.md
-            git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%an" | sort -u | while IFS= read -r author; do
+            echo "### 👥 Contributors" >> release_notes.md
+            
+            # Get unique contributors with their emails
+            git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%an|%ae" | sort -u | while IFS='|' read -r author author_email; do
               if [[ "$author" != "github-actions[bot]" ]]; then
-                echo "- $author" >> release_notes.md
+                # Try to create GitHub profile link
+                author_link=""
+                if [[ -n "$author_email" && "$author_email" =~ ^([^@]+)@users\.noreply\.github\.com$ ]]; then
+                  # GitHub no-reply email format
+                  github_username="${BASH_REMATCH[1]}"
+                  # Handle numeric GitHub usernames (e.g., 12345+username@users.noreply.github.com)
+                  if [[ "$github_username" =~ ^[0-9]+\+(.+)$ ]]; then
+                    github_username="${BASH_REMATCH[1]}"
+                  fi
+                  author_link="[@$github_username](https://github.com/$github_username)"
+                elif [[ -n "$author_email" && "$author_email" != *"@users.noreply.github.com" ]]; then
+                  # Try to guess GitHub username from author name
+                  github_username=$(echo "$author" | tr '[:upper:]' '[:lower:]' | tr ' ' '' | tr -d '.')
+                  author_link="[@$author](https://github.com/$github_username)"
+                else
+                  # Fallback to just author name
+                  author_link="$author"
+                fi
+                
+                echo "- $author_link" >> release_notes.md
               fi
             done
             
