@@ -474,10 +474,87 @@ jobs:
           set -euo pipefail
           
           TAG_NAME=${GITHUB_REF#refs/tags/}
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 $TAG_NAME^ 2>/dev/null || echo "")
+          CURRENT_TYPE="${{ needs.validate-tag.outputs.release_type }}"
+          CURRENT_IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
+          
+          # Smart previous tag selection based on release type transitions
+          echo "🔍 Determining appropriate comparison tag for $TAG_NAME (type: $CURRENT_TYPE)"
+          
+          # Parse current version components
+          if [[ $TAG_NAME =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
+            CURRENT_VERSION="${BASH_REMATCH[1]}"
+            CURRENT_PRERELEASE_LABEL="${BASH_REMATCH[3]}"
+            CURRENT_PRERELEASE_NUM="${BASH_REMATCH[4]}"
+          else
+            echo "❌ Could not parse current tag format"
+            exit 1
+          fi
+          
+          # Get all tags for analysis
+          ALL_TAGS=$(git tag -l "v*" --sort=-version:refname)
+          
+          # Find appropriate comparison tag based on transition logic
+          PREVIOUS_TAG=""
+          
+          if [[ "$CURRENT_IS_PRERELEASE" == "true" ]]; then
+            # Current is pre-release (alpha/beta/rc)
+            case "$CURRENT_TYPE" in
+              "alpha")
+                # alpha.X: Compare to last stable version (type change) or last alpha (rolling same type)
+                LAST_ALPHA=$(echo "$ALL_TAGS" | grep -E "^v$CURRENT_VERSION-alpha\." | head -n2 | tail -n1)
+                LAST_STABLE=$(echo "$ALL_TAGS" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n1)
+                
+                if [[ -n "$LAST_ALPHA" && "$LAST_ALPHA" != "$TAG_NAME" ]]; then
+                  PREVIOUS_TAG="$LAST_ALPHA"
+                  echo "📝 Rolling alpha release - comparing to last alpha: $PREVIOUS_TAG"
+                else
+                  PREVIOUS_TAG="$LAST_STABLE"
+                  echo "📝 First alpha for version - comparing to last stable: $PREVIOUS_TAG"
+                fi
+                ;;
+              "beta")
+                # beta.X: Compare to last stable version (type change from stable->beta) or last beta (rolling same type)
+                LAST_BETA=$(echo "$ALL_TAGS" | grep -E "^v$CURRENT_VERSION-beta\." | head -n2 | tail -n1)
+                LAST_STABLE=$(echo "$ALL_TAGS" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n1)
+                
+                if [[ -n "$LAST_BETA" && "$LAST_BETA" != "$TAG_NAME" ]]; then
+                  PREVIOUS_TAG="$LAST_BETA"
+                  echo "📝 Rolling beta release - comparing to last beta: $PREVIOUS_TAG"
+                else
+                  PREVIOUS_TAG="$LAST_STABLE"
+                  echo "📝 First beta for version - comparing to last stable: $PREVIOUS_TAG"
+                fi
+                ;;
+              "rc")
+                # rc.X: Compare to last stable version (type change) or last rc (rolling same type)
+                LAST_RC=$(echo "$ALL_TAGS" | grep -E "^v$CURRENT_VERSION-rc\." | head -n2 | tail -n1)
+                LAST_STABLE=$(echo "$ALL_TAGS" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n1)
+                
+                if [[ -n "$LAST_RC" && "$LAST_RC" != "$TAG_NAME" ]]; then
+                  PREVIOUS_TAG="$LAST_RC"
+                  echo "📝 Rolling RC release - comparing to last RC: $PREVIOUS_TAG"
+                else
+                  PREVIOUS_TAG="$LAST_STABLE"
+                  echo "📝 First RC for version - comparing to last stable: $PREVIOUS_TAG"
+                fi
+                ;;
+            esac
+          else
+            # Current is stable release
+            LAST_STABLE=$(echo "$ALL_TAGS" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n2 | tail -n1)
+            
+            if [[ -n "$LAST_STABLE" && "$LAST_STABLE" != "$TAG_NAME" ]]; then
+              PREVIOUS_TAG="$LAST_STABLE"
+              echo "📝 Stable release - comparing to last stable: $PREVIOUS_TAG"
+            else
+              # Fallback to any previous tag
+              PREVIOUS_TAG=$(git describe --tags --abbrev=0 $TAG_NAME^ 2>/dev/null || echo "")
+              echo "📝 First stable release - comparing to: $PREVIOUS_TAG"
+            fi
+          fi
           
           if [[ -n "$PREVIOUS_TAG" ]]; then
-            echo "Generating release notes from $PREVIOUS_TAG to $TAG_NAME"
+            echo "✅ Generating release notes from $PREVIOUS_TAG to $TAG_NAME"
             
             # Create comprehensive release notes
             echo "## What's Changed" > release_notes.md
