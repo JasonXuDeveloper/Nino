@@ -490,8 +490,31 @@ jobs:
             exit 1
           fi
           
-          # Get all tags for analysis
+          # Get all successful releases (not just tags) to find the right comparison point
+          echo "🔍 Fetching successful releases from GitHub API..."
+          ALL_RELEASES=$(gh release list --limit 100 --json tagName,isPrerelease,isDraft --jq '[.[] | select(.isDraft == false)] | sort_by(.tagName) | reverse | .[].tagName')
+          
+          # Also get all tags for fallback
           ALL_TAGS=$(git tag -l "v*" --sort=-version:refname)
+          
+          # Function to find last successful release of a given type
+          find_last_successful_release() {
+            local pattern="$1"
+            local exclude_current="$2"
+            
+            for tag in $ALL_RELEASES; do
+              if [[ "$exclude_current" == "true" && "$tag" == "$TAG_NAME" ]]; then
+                continue
+              fi
+              if [[ $tag =~ $pattern ]]; then
+                echo "$tag"
+                return 0
+              fi
+            done
+            
+            # Fallback to tags if no release found
+            echo "$ALL_TAGS" | grep -E "$pattern" | head -n1
+          }
           
           # Find appropriate comparison tag based on transition logic
           PREVIOUS_TAG=""
@@ -500,52 +523,52 @@ jobs:
             # Current is pre-release (alpha/beta/rc)
             case "$CURRENT_TYPE" in
               "alpha")
-                # alpha.X: Compare to last stable version (type change) or last alpha (rolling same type)
-                LAST_ALPHA=$(echo "$ALL_TAGS" | grep -E "^v$CURRENT_VERSION-alpha\." | head -n2 | tail -n1)
-                LAST_STABLE=$(echo "$ALL_TAGS" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n1)
+                # alpha.X: Compare to last successful alpha release or last stable release
+                LAST_ALPHA=$(find_last_successful_release "^v$CURRENT_VERSION-alpha\." true)
+                LAST_STABLE=$(find_last_successful_release "^v[0-9]+\.[0-9]+\.[0-9]+$" false)
                 
-                if [[ -n "$LAST_ALPHA" && "$LAST_ALPHA" != "$TAG_NAME" ]]; then
+                if [[ -n "$LAST_ALPHA" ]]; then
                   PREVIOUS_TAG="$LAST_ALPHA"
-                  echo "📝 Rolling alpha release - comparing to last alpha: $PREVIOUS_TAG"
+                  echo "📝 Rolling alpha release - comparing to last successful alpha: $PREVIOUS_TAG"
                 else
                   PREVIOUS_TAG="$LAST_STABLE"
-                  echo "📝 First alpha for version - comparing to last stable: $PREVIOUS_TAG"
+                  echo "📝 First alpha for version - comparing to last successful stable: $PREVIOUS_TAG"
                 fi
                 ;;
               "beta")
-                # beta.X: Compare to last stable version (type change from stable->beta) or last beta (rolling same type)
-                LAST_BETA=$(echo "$ALL_TAGS" | grep -E "^v$CURRENT_VERSION-beta\." | head -n2 | tail -n1)
-                LAST_STABLE=$(echo "$ALL_TAGS" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n1)
+                # beta.X: Compare to last successful beta release or last stable release
+                LAST_BETA=$(find_last_successful_release "^v$CURRENT_VERSION-beta\." true)
+                LAST_STABLE=$(find_last_successful_release "^v[0-9]+\.[0-9]+\.[0-9]+$" false)
                 
-                if [[ -n "$LAST_BETA" && "$LAST_BETA" != "$TAG_NAME" ]]; then
+                if [[ -n "$LAST_BETA" ]]; then
                   PREVIOUS_TAG="$LAST_BETA"
-                  echo "📝 Rolling beta release - comparing to last beta: $PREVIOUS_TAG"
+                  echo "📝 Rolling beta release - comparing to last successful beta: $PREVIOUS_TAG"
                 else
                   PREVIOUS_TAG="$LAST_STABLE"
-                  echo "📝 First beta for version - comparing to last stable: $PREVIOUS_TAG"
+                  echo "📝 First beta for version - comparing to last successful stable: $PREVIOUS_TAG"
                 fi
                 ;;
               "rc")
-                # rc.X: Compare to last stable version (type change) or last rc (rolling same type)
-                LAST_RC=$(echo "$ALL_TAGS" | grep -E "^v$CURRENT_VERSION-rc\." | head -n2 | tail -n1)
-                LAST_STABLE=$(echo "$ALL_TAGS" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n1)
+                # rc.X: Compare to last successful RC release or last stable release
+                LAST_RC=$(find_last_successful_release "^v$CURRENT_VERSION-rc\." true)
+                LAST_STABLE=$(find_last_successful_release "^v[0-9]+\.[0-9]+\.[0-9]+$" false)
                 
-                if [[ -n "$LAST_RC" && "$LAST_RC" != "$TAG_NAME" ]]; then
+                if [[ -n "$LAST_RC" ]]; then
                   PREVIOUS_TAG="$LAST_RC"
-                  echo "📝 Rolling RC release - comparing to last RC: $PREVIOUS_TAG"
+                  echo "📝 Rolling RC release - comparing to last successful RC: $PREVIOUS_TAG"
                 else
                   PREVIOUS_TAG="$LAST_STABLE"
-                  echo "📝 First RC for version - comparing to last stable: $PREVIOUS_TAG"
+                  echo "📝 First RC for version - comparing to last successful stable: $PREVIOUS_TAG"
                 fi
                 ;;
             esac
           else
-            # Current is stable release
-            LAST_STABLE=$(echo "$ALL_TAGS" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n2 | tail -n1)
+            # Current is stable release - compare to last successful stable release
+            LAST_STABLE=$(find_last_successful_release "^v[0-9]+\.[0-9]+\.[0-9]+$" true)
             
-            if [[ -n "$LAST_STABLE" && "$LAST_STABLE" != "$TAG_NAME" ]]; then
+            if [[ -n "$LAST_STABLE" ]]; then
               PREVIOUS_TAG="$LAST_STABLE"
-              echo "📝 Stable release - comparing to last stable: $PREVIOUS_TAG"
+              echo "📝 Stable release - comparing to last successful stable: $PREVIOUS_TAG"
             else
               # Fallback to any previous tag
               PREVIOUS_TAG=$(git describe --tags --abbrev=0 $TAG_NAME^ 2>/dev/null || echo "")
@@ -768,6 +791,8 @@ jobs:
             cat release_notes.md
             echo 'EOF'
           } >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Create Release
         id: create_release
