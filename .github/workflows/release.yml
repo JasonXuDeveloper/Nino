@@ -677,7 +677,7 @@ jobs:
                       author_link=" by [@$github_username](https://github.com/$github_username)"
                     else
                       # Use author name as fallback, trying to create a reasonable GitHub link
-                      github_username=$(echo "$author" | tr '[:upper:]' '[:lower:]' | tr ' ' '')
+                      github_username=$(echo "$author" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
                       author_link=" by [@$author](https://github.com/$github_username)"
                     fi
                   elif [[ "$author" != "github-actions[bot]" ]]; then
@@ -721,7 +721,7 @@ jobs:
                   author_link="[@$github_username](https://github.com/$github_username)"
                 elif [[ -n "$author_email" && "$author_email" != *"@users.noreply.github.com" ]]; then
                   # Try to guess GitHub username from author name
-                  github_username=$(echo "$author" | tr '[:upper:]' '[:lower:]' | tr ' ' '' | tr -d '.')
+                  github_username=$(echo "$author" | tr '[:upper:]' '[:lower:]' | tr -d ' .' )
                   author_link="[@$author](https://github.com/$github_username)"
                 else
                   # Fallback to just author name
