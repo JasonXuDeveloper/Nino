@@ -411,6 +411,21 @@ namespace Nino.UnitTests
             Assert.AreEqual(tuple4.Item1.Y, result4.Item1.Y);
             Assert.AreEqual(tuple4.Item2.Item1, result4.Item2.Item1);
             Assert.AreEqual(tuple4.Item2.Item2, result4.Item2.Item2);
+            
+            List<(int a,int b)> lst1 = new List<(int a, int b)>
+            {
+                (1, 2),
+                (3, 4)
+            };
+            bytes = NinoSerializer.Serialize(lst1);
+            Assert.IsNotNull(bytes);
+            List<(int aa, int bb)> result5 = NinoDeserializer.Deserialize<List<(int aa, int bb)>>(bytes);
+            Assert.AreEqual(lst1.Count, result5.Count);
+            for (int i = 0; i < lst1.Count; i++)
+            {
+                Assert.AreEqual(lst1[i].a, result5[i].aa);
+                Assert.AreEqual(lst1[i].b, result5[i].bb);
+            }
         }
 
         [TestMethod]

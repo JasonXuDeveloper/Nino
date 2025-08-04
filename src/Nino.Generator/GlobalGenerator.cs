@@ -66,9 +66,9 @@ public class GlobalGenerator : IIncrementalGenerator
             allNinoRequiredTypes!.MergeTypes(collectionTypes.Select(syntax => syntax.GetTypeSymbol(compilation))
                 .ToList());
         potentialTypesLst.Sort((x, y) =>
-            string.Compare(x.GetDisplayString(), y.GetDisplayString(), StringComparison.Ordinal));
+            string.Compare(x.GetSanitizedDisplayString(), y.GetSanitizedDisplayString(), StringComparison.Ordinal));
         var potentialTypes = new HashSet<ITypeSymbol>
-                (potentialTypesLst, SymbolEqualityComparer.Default)
+                (potentialTypesLst, new NinoTypeHelper.TupleSanitizedEqualityComparer())
             .ToList();
 
         var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation)
@@ -101,4 +101,5 @@ public class GlobalGenerator : IIncrementalGenerator
         new SerializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc);
         new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc);
     }
+
 }

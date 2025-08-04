@@ -657,4 +657,98 @@ public static class NinoTypeHelper
 
         return typeSymbol.GetDisplayString();
     }
+
+    /// <summary>
+    /// Gets the normalized type symbol for tuple types, using TupleUnderlyingType to ignore field names.
+    /// This ensures that (int a, int b) and (int aa, int bb) are treated as the same type.
+    /// Also recursively normalizes type arguments (e.g., List&lt;(int a, int b)&gt; becomes List&lt;ValueTuple&lt;int, int&gt;&gt;).
+    /// </summary>
+    public static ITypeSymbol GetNormalizedTypeSymbol(this ITypeSymbol typeSymbol)
+    {
+        if (typeSymbol is INamedTypeSymbol namedType)
+        {
+            // For tuple types, use the underlying type which ignores field names
+            if (typeSymbol.IsTupleType)
+            {
+                return namedType.TupleUnderlyingType ?? typeSymbol;
+            }
+
+            // For generic types, recursively normalize type arguments
+            if (namedType.TypeArguments.Length > 0)
+            {
+                var normalizedArgs = namedType.TypeArguments.Select(GetNormalizedTypeSymbol).ToArray();
+                
+                // Check if any type arguments were actually normalized
+                bool hasChanges = false;
+                for (int i = 0; i < namedType.TypeArguments.Length; i++)
+                {
+                    if (!SymbolEqualityComparer.Default.Equals(namedType.TypeArguments[i], normalizedArgs[i]))
+                    {
+                        hasChanges = true;
+                        break;
+                    }
+                }
+
+                // If type arguments were normalized, construct a new generic type with normalized arguments
+                if (hasChanges)
+                {
+                    return namedType.ConstructedFrom.Construct(normalizedArgs);
+                }
+            }
+        }
+
+        // For array types, normalize the element type
+        if (typeSymbol is IArrayTypeSymbol arrayType)
+        {
+            var normalizedElement = GetNormalizedTypeSymbol(arrayType.ElementType);
+            if (!SymbolEqualityComparer.Default.Equals(arrayType.ElementType, normalizedElement))
+            {
+                // Create a new array type with the normalized element type
+                // Note: This is more complex - for now, let's just return the original for arrays
+                // Array types with tuple elements are less common in the typical use case
+                return typeSymbol;
+            }
+        }
+
+        return typeSymbol;
+    }
+
+    /// <summary>
+    /// Gets the display string for comparison, using normalized tuple types.
+    /// </summary>
+    public static string GetSanitizedDisplayString(this ITypeSymbol typeSymbol)
+    {
+        return GetNormalizedTypeSymbol(typeSymbol).GetDisplayString();
+    }
+
+    /// <summary>
+    /// Custom equality comparer that treats tuple types with the same type arguments as equal,
+    /// regardless of field names, using Roslyn's TupleUnderlyingType.
+    /// </summary>
+    public class TupleSanitizedEqualityComparer : IEqualityComparer<ITypeSymbol>
+    {
+#nullable disable
+        public bool Equals(ITypeSymbol x, ITypeSymbol y)
+        {
+            if (ReferenceEquals(x, y)) return true;
+            if (x is null || y is null) return false;
+
+            // Normalize both types to handle tuple field names
+            var normalizedX = x.GetNormalizedTypeSymbol();
+            var normalizedY = y.GetNormalizedTypeSymbol();
+
+            // Use default symbol equality on normalized types
+            return SymbolEqualityComparer.Default.Equals(normalizedX, normalizedY);
+        }
+
+        public int GetHashCode(ITypeSymbol obj)
+        {
+            if (obj is null) return 0;
+
+            // Use hash code of normalized type
+            var normalized = obj.GetNormalizedTypeSymbol();
+            return SymbolEqualityComparer.Default.GetHashCode(normalized);
+        }
+#nullable restore
+    }
 }
