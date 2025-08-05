@@ -26,6 +26,45 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
+        public class Issue153:IssueTestTemplate
+        {
+            public class ListComponent<T>: List<T>, IDisposable
+            {
+                public ListComponent()
+                {
+                }
+        
+                public static ListComponent<T> Create()
+                {
+                    return new();
+                }
+
+                public void Dispose()
+                {
+                    if (Capacity > 64) 
+                    {
+                        return;
+                    }
+                    Clear();
+                }
+            }
+            
+            protected override void RunTest()
+            {
+                var list = ListComponent<int>.Create();
+                list.Add(1);
+                list.Add(2);
+                list.Add(3);
+                var bytes = NinoSerializer.Serialize(list);
+                ListComponent<int> list2 = NinoDeserializer.Deserialize<ListComponent<int>>(bytes);
+                Assert.AreEqual(list.Count, list2.Count);
+                Assert.AreEqual(list[0], list2[0]);
+                Assert.AreEqual(list[1], list2[1]);
+                Assert.AreEqual(list[2], list2[2]);
+            }
+        }
+
+        [TestClass]
 #nullable disable
         public class Issue145 : IssueTestTemplate
         {

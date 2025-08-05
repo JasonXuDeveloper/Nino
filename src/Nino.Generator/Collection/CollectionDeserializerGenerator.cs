@@ -118,7 +118,8 @@ public class CollectionDeserializerGenerator(
         });
     };
 
-    private string GetDeserializeString(ITypeSymbol type, bool assigned, string value, string reader = "reader", string? deserializerVar = null)
+    private string GetDeserializeString(ITypeSymbol type, bool assigned, string value, string reader = "reader",
+        string? deserializerVar = null)
     {
         var typeFullName = assigned ? "" : $" {type.GetDisplayString()}";
 
@@ -140,10 +141,11 @@ public class CollectionDeserializerGenerator(
         return $"NinoDeserializer.Deserialize(out{typeFullName} {value}, ref {reader});";
     }
 
-    private void GenerateCachedDeserializers(HashSet<ITypeSymbol> types, Writer sb, out Dictionary<string, string> deserializerVars)
+    private void GenerateCachedDeserializers(HashSet<ITypeSymbol> types, Writer sb,
+        out Dictionary<string, string> deserializerVars)
     {
         deserializerVars = new Dictionary<string, string>();
-        
+
         foreach (var type in types)
         {
             // Skip unmanaged types - they don't need cached deserializers
@@ -156,16 +158,16 @@ public class CollectionDeserializerGenerator(
             var typeName = typeDisplayName
                 .Replace("global::", "")
                 .ToLower()
-                .Replace("[]", "_array")  // Handle arrays specifically before general replacement
-                .Replace("<", "_of_")     // Handle generics more clearly
+                .Replace("[]", "_array") // Handle arrays specifically before general replacement
+                .Replace("<", "_of_") // Handle generics more clearly
                 .Replace(">", "_")
-                .Replace(", ", "_and_")   // Handle multiple generic parameters
+                .Replace(", ", "_and_") // Handle multiple generic parameters
                 .Select(c => char.IsLetterOrDigit(c) ? c : '_')
                 .Aggregate("", (current, c) => current + c)
-                .Replace("___", "_")      // Clean up multiple underscores
-                .Replace("__", "_");      // Clean up double underscores
+                .Replace("___", "_") // Clean up multiple underscores
+                .Replace("__", "_"); // Clean up double underscores
             var varName = $"deserializer_{typeName}";
-            
+
             // Handle potential duplicates by adding a counter
             var originalVarName = varName;
             int counter = 1;
@@ -174,11 +176,11 @@ public class CollectionDeserializerGenerator(
                 varName = $"{originalVarName}_{counter}";
                 counter++;
             }
-            
+
             deserializerVars[typeDisplayName] = varName;
             sb.AppendLine($"    var {varName} = CachedDeserializer<{typeDisplayName}>.Instance;");
         }
-        
+
         if (deserializerVars.Count > 0)
         {
             sb.AppendLine();
@@ -240,10 +242,10 @@ public class CollectionDeserializerGenerator(
                 sb.AppendLine("? value, ref Reader reader)");
                 sb.AppendLine("{");
                 EofCheck(sb);
-                
+
                 // Generate cached deserializers
                 GenerateCachedDeserializers(typesNeedingDeserializers, sb, out var deserializerVars);
-                
+
                 sb.AppendLine("    reader.Read(out bool hasValue);");
                 sb.AppendLine("    if (!hasValue)");
                 sb.AppendLine("    {");
@@ -251,7 +253,7 @@ public class CollectionDeserializerGenerator(
                 sb.AppendLine("        return;");
                 sb.AppendLine("    }");
                 sb.AppendLine();
-                
+
                 var deserializerVar = GetCachedDeserializerVar(elementType, deserializerVars);
                 sb.Append("    ");
                 sb.AppendLine(GetDeserializeString(elementType, false, "ret", "reader", deserializerVar));
@@ -328,7 +330,7 @@ public class CollectionDeserializerGenerator(
                 sb.AppendLine(" value, ref Reader reader)");
                 sb.AppendLine("{");
                 EofCheck(sb);
-                
+
                 if (isUnmanaged)
                 {
                     sb.AppendLine("    reader.Read(out value);");
@@ -338,7 +340,7 @@ public class CollectionDeserializerGenerator(
                 {
                     // Generate cached deserializers for non-unmanaged types
                     GenerateCachedDeserializers(typesNeedingDeserializers, sb, out var deserializerVars);
-                    
+
                     sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
                     sb.AppendLine("    {");
                     sb.AppendLine("        value = null;");
@@ -355,17 +357,19 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("    var span = value.AsSpan();");
                     sb.AppendLine("    for (int i = 0; i < length; i++)");
                     sb.AppendLine("    {");
-                    
+
                     var deserializerVar = GetCachedDeserializerVar(elementType, deserializerVars);
                     IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w =>
                         {
                             w.AppendLine("        eleReader = reader.Slice();");
-                            w.AppendLine($"        {GetDeserializeString(elementType, true, "span[i]", "eleReader", deserializerVar)}");
+                            w.AppendLine(
+                                $"        {GetDeserializeString(elementType, true, "span[i]", "eleReader", deserializerVar)}");
                         },
                         w =>
                         {
-                            w.AppendLine($"        {GetDeserializeString(elementType, true, "span[i]", "reader", deserializerVar)}");
+                            w.AppendLine(
+                                $"        {GetDeserializeString(elementType, true, "span[i]", "reader", deserializerVar)}");
                         });
                     sb.AppendLine("    }");
                     sb.AppendLine("}");
@@ -389,7 +393,7 @@ public class CollectionDeserializerGenerator(
                 {
                     // Generate cached deserializers for ref overload too
                     GenerateCachedDeserializers(typesNeedingDeserializers, sb, out var refDeserializerVars);
-                    
+
                     sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
                     sb.AppendLine("    {");
                     sb.AppendLine("        value = null;");
@@ -415,7 +419,7 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("    var span = value.AsSpan();");
                     sb.AppendLine("    for (int i = 0; i < length; i++)");
                     sb.AppendLine("    {");
-                    
+
                     var refDeserializerVar = GetCachedDeserializerVar(elementType, refDeserializerVars);
                     IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w =>
@@ -423,13 +427,15 @@ public class CollectionDeserializerGenerator(
                             w.AppendLine("        eleReader = reader.Slice();");
                             w.Append("    ");
                             w.Append("    ");
-                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "eleReader", refDeserializerVar));
+                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "eleReader",
+                                refDeserializerVar));
                         },
                         w =>
                         {
                             w.Append("    ");
                             w.Append("    ");
-                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "reader", refDeserializerVar));
+                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "reader",
+                                refDeserializerVar));
                         });
                     sb.AppendLine("    }");
                     sb.AppendLine("}");
@@ -1161,19 +1167,28 @@ public class CollectionDeserializerGenerator(
                 return true;
             }
         ),
-        // trivial unmanaged IList Ninotypes
+        // trivial unmanaged List Ninotypes
         new
         (
-            "TrivialUnmanagedIList",
+            "TrivialUnmanagedList",
             new Joint().With
             (
-                new Interface("IList<T>"),
+                new Interface("List<T>"),
                 new TypeArgument(0, symbol => symbol.IsUnmanagedType),
                 new Not(new NonTrivial("IList", "List", "List")),
                 new Not(new Array())
             ),
             (symbol, sb) =>
             {
+                // must be a List<T> with unmanaged T
+                INamedTypeSymbol listSymbol = (INamedTypeSymbol)symbol;
+                var elemType = listSymbol.TypeArguments[0];
+                if (!elemType.IsUnmanagedType ||
+                    elemType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T) return false;
+                // list symbol must be a List<T>
+                if (listSymbol.OriginalDefinition.ToDisplayString() != "System.Collections.Generic.List<T>")
+                    return false;
+
                 sb.AppendLine(Inline);
                 sb.Append("public static void Deserialize(out ");
                 sb.Append(symbol.GetDisplayString());
@@ -1219,10 +1234,17 @@ public class CollectionDeserializerGenerator(
                                       i.OriginalDefinition.ToDisplayString().EndsWith("IEnumerable<T>"))
                                   ?? namedTypeSymbol;
                 var elemType = ienumSymbol.TypeArguments[0];
-                var typeDecl = $"System.Collections.Generic.List<{elemType.ToDisplayString()}>";
+                var typeDecl = namedTypeSymbol.TypeKind == TypeKind.Interface
+                    ? $"System.Collections.Generic.List<{elemType.ToDisplayString()}>"
+                    : namedTypeSymbol.ToDisplayString();
+
                 bool isUnmanaged = elemType.IsUnmanagedType &&
                                    elemType.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T;
-                var creationDecl = "new " + typeDecl + "(length)";
+
+                var hasPublicLengthCtor = namedTypeSymbol.Constructors
+                    .Any(c => c.Parameters.Length == 1 && c.Parameters[0].Type.SpecialType == SpecialType.System_Int32);
+
+                var creationDecl = "new " + typeDecl + (hasPublicLengthCtor ? "(length)" : "()");
 
                 // First method: Deserialize(out T value, ref Reader reader)
                 sb.AppendLine(Inline);
