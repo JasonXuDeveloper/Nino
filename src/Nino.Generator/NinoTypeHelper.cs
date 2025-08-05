@@ -151,6 +151,10 @@ public static class NinoTypeHelper
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
         this IncrementalGeneratorInitializationContext context)
     {
+        // Use "Nino.NinoTypeAttribute" - this is the actual working metadata name
+        // Even though the attribute is defined in namespace Nino.Core, the metadata name
+        // that works with ForAttributeWithMetadataName is "Nino.NinoTypeAttribute"
+        // Using "Nino.Core.NinoTypeAttribute" causes the provider to fail silently
         var ninoTypeAnnotatedTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Nino.NinoTypeAttribute",
             predicate: static (s, _) => s is TypeDeclarationSyntax,

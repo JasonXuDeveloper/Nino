@@ -6,13 +6,13 @@ namespace Nino.Core
 {
     public static class NinoTypeMetadata
     {
-        private static readonly FastMap<IntPtr, bool> HasBaseTypeMap = new();
+        private static readonly FastMap<long, bool> HasBaseTypeMap = new();
         private static readonly object Lock = new();
 
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static readonly FastMap<IntPtr, ICachedSerializer> Serializers = new();
+        public static readonly FastMap<long, ICachedSerializer> Serializers = new();
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static readonly FastMap<IntPtr, ICachedDeserializer> Deserializers = new();
+        public static readonly FastMap<long, ICachedDeserializer> Deserializers = new();
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static readonly FastMap<int, IntPtr> TypeIdToType = new();
 
@@ -22,9 +22,9 @@ namespace Nino.Core
             lock (Lock)
             {
                 if (hasBaseType)
-                    HasBaseTypeMap.Add(typeof(T).TypeHandle.Value, true);
+                    HasBaseTypeMap.Add(typeof(T).TypeHandle.Value.ToInt64(), true);
                 CachedSerializer<T>.Instance = new CachedSerializer<T>(serializer);
-                Serializers.Add(typeof(T).TypeHandle.Value, CachedSerializer<T>.Instance);
+                Serializers.Add(typeof(T).TypeHandle.Value.ToInt64(), CachedSerializer<T>.Instance);
             }
         }
 
@@ -35,20 +35,20 @@ namespace Nino.Core
             lock (Lock)
             {
                 if (hasBaseType)
-                    HasBaseTypeMap.Add(typeof(T).TypeHandle.Value, true);
+                    HasBaseTypeMap.Add(typeof(T).TypeHandle.Value.ToInt64(), true);
                 CachedDeserializer<T>.Instance = new CachedDeserializer<T>
                 {
                     Deserializer = deserializer,
                     DeserializerRef = deserializerRef
                 };
-                Deserializers.Add(typeof(T).TypeHandle.Value, CachedDeserializer<T>.Instance);
+                Deserializers.Add(typeof(T).TypeHandle.Value.ToInt64(), CachedDeserializer<T>.Instance);
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool HasBaseType(Type type)
         {
-            var typeHandle = type.TypeHandle.Value;
+            var typeHandle = type.TypeHandle.Value.ToInt64();
             return HasBaseTypeMap.TryGetValue(typeHandle, out _);
         }
 

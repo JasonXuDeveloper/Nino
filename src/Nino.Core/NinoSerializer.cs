@@ -144,10 +144,16 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void SerializeBoxed(object value, ref Writer writer, Type type)
         {
+            if (value == null)
+            {
+                writer.Write(TypeCollector.Null);
+                return;
+            }
+            
             if (type == null)
                 throw new ArgumentNullException(nameof(type), "Type cannot be null when serializing boxed objects.");
 
-            if (!NinoTypeMetadata.Serializers.TryGetValue(type.TypeHandle.Value, out var serializer))
+            if (!NinoTypeMetadata.Serializers.TryGetValue(type.TypeHandle.Value.ToInt64(), out var serializer))
             {
                 throw new Exception(
                     $"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");
@@ -192,7 +198,7 @@ namespace Nino.Core
     public class CachedSerializer<T> : ICachedSerializer
     {
         public readonly SerializeDelegate<T> Serializer;
-        public readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
+        public readonly FastMap<long, SerializeDelegate<T>> SubTypeSerializers = new();
 
         public CachedSerializer(SerializeDelegate<T> serializer)
         {
@@ -206,7 +212,7 @@ namespace Nino.Core
             RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
         // ReSharper disable once StaticMemberInGenericType
-        private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
+        private static readonly long TypeHandle = typeof(T).TypeHandle.Value.ToInt64();
 
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
@@ -220,13 +226,13 @@ namespace Nino.Core
             if (typeof(TSub).IsValueType)
             {
                 // cast TSub to T via boxing, T here must be interface, then add to the map
-                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
+                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value.ToInt64(), (T val, ref Writer writer) =>
                     serializer((TSub)(object)val, ref writer));
             }
             else
             {
                 // simply cast TSub to T directly, then add to the map
-                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
+                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value.ToInt64(), (T val, ref Writer writer) =>
                     serializer(Unsafe.As<T, TSub>(ref val), ref writer));
             }
         }
@@ -276,7 +282,7 @@ namespace Nino.Core
                 return;
             }
 
-            IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
+            long actualTypeHandle = val.GetType().TypeHandle.Value.ToInt64();
 
             // Check if it's the same type first (most common case)
             if (actualTypeHandle == TypeHandle)

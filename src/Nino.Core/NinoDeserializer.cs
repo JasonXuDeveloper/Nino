@@ -110,11 +110,19 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object DeserializeBoxed(ref Reader reader, Type type)
         {
+            // Check for null value first
+            reader.Peak(out int typeId);
+            if (typeId == TypeCollector.Null)
+            {
+                reader.Advance(4);
+                return null;
+            }
+            
             // Check if type is null
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
 
-            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
+            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value.ToInt64(), out var deserializer))
             {
                 throw new Exception(
                     $"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
@@ -126,11 +134,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void DeserializeRefBoxed(ref object val, ref Reader reader, Type type)
         {
+            // Check for null value first
+            reader.Peak(out int typeId);
+            if (typeId == TypeCollector.Null)
+            {
+                val = null;
+                reader.Advance(4);
+                return;
+            }
+            
             // Check if type is null
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
 
-            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
+            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value.ToInt64(), out var deserializer))
             {
                 throw new Exception(
                     $"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
@@ -195,8 +212,8 @@ namespace Nino.Core
     {
         public DeserializeDelegate<T> Deserializer;
         public DeserializeDelegateRef<T> DeserializerRef;
-        internal readonly FastMap<IntPtr, DeserializeDelegate<T>> SubTypeDeserializers = new();
-        internal readonly FastMap<IntPtr, DeserializeDelegateRef<T>> SubTypeDeserializerRefs = new();
+        internal readonly FastMap<long, DeserializeDelegate<T>> SubTypeDeserializers = new();
+        internal readonly FastMap<long, DeserializeDelegateRef<T>> SubTypeDeserializerRefs = new();
         public static CachedDeserializer<T> Instance = new();
 
         // Cache expensive type checks
@@ -204,7 +221,7 @@ namespace Nino.Core
             RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
         // ReSharper disable once StaticMemberInGenericType
-        private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
+        private static readonly long TypeHandle = typeof(T).TypeHandle.Value.ToInt64();
 
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
@@ -216,12 +233,12 @@ namespace Nino.Core
         public void AddSubTypeDeserializer<TSub>(DeserializeDelegate<TSub> deserializer,
             DeserializeDelegateRef<TSub> deserializerRef)
         {
-            SubTypeDeserializers.Add(typeof(TSub).TypeHandle.Value, (out T value, ref Reader reader) =>
+            SubTypeDeserializers.Add(typeof(TSub).TypeHandle.Value.ToInt64(), (out T value, ref Reader reader) =>
             {
                 deserializer(out TSub subValue, ref reader);
                 value = subValue is T val ? val : default;
             });
-            SubTypeDeserializerRefs.Add(typeof(TSub).TypeHandle.Value, (ref T value, ref Reader reader) =>
+            SubTypeDeserializerRefs.Add(typeof(TSub).TypeHandle.Value.ToInt64(), (ref T value, ref Reader reader) =>
             {
                 if (value is TSub val)
                 {
@@ -349,14 +366,14 @@ namespace Nino.Core
             }
 
             // Check same type first (most common case)
-            if (actualTypeHandle == TypeHandle)
+            if (actualTypeHandle.ToInt64() == TypeHandle)
             {
                 Deserializer(out value, ref reader);
                 return;
             }
 
             // Handle subtype with single lookup
-            if (SubTypeDeserializers.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
+            if (SubTypeDeserializers.TryGetValue(actualTypeHandle.ToInt64(), out var subTypeDeserializer))
             {
                 subTypeDeserializer(out value, ref reader);
                 return;
@@ -385,14 +402,14 @@ namespace Nino.Core
             }
 
             // Check if it's the same type (most common case)
-            if (actualTypeHandle == TypeHandle)
+            if (actualTypeHandle.ToInt64() == TypeHandle)
             {
                 DeserializerRef(ref value, ref reader);
                 return;
             }
 
             // Handle subtype deserialization
-            if (SubTypeDeserializerRefs.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
+            if (SubTypeDeserializerRefs.TryGetValue(actualTypeHandle.ToInt64(), out var subTypeDeserializer))
             {
                 subTypeDeserializer(ref value, ref reader);
                 return;
