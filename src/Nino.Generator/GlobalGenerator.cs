@@ -32,7 +32,7 @@ public class GlobalGenerator : IIncrementalGenerator
                 static (context, _) =>
                     context.Node switch
                     {
-                        GenericNameSyntax genericNameSyntax => (TypeSyntax)genericNameSyntax,
+                        GenericNameSyntax genericNameSyntax => genericNameSyntax,
                         ArrayTypeSyntax arrayTypeSyntax => arrayTypeSyntax,
                         StackAllocArrayCreationExpressionSyntax stackAllocArrayCreationExpressionSyntax =>
                             stackAllocArrayCreationExpressionSyntax.Type,
@@ -127,15 +127,15 @@ public class GlobalGenerator : IIncrementalGenerator
 
         // Execute generators with individual error boundaries and error reporting
         ExecuteGeneratorSafely(() => new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc), 
-            "TypeConstGenerator", spc);
+            nameof(TypeConstGenerator), spc);
         ExecuteGeneratorSafely(() => new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc), 
-            "UnsafeAccessorGenerator", spc);
+            nameof(UnsafeAccessorGenerator), spc);
         ExecuteGeneratorSafely(() => new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc), 
-            "PartialClassGenerator", spc);
+            nameof(PartialClassGenerator), spc);
         ExecuteGeneratorSafely(() => new SerializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc), 
-            "SerializerGenerator", spc);
+            nameof(SerializerGenerator), spc);
         ExecuteGeneratorSafely(() => new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc), 
-            "DeserializerGenerator", spc);
+            nameof(DeserializerGenerator), spc);
     }
     
     private static void ExecuteGeneratorSafely(Action generatorAction, string generatorName, SourceProductionContext spc)
