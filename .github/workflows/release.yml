@@ -248,18 +248,50 @@ jobs:
           done
           
           # Unity UPM handling: Unity doesn't support semantic pre-release format well
-          # For pre-releases, we append a preview suffix that Unity understands
+          # For pre-releases, we use an offset system to ensure proper version ordering
           if [[ "$IS_PRERELEASE" == "true" ]]; then
             RELEASE_TYPE="${{ needs.validate-tag.outputs.release_type }}"
-            # Convert semantic pre-release to Unity preview format
-            # v1.2.3-beta.1 -> 1.2.3-preview.1 (Unity understands -preview)
-            UNITY_VERSION="$VERSION-preview"
             
-            # Extract pre-release number if exists
+            # Extract pre-release number from the full version (e.g., alpha.1, beta.2, rc.3)
+            PRERELEASE_NUM=1
             if [[ "$FULL_VERSION" =~ -[a-zA-Z]+\.([0-9]+)$ ]]; then
-              PREVIEW_NUM="${BASH_REMATCH[1]}"
-              UNITY_VERSION="$VERSION-preview.$PREVIEW_NUM"
+              PRERELEASE_NUM="${BASH_REMATCH[1]}"
             fi
+            
+            # Calculate preview number with offsets:
+            # alpha: 0-99 (offset 0)
+            # beta: 100-199 (offset 100)
+            # rc: 200-299 (offset 200)
+            case "$RELEASE_TYPE" in
+              "alpha")
+                PREVIEW_NUM=$((PRERELEASE_NUM))
+                echo "Alpha release: using preview number $PREVIEW_NUM (0-99 range)"
+                ;;
+              "beta")
+                PREVIEW_NUM=$((100 + PRERELEASE_NUM))
+                echo "Beta release: using preview number $PREVIEW_NUM (100-199 range)"
+                ;;
+              "rc")
+                PREVIEW_NUM=$((200 + PRERELEASE_NUM))
+                echo "RC release: using preview number $PREVIEW_NUM (200-299 range)"
+                ;;
+              *)
+                echo "Unknown release type: $RELEASE_TYPE, defaulting to preview number 1"
+                PREVIEW_NUM=1
+                ;;
+            esac
+            
+            # Ensure we don't exceed the range (max 99 versions per type)
+            if [[ $PRERELEASE_NUM -gt 99 ]]; then
+              echo "Warning: Pre-release number $PRERELEASE_NUM exceeds 99, capping at 99"
+              case "$RELEASE_TYPE" in
+                "alpha") PREVIEW_NUM=99 ;;
+                "beta") PREVIEW_NUM=199 ;;
+                "rc") PREVIEW_NUM=299 ;;
+              esac
+            fi
+            
+            UNITY_VERSION="$VERSION-preview.$PREVIEW_NUM"
             
             sed -i "s/\"version\": \"[^\"]*\",/\"version\": \"$UNITY_VERSION\",/" src/Nino.Unity/Packages/com.jasonxudeveloper.nino/package.json
             echo "Updated Unity package.json to preview version: $UNITY_VERSION"
