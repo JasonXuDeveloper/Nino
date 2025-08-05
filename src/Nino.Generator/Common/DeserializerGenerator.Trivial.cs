@@ -16,41 +16,11 @@ public partial class DeserializerGenerator
         var sb = new StringBuilder();
         sb.GenerateClassDeserializeMethods("string");
         HashSet<string> generatedTypeNames = new();
-        HashSet<ITypeSymbol> validTypeNames = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
-        foreach (var type in validTypes)
-        {
-            validTypeNames.Add(type);
-        }
 
         foreach (var ninoType in NinoTypes)
         {
             try
             {
-                if (ninoType.TypeSymbol is INamedTypeSymbol namedType && namedType.IsGenericType)
-                {
-                    if (namedType.TypeArguments.Any(t => !ValidType(t, validTypeNames)))
-                    {
-                        continue;
-                    }
-                }
-
-                if (!ninoType.TypeSymbol.IsUnmanagedType)
-                {
-                    foreach (var member in ninoType.Members)
-                    {
-                        if (ValidType(member.Type, validTypeNames)) continue;
-
-                        // Report as Info to avoid false positives in IDE - if build succeeds, type is valid
-                        spc.ReportDiagnostic(Diagnostic.Create(
-                            new DiagnosticDescriptor("NINO001", "Nino Generator",
-                                "Type '{0}' in '{1}' may require custom deserialization support",
-                                "Nino.Generator",
-                                DiagnosticSeverity.Info, true),
-                            member.MemberSymbol.Locations.First(),
-                            member.Type.GetDisplayString(), ninoType.TypeSymbol.GetDisplayString()));
-                    }
-                }
-
                 if (!generatedTypes.Add(ninoType.TypeSymbol))
                     continue;
                 if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))

@@ -9,7 +9,7 @@ public class NinoGraph
 {
     public Dictionary<NinoType, List<NinoType>> BaseTypes { get; set; } = new();
     public Dictionary<NinoType, List<NinoType>> SubTypes { get; set; } = new();
-    public List<NinoType> TopTypes { get; set; } = new();
+    public HashSet<NinoType> TopTypes { get; set; } = new();
     public HashSet<NinoType> CircularTypes { get; set; } = new();
     public Dictionary<string, NinoType> TypeMap { get; set; } = new();
 
@@ -17,10 +17,10 @@ public class NinoGraph
     {
         foreach (var ninoType in ninoTypes)
         {
-            TypeMap.Add(ninoType.TypeSymbol.GetDisplayString(), ninoType);
-            
+            TypeMap[ninoType.TypeSymbol.GetDisplayString()] = ninoType;
+
             List<NinoType> baseTypes = new();
-            BaseTypes.Add(ninoType, baseTypes);
+            BaseTypes[ninoType] = baseTypes;
 
             // find base types
             void TraverseBaseTypes(NinoType type)

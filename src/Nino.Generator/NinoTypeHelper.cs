@@ -156,7 +156,7 @@ public static class NinoTypeHelper
         // that works with ForAttributeWithMetadataName is "Nino.NinoTypeAttribute"
         // Using "Nino.Core.NinoTypeAttribute" causes the provider to fail silently
         var ninoTypeAnnotatedTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
-            "Nino.NinoTypeAttribute",
+            "Nino.Core.NinoTypeAttribute",
             predicate: static (s, _) => s is TypeDeclarationSyntax,
             transform: static (ctx, _) => (CSharpSyntaxNode)ctx.TargetNode);
 
@@ -246,8 +246,7 @@ public static class NinoTypeHelper
                 typeSymbols.Add(typeSymbol.GetPureType());
         }
 
-        foreach (var syntax in GetAllNinoRequiredTypes(syntaxes.Select(s => (TypeSyntax)s).ToImmutableArray()
-                     , compilation))
+        foreach (var syntax in GetAllNinoRequiredTypes(syntaxes.ToImmutableArray(), compilation))
         {
             if (syntax != null && syntax.IsNinoType()
                                && syntax is not ITypeParameterSymbol
@@ -258,7 +257,7 @@ public static class NinoTypeHelper
         return typeSymbols.ToList();
     }
 
-    public static List<ITypeSymbol> GetAllNinoRequiredTypes(this ImmutableArray<TypeSyntax> syntaxes,
+    public static List<ITypeSymbol> GetAllNinoRequiredTypes(this ImmutableArray<CSharpSyntaxNode> syntaxes,
         Compilation compilation)
     {
         HashSet<INamedTypeSymbol> validTypes = new(SymbolEqualityComparer.Default);
@@ -287,21 +286,23 @@ public static class NinoTypeHelper
         HashSet<ITypeSymbol> ret = new(SymbolEqualityComparer.Default);
         foreach (var typeSymbol in validTypes)
         {
-            ret.Add(typeSymbol.GetPureType());
-            var members = typeSymbol.GetMembers();
-            foreach (var member in members)
+            if (ret.Add(typeSymbol.GetPureType()))
             {
-                switch (member)
+                var members = typeSymbol.GetMembers();
+                foreach (var member in members)
                 {
-                    case IFieldSymbol fieldSymbol:
-                        ret.Add(fieldSymbol.Type.GetPureType());
-                        break;
-                    case IPropertySymbol propertySymbol:
-                        ret.Add(propertySymbol.Type.GetPureType());
-                        break;
-                    case IParameterSymbol parameterSymbol:
-                        ret.Add(parameterSymbol.Type.GetPureType());
-                        break;
+                    switch (member)
+                    {
+                        case IFieldSymbol fieldSymbol:
+                            ret.Add(fieldSymbol.Type.GetPureType());
+                            break;
+                        case IPropertySymbol propertySymbol:
+                            ret.Add(propertySymbol.Type.GetPureType());
+                            break;
+                        case IParameterSymbol parameterSymbol:
+                            ret.Add(parameterSymbol.Type.GetPureType());
+                            break;
+                    }
                 }
             }
         }
@@ -328,16 +329,16 @@ public static class NinoTypeHelper
 
     private static void AddArrayElementType(IArrayTypeSymbol symbol, HashSet<ITypeSymbol> ret)
     {
-        ret.Add(symbol.ElementType.GetPureType());
-        AddElementRecursively(symbol.ElementType.GetPureType(), ret);
+        if (ret.Add(symbol.ElementType.GetPureType()))
+            AddElementRecursively(symbol.ElementType.GetPureType(), ret);
     }
 
     private static void AddTypeArguments(INamedTypeSymbol symbol, HashSet<ITypeSymbol> ret)
     {
         foreach (var typeArgument in symbol.TypeArguments)
         {
-            ret.Add(typeArgument.GetPureType());
-            AddElementRecursively(typeArgument, ret);
+            if (ret.Add(typeArgument.GetPureType()))
+                AddElementRecursively(typeArgument, ret);
         }
     }
 
@@ -693,7 +694,7 @@ public static class NinoTypeHelper
             if (namedType.TypeArguments.Length > 0)
             {
                 var normalizedArgs = namedType.TypeArguments.Select(GetNormalizedTypeSymbol).ToArray();
-                
+
                 // Check if any type arguments were actually normalized
                 bool hasChanges = false;
                 for (int i = 0; i < namedType.TypeArguments.Length; i++)

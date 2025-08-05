@@ -20,7 +20,7 @@ public class GlobalGenerator : IIncrementalGenerator
         var ninoTypeModels = context.GetTypeSyntaxes()
             .Where(static syntax => syntax != null)
             .Collect();
-            
+
         var compilationAndClasses = context.CompilationProvider.Combine(ninoTypeModels);
 
         // Register the syntax receiver with stable equality
@@ -53,10 +53,10 @@ public class GlobalGenerator : IIncrementalGenerator
             var compilation = source.Left.Left;
             var collectionTypes = source.Left.Right;
             var syntaxes = source.Right.Right;
-            
+
             // Add stability check
             if (compilation == null) return;
-            
+
             try
             {
                 ExecuteWithStability(compilation, syntaxes, collectionTypes, spc);
@@ -85,7 +85,8 @@ public class GlobalGenerator : IIncrementalGenerator
         if (syntaxes.IsDefault) syntaxes = ImmutableArray<CSharpSyntaxNode>.Empty;
         if (collectionTypes.IsDefault) collectionTypes = ImmutableArray<TypeSyntax>.Empty;
 
-        var allNinoRequiredTypes = collectionTypes.GetAllNinoRequiredTypes(compilation);
+        var allNinoRequiredTypes = collectionTypes.Cast<CSharpSyntaxNode>().ToImmutableArray()
+            .GetAllNinoRequiredTypes(compilation);
         var potentialTypesLst =
             allNinoRequiredTypes!.MergeTypes(collectionTypes.Select(syntax => syntax.GetTypeSymbol(compilation))
                 .ToList());
@@ -95,8 +96,22 @@ public class GlobalGenerator : IIncrementalGenerator
                 (potentialTypesLst, new NinoTypeHelper.TupleSanitizedEqualityComparer())
             .ToList();
 
-        var ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation)
-            .ToList();
+        List<ITypeSymbol> ninoSymbols;
+        try
+        {
+            ninoSymbols = syntaxes.GetNinoTypeSymbols(compilation)
+                .ToList();
+        }
+        catch (Exception e)
+        {
+            // Report error but don't fail generation
+            spc.ReportDiagnostic(Diagnostic.Create(
+                new DiagnosticDescriptor("NINO999", "Nino Generator Error",
+                    $"Failed to get Nino type symbols: {e.Message}",
+                    "Nino.Generator",
+                    DiagnosticSeverity.Error, true), Location.None));
+            return;
+        }
 
         NinoGraph graph;
         List<NinoType> ninoTypes;
@@ -104,7 +119,7 @@ public class GlobalGenerator : IIncrementalGenerator
         {
             CSharpParser parser = new(ninoSymbols);
             (graph, ninoTypes) = parser.Parse(compilation);
-            
+
             // Generate debug info with stability check
             var curNamespace = compilation.AssemblyName?.GetNamespace() ?? "DefaultNamespace";
             spc.AddSource($"{curNamespace}.Graph.g.cs", $"/*\n{graph}\n*/");
@@ -120,25 +135,31 @@ public class GlobalGenerator : IIncrementalGenerator
                     "Nino.Generator",
                     DiagnosticSeverity.Warning, true), Location.None));
             
+            spc.AddSource("NinoGraph.Error.g.cs",
+                $"/*\nParser failed: {e.Message}\nStack Trace:\n{e.StackTrace}\n*/");
+
             // Create minimal fallback to prevent complete failure
             graph = new NinoGraph(compilation, new List<NinoType>());
             ninoTypes = new List<NinoType>();
         }
 
         // Execute generators with individual error boundaries and error reporting
-        ExecuteGeneratorSafely(() => new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc), 
+        ExecuteGeneratorSafely(() => new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc),
             nameof(TypeConstGenerator), spc);
-        ExecuteGeneratorSafely(() => new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc), 
+        ExecuteGeneratorSafely(() => new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc),
             nameof(UnsafeAccessorGenerator), spc);
-        ExecuteGeneratorSafely(() => new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc), 
+        ExecuteGeneratorSafely(() => new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc),
             nameof(PartialClassGenerator), spc);
-        ExecuteGeneratorSafely(() => new SerializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc), 
+        ExecuteGeneratorSafely(
+            () => new SerializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc),
             nameof(SerializerGenerator), spc);
-        ExecuteGeneratorSafely(() => new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc), 
+        ExecuteGeneratorSafely(
+            () => new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc),
             nameof(DeserializerGenerator), spc);
     }
-    
-    private static void ExecuteGeneratorSafely(Action generatorAction, string generatorName, SourceProductionContext spc)
+
+    private static void ExecuteGeneratorSafely(Action generatorAction, string generatorName,
+        SourceProductionContext spc)
     {
         try
         {
@@ -148,17 +169,17 @@ public class GlobalGenerator : IIncrementalGenerator
         {
             // Report specific generator failure with details
             spc.ReportDiagnostic(Diagnostic.Create(
-                new DiagnosticDescriptor($"NINO{generatorName.GetHashCode() % 1000:D3}", 
+                new DiagnosticDescriptor($"NINO{generatorName.GetHashCode() % 1000:D3}",
                     $"{generatorName} Error",
                     $"{generatorName} failed: {ex.GetType().Name} - {ex.Message}",
                     "Nino.Generator",
-                    DiagnosticSeverity.Warning, 
+                    DiagnosticSeverity.Warning,
                     true,
                     description: $"Stack trace: {ex.StackTrace}"),
                 Location.None));
-            
+
             // Also add a comment in generated code for debugging
-            spc.AddSource($"{generatorName}.Error.g.cs", 
+            spc.AddSource($"{generatorName}.Error.g.cs",
                 $@"/*
 {generatorName} failed to generate code.
 Error: {ex.GetType().Name}: {ex.Message}
@@ -170,5 +191,4 @@ This error has been logged as a warning and other generators will continue.
 */");
         }
     }
-
 }
