@@ -125,12 +125,50 @@ public class GlobalGenerator : IIncrementalGenerator
             ninoTypes = new List<NinoType>();
         }
 
-        // Execute generators with individual error boundaries
-        try { new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc); } catch { }
-        try { new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc); } catch { }
-        try { new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc); } catch { }
-        try { new SerializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc); } catch { }
-        try { new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc); } catch { }
+        // Execute generators with individual error boundaries and error reporting
+        ExecuteGeneratorSafely(() => new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc), 
+            "TypeConstGenerator", spc);
+        ExecuteGeneratorSafely(() => new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc), 
+            "UnsafeAccessorGenerator", spc);
+        ExecuteGeneratorSafely(() => new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc), 
+            "PartialClassGenerator", spc);
+        ExecuteGeneratorSafely(() => new SerializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc), 
+            "SerializerGenerator", spc);
+        ExecuteGeneratorSafely(() => new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc), 
+            "DeserializerGenerator", spc);
+    }
+    
+    private static void ExecuteGeneratorSafely(Action generatorAction, string generatorName, SourceProductionContext spc)
+    {
+        try
+        {
+            generatorAction();
+        }
+        catch (Exception ex)
+        {
+            // Report specific generator failure with details
+            spc.ReportDiagnostic(Diagnostic.Create(
+                new DiagnosticDescriptor($"NINO{generatorName.GetHashCode() % 1000:D3}", 
+                    $"{generatorName} Error",
+                    $"{generatorName} failed: {ex.GetType().Name} - {ex.Message}",
+                    "Nino.Generator",
+                    DiagnosticSeverity.Warning, 
+                    true,
+                    description: $"Stack trace: {ex.StackTrace}"),
+                Location.None));
+            
+            // Also add a comment in generated code for debugging
+            spc.AddSource($"{generatorName}.Error.g.cs", 
+                $@"/*
+{generatorName} failed to generate code.
+Error: {ex.GetType().Name}: {ex.Message}
+
+Stack Trace:
+{ex.StackTrace}
+
+This error has been logged as a warning and other generators will continue.
+*/");
+        }
     }
 
 }
