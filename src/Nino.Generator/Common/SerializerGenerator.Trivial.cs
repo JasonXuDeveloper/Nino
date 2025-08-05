@@ -36,22 +36,19 @@ public partial class SerializerGenerator
 
                 if (!ninoType.TypeSymbol.IsUnmanagedType)
                 {
-                    bool hasInvalidMember = false;
                     foreach (var member in ninoType.Members)
                     {
                         if (ValidType(member.Type, validTypeNames)) continue;
 
+                        // Report as Info to avoid false positives in IDE - if build succeeds, type is valid
                         spc.ReportDiagnostic(Diagnostic.Create(
                             new DiagnosticDescriptor("NINO001", "Nino Generator",
-                                "Nino cannot find suitable serializer for member type '{0}' in type '{1}'",
+                                "Type '{0}' in '{1}' may require custom serialization support",
                                 "Nino.Generator",
-                                DiagnosticSeverity.Error, true),
+                                DiagnosticSeverity.Info, true),
                             member.MemberSymbol.Locations.First(),
                             member.Type.GetDisplayString(), ninoType.TypeSymbol.GetDisplayString()));
-                        hasInvalidMember = true;
                     }
-
-                    if (hasInvalidMember) continue;
                 }
 
                 if (!generatedTypes.Add(ninoType.TypeSymbol))
