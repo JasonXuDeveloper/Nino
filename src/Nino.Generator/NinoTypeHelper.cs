@@ -45,6 +45,18 @@ public static class NinoTypeHelper
         return $"@{ret}";
     }
 
+    /// <summary>
+    /// Generates a unique, deterministic variable name for cached serializer/deserializer instances.
+    /// Uses the type's display name hash to create a short, collision-resistant identifier.
+    /// </summary>
+    public static string GetCachedVariableName(this ITypeSymbol typeSymbol, string prefix)
+    {
+        var typeDisplayName = typeSymbol.GetDisplayString();
+        var hash = typeDisplayName.GetLegacyNonRandomizedHashCode();
+        var hexString = Math.Abs(hash).ToString("x8");
+        return $"{prefix}_{hexString}";
+    }
+
     public static ImmutableArray<AttributeData> GetAttributesCache<T>(this T typeSymbol) where T : ISymbol
     {
         if (AttributeCache.TryGetValue(typeSymbol, out var ret))

@@ -155,18 +155,7 @@ public class CollectionDeserializerGenerator(
                 continue;
 
             var typeDisplayName = type.GetDisplayString();
-            var typeName = typeDisplayName
-                .Replace("global::", "")
-                .ToLower()
-                .Replace("[]", "_array") // Handle arrays specifically before general replacement
-                .Replace("<", "_of_") // Handle generics more clearly
-                .Replace(">", "_")
-                .Replace(", ", "_and_") // Handle multiple generic parameters
-                .Select(c => char.IsLetterOrDigit(c) ? c : '_')
-                .Aggregate("", (current, c) => current + c)
-                .Replace("___", "_") // Clean up multiple underscores
-                .Replace("__", "_"); // Clean up double underscores
-            var varName = $"deserializer_{typeName}";
+            var varName = type.GetCachedVariableName("deserializer");
 
             // Handle potential duplicates by adding a counter
             var originalVarName = varName;

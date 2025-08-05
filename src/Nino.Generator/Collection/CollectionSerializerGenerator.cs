@@ -99,18 +99,7 @@ public class CollectionSerializerGenerator(
                 continue;
 
             var typeDisplayName = type.GetDisplayString();
-            var typeName = typeDisplayName
-                .Replace("global::", "")
-                .ToLower()
-                .Replace("[]", "_array")  // Handle arrays specifically before general replacement
-                .Replace("<", "_of_")     // Handle generics more clearly
-                .Replace(">", "_")
-                .Replace(", ", "_and_")   // Handle multiple generic parameters
-                .Select(c => char.IsLetterOrDigit(c) ? c : '_')
-                .Aggregate("", (current, c) => current + c)
-                .Replace("___", "_")      // Clean up multiple underscores
-                .Replace("__", "_");      // Clean up double underscores
-            var varName = $"serializer_{typeName}";
+            var varName = type.GetCachedVariableName("serializer");
             
             // Handle potential duplicates by adding a counter
             var originalVarName = varName;
@@ -316,6 +305,19 @@ public class CollectionSerializerGenerator(
                     sb.AppendLine();
                 }
 
+                // Generate cached serializers for non-unmanaged types
+                Dictionary<string, string>? serializerVars = null;
+                if (!isUnmanaged)
+                {
+                    HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
+                    if (!keyType.IsUnmanagedType)
+                        typesNeedingSerializers.Add(keyType);
+                    if (!valType.IsUnmanagedType)
+                        typesNeedingSerializers.Add(valType);
+                    
+                    GenerateCachedSerializers(typesNeedingSerializers, sb, out serializerVars);
+                }
+
                 sb.AppendLine("    int cnt = value.Count;");
                 sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
                 sb.AppendLine();
@@ -331,8 +333,11 @@ public class CollectionSerializerGenerator(
                 {
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-                    sb.AppendLine($"        {GetSerializeString(keyType, "item.Key")}");
-                    sb.AppendLine($"        {GetSerializeString(valType, "item.Value")}");
+                    
+                    var keySerializerVar = GetCachedSerializerVar(keyType, serializerVars!);
+                    var valSerializerVar = GetCachedSerializerVar(valType, serializerVars!);
+                    sb.AppendLine($"        {GetSerializeString(keyType, "item.Key", keySerializerVar)}");
+                    sb.AppendLine($"        {GetSerializeString(valType, "item.Value", valSerializerVar)}");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
@@ -371,6 +376,20 @@ public class CollectionSerializerGenerator(
                 sb.AppendLine("        return;");
                 sb.AppendLine("    }");
                 sb.AppendLine();
+
+                // Generate cached serializers for non-unmanaged types
+                Dictionary<string, string>? serializerVars = null;
+                if (!isUnmanaged)
+                {
+                    HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
+                    if (!keyType.IsUnmanagedType)
+                        typesNeedingSerializers.Add(keyType);
+                    if (!valueType.IsUnmanagedType)
+                        typesNeedingSerializers.Add(valueType);
+                    
+                    GenerateCachedSerializers(typesNeedingSerializers, sb, out serializerVars);
+                }
+
                 sb.AppendLine("    int cnt = value.Count;");
                 sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
                 sb.AppendLine();
@@ -385,10 +404,13 @@ public class CollectionSerializerGenerator(
                 {
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+                    
+                    var keySerializerVar = GetCachedSerializerVar(keyType, serializerVars!);
+                    var valueSerializerVar = GetCachedSerializerVar(valueType, serializerVars!);
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(keyType, "item.Key"));
+                    sb.AppendLine(GetSerializeString(keyType, "item.Key", keySerializerVar));
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(valueType, "item.Value"));
+                    sb.AppendLine(GetSerializeString(valueType, "item.Value", valueSerializerVar));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
@@ -454,6 +476,17 @@ public class CollectionSerializerGenerator(
                     sb.AppendLine();
                 }
 
+                // Generate cached serializers for non-unmanaged types
+                Dictionary<string, string>? serializerVars = null;
+                if (!isUnmanaged)
+                {
+                    HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
+                    if (!elemType.IsUnmanagedType)
+                        typesNeedingSerializers.Add(elemType);
+                    
+                    GenerateCachedSerializers(typesNeedingSerializers, sb, out serializerVars);
+                }
+
                 sb.AppendLine("    int cnt = value.Count;");
                 sb.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
                 sb.AppendLine();
@@ -469,7 +502,9 @@ public class CollectionSerializerGenerator(
                 {
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-                    sb.AppendLine($"        {GetSerializeString(elemType, "item")}");
+                    
+                    var elemSerializerVar = GetCachedSerializerVar(elemType, serializerVars!);
+                    sb.AppendLine($"        {GetSerializeString(elemType, "item", elemSerializerVar)}");
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
@@ -530,6 +565,18 @@ public class CollectionSerializerGenerator(
                 sb.AppendLine("        return;");
                 sb.AppendLine("    }");
                 sb.AppendLine();
+
+                // Generate cached serializers for non-unmanaged types
+                Dictionary<string, string>? serializerVars = null;
+                if (!isUnmanaged)
+                {
+                    HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
+                    if (!elementType.IsUnmanagedType)
+                        typesNeedingSerializers.Add(elementType);
+                    
+                    GenerateCachedSerializers(typesNeedingSerializers, sb, out serializerVars);
+                }
+
                 sb.AppendLine("    int cnt = 0;");
                 sb.AppendLine("    int oldPos = writer.Advance(4);");
                 sb.AppendLine();
@@ -545,8 +592,10 @@ public class CollectionSerializerGenerator(
                 {
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+                    
+                    var elemSerializerVar = GetCachedSerializerVar(elementType, serializerVars!);
                     sb.Append("        ");
-                    sb.AppendLine(GetSerializeString(elementType, "item"));
+                    sb.AppendLine(GetSerializeString(elementType, "item", elemSerializerVar));
                     IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
                         w => { w.AppendLine("        writer.PutLength(pos);"); });
                 }
@@ -574,10 +623,25 @@ public class CollectionSerializerGenerator(
         }
         else
         {
+            // Generate cached serializers for non-unmanaged field types
+            HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
+            foreach (var fieldType in types)
+            {
+                if (!fieldType.IsUnmanagedType)
+                    typesNeedingSerializers.Add(fieldType);
+            }
+            
+            Dictionary<string, string>? serializerVars = null;
+            if (typesNeedingSerializers.Count > 0)
+            {
+                GenerateCachedSerializers(typesNeedingSerializers, writer, out serializerVars);
+            }
+
             for (int i = 0; i < fields.Length; i++)
             {
                 writer.Append("    ");
-                writer.AppendLine(GetSerializeString(types[i], $"value.{fields[i]}"));
+                var fieldSerializerVar = serializerVars != null ? GetCachedSerializerVar(types[i], serializerVars) : null;
+                writer.AppendLine(GetSerializeString(types[i], $"value.{fields[i]}", fieldSerializerVar));
             }
         }
 
