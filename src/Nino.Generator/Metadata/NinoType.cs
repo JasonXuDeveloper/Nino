@@ -119,6 +119,11 @@ public class NinoType
         Members = Members.Add(member);
     }
 
+    public override int GetHashCode()
+    {
+        return SymbolEqualityComparer.Default.GetHashCode(TypeSymbol);
+    }
+
     public override string ToString()
     {
         StringBuilder sb = new();

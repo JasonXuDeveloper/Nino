@@ -143,18 +143,19 @@ public class GlobalGenerator : IIncrementalGenerator
             ninoTypes = new List<NinoType>();
         }
 
+        var distinctNinoTypes = ninoTypes.Distinct().ToList();
         // Execute generators with individual error boundaries and error reporting
-        ExecuteGeneratorSafely(() => new TypeConstGenerator(compilation, graph, ninoTypes).Execute(spc),
+        ExecuteGeneratorSafely(() => new TypeConstGenerator(compilation, graph, distinctNinoTypes).Execute(spc),
             nameof(TypeConstGenerator), spc);
-        ExecuteGeneratorSafely(() => new UnsafeAccessorGenerator(compilation, graph, ninoTypes).Execute(spc),
+        ExecuteGeneratorSafely(() => new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes).Execute(spc),
             nameof(UnsafeAccessorGenerator), spc);
-        ExecuteGeneratorSafely(() => new PartialClassGenerator(compilation, graph, ninoTypes).Execute(spc),
+        ExecuteGeneratorSafely(() => new PartialClassGenerator(compilation, graph, distinctNinoTypes).Execute(spc),
             nameof(PartialClassGenerator), spc);
         ExecuteGeneratorSafely(
-            () => new SerializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc),
+            () => new SerializerGenerator(compilation, graph, distinctNinoTypes, potentialTypes).Execute(spc),
             nameof(SerializerGenerator), spc);
         ExecuteGeneratorSafely(
-            () => new DeserializerGenerator(compilation, graph, ninoTypes, potentialTypes).Execute(spc),
+            () => new DeserializerGenerator(compilation, graph, distinctNinoTypes, potentialTypes).Execute(spc),
             nameof(DeserializerGenerator), spc);
     }
 

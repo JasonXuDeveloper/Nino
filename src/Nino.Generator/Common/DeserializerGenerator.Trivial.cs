@@ -45,7 +45,7 @@ public partial class DeserializerGenerator
                             new DiagnosticDescriptor("NINO001", "Nino Generator",
                                 "Type '{0}' in '{1}' may require custom deserialization support",
                                 "Nino.Generator",
-                                DiagnosticSeverity.Info, true),
+                                DiagnosticSeverity.Warning, true),
                             member.MemberSymbol.Locations.First(),
                             member.Type.GetDisplayString(), ninoType.TypeSymbol.GetDisplayString()));
                     }

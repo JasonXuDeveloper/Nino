@@ -17,7 +17,11 @@ public class NinoGraph
     {
         foreach (var ninoType in ninoTypes)
         {
-            TypeMap[ninoType.TypeSymbol.GetDisplayString()] = ninoType;
+            var name = ninoType.TypeSymbol.GetDisplayString();
+            if (TypeMap.ContainsKey(name))
+                continue;
+
+            TypeMap[name] = ninoType;
 
             List<NinoType> baseTypes = new();
             BaseTypes[ninoType] = baseTypes;
