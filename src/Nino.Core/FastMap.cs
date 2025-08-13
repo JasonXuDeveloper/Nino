@@ -1,7 +1,6 @@
 namespace Nino.Core
 {
     using System;
-    using System.Numerics;
     using System.Runtime.CompilerServices;
     using System.Runtime.InteropServices;
 
@@ -86,8 +85,9 @@ namespace Nino.Core
                 return false;
             }
 
-            int index = _count <= 16 ? LinearSearch(key) :
-                _count <= 128 ? SimdSearch(key) : BinarySearch(key);
+            // For typical subtype counts (10-200), linear search is often faster
+            // than binary search due to better cache locality and branch prediction
+            int index = _count <= 64 ? LinearSearch(key) : BinarySearch(key);
 
             if (index >= 0)
             {
@@ -101,8 +101,7 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ContainsKey(TKey key) =>
-            _count <= 16 ? LinearSearch(key) >= 0 :
-            _count <= 128 ? SimdSearch(key) >= 0 : BinarySearch(key) >= 0;
+            _count <= 64 ? LinearSearch(key) >= 0 : BinarySearch(key) >= 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int BinarySearch(TKey key)
@@ -183,195 +182,76 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int LinearSearch(TKey key)
         {
-            var keySpan = _keys.AsSpan(0, _count);
-
-            for (int i = 0; i < keySpan.Length; i++)
-            {
-                if (keySpan[i].Equals(key))
-                    return i;
-            }
-
-            return -1;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int SimdSearch(TKey key)
-        {
+            // Optimized linear search avoiding Equals() call overhead
+            var keys = _keys;
+            int count = _count;
+            
+            // Fast path for common key types - avoid virtual/interface calls
             if (typeof(TKey) == typeof(IntPtr))
             {
-                return SimdSearchIntPtr(Unsafe.As<TKey, IntPtr>(ref key));
+                var targetKey = Unsafe.As<TKey, IntPtr>(ref key);
+                var intPtrKeys = Unsafe.As<TKey[], IntPtr[]>(ref keys);
+                for (int i = 0; i < count; i++)
+                {
+                    if (intPtrKeys[i] == targetKey)
+                        return i;
+                }
+                return -1;
             }
-
-            // Only use long SIMD if TKey is actually 8 bytes
-            if (Unsafe.SizeOf<TKey>() == 8 && (typeof(TKey) == typeof(long) || typeof(TKey) == typeof(ulong)))
+            
+            if (typeof(TKey) == typeof(int))
             {
-                return SimdSearchLong(Unsafe.As<TKey, long>(ref key));
+                var targetKey = Unsafe.As<TKey, int>(ref key);
+                var intKeys = Unsafe.As<TKey[], int[]>(ref keys);
+                for (int i = 0; i < count; i++)
+                {
+                    if (intKeys[i] == targetKey)
+                        return i;
+                }
+                return -1;
             }
-
-            // For 32-bit integers, use int SIMD
-            if (Unsafe.SizeOf<TKey>() == 4 && (typeof(TKey) == typeof(int) || typeof(TKey) == typeof(uint)))
+            
+            if (typeof(TKey) == typeof(uint))
             {
-                return SimdSearchInt(Unsafe.As<TKey, int>(ref key));
+                var targetKey = Unsafe.As<TKey, uint>(ref key);
+                var uintKeys = Unsafe.As<TKey[], uint[]>(ref keys);
+                for (int i = 0; i < count; i++)
+                {
+                    if (uintKeys[i] == targetKey)
+                        return i;
+                }
+                return -1;
             }
-
+            
+            if (typeof(TKey) == typeof(long))
+            {
+                var targetKey = Unsafe.As<TKey, long>(ref key);
+                var longKeys = Unsafe.As<TKey[], long[]>(ref keys);
+                for (int i = 0; i < count; i++)
+                {
+                    if (longKeys[i] == targetKey)
+                        return i;
+                }
+                return -1;
+            }
+            
+            if (typeof(TKey) == typeof(ulong))
+            {
+                var targetKey = Unsafe.As<TKey, ulong>(ref key);
+                var ulongKeys = Unsafe.As<TKey[], ulong[]>(ref keys);
+                for (int i = 0; i < count; i++)
+                {
+                    if (ulongKeys[i] == targetKey)
+                        return i;
+                }
+                return -1;
+            }
+            
             // Fallback for other types
-            return LinearSearch(key);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int SimdSearchIntPtr(IntPtr key)
-        {
-            var keySpan = _keys.AsSpan(0, _count);
-
-            // Ensure safe casting - only cast if sizes match
-            if (Unsafe.SizeOf<TKey>() != IntPtr.Size)
+            for (int i = 0; i < count; i++)
             {
-                return LinearSearch(Unsafe.As<IntPtr, TKey>(ref key));
-            }
-
-            var intPtrSpan = MemoryMarshal.Cast<TKey, IntPtr>(keySpan);
-
-            if (Vector.IsHardwareAccelerated && intPtrSpan.Length >= Vector<IntPtr>.Count)
-            {
-                var keyVec = new Vector<IntPtr>(key);
-                int vectorLength = Vector<IntPtr>.Count;
-                int i = 0;
-
-                for (; i <= intPtrSpan.Length - vectorLength; i += vectorLength)
-                {
-                    var slice = intPtrSpan.Slice(i, vectorLength);
-                    var vec = new Vector<IntPtr>(slice);
-
-                    if (Vector.EqualsAny(vec, keyVec))
-                    {
-                        // Linear search within this vector segment
-                        for (int j = 0; j < vectorLength; j++)
-                        {
-                            if (intPtrSpan[i + j] == key)
-                                return i + j;
-                        }
-                    }
-                }
-
-                // Handle remaining elements
-                for (; i < intPtrSpan.Length; i++)
-                {
-                    if (intPtrSpan[i] == key)
-                        return i;
-                }
-            }
-            else
-            {
-                // Linear search for small arrays or when SIMD not available
-                for (int i = 0; i < intPtrSpan.Length; i++)
-                {
-                    if (intPtrSpan[i] == key)
-                        return i;
-                }
-            }
-
-            return -1;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int SimdSearchLong(long key)
-        {
-            var keySpan = _keys.AsSpan(0, _count);
-
-            // Ensure safe casting - only cast if sizes match (8 bytes)
-            if (Unsafe.SizeOf<TKey>() != 8)
-            {
-                return LinearSearch(Unsafe.As<long, TKey>(ref key));
-            }
-
-            var longSpan = MemoryMarshal.Cast<TKey, long>(keySpan);
-
-            if (Vector.IsHardwareAccelerated && longSpan.Length >= Vector<long>.Count)
-            {
-                var keyVec = new Vector<long>(key);
-                int vectorLength = Vector<long>.Count;
-                int i = 0;
-
-                for (; i <= longSpan.Length - vectorLength; i += vectorLength)
-                {
-                    var slice = longSpan.Slice(i, vectorLength);
-                    var vec = new Vector<long>(slice);
-
-                    if (Vector.EqualsAny(vec, keyVec))
-                    {
-                        for (int j = 0; j < vectorLength; j++)
-                        {
-                            if (longSpan[i + j] == key)
-                                return i + j;
-                        }
-                    }
-                }
-
-                for (; i < longSpan.Length; i++)
-                {
-                    if (longSpan[i] == key)
-                        return i;
-                }
-            }
-            else
-            {
-                for (int i = 0; i < longSpan.Length; i++)
-                {
-                    if (longSpan[i] == key)
-                        return i;
-                }
-            }
-
-            return -1;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int SimdSearchInt(int key)
-        {
-            var keySpan = _keys.AsSpan(0, _count);
-
-            // Ensure safe casting - only cast if sizes match (4 bytes)
-            if (Unsafe.SizeOf<TKey>() != 4)
-            {
-                return LinearSearch(Unsafe.As<int, TKey>(ref key));
-            }
-
-            var intSpan = MemoryMarshal.Cast<TKey, int>(keySpan);
-
-            if (Vector.IsHardwareAccelerated && intSpan.Length >= Vector<int>.Count)
-            {
-                var keyVec = new Vector<int>(key);
-                int vectorLength = Vector<int>.Count;
-                int i = 0;
-
-                for (; i <= intSpan.Length - vectorLength; i += vectorLength)
-                {
-                    var slice = intSpan.Slice(i, vectorLength);
-                    var vec = new Vector<int>(slice);
-
-                    if (Vector.EqualsAny(vec, keyVec))
-                    {
-                        for (int j = 0; j < vectorLength; j++)
-                        {
-                            if (intSpan[i + j] == key)
-                                return i + j;
-                        }
-                    }
-                }
-
-                for (; i < intSpan.Length; i++)
-                {
-                    if (intSpan[i] == key)
-                        return i;
-                }
-            }
-            else
-            {
-                for (int i = 0; i < intSpan.Length; i++)
-                {
-                    if (intSpan[i] == key)
-                        return i;
-                }
+                if (keys[i].Equals(key))
+                    return i;
             }
 
             return -1;
