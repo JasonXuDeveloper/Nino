@@ -105,7 +105,7 @@ public partial class DeserializerGenerator(
         HashSet<ITypeSymbol> trivialTypes = new(SymbolEqualityComparer.Default);
         // add string type
         trivialTypes.Add(compilation.GetSpecialType(SpecialType.System_String));
-        GenerateTrivialCode(spc, collectionTypes, trivialTypes);
+        GenerateTrivialCode(spc, trivialTypes);
         GenerateGenericRegister(sb, "Trivial", trivialTypes, registeredTypes);
 
         var curNamespace = compilation.AssemblyName!.GetNamespace();

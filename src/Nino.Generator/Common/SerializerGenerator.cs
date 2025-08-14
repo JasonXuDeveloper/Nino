@@ -101,7 +101,7 @@ public partial class SerializerGenerator(
         GenerateGenericRegister(sb, "Collection", collectionTypes, registeredTypes);
 
         HashSet<ITypeSymbol> trivialTypes = new(SymbolEqualityComparer.Default);
-        GenerateTrivialCode(spc, collectionTypes, trivialTypes);
+        GenerateTrivialCode(spc, trivialTypes);
         // add string type
         trivialTypes.Add(compilation.GetSpecialType(SpecialType.System_String));
         GenerateGenericRegister(sb, "Trivial", trivialTypes, registeredTypes);
