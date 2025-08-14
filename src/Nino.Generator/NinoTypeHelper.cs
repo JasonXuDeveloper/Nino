@@ -53,7 +53,7 @@ public static class NinoTypeHelper
     {
         var typeDisplayName = typeSymbol.GetDisplayString();
         var hash = typeDisplayName.GetLegacyNonRandomizedHashCode();
-        var hexString = Math.Abs(hash).ToString("x8");
+        var hexString = ((uint)hash).ToString("X8");
         return $"{prefix}_{hexString}";
     }
 
@@ -600,7 +600,7 @@ public static class NinoTypeHelper
     /// Reference: https://github.com/microsoft/referencesource/blob/51cf7850defa8a17d815b4700b67116e3fa283c2/mscorlib/system/string.cs#L894C9-L949C10
     /// </summary>
     /// <returns></returns>
-    private static int GetLegacyNonRandomizedHashCode(this string str)
+    internal static int GetLegacyNonRandomizedHashCode(this string str)
     {
         ReadOnlySpan<char> span = str.AsSpan();
         int hash1 = 5381;

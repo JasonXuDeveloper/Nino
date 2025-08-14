@@ -5,37 +5,6 @@ namespace Nino.Core
 {
     public static class NinoDeserializer
     {
-        private static readonly object Lock = new();
-
-        /// <summary>
-        /// Registers a custom deserializer for a type.
-        /// This method allows you to provide a custom deserialization logic for a specific type.
-        /// The deserializer will be used when deserializing instances of that type.
-        /// </summary>
-        /// <param name="deserializer"></param>
-        /// <param name="deserializerRef"></param>
-        /// <typeparam name="T"></typeparam>
-        public static void AddCustomDeserializer<T>(DeserializeDelegate<T> deserializer,
-            DeserializeDelegateRef<T> deserializerRef)
-        {
-            lock (Lock)
-            {
-                CustomDeserializer<T>.Instance ??= new CustomDeserializer<T>(deserializer, deserializerRef);
-            }
-        }
-
-        /// <summary>
-        /// Removes a custom deserializer for a type.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        public static void RemoveCustomDeserializer<T>()
-        {
-            lock (Lock)
-            {
-                CustomDeserializer<T>.Instance = null;
-            }
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(ReadOnlySpan<byte> data)
         {
@@ -69,7 +38,7 @@ namespace Nino.Core
                 return;
             }
 
-            CachedDeserializer<T>.Instance.DeserializeRefCore(ref value, ref reader);
+            CachedDeserializer<T>.Instance.DeserializeRef(ref value, ref reader);
         }
 
         // ULTIMATE: Zero-overhead single entry point
@@ -90,7 +59,7 @@ namespace Nino.Core
                 return;
             }
 
-            CachedDeserializer<T>.Instance.DeserializeCore(out value, ref reader);
+            CachedDeserializer<T>.Instance.Deserialize(out value, ref reader);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -108,7 +77,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static object DeserializeBoxed(ref Reader reader, Type type)
+        public static object DeserializeBoxed(ref Reader reader, Type type)
         {
             // Check for null value first
             reader.Peak(out int typeId);
@@ -117,12 +86,12 @@ namespace Nino.Core
                 reader.Advance(4);
                 return null;
             }
-            
+
             // Check if type is null
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
 
-            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value.ToInt64(), out var deserializer))
+            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
             {
                 throw new Exception(
                     $"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
@@ -132,7 +101,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void DeserializeRefBoxed(ref object val, ref Reader reader, Type type)
+        public static void DeserializeRefBoxed(ref object val, ref Reader reader, Type type)
         {
             // Check for null value first
             reader.Peak(out int typeId);
@@ -142,12 +111,12 @@ namespace Nino.Core
                 reader.Advance(4);
                 return;
             }
-            
+
             // Check if type is null
             if (type == null)
                 throw new ArgumentNullException(nameof(type));
 
-            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value.ToInt64(), out var deserializer))
+            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
             {
                 throw new Exception(
                     $"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
@@ -170,50 +139,13 @@ namespace Nino.Core
         void DeserializeBoxed(ref object value, ref Reader reader);
     }
 
-
-    public class CustomDeserializer<T> : ICachedDeserializer
-    {
-        public readonly DeserializeDelegate<T> Deserializer;
-        public readonly DeserializeDelegateRef<T> DeserializerRef;
-
-        public static CustomDeserializer<T> Instance;
-
-        // Zero-overhead static property - JIT eliminates completely
-        public static bool HasCustomDeserializer => Instance != null;
-
-        public CustomDeserializer(DeserializeDelegate<T> deserializer,
-            DeserializeDelegateRef<T> deserializerRef)
-        {
-            Deserializer = deserializer;
-            DeserializerRef = deserializerRef;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public object DeserializeBoxed(ref Reader reader)
-        {
-            Deserializer(out T value, ref reader);
-            return value;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DeserializeBoxed(ref object value, ref Reader reader)
-        {
-            if (!(value is T val))
-            {
-                throw new Exception($"Cannot cast {value.GetType().FullName} to {typeof(T).FullName}");
-            }
-
-            DeserializerRef(ref val, ref reader);
-        }
-    }
-
 #pragma warning disable CA1000 // Do not declare static members on generic types
     public class CachedDeserializer<T> : ICachedDeserializer
     {
         public DeserializeDelegate<T> Deserializer;
         public DeserializeDelegateRef<T> DeserializerRef;
-        internal readonly FastMap<long, DeserializeDelegate<T>> SubTypeDeserializers = new();
-        internal readonly FastMap<long, DeserializeDelegateRef<T>> SubTypeDeserializerRefs = new();
+        internal readonly FastMap<IntPtr, DeserializeDelegate<T>> SubTypeDeserializers = new();
+        internal readonly FastMap<IntPtr, DeserializeDelegateRef<T>> SubTypeDeserializerRefs = new();
         public static CachedDeserializer<T> Instance = new();
 
         // Cache expensive type checks
@@ -221,7 +153,7 @@ namespace Nino.Core
             RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
         // ReSharper disable once StaticMemberInGenericType
-        private static readonly long TypeHandle = typeof(T).TypeHandle.Value.ToInt64();
+        private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
@@ -233,12 +165,12 @@ namespace Nino.Core
         public void AddSubTypeDeserializer<TSub>(DeserializeDelegate<TSub> deserializer,
             DeserializeDelegateRef<TSub> deserializerRef)
         {
-            SubTypeDeserializers.Add(typeof(TSub).TypeHandle.Value.ToInt64(), (out T value, ref Reader reader) =>
+            SubTypeDeserializers.Add(typeof(TSub).TypeHandle.Value, (out T value, ref Reader reader) =>
             {
                 deserializer(out TSub subValue, ref reader);
                 value = subValue is T val ? val : default;
             });
-            SubTypeDeserializerRefs.Add(typeof(TSub).TypeHandle.Value.ToInt64(), (ref T value, ref Reader reader) =>
+            SubTypeDeserializerRefs.Add(typeof(TSub).TypeHandle.Value, (ref T value, ref Reader reader) =>
             {
                 if (value is TSub val)
                 {
@@ -263,7 +195,7 @@ namespace Nino.Core
             }
 
             // Fallback path for complex types
-            DeserializeCore(out T result, ref reader);
+            Deserialize(out T result, ref reader);
             return result;
         }
 
@@ -273,7 +205,7 @@ namespace Nino.Core
             // ULTRA-FAST: Direct unsafe cast with compile-time type checking
             if (value is T val)
             {
-                DeserializeRefCore(ref val, ref reader);
+                DeserializeRef(ref val, ref reader);
                 return;
             }
 
@@ -287,10 +219,7 @@ namespace Nino.Core
 
         // ULTRA-OPTIMIZED: Single core method with all paths optimized
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(out T value, ref Reader reader) => DeserializeCore(out value, ref reader);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void DeserializeCore(out T value, ref Reader reader)
+        public void Deserialize(out T value, ref Reader reader)
         {
             // FASTEST PATH: JIT-eliminated branch for simple types
             if (IsSimpleType)
@@ -299,12 +228,8 @@ namespace Nino.Core
                 return;
             }
 
-            // ULTRA-OPTIMIZED: Compile-time specialization based on type characteristics
-            if (CustomDeserializer<T>.Instance != null)
-            {
-                CustomDeserializer<T>.Instance.Deserializer(out value, ref reader);
-            }
-            else if (SubTypeDeserializers.Count != 0)
+            // OPTIMIZED: Direct deserialization with polymorphism support
+            if (SubTypeDeserializers.Count != 0)
             {
                 DeserializePolymorphic(out value, ref reader);
             }
@@ -317,10 +242,7 @@ namespace Nino.Core
 
         // ULTRA-OPTIMIZED: Single core ref method with all paths optimized
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void DeserializeRef(ref T value, ref Reader reader) => DeserializeRefCore(ref value, ref reader);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void DeserializeRefCore(ref T value, ref Reader reader)
+        public void DeserializeRef(ref T value, ref Reader reader)
         {
             // FASTEST PATH: JIT-eliminated branch for simple types
             if (IsSimpleType)
@@ -329,12 +251,8 @@ namespace Nino.Core
                 return;
             }
 
-            // ULTRA-OPTIMIZED: Compile-time specialization based on type characteristics
-            if (CustomDeserializer<T>.Instance != null)
-            {
-                CustomDeserializer<T>.Instance.DeserializerRef(ref value, ref reader);
-            }
-            else if (SubTypeDeserializerRefs.Count != 0)
+            // OPTIMIZED: Direct deserialization with polymorphism support
+            if (SubTypeDeserializerRefs.Count != 0)
             {
                 DeserializeRefPolymorphic(ref value, ref reader);
             }
@@ -366,14 +284,14 @@ namespace Nino.Core
             }
 
             // Check same type first (most common case)
-            if (actualTypeHandle.ToInt64() == TypeHandle)
+            if (actualTypeHandle == TypeHandle)
             {
                 Deserializer(out value, ref reader);
                 return;
             }
 
             // Handle subtype with single lookup
-            if (SubTypeDeserializers.TryGetValue(actualTypeHandle.ToInt64(), out var subTypeDeserializer))
+            if (SubTypeDeserializers.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
             {
                 subTypeDeserializer(out value, ref reader);
                 return;
@@ -402,14 +320,14 @@ namespace Nino.Core
             }
 
             // Check if it's the same type (most common case)
-            if (actualTypeHandle.ToInt64() == TypeHandle)
+            if (actualTypeHandle == TypeHandle)
             {
                 DeserializerRef(ref value, ref reader);
                 return;
             }
 
             // Handle subtype deserialization
-            if (SubTypeDeserializerRefs.TryGetValue(actualTypeHandle.ToInt64(), out var subTypeDeserializer))
+            if (SubTypeDeserializerRefs.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
             {
                 subTypeDeserializer(ref value, ref reader);
                 return;

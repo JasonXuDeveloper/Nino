@@ -67,6 +67,40 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                             .Any(x => x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
                         bool definedNinoIgnore =
                             member.GetAttributesCache().Any(x => x.AttributeClass?.Name == "NinoIgnoreAttribute");
+                            
+                        // Check NinoCustomFormatterAttribute validation - NINO010
+                        var customFormatterAttr = member.GetAttributesCache()
+                            .FirstOrDefault(x => x.AttributeClass?.Name == "NinoCustomFormatterAttribute");
+                        if (customFormatterAttr != null && customFormatterAttr.ConstructorArguments.Length > 0)
+                        {
+                            var formatterTypeArg = customFormatterAttr.ConstructorArguments[0];
+                            if (formatterTypeArg.Value is INamedTypeSymbol formatterType)
+                            {
+                                // Get the member type for validation
+                                ITypeSymbol? memberType = member switch
+                                {
+                                    IFieldSymbol field => field.Type,
+                                    IPropertySymbol property => property.Type,
+                                    _ => null
+                                };
+                                
+                                if (memberType != null)
+                                {
+                                    // Check if formatter inherits from NinoFormatter<memberType>
+                                    var expectedBaseType = "NinoFormatter<" + memberType.ToDisplayString() + ">";
+                                    bool isValidFormatter = IsValidNinoFormatter(formatterType, memberType);
+                                    
+                                    if (!isValidFormatter)
+                                    {
+                                        syntaxContext.ReportDiagnostic(Diagnostic.Create(
+                                            SupportedDiagnostics[9], // NINO010
+                                            member.Locations.First(),
+                                            formatterType.ToDisplayString(),
+                                            memberType.ToDisplayString()));
+                                    }
+                                }
+                            }
+                        }
 
                         // auto collect but manually annotated - nino004
                         if (autoCollect && definedNinoMember)
@@ -237,6 +271,29 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 "Duplicate member index",
                 "Member '{0}.{1}' has the same index as another member '{2}.{3}'",
                 "Nino",
+                DiagnosticSeverity.Error, true),
+            new DiagnosticDescriptor("NINO010",
+                "Invalid custom formatter type",
+                "Custom formatter '{0}' must inherit from NinoFormatter<{1}>",
+                "Nino",
                 DiagnosticSeverity.Error, true)
         );
+
+    private static bool IsValidNinoFormatter(INamedTypeSymbol formatterType, ITypeSymbol memberType)
+    {
+        // Check if formatter inherits from NinoFormatter<memberType>
+        var baseType = formatterType.BaseType;
+        while (baseType != null)
+        {
+            if (baseType.Name == "NinoFormatter" && 
+                baseType.IsGenericType && 
+                baseType.TypeArguments.Length == 1)
+            {
+                var formatterGenericArg = baseType.TypeArguments[0];
+                return SymbolEqualityComparer.Default.Equals(formatterGenericArg, memberType);
+            }
+            baseType = baseType.BaseType;
+        }
+        return false;
+    }
 }

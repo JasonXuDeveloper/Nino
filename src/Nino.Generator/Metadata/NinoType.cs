@@ -62,7 +62,7 @@ public class NinoType
         List<NinoMember> unmanagedGroup = new();
         foreach (var member in Members)
         {
-            if (member.Type.IsUnmanagedType)
+            if (member.Type.IsUnmanagedType && !member.HasCustomFormatter())
             {
                 unmanagedGroup.Add(member);
             }

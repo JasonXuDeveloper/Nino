@@ -84,7 +84,7 @@ public class PartialClassGenerator(Compilation compilation, NinoGraph ninoGraph,
                 hasPrivateMembers = true;
                 var accessor = $$$"""
                                           [Nino.Core.NinoPrivateProxy(nameof({{{name}}}), {{{isProperty.ToString().ToLower()}}})]
-                                          internal new {{{declaringType}}} __nino__generated__{{{name}}}
+                                          public new {{{declaringType}}} __nino__generated__{{{name}}}
                                           {
                                               [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                               get => {{{name}}};

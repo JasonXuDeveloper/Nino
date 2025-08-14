@@ -1,4 +1,5 @@
 using Microsoft.CodeAnalysis;
+using System.Linq;
 
 namespace Nino.Generator.Metadata;
 
@@ -11,6 +12,26 @@ public class NinoMember(string name, ITypeSymbol type, ISymbol memberSymbol)
     public bool IsPrivate { get; set; }
     public bool IsProperty { get; set; }
     public bool IsUtf8String { get; set; }
+
+    public bool HasCustomFormatter()
+    {
+        return MemberSymbol.GetAttributes()
+            .Any(attr => attr.AttributeClass?.Name == "NinoCustomFormatterAttribute");
+    }
+
+    public ITypeSymbol? CustomFormatterType()
+    {
+        var customFormatterAttr = MemberSymbol.GetAttributes()
+            .FirstOrDefault(attr => attr.AttributeClass?.Name == "NinoCustomFormatterAttribute");
+        
+        if (customFormatterAttr?.ConstructorArguments.Length > 0)
+        {
+            var arg = customFormatterAttr.ConstructorArguments[0];
+            if (arg.Value is ITypeSymbol typeSymbol)
+                return typeSymbol;
+        }
+        return null;
+    }
 
     public override string ToString()
     {

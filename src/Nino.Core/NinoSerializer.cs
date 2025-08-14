@@ -7,38 +7,12 @@ namespace Nino.Core
 {
     public static class NinoSerializer
     {
-        private static readonly object Lock = new();
-
         private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
-        private static readonly NinoArrayBufferWriter DefaultBufferWriter = new(2048); // Slightly larger but not excessive
+
+        private static readonly NinoArrayBufferWriter
+            DefaultBufferWriter = new(2048); // Slightly larger but not excessive
+
         private static int _defaultUsed;
-
-        /// <summary>
-        /// Registers a custom serializer for a type.
-        /// This method allows you to provide a custom serialization logic for a specific type.
-        /// The serializer will be used when serializing instances of that type.
-        /// </summary>
-        /// <param name="serializer"></param>
-        /// <typeparam name="T"></typeparam>
-        public static void AddCustomSerializer<T>(SerializeDelegate<T> serializer)
-        {
-            lock (Lock)
-            {
-                CustomSerializer<T>.Instance = new CustomSerializer<T>(serializer);
-            }
-        }
-
-        /// <summary>
-        /// Removes a custom serializer for a type.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        public static void RemoveCustomSerializer<T>()
-        {
-            lock (Lock)
-            {
-                CustomSerializer<T>.Instance = null;
-            }
-        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoArrayBufferWriter GetBufferWriter()
@@ -75,6 +49,7 @@ namespace Nino.Core
                 {
                     throw new InvalidOperationException("The returned buffer writer is not in use.");
                 }
+
                 return;
             }
 
@@ -115,7 +90,7 @@ namespace Nino.Core
                 return;
             }
 
-            CachedSerializer<T>.Instance.SerializeCore(value, ref writer);
+            CachedSerializer<T>.Instance.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -149,11 +124,11 @@ namespace Nino.Core
                 writer.Write(TypeCollector.Null);
                 return;
             }
-            
+
             if (type == null)
                 throw new ArgumentNullException(nameof(type), "Type cannot be null when serializing boxed objects.");
 
-            if (!NinoTypeMetadata.Serializers.TryGetValue(type.TypeHandle.Value.ToInt64(), out var serializer))
+            if (!NinoTypeMetadata.Serializers.TryGetValue(type.TypeHandle.Value, out var serializer))
             {
                 throw new Exception(
                     $"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");
@@ -171,34 +146,11 @@ namespace Nino.Core
         void SerializeBoxed(object value, ref Writer writer);
     }
 
-    public class CustomSerializer<T> : ICachedSerializer
-    {
-        public readonly SerializeDelegate<T> Serializer;
-
-        public static CustomSerializer<T> Instance;
-
-        public CustomSerializer(SerializeDelegate<T> serializer)
-        {
-            Serializer = serializer;
-        }
-
-        public void SerializeBoxed(object value, ref Writer writer)
-        {
-            if (value == null)
-            {
-                writer.Write(TypeCollector.Null);
-                return;
-            }
-
-            Serializer((T)value, ref writer);
-        }
-    }
-
 #pragma warning disable CA1000 // Do not declare static members on generic types
     public class CachedSerializer<T> : ICachedSerializer
     {
         public readonly SerializeDelegate<T> Serializer;
-        public readonly FastMap<long, SerializeDelegate<T>> SubTypeSerializers = new();
+        public readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
 
         public CachedSerializer(SerializeDelegate<T> serializer)
         {
@@ -212,7 +164,7 @@ namespace Nino.Core
             RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
         // ReSharper disable once StaticMemberInGenericType
-        private static readonly long TypeHandle = typeof(T).TypeHandle.Value.ToInt64();
+        private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
 
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
@@ -221,34 +173,67 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)] // Cold exception path
+        private static void ThrowInvalidCast(Type actualType) =>
+            throw new InvalidCastException($"Cannot cast {actualType?.FullName ?? "null"} to {typeof(T).FullName}");
+
+
         public void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
         {
             if (typeof(TSub).IsValueType)
             {
-                // cast TSub to T via boxing, T here must be interface, then add to the map
-                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value.ToInt64(), (T val, ref Writer writer) =>
-                    serializer((TSub)(object)val, ref writer));
+                // cast T to TSub via boxing, T here must be interface, then add to the map
+                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
+                {
+                    if (val is TSub sub)
+                    {
+                        // Fast path: already the correct type
+                        serializer(sub, ref writer);
+                        return;
+                    }
+
+                    ThrowInvalidCast(val?.GetType());
+                });
             }
             else
             {
                 // simply cast TSub to T directly, then add to the map
-                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value.ToInt64(), (T val, ref Writer writer) =>
-                    serializer(Unsafe.As<T, TSub>(ref val), ref writer));
+                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
+                {
+                    switch (val)
+                    {
+                        case null:
+                            // Handle null case
+                            serializer(default, ref writer);
+                            return;
+                        case TSub sub:
+                            // Fast path: already the correct type
+                            serializer(sub, ref writer);
+                            return;
+                    }
+
+                    ThrowInvalidCast(val.GetType());
+                });
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SerializeBoxed(object value, ref Writer writer)
         {
-            Serialize((T)value, ref writer);
+            switch (value)
+            {
+                case null:
+                    Serializer(default, ref writer);
+                    break;
+                case T val:
+                    Serializer(val, ref writer);
+                    break;
+            }
         }
 
         // ULTRA-OPTIMIZED: Single core method with all paths optimized
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(T val, ref Writer writer) => SerializeCore(val, ref writer);
-        
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void SerializeCore(T val, ref Writer writer)
+        public void Serialize(T val, ref Writer writer)
         {
             // FASTEST PATH: JIT-eliminated branch for simple types
             if (IsSimpleType)
@@ -256,13 +241,9 @@ namespace Nino.Core
                 writer.UnsafeWrite(val);
                 return;
             }
-            
-            // ULTRA-OPTIMIZED: Compile-time specialization based on type characteristics
-            if (CustomSerializer<T>.Instance != null)
-            {
-                CustomSerializer<T>.Instance.Serializer(val, ref writer);
-            }
-            else if (SubTypeSerializers.Count != 0)
+
+            // OPTIMIZED: Direct serialization with polymorphism support
+            if (SubTypeSerializers.Count != 0)
             {
                 SerializePolymorphic(val, ref writer);
             }
@@ -272,8 +253,9 @@ namespace Nino.Core
                 Serializer(val, ref writer);
             }
         }
-        
-        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)] // Cold path: Profile-guided optimization
+
+        [MethodImpl(MethodImplOptions.NoInlining |
+                    MethodImplOptions.NoOptimization)] // Cold path: Profile-guided optimization
         private void SerializePolymorphic(T val, ref Writer writer)
         {
             if (val == null)
@@ -282,7 +264,7 @@ namespace Nino.Core
                 return;
             }
 
-            long actualTypeHandle = val.GetType().TypeHandle.Value.ToInt64();
+            IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
 
             // Check if it's the same type first (most common case)
             if (actualTypeHandle == TypeHandle)
@@ -292,17 +274,10 @@ namespace Nino.Core
             }
 
             // Handle subtype serialization
-            if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
-            {
-                subTypeSerializer(val, ref writer);
-                return;
-            }
-
-            throw new Exception($"Serializer not found for type {val.GetType().FullName}");
+            if (!SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
+                throw new Exception($"Serializer not found for type {val.GetType().FullName}");
+            subTypeSerializer(val, ref writer);
         }
     }
 #pragma warning restore CA1000
-
-    // REMOVED: UltraFastSerializers class - redundant with optimized generic paths
-    // The main serializer now achieves the same zero-overhead performance for all unmanaged types
 }

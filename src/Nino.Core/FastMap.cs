@@ -1,9 +1,8 @@
+using System;
+using System.Runtime.CompilerServices;
+
 namespace Nino.Core
 {
-    using System;
-    using System.Runtime.CompilerServices;
-    using System.Runtime.InteropServices;
-
     public sealed class FastMap<TKey, TValue> where TKey : unmanaged, IEquatable<TKey>
     {
         private TKey[] _keys;
@@ -48,7 +47,7 @@ namespace Nino.Core
             _values[insertAt] = value;
             _count++;
         }
-        
+
         public void Remove(TKey key)
         {
             if (_count == 0)
@@ -185,7 +184,7 @@ namespace Nino.Core
             // Optimized linear search avoiding Equals() call overhead
             var keys = _keys;
             int count = _count;
-            
+
             // Fast path for common key types - avoid virtual/interface calls
             if (typeof(TKey) == typeof(IntPtr))
             {
@@ -196,9 +195,10 @@ namespace Nino.Core
                     if (intPtrKeys[i] == targetKey)
                         return i;
                 }
+
                 return -1;
             }
-            
+
             if (typeof(TKey) == typeof(int))
             {
                 var targetKey = Unsafe.As<TKey, int>(ref key);
@@ -208,9 +208,10 @@ namespace Nino.Core
                     if (intKeys[i] == targetKey)
                         return i;
                 }
+
                 return -1;
             }
-            
+
             if (typeof(TKey) == typeof(uint))
             {
                 var targetKey = Unsafe.As<TKey, uint>(ref key);
@@ -220,9 +221,10 @@ namespace Nino.Core
                     if (uintKeys[i] == targetKey)
                         return i;
                 }
+
                 return -1;
             }
-            
+
             if (typeof(TKey) == typeof(long))
             {
                 var targetKey = Unsafe.As<TKey, long>(ref key);
@@ -232,9 +234,10 @@ namespace Nino.Core
                     if (longKeys[i] == targetKey)
                         return i;
                 }
+
                 return -1;
             }
-            
+
             if (typeof(TKey) == typeof(ulong))
             {
                 var targetKey = Unsafe.As<TKey, ulong>(ref key);
@@ -244,9 +247,10 @@ namespace Nino.Core
                     if (ulongKeys[i] == targetKey)
                         return i;
                 }
+
                 return -1;
             }
-            
+
             // Fallback for other types
             for (int i = 0; i < count; i++)
             {

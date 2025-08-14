@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Nino.Generator.Metadata;
@@ -45,19 +44,10 @@ public class UnsafeAccessorGenerator(Compilation compilation, NinoGraph ninoGrap
                             continue;
                         }
 
-                        var declaringType = type.TypeSymbol;
-                        while (declaringType != null && declaringType.IsNinoType())
-                        {
-                            var m = declaringType.GetMembers().FirstOrDefault(m => m.Name == member.Name);
-                            if (m != null)
-                            {
-                                declaringType = m.ContainingType;
-                                break;
-                            }
-
-                            declaringType = declaringType.BaseType;
-                        }
-
+                        // Use the member's actual containing type instead of traversing from the current type
+                        // This fixes cross-assembly type resolution issues
+                        var declaringType = member.MemberSymbol.ContainingType;
+                        
                         if (declaringType == null)
                         {
                             continue;
