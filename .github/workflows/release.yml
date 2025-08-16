@@ -1,5 +1,12 @@
 name: Release
 
+# IMPORTANT: This workflow ensures the release tag points to the Unity DLL commit
+# for proper UPM (Unity Package Manager) functionality. The workflow:
+# 1. Updates version files and commits to main
+# 2. Builds and copies Unity DLLs, commits to main  
+# 3. Moves the release tag to the Unity DLL commit (CRITICAL for UPM)
+# This ensures UPM gets the correct DLLs when fetching the tagged release.
+
 on:
   push:
     tags:
@@ -340,39 +347,6 @@ jobs:
             COMMIT_SHA=$(git rev-parse HEAD)
             echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
             echo "✅ Version files updated and committed"
-            
-            # Move the tag to point to this new commit
-            TAG_NAME=${GITHUB_REF#refs/tags/}
-            echo "Moving tag $TAG_NAME to new commit $COMMIT_SHA"
-            
-            # Delete and recreate the tag
-            git tag -d "$TAG_NAME"
-            git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
-            
-            # Push the updated tag
-            max_attempts=3
-            attempt=1
-            delay=5
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: Pushing updated tag $TAG_NAME..."
-              
-              if git push origin "$TAG_NAME" --force; then
-                echo "✅ Successfully moved tag $TAG_NAME to commit $COMMIT_SHA"
-                break
-              fi
-              
-              if [ $attempt -lt $max_attempts ]; then
-                echo "⚠️ Tag push failed, retrying in ${delay}s..."
-                sleep $delay
-                delay=$((delay * 2))
-              else
-                echo "❌ Failed to push tag after $max_attempts attempts"
-                exit 1
-              fi
-              
-              attempt=$((attempt + 1))
-            done
           else
             echo "No version changes detected"
             COMMIT_SHA=$(git rev-parse HEAD)
@@ -422,6 +396,7 @@ jobs:
           VERSION="${{ needs.validate-tag.outputs.version }}"
           FULL_VERSION="${{ needs.validate-tag.outputs.full_version }}"
           IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
+          TAG_NAME=${GITHUB_REF#refs/tags/}
           
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -470,6 +445,46 @@ jobs:
               
               attempt=$((attempt + 1))
             done
+            
+            # Move the tag to point to the Unity DLL commit (CRITICAL for UPM)
+            if [ "$push_success" = true ]; then
+              echo "🏷️ Moving tag $TAG_NAME to Unity DLL commit for UPM compatibility"
+              
+              # Fetch the latest main to get the Unity DLL commit
+              git fetch origin main
+              UNITY_DLL_COMMIT=$(git rev-parse origin/main)
+              echo "Unity DLL commit SHA: $UNITY_DLL_COMMIT"
+              
+              # Delete and recreate the tag at the Unity DLL commit
+              git tag -d "$TAG_NAME"
+              git tag -a "$TAG_NAME" -m "Release $TAG_NAME" "$UNITY_DLL_COMMIT"
+              
+              # Push the updated tag
+              tag_push_attempts=3
+              tag_attempt=1
+              tag_delay=5
+              
+              while [ $tag_attempt -le $tag_push_attempts ]; do
+                echo "Attempt $tag_attempt/$tag_push_attempts: Moving tag $TAG_NAME to Unity DLL commit..."
+                
+                if git push origin "$TAG_NAME" --force; then
+                  echo "✅ Successfully moved tag $TAG_NAME to Unity DLL commit $UNITY_DLL_COMMIT"
+                  echo "🎯 Tag now points to commit with Unity DLLs for UPM compatibility"
+                  break
+                fi
+                
+                if [ $tag_attempt -lt $tag_push_attempts ]; then
+                  echo "⚠️ Tag push failed, retrying in ${tag_delay}s..."
+                  sleep $tag_delay
+                  tag_delay=$((tag_delay * 2))
+                else
+                  echo "❌ Failed to move tag after $tag_push_attempts attempts"
+                  echo "⚠️ Tag still points to version commit, not Unity DLL commit"
+                fi
+                
+                tag_attempt=$((tag_attempt + 1))
+              done
+            fi
             
             # Always clean up the temporary branch (whether push succeeded or failed)
             echo "🧹 Cleaning up temporary branch..."
