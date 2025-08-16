@@ -455,6 +455,14 @@ jobs:
               
               if git push origin temp-unity-dll-update:main; then
                 echo "✅ Unity DLLs updated on main branch"
+                
+                # Clean up the temporary branch
+                echo "🧹 Cleaning up temporary branch..."
+                if git push origin --delete temp-unity-dll-update 2>/dev/null; then
+                  echo "✅ Temporary branch deleted successfully"
+                else
+                  echo "ℹ️ Temporary branch cleanup skipped (may not exist on remote)"
+                fi
                 break
               fi
               
