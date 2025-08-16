@@ -449,20 +449,14 @@ jobs:
             max_attempts=3
             attempt=1
             delay=5
+            push_success=false
             
             while [ $attempt -le $max_attempts ]; do
               echo "Attempt $attempt/$max_attempts: Pushing Unity DLL updates to main..."
               
               if git push origin temp-unity-dll-update:main; then
                 echo "✅ Unity DLLs updated on main branch"
-                
-                # Clean up the temporary branch
-                echo "🧹 Cleaning up temporary branch..."
-                if git push origin --delete temp-unity-dll-update 2>/dev/null; then
-                  echo "✅ Temporary branch deleted successfully"
-                else
-                  echo "ℹ️ Temporary branch cleanup skipped (may not exist on remote)"
-                fi
+                push_success=true
                 break
               fi
               
@@ -472,11 +466,24 @@ jobs:
                 delay=$((delay * 2))
               else
                 echo "❌ Failed to push Unity DLLs after $max_attempts attempts"
-                exit 1
               fi
               
               attempt=$((attempt + 1))
             done
+            
+            # Always clean up the temporary branch (whether push succeeded or failed)
+            echo "🧹 Cleaning up temporary branch..."
+            if git push origin --delete temp-unity-dll-update 2>/dev/null; then
+              echo "✅ Temporary branch deleted successfully"
+            else
+              echo "ℹ️ Temporary branch cleanup skipped (may not exist on remote)"
+            fi
+            
+            # Exit with error if push ultimately failed
+            if [ "$push_success" = false ]; then
+              echo "❌ Unity DLL push failed after cleanup"
+              exit 1
+            fi
           else
             echo "No Unity DLL changes detected"
           fi
