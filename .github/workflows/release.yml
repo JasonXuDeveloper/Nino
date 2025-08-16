@@ -429,48 +429,46 @@ jobs:
           if [[ -n "$(git status --porcelain)" ]]; then
             git add ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/*.dll
             
+            # Always commit Unity DLL updates to main branch regardless of release type
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            echo "Current commit: $CURRENT_COMMIT"
+            
+            # Create a temporary branch from current commit
+            git checkout -b temp-unity-dll-update
+            
+            # Use appropriate commit message based on release type
             if [[ "$IS_PRERELEASE" == "true" ]]; then
-              # For pre-releases, create a separate branch
-              BRANCH_NAME="release/$FULL_VERSION"
-              git checkout -b "$BRANCH_NAME"
               git commit -m "Update Unity Package DLLs to $FULL_VERSION (pre-release)"
-              git push origin "$BRANCH_NAME"
-              echo "✅ Unity DLLs updated on pre-release branch: $BRANCH_NAME"
-              echo "ℹ️ Pre-release Unity packages are available on branch $BRANCH_NAME"
+              echo "📦 Committing Unity DLLs for pre-release $FULL_VERSION to main branch"
             else
-              # For stable releases, ensure we're on a branch that can push to main
-              CURRENT_COMMIT=$(git rev-parse HEAD)
-              echo "Current commit: $CURRENT_COMMIT"
-              
-              # Create a temporary branch from current commit
-              git checkout -b temp-unity-dll-update
               git commit -m "Update Unity Package DLLs to v$VERSION"
-              
-              # Push Unity DLL updates to main branch
-              max_attempts=3
-              attempt=1
-              delay=5
-              
-              while [ $attempt -le $max_attempts ]; do
-                echo "Attempt $attempt/$max_attempts: Pushing Unity DLL updates to main..."
-                
-                if git push origin temp-unity-dll-update:main; then
-                  echo "✅ Unity DLLs updated on main branch"
-                  break
-                fi
-                
-                if [ $attempt -lt $max_attempts ]; then
-                  echo "⚠️ Push failed, retrying in ${delay}s..."
-                  sleep $delay
-                  delay=$((delay * 2))
-                else
-                  echo "❌ Failed to push Unity DLLs after $max_attempts attempts"
-                  exit 1
-                fi
-                
-                attempt=$((attempt + 1))
-              done
+              echo "📦 Committing Unity DLLs for stable release v$VERSION to main branch"
             fi
+            
+            # Push Unity DLL updates to main branch with retry logic
+            max_attempts=3
+            attempt=1
+            delay=5
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt/$max_attempts: Pushing Unity DLL updates to main..."
+              
+              if git push origin temp-unity-dll-update:main; then
+                echo "✅ Unity DLLs updated on main branch"
+                break
+              fi
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "⚠️ Push failed, retrying in ${delay}s..."
+                sleep $delay
+                delay=$((delay * 2))
+              else
+                echo "❌ Failed to push Unity DLLs after $max_attempts attempts"
+                exit 1
+              fi
+              
+              attempt=$((attempt + 1))
+            done
           else
             echo "No Unity DLL changes detected"
           fi
