@@ -230,7 +230,7 @@ public partial class SerializerGenerator
             var formatterType = kvp.Value.FormatterType;
             var valueType = kvp.Value.ValueType;
             var varName = formatterType.GetCachedVariableName("formatter");
-            sb.AppendLine($"        private static readonly {formatterType.GetDisplayString()} {varName} = NinoFormatterInstance<{formatterType.GetDisplayString()}, {valueType.GetDisplayString()}>.Instance.Value;");
+            sb.AppendLine($"        private static readonly {formatterType.GetDisplayString()} {varName} = NinoFormatterInstance<{formatterType.GetDisplayString()}, {valueType.GetDisplayString()}>.Instance;");
         }
         
         return sb.ToString();

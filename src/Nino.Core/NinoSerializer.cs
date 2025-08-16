@@ -260,7 +260,7 @@ namespace Nino.Core
         {
             if (val == null)
             {
-                Serializer(default, ref writer);
+                writer.Write(TypeCollector.Null);
                 return;
             }
 
