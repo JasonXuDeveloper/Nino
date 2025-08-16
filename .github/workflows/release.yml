@@ -415,7 +415,7 @@ jobs:
       - name: Copy Release DLLs to Unity
         run: |
           cp ./Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
-          cp ./Nino.Generator/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          cp ./Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
       
       - name: Commit Unity DLL updates
         run: |
