@@ -64,8 +64,8 @@ We welcome various types of contributions:
 
 1. **Copy .NET DLLs to Unity**:
    ```bash
-   cp ./Nino/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/
-   cp ./Nino/bin/Debug/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/
+   cp ./Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/
+   cp ./Nino.Generator/bin/Debug/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/
    ```
 
 2. **Open Unity project** at `src/Nino.Unity`
