@@ -438,18 +438,23 @@ jobs:
               echo "✅ Unity DLLs updated on pre-release branch: $BRANCH_NAME"
               echo "ℹ️ Pre-release Unity packages are available on branch $BRANCH_NAME"
             else
-              # For stable releases, push to main
+              # For stable releases, ensure we're on a branch that can push to main
+              CURRENT_COMMIT=$(git rev-parse HEAD)
+              echo "Current commit: $CURRENT_COMMIT"
+              
+              # Create a temporary branch from current commit
+              git checkout -b temp-unity-dll-update
               git commit -m "Update Unity Package DLLs to v$VERSION"
               
-              # Retry logic for main branch push
+              # Push Unity DLL updates to main branch
               max_attempts=3
               attempt=1
               delay=5
               
               while [ $attempt -le $max_attempts ]; do
-                echo "Attempt $attempt/$max_attempts: Pushing Unity DLL updates..."
+                echo "Attempt $attempt/$max_attempts: Pushing Unity DLL updates to main..."
                 
-                if git push origin main; then
+                if git push origin temp-unity-dll-update:main; then
                   echo "✅ Unity DLLs updated on main branch"
                   break
                 fi
