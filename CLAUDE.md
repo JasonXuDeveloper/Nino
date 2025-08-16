@@ -1,5 +1,7 @@
 # Claude Code Configuration - SPARC Development Environment (Batchtools Optimized)
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## 🚨 CRITICAL: CONCURRENT EXECUTION FOR ALL ACTIONS
 
 **ABSOLUTE RULE**: ALL operations MUST be concurrent/parallel in a single message:
