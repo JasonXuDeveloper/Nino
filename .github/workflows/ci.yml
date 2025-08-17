@@ -20,9 +20,9 @@ permissions:
   pull-requests: read   # Read PR context
   checks: write         # Write test results
 
-# Prevent concurrent runs of the same workflow
+# Prevent concurrent runs of the same workflow only when CI actually runs
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 # Set global defaults
