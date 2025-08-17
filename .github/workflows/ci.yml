@@ -3,8 +3,14 @@ name: CI - Build and Test
 on:
   push:
     branches: [ "main", "develop" ]
+    paths:
+      - 'src/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ "main", "develop" ]
+    paths:
+      - 'src/**'
+      - '.github/workflows/ci.yml'
   workflow_call:
 
 # Security: Minimal required permissions
