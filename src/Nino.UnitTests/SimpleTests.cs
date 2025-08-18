@@ -1701,4 +1701,85 @@ public class SimpleTests
         Console.WriteLine("Array ref overload preserves object identity - PASSED");
     }
 
+    [TestMethod]
+    public void TestRefOverloadArrayShrinkPreservesObjects()
+    {
+        // Test Array ref overload preserves object identity when shrinking array
+        var originalArray = new TestClass[]
+        {
+            new TestClass { A = 1, B = "first" },
+            new TestClass { A = 2, B = "second" },
+            new TestClass { A = 3, B = "third" },
+            new TestClass { A = 4, B = "fourth" },
+            new TestClass { A = 5, B = "fifth" }
+        };
+
+        // Store references to the first 3 elements (which will remain after shrinking)
+        var ref1 = originalArray[0];
+        var ref2 = originalArray[1];
+        var ref3 = originalArray[2];
+        // Also store references to elements that will be removed (4th and 5th)
+        var ref4 = originalArray[3];
+        var ref5 = originalArray[4];
+
+        // Create a smaller array to serialize (only first 3 elements)
+        var smallerArray = new TestClass[]
+        {
+            new TestClass { A = 10, B = "updated_first" },
+            new TestClass { A = 20, B = "updated_second" },
+            new TestClass { A = 30, B = "updated_third" }
+        };
+
+        // Serialize the smaller array
+        var bytes = NinoSerializer.Serialize(smallerArray);
+
+        // Modify the existing objects' data in the larger array to verify they get overwritten (not replaced)
+        ref1.A = 999;
+        ref1.B = "modified1";
+        ref2.A = 888;
+        ref2.B = "modified2";
+        ref3.A = 777;
+        ref3.B = "modified3";
+        ref4.A = 666;
+        ref4.B = "modified4";
+        ref5.A = 555;
+        ref5.B = "modified5";
+
+        // Use ref overload to deserialize into existing larger array (should shrink to 3 elements)
+        NinoDeserializer.Deserialize(bytes, ref originalArray);
+
+        // Verify array was resized correctly
+        Assert.AreEqual(3, originalArray.Length, "Array should be shrunk to 3 elements");
+
+        // Verify data integrity for remaining elements
+        Assert.AreEqual(10, originalArray[0].A, "First element A should be 10");
+        Assert.AreEqual("updated_first", originalArray[0].B, "First element B should be 'updated_first'");
+        Assert.AreEqual(20, originalArray[1].A, "Second element A should be 20");
+        Assert.AreEqual("updated_second", originalArray[1].B, "Second element B should be 'updated_second'");
+        Assert.AreEqual(30, originalArray[2].A, "Third element A should be 30");
+        Assert.AreEqual("updated_third", originalArray[2].B, "Third element B should be 'updated_third'");
+
+        // CRITICAL: Verify that the object references are still the same for remaining elements (identity preserved)
+        Assert.AreSame(ref1, originalArray[0], "Array ref overload should preserve object identity for remaining elements when shrinking");
+        Assert.AreSame(ref2, originalArray[1], "Array ref overload should preserve object identity for remaining elements when shrinking");
+        Assert.AreSame(ref3, originalArray[2], "Array ref overload should preserve object identity for remaining elements when shrinking");
+
+        // CRITICAL: Verify that the original reference objects were updated with deserialized data (not replaced)
+        Assert.AreEqual(10, ref1.A, "Original reference should have updated data from deserialization");
+        Assert.AreEqual("updated_first", ref1.B, "Original reference should have updated data from deserialization");
+        Assert.AreEqual(20, ref2.A, "Original reference should have updated data from deserialization");
+        Assert.AreEqual("updated_second", ref2.B, "Original reference should have updated data from deserialization");
+        Assert.AreEqual(30, ref3.A, "Original reference should have updated data from deserialization");
+        Assert.AreEqual("updated_third", ref3.B, "Original reference should have updated data from deserialization");
+
+        // Verify that the removed elements' references still exist and retain their modified values
+        // (They should still exist as objects, just not be part of the array anymore)
+        Assert.AreEqual(666, ref4.A, "Removed element reference should still exist with modified data");
+        Assert.AreEqual("modified4", ref4.B, "Removed element reference should still exist with modified data");
+        Assert.AreEqual(555, ref5.A, "Removed element reference should still exist with modified data");
+        Assert.AreEqual("modified5", ref5.B, "Removed element reference should still exist with modified data");
+
+        Console.WriteLine("Array ref overload shrinking preserves object identity for remaining elements - PASSED");
+    }
+
 }
