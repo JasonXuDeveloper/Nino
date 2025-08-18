@@ -117,7 +117,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void SerializeBoxed(object value, ref Writer writer, Type type)
+        public static void SerializeBoxed(object value, ref Writer writer, Type type)
         {
             if (value == null)
             {

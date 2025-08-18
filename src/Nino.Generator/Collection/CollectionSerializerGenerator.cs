@@ -33,6 +33,8 @@ public class CollectionSerializerGenerator(
             new NinoTyped(),
             // We accept strings
             new String(),
+            // We accept object types
+            new Trivial("Object"),
             // We want key-value pairs for dictionaries
             new Joint().With
             (
@@ -68,6 +70,12 @@ public class CollectionSerializerGenerator(
 
     private string GetSerializeString(ITypeSymbol type, string value, string? serializerVar = null)
     {
+        // object types - use boxed serialization
+        if (type.SpecialType == SpecialType.System_Object)
+        {
+            return $"NinoSerializer.SerializeBoxed({value}, ref writer, {value}?.GetType());";
+        }
+
         // unmanaged
         if (type.IsUnmanagedType &&
             (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var nt) ||

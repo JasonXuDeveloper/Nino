@@ -157,7 +157,7 @@ public partial class DeserializerGenerator
         // Create instance if needed
         if (!byRef)
         {
-            CreateInstance(sb, ninoType, neededDeserializers);
+            CreateInstance(sb, ninoType, neededDeserializers, byRef);
         }
 
         // Deserialize ALL members to maintain stream alignment, but only assign assignable ones
@@ -166,12 +166,12 @@ public partial class DeserializerGenerator
             if (!member.IsCtorParameter && !constructorHandledMembers.Contains(member.Name))
             {
                 // Can assign this member
-                GenerateMemberDeserialization(sb, member, ninoType, neededDeserializers);
+                GenerateMemberDeserialization(sb, member, ninoType, neededDeserializers, byRef);
             }
             else if (!constructorHandledMembers.Contains(member.Name))
             {
                 // Must read from stream but cannot assign (e.g., init-only properties)
-                GenerateDiscardDeserialization(sb, member, neededDeserializers);
+                GenerateDiscardDeserialization(sb, member, neededDeserializers, byRef);
             }
         }
     }
@@ -181,7 +181,7 @@ public partial class DeserializerGenerator
     #region Member Deserialization
 
     private void GenerateDiscardDeserialization(StringBuilder sb, NinoMember member,
-        Dictionary<ITypeSymbol, string> neededDeserializers)
+        Dictionary<ITypeSymbol, string> neededDeserializers, bool byRef)
     {
         // Read from stream but discard the value (for init-only properties when using parameterless constructor)
         var tempVar = $"temp_{member.Name}";
@@ -189,13 +189,13 @@ public partial class DeserializerGenerator
 
         // Generate temporary variable declaration and read statement
         sb.AppendLine($"            {type.GetDisplayString()} {tempVar};");
-        var readStatement = GenerateReadStatement(member, tempVar, neededDeserializers);
+        var readStatement = GenerateReadStatement(member, tempVar, neededDeserializers, byRef);
         sb.AppendLine($"            {readStatement}");
         sb.AppendLine($"            // Discarded {tempVar} (cannot assign to init-only property)");
     }
 
     private void GenerateMemberDeserialization(StringBuilder sb, NinoMember member, NinoType parentType,
-        Dictionary<ITypeSymbol, string> deserializers)
+        Dictionary<ITypeSymbol, string> deserializers, bool byRef)
     {
         var memberAccess = GetMemberAccess(member);
 
@@ -204,7 +204,7 @@ public partial class DeserializerGenerator
             // Special handling for private members
             var tempVar = $"temp_{member.Name}";
             sb.AppendLine($"            {member.Type.GetDisplayString()} {tempVar} = default;");
-            var readStatement = GenerateReadStatement(member, tempVar, deserializers);
+            var readStatement = GenerateReadStatement(member, tempVar, deserializers, byRef);
 
             // Version tolerance wrapper
             sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
@@ -242,7 +242,7 @@ public partial class DeserializerGenerator
             // Properties need temp variable
             var tempVar = $"temp_{member.Name}";
             sb.AppendLine($"            {member.Type.GetDisplayString()} {tempVar} = default;");
-            var readStatement = GenerateReadStatement(member, tempVar, deserializers);
+            var readStatement = GenerateReadStatement(member, tempVar, deserializers, byRef);
 
             // Simple version tolerance wrapper
             sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
@@ -259,7 +259,7 @@ public partial class DeserializerGenerator
         else
         {
             // Fields can be accessed directly
-            var readStatement = GenerateReadStatement(member, memberAccess, deserializers);
+            var readStatement = GenerateReadStatement(member, memberAccess, deserializers, byRef);
 
             // Simple version tolerance wrapper
             sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
@@ -282,7 +282,7 @@ public partial class DeserializerGenerator
     }
 
     private string GenerateReadStatement(NinoMember member, string memberAccess,
-        Dictionary<ITypeSymbol, string> deserializers)
+        Dictionary<ITypeSymbol, string> deserializers, bool isRefScenario = false)
     {
         var type = member.Type;
 
@@ -297,20 +297,33 @@ public partial class DeserializerGenerator
             }
         }
 
-        // Priority 2: Strings (UTF8/UTF16)
+        // Priority 2: Unmanaged types
+        if (type.IsUnmanagedType && !IsPolymorphicType(type))
+        {
+            return $"reader.UnsafeRead(out {memberAccess});";
+        }
+
+        // Priority 3: Strings (UTF8/UTF16)
         if (type.SpecialType == SpecialType.System_String)
         {
             var method = member.IsUtf8String ? "ReadUtf8" : "Read";
             return $"reader.{method}(out {memberAccess});";
         }
 
-        // Priority 3: Unmanaged types
-        if (type.IsUnmanagedType && !IsPolymorphicType(type))
+        // Priority 4: Object type - use polymorphic deserialization with null type
+        if (type.SpecialType == SpecialType.System_Object)
         {
-            return $"reader.UnsafeRead(out {memberAccess});";
+            if (isRefScenario)
+            {
+                return $"NinoDeserializer.DeserializeRefBoxed(ref {memberAccess}, ref reader, null);";
+            }
+            else
+            {
+                return $"{memberAccess} = NinoDeserializer.DeserializeBoxed(ref reader, null);";
+            }
         }
 
-        // Priority 4: Complex types with cached deserializers
+        // Priority 5: Complex types with cached deserializers
         if (deserializers.TryGetValue(type, out var deserializerVar))
         {
             return $"{deserializerVar}.Deserialize(out {memberAccess}, ref reader);";
@@ -323,7 +336,7 @@ public partial class DeserializerGenerator
 
     #region Instance Creation
 
-    private void CreateInstance(StringBuilder sb, NinoType ninoType, Dictionary<ITypeSymbol, string> neededDeserializers)
+    private void CreateInstance(StringBuilder sb, NinoType ninoType, Dictionary<ITypeSymbol, string> neededDeserializers, bool byRef)
     {
         var constructors = (ninoType.TypeSymbol as INamedTypeSymbol)?.Constructors.ToList() ??
                            new List<IMethodSymbol>();
@@ -353,7 +366,7 @@ public partial class DeserializerGenerator
         else
         {
             // For constructors with parameters, we need to deserialize constructor args first
-            GenerateConstructorWithParameters(sb, ninoType, constructor, neededDeserializers);
+            GenerateConstructorWithParameters(sb, ninoType, constructor, neededDeserializers, byRef);
         }
     }
 
@@ -376,7 +389,7 @@ public partial class DeserializerGenerator
         return constructors.OrderBy(c => c.Parameters.Length).FirstOrDefault();
     }
 
-    private void GenerateConstructorWithParameters(StringBuilder sb, NinoType ninoType, IMethodSymbol constructor, Dictionary<ITypeSymbol, string> neededDeserializers)
+    private void GenerateConstructorWithParameters(StringBuilder sb, NinoType ninoType, IMethodSymbol constructor, Dictionary<ITypeSymbol, string> neededDeserializers, bool byRef)
     {
         // Get constructor attribute to find parameter name mapping
         var constructorAttr = constructor.GetAttributesCache()
@@ -419,7 +432,7 @@ public partial class DeserializerGenerator
                 if (member != null)
                 {
                     sb.AppendLine($"            {param.Type.GetDisplayString()} {paramVar};");
-                    var readStatement = GenerateReadStatement(member, paramVar, neededDeserializers);
+                    var readStatement = GenerateReadStatement(member, paramVar, neededDeserializers, byRef);
                     sb.AppendLine($"            {readStatement}");
                 }
                 else
@@ -449,7 +462,7 @@ public partial class DeserializerGenerator
 
                         sb.AppendLine($"            {param.Type.GetDisplayString()} {paramVar};");
                         var readStatement =
-                            GenerateReadStatement(member, paramVar, neededDeserializers);
+                            GenerateReadStatement(member, paramVar, neededDeserializers, byRef);
                         sb.AppendLine($"            {readStatement}");
                     }
                 }

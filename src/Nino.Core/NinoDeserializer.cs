@@ -77,7 +77,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static object DeserializeBoxed(ref Reader reader, Type type)
+        public static object DeserializeBoxed(ref Reader reader, Type type = null)
         {
             // Check for null value first
             reader.Peak(out int typeId);
@@ -87,21 +87,33 @@ namespace Nino.Core
                 return null;
             }
 
-            // Check if type is null
+            // If type is null, resolve it from the type ID in the stream
             if (type == null)
-                throw new ArgumentNullException(nameof(type));
+            {
+                if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr typeHandle))
+                {
+                    throw new Exception($"Deserializer not found for type with id {typeId}");
+                }
 
-            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
+                if (!NinoTypeMetadata.Deserializers.TryGetValue(typeHandle, out var deserializer))
+                {
+                    throw new Exception($"Deserializer not found for type with id {typeId}");
+                }
+
+                return deserializer.DeserializeBoxed(ref reader);
+            }
+
+            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var typeDeserializer))
             {
                 throw new Exception(
                     $"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
             }
 
-            return deserializer.DeserializeBoxed(ref reader);
+            return typeDeserializer.DeserializeBoxed(ref reader);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeRefBoxed(ref object val, ref Reader reader, Type type)
+        public static void DeserializeRefBoxed(ref object val, ref Reader reader, Type type = null)
         {
             // Check for null value first
             reader.Peak(out int typeId);
@@ -112,17 +124,31 @@ namespace Nino.Core
                 return;
             }
 
-            // Check if type is null
-            if (type == null)
-                throw new ArgumentNullException(nameof(type));
 
-            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var deserializer))
+            // If type is null, resolve it from the type ID in the stream
+            if (type == null)
+            {
+                if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr typeHandle))
+                {
+                    throw new Exception($"Deserializer not found for type with id {typeId}");
+                }
+
+                if (!NinoTypeMetadata.Deserializers.TryGetValue(typeHandle, out var deserializer))
+                {
+                    throw new Exception($"Deserializer not found for type with id {typeId}");
+                }
+
+                deserializer.DeserializeBoxed(ref val, ref reader);
+                return;
+            }
+
+            if (!NinoTypeMetadata.Deserializers.TryGetValue(type.TypeHandle.Value, out var typeDeserializer))
             {
                 throw new Exception(
                     $"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
             }
 
-            deserializer.DeserializeBoxed(ref val, ref reader);
+            typeDeserializer.DeserializeBoxed(ref val, ref reader);
         }
     }
 

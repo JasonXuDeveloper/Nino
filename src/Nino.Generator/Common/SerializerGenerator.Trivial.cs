@@ -381,9 +381,14 @@ public partial class SerializerGenerator
                         sb.AppendLine($"            writer.Write({val});");
                     }
                 }
+                else if (declaredType.SpecialType == SpecialType.System_Object)
+                {
+                    // PRIORITY 4: Object type - call boxed API in NinoSerializer directly
+                    sb.AppendLine($"            NinoSerializer.SerializeBoxed({val}, ref writer, {val}?.GetType());");
+                }
                 else
                 {
-                    // PRIORITY 4: CachedSerializer fallback
+                    // PRIORITY 5: CachedSerializer fallback
                     var serializerVar = GetSerializerVarName(declaredType);
                     sb.AppendLine($"            {serializerVar}.Serialize({val}, ref writer);");
                 }

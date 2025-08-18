@@ -35,6 +35,8 @@ public class CollectionDeserializerGenerator(
                 new NinoTyped(),
                 // We accept strings
                 new String(),
+                // We accept object types for polymorphic serialization
+                new Trivial("Object"),
                 // We want key-value pairs for dictionaries
                 new Joint().With
                 (
@@ -123,6 +125,21 @@ public class CollectionDeserializerGenerator(
     {
         var typeFullName = assigned ? "" : $" {type.GetDisplayString()}";
 
+        // object types - use boxed deserialization
+        if (type.SpecialType == SpecialType.System_Object)
+        {
+            if (assigned)
+            {
+                // For assigned object types (like array elements), use ref boxed deserialization
+                return $"NinoDeserializer.DeserializeRefBoxed(ref {value}, ref {reader}, null);";
+            }
+            else
+            {
+                // For new object declarations, use regular boxed deserialization
+                return $"{type.GetDisplayString()} {value} = NinoDeserializer.DeserializeBoxed(ref {reader}, null);";
+            }
+        }
+
         // unmanaged
         if (type.IsUnmanagedType &&
             (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var nt) ||
@@ -139,6 +156,33 @@ public class CollectionDeserializerGenerator(
 
         // Fallback to static method call
         return $"NinoDeserializer.Deserialize(out{typeFullName} {value}, ref {reader});";
+    }
+
+    private string GetDeserializeRefString(ITypeSymbol type, string value, string reader = "reader",
+        string? deserializerVar = null)
+    {
+        // object types - use boxed ref deserialization
+        if (type.SpecialType == SpecialType.System_Object)
+        {
+            return $"NinoDeserializer.DeserializeRefBoxed(ref {value}, ref {reader}, null);";
+        }
+
+        // unmanaged
+        if (type.IsUnmanagedType &&
+            (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var nt) ||
+             !nt.IsPolymorphic()))
+        {
+            return $"{reader}.ReadRef(ref {value});";
+        }
+
+        // If deserializer variable is provided, use cached deserializer
+        if (deserializerVar != null)
+        {
+            return $"{deserializerVar}.DeserializeRef(ref {value}, ref {reader});";
+        }
+
+        // Fallback to static method call
+        return $"NinoDeserializer.DeserializeRef(ref {value}, ref {reader});";
     }
 
     private void GenerateCachedDeserializers(HashSet<ITypeSymbol> types, Writer sb,
@@ -1369,7 +1413,7 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("    }");
                     sb.AppendLine();
                     sb.AppendLine("    // Use the existing method that clears and populates");
-                    sb.Append("    Deserialize(value, ref reader);");
+                    sb.AppendLine("    Deserialize(value, ref reader);");
                     sb.AppendLine("}");
                 }
                 else
