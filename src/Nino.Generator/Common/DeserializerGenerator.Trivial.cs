@@ -160,19 +160,138 @@ public partial class DeserializerGenerator
             CreateInstance(sb, ninoType, neededDeserializers, byRef);
         }
 
-        // Deserialize ALL members to maintain stream alignment, but only assign assignable ones
-        foreach (var member in members)
+        // Use the same grouping logic as serializer to read grouped unmanaged members as NinoTuple
+        foreach (var memberGroup in ninoType.GroupByPrimitivity())
         {
+            if (memberGroup.Count == 1)
+            {
+                var member = memberGroup[0];
+                if (!member.IsCtorParameter && !constructorHandledMembers.Contains(member.Name))
+                {
+                    // Can assign this member
+                    GenerateMemberDeserialization(sb, member, ninoType, neededDeserializers, byRef);
+                }
+                else if (!constructorHandledMembers.Contains(member.Name))
+                {
+                    // Must read from stream but cannot assign (e.g., init-only properties)
+                    GenerateDiscardDeserialization(sb, member, neededDeserializers, byRef);
+                }
+            }
+            else
+            {
+                // Multiple unmanaged members - read as NinoTuple to match serializer behavior
+                GenerateGroupDeserialization(sb, memberGroup, ninoType, constructorHandledMembers);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Group Deserialization
+
+    private void GenerateGroupDeserialization(StringBuilder sb, List<NinoMember> memberGroup, NinoType ninoType, HashSet<string> constructorHandledMembers)
+    {
+        // Generate tuple type - all members in group should be unmanaged
+        var tupleTypes = memberGroup.Select(m => m.Type.GetDisplayString()).ToList();
+        var tupleType = $"({string.Join(", ", tupleTypes)})";
+        var tempVar = $"tuple_{memberGroup[0].Name}";
+
+        // Read the NinoTuple - match serializer's version tolerance logic
+        sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+        
+        // Individual reads for version tolerance - each field needs its own EOF check
+        for (int i = 0; i < memberGroup.Count; i++)
+        {
+            var member = memberGroup[i];
+            var memberAccess = GetMemberAccess(member);
+            
+            // Each field gets its own EOF check for version tolerance
+            sb.AppendLine($"            if (!reader.Eof)");
+            sb.AppendLine("            {");
+            
             if (!member.IsCtorParameter && !constructorHandledMembers.Contains(member.Name))
             {
-                // Can assign this member
-                GenerateMemberDeserialization(sb, member, ninoType, neededDeserializers, byRef);
+                // Can assign - use direct member access
+                if (member.IsPrivate)
+                {
+                    var tempMemberVar = $"temp_{member.Name}";
+                    sb.AppendLine($"                {member.Type.GetDisplayString()} {tempMemberVar};");
+                    sb.AppendLine($"                reader.UnsafeRead(out {tempMemberVar});");
+                    AssignPrivateMember(sb, member, ninoType, tempMemberVar, "                ");
+                }
+                else if (member.IsProperty)
+                {
+                    var tempMemberVar = $"temp_{member.Name}";
+                    sb.AppendLine($"                {member.Type.GetDisplayString()} {tempMemberVar};");
+                    sb.AppendLine($"                reader.UnsafeRead(out {tempMemberVar});");
+                    sb.AppendLine($"                {memberAccess} = {tempMemberVar};");
+                }
+                else
+                {
+                    // Direct field access
+                    sb.AppendLine($"                reader.UnsafeRead(out {memberAccess});");
+                }
             }
             else if (!constructorHandledMembers.Contains(member.Name))
             {
-                // Must read from stream but cannot assign (e.g., init-only properties)
-                GenerateDiscardDeserialization(sb, member, neededDeserializers, byRef);
+                // Must read but discard
+                var discardVar = $"discard_{member.Name}";
+                sb.AppendLine($"                {member.Type.GetDisplayString()} {discardVar};");
+                sb.AppendLine($"                reader.UnsafeRead(out {discardVar});");
             }
+            
+            sb.AppendLine("            }");
+        }
+        
+        sb.AppendLine("#else");
+        
+        // Optimized tuple read for non-version-tolerance
+        sb.AppendLine($"            {tupleType} {tempVar};");
+        sb.AppendLine($"            reader.UnsafeRead(out {tempVar});");
+        
+        // Assign tuple components to members
+        for (int i = 0; i < memberGroup.Count; i++)
+        {
+            var member = memberGroup[i];
+            var tupleAccess = $"{tempVar}.Item{i + 1}";
+            
+            if (!member.IsCtorParameter && !constructorHandledMembers.Contains(member.Name))
+            {
+                // Can assign this member
+                if (member.IsPrivate)
+                {
+                    AssignPrivateMember(sb, member, ninoType, tupleAccess, "            ");
+                }
+                else
+                {
+                    var memberAccess = GetMemberAccess(member);
+                    sb.AppendLine($"            {memberAccess} = {tupleAccess};");
+                }
+            }
+            // If constructor handled or init-only, we still read but don't assign
+        }
+        
+        sb.AppendLine("#endif");
+    }
+
+    private void AssignPrivateMember(StringBuilder sb, NinoMember member, NinoType ninoType, string valueVar, string indent)
+    {
+        if (member.IsProperty)
+        {
+            sb.AppendLine($"{indent}#if NET8_0_OR_GREATER");
+            sb.AppendLine($"{indent}PrivateAccessor.__set__{member.Name}__({(ninoType.TypeSymbol.IsValueType ? "ref value" : "value")}, {valueVar});");
+            sb.AppendLine($"{indent}#else");
+            sb.AppendLine($"{indent}value.__nino__generated__{member.Name} = {valueVar};");
+            sb.AppendLine($"{indent}#endif");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}#if NET8_0_OR_GREATER");
+            sb.AppendLine($"{indent}ref var __ref_{member.Name} = ref PrivateAccessor.__{member.Name}__({(ninoType.TypeSymbol.IsValueType ? "ref value" : "value")});");
+            sb.AppendLine($"{indent}__ref_{member.Name} = {valueVar};");
+            sb.AppendLine($"{indent}#else");
+            sb.AppendLine($"{indent}value.__nino__generated__{member.Name} = {valueVar};");
+            sb.AppendLine($"{indent}#endif");
         }
     }
 
@@ -297,9 +416,12 @@ public partial class DeserializerGenerator
             }
         }
 
-        // Priority 2: Unmanaged types
+        // Priority 2: Unmanaged types (but not nullable types)
         if (type.IsUnmanagedType && !IsPolymorphicType(type))
         {
+            if(type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+                return $"reader.Read(out {memberAccess});";
+                
             return $"reader.UnsafeRead(out {memberAccess});";
         }
 
