@@ -441,12 +441,16 @@ public class CollectionDeserializerGenerator(
                         sb.AppendLine();
                     }
 
-                    sb.AppendLine("    // Resize array if needed");
-                    sb.AppendLine("    if (value == null || value.Length != length)");
+                    sb.AppendLine("    // Use Array.Resize for non-null arrays, otherwise create new");
+                    sb.AppendLine("    if (value == null)");
                     sb.AppendLine("    {");
                     sb.Append("        value = new ");
                     sb.Append(creationDecl);
                     sb.AppendLine(";");
+                    sb.AppendLine("    }");
+                    sb.AppendLine("    else if (value.Length != length)");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        Array.Resize(ref value, length);");
                     sb.AppendLine("    }");
                     sb.AppendLine();
                     sb.AppendLine("    var span = value.AsSpan();");
@@ -460,14 +464,14 @@ public class CollectionDeserializerGenerator(
                             w.AppendLine("        eleReader = reader.Slice();");
                             w.Append("    ");
                             w.Append("    ");
-                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "eleReader",
+                            w.AppendLine(GetDeserializeRefString(elementType, "span[i]", "eleReader",
                                 refDeserializerVar));
                         },
                         w =>
                         {
                             w.Append("    ");
                             w.Append("    ");
-                            w.AppendLine(GetDeserializeString(elementType, true, "span[i]", "reader",
+                            w.AppendLine(GetDeserializeRefString(elementType, "span[i]", "reader",
                                 refDeserializerVar));
                         });
                     sb.AppendLine("    }");
@@ -954,11 +958,11 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("    else");
                     sb.AppendLine("    {");
                     sb.AppendLine("        value.Clear();");
-                    sb.AppendLine("    }");
                     if (hasEnsureCapacity)
                     {
-                        sb.AppendLine("    value.EnsureCapacity(length);");
+                        sb.AppendLine("        value.EnsureCapacity(length);");
                     }
+                    sb.AppendLine("    }");
 
                     sb.AppendLine();
                     sb.AppendLine("    for (int i = 0; i < length; i++)");

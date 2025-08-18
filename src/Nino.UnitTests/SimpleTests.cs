@@ -1645,4 +1645,60 @@ public class SimpleTests
 
         Console.WriteLine("All boxed serialization failure tests passed - non-polymorphic types correctly rejected");
     }
+
+    [TestMethod]
+    public void TestRefOverloadObjectIdentityPreservation()
+    {
+        // Test Array ref overload preserves object identity
+        var originalArray = new TestClass[]
+        {
+            new TestClass { A = 1, B = "first" },
+            new TestClass { A = 2, B = "second" },
+            new TestClass { A = 3, B = "third" }
+        };
+
+        // Store references to verify identity preservation
+        var ref1 = originalArray[0];
+        var ref2 = originalArray[1];
+        var ref3 = originalArray[2];
+
+        // Serialize the array
+        var bytes = NinoSerializer.Serialize(originalArray);
+
+        // Modify the existing objects' data to verify they get overwritten (not replaced)
+        ref1.A = 999;
+        ref1.B = "modified1";
+        ref2.A = 888;
+        ref2.B = "modified2";
+        ref3.A = 777;
+        ref3.B = "modified3";
+
+        // Use ref overload to deserialize into existing array
+        NinoDeserializer.Deserialize(bytes, ref originalArray);
+
+        // Verify data integrity
+        Assert.AreEqual(3, originalArray.Length, "Array length should be preserved");
+        Assert.AreEqual(1, originalArray[0].A, "First element A should be 1");
+        Assert.AreEqual("first", originalArray[0].B, "First element B should be 'first'");
+        Assert.AreEqual(2, originalArray[1].A, "Second element A should be 2");
+        Assert.AreEqual("second", originalArray[1].B, "Second element B should be 'second'");
+        Assert.AreEqual(3, originalArray[2].A, "Third element A should be 3");
+        Assert.AreEqual("third", originalArray[2].B, "Third element B should be 'third'");
+
+        // CRITICAL: Verify that the object references are still the same (identity preserved)
+        Assert.AreSame(ref1, originalArray[0], "Array ref overload should preserve object identity in existing elements");
+        Assert.AreSame(ref2, originalArray[1], "Array ref overload should preserve object identity in existing elements");
+        Assert.AreSame(ref3, originalArray[2], "Array ref overload should preserve object identity in existing elements");
+
+        // CRITICAL: Verify that the original reference objects were updated with deserialized data (not replaced)
+        Assert.AreEqual(1, ref1.A, "Original reference should have updated data from deserialization");
+        Assert.AreEqual("first", ref1.B, "Original reference should have updated data from deserialization");
+        Assert.AreEqual(2, ref2.A, "Original reference should have updated data from deserialization");
+        Assert.AreEqual("second", ref2.B, "Original reference should have updated data from deserialization");
+        Assert.AreEqual(3, ref3.A, "Original reference should have updated data from deserialization");
+        Assert.AreEqual("third", ref3.B, "Original reference should have updated data from deserialization");
+
+        Console.WriteLine("Array ref overload preserves object identity - PASSED");
+    }
+
 }
