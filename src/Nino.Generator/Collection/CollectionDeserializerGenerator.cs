@@ -120,6 +120,41 @@ public class CollectionDeserializerGenerator(
         });
     };
 
+    private static bool HasIndexerAndRemoveAt(ITypeSymbol symbol)
+    {
+        if (symbol is not INamedTypeSymbol namedType) return false;
+
+        // Check for indexer (this[int])
+        bool hasIndexer = namedType.GetMembers().OfType<IPropertySymbol>()
+            .Any(p => p.IsIndexer &&
+                      p.Parameters.Length == 1 &&
+                      p.Parameters[0].Type.SpecialType == SpecialType.System_Int32 &&
+                      p.SetMethod != null); // Must be writable
+
+        // Check for RemoveAt(int) method
+        bool hasRemoveAt = namedType.GetMembers("RemoveAt").OfType<IMethodSymbol>()
+            .Any(m => m.Parameters.Length == 1 &&
+                      m.Parameters[0].Type.SpecialType == SpecialType.System_Int32);
+
+        return hasIndexer && hasRemoveAt;
+    }
+
+    private static bool HasCountProperty(ITypeSymbol symbol)
+    {
+        if (symbol is not INamedTypeSymbol namedType) return false;
+
+        return namedType.GetMembers("Count").OfType<IPropertySymbol>()
+            .Any(p => p.Type.SpecialType == SpecialType.System_Int32 && p.GetMethod != null);
+    }
+
+    private static bool HasCapacityProperty(ITypeSymbol symbol)
+    {
+        if (symbol is not INamedTypeSymbol namedType) return false;
+
+        return namedType.GetMembers("Capacity").OfType<IPropertySymbol>()
+            .Any(p => p.Type.SpecialType == SpecialType.System_Int32 && p.SetMethod != null);
+    }
+    
     private string GetDeserializeString(ITypeSymbol type, bool assigned, string value, string reader = "reader",
         string? deserializerVar = null)
     {
@@ -133,11 +168,9 @@ public class CollectionDeserializerGenerator(
                 // For assigned object types (like array elements), use ref boxed deserialization
                 return $"NinoDeserializer.DeserializeRefBoxed(ref {value}, ref {reader}, null);";
             }
-            else
-            {
-                // For new object declarations, use regular boxed deserialization
-                return $"{type.GetDisplayString()} {value} = NinoDeserializer.DeserializeBoxed(ref {reader}, null);";
-            }
+
+            // For new object declarations, use regular boxed deserialization
+            return $"{type.GetDisplayString()} {value} = NinoDeserializer.DeserializeBoxed(ref {reader}, null);";
         }
 
         // unmanaged
@@ -145,6 +178,11 @@ public class CollectionDeserializerGenerator(
             (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var nt) ||
              !nt.IsPolymorphic()))
         {
+            if (type.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T)
+            {
+                return $"{reader}.UnsafeRead(out{typeFullName} {value});";
+            }
+
             return $"{reader}.Read(out{typeFullName} {value});";
         }
 
@@ -167,12 +205,17 @@ public class CollectionDeserializerGenerator(
             return $"NinoDeserializer.DeserializeRefBoxed(ref {value}, ref {reader}, null);";
         }
 
-        // unmanaged
+        // unmanaged types - use direct read methods for individual elements
         if (type.IsUnmanagedType &&
             (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var nt) ||
              !nt.IsPolymorphic()))
         {
-            return $"{reader}.ReadRef(ref {value});";
+            if (type.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T)
+            {
+                return $"{reader}.UnsafeRead(out {value});";
+            }
+
+            return $"{reader}.Read(out {value});";
         }
 
         // If deserializer variable is provided, use cached deserializer
@@ -926,6 +969,10 @@ public class CollectionDeserializerGenerator(
                 // Ref overload - check if enumerable has Clear method
                 if (HasAddAndClear.Filter(symbol))
                 {
+                    // Check if we can use the optimized three-phase approach
+                    bool canOptimize = HasIndexerAndRemoveAt(symbol) && HasCountProperty(symbol);
+                    bool hasCapacity = HasCapacityProperty(symbol);
+
                     // Modifiable - has both Add and Clear methods
                     sb.AppendLine(Inline);
                     sb.Append("public static void DeserializeRef(ref ");
@@ -955,43 +1002,156 @@ public class CollectionDeserializerGenerator(
                     sb.Append(creationDecl);
                     sb.AppendLine(";");
                     sb.AppendLine("    }");
-                    sb.AppendLine("    else");
-                    sb.AppendLine("    {");
-                    sb.AppendLine("        value.Clear();");
-                    if (hasEnsureCapacity)
-                    {
-                        sb.AppendLine("        value.EnsureCapacity(length);");
-                    }
-                    sb.AppendLine("    }");
 
-                    sb.AppendLine();
-                    sb.AppendLine("    for (int i = 0; i < length; i++)");
-                    sb.AppendLine("    {");
-
-                    if (isUnmanaged)
+                    if (canOptimize)
                     {
-                        sb.Append("        ");
-                        sb.AppendLine(GetDeserializeString(elemType, false, "item"));
-                        sb.AppendLine("        value.Add(item);");
+                        // Use optimized three-phase approach similar to Array.Resize pattern
+                        sb.AppendLine();
+                        sb.AppendLine(
+                            "    // Three-phase optimization: capacity management, ref deserialization, fallback");
+                        sb.AppendLine("    var currentCount = value.Count;");
+                        sb.AppendLine();
+
+                        // Phase 1: Ensure capacity if possible
+                        sb.AppendLine("    // Phase 1: Ensure capacity for efficiency");
+                        if (hasCapacity && hasEnsureCapacity)
+                        {
+                            sb.AppendLine("    if (length > currentCount)");
+                            sb.AppendLine("    {");
+                            sb.AppendLine("        value.EnsureCapacity(length);");
+                            sb.AppendLine("    }");
+                        }
+                        else if (hasCapacity)
+                        {
+                            sb.AppendLine("    if (length > currentCount && length > value.Capacity)");
+                            sb.AppendLine("    {");
+                            sb.AppendLine("        value.Capacity = length;");
+                            sb.AppendLine("    }");
+                        }
+
+                        sb.AppendLine();
+
+                        // Phase 2: Update existing elements using ref deserialization
+                        sb.AppendLine("    // Phase 2: Update existing elements using ref deserialization");
+                        sb.AppendLine("    int minCount = Math.Min(length, currentCount);");
+                        sb.AppendLine("    for (int i = 0; i < minCount; i++)");
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        var current = value[i];");
+
+                        if (isUnmanaged)
+                        {
+                            sb.Append("        ");
+                            sb.AppendLine(GetDeserializeString(elemType, false, "current"));
+                            sb.AppendLine("        value[i] = current;");
+                        }
+                        else
+                        {
+                            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                                w =>
+                                {
+                                    w.AppendLine("        eleReader = reader.Slice();");
+                                    w.Append("        ");
+                                    w.AppendLine(GetDeserializeRefString(elemType, "current", "eleReader"));
+                                },
+                                w =>
+                                {
+                                    w.Append("        ");
+                                    w.AppendLine(GetDeserializeRefString(elemType, "current"));
+                                });
+                            if (elemType.SpecialType is SpecialType.System_String or SpecialType.System_Object ||
+                                elemType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+                            {
+                                sb.AppendLine("        value[i] = current;");
+                            }
+                        }
+
+                        sb.AppendLine("    }");
+                        sb.AppendLine();
+
+                        // Phase 3: Handle size differences
+                        sb.AppendLine("    // Phase 3: Handle size differences");
+                        sb.AppendLine("    if (length > currentCount)");
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        // Add new elements using normal deserialization");
+                        sb.AppendLine("        for (int i = currentCount; i < length; i++)");
+                        sb.AppendLine("        {");
+
+                        if (isUnmanaged)
+                        {
+                            sb.Append("            ");
+                            sb.AppendLine(GetDeserializeString(elemType, false, "item"));
+                            sb.AppendLine("            value.Add(item);");
+                        }
+                        else
+                        {
+                            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                                w =>
+                                {
+                                    w.AppendLine("            eleReader = reader.Slice();");
+                                    w.Append("            ");
+                                    w.AppendLine(GetDeserializeString(elemType, false, "item", "eleReader"));
+                                },
+                                w =>
+                                {
+                                    w.Append("            ");
+                                    w.AppendLine(GetDeserializeString(elemType, false, "item"));
+                                });
+                            sb.AppendLine("            value.Add(item);");
+                        }
+
+                        sb.AppendLine("        }");
+                        sb.AppendLine("    }");
+                        sb.AppendLine("    else if (length < currentCount)");
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        // Remove excess elements from the end");
+                        sb.AppendLine("        for (int i = currentCount - 1; i >= length; i--)");
+                        sb.AppendLine("        {");
+                        sb.AppendLine("            value.RemoveAt(i);");
+                        sb.AppendLine("        }");
+                        sb.AppendLine("    }");
                     }
                     else
                     {
-                        IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
-                            w =>
-                            {
-                                w.AppendLine("        eleReader = reader.Slice();");
-                                w.Append("        ");
-                                w.AppendLine(GetDeserializeString(elemType, false, "item", "eleReader"));
-                            },
-                            w =>
-                            {
-                                w.Append("        ");
-                                w.AppendLine(GetDeserializeString(elemType, false, "item"));
-                            });
-                        sb.AppendLine("        value.Add(item);");
+                        // Fallback to clear-and-add approach for collections without indexer/RemoveAt
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        value.Clear();");
+                        if (hasEnsureCapacity)
+                        {
+                            sb.AppendLine("        value.EnsureCapacity(length);");
+                        }
+
+                        sb.AppendLine("    }");
+
+                        sb.AppendLine();
+                        sb.AppendLine("    for (int i = 0; i < length; i++)");
+                        sb.AppendLine("    {");
+
+                        if (isUnmanaged)
+                        {
+                            sb.Append("        ");
+                            sb.AppendLine(GetDeserializeString(elemType, false, "item"));
+                            sb.AppendLine("        value.Add(item);");
+                        }
+                        else
+                        {
+                            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                                w =>
+                                {
+                                    w.AppendLine("        eleReader = reader.Slice();");
+                                    w.Append("        ");
+                                    w.AppendLine(GetDeserializeString(elemType, false, "item", "eleReader"));
+                                },
+                                w =>
+                                {
+                                    w.Append("        ");
+                                    w.AppendLine(GetDeserializeString(elemType, false, "item"));
+                                });
+                            sb.AppendLine("        value.Add(item);");
+                        }
+
+                        sb.AppendLine("    }");
                     }
 
-                    sb.AppendLine("    }");
                     sb.AppendLine("}");
                 }
                 else
@@ -1400,7 +1560,15 @@ public class CollectionDeserializerGenerator(
                 // Ref overload - check if it's modifiable (has Add and Clear) or not
                 if (HasAddAndClear.Filter(symbol))
                 {
-                    // Modifiable - can use existing method that clears and adds
+                    // Check if we can use the optimized three-phase approach
+                    bool canOptimize = HasIndexerAndRemoveAt(symbol) && HasCountProperty(symbol);
+                    bool hasCapacity = HasCapacityProperty(symbol);
+
+                    bool hasEnsureCapacity = namedTypeSymbol.GetMembers("EnsureCapacity").OfType<IMethodSymbol>()
+                        .Any(m => m.Parameters.Length == 1 &&
+                                  m.Parameters[0].Type.SpecialType == SpecialType.System_Int32);
+
+                    // Modifiable - has both Add and Clear methods
                     sb.AppendLine(Inline);
                     sb.Append("public static void DeserializeRef(ref ");
                     sb.Append(namedTypeSymbol.ToDisplayString());
@@ -1408,16 +1576,175 @@ public class CollectionDeserializerGenerator(
                     sb.AppendLine("{");
                     EofCheck(sb);
                     sb.AppendLine();
+                    sb.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
+                    sb.AppendLine("    {");
+                    sb.AppendLine("        value = null;");
+                    sb.AppendLine("        return;");
+                    sb.AppendLine("    }");
+                    sb.AppendLine();
+
+                    if (!isUnmanaged)
+                    {
+                        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                            w => { w.AppendLine("    Reader eleReader;"); });
+                        sb.AppendLine();
+                    }
+
                     sb.AppendLine("    // Initialize if null");
                     sb.AppendLine("    if (value == null)");
                     sb.AppendLine("    {");
-                    sb.Append("        value = new ");
-                    sb.Append(typeDecl);
-                    sb.AppendLine("();");
+                    sb.Append("        value = ");
+                    sb.Append(creationDecl);
+                    sb.AppendLine(";");
                     sb.AppendLine("    }");
-                    sb.AppendLine();
-                    sb.AppendLine("    // Use the existing method that clears and populates");
-                    sb.AppendLine("    Deserialize(value, ref reader);");
+
+                    if (canOptimize)
+                    {
+                        // Use optimized three-phase approach similar to Array.Resize pattern
+                        sb.AppendLine();
+                        sb.AppendLine(
+                            "    // Three-phase optimization: capacity management, ref deserialization, fallback");
+                        sb.AppendLine("    var currentCount = value.Count;");
+                        sb.AppendLine();
+
+                        // Phase 1: Ensure capacity if possible
+                        sb.AppendLine("    // Phase 1: Ensure capacity for efficiency");
+                        if (hasCapacity && hasEnsureCapacity)
+                        {
+                            sb.AppendLine("    if (length > currentCount)");
+                            sb.AppendLine("    {");
+                            sb.AppendLine("        value.EnsureCapacity(length);");
+                            sb.AppendLine("    }");
+                        }
+                        else if (hasCapacity)
+                        {
+                            sb.AppendLine("    if (length > currentCount && length > value.Capacity)");
+                            sb.AppendLine("    {");
+                            sb.AppendLine("        value.Capacity = length;");
+                            sb.AppendLine("    }");
+                        }
+
+                        sb.AppendLine();
+
+                        // Phase 2: Update existing elements using ref deserialization
+                        sb.AppendLine("    // Phase 2: Update existing elements using ref deserialization");
+                        sb.AppendLine("    int minCount = Math.Min(length, currentCount);");
+                        sb.AppendLine("    for (int i = 0; i < minCount; i++)");
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        var current = value[i];");
+
+                        if (isUnmanaged)
+                        {
+                            sb.Append("        ");
+                            sb.AppendLine(GetDeserializeString(elemType, false, "current"));
+                            sb.AppendLine("        value[i] = current;");
+                        }
+                        else
+                        {
+                            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                                w =>
+                                {
+                                    w.AppendLine("        eleReader = reader.Slice();");
+                                    w.Append("        ");
+                                    w.AppendLine(GetDeserializeRefString(elemType, "current", "eleReader"));
+                                },
+                                w =>
+                                {
+                                    w.Append("        ");
+                                    w.AppendLine(GetDeserializeRefString(elemType, "current"));
+                                });
+                            if (elemType.SpecialType is SpecialType.System_String or SpecialType.System_Object ||
+                                elemType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+                            {
+                                sb.AppendLine("        value[i] = current;");
+                            }
+                        }
+
+                        sb.AppendLine("    }");
+                        sb.AppendLine();
+
+                        // Phase 3: Handle size differences
+                        sb.AppendLine("    // Phase 3: Handle size differences");
+                        sb.AppendLine("    if (length > currentCount)");
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        // Add new elements using normal deserialization");
+                        sb.AppendLine("        for (int i = currentCount; i < length; i++)");
+                        sb.AppendLine("        {");
+
+                        if (isUnmanaged)
+                        {
+                            sb.Append("            ");
+                            sb.AppendLine(GetDeserializeString(elemType, false, "item"));
+                            sb.AppendLine("            value.Add(item);");
+                        }
+                        else
+                        {
+                            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                                w =>
+                                {
+                                    w.AppendLine("            eleReader = reader.Slice();");
+                                    w.Append("            ");
+                                    w.AppendLine(GetDeserializeString(elemType, false, "item", "eleReader"));
+                                },
+                                w =>
+                                {
+                                    w.Append("            ");
+                                    w.AppendLine(GetDeserializeString(elemType, false, "item"));
+                                });
+                            sb.AppendLine("            value.Add(item);");
+                        }
+
+                        sb.AppendLine("        }");
+                        sb.AppendLine("    }");
+                        sb.AppendLine("    else if (length < currentCount)");
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        // Remove excess elements from the end");
+                        sb.AppendLine("        for (int i = currentCount - 1; i >= length; i--)");
+                        sb.AppendLine("        {");
+                        sb.AppendLine("            value.RemoveAt(i);");
+                        sb.AppendLine("        }");
+                        sb.AppendLine("    }");
+                    }
+                    else
+                    {
+                        // Fallback to clear-and-add approach for collections without indexer/RemoveAt
+                        sb.AppendLine("    {");
+                        sb.AppendLine("        value.Clear();");
+                        if (hasEnsureCapacity)
+                        {
+                            sb.AppendLine("        value.EnsureCapacity(length);");
+                        }
+
+                        sb.AppendLine("        for (int i = 0; i < length; i++)");
+                        sb.AppendLine("        {");
+
+                        if (isUnmanaged)
+                        {
+                            sb.Append("            reader.Read(out ");
+                            sb.Append(elemType.ToDisplayString());
+                            sb.AppendLine(" item);");
+                        }
+                        else
+                        {
+                            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, sb,
+                                w =>
+                                {
+                                    w.AppendLine("            eleReader = reader.Slice();");
+                                    w.Append("            ");
+                                    w.AppendLine(GetDeserializeString(elemType, false, "item", "eleReader"));
+                                },
+                                w =>
+                                {
+                                    w.Append("            ");
+                                    w.AppendLine(GetDeserializeString(elemType, false, "item"));
+                                });
+                        }
+
+                        sb.AppendLine("            value.Add(item);");
+                        sb.AppendLine("        }");
+                        sb.AppendLine("    }");
+                    }
+
                     sb.AppendLine("}");
                 }
                 else
