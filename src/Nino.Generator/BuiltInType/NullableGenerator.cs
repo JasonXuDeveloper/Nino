@@ -40,6 +40,12 @@ public class NullableGenerator(
 
     public override bool Filter(ITypeSymbol typeSymbol)
     {
+        if (typeSymbol is not INamedTypeSymbol namedType) return false;
+        if (!namedType.IsGenericType) return false;
+        if (namedType.TypeArguments.Length != 1) return false;
+        var elementType = namedType.TypeArguments[0];
+        if (elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Invalid)
+            return false;
         return typeSymbol.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
     }
 
@@ -83,7 +89,7 @@ public class NullableGenerator(
         writer.AppendLine(GetDeserializeString(elementType, "ret"));
         writer.AppendLine("    value = ret;");
         writer.AppendLine("}");
-        
+
         writer.AppendLine();
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(elementType.GetDisplayString());

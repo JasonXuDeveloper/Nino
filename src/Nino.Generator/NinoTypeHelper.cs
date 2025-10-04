@@ -30,15 +30,19 @@ public static class NinoTypeHelper
     private static readonly ConcurrentDictionary<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
         new(SymbolEqualityComparer.Default);
 
+    private static readonly ConcurrentDictionary<ITypeSymbol, int> TypeHierarchyLevelCache =
+        new(SymbolEqualityComparer.Default);
+
     public enum NinoTypeKind
     {
         Boxed,
         Unmanaged,
         NinoType,
-        Other
+        BuiltIn,
+        Invalid
     }
 
-    public static NinoTypeKind GetKind(this ITypeSymbol type, NinoGraph ninoGraph)
+    public static NinoTypeKind GetKind(this ITypeSymbol type, NinoGraph ninoGraph, HashSet<ITypeSymbol> generatedTypes)
     {
         // object types - use boxed serialization
         if (type.SpecialType == SpecialType.System_Object)
@@ -59,10 +63,16 @@ public static class NinoTypeHelper
         {
             return NinoTypeKind.NinoType;
         }
-        
-        return NinoTypeKind.Other;
+
+        // built-in type
+        if (type.SpecialType == SpecialType.System_String || generatedTypes.Contains(type))
+        {
+            return NinoTypeKind.BuiltIn;
+        }
+
+        return NinoTypeKind.Invalid;
     }
-    
+
 
     public static bool IsRefStruct(this ITypeSymbol typeSymbol)
     {
@@ -544,6 +554,37 @@ public static class NinoTypeHelper
     public static string GetSanitizedDisplayString(this ITypeSymbol typeSymbol)
     {
         return GetNormalizedTypeSymbol(typeSymbol).GetDisplayString();
+    }
+
+    /// <summary>
+    /// Gets the hierarchy level of a type based on its composition depth.
+    /// Base types (int, string, etc.) are level 1.
+    /// Arrays add 1 to their element type's level.
+    /// Generic types are 1 + max(type argument levels).
+    /// Uses memoization to avoid redundant computation.
+    /// </summary>
+    public static int GetTypeHierarchyLevel(this ITypeSymbol type)
+    {
+        if (TypeHierarchyLevelCache.TryGetValue(type, out var cached))
+        {
+            return cached;
+        }
+
+        var level = type switch
+        {
+            // Arrays: 1 + element level
+            IArrayTypeSymbol arrayType => 1 + GetTypeHierarchyLevel(arrayType.ElementType),
+
+            // Generics: 1 + max level of type arguments
+            INamedTypeSymbol { IsGenericType: true } namedType =>
+                1 + namedType.TypeArguments.Max(GetTypeHierarchyLevel),
+
+            // Base types (including non-generic named types)
+            _ => 1
+        };
+
+        TypeHierarchyLevelCache[type] = level;
+        return level;
     }
 }
 

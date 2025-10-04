@@ -34,10 +34,11 @@ namespace Nino.Generator.Template;
 public abstract class NinoBuiltInTypeGenerator(
     NinoGraph ninoGraph,
     HashSet<ITypeSymbol> potentialTypes,
-    HashSet<ITypeSymbol> selectedTypes,
+    HashSet<ITypeSymbol> generatedTypes,
     Compilation compilation) : NinoGenerator(compilation)
 {
     protected NinoGraph NinoGraph { get; } = ninoGraph;
+    protected HashSet<ITypeSymbol> GeneratedTypes { get; } = generatedTypes;
     protected abstract string OutputFileName { get; }
     public abstract bool Filter(ITypeSymbol typeSymbol);
     protected abstract void GenerateSerializer(ITypeSymbol typeSymbol, Writer writer);
@@ -115,7 +116,7 @@ public abstract class NinoBuiltInTypeGenerator(
 
     protected string GetSerializeString(ITypeSymbol type, string valueName)
     {
-        switch (type.GetKind(NinoGraph))
+        switch (type.GetKind(NinoGraph, GeneratedTypes))
         {
             case NinoTypeHelper.NinoTypeKind.Boxed:
                 return $"NinoSerializer.SerializeBoxed({valueName}, ref writer, {valueName}?.GetType());";
@@ -123,16 +124,17 @@ public abstract class NinoBuiltInTypeGenerator(
                 return $"writer.UnsafeWrite<{type.GetDisplayString()}>({valueName});";
             case NinoTypeHelper.NinoTypeKind.NinoType:
                 return $"NinoSerializer.Serialize<{type.GetDisplayString()}>({valueName}, ref writer);";
-            case NinoTypeHelper.NinoTypeKind.Other:
+            case NinoTypeHelper.NinoTypeKind.BuiltIn:
                 return $"Serializer.Serialize({valueName}, ref writer);";
             default:
-                return $"NinoSerializer.Serialize({valueName}, ref writer);";
+                throw new InvalidOperationException(
+                    $"Type {type.GetDisplayString()} is not supported for serialization.");
         }
     }
 
     protected string GetDeserializeString(ITypeSymbol type, string varName, bool isOutVariable = true)
     {
-        switch (type.GetKind(NinoGraph))
+        switch (type.GetKind(NinoGraph, GeneratedTypes))
         {
             case NinoTypeHelper.NinoTypeKind.Boxed:
                 var boxedDecl = isOutVariable ? $"{type.GetDisplayString()} {varName} = " : $"{varName} = ";
@@ -140,23 +142,18 @@ public abstract class NinoBuiltInTypeGenerator(
             case NinoTypeHelper.NinoTypeKind.Unmanaged:
                 if (isOutVariable)
                     return $"reader.UnsafeRead<{type.GetDisplayString()}>(out var {varName});";
-                else
-                    return $"reader.UnsafeRead<{type.GetDisplayString()}>(out {varName});";
+                return $"reader.UnsafeRead<{type.GetDisplayString()}>(out {varName});";
             case NinoTypeHelper.NinoTypeKind.NinoType:
                 if (isOutVariable)
                     return $"NinoDeserializer.Deserialize(out {type.GetDisplayString()} {varName}, ref reader);";
-                else
-                    return $"NinoDeserializer.Deserialize(out {varName}, ref reader);";
-            case NinoTypeHelper.NinoTypeKind.Other:
+                return $"NinoDeserializer.Deserialize(out {varName}, ref reader);";
+            case NinoTypeHelper.NinoTypeKind.BuiltIn:
                 if (isOutVariable)
                     return $"Deserializer.Deserialize(out {type.GetDisplayString()} {varName}, ref reader);";
-                else
-                    return $"Deserializer.Deserialize(out {varName}, ref reader);";
+                return $"Deserializer.Deserialize(out {varName}, ref reader);";
             default:
-                if (isOutVariable)
-                    return $"NinoDeserializer.Deserialize(out {type.GetDisplayString()} {varName}, ref reader);";
-                else
-                    return $"NinoDeserializer.Deserialize(out {varName}, ref reader);";
+                throw new InvalidOperationException(
+                    $"Type {type.GetDisplayString()} is not supported for deserialization.");
         }
     }
 
@@ -170,9 +167,7 @@ public abstract class NinoBuiltInTypeGenerator(
         deserializerWriter.AppendLine();
         foreach (var typeSymbol in potentialTypes)
         {
-            if (selectedTypes.Contains(typeSymbol)) continue;
             if (!Filter(typeSymbol)) continue;
-            selectedTypes.Add(typeSymbol);
             GenerateSerializer(typeSymbol, serializerWriter);
             GenerateDeserializer(typeSymbol, deserializerWriter);
             serializerWriter.AppendLine();

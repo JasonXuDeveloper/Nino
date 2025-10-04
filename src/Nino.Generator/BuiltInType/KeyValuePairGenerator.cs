@@ -41,7 +41,17 @@ public class KeyValuePairGenerator(
 
     public override bool Filter(ITypeSymbol typeSymbol)
     {
-        if (typeSymbol is not INamedTypeSymbol) return false;
+        if (typeSymbol is not INamedTypeSymbol namedType) return false;
+        if (!namedType.IsGenericType) return false;
+        if (namedType.TypeArguments.Length != 2) return false;
+
+        var keyType = namedType.TypeArguments[0];
+        var valueType = namedType.TypeArguments[1];
+
+        if (keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Invalid ||
+            valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Invalid)
+            return false;
+
         return typeSymbol.Name == "KeyValuePair";
     }
 
@@ -55,8 +65,8 @@ public class KeyValuePairGenerator(
         // Check if we can use the fast unmanaged write
         // Both key and value must be unmanaged AND neither can be polymorphic
         bool canUseFastPath = typeSymbol.IsUnmanagedType &&
-                              keyType.GetKind(NinoGraph) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
-                              valueType.GetKind(NinoGraph) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+                              keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
+                              valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         writer.Append("public static void Serialize(this ");
         writer.Append(typeSymbol.GetDisplayString());
@@ -89,8 +99,8 @@ public class KeyValuePairGenerator(
         // Both key and value must be unmanaged AND neither can be polymorphic
         bool canUseFastPath = typeSymbol.IsUnmanagedType &&
                               typeSymbol.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T &&
-                              keyType.GetKind(NinoGraph) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
-                              valueType.GetKind(NinoGraph) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+                              keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
+                              valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
         var typeName = typeSymbol.ToDisplayString();
 
         // Out overload

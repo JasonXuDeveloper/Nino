@@ -158,13 +158,34 @@ public class GlobalGenerator : IIncrementalGenerator
 
                 var distinctNinoTypes = ninoTypes.Distinct().ToList();
                 var potentialTypes = potentialTypeSymbols
-                    .Distinct(TupleSanitizedEqualityComparer.Default).ToList();
+                    .Distinct(TupleSanitizedEqualityComparer.Default)
+                    .OrderBy(static t => t.GetTypeHierarchyLevel())
+                    .ToList();
 
-                HashSet<ITypeSymbol> generatedOtherTypes = new(TupleSanitizedEqualityComparer.Default);
+                HashSet<ITypeSymbol> generatedTypes = new(TupleSanitizedEqualityComparer.Default);
+                NinoBuiltInTypeGenerator[] builtInGenerators =
+                {
+                    new NullableGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new KeyValuePairGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new TupleGenerator(graph, potentialTypeSymbols, generatedTypes, compilation)
+                };
+                // pre-filter built-in generated types to avoid redundant work
+                foreach (var type in potentialTypeSymbols)
+                {
+                    foreach (var generator in builtInGenerators)
+                    {
+                        if (generator.Filter(type))
+                        {
+                            generatedTypes.Add(type);
+                        }
+                    }
+                }
 
-                ExecuteGenerator(new NullableGenerator(graph, potentialTypeSymbols, generatedOtherTypes, compilation), spc);
-                ExecuteGenerator(new KeyValuePairGenerator(graph, potentialTypeSymbols, generatedOtherTypes, compilation), spc);
-                ExecuteGenerator(new TupleGenerator(graph, potentialTypeSymbols, generatedOtherTypes, compilation), spc);
+                foreach (var generator in builtInGenerators)
+                {
+                    ExecuteGenerator(generator, spc);
+                }
+
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new PartialClassGenerator(compilation, graph, distinctNinoTypes), spc);

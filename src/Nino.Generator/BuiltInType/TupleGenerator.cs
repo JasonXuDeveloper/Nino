@@ -46,6 +46,13 @@ public class TupleGenerator(
         // Filter empty tuples
         if (namedType.TypeArguments.IsEmpty) return false;
 
+        // Ensure all type arguments are valid
+        foreach (var typeArg in namedType.TypeArguments)
+        {
+            if (typeArg.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Invalid)
+                return false;
+        }
+
         var name = typeSymbol.Name;
         return name == "ValueTuple" || name == "Tuple";
     }
@@ -62,7 +69,7 @@ public class TupleGenerator(
         {
             foreach (var itemType in types)
             {
-                if (itemType.GetKind(NinoGraph) != NinoTypeHelper.NinoTypeKind.Unmanaged)
+                if (itemType.GetKind(NinoGraph, GeneratedTypes) != NinoTypeHelper.NinoTypeKind.Unmanaged)
                 {
                     canUseFastPath = false;
                     break;
@@ -105,7 +112,7 @@ public class TupleGenerator(
         {
             foreach (var itemType in types)
             {
-                if (itemType.GetKind(NinoGraph) != NinoTypeHelper.NinoTypeKind.Unmanaged)
+                if (itemType.GetKind(NinoGraph, GeneratedTypes) != NinoTypeHelper.NinoTypeKind.Unmanaged)
                 {
                     canUseFastPath = false;
                     break;
@@ -148,8 +155,10 @@ public class TupleGenerator(
                 {
                     writer.Append(", ");
                 }
+
                 writer.Append($"item{i + 1}");
             }
+
             writer.AppendLine(");");
         }
 
