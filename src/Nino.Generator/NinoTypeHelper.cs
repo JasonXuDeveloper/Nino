@@ -192,12 +192,16 @@ public static class NinoTypeHelper
                     {
                         toValidate.Push(namedTypeSymbol.TypeArguments[i]);
                     }
+
                     break;
 
                 case INamedTypeSymbol:
                     break;
 
                 default:
+                    if (type.IsUnmanagedType)
+                        break;
+
                     return false;
             }
         }
@@ -272,11 +276,6 @@ public static class NinoTypeHelper
 
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
-        if (typeSymbol.IsUnmanagedType)
-        {
-            return true;
-        }
-
         if (IsNinoTypeCache.TryGetValue(typeSymbol, out var isNinoType))
         {
             return isNinoType;

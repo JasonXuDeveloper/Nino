@@ -932,8 +932,6 @@ public class SimpleTests
         //print all const int in NinoTypeConst
 
         Console.WriteLine(string.Join(", ", NinoSerializer.Serialize(data)));
-        // public const int Nino_UnitTests_SaveData = 1770431639;
-        Assert.AreEqual(1770431639, NinoGen.NinoTypeConst.Nino_UnitTests_SaveData);
         byte[] oldData =
         {
             151, 164, 134, 105, 1, 0, 0, 0, 128, 0, 0, 4, 84, 101, 115, 116

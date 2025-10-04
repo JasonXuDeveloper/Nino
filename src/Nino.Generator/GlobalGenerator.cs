@@ -52,24 +52,20 @@ public class GlobalGenerator : IIncrementalGenerator
                 // all types
                 HashSet<ITypeSymbol> allTypes = new(TupleSanitizedEqualityComparer.Default);
 
-                // track visited type names to avoid infinite loops
-                var visited = new HashSet<string>();
-
                 // process all scanned type syntaxes (generic, array, nullable, tuple, parametrized nino types)
                 foreach (var syntax in typeSyntaxes)
                 {
-                    if (!visited.Add(syntax.ToFullString())) continue;
                     var typeSymbol = syntax.GetTypeSymbol(compilation);
                     if (typeSymbol != null
-                        && typeSymbol.DeclaredAccessibility == Accessibility.Public
-                        && typeSymbol is not ITypeParameterSymbol
+                        && typeSymbol.DeclaredAccessibility is Accessibility.Public
+                            or Accessibility.Friend or Accessibility.NotApplicable
                         && typeSymbol.CheckGenericValidity())
                     {
                         var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
                         allTypes.Add(type);
                     }
                 }
-                
+
                 // record all array element and generic type arguments
                 Stack<ITypeSymbol> toProcess = new(allTypes);
                 while (toProcess.Count > 0)
@@ -95,11 +91,9 @@ public class GlobalGenerator : IIncrementalGenerator
                 // process all explicitly marked nino types
                 foreach (var ninoSyntax in ninoTypeSyntaxes)
                 {
-                    if (!visited.Add(ninoSyntax.ToFullString())) continue;
                     var typeSymbol = ninoSyntax.GetTypeSymbol(compilation);
                     if (typeSymbol != null
                         && typeSymbol.DeclaredAccessibility == Accessibility.Public
-                        && typeSymbol is not ITypeParameterSymbol
                         && typeSymbol.CheckGenericValidity())
                     {
                         var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
@@ -149,6 +143,16 @@ public class GlobalGenerator : IIncrementalGenerator
                     // Create minimal fallback to prevent complete failure
                     graph = new NinoGraph(compilation, new HashSet<NinoType>());
                     ninoTypes = new HashSet<NinoType>();
+                }
+
+                // for each nino type, add its members' types to potential types
+                foreach (var ninoType in ninoTypes)
+                {
+                    // add members' types to potential types
+                    foreach (var member in ninoType.Members)
+                    {
+                        potentialTypeSymbols.Add(member.Type);
+                    }
                 }
 
                 var distinctNinoTypes = ninoTypes.Distinct().ToList();
