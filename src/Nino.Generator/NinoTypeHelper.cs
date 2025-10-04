@@ -81,21 +81,6 @@ public static class NinoTypeHelper
         return ret;
     }
 
-    public static List<ITypeSymbol> MergeTypes(this List<ITypeSymbol?> types, List<ITypeSymbol?> otherTypes)
-    {
-        HashSet<ITypeSymbol?> typeSymbols = new(SymbolEqualityComparer.Default);
-        typeSymbols.UnionWith(types);
-        typeSymbols.UnionWith(otherTypes);
-        typeSymbols.RemoveWhere(ts => ts == null);
-
-        foreach (var typeSymbol in typeSymbols.ToList())
-        {
-            AddElementRecursively(typeSymbol!, typeSymbols!);
-        }
-
-        return typeSymbols.ToList()!;
-    }
-
     public static (bool isValid, Compilation newCompilation) IsValidCompilation(this Compilation compilation)
     {
         //make sure the compilation contains the Nino.Core assembly
@@ -121,54 +106,18 @@ public static class NinoTypeHelper
         }
 
         compilation = newCompilation;
-
-        //make sure the compilation indeed uses Nino.Core
-        foreach (var syntaxTree in compilation.SyntaxTrees)
-        {
-            var root = syntaxTree.GetRoot();
-            var usingDirectives = root.DescendantNodes()
-                .OfType<UsingDirectiveSyntax>()
-                .Where(usingDirective => usingDirective.Name.ToString().Contains("Nino.Core"));
-
-            if (usingDirectives.Any())
-            {
-                return (true, newCompilation); // Namespace is used in a using directive
-            }
-        }
-
-        //or if any member has NinoTypeAttribute/NinoMemberAttribute/NinoIgnoreAttribute/NinoConstructorAttribute/NinoUtf8Attribute
-        return (compilation.SyntaxTrees
-            .SelectMany(static s => s.GetRoot().DescendantNodes())
-            .Any(static s => s is AttributeSyntax attributeSyntax &&
-                             (attributeSyntax.Name.ToString().EndsWith("NinoType") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoMember") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoIgnore") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoConstructor") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoFormerName") ||
-                              attributeSyntax.Name.ToString().EndsWith("NinoUtf8"))), newCompilation);
+        return (true, compilation);
     }
 
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(
         this IncrementalGeneratorInitializationContext context)
     {
-        // Use "Nino.NinoTypeAttribute" - this is the actual working metadata name
-        // Even though the attribute is defined in namespace Nino.Core, the metadata name
-        // that works with ForAttributeWithMetadataName is "Nino.NinoTypeAttribute"
-        // Using "Nino.Core.NinoTypeAttribute" causes the provider to fail silently
         var ninoTypeAnnotatedTypes = context.SyntaxProvider.ForAttributeWithMetadataName(
             "Nino.Core.NinoTypeAttribute",
             predicate: static (s, _) => s is TypeDeclarationSyntax,
             transform: static (ctx, _) => (CSharpSyntaxNode)ctx.TargetNode);
 
-        var declaredGenericTypes = context.SyntaxProvider.CreateSyntaxProvider(
-            predicate: static (s, _) => s is GenericNameSyntax,
-            transform: static (ctx, _) => (TypeSyntax)ctx.Node);
-
-        var collectedAnnotatedTypes = ninoTypeAnnotatedTypes.Collect();
-        var collectedGenericTypes = declaredGenericTypes.Collect();
-
-        return collectedAnnotatedTypes.Combine(collectedGenericTypes)
-            .SelectMany((pair, _) => pair.Left.Concat(pair.Right));
+        return ninoTypeAnnotatedTypes;
     }
 
     public static string GetTypeConstName(this string typeFullName)
@@ -197,7 +146,7 @@ public static class NinoTypeHelper
         return curNamespace;
     }
 
-    private static bool CheckGenericValidity(ITypeSymbol containingType)
+    public static bool CheckGenericValidity(this ITypeSymbol containingType)
     {
         //containing type can not be an uninstantiated generic type
         bool IsContainingTypeValid(ITypeSymbol type)
@@ -228,196 +177,6 @@ public static class NinoTypeHelper
         }
 
         return true;
-    }
-
-    public static List<ITypeSymbol> GetNinoTypeSymbols(this ImmutableArray<CSharpSyntaxNode> syntaxes,
-        Compilation compilation)
-    {
-        var visited = new HashSet<string>();
-        var typeSymbols = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
-
-        foreach (var syntax in syntaxes)
-        {
-            if (!visited.Add(syntax.ToFullString())) continue;
-            var typeSymbol = syntax.GetTypeSymbol(compilation);
-            if (typeSymbol != null && typeSymbol.IsNinoType()
-                                   && typeSymbol is not ITypeParameterSymbol
-                                   && CheckGenericValidity(typeSymbol))
-                typeSymbols.Add(typeSymbol.GetPureType());
-        }
-
-        foreach (var syntax in GetAllNinoRequiredTypes(syntaxes.ToImmutableArray(), compilation))
-        {
-            if (syntax != null && syntax.IsNinoType()
-                               && syntax is not ITypeParameterSymbol
-                               && CheckGenericValidity(syntax))
-                typeSymbols.Add(syntax.GetPureType());
-        }
-
-        return typeSymbols.ToList();
-    }
-
-    public static List<ITypeSymbol> GetAllNinoRequiredTypes(this ImmutableArray<CSharpSyntaxNode> syntaxes,
-        Compilation compilation)
-    {
-        HashSet<INamedTypeSymbol> validTypes = new(SymbolEqualityComparer.Default);
-        foreach (var type in GetAllTypes(compilation))
-        {
-            if (type.IsNinoType())
-            {
-                //if it is a generic type, check if it is valid
-                if (type.IsGenericType && !CheckGenericValidity(type))
-                    continue;
-                //add to valid types
-                validTypes.Add(type);
-            }
-        }
-
-        foreach (var syntax in syntaxes)
-        {
-            if (syntax == null) continue;
-            var typeSymbol = syntax.GetTypeSymbol(compilation);
-            if (typeSymbol != null && typeSymbol is INamedTypeSymbol namedTypeSymbol && typeSymbol.IsNinoType()
-                && typeSymbol is not ITypeParameterSymbol
-                && CheckGenericValidity(typeSymbol))
-                validTypes.Add((INamedTypeSymbol)namedTypeSymbol.GetPureType());
-        }
-
-        HashSet<ITypeSymbol> ret = new(SymbolEqualityComparer.Default);
-        foreach (var typeSymbol in validTypes)
-        {
-            if (ret.Add(typeSymbol.GetPureType()))
-            {
-                var members = typeSymbol.GetMembers();
-                foreach (var member in members)
-                {
-                    switch (member)
-                    {
-                        case IFieldSymbol fieldSymbol:
-                            ret.Add(fieldSymbol.Type.GetPureType());
-                            break;
-                        case IPropertySymbol propertySymbol:
-                            ret.Add(propertySymbol.Type.GetPureType());
-                            break;
-                        case IParameterSymbol parameterSymbol:
-                            ret.Add(parameterSymbol.Type.GetPureType());
-                            break;
-                    }
-                }
-            }
-        }
-
-        foreach (var typeSymbol in ret.ToList())
-        {
-            AddElementRecursively(typeSymbol, ret);
-        }
-
-        return ret.ToList();
-    }
-
-    private static void AddElementRecursively(ITypeSymbol symbol, HashSet<ITypeSymbol> ret)
-    {
-        if (symbol is INamedTypeSymbol namedTypeSymbol)
-        {
-            AddTypeArguments(namedTypeSymbol, ret);
-        }
-        else if (symbol is IArrayTypeSymbol arrayTypeSymbol)
-        {
-            AddArrayElementType(arrayTypeSymbol, ret);
-        }
-    }
-
-    private static void AddArrayElementType(IArrayTypeSymbol symbol, HashSet<ITypeSymbol> ret)
-    {
-        if (ret.Add(symbol.ElementType.GetPureType()))
-            AddElementRecursively(symbol.ElementType.GetPureType(), ret);
-    }
-
-    private static void AddTypeArguments(INamedTypeSymbol symbol, HashSet<ITypeSymbol> ret)
-    {
-        foreach (var typeArgument in symbol.TypeArguments)
-        {
-            if (ret.Add(typeArgument.GetPureType()))
-                AddElementRecursively(typeArgument, ret);
-        }
-    }
-
-    private static INamedTypeSymbol[] GetTypesInAssembly(IAssemblySymbol assembly)
-    {
-        return GetTypesInNamespace(assembly.GlobalNamespace).ToArray();
-    }
-
-    public static HashSet<INamedTypeSymbol> GetAllTypes(Compilation compilation)
-    {
-        var allTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
-
-        // Add all types from the current assembly (compilation)
-        foreach (var type in GetTypesInNamespace(compilation.GlobalNamespace))
-        {
-            allTypes.Add(type);
-        }
-
-        // Add all types from each referenced assembly
-        foreach (var referencedAssembly in compilation.References)
-        {
-            if (compilation.GetAssemblyOrModuleSymbol(referencedAssembly) is IAssemblySymbol assemblySymbol)
-            {
-                foreach (var type in GetTypesInAssembly(assemblySymbol))
-                {
-                    allTypes.Add(type);
-                }
-            }
-        }
-
-        // remove all types that are not public
-        allTypes.RemoveWhere(s => s.DeclaredAccessibility != Accessibility.Public);
-        return allTypes;
-    }
-
-    private static IEnumerable<INamedTypeSymbol> GetTypesInNamespace(INamespaceSymbol namespaceSymbol)
-    {
-        // Collect all types in the current namespace
-        foreach (var typeSymbol in namespaceSymbol.GetTypeMembers())
-        {
-            foreach (var nestedType in GetNestedTypes(typeSymbol))
-            {
-                yield return nestedType;
-            }
-        }
-
-        // Recursively get types from nested namespaces
-        foreach (var nestedNamespace in namespaceSymbol.GetNamespaceMembers())
-        {
-            foreach (var nestedType in GetTypesInNamespace(nestedNamespace))
-            {
-                foreach (var nestedNestedType in GetNestedTypes(nestedType))
-                {
-                    yield return nestedNestedType;
-                }
-            }
-        }
-    }
-
-    public static IEnumerable<INamedTypeSymbol> GetNestedTypes(this INamedTypeSymbol typeSymbol)
-    {
-        // check public accessibility
-        if (!typeSymbol.DeclaredAccessibility.HasFlag(Accessibility.Public))
-        {
-            yield break;
-        }
-
-        // yiled itself
-        yield return typeSymbol;
-
-        //recursively get nested types
-        foreach (var nestedType in typeSymbol.GetTypeMembers())
-        {
-            //recursive call
-            foreach (var nestedNestedType in GetNestedTypes(nestedType))
-            {
-                yield return nestedNestedType;
-            }
-        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -557,17 +316,6 @@ public static class NinoTypeHelper
             TypeKind.Array => true,
             _ => false
         };
-    }
-
-    public static AttributeData? GetNinoConstructorAttribute(this IMethodSymbol? methodSymbol)
-    {
-        if (methodSymbol == null)
-        {
-            return null;
-        }
-
-        return methodSymbol.GetAttributesCache()
-            .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoConstructorAttribute");
     }
 
     public static int GetId(this ITypeSymbol typeSymbol)
@@ -737,35 +485,39 @@ public static class NinoTypeHelper
     {
         return GetNormalizedTypeSymbol(typeSymbol).GetDisplayString();
     }
+}
 
-    /// <summary>
-    /// Custom equality comparer that treats tuple types with the same type arguments as equal,
-    /// regardless of field names, using Roslyn's TupleUnderlyingType.
-    /// </summary>
-    public class TupleSanitizedEqualityComparer : IEqualityComparer<ITypeSymbol>
+/// <summary>
+/// Custom equality comparer that treats tuple types with the same type arguments as equal,
+/// regardless of field names, using Roslyn's TupleUnderlyingType.
+/// </summary>
+public class TupleSanitizedEqualityComparer : IEqualityComparer<ITypeSymbol>
+{
+    private TupleSanitizedEqualityComparer()
     {
-#nullable disable
-        public bool Equals(ITypeSymbol x, ITypeSymbol y)
-        {
-            if (ReferenceEquals(x, y)) return true;
-            if (x is null || y is null) return false;
+    }
 
-            // Normalize both types to handle tuple field names
-            var normalizedX = x.GetNormalizedTypeSymbol();
-            var normalizedY = y.GetNormalizedTypeSymbol();
+    public static TupleSanitizedEqualityComparer Default { get; } = new();
 
-            // Use default symbol equality on normalized types
-            return SymbolEqualityComparer.Default.Equals(normalizedX, normalizedY);
-        }
+    public bool Equals(ITypeSymbol? x, ITypeSymbol? y)
+    {
+        if (ReferenceEquals(x, y)) return true;
+        if (x is null || y is null) return false;
 
-        public int GetHashCode(ITypeSymbol obj)
-        {
-            if (obj is null) return 0;
+        // Normalize both types to handle tuple field names
+        var normalizedX = x.GetNormalizedTypeSymbol();
+        var normalizedY = y.GetNormalizedTypeSymbol();
 
-            // Use hash code of normalized type
-            var normalized = obj.GetNormalizedTypeSymbol();
-            return SymbolEqualityComparer.Default.GetHashCode(normalized);
-        }
-#nullable restore
+        // Use default symbol equality on normalized types
+        return SymbolEqualityComparer.Default.Equals(normalizedX, normalizedY);
+    }
+
+    public int GetHashCode(ITypeSymbol? obj)
+    {
+        if (obj is null) return 0;
+
+        // Use hash code of normalized type
+        var normalized = obj.GetNormalizedTypeSymbol();
+        return SymbolEqualityComparer.Default.GetHashCode(normalized);
     }
 }

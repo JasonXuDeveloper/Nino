@@ -122,7 +122,7 @@ public class NinoType
 
     public override int GetHashCode()
     {
-        return SymbolEqualityComparer.Default.GetHashCode(TypeSymbol);
+        return TupleSanitizedEqualityComparer.Default.GetHashCode(TypeSymbol);
     }
 
     public override string ToString()

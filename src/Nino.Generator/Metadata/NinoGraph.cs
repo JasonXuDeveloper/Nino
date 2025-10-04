@@ -13,7 +13,7 @@ public class NinoGraph
     public HashSet<NinoType> CircularTypes { get; set; } = new();
     public Dictionary<string, NinoType> TypeMap { get; set; } = new();
 
-    public NinoGraph(Compilation compilation, List<NinoType> ninoTypes)
+    public NinoGraph(Compilation compilation, HashSet<NinoType> ninoTypes)
     {
         foreach (var ninoType in ninoTypes)
         {

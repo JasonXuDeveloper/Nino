@@ -6,30 +6,19 @@ using System.Linq;
 
 namespace Nino.Generator.Parser;
 
-public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
+public class CSharpParser(HashSet<ITypeSymbol> ninoSymbols) : NinoTypeParser
 {
-    protected override List<NinoType> ParseTypes(Compilation compilation)
+    protected override HashSet<NinoType> ParseTypes(Compilation compilation)
     {
-        List<NinoType> result = new();
-        var types = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
-        types.UnionWith(ninoSymbols);
-        Dictionary<ITypeSymbol, NinoType> typeMap = new(SymbolEqualityComparer.Default);
+        HashSet<NinoType> result = new();
+        Dictionary<ITypeSymbol, NinoType> typeMap = new(TupleSanitizedEqualityComparer.Default);
 
         foreach (var ninoSymbol in ninoSymbols)
         {
             // type from referenced assemblies
             if (!SymbolEqualityComparer.Default.Equals(ninoSymbol.ContainingAssembly, compilation.Assembly))
             {
-                bool isNinoType = false;
-                foreach (var attribute in ninoSymbol.GetAttributesCache())
-                {
-                    if (!string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute",
-                            StringComparison.Ordinal)) continue;
-                    isNinoType = true;
-                    break;
-                }
-
-                if (!isNinoType) continue;
+                continue;
             }
 
             // inaccessible types
@@ -52,7 +41,7 @@ public class CSharpParser(List<ITypeSymbol> ninoSymbols) : NinoTypeParser
                     if (!ts.IsNinoType())
                         return false;
 
-                    if (!types.Contains(ts))
+                    if (!ninoSymbols.Contains(ts))
                     {
                         result.Add(GetNinoType(ts));
                     }
