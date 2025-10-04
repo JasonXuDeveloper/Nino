@@ -10,6 +10,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Nino.Generator.Metadata;
 
 namespace Nino.Generator;
 
@@ -28,6 +29,40 @@ public static class NinoTypeHelper
 
     private static readonly ConcurrentDictionary<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
         new(SymbolEqualityComparer.Default);
+
+    public enum NinoTypeKind
+    {
+        Boxed,
+        Unmanaged,
+        NinoType,
+        Other
+    }
+
+    public static NinoTypeKind GetKind(this ITypeSymbol type, NinoGraph ninoGraph)
+    {
+        // object types - use boxed serialization
+        if (type.SpecialType == SpecialType.System_Object)
+        {
+            return NinoTypeKind.Boxed;
+        }
+
+        // unmanaged
+        if (type.IsUnmanagedType &&
+            (!ninoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var nt) ||
+             !nt.IsPolymorphic()))
+        {
+            return NinoTypeKind.Unmanaged;
+        }
+
+        // nino type
+        if (ninoGraph.TypeMap.ContainsKey(type.GetDisplayString()))
+        {
+            return NinoTypeKind.NinoType;
+        }
+        
+        return NinoTypeKind.Other;
+    }
+    
 
     public static bool IsRefStruct(this ITypeSymbol typeSymbol)
     {

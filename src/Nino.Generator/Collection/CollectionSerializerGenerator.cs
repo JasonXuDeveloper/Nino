@@ -47,8 +47,6 @@ public class CollectionSerializerGenerator(
                 new Trivial("ValueTuple", "Tuple"),
                 new Not(new AnyTypeArgument(symbol => !ValidFilter(symbol)))
             ),
-            // We want nullables
-            new Nullable(),
             // We want enumerable (which contains array, icollection, ilist, idictionary, etc)
             new Interface("IEnumerable<T>", interfaceSymbol =>
             {
@@ -135,47 +133,6 @@ public class CollectionSerializerGenerator(
 
     protected override List<Transformer> Transformers =>
     [
-        new
-        (
-            "Nullable",
-            // We want nullable for ninotypes (both unmanaged and managed)
-            new Joint().With
-            (
-                new Nullable(),
-                new TypeArgument(0, ValidFilter)
-            )
-            , (symbol, sb) =>
-            {
-                ITypeSymbol elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
-                
-                // Collect types that need cached serializers
-                HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
-                typesNeedingSerializers.Add(elementType);
-
-                sb.AppendLine(Inline);
-                sb.Append("public static void Serialize(this ");
-                sb.Append(elementType.GetDisplayString());
-                sb.AppendLine("? value, ref Writer writer)");
-                sb.AppendLine("{");
-                
-                // Generate cached serializers
-                GenerateCachedSerializers(typesNeedingSerializers, sb, out var serializerVars);
-                
-                sb.AppendLine("    if (!value.HasValue)");
-                sb.AppendLine("    {");
-                sb.AppendLine("        writer.Write(false);");
-                sb.AppendLine("        return;");
-                sb.AppendLine("    }");
-                sb.AppendLine();
-                sb.AppendLine("    writer.Write(true);");
-                
-                var serializerVar = GetCachedSerializerVar(elementType, serializerVars);
-                sb.Append("    ");
-                sb.AppendLine(GetSerializeString(elementType, "value.Value", serializerVar));
-                sb.AppendLine("}");
-                return true;
-            }
-        ),
         // KeyValuePair Ninotypes
         new
         (

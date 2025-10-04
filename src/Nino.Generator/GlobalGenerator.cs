@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Nino.Generator.BuiltInType;
 using Nino.Generator.Common;
 using Nino.Generator.Metadata;
 using Nino.Generator.Parser;
@@ -158,6 +159,10 @@ public class GlobalGenerator : IIncrementalGenerator
                 var distinctNinoTypes = ninoTypes.Distinct().ToList();
                 var potentialTypes = potentialTypeSymbols
                     .Distinct(TupleSanitizedEqualityComparer.Default).ToList();
+
+                HashSet<ITypeSymbol> generatedOtherTypes = new(TupleSanitizedEqualityComparer.Default);
+                
+                ExecuteGenerator(new NullableGenerator(graph, potentialTypeSymbols, generatedOtherTypes, compilation), spc);
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new PartialClassGenerator(compilation, graph, distinctNinoTypes), spc);

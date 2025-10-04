@@ -138,7 +138,7 @@ namespace Nino.Core
         }
     }
 
-    public delegate void SerializeDelegate<in TVal>(TVal value, ref Writer writer);
+    public delegate void SerializeDelegate<TVal>(TVal value, ref Writer writer);
 
     public interface ICachedSerializer
     {

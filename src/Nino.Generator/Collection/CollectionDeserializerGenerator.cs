@@ -49,8 +49,6 @@ public class CollectionDeserializerGenerator(
                     new Trivial("ValueTuple", "Tuple"),
                     new Not(new AnyTypeArgument(symbol => !ValidFilter(symbol)))
                 ),
-                // We want nullables
-                new Nullable(),
                 // We want arrays
                 new Array(arraySymbol => ValidFilter(arraySymbol.ElementType)),
                 // We want dictionaries with valid indexers
@@ -293,59 +291,6 @@ public class CollectionDeserializerGenerator(
 
     protected override List<Transformer> Transformers =>
     [
-        new
-        (
-            "Nullable",
-            // We want nullable for non-unmanaged ninotypes
-            new Joint().With
-            (
-                new Nullable(),
-                new TypeArgument(0, ValidFilter)
-            )
-            , (symbol, sb) =>
-            {
-                ITypeSymbol elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
-                var elementTypeFullName = elementType.GetDisplayString();
-
-                // Collect types that need cached deserializers
-                HashSet<ITypeSymbol> typesNeedingDeserializers = new(SymbolEqualityComparer.Default);
-                typesNeedingDeserializers.Add(elementType);
-
-                // Out overload
-                sb.AppendLine(Inline);
-                sb.Append("public static void Deserialize(out ");
-                sb.Append(elementTypeFullName);
-                sb.AppendLine("? value, ref Reader reader)");
-                sb.AppendLine("{");
-                EofCheck(sb);
-
-                // Generate cached deserializers
-                GenerateCachedDeserializers(typesNeedingDeserializers, sb, out var deserializerVars);
-
-                sb.AppendLine("    reader.Read(out bool hasValue);");
-                sb.AppendLine("    if (!hasValue)");
-                sb.AppendLine("    {");
-                sb.AppendLine("        value = default;");
-                sb.AppendLine("        return;");
-                sb.AppendLine("    }");
-                sb.AppendLine();
-
-                var deserializerVar = GetCachedDeserializerVar(elementType, deserializerVars);
-                sb.Append("    ");
-                sb.AppendLine(GetDeserializeString(elementType, false, "ret", "reader", deserializerVar));
-                sb.AppendLine("    value = ret;");
-                sb.AppendLine("}");
-                sb.AppendLine();
-
-                // Ref overload - nullable is not modifiable, so just call out overload
-                sb.AppendLine(Inline);
-                sb.Append("public static void DeserializeRef(ref ");
-                sb.Append(elementTypeFullName);
-                sb.AppendLine("? value, ref Reader reader) => Deserialize(out value, ref reader);");
-
-                return true;
-            }
-        ),
         // KeyValuePair Ninotypes
         new
         (
