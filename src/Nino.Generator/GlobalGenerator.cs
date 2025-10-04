@@ -161,8 +161,10 @@ public class GlobalGenerator : IIncrementalGenerator
                     .Distinct(TupleSanitizedEqualityComparer.Default).ToList();
 
                 HashSet<ITypeSymbol> generatedOtherTypes = new(TupleSanitizedEqualityComparer.Default);
-                
+
                 ExecuteGenerator(new NullableGenerator(graph, potentialTypeSymbols, generatedOtherTypes, compilation), spc);
+                ExecuteGenerator(new KeyValuePairGenerator(graph, potentialTypeSymbols, generatedOtherTypes, compilation), spc);
+                ExecuteGenerator(new TupleGenerator(graph, potentialTypeSymbols, generatedOtherTypes, compilation), spc);
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new PartialClassGenerator(compilation, graph, distinctNinoTypes), spc);

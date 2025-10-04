@@ -7,7 +7,6 @@ using Nino.Generator.Filter.Operation;
 using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 using Array = Nino.Generator.Filter.Array;
-using Nullable = Nino.Generator.Filter.Nullable;
 using String = Nino.Generator.Filter.String;
 
 namespace Nino.Generator.Collection;
@@ -133,36 +132,6 @@ public class CollectionSerializerGenerator(
 
     protected override List<Transformer> Transformers =>
     [
-        // KeyValuePair Ninotypes
-        new
-        (
-            "KeyValuePair",
-            // We want KeyValuePair for ninotypes (both unmanaged and managed)
-            new Trivial("KeyValuePair"),
-            (symbol, sb) =>
-            {
-                GenericTupleLikeMethods(symbol, sb,
-                    ((INamedTypeSymbol)symbol).TypeArguments.ToArray(),
-                    "Key", "Value");
-                return true;
-            }
-        ),
-        // Tuple Ninotypes
-        new
-        (
-            "Tuple",
-            // We only want Tuple for non-unmanaged ninotypes
-            new Trivial("ValueTuple", "Tuple"),
-            (symbol, sb) =>
-            {
-                if (symbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.TypeArguments.IsEmpty)
-                    return false;
-                var types = ((INamedTypeSymbol)symbol).TypeArguments.ToArray();
-                GenericTupleLikeMethods(symbol, sb,
-                    types,
-                    types.Select((_, i) => $"Item{i + 1}").ToArray());
-                return true;
-            }),
         // Array Ninotypes
         new
         (
@@ -573,43 +542,4 @@ public class CollectionSerializerGenerator(
             }
         )
     ];
-
-    private void GenericTupleLikeMethods(ITypeSymbol type, Writer writer, ITypeSymbol[] types, params string[] fields)
-    {
-        bool isUnmanaged = type.IsUnmanagedType;
-        writer.AppendLine(Inline);
-        writer.Append("public static void Serialize(this ");
-        writer.Append(type.GetDisplayString());
-        writer.AppendLine(" value, ref Writer writer)");
-        writer.AppendLine("{");
-        if (isUnmanaged)
-        {
-            writer.AppendLine("    writer.Write(value);");
-        }
-        else
-        {
-            // Generate cached serializers for non-unmanaged field types
-            HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
-            foreach (var fieldType in types)
-            {
-                if (!fieldType.IsUnmanagedType)
-                    typesNeedingSerializers.Add(fieldType);
-            }
-            
-            Dictionary<string, string>? serializerVars = null;
-            if (typesNeedingSerializers.Count > 0)
-            {
-                GenerateCachedSerializers(typesNeedingSerializers, writer, out serializerVars);
-            }
-
-            for (int i = 0; i < fields.Length; i++)
-            {
-                writer.Append("    ");
-                var fieldSerializerVar = serializerVars != null ? GetCachedSerializerVar(types[i], serializerVars) : null;
-                writer.AppendLine(GetSerializeString(types[i], $"value.{fields[i]}", fieldSerializerVar));
-            }
-        }
-
-        writer.AppendLine("}");
-    }
 }

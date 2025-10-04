@@ -58,29 +58,8 @@ public class NullableGenerator(
         writer.AppendLine("    }");
         writer.AppendLine();
         writer.AppendLine("    writer.Write(true);");
-
-        switch (elementType.GetKind(NinoGraph))
-        {
-            case NinoTypeHelper.NinoTypeKind.Boxed:
-                writer.AppendLine(
-                    "    NinoSerializer.SerializeBoxed(value.Value, ref writer, value.Value?.GetType());");
-                break;
-            case NinoTypeHelper.NinoTypeKind.Unmanaged:
-                writer.Append("    writer.UnsafeWrite<");
-                writer.Append(elementType.GetDisplayString());
-                writer.AppendLine(">(value.Value);");
-                break;
-            case NinoTypeHelper.NinoTypeKind.NinoType:
-                writer.Append("    NinoSerializer.Serialize<");
-                writer.Append(elementType.GetDisplayString());
-                writer.AppendLine(">(value.Value, ref writer);");
-                break;
-            case NinoTypeHelper.NinoTypeKind.Other:
-                writer.Append("    Serializer.Serialize((");
-                writer.Append(elementType.GetDisplayString());
-                writer.AppendLine(")value.Value, ref writer);");
-                break;
-        }
+        writer.Append("    ");
+        writer.AppendLine(GetSerializeString(elementType, "value.Value"));
 
         writer.AppendLine("}");
     }
@@ -100,29 +79,8 @@ public class NullableGenerator(
         writer.AppendLine("        return;");
         writer.AppendLine("    }");
         writer.AppendLine();
-        switch (elementType.GetKind(NinoGraph))
-        {
-            case NinoTypeHelper.NinoTypeKind.Boxed:
-                writer.Append(elementType.GetDisplayString());
-                writer.Append(" ret = NinoDeserializer.DeserializeBoxed(ref reader, null);");
-                break;
-            case NinoTypeHelper.NinoTypeKind.Unmanaged:
-                writer.Append("    reader.UnsafeRead<");
-                writer.Append(elementType.GetDisplayString());
-                writer.AppendLine(">(out var ret);");
-                break;
-            case NinoTypeHelper.NinoTypeKind.NinoType:
-                writer.Append("    NinoDeserializer.Deserialize(out ");
-                writer.Append(elementType.GetDisplayString());
-                writer.AppendLine(" ret, ref reader);");
-                break;
-            case NinoTypeHelper.NinoTypeKind.Other:
-                writer.Append("    Deserializer.Deserialize(out ");
-                writer.Append(elementType.GetDisplayString());
-                writer.AppendLine(" ret, ref reader);");
-                break;
-        }
-        
+        writer.Append("    ");
+        writer.AppendLine(GetDeserializeString(elementType, "ret"));
         writer.AppendLine("    value = ret;");
         writer.AppendLine("}");
         

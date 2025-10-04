@@ -42,7 +42,7 @@ public abstract class NinoBuiltInTypeGenerator(
     public abstract bool Filter(ITypeSymbol typeSymbol);
     protected abstract void GenerateSerializer(ITypeSymbol typeSymbol, Writer writer);
     protected abstract void GenerateDeserializer(ITypeSymbol typeSymbol, Writer writer);
-    
+
     protected class Writer(string indent)
     {
         private readonly StringBuilder _sb = new(16_000);
@@ -113,6 +113,53 @@ public abstract class NinoBuiltInTypeGenerator(
         });
     };
 
+    protected string GetSerializeString(ITypeSymbol type, string valueName)
+    {
+        switch (type.GetKind(NinoGraph))
+        {
+            case NinoTypeHelper.NinoTypeKind.Boxed:
+                return $"NinoSerializer.SerializeBoxed({valueName}, ref writer, {valueName}?.GetType());";
+            case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                return $"writer.UnsafeWrite<{type.GetDisplayString()}>({valueName});";
+            case NinoTypeHelper.NinoTypeKind.NinoType:
+                return $"NinoSerializer.Serialize<{type.GetDisplayString()}>({valueName}, ref writer);";
+            case NinoTypeHelper.NinoTypeKind.Other:
+                return $"Serializer.Serialize({valueName}, ref writer);";
+            default:
+                return $"NinoSerializer.Serialize({valueName}, ref writer);";
+        }
+    }
+
+    protected string GetDeserializeString(ITypeSymbol type, string varName, bool isOutVariable = true)
+    {
+        switch (type.GetKind(NinoGraph))
+        {
+            case NinoTypeHelper.NinoTypeKind.Boxed:
+                var boxedDecl = isOutVariable ? $"{type.GetDisplayString()} {varName} = " : $"{varName} = ";
+                return $"{boxedDecl}NinoDeserializer.DeserializeBoxed(ref reader, null);";
+            case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                if (isOutVariable)
+                    return $"reader.UnsafeRead<{type.GetDisplayString()}>(out var {varName});";
+                else
+                    return $"reader.UnsafeRead<{type.GetDisplayString()}>(out {varName});";
+            case NinoTypeHelper.NinoTypeKind.NinoType:
+                if (isOutVariable)
+                    return $"NinoDeserializer.Deserialize(out {type.GetDisplayString()} {varName}, ref reader);";
+                else
+                    return $"NinoDeserializer.Deserialize(out {varName}, ref reader);";
+            case NinoTypeHelper.NinoTypeKind.Other:
+                if (isOutVariable)
+                    return $"Deserializer.Deserialize(out {type.GetDisplayString()} {varName}, ref reader);";
+                else
+                    return $"Deserializer.Deserialize(out {varName}, ref reader);";
+            default:
+                if (isOutVariable)
+                    return $"NinoDeserializer.Deserialize(out {type.GetDisplayString()} {varName}, ref reader);";
+                else
+                    return $"NinoDeserializer.Deserialize(out {varName}, ref reader);";
+        }
+    }
+
     protected override void Generate(SourceProductionContext spc)
     {
         HashSet<ITypeSymbol> registeredTypes = new(TupleSanitizedEqualityComparer.Default);
@@ -123,8 +170,9 @@ public abstract class NinoBuiltInTypeGenerator(
         deserializerWriter.AppendLine();
         foreach (var typeSymbol in potentialTypes)
         {
-            if (!selectedTypes.Add(typeSymbol)) continue;
+            if (selectedTypes.Contains(typeSymbol)) continue;
             if (!Filter(typeSymbol)) continue;
+            selectedTypes.Add(typeSymbol);
             GenerateSerializer(typeSymbol, serializerWriter);
             GenerateDeserializer(typeSymbol, deserializerWriter);
             serializerWriter.AppendLine();
@@ -136,8 +184,10 @@ public abstract class NinoBuiltInTypeGenerator(
         foreach (var registeredType in registeredTypes)
         {
             var typeName = registeredType.GetDisplayString();
-            registrationCode.AppendLine($"                NinoTypeMetadata.RegisterSerializer<{typeName}>(Serializer.Serialize, false);");
-            registrationCode.AppendLine($"                NinoTypeMetadata.RegisterDeserializer<{typeName}>(Deserializer.Deserialize, Deserializer.DeserializeRef, false);");
+            registrationCode.AppendLine(
+                $"                NinoTypeMetadata.RegisterSerializer<{typeName}>(Serializer.Serialize, false);");
+            registrationCode.AppendLine(
+                $"                NinoTypeMetadata.RegisterDeserializer<{typeName}>(Deserializer.Deserialize, Deserializer.DeserializeRef, false);");
         }
 
         var curNamespace = Compilation.AssemblyName!.GetNamespace();
@@ -227,7 +277,7 @@ public abstract class NinoBuiltInTypeGenerator(
                              [UnityEditor.InitializeOnLoadMethod]
                              private static void InitEditor() => Init();
                      #endif
-                     
+
                              [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.BeforeSceneLoad)]
                              private static void InitRuntime() => Init();
                      #endif

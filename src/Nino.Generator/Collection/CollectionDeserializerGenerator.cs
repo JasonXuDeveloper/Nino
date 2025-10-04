@@ -291,37 +291,6 @@ public class CollectionDeserializerGenerator(
 
     protected override List<Transformer> Transformers =>
     [
-        // KeyValuePair Ninotypes
-        new
-        (
-            "KeyValuePair",
-            // We only want KeyValuePair for non-unmanaged ninotypes
-            new Joint().With(
-                new Trivial("KeyValuePair")
-            ),
-            (symbol, sb) =>
-            {
-                GenericTupleLikeMethods(symbol, sb,
-                    ((INamedTypeSymbol)symbol).TypeArguments.ToArray(),
-                    "K", "V");
-                return true;
-            }),
-        // Tuple Ninotypes
-        new
-        (
-            "Tuple",
-            // We only want Tuple for non-unmanaged ninotypes
-            new Trivial("ValueTuple", "Tuple"),
-            (symbol, sb) =>
-            {
-                if (symbol is INamedTypeSymbol namedTypeSymbol && namedTypeSymbol.TypeArguments.IsEmpty)
-                    return false;
-                GenericTupleLikeMethods(symbol, sb,
-                    ((INamedTypeSymbol)symbol).TypeArguments.ToArray(),
-                    ((INamedTypeSymbol)symbol)
-                    .TypeArguments.Select((_, i) => $"Item{i + 1}").ToArray());
-                return true;
-            }),
         // Array Ninotypes
         new
         (
@@ -1705,69 +1674,4 @@ public class CollectionDeserializerGenerator(
             }
         )
     ];
-
-    private void GenericTupleLikeMethods(ITypeSymbol type, Writer writer, ITypeSymbol[] types, params string[] fields)
-    {
-        bool isValueTuple = type.Name == "ValueTuple";
-        var typeName = type.ToDisplayString();
-        bool isUnmanaged = type.IsUnmanagedType && type.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T;
-
-        // Out overload
-        writer.AppendLine(Inline);
-        writer.Append("public static void Deserialize(out ");
-        writer.Append(typeName);
-        writer.AppendLine(" value, ref Reader reader)");
-        writer.AppendLine("{");
-        EofCheck(writer);
-        if (isUnmanaged)
-        {
-            writer.AppendLine("    reader.Read(out value);");
-            writer.AppendLine("}");
-        }
-        else
-        {
-            for (int i = 0; i < fields.Length; i++)
-            {
-                writer.Append("    ");
-                writer.AppendLine(GetDeserializeString(types[i], false, fields[i].ToLower()));
-            }
-
-            writer.Append("    value = ");
-            if (!isValueTuple)
-            {
-                writer.Append("new ");
-                writer.Append(typeName);
-            }
-
-            writer.Append("(");
-            for (int i = 0; i < fields.Length; i++)
-            {
-                if (i != 0)
-                {
-                    writer.Append(", ");
-                }
-
-                writer.Append(fields[i].ToLower());
-            }
-
-            writer.AppendLine(");");
-            writer.AppendLine("}");
-        }
-
-        writer.AppendLine();
-
-        // Ref overload - tuples are not modifiable
-        writer.AppendLine(Inline);
-        writer.Append("public static void DeserializeRef(ref ");
-        writer.Append(typeName);
-        writer.AppendLine(" value, ref Reader reader)");
-        if (isUnmanaged)
-        {
-            writer.AppendLine("    => reader.Read(out value);");
-        }
-        else
-        {
-            writer.AppendLine("    => Deserialize(out value, ref reader);");
-        }
-    }
 }

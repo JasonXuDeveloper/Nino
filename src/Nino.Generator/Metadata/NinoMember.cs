@@ -6,7 +6,7 @@ namespace Nino.Generator.Metadata;
 public class NinoMember(string name, ITypeSymbol type, ISymbol memberSymbol)
 {
     public string Name { get; set; } = name;
-    public ITypeSymbol Type { get; set; } = type;
+    public ITypeSymbol Type { get; set; } = type.GetNormalizedTypeSymbol().GetPureType();
     public ISymbol MemberSymbol { get; set; } = memberSymbol;
     public bool IsCtorParameter { get; set; }
     public bool IsPrivate { get; set; }
