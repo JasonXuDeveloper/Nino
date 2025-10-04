@@ -13,18 +13,21 @@ src/Nino.Core/.AssemblyAttributes
 src/Nino.UnitTests/build.binlog
 src/Nino.UnitTests/args.rsp
 
+# LLM Agent directories and configuration
+.claude/
+.roo/
+.roomodes
+memory/
+.cursor/
+.aider/
+.copilot/
+
 # Claude Flow generated files
-.claude/settings.local.json
 .mcp.json
 claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
-memory/claude-flow-data.json
-memory/sessions/*
-!memory/sessions/README.md
-memory/agents/*
-!memory/agents/README.md
 coordination/memory_bank/*
 coordination/subtasks/*
 coordination/orchestration/*
