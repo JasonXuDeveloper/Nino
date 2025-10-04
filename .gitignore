@@ -21,6 +21,7 @@ memory/
 .cursor/
 .aider/
 .copilot/
+CLAUDE.md
 
 # Claude Flow generated files
 .mcp.json
