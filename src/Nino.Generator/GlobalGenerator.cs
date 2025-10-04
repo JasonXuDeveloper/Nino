@@ -24,7 +24,8 @@ public class GlobalGenerator : IIncrementalGenerator
                 static (node, _) =>
                     node is GenericNameSyntax or ArrayTypeSyntax
                         or NullableTypeSyntax or TupleTypeSyntax,
-                static (context, _) => (TypeSyntax)context.Node)
+                static (context, _) => (TypeSyntax)context.Node
+            )
             .Where(static type => type != null)
             .Select(static (type, _) => type!)
             .Collect();
@@ -48,10 +49,8 @@ public class GlobalGenerator : IIncrementalGenerator
                 if (!result.isValid) return;
                 compilation = result.newCompilation;
 
-                // parametrized nino types + concrete nino types
-                HashSet<ITypeSymbol> ninoTypeSymbols = new(TupleSanitizedEqualityComparer.Default);
-                // all recognizable potential types that might be serialized/deserialized
-                HashSet<ITypeSymbol> potentialTypeSymbols = new(TupleSanitizedEqualityComparer.Default);
+                // all types
+                HashSet<ITypeSymbol> allTypes = new(TupleSanitizedEqualityComparer.Default);
 
                 // track visited type names to avoid infinite loops
                 var visited = new HashSet<string>();
@@ -67,14 +66,29 @@ public class GlobalGenerator : IIncrementalGenerator
                         && typeSymbol.CheckGenericValidity())
                     {
                         var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
-                        if (typeSymbol.IsNinoType())
+                        allTypes.Add(type);
+                    }
+                }
+                
+                // record all array element and generic type arguments
+                Stack<ITypeSymbol> toProcess = new(allTypes);
+                while (toProcess.Count > 0)
+                {
+                    var currentType = toProcess.Pop();
+                    if (currentType is INamedTypeSymbol namedType && namedType.IsGenericType)
+                    {
+                        foreach (var arg in namedType.TypeArguments)
                         {
-                            ninoTypeSymbols.Add(type);
+                            var pureArg = arg.GetNormalizedTypeSymbol().GetPureType();
+                            if (allTypes.Add(pureArg))
+                                toProcess.Push(pureArg);
                         }
-                        else
-                        {
-                            potentialTypeSymbols.Add(type);
-                        }
+                    }
+                    else if (currentType is IArrayTypeSymbol arrayType)
+                    {
+                        var elemType = arrayType.ElementType.GetNormalizedTypeSymbol().GetPureType();
+                        if (allTypes.Add(elemType))
+                            toProcess.Push(elemType);
                     }
                 }
 
@@ -89,8 +103,22 @@ public class GlobalGenerator : IIncrementalGenerator
                         && typeSymbol.CheckGenericValidity())
                     {
                         var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
-                        ninoTypeSymbols.Add(type);
+                        allTypes.Add(type);
                     }
+                }
+
+                // parametrized nino types + concrete nino types
+                HashSet<ITypeSymbol> ninoTypeSymbols = new(TupleSanitizedEqualityComparer.Default);
+                // all recognizable potential types that might be serialized/deserialized
+                HashSet<ITypeSymbol> potentialTypeSymbols = new(TupleSanitizedEqualityComparer.Default);
+
+                // separate nino types and potential types
+                foreach (var type in allTypes)
+                {
+                    if (type.IsNinoType())
+                        ninoTypeSymbols.Add(type);
+                    else
+                        potentialTypeSymbols.Add(type);
                 }
 
                 NinoGraph graph;

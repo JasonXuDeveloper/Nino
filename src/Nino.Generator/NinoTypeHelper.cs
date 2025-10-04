@@ -148,31 +148,57 @@ public static class NinoTypeHelper
 
     public static bool CheckGenericValidity(this ITypeSymbol containingType)
     {
-        //containing type can not be an uninstantiated generic type
-        bool IsContainingTypeValid(ITypeSymbol type)
+        var toValidate = new Stack<ITypeSymbol>();
+        var visited = new HashSet<ITypeSymbol>(TupleSanitizedEqualityComparer.Default);
+
+        var current = containingType;
+        while (current != null)
         {
-            return type switch
-            {
-                ITypeParameterSymbol => false,
-                IArrayTypeSymbol arrayTypeSymbol => IsContainingTypeValid(arrayTypeSymbol.ElementType),
-                INamedTypeSymbol { IsGenericType: true } namedTypeSymbol =>
-                    namedTypeSymbol.TypeArguments.Length == namedTypeSymbol.TypeParameters.Length &&
-                    namedTypeSymbol.TypeArguments.All(t => t.TypeKind != TypeKind.TypeParameter) &&
-                    namedTypeSymbol.TypeArguments.All(IsContainingTypeValid),
-                INamedTypeSymbol => true,
-                _ => false
-            };
+            toValidate.Push(current);
+            current = current.ContainingType;
         }
 
-        while (containingType != null)
+        // Validate all types
+        while (toValidate.Count > 0)
         {
-            if (IsContainingTypeValid(containingType))
+            var type = toValidate.Pop();
+
+            // Skip if already visited to prevent infinite loops
+            if (!visited.Add(type))
+                continue;
+
+            switch (type)
             {
-                containingType = containingType.ContainingType;
-            }
-            else
-            {
-                return false;
+                case ITypeParameterSymbol:
+                    return false;
+
+                case IArrayTypeSymbol arrayTypeSymbol:
+                    toValidate.Push(arrayTypeSymbol.ElementType);
+                    break;
+
+                case INamedTypeSymbol { IsGenericType: true } namedTypeSymbol:
+                    // Validate generic type
+                    if (namedTypeSymbol.TypeArguments.Length != namedTypeSymbol.TypeParameters.Length)
+                        return false;
+
+                    foreach (var typeArg in namedTypeSymbol.TypeArguments)
+                    {
+                        if (typeArg.TypeKind == TypeKind.TypeParameter)
+                            return false;
+                    }
+
+                    // Push type arguments to stack for validation
+                    for (int i = namedTypeSymbol.TypeArguments.Length - 1; i >= 0; i--)
+                    {
+                        toValidate.Push(namedTypeSymbol.TypeArguments[i]);
+                    }
+                    break;
+
+                case INamedTypeSymbol:
+                    break;
+
+                default:
+                    return false;
             }
         }
 
