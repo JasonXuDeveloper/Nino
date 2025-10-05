@@ -193,6 +193,7 @@ public static class NinoTypeHelper
     
     public static bool IsAccessible(this ISymbol symbol)
     {
+        // Check the symbol itself and its containing types
         var s = symbol;
         while (s != null)
         {
@@ -204,7 +205,28 @@ public static class NinoTypeHelper
 
             s = s.ContainingType;
         }
-        
+
+        // For generic types, also check all type arguments
+        if (symbol is INamedTypeSymbol namedType && namedType.IsGenericType)
+        {
+            foreach (var typeArg in namedType.TypeArguments)
+            {
+                if (!typeArg.IsAccessible())
+                {
+                    return false;
+                }
+            }
+        }
+
+        // For array types, check the element type
+        if (symbol is IArrayTypeSymbol arrayType)
+        {
+            if (!arrayType.ElementType.IsAccessible())
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 
