@@ -459,12 +459,11 @@ public partial class DeserializerGenerator
 
             case NinoTypeHelper.NinoTypeKind.NinoType:
                 // Priority 5: NinoType - use CachedDeserializer
-                if (deserializers.TryGetValue(type, out var deserializerVar))
+                if (!deserializers.TryGetValue(type, out var deserializerVar))
                 {
-                    return $"{deserializerVar}.Deserialize(out {memberAccess}, ref reader);";
+                    throw new InvalidOperationException($"Deserializer not found for NinoType: {type.GetDisplayString()}");
                 }
-                // Fallthrough to default - return empty block for unhandled NinoTypes
-                goto default;
+                return $"{deserializerVar}.Deserialize(out {memberAccess}, ref reader);";
 
             case NinoTypeHelper.NinoTypeKind.Invalid:
             default:
@@ -705,8 +704,7 @@ public partial class DeserializerGenerator
         {
             var type = member.Type;
 
-            if (!member.IsCtorParameter &&
-                !member.HasCustomFormatter() &&
+            if (!member.HasCustomFormatter() &&
                 !deserializers.ContainsKey(type))
             {
                 var kind = type.GetKind(NinoGraph, GeneratedBuiltInTypes);

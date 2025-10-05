@@ -50,7 +50,7 @@ public class ArrayGenerator(
     {
         var arraySymbol = (IArrayTypeSymbol)typeSymbol;
         var elementType = arraySymbol.ElementType;
-        var elemType = elementType.GetDisplayString();
+        elementType.GetDisplayString();
         var rank = arraySymbol.Rank;
         var typeName = typeSymbol.GetDisplayString();
 
@@ -191,7 +191,7 @@ public class ArrayGenerator(
         // For element type like "int", we need "int[length]"
         // Strategy: find the first '[' that's NOT inside angle brackets <>, then insert "[length]" before it
         // If no such '[' exists, append "[length]"
-        string creationDecl = null;
+        string creationDecl = null!;
         if (rank == 1)
         {
             int angleDepth = 0;
@@ -237,7 +237,7 @@ public class ArrayGenerator(
                 w => { w.AppendLine("    Reader eleReader;"); });
             writer.AppendLine();
             writer.Append("    value = new ");
-            writer.Append(creationDecl!);
+            writer.Append(creationDecl);
             writer.AppendLine(";");
             writer.AppendLine("    var span = value.AsSpan();");
             writer.AppendLine("    for (int i = 0; i < length; i++)");
@@ -375,7 +375,7 @@ public class ArrayGenerator(
             writer.AppendLine("    if (value == null)");
             writer.AppendLine("    {");
             writer.Append("        value = new ");
-            writer.Append(creationDecl!);
+            writer.Append(creationDecl);
             writer.AppendLine(";");
             writer.AppendLine("    }");
             writer.AppendLine("    else if (value.Length != length)");
