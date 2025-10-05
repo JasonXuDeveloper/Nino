@@ -50,8 +50,8 @@ public partial class DeserializerGenerator(
                     if (registeredTypes.Add(baseType.TypeSymbol))
                     {
                         var baseTypeName = baseType.TypeSymbol.GetDisplayString();
-                        prefix = !string.IsNullOrEmpty(baseType.CustomSerializer)
-                            ? $"{baseType.CustomSerializer}."
+                        prefix = !string.IsNullOrEmpty(baseType.CustomDeserializer)
+                            ? $"{baseType.CustomDeserializer}."
                             : "";
                         var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
                         var methodRef = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImplRef" : "null";
