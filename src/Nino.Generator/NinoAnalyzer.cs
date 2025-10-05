@@ -5,7 +5,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Nino.Generator.Filter;
 
 namespace Nino.Generator;
 
@@ -19,7 +18,6 @@ public class NinoAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
 
         // All Type declarations syntaxes with NinoTypeAttribute applied must be public
-        IFilter filter = new Accessible();
         context.RegisterSymbolAction(
             symbolContext =>
             {
@@ -28,7 +26,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 if (typeSymbol.IsUnmanagedType) return;
                 if (!typeSymbol.IsNinoType()) return;
 
-                if (!filter.Filter(typeSymbol))
+                if (!typeSymbol.IsAccessible())
                     symbolContext.ReportDiagnostic(Diagnostic.Create(
                         SupportedDiagnostics[1],
                         typeSymbol.Locations.First(),
@@ -67,7 +65,7 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                             .Any(x => x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
                         bool definedNinoIgnore =
                             member.GetAttributesCache().Any(x => x.AttributeClass?.Name == "NinoIgnoreAttribute");
-                            
+
                         // Check NinoCustomFormatterAttribute validation - NINO010
                         var customFormatterAttr = member.GetAttributesCache()
                             .FirstOrDefault(x => x.AttributeClass?.Name == "NinoCustomFormatterAttribute");
@@ -83,13 +81,13 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                                     IPropertySymbol property => property.Type,
                                     _ => null
                                 };
-                                
+
                                 if (memberType != null)
                                 {
                                     // Check if formatter inherits from NinoFormatter<memberType>
                                     var expectedBaseType = "NinoFormatter<" + memberType.ToDisplayString() + ">";
                                     bool isValidFormatter = IsValidNinoFormatter(formatterType, memberType);
-                                    
+
                                     if (!isValidFormatter)
                                     {
                                         syntaxContext.ReportDiagnostic(Diagnostic.Create(
@@ -285,15 +283,17 @@ public class NinoAnalyzer : DiagnosticAnalyzer
         var baseType = formatterType.BaseType;
         while (baseType != null)
         {
-            if (baseType.Name == "NinoFormatter" && 
-                baseType.IsGenericType && 
+            if (baseType.Name == "NinoFormatter" &&
+                baseType.IsGenericType &&
                 baseType.TypeArguments.Length == 1)
             {
                 var formatterGenericArg = baseType.TypeArguments[0];
                 return SymbolEqualityComparer.Default.Equals(formatterGenericArg, memberType);
             }
+
             baseType = baseType.BaseType;
         }
+
         return false;
     }
 }

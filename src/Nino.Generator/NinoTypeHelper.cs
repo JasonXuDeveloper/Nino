@@ -190,6 +190,23 @@ public static class NinoTypeHelper
         curNamespace += "NinoGen";
         return curNamespace;
     }
+    
+    public static bool IsAccessible(this ISymbol symbol)
+    {
+        var s = symbol;
+        while (s != null)
+        {
+            if (s.DeclaredAccessibility != Accessibility.Public &&
+                s.DeclaredAccessibility != Accessibility.NotApplicable)
+            {
+                return false;
+            }
+
+            s = s.ContainingType;
+        }
+        
+        return true;
+    }
 
     public static bool CheckGenericValidity(this ITypeSymbol containingType)
     {

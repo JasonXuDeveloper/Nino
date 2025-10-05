@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Nino.Generator.Collection;
 using Nino.Generator.Metadata;
 using Nino.Generator.Template;
 
@@ -11,8 +10,7 @@ namespace Nino.Generator.Common;
 public partial class SerializerGenerator(
     Compilation compilation,
     NinoGraph ninoGraph,
-    List<NinoType> ninoTypes,
-    List<ITypeSymbol> potentialTypes)
+    List<NinoType> ninoTypes)
     : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
     private void GenerateGenericRegister(StringBuilder sb, string name, HashSet<ITypeSymbol> generatedTypes,
@@ -96,10 +94,6 @@ public partial class SerializerGenerator(
         HashSet<ITypeSymbol> registeredTypes = new(SymbolEqualityComparer.Default);
 
         StringBuilder sb = new(32_000_000);
-        HashSet<ITypeSymbol> collectionTypes = new(SymbolEqualityComparer.Default);
-        new CollectionSerializerGenerator(compilation, potentialTypes, NinoGraph).Generate(spc, collectionTypes);
-        GenerateGenericRegister(sb, "Collection", collectionTypes, registeredTypes);
-
         HashSet<ITypeSymbol> trivialTypes = new(SymbolEqualityComparer.Default);
         GenerateTrivialCode(spc, trivialTypes);
         // add string type
@@ -144,7 +138,6 @@ public partial class SerializerGenerator(
                                                 return;
                                                 
                                             RegisterTrivialSerializers();
-                                            RegisterCollectionSerializers();
                                             _initialized = true;
                                         }
                                     }

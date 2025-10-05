@@ -58,8 +58,7 @@ public class GlobalGenerator : IIncrementalGenerator
                 {
                     var typeSymbol = syntax.GetTypeSymbol(compilation);
                     if (typeSymbol != null
-                        && typeSymbol.DeclaredAccessibility is Accessibility.Public
-                            or Accessibility.Friend or Accessibility.NotApplicable
+                        && typeSymbol.IsAccessible()
                         && typeSymbol.CheckGenericValidity())
                     {
                         var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
@@ -163,20 +162,30 @@ public class GlobalGenerator : IIncrementalGenerator
                     .ToList();
 
                 HashSet<ITypeSymbol> generatedTypes = new(TupleSanitizedEqualityComparer.Default);
+
                 NinoBuiltInTypeGenerator[] builtInGenerators =
                 {
                     new NullableGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
                     new KeyValuePairGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new TupleGenerator(graph, potentialTypeSymbols, generatedTypes, compilation)
+                    new TupleGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new ArrayGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new DictionaryGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new ListGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new ArraySegmentGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new QueueGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new StackGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new HashSetGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
+                    new LinkedListGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
                 };
-                // pre-filter built-in generated types to avoid redundant work
-                foreach (var type in potentialTypeSymbols)
+
+                foreach (var type in potentialTypes)
                 {
                     foreach (var generator in builtInGenerators)
                     {
                         if (generator.Filter(type))
                         {
                             generatedTypes.Add(type);
+                            break;
                         }
                     }
                 }
@@ -189,8 +198,8 @@ public class GlobalGenerator : IIncrementalGenerator
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new PartialClassGenerator(compilation, graph, distinctNinoTypes), spc);
-                ExecuteGenerator(new SerializerGenerator(compilation, graph, distinctNinoTypes, potentialTypes), spc);
-                ExecuteGenerator(new DeserializerGenerator(compilation, graph, distinctNinoTypes, potentialTypes), spc);
+                ExecuteGenerator(new SerializerGenerator(compilation, graph, distinctNinoTypes), spc);
+                ExecuteGenerator(new DeserializerGenerator(compilation, graph, distinctNinoTypes), spc);
             }
             catch (Exception e)
             {

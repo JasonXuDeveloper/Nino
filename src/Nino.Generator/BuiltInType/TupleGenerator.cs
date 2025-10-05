@@ -41,16 +41,24 @@ public class TupleGenerator(
 
     public override bool Filter(ITypeSymbol typeSymbol)
     {
-        if (typeSymbol is not INamedTypeSymbol namedType) return false;
+        if (typeSymbol is not INamedTypeSymbol namedType)
+        {
+            return false;
+        }
 
         // Filter empty tuples
-        if (namedType.TypeArguments.IsEmpty) return false;
+        if (namedType.TypeArguments.IsEmpty)
+        {
+            return false;
+        }
 
         // Ensure all type arguments are valid
         foreach (var typeArg in namedType.TypeArguments)
         {
             if (typeArg.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Invalid)
+            {
                 return false;
+            }
         }
 
         var name = typeSymbol.Name;
