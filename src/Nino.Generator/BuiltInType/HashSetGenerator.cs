@@ -67,6 +67,9 @@ public class HashSetGenerator(
 
         var typeName = typeSymbol.GetDisplayString();
 
+        // Check if element is unmanaged (no WeakVersionTolerance needed)
+        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -84,13 +87,22 @@ public class HashSetGenerator(
         writer.AppendLine();
         writer.AppendLine("    foreach (var item in value)");
         writer.AppendLine("    {");
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+        }
 
         writer.Append("        ");
         writer.AppendLine(GetSerializeString(elementType, "item"));
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("        writer.PutLength(pos);"); });
+
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("        writer.PutLength(pos);"); });
+        }
+
         writer.AppendLine("    }");
 
         writer.AppendLine("}");
@@ -103,6 +115,9 @@ public class HashSetGenerator(
 
         // Check if this is an interface type
         bool isInterface = typeSymbol.TypeKind == TypeKind.Interface;
+
+        // Check if element is unmanaged (no WeakVersionTolerance needed)
+        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // For interfaces, use HashSet<T> as the concrete type
         var typeName = typeSymbol.GetDisplayString();
@@ -125,9 +140,12 @@ public class HashSetGenerator(
         writer.AppendLine("    }");
         writer.AppendLine();
 
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("    Reader eleReader;"); });
-        writer.AppendLine();
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("    Reader eleReader;"); });
+            writer.AppendLine();
+        }
 
         if (isInterface)
         {
@@ -138,18 +156,27 @@ public class HashSetGenerator(
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
-            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w =>
-                {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
-                },
-                w =>
-                {
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-                });
+            if (isUnmanaged)
+            {
+                writer.Append("        ");
+                writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    });
+            }
+
             writer.AppendLine("        hashSet.Add(item);");
             writer.AppendLine("    }");
             writer.AppendLine("    value = hashSet;");
@@ -163,18 +190,27 @@ public class HashSetGenerator(
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
-            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w =>
-                {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
-                },
-                w =>
-                {
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-                });
+            if (isUnmanaged)
+            {
+                writer.Append("        ");
+                writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    });
+            }
+
             writer.AppendLine("        value.Add(item);");
             writer.AppendLine("    }");
         }
@@ -206,9 +242,12 @@ public class HashSetGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
 
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("    Reader eleReader;"); });
-            writer.AppendLine();
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("    Reader eleReader;"); });
+                writer.AppendLine();
+            }
 
             writer.AppendLine("    // Initialize if null, otherwise clear");
             writer.AppendLine("    if (value == null)");
@@ -225,18 +264,27 @@ public class HashSetGenerator(
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
-            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w =>
-                {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
-                },
-                w =>
-                {
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-                });
+            if (isUnmanaged)
+            {
+                writer.Append("        ");
+                writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    });
+            }
+
             writer.AppendLine("        value.Add(item);");
             writer.AppendLine("    }");
         }

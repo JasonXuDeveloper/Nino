@@ -1,4 +1,4 @@
-// LinkedListGenerator.cs
+// PriorityQueueGenerator.cs
 //
 //  Author:
 //        JasonXuDeveloper <jason@xgamedev.net>
@@ -30,27 +30,29 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.BuiltInType;
 
-public class LinkedListGenerator(
+public class PriorityQueueGenerator(
     NinoGraph ninoGraph,
     HashSet<ITypeSymbol> potentialTypes,
     HashSet<ITypeSymbol> selectedTypes,
     Compilation compilation) : NinoBuiltInTypeGenerator(ninoGraph, potentialTypes, selectedTypes, compilation)
 {
-    protected override string OutputFileName => "NinoLinkedListTypeGenerator";
+    protected override string OutputFileName => "NinoPriorityQueueTypeGenerator";
 
     public override bool Filter(ITypeSymbol typeSymbol)
     {
         if (typeSymbol is not INamedTypeSymbol namedType) return false;
 
-        // Accept LinkedList<T>
+        // Accept PriorityQueue<TElement, TPriority>
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
-        if (originalDef != "System.Collections.Generic.LinkedList<T>")
+        if (originalDef != "System.Collections.Generic.PriorityQueue<TElement, TPriority>")
             return false;
 
         var elementType = namedType.TypeArguments[0];
+        var priorityType = namedType.TypeArguments[1];
 
-        // Element type must be valid
-        if (elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Invalid)
+        // Both element and priority types must be valid
+        if (elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Invalid ||
+            priorityType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Invalid)
             return false;
 
         return true;
@@ -60,11 +62,13 @@ public class LinkedListGenerator(
     {
         var namedType = (INamedTypeSymbol)typeSymbol;
         var elementType = namedType.TypeArguments[0];
+        var priorityType = namedType.TypeArguments[1];
 
         var typeName = typeSymbol.GetDisplayString();
 
-        // Check if element is unmanaged (no WeakVersionTolerance needed)
-        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+        // Check if both element and priority are unmanaged (no WeakVersionTolerance needed)
+        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
+                          priorityType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
@@ -81,7 +85,9 @@ public class LinkedListGenerator(
         writer.AppendLine("    int cnt = value.Count;");
         writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
         writer.AppendLine();
-        writer.AppendLine("    foreach (var item in value)");
+
+        // Use UnorderedItems to serialize all items with their priorities
+        writer.AppendLine("    foreach (var item in value.UnorderedItems)");
         writer.AppendLine("    {");
 
         if (!isUnmanaged)
@@ -91,7 +97,9 @@ public class LinkedListGenerator(
         }
 
         writer.Append("        ");
-        writer.AppendLine(GetSerializeString(elementType, "item"));
+        writer.AppendLine(GetSerializeString(elementType, "item.Element"));
+        writer.Append("        ");
+        writer.AppendLine(GetSerializeString(priorityType, "item.Priority"));
 
         if (!isUnmanaged)
         {
@@ -108,11 +116,13 @@ public class LinkedListGenerator(
     {
         var namedType = (INamedTypeSymbol)typeSymbol;
         var elementType = namedType.TypeArguments[0];
+        var priorityType = namedType.TypeArguments[1];
 
         var typeName = typeSymbol.GetDisplayString();
 
-        // Check if element is unmanaged (no WeakVersionTolerance needed)
-        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+        // Check if both element and priority are unmanaged (no WeakVersionTolerance needed)
+        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
+                          priorityType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
         writer.Append("public static void Deserialize(out ");
@@ -138,14 +148,16 @@ public class LinkedListGenerator(
 
         writer.Append("    value = new ");
         writer.Append(typeName);
-        writer.AppendLine("();");
+        writer.AppendLine("(length);");
         writer.AppendLine("    for (int i = 0; i < length; i++)");
         writer.AppendLine("    {");
 
         if (isUnmanaged)
         {
             writer.Append("        ");
-            writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            writer.AppendLine(GetDeserializeString(elementType, "element", isOutVariable: true));
+            writer.Append("        ");
+            writer.AppendLine(GetDeserializeString(priorityType, "priority", isOutVariable: true));
         }
         else
         {
@@ -154,16 +166,20 @@ public class LinkedListGenerator(
                 {
                     w.AppendLine("        eleReader = reader.Slice();");
                     w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    w.AppendLine(GetDeserializeString(elementType, "element", isOutVariable: true, readerName: "eleReader"));
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(priorityType, "priority", isOutVariable: true, readerName: "eleReader"));
                 },
                 w =>
                 {
                     w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    w.AppendLine(GetDeserializeString(elementType, "element", isOutVariable: true));
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(priorityType, "priority", isOutVariable: true));
                 });
         }
 
-        writer.AppendLine("        value.AddLast(item);");
+        writer.AppendLine("        value.Enqueue(element, priority);");
         writer.AppendLine("    }");
 
         writer.AppendLine("}");
@@ -175,7 +191,6 @@ public class LinkedListGenerator(
         writer.AppendLine(" value, ref Reader reader)");
         writer.AppendLine("{");
 
-        // LinkedLists are modifiable, clear and repopulate
         EofCheck(writer);
 
         writer.AppendLine();
@@ -198,7 +213,7 @@ public class LinkedListGenerator(
         writer.AppendLine("    {");
         writer.Append("        value = new ");
         writer.Append(typeName);
-        writer.AppendLine("();");
+        writer.AppendLine("(length);");
         writer.AppendLine("    }");
         writer.AppendLine("    else");
         writer.AppendLine("    {");
@@ -211,7 +226,9 @@ public class LinkedListGenerator(
         if (isUnmanaged)
         {
             writer.Append("        ");
-            writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            writer.AppendLine(GetDeserializeString(elementType, "element", isOutVariable: true));
+            writer.Append("        ");
+            writer.AppendLine(GetDeserializeString(priorityType, "priority", isOutVariable: true));
         }
         else
         {
@@ -220,16 +237,20 @@ public class LinkedListGenerator(
                 {
                     w.AppendLine("        eleReader = reader.Slice();");
                     w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    w.AppendLine(GetDeserializeString(elementType, "element", isOutVariable: true, readerName: "eleReader"));
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(priorityType, "priority", isOutVariable: true, readerName: "eleReader"));
                 },
                 w =>
                 {
                     w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    w.AppendLine(GetDeserializeString(elementType, "element", isOutVariable: true));
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(priorityType, "priority", isOutVariable: true));
                 });
         }
 
-        writer.AppendLine("        value.AddLast(item);");
+        writer.AppendLine("        value.Enqueue(element, priority);");
         writer.AppendLine("    }");
 
         writer.AppendLine("}");

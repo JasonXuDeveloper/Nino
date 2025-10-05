@@ -63,6 +63,9 @@ public class QueueGenerator(
 
         var typeName = typeSymbol.GetDisplayString();
 
+        // Check if element is unmanaged (no WeakVersionTolerance needed)
+        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -80,13 +83,22 @@ public class QueueGenerator(
         writer.AppendLine();
         writer.AppendLine("    foreach (var item in value)");
         writer.AppendLine("    {");
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+        }
 
         writer.Append("        ");
         writer.AppendLine(GetSerializeString(elementType, "item"));
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("        writer.PutLength(pos);"); });
+
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("        writer.PutLength(pos);"); });
+        }
+
         writer.AppendLine("    }");
 
         writer.AppendLine("}");
@@ -97,6 +109,9 @@ public class QueueGenerator(
         var namedType = (INamedTypeSymbol)typeSymbol;
         var elementType = namedType.TypeArguments[0];
         var typeName = typeSymbol.GetDisplayString();
+
+        // Check if element is unmanaged (no WeakVersionTolerance needed)
+        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
         writer.Append("public static void Deserialize(out ");
@@ -113,9 +128,12 @@ public class QueueGenerator(
         writer.AppendLine("    }");
         writer.AppendLine();
 
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("    Reader eleReader;"); });
-        writer.AppendLine();
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("    Reader eleReader;"); });
+            writer.AppendLine();
+        }
 
         writer.Append("    value = new ");
         writer.Append(typeName);
@@ -123,18 +141,27 @@ public class QueueGenerator(
         writer.AppendLine("    for (int i = 0; i < length; i++)");
         writer.AppendLine("    {");
 
-        IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w =>
-            {
-                w.AppendLine("        eleReader = reader.Slice();");
-                w.Append("        ");
-                w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
-            },
-            w =>
-            {
-                w.Append("        ");
-                w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-            });
+        if (isUnmanaged)
+        {
+            writer.Append("        ");
+            writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+        }
+        else
+        {
+            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w =>
+                {
+                    w.AppendLine("        eleReader = reader.Slice();");
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                },
+                w =>
+                {
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                });
+        }
+
         writer.AppendLine("        value.Enqueue(item);");
         writer.AppendLine("    }");
 
@@ -156,9 +183,12 @@ public class QueueGenerator(
         writer.AppendLine("    }");
         writer.AppendLine();
 
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("    Reader eleReader;"); });
-        writer.AppendLine();
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("    Reader eleReader;"); });
+            writer.AppendLine();
+        }
 
         writer.AppendLine("    // Initialize if null, otherwise clear");
         writer.AppendLine("    if (value == null)");
@@ -175,18 +205,27 @@ public class QueueGenerator(
         writer.AppendLine("    for (int i = 0; i < length; i++)");
         writer.AppendLine("    {");
 
-        IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w =>
-            {
-                w.AppendLine("        eleReader = reader.Slice();");
-                w.Append("        ");
-                w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
-            },
-            w =>
-            {
-                w.Append("        ");
-                w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-            });
+        if (isUnmanaged)
+        {
+            writer.Append("        ");
+            writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+        }
+        else
+        {
+            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w =>
+                {
+                    w.AppendLine("        eleReader = reader.Slice();");
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                },
+                w =>
+                {
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                });
+        }
+
         writer.AppendLine("        value.Enqueue(item);");
         writer.AppendLine("    }");
 

@@ -1,4 +1,4 @@
-// LinkedListGenerator.cs
+// ImmutableListGenerator.cs
 //
 //  Author:
 //        JasonXuDeveloper <jason@xgamedev.net>
@@ -30,21 +30,21 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.BuiltInType;
 
-public class LinkedListGenerator(
+public class ImmutableListGenerator(
     NinoGraph ninoGraph,
     HashSet<ITypeSymbol> potentialTypes,
     HashSet<ITypeSymbol> selectedTypes,
     Compilation compilation) : NinoBuiltInTypeGenerator(ninoGraph, potentialTypes, selectedTypes, compilation)
 {
-    protected override string OutputFileName => "NinoLinkedListTypeGenerator";
+    protected override string OutputFileName => "NinoImmutableListTypeGenerator";
 
     public override bool Filter(ITypeSymbol typeSymbol)
     {
         if (typeSymbol is not INamedTypeSymbol namedType) return false;
 
-        // Accept LinkedList<T>
+        // Accept ImmutableList<T>
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
-        if (originalDef != "System.Collections.Generic.LinkedList<T>")
+        if (originalDef != "System.Collections.Immutable.ImmutableList<T>")
             return false;
 
         var elementType = namedType.TypeArguments[0];
@@ -136,9 +136,9 @@ public class LinkedListGenerator(
             writer.AppendLine();
         }
 
-        writer.Append("    value = new ");
-        writer.Append(typeName);
-        writer.AppendLine("();");
+        writer.AppendLine("    var builder = System.Collections.Immutable.ImmutableList.CreateBuilder<");
+        writer.Append(elementType.GetDisplayString());
+        writer.AppendLine(">();");
         writer.AppendLine("    for (int i = 0; i < length; i++)");
         writer.AppendLine("    {");
 
@@ -163,75 +163,19 @@ public class LinkedListGenerator(
                 });
         }
 
-        writer.AppendLine("        value.AddLast(item);");
+        writer.AppendLine("        builder.Add(item);");
         writer.AppendLine("    }");
+        writer.AppendLine("    value = builder.ToImmutable();");
 
         writer.AppendLine("}");
         writer.AppendLine();
 
-        // Ref overload
+        // Ref overload - ImmutableList is immutable, so just call out overload
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
         writer.AppendLine("{");
-
-        // LinkedLists are modifiable, clear and repopulate
-        EofCheck(writer);
-
-        writer.AppendLine();
-        writer.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
-        writer.AppendLine("    {");
-        writer.AppendLine("        value = null;");
-        writer.AppendLine("        return;");
-        writer.AppendLine("    }");
-        writer.AppendLine();
-
-        if (!isUnmanaged)
-        {
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("    Reader eleReader;"); });
-            writer.AppendLine();
-        }
-
-        writer.AppendLine("    // Initialize if null, otherwise clear");
-        writer.AppendLine("    if (value == null)");
-        writer.AppendLine("    {");
-        writer.Append("        value = new ");
-        writer.Append(typeName);
-        writer.AppendLine("();");
-        writer.AppendLine("    }");
-        writer.AppendLine("    else");
-        writer.AppendLine("    {");
-        writer.AppendLine("        value.Clear();");
-        writer.AppendLine("    }");
-        writer.AppendLine();
-        writer.AppendLine("    for (int i = 0; i < length; i++)");
-        writer.AppendLine("    {");
-
-        if (isUnmanaged)
-        {
-            writer.Append("        ");
-            writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-        }
-        else
-        {
-            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w =>
-                {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
-                },
-                w =>
-                {
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-                });
-        }
-
-        writer.AppendLine("        value.AddLast(item);");
-        writer.AppendLine("    }");
-
+        writer.AppendLine("    Deserializer.Deserialize(out value, ref reader);");
         writer.AppendLine("}");
     }
 }

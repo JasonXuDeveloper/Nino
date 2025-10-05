@@ -55,6 +55,10 @@ public class NinoBuiltInTypesGenerator(
         new StackGenerator(ninoGraph, potentialTypes, generatedTypes, compilation),
         new HashSetGenerator(ninoGraph, potentialTypes, generatedTypes, compilation),
         new LinkedListGenerator(ninoGraph, potentialTypes, generatedTypes, compilation),
+        new ImmutableArrayGenerator(ninoGraph, potentialTypes, generatedTypes, compilation),
+        new ImmutableListGenerator(ninoGraph, potentialTypes, generatedTypes, compilation),
+        new PriorityQueueGenerator(ninoGraph, potentialTypes, generatedTypes, compilation),
+        new SortedSetGenerator(ninoGraph, potentialTypes, generatedTypes, compilation),
     };
 
     protected override void Generate(SourceProductionContext spc)

@@ -102,56 +102,8 @@ public partial class SerializerGenerator
                      namespace {{curNamespace}}
                      {
                          public static partial class Serializer
-                         {
-                             private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
-                             private static readonly NinoArrayBufferWriter DefaultBufferWriter = new NinoArrayBufferWriter(1024);
-                             private static int _defaultUsed;{{staticFormatterFields}}
+                         {{{staticFormatterFields}}
 
-                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static NinoArrayBufferWriter GetBufferWriter()
-                             {
-                                 // Fast path
-                                 if (Interlocked.CompareExchange(ref _defaultUsed, 1, 0) == 0)
-                                 {
-                                     return DefaultBufferWriter;
-                                 }
-
-                                 if (BufferWriters.Count == 0)
-                                 {
-                                     return new NinoArrayBufferWriter(1024);
-                                 }
-
-                                 if (BufferWriters.TryDequeue(out var bufferWriter))
-                                 {
-                                     return bufferWriter;
-                                 }
-
-                                 return new NinoArrayBufferWriter(1024);
-                             }
-
-                             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                             public static void ReturnBufferWriter(NinoArrayBufferWriter bufferWriter)
-                             {
-                     #if NET8_0_OR_GREATER
-                                 bufferWriter.ResetWrittenCount();
-                     #else
-                                 bufferWriter.Clear();
-                     #endif
-                                 // Check if the buffer writer is the default buffer writer
-                                 if (bufferWriter == DefaultBufferWriter)
-                                 {
-                                     // Ensure it is in use, otherwise throw an exception
-                                     if (Interlocked.CompareExchange(ref _defaultUsed, 0, 1) == 0)
-                                     {
-                                         throw new InvalidOperationException("The returned buffer writer is not in use.");
-                                     }
-
-                                     return;
-                                 }
-
-                                 BufferWriters.Enqueue(bufferWriter);
-                             }
-                             
                              [MethodImpl(MethodImplOptions.AggressiveInlining)]
                              public static byte[] Serialize(bool value)
                              {
@@ -196,7 +148,7 @@ public partial class SerializerGenerator
     private Dictionary<string, (ITypeSymbol FormatterType, ITypeSymbol ValueType)> CollectGlobalCustomFormatters()
     {
         var globalCustomFormatters = new Dictionary<string, (ITypeSymbol FormatterType, ITypeSymbol ValueType)>();
-        
+
         foreach (var ninoType in NinoTypes)
         {
             foreach (var member in ninoType.Members)
@@ -212,11 +164,12 @@ public partial class SerializerGenerator
                 }
             }
         }
-        
+
         return globalCustomFormatters;
     }
 
-    private string GenerateStaticFormatterFields(Dictionary<string, (ITypeSymbol FormatterType, ITypeSymbol ValueType)> globalCustomFormatters)
+    private string GenerateStaticFormatterFields(
+        Dictionary<string, (ITypeSymbol FormatterType, ITypeSymbol ValueType)> globalCustomFormatters)
     {
         if (globalCustomFormatters.Count == 0)
             return "";
@@ -224,15 +177,16 @@ public partial class SerializerGenerator
         var sb = new StringBuilder();
         sb.AppendLine();
         sb.AppendLine("        // Static formatter fields for optimal performance");
-        
+
         foreach (var kvp in globalCustomFormatters)
         {
             var formatterType = kvp.Value.FormatterType;
             var valueType = kvp.Value.ValueType;
             var varName = formatterType.GetCachedVariableName("formatter");
-            sb.AppendLine($"        private static readonly {formatterType.GetDisplayString()} {varName} = NinoFormatterInstance<{formatterType.GetDisplayString()}, {valueType.GetDisplayString()}>.Instance;");
+            sb.AppendLine(
+                $"        private static readonly {formatterType.GetDisplayString()} {varName} = NinoFormatterInstance<{formatterType.GetDisplayString()}, {valueType.GetDisplayString()}>.Instance;");
         }
-        
+
         return sb.ToString();
     }
 
@@ -267,7 +221,7 @@ public partial class SerializerGenerator
                 }
             }
         }
-        
+
         // Generate serializer declarations for standard types (only for non-built-in types)
         Dictionary<string, string> serializerVarsByType = new();
         foreach (var serializerType in typesNeedingSerializers)
@@ -292,7 +246,7 @@ public partial class SerializerGenerator
                 sb.AppendLine($"            var {varName} = CachedSerializer<{typeDisplayName}>.Instance;");
             }
         }
-        
+
         // Use static formatter fields instead of local variables
         Dictionary<NinoMember, string> customFormatterVarsByMember = new();
         foreach (var member in membersWithCustomFormatters)
@@ -305,7 +259,7 @@ public partial class SerializerGenerator
                 // Note: Static field should be generated at class level, not as local variable
             }
         }
-        
+
         // Helper to get serializer variable name for a type
         string GetSerializerVarName(ITypeSymbol serializerType)
         {
@@ -376,7 +330,8 @@ public partial class SerializerGenerator
 
                         case NinoTypeHelper.NinoTypeKind.Boxed:
                             // PRIORITY 3: Object type - call boxed API in NinoSerializer directly
-                            sb.AppendLine($"            NinoSerializer.SerializeBoxed({val}, ref writer, {val}?.GetType());");
+                            sb.AppendLine(
+                                $"            NinoSerializer.SerializeBoxed({val}, ref writer, {val}?.GetType());");
                             break;
 
                         case NinoTypeHelper.NinoTypeKind.BuiltIn:
@@ -396,6 +351,7 @@ public partial class SerializerGenerator
                             {
                                 sb.AppendLine($"            Serializer.Serialize({val}, ref writer);");
                             }
+
                             break;
 
                         case NinoTypeHelper.NinoTypeKind.NinoType:

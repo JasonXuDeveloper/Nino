@@ -721,11 +721,6 @@ public partial class DeserializerGenerator
         return deserializers;
     }
 
-    private bool IsPolymorphicType(ITypeSymbol type)
-    {
-        return NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType) && ninoType.IsPolymorphic();
-    }
-
     private Dictionary<string, (ITypeSymbol FormatterType, ITypeSymbol ValueType)> CollectGlobalCustomFormatters()
     {
         var formatters = new Dictionary<string, (ITypeSymbol FormatterType, ITypeSymbol ValueType)>();

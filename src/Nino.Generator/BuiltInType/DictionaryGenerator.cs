@@ -42,11 +42,14 @@ public class DictionaryGenerator(
     {
         if (typeSymbol is not INamedTypeSymbol namedType) return false;
 
-        // Accept Dictionary<,>, ConcurrentDictionary<,>, and IDictionary<,>
+        // Accept Dictionary<,>, ConcurrentDictionary<,>, IDictionary<,>, SortedDictionary<,>, SortedList<,>, and ReadOnlyDictionary<,>
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
         if (originalDef != "System.Collections.Generic.Dictionary<TKey, TValue>" &&
             originalDef != "System.Collections.Concurrent.ConcurrentDictionary<TKey, TValue>" &&
-            originalDef != "System.Collections.Generic.IDictionary<TKey, TValue>")
+            originalDef != "System.Collections.Generic.IDictionary<TKey, TValue>" &&
+            originalDef != "System.Collections.Generic.SortedDictionary<TKey, TValue>" &&
+            originalDef != "System.Collections.Generic.SortedList<TKey, TValue>" &&
+            originalDef != "System.Collections.ObjectModel.ReadOnlyDictionary<TKey, TValue>")
             return false;
 
         var keyType = namedType.TypeArguments[0];
@@ -121,8 +124,10 @@ public class DictionaryGenerator(
         var keyType = namedType.TypeArguments[0];
         var valueType = namedType.TypeArguments[1];
 
-        // Check if this is IDictionary interface
-        bool isIDictionary = namedType.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.IDictionary<TKey, TValue>";
+        // Check type
+        var originalDef = namedType.OriginalDefinition.ToDisplayString();
+        bool isIDictionary = originalDef == "System.Collections.Generic.IDictionary<TKey, TValue>";
+        bool isReadOnlyDictionary = originalDef == "System.Collections.ObjectModel.ReadOnlyDictionary<TKey, TValue>";
 
         // For IDictionary, use Dictionary as the concrete type
         var typeName = typeSymbol.GetDisplayString();
@@ -157,12 +162,26 @@ public class DictionaryGenerator(
             writer.AppendLine();
         }
 
-        writer.Append("    value = new ");
-        writer.Append(concreteTypeName);
-        writer.Append(concreteTypeName.StartsWith("System.Collections.Generic.Dictionary") ? "(length)" : "()");
-        writer.AppendLine(";");
-        writer.AppendLine("    for (int i = 0; i < length; i++)");
-        writer.AppendLine("    {");
+        if (isReadOnlyDictionary)
+        {
+            // ReadOnlyDictionary requires a dictionary in its constructor
+            writer.Append("    var tempDict = new System.Collections.Generic.Dictionary<");
+            writer.Append(keyType.GetDisplayString());
+            writer.Append(", ");
+            writer.Append(valueType.GetDisplayString());
+            writer.AppendLine(">(length);");
+            writer.AppendLine("    for (int i = 0; i < length; i++)");
+            writer.AppendLine("    {");
+        }
+        else
+        {
+            writer.Append("    value = new ");
+            writer.Append(concreteTypeName);
+            writer.Append(concreteTypeName.StartsWith("System.Collections.Generic.Dictionary") ? "(length)" : "()");
+            writer.AppendLine(";");
+            writer.AppendLine("    for (int i = 0; i < length; i++)");
+            writer.AppendLine("    {");
+        }
 
         if (kvpIsUnmanaged)
         {
@@ -191,10 +210,25 @@ public class DictionaryGenerator(
                     w.Append("        ");
                     w.AppendLine(GetDeserializeString(valueType, "val", isOutVariable: true));
                 });
-            writer.AppendLine("        value[key] = val;");
+
+            if (isReadOnlyDictionary)
+            {
+                writer.AppendLine("        tempDict[key] = val;");
+            }
+            else
+            {
+                writer.AppendLine("        value[key] = val;");
+            }
         }
 
         writer.AppendLine("    }");
+
+        if (isReadOnlyDictionary)
+        {
+            writer.Append("    value = new ");
+            writer.Append(typeName);
+            writer.AppendLine("(tempDict);");
+        }
 
         writer.AppendLine("}");
         writer.AppendLine();
@@ -205,9 +239,9 @@ public class DictionaryGenerator(
         writer.AppendLine(" value, ref Reader reader)");
         writer.AppendLine("{");
 
-        if (isIDictionary)
+        if (isIDictionary || isReadOnlyDictionary)
         {
-            // For interfaces, just call the out overload since we don't know the concrete type
+            // For interfaces and ReadOnlyDictionary (immutable), just call the out overload
             writer.AppendLine("    Deserializer.Deserialize(out value, ref reader);");
         }
         else

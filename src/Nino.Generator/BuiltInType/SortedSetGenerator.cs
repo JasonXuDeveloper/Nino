@@ -1,4 +1,4 @@
-// LinkedListGenerator.cs
+// SortedSetGenerator.cs
 //
 //  Author:
 //        JasonXuDeveloper <jason@xgamedev.net>
@@ -30,21 +30,21 @@ using Nino.Generator.Template;
 
 namespace Nino.Generator.BuiltInType;
 
-public class LinkedListGenerator(
+public class SortedSetGenerator(
     NinoGraph ninoGraph,
     HashSet<ITypeSymbol> potentialTypes,
     HashSet<ITypeSymbol> selectedTypes,
     Compilation compilation) : NinoBuiltInTypeGenerator(ninoGraph, potentialTypes, selectedTypes, compilation)
 {
-    protected override string OutputFileName => "NinoLinkedListTypeGenerator";
+    protected override string OutputFileName => "NinoSortedSetTypeGenerator";
 
     public override bool Filter(ITypeSymbol typeSymbol)
     {
         if (typeSymbol is not INamedTypeSymbol namedType) return false;
 
-        // Accept LinkedList<T>
+        // Accept SortedSet<T>
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
-        if (originalDef != "System.Collections.Generic.LinkedList<T>")
+        if (originalDef != "System.Collections.Generic.SortedSet<T>")
             return false;
 
         var elementType = namedType.TypeArguments[0];
@@ -163,7 +163,7 @@ public class LinkedListGenerator(
                 });
         }
 
-        writer.AppendLine("        value.AddLast(item);");
+        writer.AppendLine("        value.Add(item);");
         writer.AppendLine("    }");
 
         writer.AppendLine("}");
@@ -175,7 +175,6 @@ public class LinkedListGenerator(
         writer.AppendLine(" value, ref Reader reader)");
         writer.AppendLine("{");
 
-        // LinkedLists are modifiable, clear and repopulate
         EofCheck(writer);
 
         writer.AppendLine();
@@ -229,7 +228,7 @@ public class LinkedListGenerator(
                 });
         }
 
-        writer.AppendLine("        value.AddLast(item);");
+        writer.AppendLine("        value.Add(item);");
         writer.AppendLine("    }");
 
         writer.AppendLine("}");

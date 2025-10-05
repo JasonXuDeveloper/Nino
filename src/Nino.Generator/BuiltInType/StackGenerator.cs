@@ -63,6 +63,9 @@ public class StackGenerator(
 
         var typeName = typeSymbol.GetDisplayString();
 
+        // Check if element is unmanaged (no WeakVersionTolerance needed)
+        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -80,13 +83,22 @@ public class StackGenerator(
         writer.AppendLine();
         writer.AppendLine("    foreach (var item in value)");
         writer.AppendLine("    {");
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+        }
 
         writer.Append("        ");
         writer.AppendLine(GetSerializeString(elementType, "item"));
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("        writer.PutLength(pos);"); });
+
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("        writer.PutLength(pos);"); });
+        }
+
         writer.AppendLine("    }");
 
         writer.AppendLine("}");
@@ -98,6 +110,9 @@ public class StackGenerator(
         var elementType = namedType.TypeArguments[0];
         var elemType = elementType.GetDisplayString();
         var typeName = typeSymbol.GetDisplayString();
+
+        // Check if element is unmanaged (no WeakVersionTolerance needed)
+        bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
         writer.Append("public static void Deserialize(out ");
@@ -114,9 +129,12 @@ public class StackGenerator(
         writer.AppendLine("    }");
         writer.AppendLine();
 
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("    Reader eleReader;"); });
-        writer.AppendLine();
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("    Reader eleReader;"); });
+            writer.AppendLine();
+        }
 
         writer.AppendLine("    // Stack is LIFO, so we need to read into array then push in reverse order");
         writer.Append("    var temp = new ");
@@ -125,18 +143,27 @@ public class StackGenerator(
         writer.AppendLine("    for (int i = 0; i < length; i++)");
         writer.AppendLine("    {");
 
-        IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w =>
-            {
-                w.AppendLine("        eleReader = reader.Slice();");
-                w.Append("        ");
-                w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false, readerName: "eleReader"));
-            },
-            w =>
-            {
-                w.Append("        ");
-                w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
-            });
+        if (isUnmanaged)
+        {
+            writer.Append("        ");
+            writer.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
+        }
+        else
+        {
+            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w =>
+                {
+                    w.AppendLine("        eleReader = reader.Slice();");
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false, readerName: "eleReader"));
+                },
+                w =>
+                {
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
+                });
+        }
+
         writer.AppendLine("    }");
         writer.AppendLine();
         writer.Append("    value = new ");
@@ -165,9 +192,12 @@ public class StackGenerator(
         writer.AppendLine("    }");
         writer.AppendLine();
 
-        IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w => { w.AppendLine("    Reader eleReader;"); });
-        writer.AppendLine();
+        if (!isUnmanaged)
+        {
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("    Reader eleReader;"); });
+            writer.AppendLine();
+        }
 
         writer.AppendLine("    // Stack is LIFO, so we need to read into array then push in reverse order");
         writer.Append("    var temp = new ");
@@ -176,18 +206,27 @@ public class StackGenerator(
         writer.AppendLine("    for (int i = 0; i < length; i++)");
         writer.AppendLine("    {");
 
-        IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-            w =>
-            {
-                w.AppendLine("        eleReader = reader.Slice();");
-                w.Append("        ");
-                w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false, readerName: "eleReader"));
-            },
-            w =>
-            {
-                w.Append("        ");
-                w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
-            });
+        if (isUnmanaged)
+        {
+            writer.Append("        ");
+            writer.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
+        }
+        else
+        {
+            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w =>
+                {
+                    w.AppendLine("        eleReader = reader.Slice();");
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false, readerName: "eleReader"));
+                },
+                w =>
+                {
+                    w.Append("        ");
+                    w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
+                });
+        }
+
         writer.AppendLine("    }");
         writer.AppendLine();
         writer.AppendLine("    // Initialize if null, otherwise clear");

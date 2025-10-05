@@ -479,10 +479,32 @@ namespace Nino.UnitTests
         public TestStruct3 C;
     }
 
-    public struct TestStruct3
+    public struct TestStruct3 : IComparable<TestStruct3>, IEquatable<TestStruct3>
     {
         public byte A;
         public float B;
+
+        public int CompareTo(TestStruct3 other)
+        {
+            int cmp = A.CompareTo(other.A);
+            if (cmp != 0) return cmp;
+            return B.CompareTo(other.B);
+        }
+
+        public bool Equals(TestStruct3 other)
+        {
+            return A == other.A && B.Equals(other.B);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is TestStruct3 other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(A, B);
+        }
     }
 
     [NinoType]
