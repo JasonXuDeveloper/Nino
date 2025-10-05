@@ -86,6 +86,27 @@ public class GlobalGenerator : IIncrementalGenerator
                         if (allTypes.Add(elemType))
                             toProcess.Push(elemType);
                     }
+
+                    // explore members of nino types
+                    if (currentType.IsNinoType())
+                    {
+                        var members = currentType.GetMembers();
+                        foreach (var member in members)
+                        {
+                            if (member is IPropertySymbol prop)
+                            {
+                                var propType = prop.Type.GetNormalizedTypeSymbol().GetPureType();
+                                if (allTypes.Add(propType))
+                                    toProcess.Push(propType);
+                            }
+                            else if (member is IFieldSymbol field)
+                            {
+                                var fieldType = field.Type.GetNormalizedTypeSymbol().GetPureType();
+                                if (allTypes.Add(fieldType))
+                                    toProcess.Push(fieldType);
+                            }
+                        }
+                    }
                 }
 
                 // process all explicitly marked nino types
@@ -158,7 +179,8 @@ public class GlobalGenerator : IIncrementalGenerator
                 var distinctNinoTypes = ninoTypes.Distinct().ToList();
                 HashSet<ITypeSymbol> generatedTypes = new(TupleSanitizedEqualityComparer.Default);
 
-                ExecuteGenerator(new NinoBuiltInTypesGenerator(graph, potentialTypeSymbols, generatedTypes, compilation), spc);
+                ExecuteGenerator(
+                    new NinoBuiltInTypesGenerator(graph, potentialTypeSymbols, generatedTypes, compilation), spc);
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new PartialClassGenerator(compilation, graph, distinctNinoTypes), spc);

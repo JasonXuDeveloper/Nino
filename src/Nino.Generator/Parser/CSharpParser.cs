@@ -18,9 +18,18 @@ public class CSharpParser(HashSet<ITypeSymbol> ninoSymbols) : NinoTypeParser
             // type from referenced assemblies
             if (!SymbolEqualityComparer.Default.Equals(ninoSymbol.ContainingAssembly, compilation.Assembly))
             {
-                continue;
-            }
+                bool isNinoType = false;
+                foreach (var attribute in ninoSymbol.GetAttributesCache())
+                {
+                    if (!string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute",
+                            StringComparison.Ordinal)) continue;
+                    isNinoType = true;
+                    break;
+                }
 
+                if (!isNinoType) continue;
+            }
+            
             // inaccessible types
             if (ninoSymbol.DeclaredAccessibility != Accessibility.Public)
             {
