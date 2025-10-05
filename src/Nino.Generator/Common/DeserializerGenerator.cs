@@ -11,10 +11,10 @@ public partial class DeserializerGenerator(
     Compilation compilation,
     NinoGraph ninoGraph,
     List<NinoType> ninoTypes,
-    HashSet<ITypeSymbol> generatedBuiltInTypes = null)
+    HashSet<ITypeSymbol> generatedBuiltInTypes)
     : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
-    protected readonly HashSet<ITypeSymbol> GeneratedBuiltInTypes = generatedBuiltInTypes ?? new HashSet<ITypeSymbol>();
+    protected readonly HashSet<ITypeSymbol> GeneratedBuiltInTypes = generatedBuiltInTypes;
 
     private void GenerateGenericRegister(StringBuilder sb, string name, HashSet<ITypeSymbol> generatedTypes,
         HashSet<ITypeSymbol> registeredTypes)
@@ -27,15 +27,15 @@ public partial class DeserializerGenerator(
         var orderedTypes = generatedTypes
             .Where(t => !t.IsRefStruct())
             .ToList(); // Convert to list first to avoid ordering issues
-        
+
         // Manual ordering instead of OrderBy to avoid IComparable issues
-        var topTypes = orderedTypes.Where(t => 
+        var topTypes = orderedTypes.Where(t =>
             NinoGraph.TopTypes.Any(topType => SymbolEqualityComparer.Default.Equals(topType.TypeSymbol, t))).ToList();
-        var typeMapTypes = orderedTypes.Where(t => 
-            NinoGraph.TypeMap.ContainsKey(t.GetDisplayString()) && 
+        var typeMapTypes = orderedTypes.Where(t =>
+            NinoGraph.TypeMap.ContainsKey(t.GetDisplayString()) &&
             !NinoGraph.TopTypes.Any(topType => SymbolEqualityComparer.Default.Equals(topType.TypeSymbol, t))).ToList();
-        var otherTypes = orderedTypes.Where(t => 
-            !NinoGraph.TypeMap.ContainsKey(t.GetDisplayString()) && 
+        var otherTypes = orderedTypes.Where(t =>
+            !NinoGraph.TypeMap.ContainsKey(t.GetDisplayString()) &&
             !NinoGraph.TopTypes.Any(topType => SymbolEqualityComparer.Default.Equals(topType.TypeSymbol, t))).ToList();
 
         foreach (var type in topTypes.Concat(typeMapTypes).Concat(otherTypes))

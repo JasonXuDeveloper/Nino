@@ -11,10 +11,10 @@ public partial class SerializerGenerator(
     Compilation compilation,
     NinoGraph ninoGraph,
     List<NinoType> ninoTypes,
-    HashSet<ITypeSymbol> generatedBuiltInTypes = null)
+    HashSet<ITypeSymbol> generatedBuiltInTypes)
     : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
-    protected readonly HashSet<ITypeSymbol> GeneratedBuiltInTypes = generatedBuiltInTypes ?? new HashSet<ITypeSymbol>();
+    protected readonly HashSet<ITypeSymbol> GeneratedBuiltInTypes = generatedBuiltInTypes;
 
     private void GenerateGenericRegister(StringBuilder sb, string name, HashSet<ITypeSymbol> generatedTypes,
         HashSet<ITypeSymbol> registeredTypes)

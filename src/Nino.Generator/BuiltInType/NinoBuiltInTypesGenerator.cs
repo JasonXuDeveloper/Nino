@@ -133,7 +133,7 @@ public class NinoBuiltInTypesGenerator(
                      }
                      """;
 
-        spc.AddSource("NinoBuiltInTypes.Serializer.g.cs", code);
+        spc.AddSource($"{curNamespace}.NinoBuiltInTypes.Serializer.g.cs", code);
 
         // Generate deserializer file
         code = $$"""
@@ -155,7 +155,7 @@ public class NinoBuiltInTypesGenerator(
                  {{deserializerWriter}}    }
                  }
                  """;
-        spc.AddSource("NinoBuiltInTypes.Deserializer.g.cs", code);
+        spc.AddSource($"{curNamespace}.NinoBuiltInTypes.Deserializer.g.cs", code);
 
         // Generate registration file
         if (registrationCode.Length > 0)
@@ -205,7 +205,7 @@ public class NinoBuiltInTypesGenerator(
                          }
                      }
                      """;
-            spc.AddSource("NinoBuiltInTypes.Registration.g.cs", code);
+            spc.AddSource($"{curNamespace}.NinoBuiltInTypes.Registration.g.cs", code);
         }
     }
 }

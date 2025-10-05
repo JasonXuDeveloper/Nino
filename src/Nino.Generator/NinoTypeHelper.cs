@@ -44,6 +44,12 @@ public static class NinoTypeHelper
 
     public static NinoTypeKind GetKind(this ITypeSymbol type, NinoGraph ninoGraph, HashSet<ITypeSymbol> generatedTypes)
     {
+        // pointer types - invalid
+        if (type.TypeKind == TypeKind.Pointer)
+        {
+            return NinoTypeKind.Invalid;
+        }
+
         // object types - use boxed serialization
         if (type.SpecialType == SpecialType.System_Object)
         {
@@ -52,6 +58,7 @@ public static class NinoTypeHelper
 
         // unmanaged
         if (type.IsUnmanagedType &&
+            type.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T &&
             (!ninoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var nt) ||
              !nt.IsPolymorphic()))
         {
@@ -183,14 +190,33 @@ public static class NinoTypeHelper
         var curNamespace = assemblyName;
         if (!string.IsNullOrEmpty(curNamespace))
             curNamespace = $"{curNamespace}.";
-        if (curNamespace.Length > 0 && !char.IsLetter(curNamespace[0]))
-            curNamespace = $"_{curNamespace}";
-        //replace special characters with _
-        curNamespace = new string(curNamespace.Select(c => char.IsLetterOrDigit(c) || c == '.' ? c : '_').ToArray());
-        curNamespace += "NinoGen";
-        return curNamespace;
+        StringBuilder sb = new();
+        foreach (var c in curNamespace.Split('.'))
+        {
+            if (string.IsNullOrEmpty(c)) continue;
+            var part = c;
+            if (!char.IsLetter(part[0]) && part[0] != '_')
+                sb.Append('_');
+            for (int i = 0; i < part.Length; i++)
+            {
+                var ch = part[i];
+                if (char.IsLetterOrDigit(ch) || ch == '_')
+                {
+                    sb.Append(ch);
+                }
+                else
+                {
+                    sb.Append('_');
+                }
+            }
+
+            sb.Append('.');
+        }
+
+        sb.Append("NinoGen");
+        return sb.ToString();
     }
-    
+
     public static bool IsAccessible(this ISymbol symbol)
     {
         // Check the symbol itself and its containing types
