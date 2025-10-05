@@ -1,6 +1,6 @@
 {
     "name": "com.jasonxudeveloper.nino",
-    "version": "4.0.0-preview.115",
+    "version": "4.0.0-preview.116",
     "displayName": "Nino",
     "description": "Ultimate high-performance binary serialization library for C#.",
     "unity": "2022.3",
