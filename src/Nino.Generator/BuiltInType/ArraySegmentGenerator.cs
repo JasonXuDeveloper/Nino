@@ -63,31 +63,36 @@ public class ArraySegmentGenerator(
 
         var typeName = typeSymbol.GetDisplayString();
 
-        // Check if we can use the fast unmanaged write path
-        bool canUseFastPath = typeSymbol.IsUnmanagedType &&
-                              elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+        // Check if element type is unmanaged for fast path
+        bool canUseFastPath = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
         writer.AppendLine("{");
 
+        writer.AppendLine("    if (value.Array == null)");
+        writer.AppendLine("    {");
+        writer.AppendLine("        writer.Write(TypeCollector.NullCollection);");
+        writer.AppendLine("        return;");
+        writer.AppendLine("    }");
+        writer.AppendLine();
+
         if (canUseFastPath)
         {
-            writer.AppendLine("    writer.Write(value);");
+            // For unmanaged element types, use span and writer.Write
+            writer.Append("    var span = new System.Span<");
+            writer.Append(elementType.GetDisplayString());
+            writer.AppendLine(">(value.Array, value.Offset, value.Count);");
+            writer.AppendLine("    writer.Write(span);");
         }
         else
         {
-            writer.AppendLine("    if (value.Array == null)");
-            writer.AppendLine("    {");
-            writer.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-            writer.AppendLine("        return;");
-            writer.AppendLine("    }");
-            writer.AppendLine();
-
             writer.AppendLine("    int cnt = value.Count;");
             writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
             writer.AppendLine();
+
+            // For managed element types, serialize element by element
             writer.AppendLine("    for (int i = 0; i < cnt; i++)");
             writer.AppendLine("    {");
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
@@ -110,10 +115,8 @@ public class ArraySegmentGenerator(
         var elemType = elementType.GetDisplayString();
         var typeName = typeSymbol.GetDisplayString();
 
-        // Check if we can use the fast unmanaged read path
-        bool canUseFastPath = typeSymbol.IsUnmanagedType &&
-                              typeSymbol.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T &&
-                              elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+        // Check if element type is unmanaged for fast path
+        bool canUseFastPath = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
         writer.Append("public static void Deserialize(out ");
@@ -124,7 +127,13 @@ public class ArraySegmentGenerator(
 
         if (canUseFastPath)
         {
-            writer.AppendLine("    reader.Read(out value);");
+            // For unmanaged element types, use reader.Read to read array directly
+            writer.Append("    reader.Read(out ");
+            writer.Append(elemType);
+            writer.AppendLine("[] array);");
+            writer.Append("    value = new System.ArraySegment<");
+            writer.Append(elemType);
+            writer.AppendLine(">(array);");
         }
         else
         {
@@ -136,14 +145,16 @@ public class ArraySegmentGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
 
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("    Reader eleReader;"); });
-            writer.AppendLine();
-
             // Handle array creation - check if element type is already an array
             var arrayCreation = elemType.EndsWith("[]")
                 ? elemType.Insert(elemType.IndexOf("[]", System.StringComparison.Ordinal), "[length]")
                 : $"{elemType}[length]";
+
+
+            // For managed element types, deserialize element by element
+            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                w => { w.AppendLine("    Reader eleReader;"); });
+            writer.AppendLine();
 
             writer.Append("    var array = new ");
             writer.Append(arrayCreation);
@@ -156,7 +167,8 @@ public class ArraySegmentGenerator(
                 {
                     w.AppendLine("        eleReader = reader.Slice();");
                     w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "array[i]", isOutVariable: false, readerName: "eleReader"));
+                    w.AppendLine(GetDeserializeString(elementType, "array[i]", isOutVariable: false,
+                        readerName: "eleReader"));
                 },
                 w =>
                 {
