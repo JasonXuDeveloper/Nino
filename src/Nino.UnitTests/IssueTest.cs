@@ -26,14 +26,426 @@ namespace Nino.UnitTests
         }
 
         [TestClass]
-        public class Issue153:IssueTestTemplate
+        public class Issue157 : IssueTestTemplate
         {
-            public class ListComponent<T>: List<T>, IDisposable
+            [NinoType]
+            public abstract class ITable
+            {
+                public TableType Type;
+            }
+
+            /// <summary>
+            /// 特效表
+            /// </summary>
+            [NinoType]
+            public class EffectTable : ITable
+            {
+                public EffectTable()
+                {
+                    Type = TableType.Effect;
+                }
+
+                public List<EffectInfo> Datas;
+            }
+
+            public enum TableType : byte
+            {
+                /// <summary>
+                /// 属性表
+                /// </summary>
+                Stats,
+
+                /// <summary>
+                /// 面板表
+                /// </summary>
+                Panel,
+
+                /// <summary>
+                /// 物品表
+                /// </summary>
+                Item,
+
+                /// <summary>
+                /// 怪物表
+                /// </summary>
+                Monster,
+
+                /// <summary>
+                /// 套装表
+                /// </summary>
+                ItemSet,
+
+                /// <summary>
+                /// 物品类型表
+                /// </summary>
+                ItemType,
+
+                /// <summary>
+                /// 标签表
+                /// </summary>
+                Tags,
+
+                /// <summary>
+                /// 基础设置表
+                /// </summary>
+                BaseSetting,
+
+                /// <summary>
+                /// 特效表
+                /// </summary>
+                Effect,
+
+                /// <summary>
+                /// Buff表
+                /// </summary>
+                Buff,
+
+                /// <summary>
+                /// 技能表
+                /// </summary>
+                Skill,
+
+                /// <summary>
+                /// 物品素材表
+                /// </summary>
+                ItemMaterial,
+
+                /// <summary>
+                ///  地图素材表
+                /// </summary>
+                MapMaterial,
+            }
+
+
+            public class Entity
+            {
+                public string ID;
+            }
+
+
+            [NinoType(false)]
+#if !UNITY && !Client
+#endif
+            public class CommEntity : Entity
+            {
+                //#if Plats
+#if !UNITY && !Client
+                public CommEntity()
+                {
+                    ID = "";
+                }
+#endif
+                /// <summary>
+                /// 主键
+                /// </summary>
+
+                [NinoMember(1)]
+                public int CurrID { get; set; } = -1;
+            }
+
+            /// <summary>
+            /// 特效素材
+            /// </summary>
+#if !UNITY && !Client
+#endif
+            [NinoType(false)]
+            public class EffectInfo : CommEntity
+            {
+                /// <summary>
+                /// 索引
+                /// </summary>
+
+                [NinoMember(2)]
+                public string KeyName { get; set; }
+
+                /// <summary>
+                /// 特效开始ID
+                /// </summary>
+
+                [NinoMember(3)]
+                public int Start { get; set; }
+
+                /// <summary>
+                /// 特效张数
+                /// </summary>
+
+                [NinoMember(4)]
+                public int Count { get; set; }
+
+                /// <summary>
+                /// 特效跳过张数
+                /// </summary>
+
+                [NinoMember(5)]
+                public int Skip { get; set; }
+
+                /// <summary>
+                /// 特效播放速度
+                /// </summary>
+
+                [NinoMember(6)]
+                public int Interval { get; set; }
+
+
+                [NinoMember(7)] public bool Blend { get; set; }
+
+                /// <summary>
+                /// 0 = 无方向
+                /// 1 = 8方向
+                /// 2 = 16方向
+                /// </summary>
+
+                [NinoMember(8)]
+                public byte Direction { get; set; }
+
+                /// <summary>
+                /// 默认音效|男音效
+                /// </summary>
+
+                [NinoMember(9)]
+                public string Sound1 { get; set; }
+
+                /// <summary>
+                /// 女音效
+                /// </summary>
+
+                [NinoMember(10)]
+                public string Sound2 { get; set; }
+
+                /// <summary>
+                /// 下一特效
+                /// </summary>
+
+                [NinoMember(11)]
+                public int? NextEffect { get; set; }
+
+                /// <summary>
+                /// 路径
+                /// </summary>
+
+                [NinoMember(12)]
+                public string FileName { get; set; }
+
+                /// <summary>
+                /// 是否背景特效
+                /// </summary>
+
+                [NinoMember(13)]
+                public bool Background { get; set; }
+
+                /// <summary>
+                /// 是否倒放
+                /// </summary>
+
+                [NinoMember(14)]
+                public bool Inverse { get; set; }
+
+
+                ///TODO:8.1新加
+                /// <summary>
+                /// 偏移量
+                /// </summary>
+                [NinoMember(15)] public Point? OffSet;
+
+                ///TODO:8.1新加
+                /// <summary>
+                /// 缩放
+                /// </summary>
+                [NinoMember(16)] public float Zoomratio;
+
+                public bool Equals(EffectInfo other)
+                {
+                    if (OffSet == null)
+                    {
+                        if (other.OffSet != null)
+                        {
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        if (other.OffSet == null)
+                        {
+                            return false;
+                        }
+                    }
+
+                    return CurrID == other.CurrID && KeyName == other.KeyName && Start == other.Start &&
+                           Count == other.Count && Skip == other.Skip && Interval == other.Interval &&
+                           Blend == other.Blend && Direction == other.Direction && Sound1 == other.Sound1 &&
+                           Sound2 == other.Sound2 && NextEffect == other.NextEffect && FileName == other.FileName &&
+                           Background == other.Background && Inverse == other.Inverse &&
+                           OffSet!.Value.Equals(other.OffSet!.Value) && Zoomratio.Equals(other.Zoomratio);
+                }
+            }
+
+            /// <summary>
+            /// 不需要制成表格
+            /// </summary>
+            [NinoType]
+            public struct Point
+            {
+                public Int16 X { get; set; }
+                public Int16 Y { get; set; }
+                public static Point operator +(Point pt, System.Drawing.Size sz) => Add(pt, sz);
+
+                public static Point operator -(Point pt, System.Drawing.Size sz) => Subtract(pt, sz);
+
+                public static bool operator ==(Point left, Point right)
+                {
+                    bool flag = left.X == right.X && left.Y == right.Y;
+                    if (!flag)
+                    {
+                    }
+
+                    return flag;
+                }
+
+                public static bool operator !=(Point left, Point right) => !(left == right);
+
+                public static Point Add(Point pt, System.Drawing.Size sz) =>
+                    new Point(unchecked(pt.X + sz.Width), unchecked(pt.Y + sz.Height));
+
+                /// <summary>
+                /// Translates a <see cref='Shared.Data.Point'/> by the negative of a given <see cref='Shared.Data.Size'/> .
+                /// </summary>
+                public static Point Subtract(Point pt, System.Drawing.Size sz) =>
+                    new Point(unchecked(pt.X - sz.Width), unchecked(pt.Y - sz.Height));
+
+                public override bool Equals([NotNullWhen(true)] object obj)
+                {
+                    return obj is Point && Equals((Point)obj);
+                }
+
+                public bool Equals(Point other) => this == other;
+
+                public override int GetHashCode()
+                {
+                    return HashCode.Combine(X, Y);
+                }
+
+                public Point(Int16 x, Int16 y)
+                {
+                    X = x;
+                    Y = y;
+                }
+
+                public Point(int x, int y)
+                {
+                    X = (Int16)x;
+                    Y = (Int16)y;
+                }
+
+                public Point(float x, float y)
+                {
+                    X = (Int16)x;
+                    Y = (Int16)y;
+                }
+
+                /// <summary>
+                /// 添加坐标
+                /// </summary>
+                /// <param name="dx"></param>
+                /// <param name="dy"></param>
+                public void Offset(Int16 dx, Int16 dy)
+                {
+                    unchecked
+                    {
+                        X += dx;
+                        Y += dy;
+                    }
+                }
+
+                /// <summary>
+                /// 添加坐标
+                /// </summary>
+                /// <param name="dx"></param>
+                /// <param name="dy"></param>
+                public void Offset(int dx, int dy)
+                {
+                    unchecked
+                    {
+                        X = (Int16)(X + dx);
+                        Y = (Int16)(Y + dy);
+                    }
+                }
+
+                public void Offset(Point offSetMove)
+                {
+                    Offset(offSetMove.X, offSetMove.Y);
+                }
+
+                /// <summary>
+                /// </summary>
+                public static readonly Point Empty = new Point(0, 0);
+            }
+
+
+            protected override void RunTest()
+            {
+                var test = new EffectTable()
+                {
+                    Datas = new List<EffectInfo>
+                    {
+                        new()
+                        {
+                            CurrID = 1,
+                            OffSet = new Point(2, 3),
+                            Zoomratio = 4f,
+                            KeyName = "暴击",
+                            Start = 5,
+                            Count = 6,
+                            Skip = 7,
+                            Interval = 8,
+                            Blend = true,
+                            Direction = 9,
+                            Sound1 = "10",
+                            Sound2 = "11",
+                            NextEffect = 12,
+                            FileName = "13",
+                            Background = true,
+                            Inverse = true
+                        },
+                        new()
+                        {
+                            CurrID = 1,
+                            OffSet = new Point(2, 3),
+                            Zoomratio = 4f,
+                            KeyName = "暴击",
+                            Start = 5,
+                            Count = 6,
+                            Skip = 7,
+                            Interval = 8,
+                            Blend = true,
+                            Direction = 9,
+                            Sound1 = "10",
+                            Sound2 = "11",
+                            NextEffect = 12,
+                            FileName = "13",
+                            Background = true,
+                            Inverse = true
+                        }
+                    }
+                };
+                var bytes = NinoSerializer.Serialize(test);
+                EffectTable test2 = NinoDeserializer.Deserialize<EffectTable>(bytes);
+                Assert.AreEqual(test.Datas.Count, test2.Datas.Count);
+                for (int i = 0; i < test.Datas.Count; i++)
+                {
+                    Assert.IsTrue(test.Datas[i].Equals(test2.Datas[i]));
+                }
+            }
+        }
+
+        [TestClass]
+        public class Issue153 : IssueTestTemplate
+        {
+            public class ListComponent<T> : List<T>, IDisposable
             {
                 public ListComponent()
                 {
                 }
-        
+
                 public static ListComponent<T> Create()
                 {
                     return new();
@@ -41,14 +453,15 @@ namespace Nino.UnitTests
 
                 public void Dispose()
                 {
-                    if (Capacity > 64) 
+                    if (Capacity > 64)
                     {
                         return;
                     }
+
                     Clear();
                 }
             }
-            
+
             protected override void RunTest()
             {
                 return;
@@ -446,7 +859,8 @@ namespace Nino.UnitTests
                 pools.Add(DicePoolType.STR, new DicePool());
                 pools.Add(DicePoolType.CONS, new DicePool());
                 var bytes = NinoSerializer.Serialize(pools);
-                Dictionary<DicePoolType, DicePool> pools2 = NinoDeserializer.Deserialize<Dictionary<DicePoolType, DicePool>>(bytes);
+                Dictionary<DicePoolType, DicePool> pools2 =
+                    NinoDeserializer.Deserialize<Dictionary<DicePoolType, DicePool>>(bytes);
             }
         }
 
