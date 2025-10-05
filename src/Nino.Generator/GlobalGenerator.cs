@@ -156,45 +156,9 @@ public class GlobalGenerator : IIncrementalGenerator
                 }
 
                 var distinctNinoTypes = ninoTypes.Distinct().ToList();
-                var potentialTypes = potentialTypeSymbols
-                    .Distinct(TupleSanitizedEqualityComparer.Default)
-                    .OrderBy(static t => t.GetTypeHierarchyLevel())
-                    .ToList();
-
                 HashSet<ITypeSymbol> generatedTypes = new(TupleSanitizedEqualityComparer.Default);
 
-                NinoBuiltInTypeGenerator[] builtInGenerators =
-                {
-                    new NullableGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new KeyValuePairGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new TupleGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new ArrayGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new DictionaryGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new ListGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new ArraySegmentGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new QueueGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new StackGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new HashSetGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                    new LinkedListGenerator(graph, potentialTypeSymbols, generatedTypes, compilation),
-                };
-
-                foreach (var type in potentialTypes)
-                {
-                    foreach (var generator in builtInGenerators)
-                    {
-                        if (generator.Filter(type))
-                        {
-                            generatedTypes.Add(type);
-                            break;
-                        }
-                    }
-                }
-
-                foreach (var generator in builtInGenerators)
-                {
-                    ExecuteGenerator(generator, spc);
-                }
-
+                ExecuteGenerator(new NinoBuiltInTypesGenerator(graph, potentialTypeSymbols, generatedTypes, compilation), spc);
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new PartialClassGenerator(compilation, graph, distinctNinoTypes), spc);

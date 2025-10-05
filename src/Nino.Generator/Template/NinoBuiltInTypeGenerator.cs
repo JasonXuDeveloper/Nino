@@ -51,7 +51,7 @@ public abstract class NinoBuiltInTypeGenerator(
     }
 
 
-    protected class Writer(string indent)
+    public class Writer(string indent)
     {
         private readonly StringBuilder _sb = new(16_000);
 
@@ -183,14 +183,20 @@ public abstract class NinoBuiltInTypeGenerator(
         }
     }
 
-    protected override void Generate(SourceProductionContext spc)
+    /// <summary>
+    /// Generates code for this built-in type generator and returns the results.
+    /// Used by NinoBuiltInTypesGenerator to consolidate multiple generators into single output files.
+    /// </summary>
+    public (string serializerCode, string deserializerCode, HashSet<ITypeSymbol> registeredTypes) GenerateCode(
+        HashSet<ITypeSymbol> typesToProcess)
     {
         _registeredTypes.Clear();
         Writer serializerWriter = new("        ");
         serializerWriter.AppendLine();
         Writer deserializerWriter = new("        ");
         deserializerWriter.AppendLine();
-        foreach (var typeSymbol in potentialTypes)
+
+        foreach (var typeSymbol in typesToProcess)
         {
             if (!Filter(typeSymbol)) continue;
             GenerateSerializer(typeSymbol, serializerWriter);
@@ -198,6 +204,25 @@ public abstract class NinoBuiltInTypeGenerator(
             serializerWriter.AppendLine();
             deserializerWriter.AppendLine();
             _registeredTypes.Add(typeSymbol);
+        }
+
+        return (serializerWriter.ToString(), deserializerWriter.ToString(),
+            new HashSet<ITypeSymbol>(_registeredTypes, TupleSanitizedEqualityComparer.Default));
+    }
+
+    protected override void Generate(SourceProductionContext spc)
+    {
+        var (serializerCode, deserializerCode, registeredTypes) = GenerateCode(potentialTypes);
+
+        if (registeredTypes.Count == 0)
+        {
+            return; // No types to generate
+        }
+
+        _registeredTypes.Clear();
+        foreach (var type in registeredTypes)
+        {
+            _registeredTypes.Add(type);
         }
 
         StringBuilder registrationCode = new();
@@ -229,7 +254,7 @@ public abstract class NinoBuiltInTypeGenerator(
                      {
                          public static partial class Serializer
                          {
-                     {{serializerWriter}}    }
+                     {{serializerCode}}    }
                      }
                      """;
 
@@ -251,7 +276,7 @@ public abstract class NinoBuiltInTypeGenerator(
                  {
                      public static partial class Deserializer
                      {
-                 {{deserializerWriter}}    }
+                 {{deserializerCode}}    }
                  }
                  """;
         spc.AddSource($"{OutputFileName}.Deserializer.d.cs", code);
