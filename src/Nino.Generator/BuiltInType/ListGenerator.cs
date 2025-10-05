@@ -74,7 +74,6 @@ public class ListGenerator(
 
         // Check if we can use the fast unmanaged write path (only for concrete List<T> with unmanaged elements)
         bool canUseFastPath = !isInterface &&
-                              typeSymbol.IsUnmanagedType &&
                               elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         writer.Append("public static void Serialize(this ");
@@ -153,8 +152,6 @@ public class ListGenerator(
 
         // Check if we can use the fast unmanaged read path (only for concrete List<T> with unmanaged elements)
         bool canUseFastPath = !isInterface &&
-                              typeSymbol.IsUnmanagedType &&
-                              typeSymbol.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T &&
                               elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload

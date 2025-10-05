@@ -52,9 +52,7 @@ public class ArrayGenerator(
 
         // Check if we can use the fast unmanaged write path
         // Element must be unmanaged AND cannot be polymorphic
-        bool canUseFastPath = typeSymbol.IsUnmanagedType &&
-                              typeSymbol.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T &&
-                              elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+        bool canUseFastPath = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         writer.Append("public static void Serialize(this ");
         writer.Append(typeSymbol.GetDisplayString());
@@ -106,9 +104,7 @@ public class ArrayGenerator(
 
         // Check if we can use the fast unmanaged read path
         // Element must be unmanaged AND cannot be polymorphic
-        bool canUseFastPath = typeSymbol.IsUnmanagedType &&
-                              typeSymbol.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T &&
-                              elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+        bool canUseFastPath = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
         writer.Append("public static void Deserialize(out ");
@@ -145,7 +141,8 @@ public class ArrayGenerator(
                 {
                     w.AppendLine("        eleReader = reader.Slice();");
                     w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "span[i]", isOutVariable: false, readerName: "eleReader"));
+                    w.AppendLine(GetDeserializeString(elementType, "span[i]", isOutVariable: false,
+                        readerName: "eleReader"));
                 },
                 w =>
                 {

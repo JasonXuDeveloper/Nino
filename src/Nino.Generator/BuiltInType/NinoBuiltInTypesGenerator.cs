@@ -61,7 +61,8 @@ public class NinoBuiltInTypesGenerator(
     {
         // Clear and pre-filter to identify which types are handled by built-in generators
         generatedTypes.Clear();
-        foreach (var type in potentialTypes.ToList().OrderBy(static t => t.GetTypeHierarchyLevel()))
+        var filterTypes = potentialTypes.ToList().OrderBy(static t => t.GetTypeHierarchyLevel()).ToList();
+        foreach (var type in filterTypes)
         {
             foreach (var generator in _generators)
             {
@@ -132,7 +133,7 @@ public class NinoBuiltInTypesGenerator(
                      }
                      """;
 
-        spc.AddSource("NinoBuiltInTypes.Serializer.d.cs", code);
+        spc.AddSource("NinoBuiltInTypes.Serializer.g.cs", code);
 
         // Generate deserializer file
         code = $$"""
@@ -154,7 +155,7 @@ public class NinoBuiltInTypesGenerator(
                  {{deserializerWriter}}    }
                  }
                  """;
-        spc.AddSource("NinoBuiltInTypes.Deserializer.d.cs", code);
+        spc.AddSource("NinoBuiltInTypes.Deserializer.g.cs", code);
 
         // Generate registration file
         if (registrationCode.Length > 0)

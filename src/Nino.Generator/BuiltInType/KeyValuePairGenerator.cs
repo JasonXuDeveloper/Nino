@@ -63,7 +63,7 @@ public class KeyValuePairGenerator(
         var valueType = types[1];
 
         // Check if we can use the fast unmanaged write
-        // Both key and value must be unmanaged AND neither can be polymorphic
+        // The KVP itself must be unmanaged (both key and value must be unmanaged)
         bool canUseFastPath = typeSymbol.IsUnmanagedType &&
                               keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
                               valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
@@ -96,7 +96,7 @@ public class KeyValuePairGenerator(
         var valueType = types[1];
 
         // Check if we can use the fast unmanaged read
-        // Both key and value must be unmanaged AND neither can be polymorphic
+        // The KVP itself must be unmanaged (both key and value must be unmanaged)
         bool canUseFastPath = typeSymbol.IsUnmanagedType &&
                               typeSymbol.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T &&
                               keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&

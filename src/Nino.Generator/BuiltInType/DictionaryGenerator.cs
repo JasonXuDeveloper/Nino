@@ -66,15 +66,10 @@ public class DictionaryGenerator(
         var keyType = namedType.TypeArguments[0];
         var valueType = namedType.TypeArguments[1];
 
-        // Check if this is IDictionary interface
-        bool isIDictionary = namedType.OriginalDefinition.ToDisplayString() == "System.Collections.Generic.IDictionary<TKey, TValue>";
-
-        // For IDictionary, use Dictionary as the concrete type
         var typeName = typeSymbol.GetDisplayString();
 
-        // Check if we can use the fast unmanaged write path (only for concrete types, not interfaces)
-        bool canUseFastPath = !isIDictionary && typeSymbol.IsUnmanagedType &&
-                              keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
+        // Check if KVP is unmanaged (for fast path, no WeakVersionTolerance needed)
+        bool kvpIsUnmanaged = keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
                               valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         writer.Append("public static void Serialize(this ");
@@ -82,24 +77,27 @@ public class DictionaryGenerator(
         writer.AppendLine(" value, ref Writer writer)");
         writer.AppendLine("{");
 
-        if (canUseFastPath)
+        writer.AppendLine("    if (value == null)");
+        writer.AppendLine("    {");
+        writer.AppendLine("        writer.Write(TypeCollector.NullCollection);");
+        writer.AppendLine("        return;");
+        writer.AppendLine("    }");
+        writer.AppendLine();
+
+        writer.AppendLine("    int cnt = value.Count;");
+        writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
+        writer.AppendLine();
+        writer.AppendLine("    foreach (var item in value)");
+        writer.AppendLine("    {");
+
+        if (kvpIsUnmanaged)
         {
-            writer.AppendLine("    writer.Write(value);");
+            // For unmanaged KVP, use UnsafeWrite directly (no WeakVersionTolerance needed)
+            writer.AppendLine("        writer.UnsafeWrite(item);");
         }
         else
         {
-            writer.AppendLine("    if (value == null)");
-            writer.AppendLine("    {");
-            writer.AppendLine("        writer.Write(TypeCollector.NullCollection);");
-            writer.AppendLine("        return;");
-            writer.AppendLine("    }");
-            writer.AppendLine();
-
-            writer.AppendLine("    int cnt = value.Count;");
-            writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
-            writer.AppendLine();
-            writer.AppendLine("    foreach (var item in value)");
-            writer.AppendLine("    {");
+            // For managed KVP, serialize Key and Value separately with WeakVersionTolerance
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("        var pos = writer.Advance(4);"); });
 
@@ -110,8 +108,9 @@ public class DictionaryGenerator(
 
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("        writer.PutLength(pos);"); });
-            writer.AppendLine("    }");
         }
+
+        writer.AppendLine("    }");
 
         writer.AppendLine("}");
     }
@@ -131,10 +130,9 @@ public class DictionaryGenerator(
             ? $"System.Collections.Generic.Dictionary<{keyType.GetDisplayString()}, {valueType.GetDisplayString()}>"
             : typeName;
 
-        // Check if we can use the fast unmanaged read path (only for concrete types, not interfaces)
-        bool canUseFastPath = !isIDictionary && typeSymbol.IsUnmanagedType &&
-                              typeSymbol.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T &&
-                              keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
+        // Check if KVP is unmanaged (for fast path, no WeakVersionTolerance needed)
+        var kvpTypeName = $"System.Collections.Generic.KeyValuePair<{keyType.GetDisplayString()}, {valueType.GetDisplayString()}>";
+        bool kvpIsUnmanaged = keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
                               valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
@@ -144,31 +142,39 @@ public class DictionaryGenerator(
         writer.AppendLine("{");
         EofCheck(writer);
 
-        if (canUseFastPath)
-        {
-            writer.AppendLine("    reader.Read(out value);");
-        }
-        else
-        {
-            writer.AppendLine();
-            writer.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
-            writer.AppendLine("    {");
-            writer.AppendLine("        value = default;");
-            writer.AppendLine("        return;");
-            writer.AppendLine("    }");
-            writer.AppendLine();
+        writer.AppendLine();
+        writer.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
+        writer.AppendLine("    {");
+        writer.AppendLine("        value = default;");
+        writer.AppendLine("        return;");
+        writer.AppendLine("    }");
+        writer.AppendLine();
 
+        if (!kvpIsUnmanaged)
+        {
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("    Reader eleReader;"); });
             writer.AppendLine();
+        }
 
-            writer.Append("    value = new ");
-            writer.Append(concreteTypeName);
-            writer.Append(concreteTypeName.StartsWith("System.Collections.Generic.Dictionary") ? "(length)" : "()");
-            writer.AppendLine(";");
-            writer.AppendLine("    for (int i = 0; i < length; i++)");
-            writer.AppendLine("    {");
+        writer.Append("    value = new ");
+        writer.Append(concreteTypeName);
+        writer.Append(concreteTypeName.StartsWith("System.Collections.Generic.Dictionary") ? "(length)" : "()");
+        writer.AppendLine(";");
+        writer.AppendLine("    for (int i = 0; i < length; i++)");
+        writer.AppendLine("    {");
 
+        if (kvpIsUnmanaged)
+        {
+            // For unmanaged KVP, use UnsafeRead directly (no WeakVersionTolerance needed)
+            writer.Append("        reader.UnsafeRead(out ");
+            writer.Append(kvpTypeName);
+            writer.AppendLine(" kvp);");
+            writer.AppendLine("        value[kvp.Key] = kvp.Value;");
+        }
+        else
+        {
+            // For managed KVP, deserialize Key and Value separately with WeakVersionTolerance
             IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w =>
                 {
@@ -186,8 +192,9 @@ public class DictionaryGenerator(
                     w.AppendLine(GetDeserializeString(valueType, "val", isOutVariable: true));
                 });
             writer.AppendLine("        value[key] = val;");
-            writer.AppendLine("    }");
         }
+
+        writer.AppendLine("    }");
 
         writer.AppendLine("}");
         writer.AppendLine();
@@ -208,40 +215,48 @@ public class DictionaryGenerator(
             // For concrete types - dictionaries are modifiable, clear and repopulate
             EofCheck(writer);
 
-            if (canUseFastPath)
-            {
-                writer.AppendLine("    reader.ReadRef(ref value);");
-            }
-            else
-            {
-                writer.AppendLine();
-                writer.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
-                writer.AppendLine("    {");
-                writer.AppendLine("        value = null;");
-                writer.AppendLine("        return;");
-                writer.AppendLine("    }");
-                writer.AppendLine();
+            writer.AppendLine();
+            writer.AppendLine("    if (!reader.ReadCollectionHeader(out var length))");
+            writer.AppendLine("    {");
+            writer.AppendLine("        value = null;");
+            writer.AppendLine("        return;");
+            writer.AppendLine("    }");
+            writer.AppendLine();
 
+            if (!kvpIsUnmanaged)
+            {
                 IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w => { w.AppendLine("    Reader eleReader;"); });
                 writer.AppendLine();
+            }
 
-                writer.AppendLine("    // Initialize if null, otherwise clear");
-                writer.AppendLine("    if (value == null)");
-                writer.AppendLine("    {");
-                writer.Append("        value = new ");
-                writer.Append(concreteTypeName);
-                writer.Append(concreteTypeName.StartsWith("System.Collections.Generic.Dictionary") ? "(length)" : "()");
-                writer.AppendLine(";");
-                writer.AppendLine("    }");
-                writer.AppendLine("    else");
-                writer.AppendLine("    {");
-                writer.AppendLine("        value.Clear();");
-                writer.AppendLine("    }");
-                writer.AppendLine();
-                writer.AppendLine("    for (int i = 0; i < length; i++)");
-                writer.AppendLine("    {");
+            writer.AppendLine("    // Initialize if null, otherwise clear");
+            writer.AppendLine("    if (value == null)");
+            writer.AppendLine("    {");
+            writer.Append("        value = new ");
+            writer.Append(concreteTypeName);
+            writer.Append(concreteTypeName.StartsWith("System.Collections.Generic.Dictionary") ? "(length)" : "()");
+            writer.AppendLine(";");
+            writer.AppendLine("    }");
+            writer.AppendLine("    else");
+            writer.AppendLine("    {");
+            writer.AppendLine("        value.Clear();");
+            writer.AppendLine("    }");
+            writer.AppendLine();
+            writer.AppendLine("    for (int i = 0; i < length; i++)");
+            writer.AppendLine("    {");
 
+            if (kvpIsUnmanaged)
+            {
+                // For unmanaged KVP, use UnsafeRead directly (no WeakVersionTolerance needed)
+                writer.Append("        reader.UnsafeRead(out ");
+                writer.Append(kvpTypeName);
+                writer.AppendLine(" kvp);");
+                writer.AppendLine("        value[kvp.Key] = kvp.Value;");
+            }
+            else
+            {
+                // For managed KVP, deserialize Key and Value separately with WeakVersionTolerance
                 IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w =>
                     {
@@ -259,8 +274,9 @@ public class DictionaryGenerator(
                         w.AppendLine(GetDeserializeString(valueType, "val", isOutVariable: true));
                     });
                 writer.AppendLine("        value[key] = val;");
-                writer.AppendLine("    }");
             }
+
+            writer.AppendLine("    }");
         }
 
         writer.AppendLine("}");
