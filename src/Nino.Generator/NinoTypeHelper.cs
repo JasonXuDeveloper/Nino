@@ -180,6 +180,21 @@ public static class NinoTypeHelper
             return (false, compilation);
         }
 
+        // Skip generation if Nino.Core namespace is not used anywhere in the compilation
+        bool hasNinoCoreUsage = compilation.SyntaxTrees.Any(tree =>
+            tree.GetRoot().DescendantNodes()
+                .OfType<UsingDirectiveSyntax>()
+                .Any(u =>
+                {
+                    var name = u.Name?.ToString();
+                    return name == "Nino.Core" || name == "global::Nino.Core" || name?.StartsWith("Nino.Core.") == true;
+                }));
+
+        if (!hasNinoCoreUsage)
+        {
+            return (false, compilation);
+        }
+
         //disable nullable reference types
         Compilation newCompilation = compilation;
         // Cast to CSharpCompilation to access the C#-specific options
