@@ -42,9 +42,10 @@ public class StackGenerator(
     {
         if (typeSymbol is not INamedTypeSymbol namedType) return false;
 
-        // Only accept Stack<T>
+        // Accept Stack<T> and ConcurrentStack<T>
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
-        if (originalDef != "System.Collections.Generic.Stack<T>")
+        if (originalDef != "System.Collections.Generic.Stack<T>" &&
+            originalDef != "System.Collections.Concurrent.ConcurrentStack<T>")
             return false;
 
         var elementType = namedType.TypeArguments[0];
@@ -166,9 +167,14 @@ public class StackGenerator(
 
         writer.AppendLine("    }");
         writer.AppendLine();
+
+        // ConcurrentStack doesn't support capacity parameter, only Stack does
+        var originalDef = namedType.OriginalDefinition.ToDisplayString();
+        bool isConcurrentStack = originalDef == "System.Collections.Concurrent.ConcurrentStack<T>";
+
         writer.Append("    value = new ");
         writer.Append(typeName);
-        writer.AppendLine("(length);");
+        writer.AppendLine(isConcurrentStack ? "();" : "(length);");
         writer.AppendLine("    for (int i = length - 1; i >= 0; i--)");
         writer.AppendLine("    {");
         writer.AppendLine("        value.Push(temp[i]);");
@@ -234,7 +240,7 @@ public class StackGenerator(
         writer.AppendLine("    {");
         writer.Append("        value = new ");
         writer.Append(typeName);
-        writer.AppendLine("(length);");
+        writer.AppendLine(isConcurrentStack ? "();" : "(length);");
         writer.AppendLine("    }");
         writer.AppendLine("    else");
         writer.AppendLine("    {");

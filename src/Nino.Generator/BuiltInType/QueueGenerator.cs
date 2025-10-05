@@ -42,9 +42,10 @@ public class QueueGenerator(
     {
         if (typeSymbol is not INamedTypeSymbol namedType) return false;
 
-        // Only accept Queue<T>
+        // Accept Queue<T> and ConcurrentQueue<T>
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
-        if (originalDef != "System.Collections.Generic.Queue<T>")
+        if (originalDef != "System.Collections.Generic.Queue<T>" &&
+            originalDef != "System.Collections.Concurrent.ConcurrentQueue<T>")
             return false;
 
         var elementType = namedType.TypeArguments[0];
@@ -135,9 +136,13 @@ public class QueueGenerator(
             writer.AppendLine();
         }
 
+        // ConcurrentQueue doesn't support capacity parameter, only Queue does
+        var originalDef = namedType.OriginalDefinition.ToDisplayString();
+        bool isConcurrentQueue = originalDef == "System.Collections.Concurrent.ConcurrentQueue<T>";
+
         writer.Append("    value = new ");
         writer.Append(typeName);
-        writer.AppendLine("(length);");
+        writer.AppendLine(isConcurrentQueue ? "();" : "(length);");
         writer.AppendLine("    for (int i = 0; i < length; i++)");
         writer.AppendLine("    {");
 
@@ -195,7 +200,7 @@ public class QueueGenerator(
         writer.AppendLine("    {");
         writer.Append("        value = new ");
         writer.Append(typeName);
-        writer.AppendLine("(length);");
+        writer.AppendLine(isConcurrentQueue ? "();" : "(length);");
         writer.AppendLine("    }");
         writer.AppendLine("    else");
         writer.AppendLine("    {");

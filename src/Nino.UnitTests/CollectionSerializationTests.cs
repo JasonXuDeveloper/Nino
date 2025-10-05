@@ -324,4 +324,123 @@ public class CollectionSerializationTests
             Assert.AreEqual(cursedGeneric3.field["Test"][i].B, result3.field["Test"][i].B);
         }
     }
+
+    [TestMethod]
+    public void TestConcurrentCollections()
+    {
+        // Test ConcurrentQueue with primitives
+        ConcurrentQueue<int> concurrentQueue = new ConcurrentQueue<int>();
+        concurrentQueue.Enqueue(1);
+        concurrentQueue.Enqueue(2);
+        concurrentQueue.Enqueue(3);
+
+        byte[] bytes = NinoSerializer.Serialize(concurrentQueue);
+        Assert.IsNotNull(bytes);
+
+        ConcurrentQueue<int> resultQueue = NinoDeserializer.Deserialize<ConcurrentQueue<int>>(bytes);
+        Assert.AreEqual(concurrentQueue.Count, resultQueue.Count);
+        Assert.IsTrue(resultQueue.TryDequeue(out int val1) && val1 == 1);
+        Assert.IsTrue(resultQueue.TryDequeue(out int val2) && val2 == 2);
+        Assert.IsTrue(resultQueue.TryDequeue(out int val3) && val3 == 3);
+
+        // Test ConcurrentStack with primitives
+        ConcurrentStack<int> concurrentStack = new ConcurrentStack<int>();
+        concurrentStack.Push(1);
+        concurrentStack.Push(2);
+        concurrentStack.Push(3);
+
+        bytes = NinoSerializer.Serialize(concurrentStack);
+        Assert.IsNotNull(bytes);
+
+        ConcurrentStack<int> resultStack = NinoDeserializer.Deserialize<ConcurrentStack<int>>(bytes);
+        Assert.AreEqual(concurrentStack.Count, resultStack.Count);
+        Assert.IsTrue(resultStack.TryPop(out int sval1) && sval1 == 3);
+        Assert.IsTrue(resultStack.TryPop(out int sval2) && sval2 == 2);
+        Assert.IsTrue(resultStack.TryPop(out int sval3) && sval3 == 1);
+
+        // Test ConcurrentQueue with complex types
+        ConcurrentQueue<TestClass> concurrentQueue2 = new ConcurrentQueue<TestClass>();
+        concurrentQueue2.Enqueue(new TestClass { A = 1, B = "Test1" });
+        concurrentQueue2.Enqueue(new TestClass { A = 2, B = "Test2" });
+
+        bytes = NinoSerializer.Serialize(concurrentQueue2);
+        Assert.IsNotNull(bytes);
+
+        ConcurrentQueue<TestClass> resultQueue2 = NinoDeserializer.Deserialize<ConcurrentQueue<TestClass>>(bytes);
+        Assert.AreEqual(concurrentQueue2.Count, resultQueue2.Count);
+        Assert.IsTrue(resultQueue2.TryDequeue(out var item1));
+        Assert.AreEqual(1, item1.A);
+        Assert.AreEqual("Test1", item1.B);
+        Assert.IsTrue(resultQueue2.TryDequeue(out var item2));
+        Assert.AreEqual(2, item2.A);
+        Assert.AreEqual("Test2", item2.B);
+
+        // Test ConcurrentStack with complex types
+        ConcurrentStack<TestClass> concurrentStack2 = new ConcurrentStack<TestClass>();
+        concurrentStack2.Push(new TestClass { A = 1, B = "Test1" });
+        concurrentStack2.Push(new TestClass { A = 2, B = "Test2" });
+
+        bytes = NinoSerializer.Serialize(concurrentStack2);
+        Assert.IsNotNull(bytes);
+
+        ConcurrentStack<TestClass> resultStack2 = NinoDeserializer.Deserialize<ConcurrentStack<TestClass>>(bytes);
+        Assert.AreEqual(concurrentStack2.Count, resultStack2.Count);
+        Assert.IsTrue(resultStack2.TryPop(out var sitem1));
+        Assert.AreEqual(2, sitem1.A);
+        Assert.AreEqual("Test2", sitem1.B);
+        Assert.IsTrue(resultStack2.TryPop(out var sitem2));
+        Assert.AreEqual(1, sitem2.A);
+        Assert.AreEqual("Test1", sitem2.B);
+
+        // Test nested concurrent collections
+        ConcurrentQueue<ConcurrentStack<int>> nestedQueue = new ConcurrentQueue<ConcurrentStack<int>>();
+        ConcurrentStack<int> innerStack = new ConcurrentStack<int>();
+        innerStack.Push(1);
+        innerStack.Push(2);
+        nestedQueue.Enqueue(innerStack);
+
+        bytes = NinoSerializer.Serialize(nestedQueue);
+        Assert.IsNotNull(bytes);
+
+        ConcurrentQueue<ConcurrentStack<int>> resultNestedQueue = NinoDeserializer.Deserialize<ConcurrentQueue<ConcurrentStack<int>>>(bytes);
+        Assert.AreEqual(nestedQueue.Count, resultNestedQueue.Count);
+        Assert.IsTrue(resultNestedQueue.TryDequeue(out var resultInnerStack));
+        Assert.AreEqual(2, resultInnerStack.Count);
+        Assert.IsTrue(resultInnerStack.TryPop(out int innerVal1) && innerVal1 == 2);
+        Assert.IsTrue(resultInnerStack.TryPop(out int innerVal2) && innerVal2 == 1);
+    }
+
+    [TestMethod]
+    public void TestConcurrentCollectionsRefOverload()
+    {
+        // Test ConcurrentQueue ref overload
+        ConcurrentQueue<int> concurrentQueue = new ConcurrentQueue<int>();
+        concurrentQueue.Enqueue(1);
+        concurrentQueue.Enqueue(2);
+
+        byte[] bytes = NinoSerializer.Serialize(concurrentQueue);
+        Assert.IsNotNull(bytes);
+
+        ConcurrentQueue<int> tempQueue = new ConcurrentQueue<int>();
+        tempQueue.Enqueue(99); // Should be cleared
+        NinoDeserializer.Deserialize(bytes, ref tempQueue);
+        Assert.AreEqual(2, tempQueue.Count);
+        Assert.IsTrue(tempQueue.TryDequeue(out int val1) && val1 == 1);
+        Assert.IsTrue(tempQueue.TryDequeue(out int val2) && val2 == 2);
+
+        // Test ConcurrentStack ref overload
+        ConcurrentStack<int> concurrentStack = new ConcurrentStack<int>();
+        concurrentStack.Push(1);
+        concurrentStack.Push(2);
+
+        bytes = NinoSerializer.Serialize(concurrentStack);
+        Assert.IsNotNull(bytes);
+
+        ConcurrentStack<int> tempStack = new ConcurrentStack<int>();
+        tempStack.Push(99); // Should be cleared
+        NinoDeserializer.Deserialize(bytes, ref tempStack);
+        Assert.AreEqual(2, tempStack.Count);
+        Assert.IsTrue(tempStack.TryPop(out int sval1) && sval1 == 2);
+        Assert.IsTrue(tempStack.TryPop(out int sval2) && sval2 == 1);
+    }
 }

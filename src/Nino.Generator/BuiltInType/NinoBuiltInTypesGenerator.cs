@@ -181,6 +181,10 @@ public class NinoBuiltInTypesGenerator(
                              private static bool _initialized;
                              private static object _lock = new object();
 
+                             static NinoBuiltInTypesRegistration()
+                             {
+                                 Init();
+                             }
 
                              #if NET5_0_OR_GREATER
                              [ModuleInitializer]
