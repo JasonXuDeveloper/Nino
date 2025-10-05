@@ -129,6 +129,45 @@ public static class NinoTypeHelper
         }
 
         ret = typeSymbol.ToDisplayString();
+
+        // Sanitize multi-dimensional array syntax: [*,*] -> [,], [*,*,*] -> [,,], etc.
+        // This handles all cases including user-defined types and nested arrays
+        // Examples: int[*,*] -> int[,], TestStruct3[*,*] -> TestStruct3[,]
+        //           List<someClass[*,*]>[][*,*][*,*,*] -> List<someClass[,]>[][,][,,]
+        if (ret.Contains("[*"))
+        {
+            var sb = new StringBuilder(ret.Length);
+            for (int i = 0; i < ret.Length; i++)
+            {
+                if (ret[i] == '[' && i + 1 < ret.Length && ret[i + 1] == '*')
+                {
+                    // Found start of multi-dimensional array syntax
+                    sb.Append('[');
+                    i++; // Skip the '*'
+
+                    // Skip asterisks and commas, but preserve commas
+                    while (i < ret.Length && ret[i] != ']')
+                    {
+                        if (ret[i] == ',')
+                        {
+                            sb.Append(',');
+                        }
+                        i++;
+                    }
+
+                    if (i < ret.Length)
+                    {
+                        sb.Append(']');
+                    }
+                }
+                else
+                {
+                    sb.Append(ret[i]);
+                }
+            }
+            ret = sb.ToString();
+        }
+
         ToDisplayStringCache[typeSymbol] = ret;
         return ret;
     }
@@ -624,8 +663,12 @@ public static class NinoTypeHelper
     /// <summary>
     /// Gets the hierarchy level of a type based on its composition depth.
     /// Base types (int, string, etc.) are level 1.
-    /// Arrays add 1 to their element type's level.
+    /// Arrays add their rank + 1 to their element type's level.
+    /// For example: int[] is level 2, int[,] is level 3, int[,,] is level 4.
+    /// For jagged arrays: int[][] is level 3, int[][][] is level 4.
+    /// For multi-dim arrays of arrays: int[,][] is level 4, int[,,,][] is level 6.
     /// Generic types are 1 + max(type argument levels).
+    /// For example: KeyValuePair&lt;int[][], int[,,,][]&gt; is 1 + max(3, 6) = 7 - 1 = 6
     /// Uses memoization to avoid redundant computation.
     /// </summary>
     public static int GetTypeHierarchyLevel(this ITypeSymbol type)
@@ -637,8 +680,11 @@ public static class NinoTypeHelper
 
         var level = type switch
         {
-            // Arrays: 1 + element level
-            IArrayTypeSymbol arrayType => 1 + GetTypeHierarchyLevel(arrayType.ElementType),
+            // Arrays: rank + element level
+            // For 1D arrays (rank=1): 1 + element level
+            // For 2D arrays (rank=2): 2 + element level
+            // For 3D arrays (rank=3): 3 + element level, etc.
+            IArrayTypeSymbol arrayType => arrayType.Rank + GetTypeHierarchyLevel(arrayType.ElementType),
 
             // Generics: 1 + max level of type arguments
             INamedTypeSymbol { IsGenericType: true } namedType =>
