@@ -8,6 +8,7 @@
 [![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square)](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE)
 [![NuGet](https://img.shields.io/nuget/v/Nino?label=NuGet&style=flat-square&logo=nuget)](https://www.nuget.org/packages/Nino)
 [![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?label=OpenUPM&style=flat-square&logo=unity&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
 [🌐 **Official Website**](https://nino.xgamedev.net/en/) • [📚 **Documentation**](https://nino.xgamedev.net/en/doc/start) • [🚀 **Performance**](https://nino.xgamedev.net/en/perf/micro) • [🇨🇳 **中文**](README.zh.md)
 
