@@ -241,7 +241,7 @@ public partial class SerializerGenerator
         // First pass: collect all types that need serializers or custom formatters
         HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
         HashSet<NinoMember> membersWithCustomFormatters = new();
-        
+
         foreach (var members in type.GroupByPrimitivity())
         {
             // Collect types for single-member serialization that use NinoSerializer.Serialize
@@ -254,42 +254,43 @@ public partial class SerializerGenerator
                     {
                         membersWithCustomFormatters.Add(member);
                     }
-                    else if (member.Type.IsUnmanagedType && 
-                             (!NinoGraph.TypeMap.TryGetValue(member.Type.GetDisplayString(), out var ninoTypeCheck) ||
-                              !ninoTypeCheck.IsPolymorphic()))
-                    {
-                        // Unmanaged, non-polymorphic types can use writer.Write() directly - no need for serializer
-                    }
-                    else if (member.Type.SpecialType == SpecialType.System_String)
-                    {
-                        // String types are handled directly in Priority 3 - no need for serializer
-                    }
                     else
                     {
-                        typesNeedingSerializers.Add(member.Type);
+                        var kind = member.Type.GetKind(NinoGraph, GeneratedBuiltInTypes);
+                        if (kind != NinoTypeHelper.NinoTypeKind.Unmanaged &&
+                            kind != NinoTypeHelper.NinoTypeKind.Boxed &&
+                            member.Type.SpecialType != SpecialType.System_String)
+                        {
+                            typesNeedingSerializers.Add(member.Type);
+                        }
                     }
                 }
             }
         }
         
-        // Generate serializer declarations for standard types
+        // Generate serializer declarations for standard types (only for non-built-in types)
         Dictionary<string, string> serializerVarsByType = new();
         foreach (var serializerType in typesNeedingSerializers)
         {
             var typeDisplayName = serializerType.GetDisplayString();
-            var varName = serializerType.GetCachedVariableName("serializer");
-            
-            // Handle potential duplicates by adding a counter
-            var originalVarName = varName;
-            int counter = 1;
-            while (serializerVarsByType.Values.Contains(varName))
+            bool isBuiltIn = GeneratedBuiltInTypes.Contains(serializerType, TupleSanitizedEqualityComparer.Default);
+
+            if (!isBuiltIn)
             {
-                varName = $"{originalVarName}_{counter}";
-                counter++;
+                var varName = serializerType.GetCachedVariableName("serializer");
+
+                // Handle potential duplicates by adding a counter
+                var originalVarName = varName;
+                int counter = 1;
+                while (serializerVarsByType.Values.Contains(varName))
+                {
+                    varName = $"{originalVarName}_{counter}";
+                    counter++;
+                }
+
+                serializerVarsByType[typeDisplayName] = varName;
+                sb.AppendLine($"            var {varName} = CachedSerializer<{typeDisplayName}>.Instance;");
             }
-            
-            serializerVarsByType[typeDisplayName] = varName;
-            sb.AppendLine($"            var {varName} = CachedSerializer<{typeDisplayName}>.Instance;");
         }
         
         // Use static formatter fields instead of local variables
@@ -362,35 +363,47 @@ public partial class SerializerGenerator
                         sb.AppendLine($"            {formatterVar}.Serialize({val}, ref writer);");
                     }
                 }
-                else if (declaredType.IsUnmanagedType &&
-                         (!NinoGraph.TypeMap.TryGetValue(declaredType.GetDisplayString(), out var ninoTypeCheck) ||
-                          !ninoTypeCheck.IsPolymorphic()))
-                {
-                    // PRIORITY 2: Unmanaged non-polymorphic types - write directly
-                    sb.AppendLine($"            writer.Write({val});");
-                }
-                else if (declaredType.SpecialType == SpecialType.System_String)
-                {
-                    // PRIORITY 3: String types (UTF8 and UTF16 optimizations)
-                    if (member.IsUtf8String)
-                    {
-                        sb.AppendLine($"            writer.WriteUtf8({val});");
-                    }
-                    else
-                    {
-                        sb.AppendLine($"            writer.Write({val});");
-                    }
-                }
-                else if (declaredType.SpecialType == SpecialType.System_Object)
-                {
-                    // PRIORITY 4: Object type - call boxed API in NinoSerializer directly
-                    sb.AppendLine($"            NinoSerializer.SerializeBoxed({val}, ref writer, {val}?.GetType());");
-                }
                 else
                 {
-                    // PRIORITY 5: CachedSerializer fallback
-                    var serializerVar = GetSerializerVarName(declaredType);
-                    sb.AppendLine($"            {serializerVar}.Serialize({val}, ref writer);");
+                    var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
+
+                    switch (kind)
+                    {
+                        case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                            // PRIORITY 2: Unmanaged types - write directly
+                            sb.AppendLine($"            writer.Write({val});");
+                            break;
+
+                        case NinoTypeHelper.NinoTypeKind.Boxed:
+                            // PRIORITY 3: Object type - call boxed API in NinoSerializer directly
+                            sb.AppendLine($"            NinoSerializer.SerializeBoxed({val}, ref writer, {val}?.GetType());");
+                            break;
+
+                        case NinoTypeHelper.NinoTypeKind.BuiltIn:
+                            // PRIORITY 4: String types (UTF8 and UTF16 optimizations) or built-in types
+                            if (declaredType.SpecialType == SpecialType.System_String)
+                            {
+                                if (member.IsUtf8String)
+                                {
+                                    sb.AppendLine($"            writer.WriteUtf8({val});");
+                                }
+                                else
+                                {
+                                    sb.AppendLine($"            writer.Write({val});");
+                                }
+                            }
+                            else
+                            {
+                                sb.AppendLine($"            Serializer.Serialize({val}, ref writer);");
+                            }
+                            break;
+
+                        case NinoTypeHelper.NinoTypeKind.NinoType:
+                            // PRIORITY 5: NinoType - use CachedSerializer
+                            var serializerVar = GetSerializerVarName(declaredType);
+                            sb.AppendLine($"            {serializerVar}.Serialize({val}, ref writer);");
+                            break;
+                    }
                 }
             }
             else

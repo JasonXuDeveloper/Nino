@@ -162,8 +162,8 @@ public class GlobalGenerator : IIncrementalGenerator
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new PartialClassGenerator(compilation, graph, distinctNinoTypes), spc);
-                ExecuteGenerator(new SerializerGenerator(compilation, graph, distinctNinoTypes), spc);
-                ExecuteGenerator(new DeserializerGenerator(compilation, graph, distinctNinoTypes), spc);
+                ExecuteGenerator(new SerializerGenerator(compilation, graph, distinctNinoTypes, generatedTypes), spc);
+                ExecuteGenerator(new DeserializerGenerator(compilation, graph, distinctNinoTypes, generatedTypes), spc);
             }
             catch (Exception e)
             {

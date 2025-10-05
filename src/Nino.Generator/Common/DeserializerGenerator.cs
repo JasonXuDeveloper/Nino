@@ -10,9 +10,12 @@ namespace Nino.Generator.Common;
 public partial class DeserializerGenerator(
     Compilation compilation,
     NinoGraph ninoGraph,
-    List<NinoType> ninoTypes)
+    List<NinoType> ninoTypes,
+    HashSet<ITypeSymbol> generatedBuiltInTypes = null)
     : NinoCommonGenerator(compilation, ninoGraph, ninoTypes)
 {
+    protected readonly HashSet<ITypeSymbol> GeneratedBuiltInTypes = generatedBuiltInTypes ?? new HashSet<ITypeSymbol>();
+
     private void GenerateGenericRegister(StringBuilder sb, string name, HashSet<ITypeSymbol> generatedTypes,
         HashSet<ITypeSymbol> registeredTypes)
     {

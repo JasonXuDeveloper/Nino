@@ -416,42 +416,62 @@ public partial class DeserializerGenerator
             }
         }
 
-        // Priority 2: Unmanaged types (but not nullable types)
-        if (type.IsUnmanagedType && !IsPolymorphicType(type))
-        {
-            if(type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
-                return $"reader.Read(out {memberAccess});";
-                
-            return $"reader.UnsafeRead(out {memberAccess});";
-        }
+        var kind = type.GetKind(NinoGraph, GeneratedBuiltInTypes);
 
-        // Priority 3: Strings (UTF8/UTF16)
-        if (type.SpecialType == SpecialType.System_String)
+        switch (kind)
         {
-            var method = member.IsUtf8String ? "ReadUtf8" : "Read";
-            return $"reader.{method}(out {memberAccess});";
-        }
+            case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                // Priority 2: Unmanaged types
+                if (type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+                    return $"reader.Read(out {memberAccess});";
 
-        // Priority 4: Object type - use polymorphic deserialization with null type
-        if (type.SpecialType == SpecialType.System_Object)
-        {
-            if (isRefScenario)
-            {
-                return $"NinoDeserializer.DeserializeRefBoxed(ref {memberAccess}, ref reader, null);";
-            }
-            else
-            {
-                return $"{memberAccess} = NinoDeserializer.DeserializeBoxed(ref reader, null);";
-            }
-        }
+                return $"reader.UnsafeRead(out {memberAccess});";
 
-        // Priority 5: Complex types with cached deserializers
-        if (deserializers.TryGetValue(type, out var deserializerVar))
-        {
-            return $"{deserializerVar}.Deserialize(out {memberAccess}, ref reader);";
-        }
+            case NinoTypeHelper.NinoTypeKind.Boxed:
+                // Priority 3: Object type - use polymorphic deserialization with null type
+                if (isRefScenario)
+                {
+                    return $"NinoDeserializer.DeserializeRefBoxed(ref {memberAccess}, ref reader, null);";
+                }
+                else
+                {
+                    return $"{memberAccess} = NinoDeserializer.DeserializeBoxed(ref reader, null);";
+                }
 
-        return $"// Unable to deserialize {memberAccess}";
+            case NinoTypeHelper.NinoTypeKind.BuiltIn:
+                // Priority 4: Strings (UTF8/UTF16) or built-in types
+                if (type.SpecialType == SpecialType.System_String)
+                {
+                    var method = member.IsUtf8String ? "ReadUtf8" : "Read";
+                    return $"reader.{method}(out {memberAccess});";
+                }
+                else
+                {
+                    if (isRefScenario)
+                    {
+                        return $"Deserializer.DeserializeRef(ref {memberAccess}, ref reader);";
+                    }
+                    else
+                    {
+                        return $"Deserializer.Deserialize(out {memberAccess}, ref reader);";
+                    }
+                }
+
+            case NinoTypeHelper.NinoTypeKind.NinoType:
+                // Priority 5: NinoType - use CachedDeserializer
+                if (deserializers.TryGetValue(type, out var deserializerVar))
+                {
+                    return $"{deserializerVar}.Deserialize(out {memberAccess}, ref reader);";
+                }
+                // Fallthrough to default - return empty block for unhandled NinoTypes
+                goto default;
+
+            case NinoTypeHelper.NinoTypeKind.Invalid:
+            default:
+                // Return empty block for types we can't handle (e.g., types from other assemblies)
+                // Use { } to ensure valid syntax when used inline with if statements
+                return $"{{ }} // Unable to deserialize {memberAccess}";
+        }
     }
 
     #endregion
@@ -684,13 +704,17 @@ public partial class DeserializerGenerator
         foreach (var member in members)
         {
             var type = member.Type;
+
             if (!member.IsCtorParameter &&
                 !member.HasCustomFormatter() &&
-                type.SpecialType != SpecialType.System_String &&
-                !type.IsUnmanagedType &&
                 !deserializers.ContainsKey(type))
             {
-                deserializers[type] = type.GetCachedVariableName("deserializer");
+                var kind = type.GetKind(NinoGraph, GeneratedBuiltInTypes);
+                // Only NinoTypes need cached deserializers
+                if (kind == NinoTypeHelper.NinoTypeKind.NinoType)
+                {
+                    deserializers[type] = type.GetCachedVariableName("deserializer");
+                }
             }
         }
 
