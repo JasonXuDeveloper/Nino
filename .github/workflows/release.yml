@@ -652,6 +652,7 @@ jobs:
             temp_commits=$(mktemp)
             temp_feat=$(mktemp)
             temp_fix=$(mktemp)
+            temp_perf=$(mktemp)
             temp_docs=$(mktemp)
             temp_refactor=$(mktemp)
             temp_test=$(mktemp)
@@ -686,12 +687,12 @@ jobs:
                 TITLE="${BASH_REMATCH[1]}"
                 PR_NUM="${BASH_REMATCH[2]}"
                 echo "other|$TITLE (#$PR_NUM) [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
-              elif [[ $commit_msg =~ ^(feat|fix|docs|style|refactor|test|chore)(\(.+\))?:(.+)$ ]]; then
+              elif [[ $commit_msg =~ ^(feat|fix|perf|docs|style|refactor|test|chore)(\(.+\))?:(.+)$ ]]; then
                 # Conventional commit format
                 TYPE="${BASH_REMATCH[1]}"
                 SCOPE="${BASH_REMATCH[2]}"
                 DESC="${BASH_REMATCH[3]}"
-                
+
                 # Group by type and scope for sorting
                 case "$TYPE" in
                   "feat")
@@ -699,6 +700,9 @@ jobs:
                     ;;
                   "fix")
                     echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_fix"
+                    ;;
+                  "perf")
+                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_perf"
                     ;;
                   "docs")
                     echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_docs"
@@ -780,15 +784,16 @@ jobs:
             # Add sections in priority order
             add_section "Features" "$temp_feat" "✨"
             add_section "Bug Fixes" "$temp_fix" "🐛"
+            add_section "Performance" "$temp_perf" "⚡"
             add_section "Improvements" "$temp_refactor" "🔧"
             add_section "Documentation" "$temp_docs" "📚"
             add_section "Testing" "$temp_test" "🧪"
             add_section "Code Style" "$temp_style" "🎨"
             add_section "Maintenance" "$temp_chore" "🏗️"
             add_section "Other Changes" "$temp_other" "🔀"
-            
+
             # Cleanup temp files
-            rm -f "$temp_commits" "$temp_feat" "$temp_fix" "$temp_docs" "$temp_refactor" "$temp_test" "$temp_chore" "$temp_style" "$temp_other"
+            rm -f "$temp_commits" "$temp_feat" "$temp_fix" "$temp_perf" "$temp_docs" "$temp_refactor" "$temp_test" "$temp_chore" "$temp_style" "$temp_other"
             
             # Add contributors with GitHub profile links
             echo "" >> release_notes.md
