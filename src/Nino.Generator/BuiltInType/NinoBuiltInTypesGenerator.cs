@@ -176,7 +176,7 @@ public class NinoBuiltInTypesGenerator(
 
                      namespace {{curNamespace}}
                      {
-                         internal static class NinoBuiltInTypesRegistration
+                         public static class NinoBuiltInTypesRegistration
                          {
                              private static bool _initialized;
                              private static object _lock = new object();
