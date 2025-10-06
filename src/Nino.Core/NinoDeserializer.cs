@@ -164,6 +164,12 @@ namespace Nino.Core
         private readonly FastMap<int, DeserializeDelegateRef<T>> _subTypeDeserializerRefs = new();
         public static readonly CachedDeserializer<T> Instance = new();
 
+        // Inline cache for polymorphic deserialization (separate caches for out/ref)
+        private int _cachedTypeIdOut = -1;
+        private DeserializeDelegate<T> _cachedDeserializer;
+        private int _cachedTypeIdRef = -1;
+        private DeserializeDelegateRef<T> _cachedDeserializerRef;
+
         private CachedDeserializer()
         {
             _deserializer = null;
@@ -258,14 +264,15 @@ namespace Nino.Core
             }
 
             // OPTIMIZED: Direct deserialization with polymorphism support
-            if (_subTypeDeserializers.Count != 1)
-            {
-                DeserializePolymorphic(out value, ref reader);
-            }
-            else
+            // Common case first: no subtypes (Count == 1 means only base type registered)
+            if (_subTypeDeserializers.Count == 1)
             {
                 // DIRECT DELEGATE: Generated code path - no null check needed
                 _deserializer(out value, ref reader);
+            }
+            else
+            {
+                DeserializePolymorphic(out value, ref reader);
             }
         }
 
@@ -281,19 +288,19 @@ namespace Nino.Core
             }
 
             // OPTIMIZED: Direct deserialization with polymorphism support
-            if (_subTypeDeserializerRefs.Count != 1)
-            {
-                DeserializeRefPolymorphic(ref value, ref reader);
-            }
-            else
+            // Common case first: no subtypes (Count == 1 means only base type registered)
+            if (_subTypeDeserializerRefs.Count == 1)
             {
                 // DIRECT DELEGATE: Generated code path - no null check needed
                 _deserializerRef(ref value, ref reader);
             }
+            else
+            {
+                DeserializeRefPolymorphic(ref value, ref reader);
+            }
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining |
-                    MethodImplOptions.NoOptimization)] // Cold path: Profile-guided optimization
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void DeserializePolymorphic(out T value, ref Reader reader)
         {
             // Peek type info for polymorphic types
@@ -306,9 +313,25 @@ namespace Nino.Core
                 return;
             }
 
+            // Fast path: inline cache hit (most common case for batched data)
+            if (typeId == _cachedTypeIdOut)
+            {
+                _cachedDeserializer(out value, ref reader);
+                return;
+            }
+
+            // Slow path: lookup and update cache
+            DeserializePolymorphicSlow(out value, ref reader, typeId);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void DeserializePolymorphicSlow(out T value, ref Reader reader, int typeId)
+        {
             // Handle subtype with single lookup
             if (_subTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
+                _cachedTypeIdOut = typeId;
+                _cachedDeserializer = subTypeDeserializer;
                 subTypeDeserializer(out value, ref reader);
                 return;
             }
@@ -316,8 +339,7 @@ namespace Nino.Core
             throw new Exception($"Deserializer not found for type with id {typeId}");
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining |
-                    MethodImplOptions.NoOptimization)] // Cold path: Profile-guided optimization
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void DeserializeRefPolymorphic(ref T value, ref Reader reader)
         {
             // Read type info first for polymorphic types
@@ -330,9 +352,25 @@ namespace Nino.Core
                 return;
             }
 
+            // Fast path: inline cache hit (most common case for batched data)
+            if (typeId == _cachedTypeIdRef)
+            {
+                _cachedDeserializerRef(ref value, ref reader);
+                return;
+            }
+
+            // Slow path: lookup and update cache
+            DeserializeRefPolymorphicSlow(ref value, ref reader, typeId);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void DeserializeRefPolymorphicSlow(ref T value, ref Reader reader, int typeId)
+        {
             // Handle subtype deserialization
             if (_subTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
+                _cachedTypeIdRef = typeId;
+                _cachedDeserializerRef = subTypeDeserializer;
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }

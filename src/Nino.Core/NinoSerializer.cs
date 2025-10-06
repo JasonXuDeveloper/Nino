@@ -152,9 +152,15 @@ namespace Nino.Core
         public SerializeDelegate<T> Serializer;
         public readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
 
+        // Inline cache for polymorphic serialization
+        private IntPtr _cachedTypeHandle;
+        private SerializeDelegate<T> _cachedSerializer;
+
         private CachedSerializer(SerializeDelegate<T> serializer)
         {
             Serializer = serializer;
+            _cachedTypeHandle = IntPtr.Zero;
+            _cachedSerializer = null;
         }
 
         public static readonly CachedSerializer<T> Instance = new(null);
@@ -243,19 +249,19 @@ namespace Nino.Core
             }
 
             // OPTIMIZED: Direct serialization with polymorphism support
-            if (SubTypeSerializers.Count != 0)
-            {
-                SerializePolymorphic(val, ref writer);
-            }
-            else
+            // Common case first: no subtypes
+            if (SubTypeSerializers.Count == 0)
             {
                 // DIRECT DELEGATE: Generated code path - no null check needed
                 Serializer(val, ref writer);
             }
+            else
+            {
+                SerializePolymorphic(val, ref writer);
+            }
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining |
-                    MethodImplOptions.NoOptimization)] // Cold path: Profile-guided optimization
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SerializePolymorphic(T val, ref Writer writer)
         {
             if (val == null)
@@ -273,10 +279,30 @@ namespace Nino.Core
                 return;
             }
 
+            // Fast path: inline cache hit (most common case for batched data)
+            if (actualTypeHandle == _cachedTypeHandle)
+            {
+                _cachedSerializer(val, ref writer);
+                return;
+            }
+
+            // Slow path: lookup and update cache
+            SerializePolymorphicSlow(val, ref writer, actualTypeHandle);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void SerializePolymorphicSlow(T val, ref Writer writer, IntPtr actualTypeHandle)
+        {
             // Handle subtype serialization
-            if (!SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
-                throw new Exception($"Serializer not found for type {val.GetType().FullName}");
-            subTypeSerializer(val, ref writer);
+            if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
+            {
+                _cachedTypeHandle = actualTypeHandle;
+                _cachedSerializer = subTypeSerializer;
+                subTypeSerializer(val, ref writer);
+                return;
+            }
+
+            throw new Exception($"Serializer not found for type {val.GetType().FullName}");
         }
     }
 #pragma warning restore CA1000
