@@ -191,7 +191,15 @@ public class DictionaryGenerator(
             writer.Append("        reader.UnsafeRead(out ");
             writer.Append(kvpTypeName);
             writer.AppendLine(" kvp);");
-            writer.AppendLine("        value[kvp.Key] = kvp.Value;");
+
+            if (isReadOnlyDictionary)
+            {
+                writer.AppendLine("        tempDict[kvp.Key] = kvp.Value;");
+            }
+            else
+            {
+                writer.AppendLine("        value[kvp.Key] = kvp.Value;");
+            }
         }
         else
         {
