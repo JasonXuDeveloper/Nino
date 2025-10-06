@@ -70,6 +70,7 @@ public class PriorityQueueGenerator(
         bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
                           priorityType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -125,6 +126,7 @@ public class PriorityQueueGenerator(
                           priorityType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
@@ -186,6 +188,7 @@ public class PriorityQueueGenerator(
         writer.AppendLine();
 
         // Ref overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");

@@ -76,6 +76,7 @@ public class ListGenerator(
         bool canUseFastPath = !isInterface &&
                               elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -155,6 +156,7 @@ public class ListGenerator(
                               elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
@@ -234,6 +236,7 @@ public class ListGenerator(
         writer.AppendLine();
 
         // Ref overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");

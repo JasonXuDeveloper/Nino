@@ -66,6 +66,7 @@ public class SortedSetGenerator(
         // Check if element is unmanaged (no WeakVersionTolerance needed)
         bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -115,6 +116,7 @@ public class SortedSetGenerator(
         bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
@@ -170,6 +172,7 @@ public class SortedSetGenerator(
         writer.AppendLine();
 
         // Ref overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");

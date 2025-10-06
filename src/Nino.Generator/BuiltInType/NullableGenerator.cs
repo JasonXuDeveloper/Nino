@@ -53,6 +53,7 @@ public class NullableGenerator(
     {
         ITypeSymbol elementType = ((INamedTypeSymbol)typeSymbol).TypeArguments[0];
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(elementType.GetDisplayString());
         writer.AppendLine("? value, ref Writer writer)");
@@ -73,6 +74,7 @@ public class NullableGenerator(
     protected override void GenerateDeserializer(ITypeSymbol typeSymbol, Writer writer)
     {
         ITypeSymbol elementType = ((INamedTypeSymbol)typeSymbol).TypeArguments[0];
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(elementType.GetDisplayString());
         writer.AppendLine("? value, ref Reader reader)");
@@ -91,6 +93,7 @@ public class NullableGenerator(
         writer.AppendLine("}");
 
         writer.AppendLine();
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(elementType.GetDisplayString());
         writer.AppendLine("? value, ref Reader reader) => Deserialize(out value, ref reader);");

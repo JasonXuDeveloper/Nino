@@ -121,6 +121,11 @@ public abstract class NinoBuiltInTypeGenerator(
         });
     };
 
+    protected static readonly Action<Writer> WriteAggressiveInlining = writer =>
+    {
+        writer.AppendLine("[MethodImpl(MethodImplOptions.AggressiveInlining)]");
+    };
+
     protected string GetSerializeString(ITypeSymbol type, string valueName)
     {
         switch (type.GetKind(NinoGraph, GeneratedTypes))

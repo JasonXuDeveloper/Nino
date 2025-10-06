@@ -86,7 +86,6 @@ public partial class DeserializerGenerator
         string suffix = byRef ? "Ref" : "";
 
         sb.AppendLine($$"""
-                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                 public static void DeserializeImpl{{suffix}}({{decl}} {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
                                 {
                                 #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
@@ -135,6 +134,386 @@ public partial class DeserializerGenerator
         }
 
         sb.AppendLine("        }");
+    }
+
+    // Helper: Generate read statement based on type kind
+    private string GenerateReadStatement(NinoMember member, string tempName,
+        Func<ITypeSymbol, string> getDeserializerVar,
+        Dictionary<NinoMember, string> customFormatterVars)
+    {
+        var declaredType = member.Type;
+
+        if (member.HasCustomFormatter())
+        {
+            // PRIORITY 1: Custom formatter (highest priority)
+            if (customFormatterVars.TryGetValue(member, out var formatterVar))
+            {
+                return $"{formatterVar}.Deserialize(out {tempName}, ref reader);";
+            }
+        }
+
+        var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
+
+        switch (kind)
+        {
+            case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                // PRIORITY 2: Unmanaged types - direct read
+                return $"reader.UnsafeRead(out {tempName});";
+
+            case NinoTypeHelper.NinoTypeKind.Boxed:
+                // PRIORITY 3: Object type - use polymorphic deserialization
+                return $"{tempName} = NinoDeserializer.DeserializeBoxed(ref reader, null);";
+
+            case NinoTypeHelper.NinoTypeKind.BuiltIn:
+                // PRIORITY 4: String types or built-in types
+                if (declaredType.SpecialType == SpecialType.System_String)
+                {
+                    return member.IsUtf8String
+                        ? $"reader.ReadUtf8(out {tempName});"
+                        : $"reader.Read(out {tempName});";
+                }
+                else
+                {
+                    return $"Deserializer.Deserialize(out {tempName}, ref reader);";
+                }
+
+            case NinoTypeHelper.NinoTypeKind.NinoType:
+                // PRIORITY 5: NinoType - use CachedDeserializer
+                var deserializerVar = getDeserializerVar(declaredType);
+                return $"{deserializerVar}.Deserialize(out {tempName}, ref reader);";
+
+            default:
+                return $"// Unable to deserialize {tempName}";
+        }
+    }
+
+    // Helper: Generate ref deserialization for public fields
+    private void GenerateRefDeserializePublicField(StringBuilder sb, NinoMember member,
+        string valName, Func<ITypeSymbol, string> getDeserializerVar,
+        Dictionary<NinoMember, string> customFormatterVars)
+    {
+        var declaredType = member.Type;
+        var name = member.Name;
+
+        if (member.HasCustomFormatter())
+        {
+            // PRIORITY 1: Custom formatter (highest priority)
+            if (customFormatterVars.TryGetValue(member, out var formatterVar))
+            {
+                if (declaredType.IsValueType)
+                {
+                    sb.AppendLine($"            {formatterVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
+                }
+                else
+                {
+                    sb.AppendLine($"            if ({valName}.{name} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {formatterVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {formatterVar}.Deserialize(out {valName}.{name}, ref reader);");
+                    sb.AppendLine("            }");
+                }
+                return;
+            }
+        }
+
+        var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
+
+        switch (kind)
+        {
+            case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                sb.AppendLine($"            reader.UnsafeRead(out {valName}.{name});");
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.Boxed:
+                sb.AppendLine($"            NinoDeserializer.DeserializeRefBoxed(ref {valName}.{name}, ref reader, null);");
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.BuiltIn:
+                if (declaredType.SpecialType == SpecialType.System_String)
+                {
+                    if (member.IsUtf8String)
+                        sb.AppendLine($"            reader.ReadUtf8(out {valName}.{name});");
+                    else
+                        sb.AppendLine($"            reader.Read(out {valName}.{name});");
+                }
+                else
+                {
+                    sb.AppendLine($"            Deserializer.DeserializeRef(ref {valName}.{name}, ref reader);");
+                }
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.NinoType:
+                var deserializerVar = getDeserializerVar(declaredType);
+                if (declaredType.IsValueType)
+                {
+                    sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
+                }
+                else
+                {
+                    sb.AppendLine($"            if ({valName}.{name} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {deserializerVar}.Deserialize(out {valName}.{name}, ref reader);");
+                    sb.AppendLine("            }");
+                }
+                break;
+        }
+    }
+
+    // Helper: Generate ref deserialization with temp variable (for properties/private fields)
+    private void GenerateRefDeserializeWithTemp(StringBuilder sb, NinoMember member,
+        string tempName, Func<ITypeSymbol, string> getDeserializerVar,
+        Dictionary<NinoMember, string> customFormatterVars)
+    {
+        var declaredType = member.Type;
+
+        if (member.HasCustomFormatter())
+        {
+            if (customFormatterVars.TryGetValue(member, out var formatterVar))
+            {
+                if (declaredType.IsValueType)
+                {
+                    sb.AppendLine($"            {formatterVar}.DeserializeRef(ref {tempName}, ref reader);");
+                }
+                else
+                {
+                    sb.AppendLine($"            if ({tempName} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {formatterVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {formatterVar}.Deserialize(out {tempName}, ref reader);");
+                    sb.AppendLine("            }");
+                }
+                return;
+            }
+        }
+
+        var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
+
+        switch (kind)
+        {
+            case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                sb.AppendLine($"            reader.UnsafeRead(out {tempName});");
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.Boxed:
+                sb.AppendLine($"            {tempName} = NinoDeserializer.DeserializeBoxed(ref reader, null);");
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.BuiltIn:
+                if (declaredType.SpecialType == SpecialType.System_String)
+                {
+                    if (member.IsUtf8String)
+                        sb.AppendLine($"            reader.ReadUtf8(out {tempName});");
+                    else
+                        sb.AppendLine($"            reader.Read(out {tempName});");
+                }
+                else
+                {
+                    sb.AppendLine($"            Deserializer.Deserialize(out {tempName}, ref reader);");
+                }
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.NinoType:
+                var deserializerVar = getDeserializerVar(declaredType);
+                if (declaredType.IsValueType)
+                {
+                    sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                }
+                else
+                {
+                    sb.AppendLine($"            if ({tempName} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {deserializerVar}.Deserialize(out {tempName}, ref reader);");
+                    sb.AppendLine("            }");
+                }
+                break;
+        }
+    }
+
+    // Helper: Generate private field access deserialization (NET8.0+)
+    private void GeneratePrivateFieldDeserialize(StringBuilder sb, NinoMember member,
+        string valName, string name, NinoType nt,
+        Func<ITypeSymbol, string> getDeserializerVar,
+        Dictionary<NinoMember, string> customFormatterVars)
+    {
+        var declaredType = member.Type;
+        var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
+
+        if (member.HasCustomFormatter())
+        {
+            if (customFormatterVars.TryGetValue(member, out var formatterVar))
+            {
+                if (declaredType.IsValueType)
+                {
+                    sb.AppendLine($"            {formatterVar}.DeserializeRef(ref PrivateAccessor.__{name}__({accessName}), ref reader);");
+                }
+                else
+                {
+                    sb.AppendLine($"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
+                    sb.AppendLine($"            if (field_{name} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {formatterVar}.DeserializeRef(ref field_{name}, ref reader);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {formatterVar}.Deserialize(out field_{name}, ref reader);");
+                    sb.AppendLine("            }");
+                }
+                return;
+            }
+        }
+
+        var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
+
+        switch (kind)
+        {
+            case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                sb.AppendLine($"            reader.UnsafeRead(out PrivateAccessor.__{name}__({accessName}));");
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.Boxed:
+                sb.AppendLine($"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
+                sb.AppendLine($"            NinoDeserializer.DeserializeRefBoxed(ref field_{name}, ref reader, null);");
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.BuiltIn:
+                if (declaredType.SpecialType == SpecialType.System_String)
+                {
+                    if (member.IsUtf8String)
+                        sb.AppendLine($"            reader.ReadUtf8(out PrivateAccessor.__{name}__({accessName}));");
+                    else
+                        sb.AppendLine($"            reader.Read(out PrivateAccessor.__{name}__({accessName}));");
+                }
+                else
+                {
+                    sb.AppendLine($"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
+                    sb.AppendLine($"            Deserializer.DeserializeRef(ref field_{name}, ref reader);");
+                }
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.NinoType:
+                var deserializerVar = getDeserializerVar(declaredType);
+                if (declaredType.IsValueType)
+                {
+                    sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref PrivateAccessor.__{name}__({accessName}), ref reader);");
+                }
+                else
+                {
+                    sb.AppendLine($"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
+                    sb.AppendLine($"            if (field_{name} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {deserializerVar}.DeserializeRef(ref field_{name}, ref reader);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {deserializerVar}.Deserialize(out field_{name}, ref reader);");
+                    sb.AppendLine("            }");
+                }
+                break;
+        }
+    }
+
+    // Helper: Generate private field/property deserialization fallback (< NET8.0)
+    private void GeneratePrivateFieldDeserializeFallback(StringBuilder sb, NinoMember member,
+        string valName, string name, string tempName,
+        Func<ITypeSymbol, string> getDeserializerVar,
+        Dictionary<NinoMember, string> customFormatterVars)
+    {
+        var declaredType = member.Type;
+
+        if (member.HasCustomFormatter())
+        {
+            if (customFormatterVars.TryGetValue(member, out var formatterVar))
+            {
+                sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName} = {valName}.__nino__generated__{name};");
+                if (declaredType.IsValueType)
+                {
+                    sb.AppendLine($"            {formatterVar}.DeserializeRef(ref {tempName}, ref reader);");
+                }
+                else
+                {
+                    sb.AppendLine($"            if ({tempName} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {formatterVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {formatterVar}.Deserialize(out {tempName}, ref reader);");
+                    sb.AppendLine("            }");
+                }
+                sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
+                return;
+            }
+        }
+
+        var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
+
+        switch (kind)
+        {
+            case NinoTypeHelper.NinoTypeKind.Unmanaged:
+                sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName};");
+                sb.AppendLine($"            reader.UnsafeRead(out {tempName});");
+                sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.Boxed:
+                sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName};");
+                sb.AppendLine($"            {tempName} = NinoDeserializer.DeserializeBoxed(ref reader, null);");
+                sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.BuiltIn:
+                if (declaredType.SpecialType == SpecialType.System_String)
+                {
+                    sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName};");
+                    if (member.IsUtf8String)
+                        sb.AppendLine($"            reader.ReadUtf8(out {tempName});");
+                    else
+                        sb.AppendLine($"            reader.Read(out {tempName});");
+                    sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
+                }
+                else
+                {
+                    sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName} = {valName}.__nino__generated__{name};");
+                    sb.AppendLine($"            Deserializer.DeserializeRef(ref {tempName}, ref reader);");
+                    sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
+                }
+                break;
+
+            case NinoTypeHelper.NinoTypeKind.NinoType:
+                sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName} = {valName}.__nino__generated__{name};");
+                var deserializerVar = getDeserializerVar(declaredType);
+                if (declaredType.IsValueType)
+                {
+                    sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                }
+                else
+                {
+                    sb.AppendLine($"            if ({tempName} != null)");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    sb.AppendLine("            }");
+                    sb.AppendLine("            else");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                {deserializerVar}.Deserialize(out {tempName}, ref reader);");
+                    sb.AppendLine("            }");
+                }
+                sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
+                break;
+        }
     }
 
     private (List<(string, string)> vars,
@@ -308,527 +687,68 @@ public partial class DeserializerGenerator
 
                         if (!isPrivate && !isProperty)
                         {
-                            if (currentMember.HasCustomFormatter())
+                            GenerateRefDeserializePublicField(sb, currentMember, valName, GetDeserializerVarName, customFormatterVarsByMember);
+                        }
+                        else if (isProperty)
+                        {
+                            // Properties - store in temp, call ref overload, assign back
+                            if (isPrivate)
                             {
-                                // PRIORITY 1: Custom formatter (highest priority)
-                                if (customFormatterVarsByMember.TryGetValue(currentMember, out var formatterVar))
-                                {
-                                    if (declaredType.IsValueType)
-                                    {
-                                        // Value types can't be null, use optimized ref deserialization
-                                        sb.AppendLine(
-                                            $"            {formatterVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
-                                    }
-                                    else
-                                    {
-                                        // Reference types need null check
-                                        sb.AppendLine($"            if ({valName}.{name} != null)");
-                                        sb.AppendLine("            {");
-                                        sb.AppendLine(
-                                            $"                {formatterVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
-                                        sb.AppendLine("            }");
-                                        sb.AppendLine("            else");
-                                        sb.AppendLine("            {");
-                                        sb.AppendLine(
-                                            $"                {formatterVar}.Deserialize(out {valName}.{name}, ref reader);");
-                                        sb.AppendLine("            }");
-                                    }
-                                }
+                                var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
+                                sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName};");
+                                sb.AppendLine("#if NET8_0_OR_GREATER");
+                                sb.AppendLine($"            {tempName} = PrivateAccessor.__get__{name}__({accessName});");
+                                sb.AppendLine("#else");
+                                sb.AppendLine($"            {tempName} = {valName}.__nino__generated__{name};");
+                                sb.AppendLine("#endif");
                             }
                             else
                             {
-                                var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
+                                sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName} = {valName}.{name};");
+                            }
 
-                                switch (kind)
-                                {
-                                    case NinoTypeHelper.NinoTypeKind.Unmanaged:
-                                        // PRIORITY 2: Unmanaged types - direct read for maximum performance
-                                        sb.AppendLine($"            reader.UnsafeRead(out {valName}.{name});");
-                                        break;
+                            GenerateRefDeserializeWithTemp(sb, currentMember, tempName, GetDeserializerVarName, customFormatterVarsByMember);
 
-                                    case NinoTypeHelper.NinoTypeKind.Boxed:
-                                        // PRIORITY 3: Object type - use ref boxed API
-                                        sb.AppendLine($"            NinoDeserializer.DeserializeRefBoxed(ref {valName}.{name}, ref reader, null);");
-                                        break;
-
-                                    case NinoTypeHelper.NinoTypeKind.BuiltIn:
-                                        // PRIORITY 4: String types (UTF8 and UTF16 optimizations) or built-in types
-                                        if (declaredType.SpecialType == SpecialType.System_String)
-                                        {
-                                            if (currentMember.IsUtf8String)
-                                            {
-                                                sb.AppendLine($"            reader.ReadUtf8(out {valName}.{name});");
-                                            }
-                                            else
-                                            {
-                                                sb.AppendLine($"            reader.Read(out {valName}.{name});");
-                                            }
-                                        }
-                                        else
-                                        {
-                                            sb.AppendLine($"            Deserializer.DeserializeRef(ref {valName}.{name}, ref reader);");
-                                        }
-                                        break;
-
-                                    case NinoTypeHelper.NinoTypeKind.NinoType:
-                                        // PRIORITY 5: NinoType - use CachedDeserializer
-                                        var deserializerVar = GetDeserializerVarName(declaredType);
-                                        if (declaredType.IsValueType)
-                                        {
-                                            // Value types can't be null, use optimized ref deserialization
-                                            sb.AppendLine(
-                                                $"            {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
-                                        }
-                                        else
-                                        {
-                                            // Reference types need null check
-                                            sb.AppendLine($"            if ({valName}.{name} != null)");
-                                            sb.AppendLine("            {");
-                                            sb.AppendLine(
-                                                $"                {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
-                                            sb.AppendLine("            }");
-                                            sb.AppendLine("            else");
-                                            sb.AppendLine("            {");
-                                            sb.AppendLine(
-                                                $"                {deserializerVar}.Deserialize(out {valName}.{name}, ref reader);");
-                                            sb.AppendLine("            }");
-                                        }
-                                        break;
-                                }
+                            // Assign back
+                            if (isPrivate)
+                            {
+                                var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
+                                sb.AppendLine("#if NET8_0_OR_GREATER");
+                                sb.AppendLine($"            PrivateAccessor.__set__{name}__({accessName}, {tempName});");
+                                sb.AppendLine("#else");
+                                sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
+                                sb.AppendLine("#endif");
+                            }
+                            else
+                            {
+                                sb.AppendLine($"            {valName}.{name} = {tempName};");
                             }
                         }
                         else
                         {
-                            // Private field or property - need special handling
-                            if (isProperty)
-                            {
-                                // Properties (private or public) - store in temp, call ref overload, assign back if value type
-                                if (isPrivate)
-                                {
-                                    var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
-                                    // Private property - get via PrivateAccessor or generated property
-                                    sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName};");
-                                    sb.AppendLine("#if NET8_0_OR_GREATER");
-                                    sb.AppendLine(
-                                        $"            {tempName} = PrivateAccessor.__get__{name}__({accessName});");
-                                    sb.AppendLine("#else");
-                                    sb.AppendLine($"            {tempName} = {valName}.__nino__generated__{name};");
-                                    sb.AppendLine("#endif");
-                                }
-                                else
-                                {
-                                    // Public property - get directly
-                                    sb.AppendLine(
-                                        $"            {declaredType.GetDisplayString()} {tempName} = {valName}.{name};");
-                                }
-
-                                // Apply GetKind pattern for property deserialization
-                                if (currentMember.HasCustomFormatter())
-                                {
-                                    // PRIORITY 1: Custom formatter (highest priority)
-                                    if (customFormatterVarsByMember.TryGetValue(currentMember, out var formatterVar))
-                                    {
-                                        if (declaredType.IsValueType)
-                                        {
-                                            // Value types can't be null, use ref directly
-                                            sb.AppendLine(
-                                                $"            {formatterVar}.DeserializeRef(ref {tempName}, ref reader);");
-                                        }
-                                        else
-                                        {
-                                            // Reference types need null check
-                                            sb.AppendLine($"            if ({tempName} != null)");
-                                            sb.AppendLine("            {");
-                                            sb.AppendLine(
-                                                $"                {formatterVar}.DeserializeRef(ref {tempName}, ref reader);");
-                                            sb.AppendLine("            }");
-                                            sb.AppendLine("            else");
-                                            sb.AppendLine("            {");
-                                            sb.AppendLine(
-                                                $"                {formatterVar}.Deserialize(out {tempName}, ref reader);");
-                                            sb.AppendLine("            }");
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
-
-                                    switch (kind)
-                                    {
-                                        case NinoTypeHelper.NinoTypeKind.Unmanaged:
-                                            // PRIORITY 2: Unmanaged types - direct read for maximum performance
-                                            sb.AppendLine($"            reader.UnsafeRead(out {tempName});");
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.Boxed:
-                                            // PRIORITY 3: Object type - use out boxed API
-                                            sb.AppendLine($"            {tempName} = NinoDeserializer.DeserializeBoxed(ref reader, null);");
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.BuiltIn:
-                                            // PRIORITY 4: String types (UTF8 and UTF16 optimizations) or built-in types
-                                            if (declaredType.SpecialType == SpecialType.System_String)
-                                            {
-                                                if (currentMember.IsUtf8String)
-                                                {
-                                                    sb.AppendLine($"            reader.ReadUtf8(out {tempName});");
-                                                }
-                                                else
-                                                {
-                                                    sb.AppendLine($"            reader.Read(out {tempName});");
-                                                }
-                                            }
-                                            else
-                                            {
-                                                sb.AppendLine($"            Deserializer.Deserialize(out {tempName}, ref reader);");
-                                            }
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.NinoType:
-                                            // PRIORITY 5: CachedDeserializer fallback
-                                            var deserializerVar = GetDeserializerVarName(declaredType);
-                                            if (declaredType.IsValueType)
-                                            {
-                                                // Value types can't be null, use ref directly
-                                                sb.AppendLine(
-                                                    $"            {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
-                                            }
-                                            else
-                                            {
-                                                // Reference types need null check - use ref if not null, fallback to out if null
-                                                sb.AppendLine($"            if ({tempName} != null)");
-                                                sb.AppendLine("            {");
-                                                sb.AppendLine(
-                                                    $"                {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
-                                                sb.AppendLine("            }");
-                                                sb.AppendLine("            else");
-                                                sb.AppendLine("            {");
-                                                // Fallback to out version for null reference types
-                                                sb.AppendLine(
-                                                    $"                {deserializerVar}.Deserialize(out {tempName}, ref reader);");
-                                                sb.AppendLine("            }");
-                                            }
-                                            break;
-                                    }
-                                }
-
-                                // Assign back 
-                                if (isPrivate)
-                                {
-                                    var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
-                                    sb.AppendLine("#if NET8_0_OR_GREATER");
-                                    sb.AppendLine(
-                                        $"            PrivateAccessor.__set__{name}__({accessName}, {tempName});");
-                                    sb.AppendLine("#else");
-                                    sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
-                                    sb.AppendLine("#endif");
-                                }
-                                else
-                                {
-                                    sb.AppendLine($"            {valName}.{name} = {tempName};");
-                                }
-                            }
-                            else
-                            {
-                                // Private field - apply GetKind pattern
-                                sb.AppendLine("#if NET8_0_OR_GREATER");
-
-                                if (currentMember.HasCustomFormatter())
-                                {
-                                    // PRIORITY 1: Custom formatter (highest priority)
-                                    if (customFormatterVarsByMember.TryGetValue(currentMember, out var formatterVar))
-                                    {
-                                        if (declaredType.IsValueType)
-                                        {
-                                            var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
-                                            sb.AppendLine(
-                                                $"            {formatterVar}.DeserializeRef(ref PrivateAccessor.__{name}__({accessName}), ref reader);");
-                                        }
-                                        else
-                                        {
-                                            var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
-                                            sb.AppendLine(
-                                                $"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
-                                            sb.AppendLine($"            if (field_{name} != null)");
-                                            sb.AppendLine("            {");
-                                            sb.AppendLine(
-                                                $"                {formatterVar}.DeserializeRef(ref field_{name}, ref reader);");
-                                            sb.AppendLine("            }");
-                                            sb.AppendLine("            else");
-                                            sb.AppendLine("            {");
-                                            sb.AppendLine(
-                                                $"                {formatterVar}.Deserialize(out field_{name}, ref reader);");
-                                            sb.AppendLine("            }");
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
-                                    var accessName = nt.TypeSymbol.IsValueType ? $"ref {valName}" : valName;
-
-                                    switch (kind)
-                                    {
-                                        case NinoTypeHelper.NinoTypeKind.Unmanaged:
-                                            // PRIORITY 2: Unmanaged types - direct read for maximum performance
-                                            sb.AppendLine(
-                                                $"            reader.UnsafeRead(out PrivateAccessor.__{name}__({accessName}));");
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.Boxed:
-                                            // PRIORITY 3: Object type - use ref boxed API
-                                            sb.AppendLine(
-                                                $"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
-                                            sb.AppendLine($"            NinoDeserializer.DeserializeRefBoxed(ref field_{name}, ref reader, null);");
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.BuiltIn:
-                                            // PRIORITY 4: String types (UTF8 and UTF16 optimizations) or built-in types
-                                            if (declaredType.SpecialType == SpecialType.System_String)
-                                            {
-                                                if (currentMember.IsUtf8String)
-                                                {
-                                                    sb.AppendLine(
-                                                        $"            reader.ReadUtf8(out PrivateAccessor.__{name}__({accessName}));");
-                                                }
-                                                else
-                                                {
-                                                    sb.AppendLine(
-                                                        $"            reader.Read(out PrivateAccessor.__{name}__({accessName}));");
-                                                }
-                                            }
-                                            else
-                                            {
-                                                sb.AppendLine(
-                                                    $"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
-                                                sb.AppendLine($"            Deserializer.DeserializeRef(ref field_{name}, ref reader);");
-                                            }
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.NinoType:
-                                            // PRIORITY 5: CachedDeserializer fallback
-                                            var deserializerVar = GetDeserializerVarName(declaredType);
-                                            if (declaredType.IsValueType)
-                                            {
-                                                // Value types can't be null, use ref directly
-                                                sb.AppendLine(
-                                                    $"            {deserializerVar}.DeserializeRef(ref PrivateAccessor.__{name}__({accessName}), ref reader);");
-                                            }
-                                            else
-                                            {
-                                                // Reference types need null check - use ref if not null, fallback to out if null
-                                                sb.AppendLine(
-                                                    $"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
-                                                sb.AppendLine($"            if (field_{name} != null)");
-                                                sb.AppendLine("            {");
-                                                sb.AppendLine(
-                                                    $"                {deserializerVar}.DeserializeRef(ref field_{name}, ref reader);");
-                                                sb.AppendLine("            }");
-                                                sb.AppendLine("            else");
-                                                sb.AppendLine("            {");
-                                                // Fallback to out version for null reference types
-                                                sb.AppendLine(
-                                                    $"                {deserializerVar}.Deserialize(out field_{name}, ref reader);");
-                                                sb.AppendLine("            }");
-                                            }
-                                            break;
-                                    }
-                                }
-
-                                sb.AppendLine("#else");
-                                // Fallback for non-NET8.0 - apply GetKind pattern with generated property
-
-                                if (currentMember.HasCustomFormatter())
-                                {
-                                    // PRIORITY 1: Custom formatter (highest priority)
-                                    if (customFormatterVarsByMember.TryGetValue(currentMember,
-                                            out var fallbackFormatterVar))
-                                    {
-                                        sb.AppendLine(
-                                            $"            {declaredType.GetDisplayString()} {tempName} = {valName}.__nino__generated__{name};");
-
-                                        if (declaredType.IsValueType)
-                                        {
-                                            sb.AppendLine(
-                                                $"            {fallbackFormatterVar}.DeserializeRef(ref {tempName}, ref reader);");
-                                        }
-                                        else
-                                        {
-                                            sb.AppendLine($"            if ({tempName} != null)");
-                                            sb.AppendLine("            {");
-                                            sb.AppendLine(
-                                                $"                {fallbackFormatterVar}.DeserializeRef(ref {tempName}, ref reader);");
-                                            sb.AppendLine("            }");
-                                            sb.AppendLine("            else");
-                                            sb.AppendLine("            {");
-                                            sb.AppendLine(
-                                                $"                {fallbackFormatterVar}.Deserialize(out {tempName}, ref reader);");
-                                            sb.AppendLine("            }");
-                                        }
-
-                                        sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
-                                    }
-                                }
-                                else
-                                {
-                                    var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
-
-                                    switch (kind)
-                                    {
-                                        case NinoTypeHelper.NinoTypeKind.Unmanaged:
-                                            // PRIORITY 2: Unmanaged types - direct read for maximum performance
-                                            sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName};");
-                                            sb.AppendLine($"            reader.UnsafeRead(out {tempName});");
-                                            sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.Boxed:
-                                            // PRIORITY 3: Object type - use out boxed API
-                                            sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName};");
-                                            sb.AppendLine($"            {tempName} = NinoDeserializer.DeserializeBoxed(ref reader, null);");
-                                            sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.BuiltIn:
-                                            // PRIORITY 4: String types (UTF8 and UTF16 optimizations) or built-in types
-                                            if (declaredType.SpecialType == SpecialType.System_String)
-                                            {
-                                                sb.AppendLine($"            {declaredType.GetDisplayString()} {tempName};");
-                                                if (currentMember.IsUtf8String)
-                                                {
-                                                    sb.AppendLine($"            reader.ReadUtf8(out {tempName});");
-                                                }
-                                                else
-                                                {
-                                                    sb.AppendLine($"            reader.Read(out {tempName});");
-                                                }
-                                                sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
-                                            }
-                                            else
-                                            {
-                                                sb.AppendLine(
-                                                    $"            {declaredType.GetDisplayString()} {tempName} = {valName}.__nino__generated__{name};");
-                                                sb.AppendLine($"            Deserializer.DeserializeRef(ref {tempName}, ref reader);");
-                                                sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
-                                            }
-                                            break;
-
-                                        case NinoTypeHelper.NinoTypeKind.NinoType:
-                                            // PRIORITY 5: CachedDeserializer fallback
-                                            sb.AppendLine(
-                                                $"            {declaredType.GetDisplayString()} {tempName} = {valName}.__nino__generated__{name};");
-                                            var fallbackDeserializerVar = GetDeserializerVarName(declaredType);
-
-                                            if (declaredType.IsValueType)
-                                            {
-                                                // Value types can't be null, use ref directly
-                                                sb.AppendLine(
-                                                    $"            {fallbackDeserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
-                                            }
-                                            else
-                                            {
-                                                // Reference types need null check - use ref if not null, fallback to out if null
-                                                sb.AppendLine($"            if ({tempName} != null)");
-                                                sb.AppendLine("            {");
-                                                sb.AppendLine(
-                                                    $"                {fallbackDeserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
-                                                sb.AppendLine("            }");
-                                                sb.AppendLine("            else");
-                                                sb.AppendLine("            {");
-                                                // Fallback to out version for null reference types
-                                                sb.AppendLine(
-                                                    $"                {fallbackDeserializerVar}.Deserialize(out {tempName}, ref reader);");
-                                                sb.AppendLine("            }");
-                                            }
-                                            sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
-                                            break;
-                                    }
-                                }
-
-                                sb.AppendLine("#endif");
-                            }
+                            // Private field
+                            sb.AppendLine("#if NET8_0_OR_GREATER");
+                            GeneratePrivateFieldDeserialize(sb, currentMember, valName, name, nt, GetDeserializerVarName, customFormatterVarsByMember);
+                            sb.AppendLine("#else");
+                            GeneratePrivateFieldDeserializeFallback(sb, currentMember, valName, name, tempName, GetDeserializerVarName, customFormatterVarsByMember);
+                            sb.AppendLine("#endif");
                         }
                     }
                     else
                     {
-                        if (currentMember.HasCustomFormatter())
-                        {
-                            // PRIORITY 1: Custom formatter (highest priority)
-                            if (customFormatterVarsByMember.TryGetValue(currentMember, out var formatterVar))
-                            {
-                                var readStatement = $"{formatterVar}.Deserialize(out {tempName}, ref reader);";
-                                var toleranceCode = $$$"""
-                                                                   {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
-                                                                   #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
-                                                                   if (!reader.Eof)
-                                                                   {
-                                                                      {{{readStatement}}}
-                                                                   }
-                                                                   #else
-                                                                   {{{readStatement}}}
-                                                                   #endif
-                                                       """;
-                                sb.AppendLine(toleranceCode);
-                            }
-                        }
-                        else
-                        {
-                            var kind = declaredType.GetKind(NinoGraph, GeneratedBuiltInTypes);
-                            string readStatement;
-
-                            switch (kind)
-                            {
-                                case NinoTypeHelper.NinoTypeKind.Unmanaged:
-                                    // PRIORITY 2: Unmanaged types - direct read
-                                    readStatement = $"reader.UnsafeRead(out {tempName});";
-                                    break;
-
-                                case NinoTypeHelper.NinoTypeKind.Boxed:
-                                    // PRIORITY 3: Object type - use polymorphic deserialization
-                                    readStatement = $"{tempName} = NinoDeserializer.DeserializeBoxed(ref reader, null);";
-                                    break;
-
-                                case NinoTypeHelper.NinoTypeKind.BuiltIn:
-                                    // PRIORITY 4: String types (UTF8 and UTF16 optimizations) or built-in types
-                                    if (declaredType.SpecialType == SpecialType.System_String)
-                                    {
-                                        readStatement = currentMember.IsUtf8String
-                                            ? $"reader.ReadUtf8(out {tempName});"
-                                            : $"reader.Read(out {tempName});";
-                                    }
-                                    else
-                                    {
-                                        readStatement = $"Deserializer.Deserialize(out {tempName}, ref reader);";
-                                    }
-                                    break;
-
-                                case NinoTypeHelper.NinoTypeKind.NinoType:
-                                    // PRIORITY 5: NinoType - use CachedDeserializer
-                                    var deserializerVar = GetDeserializerVarName(declaredType);
-                                    readStatement = $"{deserializerVar}.Deserialize(out {tempName}, ref reader);";
-                                    break;
-
-                                case NinoTypeHelper.NinoTypeKind.Invalid:
-                                default:
-                                    // Fallback for invalid types
-                                    readStatement = $"// Unable to deserialize {tempName}";
-                                    break;
-                            }
-
-                            var toleranceCode = $$$"""
-                                                               {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
-                                                               #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
-                                                               if (!reader.Eof)
-                                                               {
-                                                                  {{{readStatement}}}
-                                                               }
-                                                               #else
-                                                               {{{readStatement}}}
-                                                               #endif
-                                                   """;
-                            sb.AppendLine(toleranceCode);
-                        }
+                        var readStatement = GenerateReadStatement(currentMember, tempName, GetDeserializerVarName, customFormatterVarsByMember);
+                        var toleranceCode = $$$"""
+                                                           {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
+                                                           #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
+                                                           if (!reader.Eof)
+                                                           {
+                                                              {{{readStatement}}}
+                                                           }
+                                                           #else
+                                                           {{{readStatement}}}
+                                                           #endif
+                                               """;
+                        sb.AppendLine(toleranceCode);
                     }
                 }
             }

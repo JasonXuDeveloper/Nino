@@ -75,6 +75,7 @@ public class DictionaryGenerator(
         bool kvpIsUnmanaged = keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
                               valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -141,6 +142,7 @@ public class DictionaryGenerator(
                               valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
@@ -234,6 +236,7 @@ public class DictionaryGenerator(
         writer.AppendLine();
 
         // Ref overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");

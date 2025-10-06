@@ -67,6 +67,7 @@ public class QueueGenerator(
         // Check if element is unmanaged (no WeakVersionTolerance needed)
         bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -115,6 +116,7 @@ public class QueueGenerator(
         bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
@@ -174,6 +176,7 @@ public class QueueGenerator(
         writer.AppendLine();
 
         // Ref overload - clear and repopulate
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");

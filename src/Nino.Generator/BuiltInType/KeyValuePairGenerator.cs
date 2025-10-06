@@ -68,6 +68,7 @@ public class KeyValuePairGenerator(
                               keyType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged &&
                               valueType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeSymbol.GetDisplayString());
         writer.AppendLine(" value, ref Writer writer)");
@@ -104,6 +105,7 @@ public class KeyValuePairGenerator(
         var typeName = typeSymbol.ToDisplayString();
 
         // Out overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
@@ -129,6 +131,7 @@ public class KeyValuePairGenerator(
         writer.AppendLine();
 
         // Ref overload - KeyValuePair is not modifiable
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");

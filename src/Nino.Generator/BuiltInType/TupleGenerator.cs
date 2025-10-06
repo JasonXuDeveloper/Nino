@@ -85,6 +85,7 @@ public class TupleGenerator(
             }
         }
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeSymbol.GetDisplayString());
         writer.AppendLine(" value, ref Writer writer)");
@@ -131,6 +132,7 @@ public class TupleGenerator(
         var typeName = typeSymbol.ToDisplayString();
 
         // Out overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
@@ -174,6 +176,7 @@ public class TupleGenerator(
         writer.AppendLine();
 
         // Ref overload - tuples are not modifiable
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");

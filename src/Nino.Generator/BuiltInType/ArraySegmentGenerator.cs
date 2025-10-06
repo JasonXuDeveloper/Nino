@@ -66,6 +66,7 @@ public class ArraySegmentGenerator(
         // Check if element type is unmanaged for fast path
         bool canUseFastPath = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Writer writer)");
@@ -119,6 +120,7 @@ public class ArraySegmentGenerator(
         bool canUseFastPath = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Out overload
+        WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
@@ -185,6 +187,7 @@ public class ArraySegmentGenerator(
         writer.AppendLine();
 
         // Ref overload - just call out overload since ArraySegment is a struct
+        WriteAggressiveInlining(writer);
         writer.Append("public static void DeserializeRef(ref ");
         writer.Append(typeName);
         writer.AppendLine(" value, ref Reader reader)");
