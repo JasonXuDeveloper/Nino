@@ -172,7 +172,13 @@ namespace Nino.Core
         public DeserializeDelegateRef<T> DeserializerRef;
         internal readonly FastMap<IntPtr, DeserializeDelegate<T>> SubTypeDeserializers = new();
         internal readonly FastMap<IntPtr, DeserializeDelegateRef<T>> SubTypeDeserializerRefs = new();
-        public static CachedDeserializer<T> Instance = new();
+        public static readonly CachedDeserializer<T> Instance = new();
+
+        private CachedDeserializer()
+        {
+            Deserializer = null;
+            DeserializerRef = null;
+        }
 
         // Cache expensive type checks
         internal static readonly bool IsReferenceOrContainsReferences =

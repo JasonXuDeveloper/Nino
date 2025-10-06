@@ -11,8 +11,10 @@ namespace Nino.Core
 
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static readonly FastMap<IntPtr, ICachedSerializer> Serializers = new();
+
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static readonly FastMap<IntPtr, ICachedDeserializer> Deserializers = new();
+
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static readonly FastMap<int, IntPtr> TypeIdToType = new();
 
@@ -23,7 +25,7 @@ namespace Nino.Core
             {
                 if (hasBaseType)
                     HasBaseTypeMap.Add(typeof(T).TypeHandle.Value, true);
-                CachedSerializer<T>.Instance = new CachedSerializer<T>(serializer);
+                CachedSerializer<T>.Instance.Serializer = serializer;
                 Serializers.Add(typeof(T).TypeHandle.Value, CachedSerializer<T>.Instance);
             }
         }
@@ -36,11 +38,8 @@ namespace Nino.Core
             {
                 if (hasBaseType)
                     HasBaseTypeMap.Add(typeof(T).TypeHandle.Value, true);
-                CachedDeserializer<T>.Instance = new CachedDeserializer<T>
-                {
-                    Deserializer = deserializer,
-                    DeserializerRef = deserializerRef
-                };
+                CachedDeserializer<T>.Instance.Deserializer = deserializer;
+                CachedDeserializer<T>.Instance.DeserializerRef = deserializerRef;
                 Deserializers.Add(typeof(T).TypeHandle.Value, CachedDeserializer<T>.Instance);
             }
         }

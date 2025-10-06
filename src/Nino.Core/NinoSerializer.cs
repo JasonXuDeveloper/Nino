@@ -149,15 +149,15 @@ namespace Nino.Core
 #pragma warning disable CA1000 // Do not declare static members on generic types
     public class CachedSerializer<T> : ICachedSerializer
     {
-        public readonly SerializeDelegate<T> Serializer;
+        public SerializeDelegate<T> Serializer;
         public readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
 
-        public CachedSerializer(SerializeDelegate<T> serializer)
+        private CachedSerializer(SerializeDelegate<T> serializer)
         {
             Serializer = serializer;
         }
 
-        public static CachedSerializer<T> Instance = new(null);
+        public static readonly CachedSerializer<T> Instance = new(null);
 
         // Cache expensive type checks
         internal static readonly bool IsReferenceOrContainsReferences =

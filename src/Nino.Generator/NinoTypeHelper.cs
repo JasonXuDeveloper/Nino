@@ -152,6 +152,7 @@ public static class NinoTypeHelper
                         {
                             sb.Append(',');
                         }
+
                         i++;
                     }
 
@@ -165,6 +166,7 @@ public static class NinoTypeHelper
                     sb.Append(ret[i]);
                 }
             }
+
             ret = sb.ToString();
         }
 
@@ -371,6 +373,17 @@ public static class NinoTypeHelper
         }
 
         return true;
+    }
+    
+    public static AttributeData? GetNinoConstructorAttribute(this IMethodSymbol? methodSymbol)
+    {
+        if (methodSymbol == null)
+        {
+            return null;
+        }
+
+        return methodSymbol.GetAttributesCache()
+            .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoConstructorAttribute");
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
