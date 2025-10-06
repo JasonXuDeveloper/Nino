@@ -111,7 +111,7 @@ public class NinoBuiltInTypesGenerator(
             registrationCode.AppendLine(
                 $"                NinoTypeMetadata.RegisterSerializer<{typeName}>(Serializer.Serialize, false);");
             registrationCode.AppendLine(
-                $"                NinoTypeMetadata.RegisterDeserializer<{typeName}>(Deserializer.Deserialize, Deserializer.DeserializeRef, false);");
+                $"                NinoTypeMetadata.RegisterDeserializer<{typeName}>(-1, Deserializer.Deserialize, Deserializer.DeserializeRef, false);");
         }
 
         var curNamespace = Compilation.AssemblyName!.GetNamespace();

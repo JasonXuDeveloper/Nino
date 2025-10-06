@@ -21,25 +21,6 @@ public class TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, Li
             .Where(symbol => symbol.IsInstanceType()).ToList();
 
         var types = new StringBuilder();
-        types.AppendLine("\t\tpublic static void Init()");
-        types.AppendLine("\t\t{");
-        types.AppendLine("\t\t\tlock (_lock)");
-        types.AppendLine("\t\t\t{");
-        types.AppendLine("\t\t\t\tif (_initialized)");
-        types.AppendLine("\t\t\t\t\treturn;");
-        types.AppendLine("\t\t\t\t_initialized = true;");
-        types.AppendLine();
-        foreach (var type in serializableTypes)
-        {
-            string variableName = type.GetTypeFullName().GetTypeConstName();
-            types.AppendLine(
-                $"\t\t\t\tNinoTypeMetadata.RegisterType<{type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>({variableName});");
-        }
-
-        types.AppendLine("\t\t\t}");
-        types.AppendLine("\t\t}");
-
-        types.AppendLine();
         foreach (var type in serializableTypes)
         {
             string variableName = type.GetTypeFullName().GetTypeConstName();
@@ -61,27 +42,6 @@ public class TypeConstGenerator(Compilation compilation, NinoGraph ninoGraph, Li
                      {
                          public static class NinoTypeConst
                          {
-                             private static bool _initialized;
-                             private static object _lock = new object();
-                            
-                             static NinoTypeConst()
-                             {
-                                 Init();
-                             }
-                                    
-                         #if UNITY_2020_2_OR_NEWER
-                         #if UNITY_EDITOR
-                             [UnityEditor.InitializeOnLoadMethod]
-                             private static void InitEditor() => Init();
-                         #endif
-                        
-                             [UnityEngine.RuntimeInitializeOnLoadMethod(UnityEngine.RuntimeInitializeLoadType.BeforeSceneLoad)]
-                             private static void InitRuntime() => Init();
-                         #endif
-                            
-                         #if NET5_0_OR_GREATER
-                             [ModuleInitializer]
-                         #endif
                      {{types}}
                          }
                      }

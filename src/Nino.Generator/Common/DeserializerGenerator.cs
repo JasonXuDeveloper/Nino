@@ -55,19 +55,23 @@ public partial class DeserializerGenerator(
                             : "";
                         var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
                         var methodRef = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImplRef" : "null";
+                        var baseTypeId = !baseType.IsPolymorphic() || !baseType.TypeSymbol.IsInstanceType()
+                            ? "-1"
+                            : $"NinoTypeConst.{baseType.TypeSymbol.GetTypeFullName().GetTypeConstName()}";
                         sb.AppendLine($$"""
-                                                    NinoTypeMetadata.RegisterDeserializer<{{baseTypeName}}>({{method}}, {{methodRef}}, {{baseType.Parents.Any().ToString().ToLower()}});
+                                                    NinoTypeMetadata.RegisterDeserializer<{{baseTypeName}}>({{baseTypeId}}, {{method}}, {{methodRef}}, {{baseType.Parents.Any().ToString().ToLower()}});
                                         """);
                     }
                 }
 
+                var typeId = !ninoType.IsPolymorphic() || !type.IsInstanceType() ? "-1": $"NinoTypeConst.{type.GetTypeFullName().GetTypeConstName()}";
                 prefix = !string.IsNullOrEmpty(ninoType.CustomDeserializer) ? $"{ninoType.CustomDeserializer}." : "";
                 if (registeredTypes.Add(type))
                 {
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
                     var methodRef = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImplRef" : "null";
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>({{method}}, {{methodRef}}, {{ninoType.Parents.Any().ToString().ToLower()}});
+                                                NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>({{typeId}}, {{method}}, {{methodRef}}, {{ninoType.Parents.Any().ToString().ToLower()}});
                                     """);
                 }
 
@@ -77,7 +81,7 @@ public partial class DeserializerGenerator(
                 {
                     var baseTypeName = baseType.TypeSymbol.GetDisplayString();
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RecordSubTypeDeserializer<{{baseTypeName}}, {{typeFullName}}>({{meth}}, {{methRef}});
+                                                NinoTypeMetadata.RecordSubTypeDeserializer<{{baseTypeName}}, {{typeFullName}}>({{typeId}},{{meth}}, {{methRef}});
                                     """);
                 }
 
@@ -86,7 +90,7 @@ public partial class DeserializerGenerator(
 
             if (registeredTypes.Add(type))
                 sb.AppendLine($$"""
-                                            NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(Deserialize, DeserializeRef, false);
+                                            NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(-1, Deserialize, DeserializeRef, false);
                                 """);
         }
 

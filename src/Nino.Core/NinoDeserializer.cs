@@ -90,12 +90,7 @@ namespace Nino.Core
             // If type is null, resolve it from the type ID in the stream
             if (type == null)
             {
-                if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr typeHandle))
-                {
-                    throw new Exception($"Deserializer not found for type with id {typeId}");
-                }
-
-                if (!NinoTypeMetadata.Deserializers.TryGetValue(typeHandle, out var deserializer))
+                if (!NinoTypeMetadata.TypeIdToDeserializer.TryGetValue(typeId, out var deserializer))
                 {
                     throw new Exception($"Deserializer not found for type with id {typeId}");
                 }
@@ -128,12 +123,7 @@ namespace Nino.Core
             // If type is null, resolve it from the type ID in the stream
             if (type == null)
             {
-                if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr typeHandle))
-                {
-                    throw new Exception($"Deserializer not found for type with id {typeId}");
-                }
-
-                if (!NinoTypeMetadata.Deserializers.TryGetValue(typeHandle, out var deserializer))
+                if (!NinoTypeMetadata.TypeIdToDeserializer.TryGetValue(typeId, out var deserializer))
                 {
                     throw new Exception($"Deserializer not found for type with id {typeId}");
                 }
@@ -168,41 +158,48 @@ namespace Nino.Core
 #pragma warning disable CA1000 // Do not declare static members on generic types
     public class CachedDeserializer<T> : ICachedDeserializer
     {
-        public DeserializeDelegate<T> Deserializer;
-        public DeserializeDelegateRef<T> DeserializerRef;
-        internal readonly FastMap<IntPtr, DeserializeDelegate<T>> SubTypeDeserializers = new();
-        internal readonly FastMap<IntPtr, DeserializeDelegateRef<T>> SubTypeDeserializerRefs = new();
+        private DeserializeDelegate<T> _deserializer;
+        private DeserializeDelegateRef<T> _deserializerRef;
+        private readonly FastMap<int, DeserializeDelegate<T>> _subTypeDeserializers = new();
+        private readonly FastMap<int, DeserializeDelegateRef<T>> _subTypeDeserializerRefs = new();
         public static readonly CachedDeserializer<T> Instance = new();
 
         private CachedDeserializer()
         {
-            Deserializer = null;
-            DeserializerRef = null;
+            _deserializer = null;
+            _deserializerRef = null;
         }
 
         // Cache expensive type checks
-        internal static readonly bool IsReferenceOrContainsReferences =
+        private static readonly bool IsReferenceOrContainsReferences =
             RuntimeHelpers.IsReferenceOrContainsReferences<T>();
 
         // ReSharper disable once StaticMemberInGenericType
-        private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
-
-        // ReSharper disable once StaticMemberInGenericType
-        internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
+        private static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
 
         // ULTIMATE: JIT-eliminated constants for maximum performance
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
-        public void AddSubTypeDeserializer<TSub>(DeserializeDelegate<TSub> deserializer,
+        public void SetDeserializer(int typeId, DeserializeDelegate<T> deserializer,
+            DeserializeDelegateRef<T> deserializerRef)
+        {
+            _deserializer = deserializer;
+            _deserializerRef = deserializerRef;
+            _subTypeDeserializers.Add(typeId, _deserializer);
+            _subTypeDeserializerRefs.Add(typeId, _deserializerRef);
+        }
+
+        public void AddSubTypeDeserializer<TSub>(int subTypeId,
+            DeserializeDelegate<TSub> deserializer,
             DeserializeDelegateRef<TSub> deserializerRef)
         {
-            SubTypeDeserializers.Add(typeof(TSub).TypeHandle.Value, (out T value, ref Reader reader) =>
+            _subTypeDeserializers.Add(subTypeId, (out T value, ref Reader reader) =>
             {
                 deserializer(out TSub subValue, ref reader);
                 value = subValue is T val ? val : default;
             });
-            SubTypeDeserializerRefs.Add(typeof(TSub).TypeHandle.Value, (ref T value, ref Reader reader) =>
+            _subTypeDeserializerRefs.Add(subTypeId, (ref T value, ref Reader reader) =>
             {
                 if (value is TSub val)
                 {
@@ -261,14 +258,14 @@ namespace Nino.Core
             }
 
             // OPTIMIZED: Direct deserialization with polymorphism support
-            if (SubTypeDeserializers.Count != 0)
+            if (_subTypeDeserializers.Count != 1)
             {
                 DeserializePolymorphic(out value, ref reader);
             }
             else
             {
                 // DIRECT DELEGATE: Generated code path - no null check needed
-                Deserializer(out value, ref reader);
+                _deserializer(out value, ref reader);
             }
         }
 
@@ -284,14 +281,14 @@ namespace Nino.Core
             }
 
             // OPTIMIZED: Direct deserialization with polymorphism support
-            if (SubTypeDeserializerRefs.Count != 0)
+            if (_subTypeDeserializerRefs.Count != 1)
             {
                 DeserializeRefPolymorphic(ref value, ref reader);
             }
             else
             {
                 // DIRECT DELEGATE: Generated code path - no null check needed
-                DeserializerRef(ref value, ref reader);
+                _deserializerRef(ref value, ref reader);
             }
         }
 
@@ -309,21 +306,8 @@ namespace Nino.Core
                 return;
             }
 
-            // Single lookup for type metadata
-            if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr actualTypeHandle))
-            {
-                throw new Exception($"Deserializer not found for type with id {typeId}");
-            }
-
-            // Check same type first (most common case)
-            if (actualTypeHandle == TypeHandle)
-            {
-                Deserializer(out value, ref reader);
-                return;
-            }
-
             // Handle subtype with single lookup
-            if (SubTypeDeserializers.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
+            if (_subTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
                 subTypeDeserializer(out value, ref reader);
                 return;
@@ -346,20 +330,8 @@ namespace Nino.Core
                 return;
             }
 
-            if (!NinoTypeMetadata.TypeIdToType.TryGetValue(typeId, out IntPtr actualTypeHandle))
-            {
-                throw new Exception($"Deserializer not found for type with id {typeId}");
-            }
-
-            // Check if it's the same type (most common case)
-            if (actualTypeHandle == TypeHandle)
-            {
-                DeserializerRef(ref value, ref reader);
-                return;
-            }
-
             // Handle subtype deserialization
-            if (SubTypeDeserializerRefs.TryGetValue(actualTypeHandle, out var subTypeDeserializer))
+            if (_subTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
                 subTypeDeserializer(ref value, ref reader);
                 return;
