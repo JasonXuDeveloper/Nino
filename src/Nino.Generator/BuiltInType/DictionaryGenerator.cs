@@ -91,30 +91,88 @@ public class DictionaryGenerator(
         writer.AppendLine("    int cnt = value.Count;");
         writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
         writer.AppendLine();
-        writer.AppendLine("    foreach (var item in value)");
-        writer.AppendLine("    {");
 
-        if (kvpIsUnmanaged)
+        var originalDef = namedType.OriginalDefinition.ToDisplayString();
+        bool isDictionary = originalDef == "System.Collections.Generic.Dictionary<TKey, TValue>";
+
+        if (isDictionary)
         {
-            // For unmanaged KVP, use UnsafeWrite directly (no WeakVersionTolerance needed)
-            writer.AppendLine("        writer.UnsafeWrite(item);");
+            var dictViewTypeName = $"TypeCollector.DictionaryView<{keyType.GetDisplayString()}, {valueType.GetDisplayString()}>"; 
+            writer.Append("    ref var dict = ref System.Runtime.CompilerServices.Unsafe.As<");
+            writer.Append(typeName);
+            writer.Append(", ");
+            writer.Append(dictViewTypeName);
+            writer.AppendLine(">(ref value);");
+            writer.AppendLine("    var entries = dict._entries;");
+            writer.AppendLine("    if (entries == null)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        return;");
+            writer.AppendLine("    }");
+            writer.AppendLine("    int count = dict._count;");
+            writer.AppendLine("    // Iterate entries via direct ref to avoid bounds checks");
+            writer.AppendLine("    ref var entryRef = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
+            writer.AppendLine("    int index = 0;");
+            writer.AppendLine("    while ((uint)index < (uint)count)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        ref var entry = ref System.Runtime.CompilerServices.Unsafe.Add(ref entryRef, index++);");
+            writer.AppendLine("        if (entry.next < -1)");
+            writer.AppendLine("        {");
+            writer.AppendLine("            continue;");
+            writer.AppendLine("        }");
+
+            if (kvpIsUnmanaged)
+            {
+                writer.Append("        var kvp = new System.Collections.Generic.KeyValuePair<");
+                writer.Append(keyType.GetDisplayString());
+                writer.Append(", ");
+                writer.Append(valueType.GetDisplayString());
+                writer.AppendLine(">(entry.key, entry.value);");
+                writer.AppendLine("        writer.UnsafeWrite(kvp);");
+            }
+            else
+            {
+                // For managed KVP, serialize Key and Value separately with WeakVersionTolerance
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+
+                writer.Append("        ");
+                writer.AppendLine(GetSerializeString(keyType, "entry.key"));
+                writer.Append("        ");
+                writer.AppendLine(GetSerializeString(valueType, "entry.value"));
+
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("    }");
         }
         else
         {
-            // For managed KVP, serialize Key and Value separately with WeakVersionTolerance
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+            writer.AppendLine("    foreach (var item in value)");
+            writer.AppendLine("    {");
 
-            writer.Append("        ");
-            writer.AppendLine(GetSerializeString(keyType, "item.Key"));
-            writer.Append("        ");
-            writer.AppendLine(GetSerializeString(valueType, "item.Value"));
+            if (kvpIsUnmanaged)
+            {
+                // For unmanaged KVP, use UnsafeWrite directly (no WeakVersionTolerance needed)
+                writer.AppendLine("        writer.UnsafeWrite(item);");
+            }
+            else
+            {
+                // For managed KVP, serialize Key and Value separately with WeakVersionTolerance
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
 
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("        writer.PutLength(pos);"); });
+                writer.Append("        ");
+                writer.AppendLine(GetSerializeString(keyType, "item.Key"));
+                writer.Append("        ");
+                writer.AppendLine(GetSerializeString(valueType, "item.Value"));
+
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("    }");
         }
-
-        writer.AppendLine("    }");
 
         writer.AppendLine("}");
     }

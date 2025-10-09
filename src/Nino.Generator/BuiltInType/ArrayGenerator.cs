@@ -78,21 +78,22 @@ public class ArrayGenerator(
             writer.AppendLine("        return;");
             writer.AppendLine("    }");
             writer.AppendLine();
-            // Optimized array serialization - use span for better performance
-            writer.AppendLine("    var span = value.AsSpan();");
-            writer.AppendLine("    int cnt = span.Length;");
+            // Optimized array serialization - use direct ref access to avoid bounds checks
+            writer.AppendLine("    int cnt = value.Length;");
             writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
             writer.AppendLine();
-            // Optimized array serialization loop
-            writer.AppendLine("    for (int i = 0; i < cnt; i++)");
+            writer.AppendLine($"    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
+            writer.AppendLine("    ref var end = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, cnt);");
+            writer.AppendLine("    while (!System.Runtime.CompilerServices.Unsafe.AreSame(ref cur, ref end))");
             writer.AppendLine("    {");
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("        var pos = writer.Advance(4);"); });
 
             writer.Append("        ");
-            writer.AppendLine(GetSerializeString(elementType, "span[i]"));
+            writer.AppendLine(GetSerializeString(elementType, "cur"));
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("        writer.PutLength(pos);"); });
+            writer.AppendLine("        cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, 1);");
             writer.AppendLine("    }");
         }
         else
