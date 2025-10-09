@@ -109,8 +109,16 @@ public class DictionaryGenerator(
             writer.AppendLine("        return;");
             writer.AppendLine("    }");
             writer.AppendLine("    int count = dict._count;");
+            writer.AppendLine("    if (count == 0)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        return;");
+            writer.AppendLine("    }");
             writer.AppendLine("    // Iterate entries via direct ref to avoid bounds checks");
+            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
             writer.AppendLine("    ref var entryRef = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
+            writer.AppendLine("#else");
+            writer.AppendLine("    ref var entryRef = ref entries[0];");
+            writer.AppendLine("#endif");
             writer.AppendLine("    int index = 0;");
             writer.AppendLine("    while ((uint)index < (uint)count)");
             writer.AppendLine("    {");

@@ -82,7 +82,15 @@ public class ArrayGenerator(
             writer.AppendLine("    int cnt = value.Length;");
             writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
             writer.AppendLine();
-            writer.AppendLine($"    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
+            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
+            writer.AppendLine("    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
+            writer.AppendLine("#else");
+            writer.AppendLine("    if (cnt == 0)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        return;");
+            writer.AppendLine("    }");
+            writer.AppendLine("    ref var cur = ref value[0];");
+            writer.AppendLine("#endif");
             writer.AppendLine("    ref var end = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, cnt);");
             writer.AppendLine("    while (!System.Runtime.CompilerServices.Unsafe.AreSame(ref cur, ref end))");
             writer.AppendLine("    {");
