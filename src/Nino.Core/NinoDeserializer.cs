@@ -174,6 +174,9 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         private static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
 
+        // ReSharper disable once StaticMemberInGenericType
+        private static readonly bool IsSealed = typeof(T).IsSealed || typeof(T).IsValueType;
+
         // ULTIMATE: JIT-eliminated constants for maximum performance
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
@@ -254,11 +257,12 @@ namespace Nino.Core
                 return;
             }
 
-            // OPTIMIZED: Direct deserialization with polymorphism support
-            // Common case first: no subtypes (Count == 1 means only base type registered)
-            if (SubTypeDeserializers.Count == 1)
+            // FAST PATH 2: JIT-eliminated branch for sealed types
+            // If T is sealed or a value type, it CANNOT have a different runtime type
+            // This completely eliminates polymorphic deserialization overhead
+            if (IsSealed || SubTypeDeserializers.Count == 1)
             {
-                // DIRECT DELEGATE: Generated code path - no null check needed
+                // DIRECT DELEGATE: Generated code path - no polymorphism possible
                 _deserializer(out value, ref reader);
             }
             else
@@ -278,11 +282,12 @@ namespace Nino.Core
                 return;
             }
 
-            // OPTIMIZED: Direct deserialization with polymorphism support
-            // Common case first: no subtypes (Count == 1 means only base type registered)
-            if (SubTypeDeserializerRefs.Count == 1)
+            // FAST PATH 2: JIT-eliminated branch for sealed types
+            // If T is sealed or a value type, it CANNOT have a different runtime type
+            // This completely eliminates polymorphic deserialization overhead
+            if (IsSealed || SubTypeDeserializerRefs.Count == 1)
             {
-                // DIRECT DELEGATE: Generated code path - no null check needed
+                // DIRECT DELEGATE: Generated code path - no polymorphism possible
                 _deserializerRef(ref value, ref reader);
             }
             else

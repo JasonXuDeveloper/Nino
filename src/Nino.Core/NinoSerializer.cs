@@ -140,6 +140,7 @@ namespace Nino.Core
     }
 
     public delegate void SerializeDelegate<TVal>(TVal value, ref Writer writer);
+
     public delegate void SerializeDelegateBoxed(object value, ref Writer writer);
 
 
@@ -164,6 +165,9 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
 
+        // ReSharper disable once StaticMemberInGenericType
+        private static readonly bool IsSealed = typeof(T).IsSealed || typeof(T).IsValueType;
+
         // ULTIMATE: JIT-eliminated constant for maximum performance
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
@@ -171,7 +175,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)] // Cold exception path
         private static void ThrowInvalidCast(Type actualType) =>
             throw new InvalidCastException($"Cannot cast {actualType?.FullName ?? "null"} to {typeof(T).FullName}");
-        
+
         public static void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
         {
             if (typeof(TSub).IsValueType)
@@ -236,11 +240,12 @@ namespace Nino.Core
                 return;
             }
 
-            // OPTIMIZED: Direct serialization with polymorphism support
-            // Common case first: no subtypes
-            if (SubTypeSerializers.Count == 0)
+            // FAST PATH 2: JIT-eliminated branch for sealed types
+            // If T is sealed or a value type, it CANNOT have a different runtime type
+            // This completely eliminates the need for GetType() calls
+            if (IsSealed || SubTypeSerializers.Count == 0)
             {
-                // DIRECT DELEGATE: Generated code path - no null check needed
+                // DIRECT DELEGATE: Generated code path - no polymorphism possible
                 Serializer(val, ref writer);
             }
             else
@@ -250,7 +255,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void SerializePolymorphic(T val, ref Writer writer)
+        private static unsafe void SerializePolymorphic(T val, ref Writer writer)
         {
             if (val == null)
             {
@@ -258,23 +263,29 @@ namespace Nino.Core
                 return;
             }
 
-            // OPTIMIZATION: Use EqualityComparer's cached type handle when possible
-            // For reference types, GetType() is still needed but the inline cache minimizes calls
+            // Get type handle - optimized for .NET 5.0+ to avoid expensive GetType() call
+            // Read RuntimeTypeHandle.Value directly from object header via double pointer dereference
+#if NET5_0_OR_GREATER
+            // Object header at offset 0 contains a pointer to the type handle
+            // Double dereference: first * gets the pointer, second * gets the RuntimeTypeHandle.Value
+            IntPtr actualTypeHandle = **(IntPtr**)Unsafe.AsPointer(ref val);
+#else
+            // Fallback to GetType() for older runtimes
             IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
+#endif
 
-            // FAST PATH 1: Check if it's the base type first (most common case)
-            // This check is very cheap - just pointer comparison
-            if (actualTypeHandle == TypeHandle)
-            {
-                Serializer(val, ref writer);
-                return;
-            }
-
-            // FAST PATH 2: Inline cache hit (most common case for batched homogeneous data)
-            // Single comparison - avoids dictionary lookup
+            // FAST PATH 1: Inline cache hit (most common for homogeneous batches)
+            // Check this FIRST - single pointer comparison, very cheap
             if (actualTypeHandle == _cachedTypeHandle)
             {
                 _cachedSerializer(val, ref writer);
+                return;
+            }
+
+            // FAST PATH 2: Base type (common for non-polymorphic usage)
+            if (actualTypeHandle == TypeHandle)
+            {
+                Serializer(val, ref writer);
                 return;
             }
 
