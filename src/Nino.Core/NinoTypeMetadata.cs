@@ -13,13 +13,17 @@ namespace Nino.Core
         private static readonly object HasBaseTypeLock = new();
 
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static readonly FastMap<IntPtr, ICachedSerializer> Serializers = new();
+        public static readonly FastMap<IntPtr, SerializeDelegateBoxed> Serializers = new();
 
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static readonly FastMap<IntPtr, ICachedDeserializer> Deserializers = new();
+        public static readonly FastMap<IntPtr,
+            (DeserializeDelegateBoxed outOverload,
+            DeserializeDelegateRefBoxed refOverload)> Deserializers = new();
 
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static readonly FastMap<int, ICachedDeserializer> TypeIdToDeserializer = new();
+        public static readonly FastMap<int,
+            (DeserializeDelegateBoxed outOverload,
+            DeserializeDelegateRefBoxed refOverload)> TypeIdToDeserializer = new();
 
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static void RegisterSerializer<T>(SerializeDelegate<T> serializer, bool hasBaseType)
@@ -37,8 +41,8 @@ namespace Nino.Core
                         HasBaseTypeMap.Add(typeHandle, true);
                 }
 
-                CachedSerializer<T>.Instance.Serializer = serializer;
-                Serializers.Add(typeHandle, CachedSerializer<T>.Instance);
+                CachedSerializer<T>.Serializer = serializer;
+                Serializers.Add(typeHandle, CachedSerializer<T>.SerializeBoxed);
 
                 SerializerRegistration<T>.Registered = true;
             }
@@ -68,10 +72,13 @@ namespace Nino.Core
                         HasBaseTypeMap.Add(typeHandle, true);
                 }
 
-                CachedDeserializer<T>.Instance.SetDeserializer(typeId, deserializer, deserializerRef);
-                Deserializers.Add(typeHandle, CachedDeserializer<T>.Instance);
+                CachedDeserializer<T>.SetDeserializer(typeId, deserializer, deserializerRef);
+                (DeserializeDelegateBoxed outOverload,
+                    DeserializeDelegateRefBoxed refOverload) pair = (CachedDeserializer<T>.DeserializeBoxed,
+                        CachedDeserializer<T>.DeserializeBoxed);
+                Deserializers.Add(typeHandle, pair);
                 if (typeId != -1)
-                    TypeIdToDeserializer.Add(typeId, CachedDeserializer<T>.Instance);
+                    TypeIdToDeserializer.Add(typeId, pair);
 
                 DeserializerRegistration<T>.Registered = true;
             }
@@ -87,8 +94,8 @@ namespace Nino.Core
         public static bool HasBaseType(Type type)
         {
             var typeHandle = type.TypeHandle.Value;
-            lock (HasBaseTypeLock)
-                return HasBaseTypeMap.TryGetValue(typeHandle, out _);
+            // ReSharper disable once InconsistentlySynchronizedField
+            return HasBaseTypeMap.TryGetValue(typeHandle, out _);
         }
 
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -99,7 +106,7 @@ namespace Nino.Core
                 if (SubTypeSerializerRegistration<TBase, TSub>.Registered)
                     return;
 
-                CachedSerializer<TBase>.Instance.AddSubTypeSerializer(subTypeSerializer);
+                CachedSerializer<TBase>.AddSubTypeSerializer(subTypeSerializer);
 
                 SubTypeSerializerRegistration<TBase, TSub>.Registered = true;
             }
@@ -121,7 +128,7 @@ namespace Nino.Core
                 if (SubTypeDeserializerRegistration<TBase, TSub>.Registered)
                     return;
 
-                CachedDeserializer<TBase>.Instance.AddSubTypeDeserializer(subTypeId, subTypeDeserializer,
+                CachedDeserializer<TBase>.AddSubTypeDeserializer(subTypeId, subTypeDeserializer,
                     subTypeDeserializerRef);
 
                 SubTypeDeserializerRegistration<TBase, TSub>.Registered = true;

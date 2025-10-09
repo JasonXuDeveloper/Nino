@@ -556,24 +556,13 @@ public partial class DeserializerGenerator
             }
         }
 
-        // Generate deserializer declarations for standard types
+        // No need to generate deserializer variable declarations since CachedDeserializer is static
         Dictionary<string, string> deserializerVarsByType = new();
         foreach (var type in typesNeedingDeserializers)
         {
             var typeDisplayName = type.GetDisplayString();
-            var varName = type.GetCachedVariableName("deserializer");
-
-            // Handle potential duplicates by adding a counter
-            var originalVarName = varName;
-            int counter = 1;
-            while (deserializerVarsByType.Values.Contains(varName))
-            {
-                varName = $"{originalVarName}_{counter}";
-                counter++;
-            }
-
-            deserializerVarsByType[typeDisplayName] = varName;
-            sb.AppendLine($"            var {varName} = CachedDeserializer<{typeDisplayName}>.Instance;");
+            // Store the type name for direct static access
+            deserializerVarsByType[typeDisplayName] = $"CachedDeserializer<{typeDisplayName}>";
         }
 
         // Use static formatter fields instead of local variables
@@ -595,10 +584,9 @@ public partial class DeserializerGenerator
             var typeDisplayName = type.GetDisplayString();
             if (!deserializerVarsByType.TryGetValue(typeDisplayName, out var varName))
             {
-                // Generate the variable name if it wasn't collected earlier (fallback for Priority 4)
-                varName = type.GetCachedVariableName("deserializer");
+                // Generate the static class access if it wasn't collected earlier (fallback for Priority 4)
+                varName = $"CachedDeserializer<{typeDisplayName}>";
                 deserializerVarsByType[typeDisplayName] = varName;
-                sb.AppendLine($"            var {varName} = CachedDeserializer<{typeDisplayName}>.Instance;");
             }
 
             return varName;

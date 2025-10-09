@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -90,7 +91,7 @@ namespace Nino.Core
                 return;
             }
 
-            CachedSerializer<T>.Instance.Serialize(value, ref writer);
+            CachedSerializer<T>.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -134,36 +135,24 @@ namespace Nino.Core
                     $"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");
             }
 
-            serializer.SerializeBoxed(value, ref writer);
+            serializer(value, ref writer);
         }
     }
 
     public delegate void SerializeDelegate<TVal>(TVal value, ref Writer writer);
+    public delegate void SerializeDelegateBoxed(object value, ref Writer writer);
 
-    public interface ICachedSerializer
-    {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void SerializeBoxed(object value, ref Writer writer);
-    }
 
 #pragma warning disable CA1000 // Do not declare static members on generic types
-    public class CachedSerializer<T> : ICachedSerializer
+    [SuppressMessage("ReSharper", "StaticMemberInGenericType")]
+    public static class CachedSerializer<T>
     {
-        public SerializeDelegate<T> Serializer;
-        public readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
+        public static SerializeDelegate<T> Serializer;
+        public static readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
 
         // Inline cache for polymorphic serialization
-        private IntPtr _cachedTypeHandle;
-        private SerializeDelegate<T> _cachedSerializer;
-
-        private CachedSerializer(SerializeDelegate<T> serializer)
-        {
-            Serializer = serializer;
-            _cachedTypeHandle = IntPtr.Zero;
-            _cachedSerializer = null;
-        }
-
-        public static readonly CachedSerializer<T> Instance = new(null);
+        private static IntPtr _cachedTypeHandle;
+        private static SerializeDelegate<T> _cachedSerializer;
 
         // Cache expensive type checks
         internal static readonly bool IsReferenceOrContainsReferences =
@@ -182,9 +171,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)] // Cold exception path
         private static void ThrowInvalidCast(Type actualType) =>
             throw new InvalidCastException($"Cannot cast {actualType?.FullName ?? "null"} to {typeof(T).FullName}");
-
-
-        public void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
+        
+        public static void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
         {
             if (typeof(TSub).IsValueType)
             {
@@ -224,7 +212,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void SerializeBoxed(object value, ref Writer writer)
+        public static void SerializeBoxed(object value, ref Writer writer)
         {
             switch (value)
             {
@@ -239,7 +227,7 @@ namespace Nino.Core
 
         // ULTRA-OPTIMIZED: Single core method with all paths optimized
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(T val, ref Writer writer)
+        public static void Serialize(T val, ref Writer writer)
         {
             // FASTEST PATH: JIT-eliminated branch for simple types
             if (IsSimpleType)
@@ -262,7 +250,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SerializePolymorphic(T val, ref Writer writer)
+        private static void SerializePolymorphic(T val, ref Writer writer)
         {
             if (val == null)
             {
@@ -270,28 +258,32 @@ namespace Nino.Core
                 return;
             }
 
+            // OPTIMIZATION: Use EqualityComparer's cached type handle when possible
+            // For reference types, GetType() is still needed but the inline cache minimizes calls
             IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
 
-            // Check if it's the same type first (most common case)
+            // FAST PATH 1: Check if it's the base type first (most common case)
+            // This check is very cheap - just pointer comparison
             if (actualTypeHandle == TypeHandle)
             {
                 Serializer(val, ref writer);
                 return;
             }
 
-            // Fast path: inline cache hit (most common case for batched data)
+            // FAST PATH 2: Inline cache hit (most common case for batched homogeneous data)
+            // Single comparison - avoids dictionary lookup
             if (actualTypeHandle == _cachedTypeHandle)
             {
                 _cachedSerializer(val, ref writer);
                 return;
             }
 
-            // Slow path: lookup and update cache
+            // SLOW PATH: Dictionary lookup and cache update
             SerializePolymorphicSlow(val, ref writer, actualTypeHandle);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void SerializePolymorphicSlow(T val, ref Writer writer, IntPtr actualTypeHandle)
+        private static void SerializePolymorphicSlow(T val, ref Writer writer, IntPtr actualTypeHandle)
         {
             // Handle subtype serialization
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))

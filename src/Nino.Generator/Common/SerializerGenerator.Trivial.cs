@@ -221,7 +221,7 @@ public partial class SerializerGenerator
             }
         }
 
-        // Generate serializer declarations for standard types (only for non-built-in types)
+        // No need to generate serializer variable declarations since CachedSerializer is static
         Dictionary<string, string> serializerVarsByType = new();
         foreach (var serializerType in typesNeedingSerializers)
         {
@@ -230,19 +230,8 @@ public partial class SerializerGenerator
 
             if (!isBuiltIn)
             {
-                var varName = serializerType.GetCachedVariableName("serializer");
-
-                // Handle potential duplicates by adding a counter
-                var originalVarName = varName;
-                int counter = 1;
-                while (serializerVarsByType.Values.Contains(varName))
-                {
-                    varName = $"{originalVarName}_{counter}";
-                    counter++;
-                }
-
-                serializerVarsByType[typeDisplayName] = varName;
-                sb.AppendLine($"            var {varName} = CachedSerializer<{typeDisplayName}>.Instance;");
+                // Store the type name for direct static access
+                serializerVarsByType[typeDisplayName] = $"CachedSerializer<{typeDisplayName}>";
             }
         }
 

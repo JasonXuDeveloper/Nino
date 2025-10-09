@@ -19,7 +19,11 @@ namespace Nino.Core
 
         public ReadOnlySpan<TKey> Keys => _keys.AsSpan(0, _count);
 
-        public int Count => _count;
+        public int Count
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _count;
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Add(TKey key, TValue value)
