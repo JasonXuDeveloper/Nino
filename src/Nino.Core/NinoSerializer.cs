@@ -183,10 +183,6 @@ namespace Nino.Core
         public static SerializeDelegate<T> Serializer;
         public static readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
 
-        // Inline cache for polymorphic serialization
-        private static IntPtr _cachedTypeHandle;
-        private static SerializeDelegate<T> _cachedSerializer;
-
         // Cache expensive type checks
         internal static readonly bool IsReferenceOrContainsReferences =
             RuntimeHelpers.IsReferenceOrContainsReferences<T>();
@@ -288,20 +284,10 @@ namespace Nino.Core
             IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
 #endif
             
-            // FAST PATH 1: Base type (common for non-polymorphic usage)
+            // FAST PATH: Base type (common for non-polymorphic usage)
             if (actualTypeHandle == TypeHandle)
             {
                 Serializer(val, ref writer);
-                return;
-            }
-            
-            // FAST PATH 2: Inline cache hit (most common for homogeneous batches)
-            // Check this FIRST - single pointer comparison, very cheap
-            var cachedHandle = Volatile.Read(ref _cachedTypeHandle);
-            var cachedSerializer = Volatile.Read(ref _cachedSerializer);
-            if (actualTypeHandle == cachedHandle && cachedSerializer != null)
-            {
-                cachedSerializer(val, ref writer);
                 return;
             }
 
@@ -309,8 +295,6 @@ namespace Nino.Core
             // Handle subtype serialization
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-                Volatile.Write(ref _cachedTypeHandle, actualTypeHandle);
-                Volatile.Write(ref _cachedSerializer, subTypeSerializer);
                 subTypeSerializer(val, ref writer);
                 return;
             }
