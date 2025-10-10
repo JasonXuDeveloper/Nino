@@ -12,7 +12,7 @@
         <PackageId>Nino.Generator</PackageId>
         <IncludeBuildOutput>true</IncludeBuildOutput>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Version>4.0.0-beta.26</Version>
+        <Version>4.0.0-beta.27</Version>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
