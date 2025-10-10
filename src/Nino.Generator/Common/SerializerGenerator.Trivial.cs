@@ -30,6 +30,7 @@ public partial class SerializerGenerator
                     continue;
                 sb.AppendLine();
                 sb.AppendLine($$"""
+                                        [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                         public static void SerializeImpl({{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Writer writer)
                                         {
                                 """);

@@ -86,6 +86,7 @@ public partial class DeserializerGenerator
         string suffix = byRef ? "Ref" : "";
 
         sb.AppendLine($$"""
+                                [MethodImpl(MethodImplOptions.AggressiveInlining)]
                                 public static void DeserializeImpl{{suffix}}({{decl}} {{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Reader reader)
                                 {
                                 #if {{NinoTypeHelper.WeakVersionToleranceSymbol}}
