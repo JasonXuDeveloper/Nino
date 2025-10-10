@@ -14,10 +14,29 @@ namespace Nino.Core
             DefaultBufferWriter = new(2048); // Slightly larger but not excessive
 
         private static int _defaultUsed;
+        [ThreadStatic] private static NinoArrayBufferWriter _threadLocalBufferWriter;
+        [ThreadStatic] private static bool _threadLocalBufferInUse;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoArrayBufferWriter GetBufferWriter()
         {
+            if (!_threadLocalBufferInUse)
+            {
+                var local = _threadLocalBufferWriter;
+                if (local == null)
+                {
+                    local = new NinoArrayBufferWriter(2048);
+                    _threadLocalBufferWriter = local;
+                }
+#if NET8_0_OR_GREATER
+                local.ResetWrittenCount();
+#else
+                local.Clear();
+#endif
+                _threadLocalBufferInUse = true;
+                return local;
+            }
+
             // Fast path - use default buffer if available
             if (Interlocked.CompareExchange(ref _defaultUsed, 1, 0) == 0)
             {
@@ -37,6 +56,19 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ReturnBufferWriter(NinoArrayBufferWriter bufferWriter)
         {
+            bool isThreadLocal = ReferenceEquals(bufferWriter, _threadLocalBufferWriter);
+
+            if (isThreadLocal)
+            {
+#if NET8_0_OR_GREATER
+                bufferWriter.ResetWrittenCount();
+#else
+                bufferWriter.Clear();
+#endif
+                _threadLocalBufferInUse = false;
+                return;
+            }
+
 #if NET8_0_OR_GREATER
             bufferWriter.ResetWrittenCount();
 #else
@@ -255,19 +287,21 @@ namespace Nino.Core
             // Fallback to GetType() for older runtimes
             IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
 #endif
-
-            // FAST PATH 1: Inline cache hit (most common for homogeneous batches)
-            // Check this FIRST - single pointer comparison, very cheap
-            if (actualTypeHandle == _cachedTypeHandle)
-            {
-                _cachedSerializer(val, ref writer);
-                return;
-            }
-
-            // FAST PATH 2: Base type (common for non-polymorphic usage)
+            
+            // FAST PATH 1: Base type (common for non-polymorphic usage)
             if (actualTypeHandle == TypeHandle)
             {
                 Serializer(val, ref writer);
+                return;
+            }
+            
+            // FAST PATH 2: Inline cache hit (most common for homogeneous batches)
+            // Check this FIRST - single pointer comparison, very cheap
+            var cachedHandle = Volatile.Read(ref _cachedTypeHandle);
+            var cachedSerializer = Volatile.Read(ref _cachedSerializer);
+            if (actualTypeHandle == cachedHandle && cachedSerializer != null)
+            {
+                cachedSerializer(val, ref writer);
                 return;
             }
 
@@ -275,7 +309,8 @@ namespace Nino.Core
             // Handle subtype serialization
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-                (_cachedTypeHandle, _cachedSerializer) = (actualTypeHandle, subTypeSerializer);
+                Volatile.Write(ref _cachedTypeHandle, actualTypeHandle);
+                Volatile.Write(ref _cachedSerializer, subTypeSerializer);
                 subTypeSerializer(val, ref writer);
                 return;
             }

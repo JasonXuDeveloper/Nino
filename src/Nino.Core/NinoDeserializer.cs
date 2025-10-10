@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Nino.Core
 {
@@ -335,9 +336,11 @@ namespace Nino.Core
             }
 
             // Fast path: inline cache hit (most common case for batched data)
-            if (typeId == _cachedTypeIdOut)
+            int cachedId = Volatile.Read(ref _cachedTypeIdOut);
+            var cachedDeserializer = Volatile.Read(ref _cachedDeserializer);
+            if (typeId == cachedId && cachedDeserializer != null)
             {
-                _cachedDeserializer(out value, ref reader);
+                cachedDeserializer(out value, ref reader);
                 return;
             }
 
@@ -345,7 +348,8 @@ namespace Nino.Core
             // Handle subtype with single lookup
             if (SubTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                (_cachedTypeIdOut, _cachedDeserializer) = (typeId, subTypeDeserializer);
+                Volatile.Write(ref _cachedTypeIdOut, typeId);
+                Volatile.Write(ref _cachedDeserializer, subTypeDeserializer);
                 subTypeDeserializer(out value, ref reader);
                 return;
             }
@@ -374,9 +378,11 @@ namespace Nino.Core
             }
 
             // Fast path: inline cache hit (most common case for batched data)
-            if (typeId == _cachedTypeIdRef)
+            int cachedId = Volatile.Read(ref _cachedTypeIdRef);
+            var cachedDeserializer = Volatile.Read(ref _cachedDeserializerRef);
+            if (typeId == cachedId && cachedDeserializer != null)
             {
-                _cachedDeserializerRef(ref value, ref reader);
+                cachedDeserializer(ref value, ref reader);
                 return;
             }
 
@@ -384,7 +390,8 @@ namespace Nino.Core
             // Handle subtype deserialization
             if (SubTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                (_cachedTypeIdRef, _cachedDeserializerRef) = (typeId, subTypeDeserializer);
+                Volatile.Write(ref _cachedTypeIdRef, typeId);
+                Volatile.Write(ref _cachedDeserializerRef, subTypeDeserializer);
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }
