@@ -520,6 +520,20 @@ public static class NinoTypeHelper
         };
     }
 
+    public static bool IsSealedOrStruct(this ITypeSymbol? typeSymbol)
+    {
+        if (typeSymbol == null)
+            return false;
+
+        if (typeSymbol.IsValueType)
+            return true;
+
+        if (typeSymbol is INamedTypeSymbol namedTypeSymbol)
+            return namedTypeSymbol.IsSealed;
+
+        return false;
+    }
+
     public static int GetId(this ITypeSymbol typeSymbol)
     {
         var formerName = typeSymbol.GetAttributesCache()

@@ -189,6 +189,22 @@ public partial class SerializerGenerator
         return sb.ToString();
     }
 
+    private bool TryGetInlineSerializeCall(ITypeSymbol type, string valueExpression, out string invocation)
+    {
+        invocation = null!;
+        if (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType))
+            return false;
+
+        if (!string.IsNullOrEmpty(ninoType.CustomSerializer))
+            return false;
+
+        if (!ninoType.TypeSymbol.IsSealedOrStruct())
+            return false;
+
+        invocation = $"Serializer.SerializeImpl({valueExpression}, ref writer)";
+        return true;
+    }
+
     private void WriteMembers(NinoType type, string valName, StringBuilder sb)
     {
         // First pass: collect all types that need serializers or custom formatters
@@ -226,6 +242,7 @@ public partial class SerializerGenerator
         foreach (var serializerType in typesNeedingSerializers)
         {
             var typeDisplayName = serializerType.GetDisplayString();
+            // ReSharper disable once PossibleUnintendedLinearSearchInSet
             bool isBuiltIn = GeneratedBuiltInTypes.Contains(serializerType, TupleSanitizedEqualityComparer.Default);
 
             if (!isBuiltIn)
@@ -344,8 +361,15 @@ public partial class SerializerGenerator
 
                         case NinoTypeHelper.NinoTypeKind.NinoType:
                             // PRIORITY 5: NinoType - use CachedSerializer
-                            var serializerVar = GetSerializerVarName(declaredType);
-                            sb.AppendLine($"            {serializerVar}.Serialize({val}, ref writer);");
+                            if (TryGetInlineSerializeCall(declaredType, val, out var inlineCall))
+                            {
+                                sb.AppendLine($"            {inlineCall};");
+                            }
+                            else
+                            {
+                                var serializerVar = GetSerializerVarName(declaredType);
+                                sb.AppendLine($"            {serializerVar}.Serialize({val}, ref writer);");
+                            }
                             break;
                     }
                 }

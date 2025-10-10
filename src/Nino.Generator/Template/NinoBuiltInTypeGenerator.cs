@@ -135,6 +135,8 @@ public abstract class NinoBuiltInTypeGenerator(
             case NinoTypeHelper.NinoTypeKind.Unmanaged:
                 return $"writer.UnsafeWrite<{type.GetDisplayString()}>({valueName});";
             case NinoTypeHelper.NinoTypeKind.NinoType:
+                if (TryGetInlineSerializeCall(type, valueName, out var inlineSerialize))
+                    return inlineSerialize;
                 return $"NinoSerializer.Serialize<{type.GetDisplayString()}>({valueName}, ref writer);";
             case NinoTypeHelper.NinoTypeKind.BuiltIn:
                 return $"Serializer.Serialize({valueName}, ref writer);";
@@ -157,6 +159,10 @@ public abstract class NinoBuiltInTypeGenerator(
                     return $"{readerName}.UnsafeRead<{type.GetDisplayString()}>(out var {varName});";
                 return $"{readerName}.UnsafeRead<{type.GetDisplayString()}>(out {varName});";
             case NinoTypeHelper.NinoTypeKind.NinoType:
+                if (TryGetInlineDeserializeCall(type, byRef: false, isOutVariable, varName, readerName,
+                        out var inlineDeserialize))
+                    return inlineDeserialize;
+
                 if (isOutVariable)
                     return $"NinoDeserializer.Deserialize(out {type.GetDisplayString()} {varName}, ref {readerName});";
                 return $"NinoDeserializer.Deserialize(out {varName}, ref {readerName});";
@@ -179,6 +185,10 @@ public abstract class NinoBuiltInTypeGenerator(
             case NinoTypeHelper.NinoTypeKind.Unmanaged:
                 return $"{readerName}.UnsafeRead(out {varName});";
             case NinoTypeHelper.NinoTypeKind.NinoType:
+                if (TryGetInlineDeserializeCall(type, byRef: true, isOutVariable: false, varName, readerName,
+                        out var inlineRefDeserialize))
+                    return inlineRefDeserialize;
+
                 return $"NinoDeserializer.DeserializeRef(ref {varName}, ref {readerName});";
             case NinoTypeHelper.NinoTypeKind.BuiltIn:
                 return $"Deserializer.DeserializeRef(ref {varName}, ref {readerName});";
@@ -186,6 +196,49 @@ public abstract class NinoBuiltInTypeGenerator(
                 throw new InvalidOperationException(
                     $"Type {type.GetDisplayString()} is not supported for ref deserialization.");
         }
+    }
+
+    private bool TryGetInlineSerializeCall(ITypeSymbol type, string valueExpression, out string invocation)
+    {
+        invocation = null!;
+
+        if (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType))
+            return false;
+
+        if (!string.IsNullOrEmpty(ninoType.CustomSerializer))
+            return false;
+
+        if (!ninoType.TypeSymbol.IsSealedOrStruct())
+            return false;
+
+        invocation = $"Serializer.SerializeImpl({valueExpression}, ref writer);";
+        return true;
+    }
+
+    private bool TryGetInlineDeserializeCall(ITypeSymbol type, bool byRef, bool isOutVariable, string varName,
+        string readerName, out string invocation)
+    {
+        invocation = null!;
+
+        if (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType))
+            return false;
+
+        if (!string.IsNullOrEmpty(ninoType.CustomDeserializer))
+            return false;
+
+        if (!ninoType.TypeSymbol.IsSealedOrStruct())
+            return false;
+
+        if (byRef)
+        {
+            invocation = $"Deserializer.DeserializeImplRef(ref {varName}, ref {readerName});";
+            return true;
+        }
+
+        invocation = isOutVariable
+            ? $"Deserializer.DeserializeImpl(out {type.GetDisplayString()} {varName}, ref {readerName});"
+            : $"Deserializer.DeserializeImpl(out {varName}, ref {readerName});";
+        return true;
     }
 
     /// <summary>

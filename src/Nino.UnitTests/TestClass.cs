@@ -21,14 +21,14 @@ public partial class HierarchicalSub1 : HierarchicalBase
 }
 
 [NinoType(false, true)]
-public partial class HierarchicalSub2 : HierarchicalSub1
+public sealed partial class HierarchicalSub2 : HierarchicalSub1
 {
     [NinoMember(0)] protected bool E;
     [NinoMember(1)] public List<int> F;
 }
 
 [NinoType]
-public class SomeNestedPrivateEnum
+public sealed class SomeNestedPrivateEnum
 {
     public int Id;
 
@@ -50,7 +50,7 @@ public class SomeNestedPrivateEnum
 }
 
 [NinoType]
-public class Move
+public sealed class Move
 {
     public ushort ClientX;
 
@@ -72,7 +72,7 @@ public class Move
 }
 
 [NinoType(false, true)]
-public partial class TestMethodCtor
+public sealed partial class TestMethodCtor
 {
     [NinoMember(0)] public int A;
     [NinoMember(1)] private string _b;
@@ -107,7 +107,7 @@ public partial class TestA<T>
 }
 
 [NinoType(false, true)]
-public partial class TestB<T> : TestA<T>
+public sealed partial class TestB<T> : TestA<T>
 {
     [NinoConstructor(nameof(Value))]
     public TestB(T val = default) : base(val)
@@ -116,13 +116,13 @@ public partial class TestB<T> : TestA<T>
 }
 
 [NinoType]
-public class CursedGeneric<T>
+public sealed class CursedGeneric<T>
 {
     public ConcurrentDictionary<string, T[]> field;
 }
 
 [NinoType]
-public class PrivateNestedCollection
+public sealed class PrivateNestedCollection
 {
     private struct MyStruct
     {
@@ -153,7 +153,7 @@ public interface IListElementClass
 }
 
 [NinoType]
-public class ListElementClass : IListElementClass
+public sealed class ListElementClass : IListElementClass
 {
     public int Id;
     public string Name;
@@ -163,7 +163,7 @@ public class ListElementClass : IListElementClass
 
 [NinoType]
 [NinoFormerName("global::ListElementClass2")]
-public class ListElementClass2Renamed : IListElementClass
+public sealed class ListElementClass2Renamed : IListElementClass
 {
     public int Id;
     public string Name;
@@ -338,7 +338,7 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public class Class1 : ISerializable
+    public sealed class Class1 : ISerializable
     {
         public int A;
         public DateTime B;
@@ -356,21 +356,21 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public class StringData
+    public sealed class StringData
     {
         [NinoUtf8] public string Str;
         [NinoUtf8] public bool ShouldHaveNoEffect;
     }
 
     [NinoType]
-    public class StringData2
+    public sealed class StringData2
     {
         public string Str;
         [NinoUtf8] public bool ShouldHaveNoEffect;
     }
 
     [NinoType(false)]
-    public class SaveData
+    public sealed class SaveData
     {
         [NinoMember(1)] public int Id;
         [NinoMember(2)] [NinoUtf8] public string Name;
@@ -385,19 +385,19 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public class Generic<T>
+    public sealed class Generic<T>
     {
         public T Val;
     }
 
     [NinoType]
-    public class ComplexGeneric<T> where T : IList
+    public sealed class ComplexGeneric<T> where T : IList
     {
         public T Val;
     }
 
     [NinoType]
-    public class ComplexGeneric2<T>
+    public sealed class ComplexGeneric2<T>
     {
         public Generic<T> Val;
     }
@@ -409,12 +409,12 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public class Sub1 : Base
+    public sealed class Sub1 : Base
     {
         public int B;
     }
 
-    public class Nested
+    public sealed class Nested
     {
         [NinoType]
         public abstract class Sub2 : Base
@@ -430,7 +430,7 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public class Sub3 : Nested.Sub2Impl
+    public sealed class Sub3 : Nested.Sub2Impl
     {
         public int E;
     }
@@ -450,7 +450,7 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public class TestClass3 : TestClass2
+    public sealed class TestClass3 : TestClass2
     {
         public bool D;
         public TestClass E;
@@ -508,7 +508,7 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public class SimpleClass
+    public sealed class SimpleClass
     {
         public int Id;
         public string Name;
@@ -611,7 +611,7 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public class SimpleClassWithConstructor
+    public sealed class SimpleClassWithConstructor
     {
         public int Id;
         public string Name;

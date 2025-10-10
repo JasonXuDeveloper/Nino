@@ -25,7 +25,7 @@ public abstract partial class SimpleClassBase
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
-public partial class SimpleClass : SimpleClassBase
+public sealed partial class SimpleClass : SimpleClassBase
 {
     [Key(4)] public string Name { get; set; }
     [Key(5)] [NinoUtf8] public string Desc;

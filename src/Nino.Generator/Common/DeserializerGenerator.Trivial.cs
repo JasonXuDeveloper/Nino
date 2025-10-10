@@ -179,6 +179,9 @@ public partial class DeserializerGenerator
 
             case NinoTypeHelper.NinoTypeKind.NinoType:
                 // PRIORITY 5: NinoType - use CachedDeserializer
+                if (TryGetInlineDeserializeCall(declaredType, false, tempName, out var inlineCall))
+                    return $"{inlineCall};";
+
                 var deserializerVar = getDeserializerVar(declaredType);
                 return $"{deserializerVar}.Deserialize(out {tempName}, ref reader);";
 
@@ -249,17 +252,32 @@ public partial class DeserializerGenerator
                 var deserializerVar = getDeserializerVar(declaredType);
                 if (declaredType.IsValueType)
                 {
-                    sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
+                    if (TryGetInlineDeserializeCall(declaredType, true, $"{valName}.{name}", out var inlineRefCall))
+                    {
+                        sb.AppendLine($"            {inlineRefCall};");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
+                    }
                 }
                 else
                 {
+                    var inlineRefCall = TryGetInlineDeserializeCall(declaredType, true, $"{valName}.{name}", out var inlineRef)
+                        ? inlineRef
+                        : null;
+                    var inlineOutCall = TryGetInlineDeserializeCall(declaredType, false, $"{valName}.{name}", out var inlineOut)
+                        ? inlineOut
+                        : null;
                     sb.AppendLine($"            if ({valName}.{name} != null)");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                {deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader);");
+                    var refCall = inlineRefCall ?? $"{deserializerVar}.DeserializeRef(ref {valName}.{name}, ref reader)";
+                    sb.AppendLine($"                {refCall};");
                     sb.AppendLine("            }");
                     sb.AppendLine("            else");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                {deserializerVar}.Deserialize(out {valName}.{name}, ref reader);");
+                    var outCall = inlineOutCall ?? $"{deserializerVar}.Deserialize(out {valName}.{name}, ref reader)";
+                    sb.AppendLine($"                {outCall};");
                     sb.AppendLine("            }");
                 }
                 break;
@@ -326,17 +344,32 @@ public partial class DeserializerGenerator
                 var deserializerVar = getDeserializerVar(declaredType);
                 if (declaredType.IsValueType)
                 {
-                    sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    if (TryGetInlineDeserializeCall(declaredType, true, tempName, out var inlineRefCall))
+                    {
+                        sb.AppendLine($"            {inlineRefCall};");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    }
                 }
                 else
                 {
+                    var inlineRefCall = TryGetInlineDeserializeCall(declaredType, true, tempName, out var inlineRef)
+                        ? inlineRef
+                        : null;
+                    var inlineOutCall = TryGetInlineDeserializeCall(declaredType, false, tempName, out var inlineOut)
+                        ? inlineOut
+                        : null;
                     sb.AppendLine($"            if ({tempName} != null)");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    var refCall = inlineRefCall ?? $"{deserializerVar}.DeserializeRef(ref {tempName}, ref reader)";
+                    sb.AppendLine($"                {refCall};");
                     sb.AppendLine("            }");
                     sb.AppendLine("            else");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                {deserializerVar}.Deserialize(out {tempName}, ref reader);");
+                    var outCall = inlineOutCall ?? $"{deserializerVar}.Deserialize(out {tempName}, ref reader)";
+                    sb.AppendLine($"                {outCall};");
                     sb.AppendLine("            }");
                 }
                 break;
@@ -408,18 +441,34 @@ public partial class DeserializerGenerator
                 var deserializerVar = getDeserializerVar(declaredType);
                 if (declaredType.IsValueType)
                 {
-                    sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref PrivateAccessor.__{name}__({accessName}), ref reader);");
+                    var accessorExpr = $"PrivateAccessor.__{name}__({accessName})";
+                    if (TryGetInlineDeserializeCall(declaredType, true, accessorExpr, out var inlineRefCall))
+                    {
+                        sb.AppendLine($"            {inlineRefCall};");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {accessorExpr}, ref reader);");
+                    }
                 }
                 else
                 {
                     sb.AppendLine($"            ref var field_{name} = ref PrivateAccessor.__{name}__({accessName});");
+                    var inlineRefCall = TryGetInlineDeserializeCall(declaredType, true, $"field_{name}", out var inlineRef)
+                        ? inlineRef
+                        : null;
+                    var inlineOutCall = TryGetInlineDeserializeCall(declaredType, false, $"field_{name}", out var inlineOut)
+                        ? inlineOut
+                        : null;
                     sb.AppendLine($"            if (field_{name} != null)");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                {deserializerVar}.DeserializeRef(ref field_{name}, ref reader);");
+                    var refCall = inlineRefCall ?? $"{deserializerVar}.DeserializeRef(ref field_{name}, ref reader)";
+                    sb.AppendLine($"                {refCall};");
                     sb.AppendLine("            }");
                     sb.AppendLine("            else");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                {deserializerVar}.Deserialize(out field_{name}, ref reader);");
+                    var outCall = inlineOutCall ?? $"{deserializerVar}.Deserialize(out field_{name}, ref reader)";
+                    sb.AppendLine($"                {outCall};");
                     sb.AppendLine("            }");
                 }
                 break;
@@ -498,17 +547,32 @@ public partial class DeserializerGenerator
                 var deserializerVar = getDeserializerVar(declaredType);
                 if (declaredType.IsValueType)
                 {
-                    sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    if (TryGetInlineDeserializeCall(declaredType, true, tempName, out var inlineRefCall))
+                    {
+                        sb.AppendLine($"            {inlineRefCall};");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    }
                 }
                 else
                 {
+                    var inlineRefCall = TryGetInlineDeserializeCall(declaredType, true, tempName, out var inlineRef)
+                        ? inlineRef
+                        : null;
+                    var inlineOutCall = TryGetInlineDeserializeCall(declaredType, false, tempName, out var inlineOut)
+                        ? inlineOut
+                        : null;
                     sb.AppendLine($"            if ({tempName} != null)");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                {deserializerVar}.DeserializeRef(ref {tempName}, ref reader);");
+                    var refCall = inlineRefCall ?? $"{deserializerVar}.DeserializeRef(ref {tempName}, ref reader)";
+                    sb.AppendLine($"                {refCall};");
                     sb.AppendLine("            }");
                     sb.AppendLine("            else");
                     sb.AppendLine("            {");
-                    sb.AppendLine($"                {deserializerVar}.Deserialize(out {tempName}, ref reader);");
+                    var outCall = inlineOutCall ?? $"{deserializerVar}.Deserialize(out {tempName}, ref reader)";
+                    sb.AppendLine($"                {outCall};");
                     sb.AppendLine("            }");
                 }
                 sb.AppendLine($"            {valName}.__nino__generated__{name} = {tempName};");
@@ -1050,6 +1114,24 @@ public partial class DeserializerGenerator
         // indent
         ret = ret.Replace("\n", $"\n{indent}");
         return $"{indent}{ret}";
+    }
+
+    private bool TryGetInlineDeserializeCall(ITypeSymbol type, bool byRef, string valueExpression, out string invocation)
+    {
+        invocation = null!;
+        if (!NinoGraph.TypeMap.TryGetValue(type.GetDisplayString(), out var ninoType))
+            return false;
+
+        if (!string.IsNullOrEmpty(ninoType.CustomDeserializer))
+            return false;
+
+        if (!ninoType.TypeSymbol.IsSealedOrStruct())
+            return false;
+
+        invocation = byRef
+            ? $"Deserializer.DeserializeImplRef(ref {valueExpression}, ref reader)"
+            : $"Deserializer.DeserializeImpl(out {valueExpression}, ref reader)";
+        return true;
     }
 
     private Dictionary<string, (ITypeSymbol FormatterType, ITypeSymbol ValueType)> CollectGlobalCustomFormatters()
