@@ -176,57 +176,39 @@ namespace Nino.Core
         private static void ThrowInvalidCast(Type actualType) =>
             throw new InvalidCastException($"Cannot cast {actualType?.FullName ?? "null"} to {typeof(T).FullName}");
 
-        public static void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer)
+        public static void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer) where TSub : T
         {
-            if (typeof(TSub).IsValueType)
-            {
-                // cast T to TSub via boxing, T here must be interface, then add to the map
-                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
-                {
-                    if (val is TSub sub)
-                    {
-                        // Fast path: already the correct type
-                        serializer(sub, ref writer);
-                        return;
-                    }
+            // Use a static generic helper class to create an inlineable wrapper
+            SubTypeSerializerWrapper<TSub>.SubSerializer = serializer;
+            SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, SubTypeSerializerWrapper<TSub>.SerializeWrapper);
+        }
 
+        // Static wrapper class per TSub - allows better inlining than lambda
+        private static class SubTypeSerializerWrapper<TSub> where TSub : T
+        {
+            public static SerializeDelegate<TSub> SubSerializer;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static void SerializeWrapper(T val, ref Writer writer)
+            {
+                if (val is TSub sub)
+                {
+                    // This can be inlined by JIT since it's a static method call with known target
+                    SubSerializer(sub, ref writer);
+                }
+                else
+                {
                     ThrowInvalidCast(val?.GetType());
-                });
-            }
-            else
-            {
-                // simply cast TSub to T directly, then add to the map
-                SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, (T val, ref Writer writer) =>
-                {
-                    switch (val)
-                    {
-                        case null:
-                            // Handle null case
-                            serializer(default, ref writer);
-                            return;
-                        case TSub sub:
-                            // Fast path: already the correct type
-                            serializer(sub, ref writer);
-                            return;
-                    }
-
-                    ThrowInvalidCast(val.GetType());
-                });
+                }
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SerializeBoxed(object value, ref Writer writer)
         {
-            switch (value)
-            {
-                case null:
-                    Serializer(default, ref writer);
-                    break;
-                case T val:
-                    Serializer(val, ref writer);
-                    break;
-            }
+            if (value == null)
+                Serializer(default, ref writer);
+            else if (value is T val) Serializer(val, ref writer);
         }
 
         // ULTRA-OPTIMIZED: Single core method with all paths optimized
@@ -289,18 +271,11 @@ namespace Nino.Core
                 return;
             }
 
-            // SLOW PATH: Dictionary lookup and cache update
-            SerializePolymorphicSlow(val, ref writer, actualTypeHandle);
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void SerializePolymorphicSlow(T val, ref Writer writer, IntPtr actualTypeHandle)
-        {
+            // SLOW PATH: Full lookup in subtype map
             // Handle subtype serialization
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-                _cachedTypeHandle = actualTypeHandle;
-                _cachedSerializer = subTypeSerializer;
+                (_cachedTypeHandle, _cachedSerializer) = (actualTypeHandle, subTypeSerializer);
                 subTypeSerializer(val, ref writer);
                 return;
             }

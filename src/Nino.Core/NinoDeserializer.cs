@@ -156,6 +156,7 @@ namespace Nino.Core
     [SuppressMessage("ReSharper", "StaticMemberInGenericType")]
     public static class CachedDeserializer<T>
     {
+        private static int _typeId = -1;
         private static DeserializeDelegate<T> _deserializer;
         private static DeserializeDelegateRef<T> _deserializerRef;
         private static readonly FastMap<int, DeserializeDelegate<T>> SubTypeDeserializers = new();
@@ -184,6 +185,7 @@ namespace Nino.Core
         public static void SetDeserializer(int typeId, DeserializeDelegate<T> deserializer,
             DeserializeDelegateRef<T> deserializerRef)
         {
+            _typeId = typeId;
             _deserializer = deserializer;
             _deserializerRef = deserializerRef;
             SubTypeDeserializers.Add(typeId, _deserializer);
@@ -192,24 +194,40 @@ namespace Nino.Core
 
         public static void AddSubTypeDeserializer<TSub>(int subTypeId,
             DeserializeDelegate<TSub> deserializer,
-            DeserializeDelegateRef<TSub> deserializerRef)
+            DeserializeDelegateRef<TSub> deserializerRef) where TSub : T
         {
-            SubTypeDeserializers.Add(subTypeId, (out T value, ref Reader reader) =>
+            // Use static generic helper classes to create inlineable wrappers
+            SubTypeDeserializerWrapper<TSub>.OutDeserializer = deserializer;
+            SubTypeDeserializerWrapper<TSub>.RefDeserializer = deserializerRef;
+            SubTypeDeserializers.Add(subTypeId, SubTypeDeserializerWrapper<TSub>.DeserializeOutWrapper);
+            SubTypeDeserializerRefs.Add(subTypeId, SubTypeDeserializerWrapper<TSub>.DeserializeRefWrapper);
+        }
+
+        // Static wrapper class per TSub - allows better inlining than lambda
+        private static class SubTypeDeserializerWrapper<TSub> where TSub : T
+        {
+            public static DeserializeDelegate<TSub> OutDeserializer;
+            public static DeserializeDelegateRef<TSub> RefDeserializer;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static void DeserializeOutWrapper(out T value, ref Reader reader)
             {
-                deserializer(out TSub subValue, ref reader);
-                value = subValue is T val ? val : default;
-            });
-            SubTypeDeserializerRefs.Add(subTypeId, (ref T value, ref Reader reader) =>
+                OutDeserializer(out TSub subValue, ref reader);
+                value = subValue;
+            }
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static void DeserializeRefWrapper(ref T value, ref Reader reader)
             {
                 if (value is TSub val)
                 {
-                    deserializerRef(ref val, ref reader);
+                    RefDeserializer(ref val, ref reader);
                 }
                 else
                 {
-                    throw new Exception($"Cannot cast {value.GetType().FullName} to {typeof(T).FullName}");
+                    ThrowInvalidCast(value?.GetType());
                 }
-            });
+            }
         }
 
         // ULTRA-OPTIMIZED: Single boxed method with aggressive inlining and branch elimination
@@ -309,6 +327,13 @@ namespace Nino.Core
                 return;
             }
 
+            // Fast path: exact type match
+            if (typeId == _typeId)
+            {
+                _deserializer(out value, ref reader);
+                return;
+            }
+
             // Fast path: inline cache hit (most common case for batched data)
             if (typeId == _cachedTypeIdOut)
             {
@@ -317,17 +342,10 @@ namespace Nino.Core
             }
 
             // Slow path: lookup and update cache
-            DeserializePolymorphicSlow(out value, ref reader, typeId);
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void DeserializePolymorphicSlow(out T value, ref Reader reader, int typeId)
-        {
             // Handle subtype with single lookup
             if (SubTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                _cachedTypeIdOut = typeId;
-                _cachedDeserializer = subTypeDeserializer;
+                (_cachedTypeIdOut, _cachedDeserializer) = (typeId, subTypeDeserializer);
                 subTypeDeserializer(out value, ref reader);
                 return;
             }
@@ -348,6 +366,13 @@ namespace Nino.Core
                 return;
             }
 
+            // Fast path: exact type match
+            if (typeId == _typeId)
+            {
+                _deserializerRef(ref value, ref reader);
+                return;
+            }
+
             // Fast path: inline cache hit (most common case for batched data)
             if (typeId == _cachedTypeIdRef)
             {
@@ -356,17 +381,10 @@ namespace Nino.Core
             }
 
             // Slow path: lookup and update cache
-            DeserializeRefPolymorphicSlow(ref value, ref reader, typeId);
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void DeserializeRefPolymorphicSlow(ref T value, ref Reader reader, int typeId)
-        {
             // Handle subtype deserialization
             if (SubTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                _cachedTypeIdRef = typeId;
-                _cachedDeserializerRef = subTypeDeserializer;
+                (_cachedTypeIdRef, _cachedDeserializerRef) = (typeId, subTypeDeserializer);
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }

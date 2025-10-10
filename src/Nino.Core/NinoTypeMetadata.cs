@@ -100,6 +100,7 @@ namespace Nino.Core
 
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static void RecordSubTypeSerializer<TBase, TSub>(SerializeDelegate<TSub> subTypeSerializer)
+            where TSub : TBase
         {
             lock (SubTypeSerializerRegistration<TBase, TSub>.Lock)
             {
@@ -122,6 +123,7 @@ namespace Nino.Core
         public static void RecordSubTypeDeserializer<TBase, TSub>(int subTypeId,
             DeserializeDelegate<TSub> subTypeDeserializer,
             DeserializeDelegateRef<TSub> subTypeDeserializerRef)
+            where TSub : TBase
         {
             lock (SubTypeDeserializerRegistration<TBase, TSub>.Lock)
             {

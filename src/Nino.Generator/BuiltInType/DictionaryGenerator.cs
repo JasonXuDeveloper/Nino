@@ -91,6 +91,11 @@ public class DictionaryGenerator(
         writer.AppendLine("    int cnt = value.Count;");
         writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
         writer.AppendLine();
+        writer.AppendLine("    if (cnt == 0)");
+        writer.AppendLine("    {");
+        writer.AppendLine("        return;");
+        writer.AppendLine("    }");
+        writer.AppendLine();
 
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
         bool isDictionary = originalDef == "System.Collections.Generic.Dictionary<TKey, TValue>";
@@ -108,11 +113,6 @@ public class DictionaryGenerator(
             writer.AppendLine("    {");
             writer.AppendLine("        return;");
             writer.AppendLine("    }");
-            writer.AppendLine("    int count = dict._count;");
-            writer.AppendLine("    if (count == 0)");
-            writer.AppendLine("    {");
-            writer.AppendLine("        return;");
-            writer.AppendLine("    }");
             writer.AppendLine("    // Iterate entries via direct ref to avoid bounds checks");
             writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
             writer.AppendLine("    ref var entryRef = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
@@ -120,7 +120,7 @@ public class DictionaryGenerator(
             writer.AppendLine("    ref var entryRef = ref entries[0];");
             writer.AppendLine("#endif");
             writer.AppendLine("    int index = 0;");
-            writer.AppendLine("    while ((uint)index < (uint)count)");
+            writer.AppendLine("    while ((uint)index < (uint)cnt)");
             writer.AppendLine("    {");
             writer.AppendLine("        ref var entry = ref System.Runtime.CompilerServices.Unsafe.Add(ref entryRef, index++);");
             writer.AppendLine("        if (entry.next < -1)");
@@ -130,11 +130,13 @@ public class DictionaryGenerator(
 
             if (kvpIsUnmanaged)
             {
-                writer.Append("        var kvp = new System.Collections.Generic.KeyValuePair<");
+                writer.Append("        ref var kvp = ref System.Runtime.CompilerServices.Unsafe.As<");
+                writer.Append(keyType.GetDisplayString());
+                writer.Append(", System.Collections.Generic.KeyValuePair<");
                 writer.Append(keyType.GetDisplayString());
                 writer.Append(", ");
                 writer.Append(valueType.GetDisplayString());
-                writer.AppendLine(">(entry.key, entry.value);");
+                writer.AppendLine(">>(ref entry.key);");
                 writer.AppendLine("        writer.UnsafeWrite(kvp);");
             }
             else
