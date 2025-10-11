@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -18,7 +19,9 @@ public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
-    private static readonly ConcurrentDictionary<ITypeSymbol, bool> IsNinoTypeCache =
+    // 缓存 NinoTypeAttribute 查找结果（包括继承链查找）
+    // null 表示没有找到，non-null 表示找到了属性
+    private static readonly ConcurrentDictionary<ITypeSymbol, NinoTypeAttribute?> NinoTypeAttributeCache =
         new(SymbolEqualityComparer.Default);
 
     private static readonly ConcurrentDictionary<ITypeSymbol, string> ToDisplayStringCache =
@@ -386,6 +389,48 @@ public static class NinoTypeHelper
             .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoConstructorAttribute");
     }
 
+    /// <summary>
+    /// 根据参数名称从AttributeData中安全获取构造函数参数值
+    /// </summary>
+    /// <typeparam name="T">参数值类型</typeparam>
+    /// <param name="attributeData">特性数据</param>
+    /// <param name="parameterName">参数名称</param>
+    /// <param name="defaultValue">默认值（当参数不存在或值为null时返回）</param>
+    /// <returns>参数值或默认值</returns>
+    public static T GetConstructorArgumentByName<T>(AttributeData? attributeData, string parameterName, T defaultValue = default!)
+    {
+        if (attributeData == null || attributeData.AttributeConstructor == null)
+        {
+            return defaultValue;
+        }
+
+        var parameters = attributeData.AttributeConstructor.Parameters;
+        var arguments = attributeData.ConstructorArguments;
+
+        // 查找参数名称对应的索引
+        for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
+        {
+            if (parameters[i].Name == parameterName)
+            {
+                var value = arguments[i].Value;
+                if (value == null)
+                {
+                    return defaultValue;
+                }
+                
+                // 类型检查和转换
+                if (value is T typedValue)
+                {
+                    return typedValue;
+                }
+                
+                return defaultValue;
+            }
+        }
+
+        return defaultValue;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static SemanticModel GetCachedSemanticModel(Compilation compilation, SyntaxTree syntaxTree)
     {
@@ -451,22 +496,94 @@ public static class NinoTypeHelper
         return typeSymbol.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
     }
 
+    /// <summary>
+    /// 检查类型是否有 NinoTypeAttribute（包括继承检查）
+    /// </summary>
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
-        if (IsNinoTypeCache.TryGetValue(typeSymbol, out var isNinoType))
+        return GetNinoTypeAttribute(typeSymbol) != null;
+    }
+
+    /// <summary>
+    /// 获取类型的 NinoTypeAttribute（就近原则：优先当前类型，然后基类，最后接口）
+    /// 使用缓存避免重复的继承链遍历
+    /// </summary>
+    public static NinoTypeAttribute? GetNinoTypeAttribute(this ITypeSymbol typeSymbol)
+    {
+        // 检查缓存
+        if (NinoTypeAttributeCache.TryGetValue(typeSymbol, out var cached))
         {
-            return isNinoType;
+            return cached;
         }
 
+        // 优先检查当前类型
+        var attr = GetDirectNinoTypeAttribute(typeSymbol);
+        if (attr != null)
+        {
+            NinoTypeAttributeCache[typeSymbol] = NinoTypeAttribute.GetAttribute(attr);
+            return NinoTypeAttributeCache[typeSymbol];
+        }
+
+        // 然后检查基类链
+        var baseType = typeSymbol.BaseType;
+        while (baseType != null)
+        {
+            attr = GetDirectNinoTypeAttribute(baseType);
+            if (attr != null)
+            {
+                var ninoTypeAttr = NinoTypeAttribute.GetAttribute(attr);
+                // 如果基类设置了 allowInheritance = false，则不继承
+                bool allowInheritance = ninoTypeAttr.allowInheritance;
+                
+                if (allowInheritance)
+                {
+                    NinoTypeAttributeCache[typeSymbol] = ninoTypeAttr;
+                    return ninoTypeAttr;
+                }
+                else
+                {
+                    // 基类不允许继承，停止查找
+                    break;
+                }
+            }
+            baseType = baseType.BaseType;
+        }
+
+        // 最后检查接口
+        foreach (var interfaceType in typeSymbol.AllInterfaces)
+        {
+            attr = GetDirectNinoTypeAttribute(interfaceType);
+            if (attr != null)
+            {
+                var ninoTypeAttr = NinoTypeAttribute.GetAttribute(attr);
+                // 检查 allowInheritance 参数
+                bool allowInheritance = ninoTypeAttr.allowInheritance;
+                if (allowInheritance)
+                {
+                    NinoTypeAttributeCache[typeSymbol] = ninoTypeAttr;
+                    return ninoTypeAttr;
+                }
+            }
+        }
+        
+        NinoTypeAttributeCache[typeSymbol] = null;
+
+        return null;
+    }
+
+    /// <summary>
+    /// 获取类型自身直接声明的 NinoTypeAttribute（不检查继承）
+    /// </summary>
+    private static AttributeData? GetDirectNinoTypeAttribute(ITypeSymbol typeSymbol)
+    {
         foreach (var attribute in typeSymbol.GetAttributesCache())
         {
-            if (!string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute", StringComparison.Ordinal)) continue;
-            IsNinoTypeCache[typeSymbol] = true;
-            return true;
+            if (string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute", StringComparison.Ordinal))
+            {
+                return attribute;
+            }
         }
-
-        IsNinoTypeCache[typeSymbol] = false;
-        return false;
+        return null;
     }
 
     public static string GetTypeModifiers(this ITypeSymbol typeSymbol)
@@ -738,6 +855,23 @@ public static class NinoTypeHelper
 
         TypeHierarchyLevelCache[type] = level;
         return level;
+    }
+}
+
+public class NinoTypeAttribute
+{
+    public bool autoCollect = true;
+    public bool containNonPublicMembers = false;
+    public bool allowInheritance = true;
+    
+    public static NinoTypeAttribute GetAttribute(AttributeData attributeData)
+    { 
+        return new NinoTypeAttribute
+        {
+            autoCollect = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(autoCollect), true),
+            containNonPublicMembers = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(containNonPublicMembers), false),
+            allowInheritance = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(allowInheritance), true)
+        };
     }
 }
 

@@ -88,12 +88,10 @@ public class CSharpParser(HashSet<ITypeSymbol> ninoSymbols) : NinoTypeParser
                     }
                 }
 
-                //get NinoType attribute first argument value from typeSymbol
-                var attr = typeSymbol.GetAttributesCache().FirstOrDefault(a =>
-                    a.AttributeClass != null &&
-                    a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
-                bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
-                bool containNonPublic = attr != null && (bool)(attr.ConstructorArguments[1].Value ?? false);
+                //get NinoType attribute using nearest principle (current type > base type > interface)
+                var attr = typeSymbol.GetNinoTypeAttribute();
+                bool autoCollect = attr == null || attr.autoCollect;
+                bool containNonPublic = attr != null && attr.containNonPublicMembers;
 
                 // members for each type in the inheritance chain
                 List<(HashSet<ISymbol> members, List<IParameterSymbol> primaryCtorParms)> hierarchicalMembers =
