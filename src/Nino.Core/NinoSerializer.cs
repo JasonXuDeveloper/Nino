@@ -193,9 +193,9 @@ namespace Nino.Core
             SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, SubTypeSerializerWrapper<TSub>.SerializeWrapper);
         }
 
-        // Thread-local cache for polymorphic serialization
-        [ThreadStatic] private static IntPtr _cachedTypeHandle;
-        [ThreadStatic] private static SerializeDelegate<T> _cachedSerializer;
+        // Shared cache for polymorphic serialization (Interlocked for thread-safety)
+        private static IntPtr _cachedTypeHandle;
+        private static SerializeDelegate<T> _cachedSerializer;
 
         // Static wrapper class per TSub - allows better inlining than lambda
         private static class SubTypeSerializerWrapper<TSub> where TSub : T
@@ -270,29 +270,52 @@ namespace Nino.Core
             IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
 #endif
 
-            // FASTEST PATH: Thread-local cache hit (optimized for monomorphic arrays)
-            if (actualTypeHandle == _cachedTypeHandle)
-            {
-                _cachedSerializer(val, ref writer);
-                return;
-            }
-
             // FAST PATH: Base type (common for non-polymorphic usage)
             if (actualTypeHandle == TypeHandle)
             {
-                // Update thread-local cache for subsequent elements
-                _cachedTypeHandle = actualTypeHandle;
-                _cachedSerializer = Serializer;
-                Serializer(val, ref writer);
+                Serializer!(val, ref writer);
                 return;
             }
-            
+
+            // FAST PATH: 1 subtype (common for simple polymorphic usage)
+            if (SubTypeSerializers.Count == 1)
+            {
+                SubTypeSerializers.Values[0](val, ref writer);
+                return;
+            }
+
+            // FAST PATH: Cache hit (optimized for monomorphic arrays)
+#if NET5_0_OR_GREATER && !UNITY_WEBGL
+            // On 64-bit platforms, Volatile is atomic and faster (~1-2 cycles)
+            var cachedHandle = Volatile.Read(ref _cachedTypeHandle);
+            if (actualTypeHandle == cachedHandle)
+            {
+                var cachedSer = Volatile.Read(ref _cachedSerializer);
+                cachedSer!(val, ref writer);
+                return;
+            }
+#else
+            // On 32-bit platforms and WebGL, use Interlocked for atomicity (~10-20 cycles)
+            var cachedHandle = Interlocked.CompareExchange(ref _cachedTypeHandle, IntPtr.Zero, IntPtr.Zero);
+            if (actualTypeHandle == cachedHandle)
+            {
+                var cachedSer = Interlocked.CompareExchange(ref _cachedSerializer, null, null);
+                cachedSer!(val, ref writer);
+                return;
+            }
+#endif
+
             // SLOW PATH: Full lookup in subtype map and update cache
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-                // Update thread-local cache for subsequent elements
-                _cachedTypeHandle = actualTypeHandle;
-                _cachedSerializer = subTypeSerializer;
+#if NET5_0_OR_GREATER && !UNITY_WEBGL
+                // Update cache for subsequent elements
+                Volatile.Write(ref _cachedTypeHandle, actualTypeHandle);
+                Volatile.Write(ref _cachedSerializer, subTypeSerializer);
+#else
+                Interlocked.Exchange(ref _cachedTypeHandle, actualTypeHandle);
+                Interlocked.Exchange(ref _cachedSerializer, subTypeSerializer);
+#endif
                 subTypeSerializer(val, ref writer);
                 return;
             }

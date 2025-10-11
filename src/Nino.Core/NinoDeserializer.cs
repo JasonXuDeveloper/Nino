@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Nino.Core
 {
@@ -159,11 +160,11 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         private static readonly bool IsSealed = typeof(T).IsSealed || typeof(T).IsValueType;
 
-        // Thread-local cache for polymorphic deserialization
-        [ThreadStatic] private static int _cachedTypeId;
-        [ThreadStatic] private static int _cachedTypeIdRef;
-        [ThreadStatic] private static DeserializeDelegate<T> _cachedDeserializer;
-        [ThreadStatic] private static DeserializeDelegateRef<T> _cachedDeserializerRef;
+        // Shared cache for polymorphic deserialization (Volatile for thread-safety)
+        private static int _cachedTypeId;
+        private static int _cachedTypeIdRef;
+        private static DeserializeDelegate<T> _cachedDeserializer;
+        private static DeserializeDelegateRef<T> _cachedDeserializerRef;
 
         // ULTIMATE: JIT-eliminated constants for maximum performance
         // ReSharper disable once StaticMemberInGenericType
@@ -318,29 +319,59 @@ namespace Nino.Core
                 return;
             }
 
-            // FASTEST PATH: Thread-local cache hit (optimized for monomorphic arrays)
-            if (typeId == _cachedTypeId)
-            {
-                _cachedDeserializer(out value, ref reader);
-                return;
-            }
-
             // FAST PATH: Exact type match
             if (typeId == _typeId)
             {
-                // Update cache for next iteration
-                _cachedTypeId = typeId;
-                _cachedDeserializer = _deserializer;
-                _deserializer(out value, ref reader);
+                _deserializer!(out value, ref reader);
                 return;
             }
+            
+            // FAST PATH: Exact type match for single subtype
+            if (SubTypeDeserializers.Count == 2)
+            {
+                var keys = SubTypeDeserializers.Keys;
+                if (typeId == keys[0])
+                {
+                    SubTypeDeserializers.Values[0](out value, ref reader);
+                    return;
+                }
+
+                SubTypeDeserializers.Values[1](out value, ref reader);
+                return;
+            }
+            
+            // FAST PATH: Cache hit (optimized for monomorphic arrays)
+#if NET5_0_OR_GREATER && !UNITY_WEBGL
+            // On 64-bit platforms, Volatile is atomic and faster (~1-2 cycles)
+            var cachedId = Volatile.Read(ref _cachedTypeId);
+            if (typeId == cachedId)
+            {
+                var cachedDeser = Volatile.Read(ref _cachedDeserializer);
+                cachedDeser!(out value, ref reader);
+                return;
+            }
+#else
+            // On 32-bit platforms and WebGL, use Interlocked for atomicity (~10-20 cycles)
+            var cachedId = Interlocked.CompareExchange(ref _cachedTypeId, 0, 0);
+            if (typeId == cachedId)
+            {
+                var cachedDeser = Interlocked.CompareExchange(ref _cachedDeserializer, null, null);
+                cachedDeser!(out value, ref reader);
+                return;
+            }
+#endif
 
             // SLOW PATH: Full lookup in subtype map and update cache
             if (SubTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                // Update thread-local cache for subsequent elements
-                _cachedTypeId = typeId;
-                _cachedDeserializer = subTypeDeserializer;
+#if NET5_0_OR_GREATER && !UNITY_WEBGL
+                // Update cache for subsequent elements
+                Volatile.Write(ref _cachedTypeId, typeId);
+                Volatile.Write(ref _cachedDeserializer, subTypeDeserializer);
+#else
+                Interlocked.Exchange(ref _cachedTypeId, typeId);
+                Interlocked.Exchange(ref _cachedDeserializer, subTypeDeserializer);
+#endif
                 subTypeDeserializer(out value, ref reader);
                 return;
             }
@@ -361,29 +392,59 @@ namespace Nino.Core
                 return;
             }
 
-            // FASTEST PATH: Thread-local cache hit (optimized for monomorphic arrays)
-            if (typeId == _cachedTypeIdRef)
-            {
-                _cachedDeserializerRef(ref value, ref reader);
-                return;
-            }
-
             // FAST PATH: Exact type match
             if (typeId == _typeId)
             {
-                // Update cache for next iteration
-                _cachedTypeIdRef = typeId;
-                _cachedDeserializerRef = _deserializerRef;
-                _deserializerRef(ref value, ref reader);
+                _deserializerRef!(ref value, ref reader);
                 return;
             }
+
+            // FAST PATH: Exact type match for single subtype
+            if (SubTypeDeserializerRefs.Count == 2)
+            {
+                var keys = SubTypeDeserializerRefs.Keys;
+                if (typeId == keys[0])
+                {
+                    SubTypeDeserializerRefs.Values[0](ref value, ref reader);
+                    return;
+                }
+
+                SubTypeDeserializerRefs.Values[1](ref value, ref reader);
+                return;
+            }
+
+            // FAST PATH: Cache hit (optimized for monomorphic arrays)
+#if NET5_0_OR_GREATER && !UNITY_WEBGL
+            // On 64-bit platforms, Volatile is atomic and faster (~1-2 cycles)
+            var cachedIdRef = Volatile.Read(ref _cachedTypeIdRef);
+            if (typeId == cachedIdRef)
+            {
+                var cachedDeserRef = Volatile.Read(ref _cachedDeserializerRef);
+                cachedDeserRef!(ref value, ref reader);
+                return;
+            }
+#else
+            // On 32-bit platforms and WebGL, use Interlocked for atomicity (~10-20 cycles)
+            var cachedIdRef = Interlocked.CompareExchange(ref _cachedTypeIdRef, 0, 0);
+            if (typeId == cachedIdRef)
+            {
+                var cachedDeserRef = Interlocked.CompareExchange(ref _cachedDeserializerRef, null, null);
+                cachedDeserRef!(ref value, ref reader);
+                return;
+            }
+#endif
 
             // SLOW PATH: Full lookup in subtype map and update cache
             if (SubTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                // Update thread-local cache for subsequent elements
-                _cachedTypeIdRef = typeId;
-                _cachedDeserializerRef = subTypeDeserializer;
+#if NET5_0_OR_GREATER && !UNITY_WEBGL
+                // Update cache for subsequent elements
+                Volatile.Write(ref _cachedTypeIdRef, typeId);
+                Volatile.Write(ref _cachedDeserializerRef, subTypeDeserializer);
+#else
+                Interlocked.Exchange(ref _cachedTypeIdRef, typeId);
+                Interlocked.Exchange(ref _cachedDeserializerRef, subTypeDeserializer);
+#endif
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }
