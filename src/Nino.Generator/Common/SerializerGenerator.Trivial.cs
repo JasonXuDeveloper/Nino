@@ -25,6 +25,62 @@ public partial class SerializerGenerator
                 if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
                     continue;
 
+
+                if (!ninoType.TypeSymbol.IsSealedOrStruct())
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($$"""
+                                            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                                            public static void SerializePolymorphic({{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Writer writer)
+                                            {
+                                                    switch(value)
+                                                    {
+                                                        case null:
+                                                        {
+                                                            writer.Write(TypeCollector.Null);
+                                                            return;
+                                                        }
+                                    """);
+                    if (NinoGraph.SubTypes.TryGetValue(ninoType, out var subTypes))
+                    {
+                        foreach (var subType in subTypes)
+                        {
+                            if (!subType.TypeSymbol.IsInstanceType())
+                                continue;
+
+                            var valName = subType.TypeSymbol.GetCachedVariableName("val_");
+                            sb.AppendLine($$"""
+                                                                case {{subType.TypeSymbol.GetTypeFullName()}} {{valName}}:
+                                                                {
+                                            """);
+
+                            sb.AppendLine(
+                                $"                        writer.Write(NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
+
+                            // Optimized write path - direct write for unmanaged types
+                            if (subType.TypeSymbol.IsUnmanagedType)
+                            {
+                                sb.AppendLine($"                        writer.Write({valName});");
+                            }
+                            else
+                            {
+                                WriteMembers(subType, valName, sb, "            ");
+                            }
+
+                            sb.AppendLine("                        return;");
+                            sb.AppendLine("                    }");
+                        }
+                    }
+
+                    sb.AppendLine("                    default:");
+                    sb.AppendLine(
+                        $"                        CachedSerializer<{ninoType.TypeSymbol.GetTypeFullName()}>.SerializePolymorphic(value, ref writer);");
+                    sb.AppendLine("                        break;");
+                    sb.AppendLine("                }");
+                    sb.AppendLine("        }");
+                    sb.AppendLine();
+                }
+
                 if (!ninoType.TypeSymbol.IsInstanceType() ||
                     !string.IsNullOrEmpty(ninoType.CustomSerializer))
                     continue;
@@ -206,7 +262,7 @@ public partial class SerializerGenerator
         return true;
     }
 
-    private void WriteMembers(NinoType type, string valName, StringBuilder sb)
+    private void WriteMembers(NinoType type, string valName, StringBuilder sb, string indent = "")
     {
         // First pass: collect all types that need serializers or custom formatters
         HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
@@ -320,7 +376,7 @@ public partial class SerializerGenerator
                     // PRIORITY 1: Custom formatter (highest priority)
                     if (customFormatterVarsByMember.TryGetValue(member, out var formatterVar))
                     {
-                        sb.AppendLine($"            {formatterVar}.Serialize({val}, ref writer);");
+                        sb.AppendLine($"{indent}            {formatterVar}.Serialize({val}, ref writer);");
                     }
                 }
                 else
@@ -331,13 +387,13 @@ public partial class SerializerGenerator
                     {
                         case NinoTypeHelper.NinoTypeKind.Unmanaged:
                             // PRIORITY 2: Unmanaged types - write directly
-                            sb.AppendLine($"            writer.Write({val});");
+                            sb.AppendLine($"{indent}            writer.Write({val});");
                             break;
 
                         case NinoTypeHelper.NinoTypeKind.Boxed:
                             // PRIORITY 3: Object type - call boxed API in NinoSerializer directly
                             sb.AppendLine(
-                                $"            NinoSerializer.SerializeBoxed({val}, ref writer, {val}?.GetType());");
+                                $"{indent}            NinoSerializer.SerializeBoxed({val}, ref writer, {val}?.GetType());");
                             break;
 
                         case NinoTypeHelper.NinoTypeKind.BuiltIn:
@@ -346,16 +402,16 @@ public partial class SerializerGenerator
                             {
                                 if (member.IsUtf8String)
                                 {
-                                    sb.AppendLine($"            writer.WriteUtf8({val});");
+                                    sb.AppendLine($"{indent}            writer.WriteUtf8({val});");
                                 }
                                 else
                                 {
-                                    sb.AppendLine($"            writer.Write({val});");
+                                    sb.AppendLine($"{indent}            writer.Write({val});");
                                 }
                             }
                             else
                             {
-                                sb.AppendLine($"            Serializer.Serialize({val}, ref writer);");
+                                sb.AppendLine($"{indent}            Serializer.Serialize({val}, ref writer);");
                             }
 
                             break;
@@ -364,13 +420,19 @@ public partial class SerializerGenerator
                             // PRIORITY 5: NinoType - use CachedSerializer
                             if (TryGetInlineSerializeCall(declaredType, val, out var inlineCall))
                             {
-                                sb.AppendLine($"            {inlineCall};");
+                                sb.AppendLine($"{indent}            {inlineCall};");
+                            }
+                            else if (!declaredType.IsSealedOrStruct())
+                            {
+                                sb.AppendLine(
+                                    $"{indent}            Serializer.SerializePolymorphic({val}, ref writer);");
                             }
                             else
                             {
                                 var serializerVar = GetSerializerVarName(declaredType);
-                                sb.AppendLine($"            {serializerVar}.Serialize({val}, ref writer);");
+                                sb.AppendLine($"{indent}            {serializerVar}.Serialize({val}, ref writer);");
                             }
+
                             break;
                     }
                 }
@@ -378,15 +440,15 @@ public partial class SerializerGenerator
             else
             {
                 // Standard path with version tolerance support
-                sb.AppendLine($"#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
+                sb.AppendLine($"{indent}#if {NinoTypeHelper.WeakVersionToleranceSymbol}");
                 foreach (var val in valNames)
                 {
-                    sb.AppendLine($"            writer.Write({val});");
+                    sb.AppendLine($"{indent}            writer.Write({val});");
                 }
 
-                sb.AppendLine("#else");
-                sb.AppendLine($"            writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
-                sb.AppendLine("#endif");
+                sb.AppendLine($"{indent}#else");
+                sb.AppendLine($"{indent}            writer.Write(NinoTuple.Create({string.Join(", ", valNames)}));");
+                sb.AppendLine($"{indent}#endif");
             }
         }
     }

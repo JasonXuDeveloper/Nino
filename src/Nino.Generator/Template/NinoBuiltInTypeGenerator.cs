@@ -137,6 +137,8 @@ public abstract class NinoBuiltInTypeGenerator(
             case NinoTypeHelper.NinoTypeKind.NinoType:
                 if (TryGetInlineSerializeCall(type, valueName, out var inlineSerialize))
                     return inlineSerialize;
+                if (!type.IsSealedOrStruct())
+                    return $"Serializer.SerializePolymorphic({valueName}, ref writer);";
                 return $"NinoSerializer.Serialize<{type.GetDisplayString()}>({valueName}, ref writer);";
             case NinoTypeHelper.NinoTypeKind.BuiltIn:
                 return $"Serializer.Serialize({valueName}, ref writer);";

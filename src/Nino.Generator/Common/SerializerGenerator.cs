@@ -45,6 +45,8 @@ public partial class SerializerGenerator(
             {
                 var baseTypes = NinoGraph.BaseTypes[ninoType];
                 string prefix;
+                string optimal;
+
                 foreach (var baseType in baseTypes)
                 {
                     if (registeredTypes.Add(baseType.TypeSymbol))
@@ -53,19 +55,23 @@ public partial class SerializerGenerator(
                         prefix = !string.IsNullOrEmpty(baseType.CustomSerializer)
                             ? $"{baseType.CustomSerializer}."
                             : "";
+                        optimal = !baseType.TypeSymbol.IsSealedOrStruct() ? $"{prefix}SerializePolymorphic" : "null";
+
                         var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                         sb.AppendLine($$"""
-                                                    NinoTypeMetadata.RegisterSerializer<{{baseTypeName}}>({{method}}, {{baseType.Parents.Any().ToString().ToLower()}});
+                                                    NinoTypeMetadata.RegisterSerializer<{{baseTypeName}}>({{method}}, {{optimal}}, {{baseType.Parents.Any().ToString().ToLower()}});
                                         """);
                     }
                 }
 
                 prefix = !string.IsNullOrEmpty(ninoType.CustomSerializer) ? $"{ninoType.CustomSerializer}." : "";
+                optimal = !ninoType.TypeSymbol.IsSealedOrStruct() ? $"{prefix}SerializePolymorphic" : "null";
+
                 if (registeredTypes.Add(type))
                 {
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>({{method}}, {{ninoType.Parents.Any().ToString().ToLower()}});
+                                                NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>({{method}}, {{optimal}},{{ninoType.Parents.Any().ToString().ToLower()}});
                                     """);
                 }
 
@@ -83,7 +89,7 @@ public partial class SerializerGenerator(
 
             if (registeredTypes.Add(type))
                 sb.AppendLine($$"""
-                                            NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>(Serialize, false);
+                                            NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>(Serialize, Serialize, false);
                                 """);
         }
 

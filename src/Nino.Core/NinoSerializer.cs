@@ -162,7 +162,8 @@ namespace Nino.Core
     [SuppressMessage("ReSharper", "StaticMemberInGenericType")]
     public static class CachedSerializer<T>
     {
-        public static SerializeDelegate<T> Serializer;
+        private static SerializeDelegate<T> _optimalSerializer;
+        private static SerializeDelegate<T> _serializer;
         public static readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
 
         // Cache expensive type checks
@@ -181,6 +182,12 @@ namespace Nino.Core
         // ULTIMATE: JIT-eliminated constant for maximum performance
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
+
+        public static void SetSerializer(SerializeDelegate<T> serializer, SerializeDelegate<T> optimalSerializer)
+        {
+            _serializer = serializer;
+            _optimalSerializer = optimalSerializer;
+        }
 
         public static void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer) where TSub : T
         {
@@ -214,8 +221,8 @@ namespace Nino.Core
         public static void SerializeBoxed(object value, ref Writer writer)
         {
             if (value == null)
-                Serializer(default, ref writer);
-            else if (value is T val) Serializer(val, ref writer);
+                _serializer(default, ref writer);
+            else if (value is T val) _serializer(val, ref writer);
         }
 
         // ULTRA-OPTIMIZED: Single core method with all paths optimized
@@ -229,23 +236,30 @@ namespace Nino.Core
                 return;
             }
 
+            // FAST PATH 1: Optimal serializer for polymorphic usage (with subtypes)
+            // This is a pre-generated serializer that handles polymorphism internally
+            if (_optimalSerializer != null)
+            {
+                _optimalSerializer(val, ref writer);
+                return;
+            }
+
+            SerializePolymorphic(val, ref writer);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe void SerializePolymorphic(T val, ref Writer writer)
+        {
             // FAST PATH 2: JIT-eliminated branch for sealed types
             // If T is sealed or a value type, it CANNOT have a different runtime type
             // This completely eliminates the need for GetType() calls
             if (IsSealed || SubTypeSerializers.Count == 0)
             {
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
-                Serializer(val, ref writer);
+                _serializer(val, ref writer);
+                return;
             }
-            else
-            {
-                SerializePolymorphic(val, ref writer);
-            }
-        }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe void SerializePolymorphic(T val, ref Writer writer)
-        {
             if (val == null)
             {
                 writer.Write(TypeCollector.Null);
@@ -266,7 +280,7 @@ namespace Nino.Core
             // FAST PATH: Base type (common for non-polymorphic usage)
             if (actualTypeHandle == TypeHandle)
             {
-                Serializer!(val, ref writer);
+                _serializer!(val, ref writer);
                 return;
             }
 
