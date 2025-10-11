@@ -16,33 +16,43 @@ jobs:
       actions: read
 
     steps:
-      - name: Get PR number
-        id: pr
+      - name: Download and extract PR artifacts
+        id: download
         run: |
-          PR_NUMBER=$(echo "${{ github.event.workflow_run.head_branch }}" | grep -oP 'pull/\K[0-9]+' || echo "")
-          if [ -z "$PR_NUMBER" ]; then
-            # Fallback: extract from artifacts
-            PR_NUMBER=$(gh run view ${{ github.event.workflow_run.id }} --json artifacts -q '.artifacts[0].name' | grep -oP 'pr-data-\K[0-9]+' || echo "")
-          fi
-          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Get artifacts from the workflow run
+          ARTIFACTS=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts)
+          ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[0].id')
+          ARTIFACT_NAME=$(echo "$ARTIFACTS" | jq -r '.artifacts[0].name')
 
-      - name: Download PR artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: pr-data-${{ steps.pr.outputs.pr_number }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
+          echo "Downloading artifact: $ARTIFACT_NAME (ID: $ARTIFACT_ID)"
 
-      - name: Read PR info
-        id: pr-info
-        run: |
+          # Download the artifact
+          gh api repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip > artifact.zip
+
+          # Extract it
+          unzip -q artifact.zip
+
+          # Read PR info
           if [ -f pr-info.txt ]; then
+            echo "=== PR Info ==="
             cat pr-info.txt
             PR_NUM=$(grep "PR Number:" pr-info.txt | cut -d' ' -f3)
             echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+            echo "Found PR number: $PR_NUM"
+          else
+            echo "ERROR: pr-info.txt not found"
+            exit 1
           fi
+
+          # Check diff file
+          if [ -f pr.diff ]; then
+            echo "Diff file size: $(wc -l < pr.diff) lines"
+          else
+            echo "ERROR: pr.diff not found"
+            exit 1
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,7 +67,7 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ steps.pr-info.outputs.pr_number }}
+            PR NUMBER: ${{ steps.download.outputs.pr_number }}
 
             A PR diff file has been provided at: pr.diff
 
