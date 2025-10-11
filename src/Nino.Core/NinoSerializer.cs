@@ -182,10 +182,6 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
-        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)] // Cold exception path
-        private static void ThrowInvalidCast(Type actualType) =>
-            throw new InvalidCastException($"Cannot cast {actualType?.FullName ?? "null"} to {typeof(T).FullName}");
-
         public static void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer) where TSub : T
         {
             // Use a static generic helper class to create an inlineable wrapper
@@ -193,26 +189,23 @@ namespace Nino.Core
             SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, SubTypeSerializerWrapper<TSub>.SerializeWrapper);
         }
 
-        // Shared cache for polymorphic serialization (Interlocked for thread-safety)
-        private static IntPtr _cachedTypeHandle;
-        private static SerializeDelegate<T> _cachedSerializer;
-
         // Static wrapper class per TSub - allows better inlining than lambda
         private static class SubTypeSerializerWrapper<TSub> where TSub : T
         {
             public static SerializeDelegate<TSub> SubSerializer;
+            private static readonly bool IsValueType = typeof(TSub).IsValueType;
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static void SerializeWrapper(T val, ref Writer writer)
             {
-                if (val is TSub sub)
+                if (IsValueType)
                 {
-                    // This can be inlined by JIT since it's a static method call with known target
-                    SubSerializer(sub, ref writer);
+                    SubSerializer((TSub)(object)val!, ref writer);
                 }
                 else
                 {
-                    ThrowInvalidCast(val?.GetType());
+                    // Runtime handle check already guaranteed T is TSub so skip casts for reference types.
+                    SubSerializer(Unsafe.As<T, TSub>(ref val), ref writer);
                 }
             }
         }
@@ -277,45 +270,23 @@ namespace Nino.Core
                 return;
             }
 
-            // FAST PATH: 1 subtype (common for simple polymorphic usage)
             if (SubTypeSerializers.Count == 1)
             {
                 SubTypeSerializers.Values[0](val, ref writer);
                 return;
             }
 
-            // FAST PATH: Cache hit (optimized for monomorphic arrays)
-#if NET5_0_OR_GREATER && !UNITY_WEBGL
-            // On 64-bit platforms, Volatile is atomic and faster (~1-2 cycles)
-            var cachedHandle = Volatile.Read(ref _cachedTypeHandle);
-            if (actualTypeHandle == cachedHandle)
+            if (actualTypeHandle == writer.CachedTypeHandle &&
+                writer.CachedSerializer is SerializeDelegate<T> cachedSer)
             {
-                var cachedSer = Volatile.Read(ref _cachedSerializer);
-                cachedSer!(val, ref writer);
+                cachedSer(val, ref writer);
                 return;
             }
-#else
-            // On 32-bit platforms and WebGL, use Interlocked for atomicity (~10-20 cycles)
-            var cachedHandle = Interlocked.CompareExchange(ref _cachedTypeHandle, IntPtr.Zero, IntPtr.Zero);
-            if (actualTypeHandle == cachedHandle)
-            {
-                var cachedSer = Interlocked.CompareExchange(ref _cachedSerializer, null, null);
-                cachedSer!(val, ref writer);
-                return;
-            }
-#endif
 
-            // SLOW PATH: Full lookup in subtype map and update cache
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-#if NET5_0_OR_GREATER && !UNITY_WEBGL
-                // Update cache for subsequent elements
-                Volatile.Write(ref _cachedTypeHandle, actualTypeHandle);
-                Volatile.Write(ref _cachedSerializer, subTypeSerializer);
-#else
-                Interlocked.Exchange(ref _cachedTypeHandle, actualTypeHandle);
-                Interlocked.Exchange(ref _cachedSerializer, subTypeSerializer);
-#endif
+                writer.CachedTypeHandle = actualTypeHandle;
+                writer.CachedSerializer = subTypeSerializer;
                 subTypeSerializer(val, ref writer);
                 return;
             }

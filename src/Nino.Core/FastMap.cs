@@ -70,8 +70,8 @@ namespace Nino.Core
                 Array.Copy(_values, index + 1, _values, index, _count - index - 1);
             }
 
-            _keys[--_count] = default!; // Clear the last element
-            _values[_count] = default!;
+            _keys[--_count] = default; // Clear the last element
+            _values[_count] = default;
         }
 
         private void Grow()

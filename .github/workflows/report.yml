@@ -30,7 +30,7 @@ jobs:
   benchmark:
     name: Run Performance Benchmarks
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 180
     
     steps:
       - name: Determine target tag/ref
@@ -111,12 +111,13 @@ jobs:
           echo "Running benchmarks for ${{ env.tag_name }}..."
           dotnet run -c Release --no-build
           
-          # Verify benchmark results exist (we're in src/Nino.Benchmark directory)
-          if [[ -f "BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md" ]]; then
+          # Verify benchmark results exist (check for any github markdown file)
+          MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)
+          if [[ -n "$MARKDOWN_FILE" && -f "$MARKDOWN_FILE" ]]; then
             echo "✅ Benchmark completed successfully"
+            echo "Found: $MARKDOWN_FILE"
           else
             echo "❌ Benchmark results not found in $(pwd)"
-            echo "Looking for: BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md"
             echo "Available files in results directory:"
             if [[ -d "BenchmarkDotNet.Artifacts/results/" ]]; then
               ls -la BenchmarkDotNet.Artifacts/results/

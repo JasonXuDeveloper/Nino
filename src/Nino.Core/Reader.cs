@@ -10,10 +10,18 @@ namespace Nino.Core
     public ref struct Reader
     {
         private ReadOnlySpan<byte> _data;
+        internal int CachedTypeId;
+        internal object CachedDeserializer;
+        internal int CachedTypeIdRef;
+        internal object CachedDeserializerRef;
 
         public Reader(ReadOnlySpan<byte> buffer)
         {
             _data = buffer;
+            CachedTypeId = int.MinValue;
+            CachedDeserializer = null;
+            CachedTypeIdRef = int.MinValue;
+            CachedDeserializerRef = null;
         }
 
         public bool Eof

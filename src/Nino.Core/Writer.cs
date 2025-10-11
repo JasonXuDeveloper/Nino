@@ -7,13 +7,17 @@ using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
-    public readonly ref struct Writer
+    public ref struct Writer
     {
         private readonly INinoBufferWriter _bufferWriter;
+        internal object CachedSerializer;
+        internal IntPtr CachedTypeHandle;
 
         public Writer(INinoBufferWriter bufferWriter)
         {
             _bufferWriter = bufferWriter;
+            CachedSerializer = null;
+            CachedTypeHandle = IntPtr.Zero;
         }
 
         /// <summary>
@@ -89,7 +93,7 @@ namespace Nino.Core
         {
             int size = Unsafe.SizeOf<T>();
             var span = _bufferWriter.GetSpan(size);
-            
+
             if (TypeCollector.Is64Bit)
             {
                 Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), value);
@@ -117,6 +121,7 @@ namespace Nino.Core
                                 new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
                             src.CopyTo(span);
                         }
+
                         break;
                 }
             }
