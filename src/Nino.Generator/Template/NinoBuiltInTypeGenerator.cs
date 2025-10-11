@@ -164,6 +164,13 @@ public abstract class NinoBuiltInTypeGenerator(
                 if (TryGetInlineDeserializeCall(type, byRef: false, isOutVariable, varName, readerName,
                         out var inlineDeserialize))
                     return inlineDeserialize;
+                if (!type.IsSealedOrStruct())
+                {
+                    if (isOutVariable)
+                        return
+                            $"Deserializer.DeserializePolymorphic(out {type.GetDisplayString()} {varName}, ref {readerName});";
+                    return $"Deserializer.DeserializePolymorphic(out {varName}, ref {readerName});";
+                }
 
                 if (isOutVariable)
                     return $"NinoDeserializer.Deserialize(out {type.GetDisplayString()} {varName}, ref {readerName});";
@@ -190,6 +197,10 @@ public abstract class NinoBuiltInTypeGenerator(
                 if (TryGetInlineDeserializeCall(type, byRef: true, isOutVariable: false, varName, readerName,
                         out var inlineRefDeserialize))
                     return inlineRefDeserialize;
+                if (!type.IsSealedOrStruct())
+                {
+                    return $"Deserializer.DeserializeRefPolymorphic(ref {varName}, ref {readerName});";
+                }
 
                 return $"NinoDeserializer.DeserializeRef(ref {varName}, ref {readerName});";
             case NinoTypeHelper.NinoTypeKind.BuiltIn:
@@ -290,9 +301,9 @@ public abstract class NinoBuiltInTypeGenerator(
         {
             var typeName = registeredType.GetDisplayString();
             registrationCode.AppendLine(
-                $"                NinoTypeMetadata.RegisterSerializer<{typeName}>(Serializer.Serialize, false);");
+                $"                NinoTypeMetadata.RegisterSerializer<{typeName}>(Serializer.Serialize, Serializer.Serialize, false);");
             registrationCode.AppendLine(
-                $"                NinoTypeMetadata.RegisterDeserializer<{typeName}>(Deserializer.Deserialize, Deserializer.DeserializeRef, false);");
+                $"                NinoTypeMetadata.RegisterDeserializer<{typeName}>(-1, Deserializer.Deserialize, Deserializer.DeserializeRef, Deserializer.Deserialize, Deserializer.DeserializeRef, false);");
         }
 
         var curNamespace = Compilation.AssemblyName!.GetNamespace();

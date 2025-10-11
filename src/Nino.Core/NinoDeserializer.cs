@@ -145,6 +145,8 @@ namespace Nino.Core
         private static int _typeId = -1;
         private static DeserializeDelegate<T> _deserializer;
         private static DeserializeDelegateRef<T> _deserializerRef;
+        private static DeserializeDelegate<T> _optimalDeserializer;
+        private static DeserializeDelegateRef<T> _optimalDeserializerRef;
         private static readonly FastMap<int, DeserializeDelegate<T>> SubTypeDeserializers = new();
         private static readonly FastMap<int, DeserializeDelegateRef<T>> SubTypeDeserializerRefs = new();
         private static int _singleSubTypeId = int.MinValue;
@@ -167,11 +169,14 @@ namespace Nino.Core
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
         public static void SetDeserializer(int typeId, DeserializeDelegate<T> deserializer,
-            DeserializeDelegateRef<T> deserializerRef)
+            DeserializeDelegateRef<T> deserializerRef, DeserializeDelegate<T> optimalDeserializer,
+            DeserializeDelegateRef<T> optimalDeserializerRef)
         {
             _typeId = typeId;
             _deserializer = deserializer;
             _deserializerRef = deserializerRef;
+            _optimalDeserializer = optimalDeserializer;
+            _optimalDeserializerRef = optimalDeserializerRef;
             SubTypeDeserializers.Add(typeId, _deserializer);
             SubTypeDeserializerRefs.Add(typeId, _deserializerRef);
             _singleSubTypeId = int.MinValue;
@@ -278,18 +283,15 @@ namespace Nino.Core
                 return;
             }
 
-            // FAST PATH 2: JIT-eliminated branch for sealed types
-            // If T is sealed or a value type, it CANNOT have a different runtime type
-            // This completely eliminates polymorphic deserialization overhead
-            if (IsSealed || SubTypeDeserializers.Count == 1)
+            // FAST PATH 1: Optimal serializer for polymorphic usage (with subtypes)
+            // This is a pre-generated serializer that handles polymorphism internally
+            if (_optimalDeserializer != null)
             {
-                // DIRECT DELEGATE: Generated code path - no polymorphism possible
-                _deserializer(out value, ref reader);
+                _optimalDeserializer(out value, ref reader);
+                return;
             }
-            else
-            {
-                DeserializePolymorphic(out value, ref reader);
-            }
+
+            DeserializePolymorphic(out value, ref reader);
         }
 
         // ULTRA-OPTIMIZED: Single core ref method with all paths optimized
@@ -303,23 +305,30 @@ namespace Nino.Core
                 return;
             }
 
-            // FAST PATH 2: JIT-eliminated branch for sealed types
-            // If T is sealed or a value type, it CANNOT have a different runtime type
-            // This completely eliminates polymorphic deserialization overhead
-            if (IsSealed || SubTypeDeserializerRefs.Count == 1)
+            // FAST PATH 1: Optimal serializer for polymorphic usage (with subtypes)
+            // This is a pre-generated serializer that handles polymorphism internally
+            if (_optimalDeserializerRef != null)
             {
-                // DIRECT DELEGATE: Generated code path - no polymorphism possible
-                _deserializerRef(ref value, ref reader);
+                _optimalDeserializerRef(ref value, ref reader);
+                return;
             }
-            else
-            {
-                DeserializeRefPolymorphic(ref value, ref reader);
-            }
+
+            DeserializeRefPolymorphic(ref value, ref reader);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void DeserializePolymorphic(out T value, ref Reader reader)
+        public static void DeserializePolymorphic(out T value, ref Reader reader)
         {
+            // FAST PATH 2: JIT-eliminated branch for sealed types
+            // If T is sealed or a value type, it CANNOT have a different runtime type
+            // This completely eliminates polymorphic deserialization overhead
+            if (IsSealed || SubTypeDeserializers.Count == 1)
+            {
+                // DIRECT DELEGATE: Generated code path - no polymorphism possible
+                _deserializer(out value, ref reader);
+                return;
+            }
+
             // Peek type info for polymorphic types
             reader.Peak(out int typeId);
 
@@ -364,8 +373,18 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void DeserializeRefPolymorphic(ref T value, ref Reader reader)
+        public static void DeserializeRefPolymorphic(ref T value, ref Reader reader)
         {
+            // FAST PATH 2: JIT-eliminated branch for sealed types
+            // If T is sealed or a value type, it CANNOT have a different runtime type
+            // This completely eliminates polymorphic deserialization overhead
+            if (IsSealed || SubTypeDeserializerRefs.Count == 1)
+            {
+                // DIRECT DELEGATE: Generated code path - no polymorphism possible
+                _deserializerRef(ref value, ref reader);
+                return;
+            }
+
             // Read type info first for polymorphic types
             reader.Peak(out int typeId);
 

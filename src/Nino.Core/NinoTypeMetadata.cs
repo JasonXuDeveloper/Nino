@@ -58,7 +58,10 @@ namespace Nino.Core
         [EditorBrowsable(EditorBrowsableState.Never)]
         public static void RegisterDeserializer<T>(int typeId,
             DeserializeDelegate<T> deserializer,
-            DeserializeDelegateRef<T> deserializerRef, bool hasBaseType)
+            DeserializeDelegateRef<T> deserializerRef,
+            DeserializeDelegate<T> optimalDeserializer,
+            DeserializeDelegateRef<T> optimalDeserializerRef,
+            bool hasBaseType)
         {
             lock (DeserializerRegistration<T>.Lock)
             {
@@ -73,7 +76,7 @@ namespace Nino.Core
                         HasBaseTypeMap.Add(typeHandle, true);
                 }
 
-                CachedDeserializer<T>.SetDeserializer(typeId, deserializer, deserializerRef);
+                CachedDeserializer<T>.SetDeserializer(typeId, deserializer, deserializerRef, optimalDeserializer, optimalDeserializerRef);
                 (DeserializeDelegateBoxed outOverload,
                     DeserializeDelegateRefBoxed refOverload) pair = (CachedDeserializer<T>.DeserializeBoxed,
                         CachedDeserializer<T>.DeserializeBoxed);

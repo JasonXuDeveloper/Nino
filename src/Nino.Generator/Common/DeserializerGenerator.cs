@@ -58,20 +58,42 @@ public partial class DeserializerGenerator(
                         var baseTypeId = !baseType.IsPolymorphic() || !baseType.TypeSymbol.IsInstanceType()
                             ? "-1"
                             : $"NinoTypeConst.{baseType.TypeSymbol.GetTypeFullName().GetTypeConstName()}";
+
+                        // For polymorphic base types, use the polymorphic methods as optimal deserializers
+                        var optimalMethod = "null";
+                        var optimalMethodRef = "null";
+                        if (!baseType.TypeSymbol.IsSealedOrStruct())
+                        {
+                            optimalMethod = $"{prefix}DeserializePolymorphic";
+                            optimalMethodRef = $"{prefix}DeserializeRefPolymorphic";
+                        }
+
                         sb.AppendLine($$"""
-                                                    NinoTypeMetadata.RegisterDeserializer<{{baseTypeName}}>({{baseTypeId}}, {{method}}, {{methodRef}}, {{baseType.Parents.Any().ToString().ToLower()}});
+                                                    NinoTypeMetadata.RegisterDeserializer<{{baseTypeName}}>({{baseTypeId}}, {{method}}, {{methodRef}}, {{optimalMethod}}, {{optimalMethodRef}}, {{baseType.Parents.Any().ToString().ToLower()}});
                                         """);
                     }
                 }
 
-                var typeId = !ninoType.IsPolymorphic() || !type.IsInstanceType() ? "-1": $"NinoTypeConst.{type.GetTypeFullName().GetTypeConstName()}";
+                var typeId = !ninoType.IsPolymorphic() || !type.IsInstanceType()
+                    ? "-1"
+                    : $"NinoTypeConst.{type.GetTypeFullName().GetTypeConstName()}";
                 prefix = !string.IsNullOrEmpty(ninoType.CustomDeserializer) ? $"{ninoType.CustomDeserializer}." : "";
                 if (registeredTypes.Add(type))
                 {
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImpl" : "null";
                     var methodRef = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImplRef" : "null";
+
+                    // For polymorphic types, use the polymorphic methods as optimal deserializers
+                    var optimalMethod = "null";
+                    var optimalMethodRef = "null";
+                    if (!ninoType.TypeSymbol.IsSealedOrStruct())
+                    {
+                        optimalMethod = $"{prefix}DeserializePolymorphic";
+                        optimalMethodRef = $"{prefix}DeserializeRefPolymorphic";
+                    }
+
                     sb.AppendLine($$"""
-                                                NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>({{typeId}}, {{method}}, {{methodRef}}, {{ninoType.Parents.Any().ToString().ToLower()}});
+                                                NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>({{typeId}}, {{method}}, {{methodRef}}, {{optimalMethod}}, {{optimalMethodRef}}, {{ninoType.Parents.Any().ToString().ToLower()}});
                                     """);
                 }
 
@@ -90,7 +112,7 @@ public partial class DeserializerGenerator(
 
             if (registeredTypes.Add(type))
                 sb.AppendLine($$"""
-                                            NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(-1, Deserialize, DeserializeRef, false);
+                                            NinoTypeMetadata.RegisterDeserializer<{{typeFullName}}>(-1, Deserialize, DeserializeRef, Deserialize, DeserializeRef, false);
                                 """);
         }
 
