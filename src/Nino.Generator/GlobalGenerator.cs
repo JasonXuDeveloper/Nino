@@ -17,12 +17,12 @@ public class GlobalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // 扫描直接标记 [NinoType] 的类型
+        // Scan types directly marked with [NinoType]
         var ninoTypeModels = context.GetTypeSyntaxes()
             .Where(static syntax => syntax != null)
             .Collect();
 
-        // 扫描所有类型声明（包括可能继承自 NinoType 的类）
+        // Scan all type declarations (including those that may inherit from NinoType)
         var allTypeDeclarations = context.SyntaxProvider
             .CreateSyntaxProvider<CSharpSyntaxNode>(
                 static (node, _) => node is TypeDeclarationSyntax,
