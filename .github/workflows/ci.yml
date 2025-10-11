@@ -164,54 +164,17 @@ jobs:
           echo "Running benchmarks for PR #${{ github.event.pull_request.number }}..."
           dotnet run -c Release --no-build
 
-          # Verify benchmark results exist
-          if [[ -f "BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md" ]]; then
-            echo "✅ Benchmark completed successfully"
+          # Verify benchmark results exist (check for any github markdown file)
+          MARKDOWN_COUNT=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | wc -l)
+          if [[ $MARKDOWN_COUNT -gt 0 ]]; then
+            echo "✅ Benchmark completed successfully - found $MARKDOWN_COUNT report file(s)"
+            find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f
           else
             echo "❌ Benchmark results not found"
             echo "Looking for markdown files in results directory..."
             find BenchmarkDotNet.Artifacts -name "*.md" -type f || echo "No markdown files found"
             exit 1
           fi
-
-      - name: Post benchmark results to PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          # Find the generated markdown file
-          echo "🔍 Looking for benchmark markdown files..."
-          BENCHMARK_FILE=$(find Nino.Benchmark -path "*/BenchmarkDotNet.Artifacts/results/*.md" -type f | head -n1)
-
-          if [[ -z "$BENCHMARK_FILE" || ! -f "$BENCHMARK_FILE" ]]; then
-            echo "❌ No markdown benchmark report found"
-            exit 1
-          fi
-
-          echo "✅ Found benchmark report: $BENCHMARK_FILE"
-
-          # Read benchmark content
-          PERF_CONTENT=$(cat "$BENCHMARK_FILE")
-
-          # Create PR comment with benchmark results
-          {
-            echo "## 📊 Benchmark Results"
-            echo ""
-            echo "<details>"
-            echo "<summary>Click to expand benchmark results</summary>"
-            echo ""
-            echo "$PERF_CONTENT"
-            echo ""
-            echo "</details>"
-            echo ""
-            echo "---"
-            echo "*Benchmark generated automatically on $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
-          } > benchmark_comment.md
-
-          # Post comment to PR
-          gh pr comment ${{ github.event.pull_request.number }} --body-file benchmark_comment.md
-          echo "✅ Benchmark results posted to PR #${{ github.event.pull_request.number }}"
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4

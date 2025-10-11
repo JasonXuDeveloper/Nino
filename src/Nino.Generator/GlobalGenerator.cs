@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Nino.Generator.BuiltInType;
 using Nino.Generator.Common;
@@ -16,7 +17,17 @@ public class GlobalGenerator : IIncrementalGenerator
 {
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // Scan types directly marked with [NinoType]
         var ninoTypeModels = context.GetTypeSyntaxes()
+            .Where(static syntax => syntax != null)
+            .Collect();
+
+        // Scan all type declarations (including those that may inherit from NinoType)
+        var allTypeDeclarations = context.SyntaxProvider
+            .CreateSyntaxProvider<CSharpSyntaxNode>(
+                static (node, _) => node is TypeDeclarationSyntax,
+                static (context, _) => (CSharpSyntaxNode)context.Node
+            )
             .Where(static syntax => syntax != null)
             .Collect();
 
@@ -32,14 +43,16 @@ public class GlobalGenerator : IIncrementalGenerator
             .Collect();
 
         var merged = context.CompilationProvider.Combine(typeDeclarations)
-            .Combine(ninoTypeModels);
+            .Combine(ninoTypeModels)
+            .Combine(allTypeDeclarations);
 
         // Add explicit caching and error boundaries
         context.RegisterSourceOutput(merged, static (spc, source) =>
         {
-            var compilation = source.Left.Left;
-            var typeSyntaxes = source.Left.Right;
-            var ninoTypeSyntaxes = source.Right;
+            var compilation = source.Left.Left.Left;
+            var typeSyntaxes = source.Left.Left.Right;
+            var ninoTypeSyntaxes = source.Left.Right;
+            var allTypeDeclarations = source.Right;
 
             // Add stability check
             if (compilation == null) return;
@@ -116,6 +129,20 @@ public class GlobalGenerator : IIncrementalGenerator
                     if (typeSymbol != null
                         && typeSymbol.DeclaredAccessibility == Accessibility.Public
                         && typeSymbol.CheckGenericValidity())
+                    {
+                        var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
+                        allTypes.Add(type);
+                    }
+                }
+
+                // process all type declarations (including those inheriting from NinoType)
+                foreach (var typeSyntax in allTypeDeclarations)
+                {
+                    var typeSymbol = typeSyntax.GetTypeSymbol(compilation);
+                    if (typeSymbol != null
+                        && typeSymbol.DeclaredAccessibility == Accessibility.Public
+                        && typeSymbol.CheckGenericValidity()
+                        && typeSymbol.IsNinoType()) // IsNinoType now checks inheritance
                     {
                         var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
                         allTypes.Add(type);

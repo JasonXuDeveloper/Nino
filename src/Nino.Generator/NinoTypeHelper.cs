@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -18,7 +19,9 @@ public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
-    private static readonly ConcurrentDictionary<ITypeSymbol, bool> IsNinoTypeCache =
+    // Cache for NinoTypeAttribute lookup results (including inheritance chain lookup)
+    // null means not found, non-null means attribute was found
+    private static readonly ConcurrentDictionary<ITypeSymbol, NinoTypeAttribute?> NinoTypeAttributeCache =
         new(SymbolEqualityComparer.Default);
 
     private static readonly ConcurrentDictionary<ITypeSymbol, string> ToDisplayStringCache =
@@ -188,7 +191,7 @@ public static class NinoTypeHelper
                 .OfType<UsingDirectiveSyntax>()
                 .Any(u =>
                 {
-                    var name = u.Name?.ToString();
+                    var name = u.Name.ToString();
                     return name == "Nino.Core" || name == "global::Nino.Core" || name?.StartsWith("Nino.Core.") == true;
                 }));
 
@@ -386,6 +389,48 @@ public static class NinoTypeHelper
             .FirstOrDefault(static a => a.AttributeClass?.Name == "NinoConstructorAttribute");
     }
 
+    /// <summary>
+    /// Safely retrieves a constructor parameter value from AttributeData by parameter name
+    /// </summary>
+    /// <typeparam name="T">Parameter value type</typeparam>
+    /// <param name="attributeData">Attribute data</param>
+    /// <param name="parameterName">Parameter name</param>
+    /// <param name="defaultValue">Default value (returned when parameter doesn't exist or value is null)</param>
+    /// <returns>Parameter value or default value</returns>
+    public static T GetConstructorArgumentByName<T>(AttributeData? attributeData, string parameterName, T defaultValue = default!)
+    {
+        if (attributeData == null || attributeData.AttributeConstructor == null)
+        {
+            return defaultValue;
+        }
+
+        var parameters = attributeData.AttributeConstructor.Parameters;
+        var arguments = attributeData.ConstructorArguments;
+
+        // Find the index corresponding to the parameter name
+        for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
+        {
+            if (parameters[i].Name == parameterName)
+            {
+                var value = arguments[i].Value;
+                if (value == null)
+                {
+                    return defaultValue;
+                }
+
+                // Type checking and conversion
+                if (value is T typedValue)
+                {
+                    return typedValue;
+                }
+
+                return defaultValue;
+            }
+        }
+
+        return defaultValue;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static SemanticModel GetCachedSemanticModel(Compilation compilation, SyntaxTree syntaxTree)
     {
@@ -451,22 +496,89 @@ public static class NinoTypeHelper
         return typeSymbol.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
     }
 
+    /// <summary>
+    /// Checks if a type has NinoTypeAttribute (including inheritance check)
+    /// </summary>
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
-        if (IsNinoTypeCache.TryGetValue(typeSymbol, out var isNinoType))
+        return GetNinoTypeAttribute(typeSymbol) != null;
+    }
+
+    /// <summary>
+    /// Gets the NinoTypeAttribute of a type (nearest first principle: current type first, then base class, then interface)
+    /// Uses caching to avoid repeated inheritance chain traversal
+    /// </summary>
+    public static NinoTypeAttribute? GetNinoTypeAttribute(this ITypeSymbol typeSymbol)
+    {
+        // Check cache
+        if (NinoTypeAttributeCache.TryGetValue(typeSymbol, out var cached))
         {
-            return isNinoType;
+            return cached;
         }
 
+        // Check current type first
+        var attr = GetDirectNinoTypeAttribute(typeSymbol);
+        if (attr != null)
+        {
+            NinoTypeAttributeCache[typeSymbol] = NinoTypeAttribute.GetAttribute(attr);
+            return NinoTypeAttributeCache[typeSymbol];
+        }
+
+        // Then check base class chain
+        var baseType = typeSymbol.BaseType;
+        while (baseType != null)
+        {
+            attr = GetDirectNinoTypeAttribute(baseType);
+            if (attr != null)
+            {
+                var ninoTypeAttr = NinoTypeAttribute.GetAttribute(attr);
+                // If base class has allowInheritance = false, don't inherit
+                if (ninoTypeAttr.allowInheritance)
+                {
+                    NinoTypeAttributeCache[typeSymbol] = ninoTypeAttr;
+                    return ninoTypeAttr;
+                }
+
+                // Base class doesn't allow inheritance, stop searching
+                break;
+            }
+            baseType = baseType.BaseType;
+        }
+
+        // Finally check interfaces
+        foreach (var interfaceType in typeSymbol.AllInterfaces)
+        {
+            attr = GetDirectNinoTypeAttribute(interfaceType);
+            if (attr != null)
+            {
+                var ninoTypeAttr = NinoTypeAttribute.GetAttribute(attr);
+                // Check allowInheritance parameter
+                if (ninoTypeAttr.allowInheritance)
+                {
+                    NinoTypeAttributeCache[typeSymbol] = ninoTypeAttr;
+                    return ninoTypeAttr;
+                }
+            }
+        }
+
+        NinoTypeAttributeCache[typeSymbol] = null;
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets the NinoTypeAttribute directly declared on the type itself (doesn't check inheritance)
+    /// </summary>
+    private static AttributeData? GetDirectNinoTypeAttribute(ITypeSymbol typeSymbol)
+    {
         foreach (var attribute in typeSymbol.GetAttributesCache())
         {
-            if (!string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute", StringComparison.Ordinal)) continue;
-            IsNinoTypeCache[typeSymbol] = true;
-            return true;
+            if (string.Equals(attribute.AttributeClass?.Name, "NinoTypeAttribute", StringComparison.Ordinal))
+            {
+                return attribute;
+            }
         }
-
-        IsNinoTypeCache[typeSymbol] = false;
-        return false;
+        return null;
     }
 
     public static string GetTypeModifiers(this ITypeSymbol typeSymbol)
@@ -738,6 +850,24 @@ public static class NinoTypeHelper
 
         TypeHierarchyLevelCache[type] = level;
         return level;
+    }
+}
+
+[SuppressMessage("ReSharper", "InconsistentNaming")]
+public class NinoTypeAttribute
+{
+    public bool autoCollect = true;
+    public bool containNonPublicMembers;
+    public bool allowInheritance = true;
+    
+    public static NinoTypeAttribute GetAttribute(AttributeData attributeData)
+    { 
+        return new NinoTypeAttribute
+        {
+            autoCollect = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(autoCollect), true),
+            containNonPublicMembers = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(containNonPublicMembers), false),
+            allowInheritance = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(allowInheritance), true)
+        };
     }
 }
 
