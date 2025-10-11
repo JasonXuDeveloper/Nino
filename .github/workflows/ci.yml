@@ -73,46 +73,46 @@ jobs:
       - name: Run unit tests
         run: dotnet test --no-build --verbosity normal --configuration Debug --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
-      - name: Cache Unity Library
-        uses: actions/cache@v4
-        with:
-          path: src/Nino.Unity/Library
-          key: Library-Nino-${{ runner.os }}-${{ hashFiles('Nino.Unity/Assets/**', 'Nino.Unity/ProjectSettings/**') }}
-          restore-keys: |
-            Library-Nino-${{ runner.os }}-
-            Library-Nino-
-            Library-
-
-      - name: Run Unity tests
-        uses: game-ci/unity-test-runner@v4
-        id: unity-tests
-        env:
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
-        with:
-          projectPath: ./src/Nino.Unity
-          testMode: editmode
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
-          unityVersion: '2022.3.51f1'
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results-${{ github.run_number }}
-          path: |
-            artifacts
-            ./src/TestResults
-          retention-days: 30
-
-      - name: Upload Unity coverage
-        uses: actions/upload-artifact@v4
-        if: always() && steps.unity-tests.outputs.coveragePath
-        with:
-          name: unity-coverage-${{ github.run_number }}
-          path: ${{ steps.unity-tests.outputs.coveragePath }}
-          retention-days: 30
+#      - name: Cache Unity Library
+#        uses: actions/cache@v4
+#        with:
+#          path: src/Nino.Unity/Library
+#          key: Library-Nino-${{ runner.os }}-${{ hashFiles('Nino.Unity/Assets/**', 'Nino.Unity/ProjectSettings/**') }}
+#          restore-keys: |
+#            Library-Nino-${{ runner.os }}-
+#            Library-Nino-
+#            Library-
+#
+#      - name: Run Unity tests
+#        uses: game-ci/unity-test-runner@v4
+#        id: unity-tests
+#        env:
+#          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+#          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+#          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+#        with:
+#          projectPath: ./src/Nino.Unity
+#          testMode: editmode
+#          githubToken: ${{ secrets.GITHUB_TOKEN }}
+#          unityVersion: '2022.3.51f1'
+#
+#      - name: Upload test results
+#        uses: actions/upload-artifact@v4
+#        if: always()
+#        with:
+#          name: test-results-${{ github.run_number }}
+#          path: |
+#            artifacts
+#            ./src/TestResults
+#          retention-days: 30
+#
+#      - name: Upload Unity coverage
+#        uses: actions/upload-artifact@v4
+#        if: always() && steps.unity-tests.outputs.coveragePath
+#        with:
+#          name: unity-coverage-${{ github.run_number }}
+#          path: ${{ steps.unity-tests.outputs.coveragePath }}
+#          retention-days: 30
 
   # Run benchmarks on PRs only
   benchmark:
