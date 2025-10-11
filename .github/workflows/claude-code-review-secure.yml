@@ -86,3 +86,82 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
           claude_args: '--allowed-tools "Bash(gh pr comment:*),Bash(gh pr view:*),Bash(cat:pr.diff),Bash(cat:pr-info.txt)"'
+
+      - name: Check for benchmark results
+        id: benchmark
+        continue-on-error: true
+        run: |
+          PR_NUM="${{ steps.download.outputs.pr_number }}"
+
+          # Look for benchmark artifacts from the CI workflow
+          echo "Looking for benchmark artifacts for PR #$PR_NUM..."
+
+          # Get all workflow runs for this PR
+          RUNS=$(gh api "repos/${{ github.repository }}/actions/runs?event=pull_request&status=completed" \
+            --jq ".workflow_runs[] | select(.head_sha == \"${{ github.event.workflow_run.head_sha }}\") | .id")
+
+          BENCHMARK_FOUND=false
+          for RUN_ID in $RUNS; do
+            echo "Checking run $RUN_ID for benchmark artifacts..."
+
+            # Check if this run has benchmark artifacts
+            ARTIFACTS=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts" \
+              --jq ".artifacts[] | select(.name | startswith(\"benchmark-results-pr-\"))")
+
+            if [ -n "$ARTIFACTS" ]; then
+              echo "Found benchmark artifacts in run $RUN_ID"
+              ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.id' | head -1)
+
+              # Download benchmark artifact
+              gh api "repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" > benchmark.zip
+              unzip -q benchmark.zip -d benchmark-results
+
+              BENCHMARK_FOUND=true
+              break
+            fi
+          done
+
+          if [ "$BENCHMARK_FOUND" = true ]; then
+            echo "has_benchmark=true" >> $GITHUB_OUTPUT
+            echo "✅ Benchmark results found and downloaded"
+          else
+            echo "has_benchmark=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No benchmark results found for this PR"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Post benchmark results to PR
+        if: steps.benchmark.outputs.has_benchmark == 'true'
+        run: |
+          PR_NUM="${{ steps.download.outputs.pr_number }}"
+
+          # Find the benchmark markdown file
+          BENCHMARK_FILE=$(find benchmark-results -name "*-report-github.md" -type f | head -1)
+
+          if [ -n "$BENCHMARK_FILE" ] && [ -f "$BENCHMARK_FILE" ]; then
+            echo "Found benchmark report: $BENCHMARK_FILE"
+
+            # Create formatted comment
+            {
+              echo "## 📊 Benchmark Results"
+              echo ""
+              echo "<details>"
+              echo "<summary>Click to expand benchmark results</summary>"
+              echo ""
+              cat "$BENCHMARK_FILE"
+              echo ""
+              echo "</details>"
+              echo ""
+              echo "---"
+              echo "*Benchmark generated automatically on $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
+            } > benchmark_comment.md
+
+            # Post to PR
+            gh pr comment "$PR_NUM" --body-file benchmark_comment.md
+            echo "✅ Benchmark results posted to PR #$PR_NUM"
+          else
+            echo "⚠️ Benchmark markdown file not found in downloaded artifacts"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
