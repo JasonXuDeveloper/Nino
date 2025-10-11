@@ -128,7 +128,7 @@ internal class SomeContainer
         var code = @"
 using Nino.Core;
 
-[NinoType]
+[NinoType(allowInheritance: true)]
 public interface IBase
 {
 }
@@ -145,7 +145,7 @@ public abstract class AbstractClass : IBase
     public string B;
 }
 
-[NinoType]
+[NinoType(allowInheritance: false)]
 public abstract class AbstractClass2
 {
     public int A;
@@ -170,20 +170,11 @@ public class Something
 ";
 
         await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO003")
-                .WithLocation(9, 14)
-                .WithArguments("TestClass", "IBase"),
-            Verify.Diagnostic("NINO003")
-                .WithLocation(15, 23)
-                .WithArguments("AbstractClass", "IBase"),
-            Verify.Diagnostic("NINO003")
                 .WithLocation(28, 14)
                 .WithArguments("TestClass2", "AbstractClass2"),
             Verify.Diagnostic("NINO003")
                 .WithLocation(32, 14)
-                .WithArguments("TestClass3", "AbstractClass2"),
-            Verify.Diagnostic("NINO003")
-                .WithLocation(36, 14)
-                .WithArguments("TestClass4", "IBase")).RunAsync();
+                .WithArguments("TestClass3", "AbstractClass2")).RunAsync();
     }
 
     [TestMethod]
