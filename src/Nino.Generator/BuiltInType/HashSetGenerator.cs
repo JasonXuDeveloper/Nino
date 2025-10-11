@@ -62,9 +62,6 @@ public class HashSetGenerator(
         var namedType = (INamedTypeSymbol)typeSymbol;
         var elementType = namedType.TypeArguments[0];
 
-        // Check if this is an interface type
-        bool isInterface = typeSymbol.TypeKind == TypeKind.Interface;
-
         var typeName = typeSymbol.GetDisplayString();
 
         // Check if element is unmanaged (no WeakVersionTolerance needed)
@@ -86,25 +83,83 @@ public class HashSetGenerator(
         writer.AppendLine("    int cnt = value.Count;");
         writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
         writer.AppendLine();
-        writer.AppendLine("    foreach (var item in value)");
+        writer.AppendLine("    if (cnt == 0)");
         writer.AppendLine("    {");
-
-        if (!isUnmanaged)
-        {
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-        }
-
-        writer.Append("        ");
-        writer.AppendLine(GetSerializeString(elementType, "item"));
-
-        if (!isUnmanaged)
-        {
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("        writer.PutLength(pos);"); });
-        }
-
+        writer.AppendLine("        return;");
         writer.AppendLine("    }");
+        writer.AppendLine();
+
+        var originalDef = namedType.OriginalDefinition.ToDisplayString();
+        bool isHashSet = originalDef == "System.Collections.Generic.HashSet<T>";
+
+        if (isHashSet)
+        {
+            var hashSetViewTypeName = $"TypeCollector.HashSetView<{elementType.GetDisplayString()}>";
+            writer.Append("    ref var hashSet = ref System.Runtime.CompilerServices.Unsafe.As<");
+            writer.Append(typeName);
+            writer.Append(", ");
+            writer.Append(hashSetViewTypeName);
+            writer.AppendLine(">(ref value);");
+            writer.AppendLine("    var entries = hashSet._entries;");
+            writer.AppendLine("    if (entries == null)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        return;");
+            writer.AppendLine("    }");
+            writer.AppendLine("    // Iterate entries via direct ref to avoid bounds checks");
+            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
+            writer.AppendLine("    ref var entryRef = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
+            writer.AppendLine("#else");
+            writer.AppendLine("    ref var entryRef = ref entries[0];");
+            writer.AppendLine("#endif");
+            writer.AppendLine("    int index = 0;");
+            writer.AppendLine("    while ((uint)index < (uint)cnt)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        ref var entry = ref System.Runtime.CompilerServices.Unsafe.Add(ref entryRef, index++);");
+            writer.AppendLine("        if (entry.next < -1)");
+            writer.AppendLine("        {");
+            writer.AppendLine("            continue;");
+            writer.AppendLine("        }");
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+            }
+
+            writer.Append("        ");
+            writer.AppendLine(GetSerializeString(elementType, "entry.value"));
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("    }");
+        }
+        else
+        {
+            // Fallback to foreach for other hashset-like types
+            writer.AppendLine("    foreach (var item in value)");
+            writer.AppendLine("    {");
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+            }
+
+            writer.Append("        ");
+            writer.AppendLine(GetSerializeString(elementType, "item"));
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("    }");
+        }
 
         writer.AppendLine("}");
     }
