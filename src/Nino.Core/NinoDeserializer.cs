@@ -159,6 +159,12 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         private static readonly bool IsSealed = typeof(T).IsSealed || typeof(T).IsValueType;
 
+        // Thread-local cache for polymorphic deserialization
+        [ThreadStatic] private static int _cachedTypeId;
+        [ThreadStatic] private static int _cachedTypeIdRef;
+        [ThreadStatic] private static DeserializeDelegate<T> _cachedDeserializer;
+        [ThreadStatic] private static DeserializeDelegateRef<T> _cachedDeserializerRef;
+
         // ULTIMATE: JIT-eliminated constants for maximum performance
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
@@ -293,10 +299,6 @@ namespace Nino.Core
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
                 _deserializerRef(ref value, ref reader);
             }
-            else if (SubTypeDeserializerRefs.Count == 1)
-            {
-                SubTypeDeserializerRefs.Values[0](ref value, ref reader);
-            }
             else
             {
                 DeserializeRefPolymorphic(ref value, ref reader);
@@ -316,17 +318,29 @@ namespace Nino.Core
                 return;
             }
 
-            // Fast path: exact type match
+            // FASTEST PATH: Thread-local cache hit (optimized for monomorphic arrays)
+            if (typeId == _cachedTypeId)
+            {
+                _cachedDeserializer(out value, ref reader);
+                return;
+            }
+
+            // FAST PATH: Exact type match
             if (typeId == _typeId)
             {
+                // Update cache for next iteration
+                _cachedTypeId = typeId;
+                _cachedDeserializer = _deserializer;
                 _deserializer(out value, ref reader);
                 return;
             }
 
-            // Slow path: lookup and update cache
-            // Handle subtype with single lookup
+            // SLOW PATH: Full lookup in subtype map and update cache
             if (SubTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
+                // Update thread-local cache for subsequent elements
+                _cachedTypeId = typeId;
+                _cachedDeserializer = subTypeDeserializer;
                 subTypeDeserializer(out value, ref reader);
                 return;
             }
@@ -347,17 +361,29 @@ namespace Nino.Core
                 return;
             }
 
-            // Fast path: exact type match
+            // FASTEST PATH: Thread-local cache hit (optimized for monomorphic arrays)
+            if (typeId == _cachedTypeIdRef)
+            {
+                _cachedDeserializerRef(ref value, ref reader);
+                return;
+            }
+
+            // FAST PATH: Exact type match
             if (typeId == _typeId)
             {
+                // Update cache for next iteration
+                _cachedTypeIdRef = typeId;
+                _cachedDeserializerRef = _deserializerRef;
                 _deserializerRef(ref value, ref reader);
                 return;
             }
 
-            // Slow path: lookup and update cache
-            // Handle subtype deserialization
+            // SLOW PATH: Full lookup in subtype map and update cache
             if (SubTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
+                // Update thread-local cache for subsequent elements
+                _cachedTypeIdRef = typeId;
+                _cachedDeserializerRef = subTypeDeserializer;
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }

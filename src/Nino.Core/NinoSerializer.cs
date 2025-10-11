@@ -193,6 +193,10 @@ namespace Nino.Core
             SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, SubTypeSerializerWrapper<TSub>.SerializeWrapper);
         }
 
+        // Thread-local cache for polymorphic serialization
+        [ThreadStatic] private static IntPtr _cachedTypeHandle;
+        [ThreadStatic] private static SerializeDelegate<T> _cachedSerializer;
+
         // Static wrapper class per TSub - allows better inlining than lambda
         private static class SubTypeSerializerWrapper<TSub> where TSub : T
         {
@@ -240,10 +244,6 @@ namespace Nino.Core
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
                 Serializer(val, ref writer);
             }
-            else if (SubTypeSerializers.Count == 1)
-            {
-                SubTypeSerializers.Values[0](val, ref writer);
-            }
             else
             {
                 SerializePolymorphic(val, ref writer);
@@ -270,17 +270,29 @@ namespace Nino.Core
             IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
 #endif
 
-            // FAST PATH: Base type (common for non-polymorphic usage)
-            if (actualTypeHandle == TypeHandle)
+            // FASTEST PATH: Thread-local cache hit (optimized for monomorphic arrays)
+            if (actualTypeHandle == _cachedTypeHandle)
             {
-                Serializer(val, ref writer);
+                _cachedSerializer(val, ref writer);
                 return;
             }
 
-            // SLOW PATH: Full lookup in subtype map
-            // Handle subtype serialization
+            // FAST PATH: Base type (common for non-polymorphic usage)
+            if (actualTypeHandle == TypeHandle)
+            {
+                // Update thread-local cache for subsequent elements
+                _cachedTypeHandle = actualTypeHandle;
+                _cachedSerializer = Serializer;
+                Serializer(val, ref writer);
+                return;
+            }
+            
+            // SLOW PATH: Full lookup in subtype map and update cache
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
+                // Update thread-local cache for subsequent elements
+                _cachedTypeHandle = actualTypeHandle;
+                _cachedSerializer = subTypeSerializer;
                 subTypeSerializer(val, ref writer);
                 return;
             }
