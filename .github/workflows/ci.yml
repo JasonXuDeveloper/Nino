@@ -164,9 +164,11 @@ jobs:
           echo "Running benchmarks for PR #${{ github.event.pull_request.number }}..."
           dotnet run -c Release --no-build
 
-          # Verify benchmark results exist
-          if [[ -f "BenchmarkDotNet.Artifacts/results/Nino.Benchmark.SimpleTest-report-github.md" ]]; then
-            echo "✅ Benchmark completed successfully"
+          # Verify benchmark results exist (check for any github markdown file)
+          MARKDOWN_COUNT=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | wc -l)
+          if [[ $MARKDOWN_COUNT -gt 0 ]]; then
+            echo "✅ Benchmark completed successfully - found $MARKDOWN_COUNT report file(s)"
+            find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f
           else
             echo "❌ Benchmark results not found"
             echo "Looking for markdown files in results directory..."
