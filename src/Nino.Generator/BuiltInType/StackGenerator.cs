@@ -83,25 +83,83 @@ public class StackGenerator(
         writer.AppendLine("    int cnt = value.Count;");
         writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
         writer.AppendLine();
-        writer.AppendLine("    foreach (var item in value)");
+        writer.AppendLine("    if (cnt == 0)");
         writer.AppendLine("    {");
-
-        if (!isUnmanaged)
-        {
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-        }
-
-        writer.Append("        ");
-        writer.AppendLine(GetSerializeString(elementType, "item"));
-
-        if (!isUnmanaged)
-        {
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("        writer.PutLength(pos);"); });
-        }
-
+        writer.AppendLine("        return;");
         writer.AppendLine("    }");
+        writer.AppendLine();
+
+        var originalDef = namedType.OriginalDefinition.ToDisplayString();
+        bool isStack = originalDef == "System.Collections.Generic.Stack<T>";
+
+        if (isStack)
+        {
+            var stackViewTypeName = $"Nino.Core.Internal.StackView<{elementType.GetDisplayString()}>";
+            writer.Append("    ref var stack = ref System.Runtime.CompilerServices.Unsafe.As<");
+            writer.Append(typeName);
+            writer.Append(", ");
+            writer.Append(stackViewTypeName);
+            writer.AppendLine(">(ref value);");
+            writer.AppendLine("    var array = stack._array;");
+            writer.AppendLine("    if (array == null)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        return;");
+            writer.AppendLine("    }");
+
+            // Use ref iteration for all types to eliminate bounds checks
+            writer.AppendLine("    // Stack serializes from top to bottom with ref iteration");
+            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
+            writer.AppendLine("    ref var cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), cnt - 1);");
+            writer.AppendLine("    ref var end = ref System.Runtime.CompilerServices.Unsafe.Subtract(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), 1);");
+            writer.AppendLine("#else");
+            writer.AppendLine("    ref var cur = ref array[cnt - 1];");
+            writer.AppendLine("    ref var end = ref System.Runtime.CompilerServices.Unsafe.Subtract(ref array[0], 1);");
+            writer.AppendLine("#endif");
+            writer.AppendLine("    do");
+            writer.AppendLine("    {");
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+            }
+
+            writer.Append("        ");
+            writer.AppendLine(GetSerializeString(elementType, "cur"));
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("        cur = ref System.Runtime.CompilerServices.Unsafe.Subtract(ref cur, 1);");
+            writer.AppendLine("    }");
+            writer.AppendLine("    while (System.Runtime.CompilerServices.Unsafe.IsAddressGreaterThan(ref cur, ref end));");
+        }
+        else
+        {
+            // Fallback to foreach for ConcurrentStack
+            writer.AppendLine("    foreach (var item in value)");
+            writer.AppendLine("    {");
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+            }
+
+            writer.Append("        ");
+            writer.AppendLine(GetSerializeString(elementType, "item"));
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("    }");
+        }
 
         writer.AppendLine("}");
     }
@@ -140,15 +198,17 @@ public class StackGenerator(
         }
 
         writer.AppendLine("    // Stack is LIFO, so we need to read into array then push in reverse order");
-        writer.Append("    var temp = new ");
+        writer.Append("    var temp = System.Buffers.ArrayPool<");
         writer.Append(elemType);
-        writer.AppendLine("[length];");
-        writer.AppendLine("    for (int i = 0; i < length; i++)");
+        writer.AppendLine(">.Shared.Rent(length);");
+        writer.AppendLine("    try");
         writer.AppendLine("    {");
+        writer.AppendLine("        for (int i = 0; i < length; i++)");
+        writer.AppendLine("        {");
 
         if (isUnmanaged)
         {
-            writer.Append("        ");
+            writer.Append("            ");
             writer.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
         }
         else
@@ -156,30 +216,37 @@ public class StackGenerator(
             IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w =>
                 {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
+                    w.AppendLine("            eleReader = reader.Slice();");
+                    w.Append("            ");
                     w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false, readerName: "eleReader"));
                 },
                 w =>
                 {
-                    w.Append("        ");
+                    w.Append("            ");
                     w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
                 });
         }
 
-        writer.AppendLine("    }");
+        writer.AppendLine("        }");
         writer.AppendLine();
 
         // ConcurrentStack doesn't support capacity parameter, only Stack does
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
         bool isConcurrentStack = originalDef == "System.Collections.Concurrent.ConcurrentStack<T>";
 
-        writer.Append("    value = new ");
+        writer.Append("        value = new ");
         writer.Append(typeName);
         writer.AppendLine(isConcurrentStack ? "();" : "(length);");
-        writer.AppendLine("    for (int i = length - 1; i >= 0; i--)");
+        writer.AppendLine("        for (int i = length - 1; i >= 0; i--)");
+        writer.AppendLine("        {");
+        writer.AppendLine("            value.Push(temp[i]);");
+        writer.AppendLine("        }");
+        writer.AppendLine("    }");
+        writer.AppendLine("    finally");
         writer.AppendLine("    {");
-        writer.AppendLine("        value.Push(temp[i]);");
+        writer.Append("        System.Buffers.ArrayPool<");
+        writer.Append(elemType);
+        writer.AppendLine(">.Shared.Return(temp);");
         writer.AppendLine("    }");
 
         writer.AppendLine("}");
@@ -209,15 +276,17 @@ public class StackGenerator(
         }
 
         writer.AppendLine("    // Stack is LIFO, so we need to read into array then push in reverse order");
-        writer.Append("    var temp = new ");
+        writer.Append("    var temp = System.Buffers.ArrayPool<");
         writer.Append(elemType);
-        writer.AppendLine("[length];");
-        writer.AppendLine("    for (int i = 0; i < length; i++)");
+        writer.AppendLine(">.Shared.Rent(length);");
+        writer.AppendLine("    try");
         writer.AppendLine("    {");
+        writer.AppendLine("        for (int i = 0; i < length; i++)");
+        writer.AppendLine("        {");
 
         if (isUnmanaged)
         {
-            writer.Append("        ");
+            writer.Append("            ");
             writer.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
         }
         else
@@ -225,34 +294,41 @@ public class StackGenerator(
             IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w =>
                 {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
+                    w.AppendLine("            eleReader = reader.Slice();");
+                    w.Append("            ");
                     w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false, readerName: "eleReader"));
                 },
                 w =>
                 {
-                    w.Append("        ");
+                    w.Append("            ");
                     w.AppendLine(GetDeserializeString(elementType, "temp[i]", isOutVariable: false));
                 });
         }
 
-        writer.AppendLine("    }");
+        writer.AppendLine("        }");
         writer.AppendLine();
-        writer.AppendLine("    // Initialize if null, otherwise clear");
-        writer.AppendLine("    if (value == null)");
-        writer.AppendLine("    {");
-        writer.Append("        value = new ");
+        writer.AppendLine("        // Initialize if null, otherwise clear");
+        writer.AppendLine("        if (value == null)");
+        writer.AppendLine("        {");
+        writer.Append("            value = new ");
         writer.Append(typeName);
         writer.AppendLine(isConcurrentStack ? "();" : "(length);");
-        writer.AppendLine("    }");
-        writer.AppendLine("    else");
-        writer.AppendLine("    {");
-        writer.AppendLine("        value.Clear();");
-        writer.AppendLine("    }");
+        writer.AppendLine("        }");
+        writer.AppendLine("        else");
+        writer.AppendLine("        {");
+        writer.AppendLine("            value.Clear();");
+        writer.AppendLine("        }");
         writer.AppendLine();
-        writer.AppendLine("    for (int i = length - 1; i >= 0; i--)");
+        writer.AppendLine("        for (int i = length - 1; i >= 0; i--)");
+        writer.AppendLine("        {");
+        writer.AppendLine("            value.Push(temp[i]);");
+        writer.AppendLine("        }");
+        writer.AppendLine("    }");
+        writer.AppendLine("    finally");
         writer.AppendLine("    {");
-        writer.AppendLine("        value.Push(temp[i]);");
+        writer.Append("        System.Buffers.ArrayPool<");
+        writer.Append(elemType);
+        writer.AppendLine(">.Shared.Return(temp);");
         writer.AppendLine("    }");
 
         writer.AppendLine("}");

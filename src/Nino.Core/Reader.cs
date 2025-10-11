@@ -4,6 +4,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -226,7 +227,7 @@ namespace Nino.Core
             }
 
             ret = new List<T>();
-            ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref ret);
+            ref var lst = ref Unsafe.As<List<T>, ListView<T>>(ref ret);
             lst._size = arr.Length;
             lst._items = arr;
 #endif
@@ -377,7 +378,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void GetBytes(int length, out ReadOnlySpan<byte> bytes)
+        public void GetBytes(int length, out ReadOnlySpan<byte> bytes)
         {
             bytes = _data.Slice(0, length);
             _data = _data.Slice(length);
@@ -443,7 +444,7 @@ namespace Nino.Core
             Span<byte> dst = MemoryMarshal.AsBytes(span);
             bytes.CopyTo(dst);
 #else
-            ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref value);
+            ref var lst = ref Unsafe.As<List<T>, ListView<T>>(ref value);
             lst._size = length;
 #if !NET5_0_OR_GREATER
             Array.Resize(ref lst._items, length);

@@ -4,6 +4,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -213,6 +214,20 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteSpanWithoutHeader<T>(Span<T> value) where T : unmanaged
+        {
+            if (value.IsEmpty)
+            {
+                return;
+            }
+
+            var valueSpan = MemoryMarshal.AsBytes(value);
+            var span = _bufferWriter.GetSpan(valueSpan.Length);
+            valueSpan.CopyTo(span);
+            _bufferWriter.Advance(valueSpan.Length);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(Span<T?> value) where T : unmanaged
         {
             if (value.IsEmpty)
@@ -240,7 +255,7 @@ namespace Nino.Core
 #if NET6_0_OR_GREATER
             Write(CollectionsMarshal.AsSpan(value));
 #else
-            ref var lst = ref Unsafe.As<List<T>, TypeCollector.ListView<T>>(ref value);
+            ref var lst = ref Unsafe.As<List<T>, ListView<T>>(ref value);
             Write(lst._items.AsSpan(0, lst._size));
 #endif
         }
@@ -257,7 +272,7 @@ namespace Nino.Core
 #if NET6_0_OR_GREATER
             Write(CollectionsMarshal.AsSpan(value));
 #else
-            ref var lst = ref Unsafe.As<List<T?>, TypeCollector.ListView<T?>>(ref value);
+            ref var lst = ref Unsafe.As<List<T?>, ListView<T?>>(ref value);
             Write(lst._items.AsSpan(0, lst._size));
 #endif
         }

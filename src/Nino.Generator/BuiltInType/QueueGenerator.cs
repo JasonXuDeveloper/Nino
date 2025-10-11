@@ -83,25 +83,161 @@ public class QueueGenerator(
         writer.AppendLine("    int cnt = value.Count;");
         writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
         writer.AppendLine();
-        writer.AppendLine("    foreach (var item in value)");
+        writer.AppendLine("    if (cnt == 0)");
         writer.AppendLine("    {");
-
-        if (!isUnmanaged)
-        {
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("        var pos = writer.Advance(4);"); });
-        }
-
-        writer.Append("        ");
-        writer.AppendLine(GetSerializeString(elementType, "item"));
-
-        if (!isUnmanaged)
-        {
-            IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w => { w.AppendLine("        writer.PutLength(pos);"); });
-        }
-
+        writer.AppendLine("        return;");
         writer.AppendLine("    }");
+        writer.AppendLine();
+
+        var originalDef = namedType.OriginalDefinition.ToDisplayString();
+        bool isQueue = originalDef == "System.Collections.Generic.Queue<T>";
+
+        if (isQueue)
+        {
+            writer.AppendLine("#if NET5_0_OR_GREATER");
+            var queueViewTypeName = $"Nino.Core.Internal.QueueView<{elementType.GetDisplayString()}>";
+            writer.Append("    ref var queue = ref System.Runtime.CompilerServices.Unsafe.As<");
+            writer.Append(typeName);
+            writer.Append(", ");
+            writer.Append(queueViewTypeName);
+            writer.AppendLine(">(ref value);");
+            writer.AppendLine("    var array = queue._array;");
+            writer.AppendLine("    if (array == null)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        return;");
+            writer.AppendLine("    }");
+            writer.AppendLine("    int head = queue._head;");
+            writer.AppendLine("    int tail = queue._tail;");
+            writer.AppendLine("    int arrayLength = array.Length;");
+
+            if (isUnmanaged)
+            {
+                // For unmanaged types, use span-based writes for optimal performance
+                writer.AppendLine("    // Queue wraps around, use span writes for unmanaged types");
+                writer.AppendLine("    if (head < tail)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        // Simple case: no wrap-around, single span write");
+                writer.AppendLine("        writer.WriteSpanWithoutHeader(array.AsSpan(head, cnt));");
+                writer.AppendLine("    }");
+                writer.AppendLine("    else");
+                writer.AppendLine("    {");
+                writer.AppendLine("        // Wrap-around case: two span writes");
+                writer.AppendLine("        writer.WriteSpanWithoutHeader(array.AsSpan(head, arrayLength - head));");
+                writer.AppendLine("        writer.WriteSpanWithoutHeader(array.AsSpan(0, tail));");
+                writer.AppendLine("    }");
+            }
+            else
+            {
+                // For managed types, use ref iteration to eliminate bounds checks
+                writer.AppendLine("    // Queue wraps around, serialize from head to tail with ref iteration");
+                writer.AppendLine("    if (head < tail)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        // Simple case: no wrap-around");
+                writer.AppendLine("        ref var cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), head);");
+                writer.AppendLine("        ref var end = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), tail);");
+                writer.AppendLine("        do");
+                writer.AppendLine("        {");
+
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("            var pos = writer.Advance(4);"); });
+
+                writer.Append("            ");
+                writer.AppendLine(GetSerializeString(elementType, "cur"));
+
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("            writer.PutLength(pos);"); });
+
+                writer.AppendLine("            cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, 1);");
+                writer.AppendLine("        }");
+                writer.AppendLine("        while (System.Runtime.CompilerServices.Unsafe.IsAddressLessThan(ref cur, ref end));");
+                writer.AppendLine("    }");
+                writer.AppendLine("    else");
+                writer.AppendLine("    {");
+                writer.AppendLine("        // Wrap-around case: serialize from head to end, then from 0 to tail");
+                writer.AppendLine("        ref var cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), head);");
+                writer.AppendLine("        ref var end = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), arrayLength);");
+                writer.AppendLine("        do");
+                writer.AppendLine("        {");
+
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("            var pos = writer.Advance(4);"); });
+
+                writer.Append("            ");
+                writer.AppendLine(GetSerializeString(elementType, "cur"));
+
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("            writer.PutLength(pos);"); });
+
+                writer.AppendLine("            cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, 1);");
+                writer.AppendLine("        }");
+                writer.AppendLine("        while (System.Runtime.CompilerServices.Unsafe.IsAddressLessThan(ref cur, ref end));");
+                writer.AppendLine();
+                writer.AppendLine("        // Serialize from 0 to tail");
+                writer.AppendLine("        cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array);");
+                writer.AppendLine("        end = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), tail);");
+                writer.AppendLine("        do");
+                writer.AppendLine("        {");
+
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("            var pos = writer.Advance(4);"); });
+
+                writer.Append("            ");
+                writer.AppendLine(GetSerializeString(elementType, "cur"));
+
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("            writer.PutLength(pos);"); });
+
+                writer.AppendLine("            cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, 1);");
+                writer.AppendLine("        }");
+                writer.AppendLine("        while (System.Runtime.CompilerServices.Unsafe.IsAddressLessThan(ref cur, ref end));");
+                writer.AppendLine("    }");
+            }
+            writer.AppendLine("#else");
+            writer.AppendLine("    // Fallback for Unity and other non-.NET 5.0+ platforms");
+            writer.AppendLine("    foreach (var item in value)");
+            writer.AppendLine("    {");
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+            }
+
+            writer.Append("        ");
+            writer.AppendLine(GetSerializeString(elementType, "item"));
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("    }");
+            writer.AppendLine("#endif");
+        }
+        else
+        {
+            // Fallback to foreach for ConcurrentQueue
+            writer.AppendLine("    foreach (var item in value)");
+            writer.AppendLine("    {");
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+            }
+
+            writer.Append("        ");
+            writer.AppendLine(GetSerializeString(elementType, "item"));
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("    }");
+        }
 
         writer.AppendLine("}");
     }
@@ -140,37 +276,133 @@ public class QueueGenerator(
 
         // ConcurrentQueue doesn't support capacity parameter, only Queue does
         var originalDef = namedType.OriginalDefinition.ToDisplayString();
-        bool isConcurrentQueue = originalDef == "System.Collections.Concurrent.ConcurrentQueue<T>";
+        bool isQueue = originalDef == "System.Collections.Generic.Queue<T>";
 
-        writer.Append("    value = new ");
-        writer.Append(typeName);
-        writer.AppendLine(isConcurrentQueue ? "();" : "(length);");
-        writer.AppendLine("    for (int i = 0; i < length; i++)");
-        writer.AppendLine("    {");
-
-        if (isUnmanaged)
+        if (isQueue)
         {
-            writer.Append("        ");
-            writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            writer.AppendLine("#if NET5_0_OR_GREATER");
+            // For Queue<T>, directly construct internal array and use Unsafe.As for efficiency
+            var elemType = elementType.GetDisplayString();
+            var queueViewTypeName = $"Nino.Core.Internal.QueueView<{elemType}>";
+
+            if (isUnmanaged)
+            {
+                // For unmanaged types, use efficient memcpy via GetBytes
+                writer.Append("    var array = new ");
+                writer.Append(elemType);
+                writer.AppendLine("[length];");
+                writer.Append("    reader.GetBytes(length * System.Runtime.CompilerServices.Unsafe.SizeOf<");
+                writer.Append(elemType);
+                writer.AppendLine(">(), out var bytes);");
+                writer.AppendLine("    System.Span<byte> dst = System.Runtime.InteropServices.MemoryMarshal.AsBytes(array.AsSpan());");
+                writer.AppendLine("    bytes.CopyTo(dst);");
+            }
+            else
+            {
+                // For managed types, use ref iteration for efficient element assignment
+                writer.Append("    var array = new ");
+                writer.Append(elemType);
+                writer.AppendLine("[length];");
+                writer.AppendLine("    var span = array.AsSpan();");
+                writer.AppendLine("    for (int i = 0; i < length; i++)");
+                writer.AppendLine("    {");
+
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "span[i]", isOutVariable: false, readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "span[i]", isOutVariable: false));
+                    });
+
+                writer.AppendLine("    }");
+            }
+
+            writer.AppendLine();
+            writer.AppendLine("    // Use Unsafe.As to directly construct Queue with internal array");
+            writer.Append("    value = new ");
+            writer.Append(typeName);
+            writer.AppendLine("(length);");
+            writer.Append("    ref var queue = ref System.Runtime.CompilerServices.Unsafe.As<");
+            writer.Append(typeName);
+            writer.Append(", ");
+            writer.Append(queueViewTypeName);
+            writer.AppendLine(">(ref value);");
+            writer.AppendLine("    queue._array = array;");
+            writer.AppendLine("    queue._head = 0;");
+            writer.AppendLine("    queue._tail = length;");
+            writer.AppendLine("    queue._size = length;");
+            writer.AppendLine("#else");
+            writer.AppendLine("    // Fallback for Unity and other non-.NET 5.0+ platforms");
+            writer.Append("    value = new ");
+            writer.Append(typeName);
+            writer.AppendLine("(length);");
+            writer.AppendLine("    for (int i = 0; i < length; i++)");
+            writer.AppendLine("    {");
+
+            if (isUnmanaged)
+            {
+                writer.Append("        ");
+                writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    });
+            }
+
+            writer.AppendLine("        value.Enqueue(item);");
+            writer.AppendLine("    }");
+            writer.AppendLine("#endif");
         }
         else
         {
-            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w =>
-                {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
-                },
-                w =>
-                {
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-                });
-        }
+            // Fallback for ConcurrentQueue
+            writer.Append("    value = new ");
+            writer.Append(typeName);
+            writer.AppendLine("();");
+            writer.AppendLine("    for (int i = 0; i < length; i++)");
+            writer.AppendLine("    {");
 
-        writer.AppendLine("        value.Enqueue(item);");
-        writer.AppendLine("    }");
+            if (isUnmanaged)
+            {
+                writer.Append("        ");
+                writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    });
+            }
+
+            writer.AppendLine("        value.Enqueue(item);");
+            writer.AppendLine("    }");
+        }
 
         writer.AppendLine("}");
         writer.AppendLine();
@@ -198,44 +430,164 @@ public class QueueGenerator(
             writer.AppendLine();
         }
 
-        writer.AppendLine("    // Initialize if null, otherwise clear");
-        writer.AppendLine("    if (value == null)");
-        writer.AppendLine("    {");
-        writer.Append("        value = new ");
-        writer.Append(typeName);
-        writer.AppendLine(isConcurrentQueue ? "();" : "(length);");
-        writer.AppendLine("    }");
-        writer.AppendLine("    else");
-        writer.AppendLine("    {");
-        writer.AppendLine("        value.Clear();");
-        writer.AppendLine("    }");
-        writer.AppendLine();
-        writer.AppendLine("    for (int i = 0; i < length; i++)");
-        writer.AppendLine("    {");
+        // ConcurrentQueue doesn't support capacity parameter, only Queue does
+        var originalDef2 = namedType.OriginalDefinition.ToDisplayString();
+        bool isQueue2 = originalDef2 == "System.Collections.Generic.Queue<T>";
 
-        if (isUnmanaged)
+        if (isQueue2)
         {
-            writer.Append("        ");
-            writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            writer.AppendLine("#if NET5_0_OR_GREATER");
+            // For Queue<T>, reuse existing array if possible, resize if needed
+            var elemType = elementType.GetDisplayString();
+            var queueViewTypeName = $"Nino.Core.Internal.QueueView<{elemType}>";
+
+            writer.AppendLine("    // Extract existing array or create new, then resize if needed");
+            writer.Append("    ");
+            writer.Append(elemType);
+            writer.AppendLine("[] array;");
+            writer.AppendLine("    if (value == null)");
+            writer.AppendLine("    {");
+            writer.Append("        value = new ");
+            writer.Append(typeName);
+            writer.AppendLine("(length);");
+            writer.AppendLine("    }");
+            writer.AppendLine();
+            writer.Append("    ref var queue = ref System.Runtime.CompilerServices.Unsafe.As<");
+            writer.Append(typeName);
+            writer.Append(", ");
+            writer.Append(queueViewTypeName);
+            writer.AppendLine(">(ref value);");
+            writer.AppendLine("    array = queue._array;");
+            writer.AppendLine();
+            writer.AppendLine("    // Resize array if needed");
+            writer.AppendLine("    if (array == null || array.Length < length)");
+            writer.AppendLine("    {");
+            writer.AppendLine("        System.Array.Resize(ref array, length);");
+            writer.AppendLine("    }");
+            writer.AppendLine();
+
+            if (isUnmanaged)
+            {
+                // For unmanaged types, use efficient memcpy via GetBytes
+                writer.Append("    reader.GetBytes(length * System.Runtime.CompilerServices.Unsafe.SizeOf<");
+                writer.Append(elemType);
+                writer.AppendLine(">(), out var bytes);");
+                writer.AppendLine("    System.Span<byte> dst = System.Runtime.InteropServices.MemoryMarshal.AsBytes(array.AsSpan(0, length));");
+                writer.AppendLine("    bytes.CopyTo(dst);");
+            }
+            else
+            {
+                // For managed types, use ref deserialization for efficient element assignment
+                writer.AppendLine("    var span = array.AsSpan();");
+                writer.AppendLine("    for (int i = 0; i < length; i++)");
+                writer.AppendLine("    {");
+
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeRefString(elementType, "span[i]", readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeRefString(elementType, "span[i]"));
+                    });
+
+                writer.AppendLine("    }");
+            }
+
+            writer.AppendLine();
+            writer.AppendLine("    // Update Queue internal state with the array");
+            writer.AppendLine("    queue._array = array;");
+            writer.AppendLine("    queue._head = 0;");
+            writer.AppendLine("    queue._tail = length;");
+            writer.AppendLine("    queue._size = length;");
+            writer.AppendLine("#else");
+            writer.AppendLine("    // Fallback for Unity and other non-.NET 5.0+ platforms");
+            writer.AppendLine("    // Initialize if null, otherwise clear");
+            writer.AppendLine("    if (value == null)");
+            writer.AppendLine("    {");
+            writer.Append("        value = new ");
+            writer.Append(typeName);
+            writer.AppendLine("(length);");
+            writer.AppendLine("    }");
+            writer.AppendLine("    else");
+            writer.AppendLine("    {");
+            writer.AppendLine("        value.Clear();");
+            writer.AppendLine("    }");
+            writer.AppendLine();
+            writer.AppendLine("    for (int i = 0; i < length; i++)");
+            writer.AppendLine("    {");
+
+            if (isUnmanaged)
+            {
+                writer.Append("        ");
+                writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    });
+            }
+
+            writer.AppendLine("        value.Enqueue(item);");
+            writer.AppendLine("    }");
+            writer.AppendLine("#endif");
         }
         else
         {
-            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w =>
-                {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
-                },
-                w =>
-                {
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
-                });
-        }
+            // Fallback for ConcurrentQueue - clear and repopulate
+            writer.AppendLine("    // Initialize if null, otherwise clear");
+            writer.AppendLine("    if (value == null)");
+            writer.AppendLine("    {");
+            writer.Append("        value = new ");
+            writer.Append(typeName);
+            writer.AppendLine("();");
+            writer.AppendLine("    }");
+            writer.AppendLine("    else");
+            writer.AppendLine("    {");
+            writer.AppendLine("        value.Clear();");
+            writer.AppendLine("    }");
+            writer.AppendLine();
+            writer.AppendLine("    for (int i = 0; i < length; i++)");
+            writer.AppendLine("    {");
 
-        writer.AppendLine("        value.Enqueue(item);");
-        writer.AppendLine("    }");
+            if (isUnmanaged)
+            {
+                writer.Append("        ");
+                writer.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true, readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "item", isOutVariable: true));
+                    });
+            }
+
+            writer.AppendLine("        value.Enqueue(item);");
+            writer.AppendLine("    }");
+        }
 
         writer.AppendLine("}");
     }

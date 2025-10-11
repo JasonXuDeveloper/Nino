@@ -102,7 +102,7 @@ public class DictionaryGenerator(
 
         if (isDictionary)
         {
-            var dictViewTypeName = $"TypeCollector.DictionaryView<{keyType.GetDisplayString()}, {valueType.GetDisplayString()}>"; 
+            var dictViewTypeName = $"Nino.Core.Internal.DictionaryView<{keyType.GetDisplayString()}, {valueType.GetDisplayString()}>"; 
             writer.Append("    ref var dict = ref System.Runtime.CompilerServices.Unsafe.As<");
             writer.Append(typeName);
             writer.Append(", ");

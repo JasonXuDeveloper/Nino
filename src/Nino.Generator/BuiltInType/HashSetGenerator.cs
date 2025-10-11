@@ -94,7 +94,7 @@ public class HashSetGenerator(
 
         if (isHashSet)
         {
-            var hashSetViewTypeName = $"TypeCollector.HashSetView<{elementType.GetDisplayString()}>";
+            var hashSetViewTypeName = $"Nino.Core.Internal.HashSetView<{elementType.GetDisplayString()}>";
             writer.Append("    ref var hashSet = ref System.Runtime.CompilerServices.Unsafe.As<");
             writer.Append(typeName);
             writer.Append(", ");
