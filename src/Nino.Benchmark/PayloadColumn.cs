@@ -1,5 +1,5 @@
-using System.Collections.Generic;
-using System.Linq;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;
@@ -8,6 +8,21 @@ using Perfolizer.Metrology;
 namespace Nino.Benchmark;
 
 public class PayloadColumnAttribute() : ColumnConfigBaseAttribute(new PayloadColumn());
+
+public static class BenchmarkPayloadRegistry
+{
+    private static readonly ConcurrentDictionary<string, int> PayloadSizes = new();
+
+    public static void Register(string methodName, int size)
+    {
+        PayloadSizes[methodName] = size;
+    }
+
+    public static bool TryGet(string methodName, out int size)
+    {
+        return PayloadSizes.TryGetValue(methodName, out size);
+    }
+}
 
 public class PayloadColumn : IColumn
 {
@@ -26,7 +41,13 @@ public class PayloadColumn : IColumn
     public string GetValue(Summary summary, BenchmarkCase benchmarkCase)
     {
         var methodName = benchmarkCase.Descriptor.WorkloadMethod.Name;
-        if (SimpleTest.PayloadMap.TryGetValue(methodName, out var size))
+        var declaringType = benchmarkCase.Descriptor.WorkloadMethod.DeclaringType;
+        if (declaringType != null)
+        {
+            RuntimeHelpers.RunClassConstructor(declaringType.TypeHandle);
+        }
+
+        if (BenchmarkPayloadRegistry.TryGet(methodName, out var size))
             return new SizeValue(size).ToString();
 
         return "-";

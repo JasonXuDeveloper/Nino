@@ -20,6 +20,13 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static NinoArrayBufferWriter GetBufferWriter()
         {
+            // Fast path - use default buffer if available (single interlocked op, no branches)
+            if (Interlocked.CompareExchange(ref _defaultUsed, 1, 0) == 0)
+            {
+                return DefaultBufferWriter;
+            }
+
+            // Fallback to thread-local buffer
             if (!_threadLocalBufferInUse)
             {
                 var local = _threadLocalBufferWriter;
@@ -28,19 +35,9 @@ namespace Nino.Core
                     local = new NinoArrayBufferWriter(2048);
                     _threadLocalBufferWriter = local;
                 }
-#if NET8_0_OR_GREATER
-                local.ResetWrittenCount();
-#else
-                local.Clear();
-#endif
+
                 _threadLocalBufferInUse = true;
                 return local;
-            }
-
-            // Fast path - use default buffer if available
-            if (Interlocked.CompareExchange(ref _defaultUsed, 1, 0) == 0)
-            {
-                return DefaultBufferWriter;
             }
 
             // Try to reuse from pool
@@ -56,36 +53,28 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ReturnBufferWriter(NinoArrayBufferWriter bufferWriter)
         {
-            bool isThreadLocal = ReferenceEquals(bufferWriter, _threadLocalBufferWriter);
-
-            if (isThreadLocal)
-            {
-#if NET8_0_OR_GREATER
-                bufferWriter.ResetWrittenCount();
-#else
-                bufferWriter.Clear();
-#endif
-                _threadLocalBufferInUse = false;
-                return;
-            }
-
 #if NET8_0_OR_GREATER
             bufferWriter.ResetWrittenCount();
 #else
             bufferWriter.Clear();
 #endif
-            // Check if the buffer writer is the default buffer writer
+
+            // Fast path - return default buffer (most common case in single-threaded scenarios)
+            // Direct reference comparison - JIT will optimize this to a single pointer comparison
             if (bufferWriter == DefaultBufferWriter)
             {
-                // Ensure it is in use, otherwise throw an exception
-                if (Interlocked.CompareExchange(ref _defaultUsed, 0, 1) == 0)
-                {
-                    throw new InvalidOperationException("The returned buffer writer is not in use.");
-                }
-
+                Interlocked.Exchange(ref _defaultUsed, 0);
                 return;
             }
 
+            // Thread-local buffer
+            if (bufferWriter == _threadLocalBufferWriter)
+            {
+                _threadLocalBufferInUse = false;
+                return;
+            }
+
+            // Return to pool for reuse
             BufferWriters.Enqueue(bufferWriter);
         }
 
@@ -116,13 +105,6 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
-            // JIT completely eliminates this branch for unmanaged types
-            if (CachedSerializer<T>.IsSimpleType)
-            {
-                writer.UnsafeWrite(value);
-                return;
-            }
-
             CachedSerializer<T>.Serialize(value, ref writer);
         }
 
@@ -258,6 +240,10 @@ namespace Nino.Core
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
                 Serializer(val, ref writer);
             }
+            else if (SubTypeSerializers.Count == 1)
+            {
+                SubTypeSerializers.Values[0](val, ref writer);
+            }
             else
             {
                 SerializePolymorphic(val, ref writer);
@@ -283,7 +269,7 @@ namespace Nino.Core
             // Fallback to GetType() for older runtimes
             IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
 #endif
-            
+
             // FAST PATH: Base type (common for non-polymorphic usage)
             if (actualTypeHandle == TypeHandle)
             {

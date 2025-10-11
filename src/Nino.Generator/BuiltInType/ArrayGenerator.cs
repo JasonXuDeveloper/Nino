@@ -78,21 +78,26 @@ public class ArrayGenerator(
             writer.AppendLine("        return;");
             writer.AppendLine("    }");
             writer.AppendLine();
-            // Optimized array serialization - use direct ref access to avoid bounds checks
             writer.AppendLine("    int cnt = value.Length;");
             writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(cnt));");
             writer.AppendLine();
-            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
-            writer.AppendLine("    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
-            writer.AppendLine("#else");
+
+            // Early exit for empty arrays
             writer.AppendLine("    if (cnt == 0)");
             writer.AppendLine("    {");
             writer.AppendLine("        return;");
             writer.AppendLine("    }");
+            writer.AppendLine();
+
+            // Both value and reference types benefit from ref iteration - eliminates bounds checks
+            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
+            writer.AppendLine("    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
+            writer.AppendLine("#else");
             writer.AppendLine("    ref var cur = ref value[0];");
             writer.AppendLine("#endif");
             writer.AppendLine("    ref var end = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, cnt);");
-            writer.AppendLine("    while (!System.Runtime.CompilerServices.Unsafe.AreSame(ref cur, ref end))");
+            writer.AppendLine();
+            writer.AppendLine("    do");
             writer.AppendLine("    {");
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("        var pos = writer.Advance(4);"); });
@@ -103,6 +108,7 @@ public class ArrayGenerator(
                 w => { w.AppendLine("        writer.PutLength(pos);"); });
             writer.AppendLine("        cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, 1);");
             writer.AppendLine("    }");
+            writer.AppendLine("    while (System.Runtime.CompilerServices.Unsafe.IsAddressLessThan(ref cur, ref end));");
         }
         else
         {

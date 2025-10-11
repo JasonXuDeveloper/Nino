@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace Nino.Core
 {
@@ -33,13 +32,6 @@ namespace Nino.Core
                 return;
             }
 
-            // JIT completely eliminates this for unmanaged types
-            if (CachedDeserializer<T>.IsSimpleType)
-            {
-                reader.UnsafeRead(out value);
-                return;
-            }
-
             CachedDeserializer<T>.DeserializeRef(ref value, ref reader);
         }
 
@@ -51,13 +43,6 @@ namespace Nino.Core
             if (reader.Eof)
             {
                 value = default;
-                return;
-            }
-
-            // JIT completely eliminates this branch for unmanaged types
-            if (CachedDeserializer<T>.IsSimpleType)
-            {
-                reader.UnsafeRead(out value);
                 return;
             }
 
@@ -279,6 +264,10 @@ namespace Nino.Core
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
                 _deserializer(out value, ref reader);
             }
+            else if (SubTypeDeserializers.Count == 1)
+            {
+                SubTypeDeserializers.Values[0](out value, ref reader);
+            }
             else
             {
                 DeserializePolymorphic(out value, ref reader);
@@ -303,6 +292,10 @@ namespace Nino.Core
             {
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
                 _deserializerRef(ref value, ref reader);
+            }
+            else if (SubTypeDeserializerRefs.Count == 1)
+            {
+                SubTypeDeserializerRefs.Values[0](ref value, ref reader);
             }
             else
             {

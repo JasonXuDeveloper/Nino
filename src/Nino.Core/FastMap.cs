@@ -18,6 +18,8 @@ namespace Nino.Core
         }
 
         public ReadOnlySpan<TKey> Keys => _keys.AsSpan(0, _count);
+        
+        public ReadOnlySpan<TValue> Values => _values.AsSpan(0, _count);
 
         public int Count
         {

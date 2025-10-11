@@ -57,12 +57,14 @@ namespace Nino.Core
             get => _bufferWriter.WrittenMemory;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Clear()
         {
             _bufferWriter.Clear();
         }
 
 #if NET8_0_OR_GREATER
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ResetWrittenCount()
         {
             _bufferWriter.ResetWrittenCount();
