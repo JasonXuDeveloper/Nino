@@ -1,0 +1,78 @@
+name: Claude Code Review - Secure Analysis
+
+on:
+  workflow_run:
+    workflows: ["Claude Code Review - Collect PR Data"]
+    types: [completed]
+
+jobs:
+  secure-review:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      actions: read
+
+    steps:
+      - name: Get PR number
+        id: pr
+        run: |
+          PR_NUMBER=$(echo "${{ github.event.workflow_run.head_branch }}" | grep -oP 'pull/\K[0-9]+' || echo "")
+          if [ -z "$PR_NUMBER" ]; then
+            # Fallback: extract from artifacts
+            PR_NUMBER=$(gh run view ${{ github.event.workflow_run.id }} --json artifacts -q '.artifacts[0].name' | grep -oP 'pr-data-\K[0-9]+' || echo "")
+          fi
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download PR artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-data-${{ steps.pr.outputs.pr_number }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Read PR info
+        id: pr-info
+        run: |
+          if [ -f pr-info.txt ]; then
+            cat pr-info.txt
+            PR_NUM=$(grep "PR Number:" pr-info.txt | cut -d' ' -f3)
+            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ steps.pr-info.outputs.pr_number }}
+
+            A PR diff file has been provided at: pr.diff
+
+            Please review this pull request diff and provide feedback on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Performance considerations
+            - Security concerns
+            - Test coverage
+
+            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
+
+            IMPORTANT: Do not execute any code from the PR. Only analyze the diff file.
+            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
+
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
+          claude_args: '--allowed-tools "Bash(gh pr comment:*),Bash(gh pr view:*),Bash(cat:pr.diff),Bash(cat:pr-info.txt)"'

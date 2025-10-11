@@ -1,28 +1,15 @@
-name: Claude Code Review
+name: Claude Code Review - Collect PR Data
 
 on:
-  pull_request_target:
-    types: [opened, synchronize]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
-  claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
+  collect-pr-data:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
-      issues: read
+      pull-requests: read
 
     steps:
       - name: Checkout repository
@@ -30,27 +17,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Claude Code Review
-        id: claude-review
-        uses: anthropics/claude-code-action@v1
+      - name: Save PR diff
+        run: |
+          git diff -U3 origin/${{ github.base_ref }}... > pr.diff || true
+          echo "PR Number: ${{ github.event.pull_request.number }}" > pr-info.txt
+          echo "PR Title: ${{ github.event.pull_request.title }}" >> pr-info.txt
+          echo "PR Author: ${{ github.event.pull_request.user.login }}" >> pr-info.txt
+          echo "Base Branch: ${{ github.base_ref }}" >> pr-info.txt
+          echo "Head Branch: ${{ github.head_ref }}" >> pr-info.txt
+
+      - name: Upload PR artifacts
+        uses: actions/upload-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: |
-            REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
-
-            Please review this pull request and provide feedback on:
-            - Code quality and best practices
-            - Potential bugs or issues
-            - Performance considerations
-            - Security concerns
-            - Test coverage
-
-            Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
-
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
-
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          name: pr-data-${{ github.event.pull_request.number }}
+          path: |
+            pr.diff
+            pr-info.txt
+          retention-days: 1
