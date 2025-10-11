@@ -60,7 +60,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(iBaseIns.ToString(), NinoDeserializer.Deserialize<IBaseIns>(NinoSerializer.Serialize(iBaseIns)).ToString());
             Assert.AreEqual(aBaseIns.ToString(), NinoDeserializer.Deserialize<ABaseIns>(NinoSerializer.Serialize(aBaseIns)).ToString());
             Assert.AreEqual(aBase2Ins.ToString(), NinoDeserializer.Deserialize<ABase2Ins>(NinoSerializer.Serialize(aBase2Ins)).ToString());
-            // 由于没有 ABase2Ins2 的CachedSerializer报空
+            // ABase2Ins2 has no CachedSerializer because ABase2 has allowInheritance=false, so it throws NullReferenceException
             Assert.ThrowsException<NullReferenceException>(() => NinoSerializer.Serialize(aBase2Ins2));
         }
     }

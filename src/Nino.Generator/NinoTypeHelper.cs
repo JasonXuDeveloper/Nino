@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -192,7 +191,7 @@ public static class NinoTypeHelper
                 .OfType<UsingDirectiveSyntax>()
                 .Any(u =>
                 {
-                    var name = u.Name?.ToString();
+                    var name = u.Name.ToString();
                     return name == "Nino.Core" || name == "global::Nino.Core" || name?.StartsWith("Nino.Core.") == true;
                 }));
 
@@ -534,18 +533,14 @@ public static class NinoTypeHelper
             {
                 var ninoTypeAttr = NinoTypeAttribute.GetAttribute(attr);
                 // If base class has allowInheritance = false, don't inherit
-                bool allowInheritance = ninoTypeAttr.allowInheritance;
-
-                if (allowInheritance)
+                if (ninoTypeAttr.allowInheritance)
                 {
                     NinoTypeAttributeCache[typeSymbol] = ninoTypeAttr;
                     return ninoTypeAttr;
                 }
-                else
-                {
-                    // Base class doesn't allow inheritance, stop searching
-                    break;
-                }
+
+                // Base class doesn't allow inheritance, stop searching
+                break;
             }
             baseType = baseType.BaseType;
         }
@@ -558,8 +553,7 @@ public static class NinoTypeHelper
             {
                 var ninoTypeAttr = NinoTypeAttribute.GetAttribute(attr);
                 // Check allowInheritance parameter
-                bool allowInheritance = ninoTypeAttr.allowInheritance;
-                if (allowInheritance)
+                if (ninoTypeAttr.allowInheritance)
                 {
                     NinoTypeAttributeCache[typeSymbol] = ninoTypeAttr;
                     return ninoTypeAttr;
@@ -863,7 +857,7 @@ public static class NinoTypeHelper
 public class NinoTypeAttribute
 {
     public bool autoCollect = true;
-    public bool containNonPublicMembers = false;
+    public bool containNonPublicMembers;
     public bool allowInheritance = true;
     
     public static NinoTypeAttribute GetAttribute(AttributeData attributeData)
