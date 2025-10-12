@@ -55,9 +55,9 @@ public partial class SerializerGenerator(
                         prefix = !string.IsNullOrEmpty(baseType.CustomSerializer)
                             ? $"{baseType.CustomSerializer}."
                             : "";
-                        optimal = !baseType.TypeSymbol.IsSealedOrStruct() ? $"{prefix}SerializePolymorphic" : "null";
 
                         var method = baseType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
+                        optimal = !baseType.TypeSymbol.IsSealedOrStruct() ? $"{prefix}SerializePolymorphic" : method;
                         sb.AppendLine($$"""
                                                     NinoTypeMetadata.RegisterSerializer<{{baseTypeName}}>({{method}}, {{optimal}}, {{baseType.Parents.Any().ToString().ToLower()}});
                                         """);
@@ -65,11 +65,11 @@ public partial class SerializerGenerator(
                 }
 
                 prefix = !string.IsNullOrEmpty(ninoType.CustomSerializer) ? $"{ninoType.CustomSerializer}." : "";
-                optimal = !ninoType.TypeSymbol.IsSealedOrStruct() ? $"{prefix}SerializePolymorphic" : "null";
 
                 if (registeredTypes.Add(type))
                 {
                     var method = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}SerializeImpl" : "null";
+                    optimal = !ninoType.TypeSymbol.IsSealedOrStruct() ? $"{prefix}SerializePolymorphic" : method;
                     sb.AppendLine($$"""
                                                 NinoTypeMetadata.RegisterSerializer<{{typeFullName}}>({{method}}, {{optimal}},{{ninoType.Parents.Any().ToString().ToLower()}});
                                     """);

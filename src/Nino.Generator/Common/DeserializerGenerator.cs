@@ -60,8 +60,8 @@ public partial class DeserializerGenerator(
                             : $"NinoTypeConst.{baseType.TypeSymbol.GetTypeFullName().GetTypeConstName()}";
 
                         // For polymorphic base types, use the polymorphic methods as optimal deserializers
-                        var optimalMethod = "null";
-                        var optimalMethodRef = "null";
+                        var optimalMethod = method;
+                        var optimalMethodRef = methodRef;
                         if (!baseType.TypeSymbol.IsSealedOrStruct())
                         {
                             optimalMethod = $"{prefix}DeserializePolymorphic";
@@ -84,8 +84,8 @@ public partial class DeserializerGenerator(
                     var methodRef = ninoType.TypeSymbol.IsInstanceType() ? $"{prefix}DeserializeImplRef" : "null";
 
                     // For polymorphic types, use the polymorphic methods as optimal deserializers
-                    var optimalMethod = "null";
-                    var optimalMethodRef = "null";
+                    var optimalMethod = method;
+                    var optimalMethodRef = methodRef;
                     if (!ninoType.TypeSymbol.IsSealedOrStruct())
                     {
                         optimalMethod = $"{prefix}DeserializePolymorphic";
