@@ -313,6 +313,7 @@ public class RefOverloadTests
         Assert.IsTrue(existingSortedSet.Contains(1));
         Assert.IsFalse(existingSortedSet.Contains(10)); // Should be cleared
 
+#if NET6_0_OR_GREATER
         // Test ref overload for PriorityQueue
         PriorityQueue<string, int> priorityQueue = new PriorityQueue<string, int>();
         priorityQueue.Enqueue("first", 1);
@@ -324,6 +325,7 @@ public class RefOverloadTests
         NinoDeserializer.Deserialize(bytes, ref existingPriorityQueue);
         Assert.AreEqual(2, existingPriorityQueue.Count);
         Assert.AreEqual("first", existingPriorityQueue.Dequeue());
+#endif
 
         // Test ref overload for SortedDictionary
         SortedDictionary<int, string> sortedDict = new SortedDictionary<int, string>

@@ -90,7 +90,7 @@ public class ArrayGenerator(
             writer.AppendLine();
 
             // Both value and reference types benefit from ref iteration - eliminates bounds checks
-            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
+            writer.AppendLine("#if NET5_0_OR_GREATER");
             writer.AppendLine("    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
             writer.AppendLine("#else");
             writer.AppendLine("    ref var cur = ref value[0];");

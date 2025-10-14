@@ -43,6 +43,7 @@ public class AdvancedCollectionTests
 
         Console.WriteLine("SortedSet tests passed!");
 
+#if NET6_0_OR_GREATER
         // Test PriorityQueue<TElement, TPriority>
         // 1. Primitive unmanaged
         PriorityQueue<int, int> priorityQueueInt = new PriorityQueue<int, int>();
@@ -80,6 +81,7 @@ public class AdvancedCollectionTests
         Assert.AreEqual(2, priorityQueueStructResult.Count);
 
         Console.WriteLine("PriorityQueue tests passed!");
+#endif
 
         // Test SortedDictionary<TKey, TValue>
         // 1. Primitive unmanaged key and value
@@ -264,6 +266,7 @@ public class AdvancedCollectionTests
         Assert.AreEqual(1, immutableListOf2DArraysResult[0][0, 0]);
         Assert.AreEqual(8, immutableListOf2DArraysResult[1][1, 1]);
 
+#if NET6_0_OR_GREATER
         // 5. PriorityQueue with nested generic type parameters
         PriorityQueue<List<string>, int> priorityQueueNested = new PriorityQueue<List<string>, int>();
         priorityQueueNested.Enqueue(new List<string> { "a", "b" }, 2);
@@ -276,6 +279,7 @@ public class AdvancedCollectionTests
         List<string> firstItem = priorityQueueNestedResult.Dequeue();
         Assert.AreEqual(2, firstItem.Count);
         Assert.AreEqual("c", firstItem[0]); // Priority 1 comes first
+#endif
 
         // 6. ReadOnlyDictionary with complex keys and values
         Dictionary<int, ImmutableArray<TestStruct3>> innerComplexDict =

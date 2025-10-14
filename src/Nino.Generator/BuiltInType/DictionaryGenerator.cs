@@ -114,7 +114,7 @@ public class DictionaryGenerator(
             writer.AppendLine("        return;");
             writer.AppendLine("    }");
             writer.AppendLine("    // Iterate entries via direct ref to avoid bounds checks");
-            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
+            writer.AppendLine("#if NET5_0_OR_GREATER");
             writer.AppendLine("    ref var entryRef = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
             writer.AppendLine("#else");
             writer.AppendLine("    ref var entryRef = ref entries[0];");

@@ -10,8 +10,8 @@ src/Nino.sln.DotSettings.user
 src/Nino.Shared/Nino.Shared.csproj.user
 **/BenchmarkDotNet.Artifacts
 src/Nino.Core/.AssemblyAttributes
-src/Nino.UnitTests/build.binlog
-src/Nino.UnitTests/args.rsp
+src/Nino.UnitTests/*.binlog
+src/Nino.UnitTests/*.rsp
 
 # LLM Agent directories and configuration
 .claude/

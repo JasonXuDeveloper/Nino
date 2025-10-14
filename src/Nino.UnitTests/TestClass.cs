@@ -247,7 +247,11 @@ namespace Nino.UnitTests
 
         public TestPrivateMemberClass()
         {
+#if NET6_0_OR_GREATER
             Id = Random.Shared.Next();
+#else
+            Id = new Random().Next();
+#endif
         }
     }
 

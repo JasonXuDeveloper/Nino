@@ -108,7 +108,7 @@ public class StackGenerator(
 
             // Use ref iteration for all types to eliminate bounds checks
             writer.AppendLine("    // Stack serializes from top to bottom with ref iteration");
-            writer.AppendLine("#if !UNITY_2020_2_OR_NEWER");
+            writer.AppendLine("#if NET5_0_OR_GREATER");
             writer.AppendLine("    ref var cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), cnt - 1);");
             writer.AppendLine("    ref var end = ref System.Runtime.CompilerServices.Unsafe.Subtract(ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(array), 1);");
             writer.AppendLine("#else");
