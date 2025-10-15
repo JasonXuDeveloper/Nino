@@ -231,4 +231,16 @@ public class GenericTypeTests
 
         Assert.IsNull(result[3]); // null
     }
+
+    [TestMethod]
+    public void TestUnboundGeneric()
+    {
+        var obj = new ClassWithUnboundGenericType()
+        {
+            OtherData = 42
+        };
+        var serialized = NinoSerializer.Serialize(obj);
+        var deserialized = NinoDeserializer.Deserialize<ClassWithUnboundGenericType>(serialized);
+        Assert.AreEqual(obj.OtherData, deserialized.OtherData);
+    }
 }

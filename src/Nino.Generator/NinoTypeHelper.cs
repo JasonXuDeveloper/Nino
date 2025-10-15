@@ -192,7 +192,7 @@ public static class NinoTypeHelper
                 .Any(u =>
                 {
                     var name = u.Name.ToString();
-                    return name == "Nino.Core" || name == "global::Nino.Core" || name?.StartsWith("Nino.Core.") == true;
+                    return name.Contains("Nino.Core");
                 }));
 
         if (!hasNinoCoreUsage)
@@ -344,6 +344,9 @@ public static class NinoTypeHelper
                 case IArrayTypeSymbol arrayTypeSymbol:
                     toValidate.Push(arrayTypeSymbol.ElementType);
                     break;
+                
+                case INamedTypeSymbol { IsUnboundGenericType: true }:
+                    return false;
 
                 case INamedTypeSymbol { IsGenericType: true } namedTypeSymbol:
                     // Validate generic type
@@ -842,7 +845,9 @@ public static class NinoTypeHelper
 
             // Generics: 1 + max level of type arguments
             INamedTypeSymbol { IsGenericType: true } namedType =>
-                1 + namedType.TypeArguments.Max(GetTypeHierarchyLevel),
+                namedType.TypeArguments.Length > 0
+                    ? 1 + namedType.TypeArguments.Max(GetTypeHierarchyLevel)
+                    : 1,
 
             // Base types (including non-generic named types)
             _ => 1

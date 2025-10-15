@@ -623,11 +623,26 @@ namespace Nino.UnitTests
 
         // [NinoConstructor(nameof(Id), nameof(Name), nameof(CreateTime))] - we try not to use this and test if it still works
         // should automatically use this constructor since this is the only public constructor
+
         public SimpleClassWithConstructor(int id, string name, DateTime createTime)
         {
             Id = id;
             Name = name;
             CreateTime = createTime;
         }
+    }
+
+    [NinoType]
+    public class UnboundGenericTest<T>
+    {
+        public T Data;
+    }
+
+    [NinoType]
+    public class ClassWithUnboundGenericType
+    {
+        [NinoIgnore]
+        public Type UnboundType = typeof(UnboundGenericTest<>);
+        public int OtherData = 1;
     }
 }
