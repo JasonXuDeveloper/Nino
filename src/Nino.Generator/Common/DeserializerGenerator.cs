@@ -124,7 +124,9 @@ public partial class DeserializerGenerator(
         var compilation = Compilation;
         HashSet<ITypeSymbol> registeredTypes = new(SymbolEqualityComparer.Default);
 
-        StringBuilder sb = new(32_000_000);
+        // Reduced from 32MB to 256KB to avoid LOH allocation and memory fragmentation
+        // StringBuilder will automatically grow as needed
+        StringBuilder sb = new(262_144); // 256KB
         HashSet<ITypeSymbol> trivialTypes = new(SymbolEqualityComparer.Default);
         // add string type
         trivialTypes.Add(compilation.GetSpecialType(SpecialType.System_String));

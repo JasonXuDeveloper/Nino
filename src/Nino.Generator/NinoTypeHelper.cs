@@ -7,6 +7,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -15,26 +16,124 @@ using Nino.Generator.Metadata;
 
 namespace Nino.Generator;
 
+/// <summary>
+/// Thread-safe bounded cache with automatic eviction to prevent unbounded memory growth.
+/// When the cache reaches maxSize, it evicts half of the entries.
+/// </summary>
+internal class BoundedCache<TKey, TValue> where TKey : notnull
+{
+    private readonly ConcurrentDictionary<TKey, TValue> _cache;
+    private readonly int _maxSize;
+    private int _evictionInProgress;
+
+    public BoundedCache(IEqualityComparer<TKey> comparer, int maxSize = 5000)
+    {
+        _cache = new ConcurrentDictionary<TKey, TValue>(comparer);
+        _maxSize = maxSize;
+    }
+
+    public bool TryGetValue(TKey key, out TValue value)
+    {
+        return _cache.TryGetValue(key, out value!);
+    }
+
+    public TValue GetOrAdd(TKey key, Func<TKey, TValue> valueFactory)
+    {
+        // Check cache first
+        if (_cache.TryGetValue(key, out var value))
+            return value!;
+
+        // Compute value
+        value = valueFactory(key);
+
+        // Add to cache
+        _cache[key] = value;
+        CheckAndEvict();
+
+        return value;
+    }
+
+    public void Add(TKey key, TValue value)
+    {
+        _cache[key] = value;
+        CheckAndEvict();
+    }
+
+    private void CheckAndEvict()
+    {
+        // Check if eviction is needed (single-threaded eviction to avoid race conditions)
+        if (_cache.Count > _maxSize && Interlocked.CompareExchange(ref _evictionInProgress, 1, 0) == 0)
+        {
+            try
+            {
+                EvictHalf();
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _evictionInProgress, 0);
+            }
+        }
+    }
+
+    private void EvictHalf()
+    {
+        int targetSize = _maxSize / 2;
+        int toRemove = _cache.Count - targetSize;
+
+        if (toRemove <= 0) return;
+
+        // Remove first N entries (simple but effective for preventing unbounded growth)
+        int removed = 0;
+        foreach (var key in _cache.Keys)
+        {
+            if (removed >= toRemove) break;
+            if (_cache.TryRemove(key, out _))
+            {
+                removed++;
+            }
+        }
+    }
+
+    public TValue this[TKey key]
+    {
+        get => _cache[key];
+        set
+        {
+            _cache[key] = value;
+            CheckAndEvict();
+        }
+    }
+}
+
 public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
+    // Bounded caches with automatic eviction to prevent unbounded memory growth
+    // Each cache is limited to 5000 entries; when exceeded, oldest 50% are evicted
+    // This prevents memory leaks in long-running IDE sessions with frequent hot-reload
+
     // Cache for NinoTypeAttribute lookup results (including inheritance chain lookup)
     // null means not found, non-null means attribute was found
-    private static readonly ConcurrentDictionary<ITypeSymbol, NinoTypeAttribute?> NinoTypeAttributeCache =
-        new(SymbolEqualityComparer.Default);
+    private static readonly BoundedCache<ITypeSymbol, NinoTypeAttribute?> NinoTypeAttributeCache =
+        new(SymbolEqualityComparer.Default, maxSize: 5000);
 
-    private static readonly ConcurrentDictionary<ITypeSymbol, string> ToDisplayStringCache =
-        new(SymbolEqualityComparer.Default);
+    private static readonly BoundedCache<ITypeSymbol, string> ToDisplayStringCache =
+        new(SymbolEqualityComparer.Default, maxSize: 5000);
 
-    private static readonly ConcurrentDictionary<(Compilation, SyntaxTree), SemanticModel> SemanticModelCache = new();
-    private static readonly ConcurrentDictionary<(SyntaxTree, CSharpSyntaxNode), ITypeSymbol?> TypeSymbolCache = new();
+    // SemanticModelCache REMOVED - Compilation.GetSemanticModel() already has internal caching
+    // The old cache held strong references to Compilation objects, causing severe memory leaks
+    // private static readonly ConcurrentDictionary<(Compilation, SyntaxTree), SemanticModel> SemanticModelCache = new();
 
-    private static readonly ConcurrentDictionary<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
-        new(SymbolEqualityComparer.Default);
+    // TypeSymbolCache REMOVED - Risk of key collisions and minimal benefit
+    // GetTypeSymbol is fast enough without caching due to Roslyn's internal optimizations
+    // private static readonly BoundedCache<(string filePath, int position), ITypeSymbol?> TypeSymbolCache = ...
 
-    private static readonly ConcurrentDictionary<ITypeSymbol, int> TypeHierarchyLevelCache =
-        new(SymbolEqualityComparer.Default);
+    private static readonly BoundedCache<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
+        new(SymbolEqualityComparer.Default, maxSize: 5000);
+
+    private static readonly BoundedCache<ITypeSymbol, int> TypeHierarchyLevelCache =
+        new(SymbolEqualityComparer.Default, maxSize: 5000);
 
     public enum NinoTypeKind
     {
@@ -434,59 +533,24 @@ public static class NinoTypeHelper
         return defaultValue;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static SemanticModel GetCachedSemanticModel(Compilation compilation, SyntaxTree syntaxTree)
-    {
-        var key = (compilation, syntaxTree);
-        if (SemanticModelCache.TryGetValue(key, out var cachedModel))
-        {
-            return cachedModel;
-        }
-
-        var semanticModel = compilation.GetSemanticModel(syntaxTree);
-        SemanticModelCache[key] = semanticModel;
-        return semanticModel;
-    }
+    // GetCachedSemanticModel method REMOVED
+    // Compilation.GetSemanticModel() already has internal caching in Roslyn
+    // Caching it again with Compilation as key prevented GC of old compilations
 
     public static ITypeSymbol? GetTypeSymbol(this CSharpSyntaxNode syntax, Compilation compilation)
     {
-        // Check direct cache first for maximum performance
-        var cacheKey = (syntax.SyntaxTree, syntax);
-        if (TypeSymbolCache.TryGetValue(cacheKey, out var cachedResult))
+        // Directly use Compilation.GetSemanticModel() which has internal caching
+        // No need for additional caching here
+        var semanticModel = compilation.GetSemanticModel(syntax.SyntaxTree);
+
+        return syntax switch
         {
-            return cachedResult;
-        }
-
-        // Cache miss - compute the result using optimized path
-        var result = GetTypeSymbolUncached(syntax, compilation);
-
-        // Cache the result for future lookups
-        TypeSymbolCache[cacheKey] = result;
-        return result;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static ITypeSymbol? GetTypeSymbolUncached(CSharpSyntaxNode syntax, Compilation compilation)
-    {
-        // Use cached semantic model to avoid repeated expensive calls
-        var semanticModel = GetCachedSemanticModel(compilation, syntax.SyntaxTree);
-
-        switch (syntax)
-        {
-            // Use if-else instead of switch for potentially better performance with type checks
-            case TupleTypeSyntax tupleTypeSyntax:
-                return semanticModel.GetTypeInfo(tupleTypeSyntax).Type;
-            case TypeDeclarationSyntax typeDeclaration:
-                return semanticModel.GetDeclaredSymbol(typeDeclaration);
-            case TypeSyntax typeSyntax:
-            {
-                // Try GetTypeInfo first as it's more direct for type syntax
-                var typeInfo = semanticModel.GetTypeInfo(typeSyntax);
-                return typeInfo.Type ?? semanticModel.GetSymbolInfo(typeSyntax).Symbol as ITypeSymbol;
-            }
-            default:
-                return null;
-        }
+            TupleTypeSyntax tupleTypeSyntax => semanticModel.GetTypeInfo(tupleTypeSyntax).Type,
+            TypeDeclarationSyntax typeDeclaration => semanticModel.GetDeclaredSymbol(typeDeclaration),
+            TypeSyntax typeSyntax => semanticModel.GetTypeInfo(typeSyntax).Type ??
+                                     semanticModel.GetSymbolInfo(typeSyntax).Symbol as ITypeSymbol,
+            _ => null
+        };
     }
 
     public static ITypeSymbol? GetTypeSymbol(this TypeDeclarationSyntax syntax, SyntaxNodeAnalysisContext context)
