@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -242,5 +241,92 @@ public class GenericTypeTests
         var serialized = NinoSerializer.Serialize(obj);
         var deserialized = NinoDeserializer.Deserialize<ClassWithUnboundGenericType>(serialized);
         Assert.AreEqual(obj.OtherData, deserialized.OtherData);
+    }
+    
+    #nullable enable
+
+    [TestMethod]
+    public void TestNullableCollectionTypes()
+    {
+        // Test nullable collection types to ensure no CS8628 error occurs during code generation
+        var obj = new NullableCollectionTestClass
+        {
+            NullableDict = new Dictionary<string, byte[]?>
+            {
+                { "key1", new byte[] { 1, 2, 3 } },
+                { "key2", null },
+                { "key3", new byte[] { 4, 5 } }
+            },
+            NullableList = new List<string?>
+            {
+                "item1",
+                null,
+                "item3"
+            },
+            NullableHashSet = new HashSet<byte[]?>
+            {
+                new byte[] { 1, 2 },
+                null,
+                new byte[] { 3, 4 }
+            },
+            NullableQueue = new Queue<int?>()
+        };
+        obj.NullableQueue.Enqueue(1);
+        obj.NullableQueue.Enqueue(null);
+        obj.NullableQueue.Enqueue(3);
+
+        // Serialize
+        byte[] bytes = NinoSerializer.Serialize(obj);
+        Assert.IsNotNull(bytes);
+        Console.WriteLine($"Serialized nullable collections: {bytes.Length} bytes");
+
+        // Deserialize
+        var result = NinoDeserializer.Deserialize<NullableCollectionTestClass>(bytes);
+
+        // Verify Dictionary
+        Assert.IsNotNull(result.NullableDict);
+        Assert.AreEqual(3, result.NullableDict.Count);
+        Assert.IsTrue(result.NullableDict.ContainsKey("key1"));
+        Assert.IsTrue(result.NullableDict.ContainsKey("key2"));
+        Assert.IsTrue(result.NullableDict.ContainsKey("key3"));
+        Assert.IsNotNull(result.NullableDict["key1"]);
+        Assert.IsNull(result.NullableDict["key2"]);
+
+        // Verify List
+        Assert.IsNotNull(result.NullableList);
+        Assert.AreEqual(3, result.NullableList.Count);
+        Assert.AreEqual("item1", result.NullableList[0]);
+        Assert.IsNull(result.NullableList[1]);
+        Assert.AreEqual("item3", result.NullableList[2]);
+
+        // Verify HashSet
+        Assert.IsNotNull(result.NullableHashSet);
+        Assert.AreEqual(3, result.NullableHashSet.Count);
+
+        // Verify Queue
+        Assert.IsNotNull(result.NullableQueue);
+        Assert.AreEqual(3, result.NullableQueue.Count);
+        var q1 = result.NullableQueue.Dequeue();
+        var q2 = result.NullableQueue.Dequeue();
+        var q3 = result.NullableQueue.Dequeue();
+        Assert.AreEqual(1, q1);
+        Assert.IsNull(q2);
+        Assert.AreEqual(3, q3);
+
+        // Test with null collections
+        var obj2 = new NullableCollectionTestClass
+        {
+            NullableDict = null,
+            NullableList = null,
+            NullableHashSet = null,
+            NullableQueue = null
+        };
+
+        bytes = NinoSerializer.Serialize(obj2);
+        var result2 = NinoDeserializer.Deserialize<NullableCollectionTestClass>(bytes);
+        Assert.IsNull(result2.NullableDict);
+        Assert.IsNull(result2.NullableList);
+        Assert.IsNull(result2.NullableHashSet);
+        Assert.IsNull(result2.NullableQueue);
     }
 }

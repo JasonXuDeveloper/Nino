@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Nino.Core;
 
 #nullable disable
@@ -469,10 +470,25 @@ namespace Nino.UnitTests
     }
 
     [NinoType]
-    public struct TestStruct
+    public struct TestStruct : IEquatable<TestStruct>
     {
         public int A;
         public string B;
+
+        public bool Equals(TestStruct other)
+        {
+            return A == other.A && B == other.B;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is TestStruct other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(A, B);
+        }
     }
 
     [NinoType]
@@ -646,3 +662,23 @@ namespace Nino.UnitTests
         public int OtherData = 1;
     }
 }
+
+#nullable enable
+namespace Nino.UnitTests
+{
+    /// <summary>
+    /// Test class with nullable collection types to verify CS8628 fix
+    /// </summary>
+    [NinoType]
+    public class NullableCollectionTestClass
+    {
+        public Dictionary<string, byte[]?>? NullableDict;
+        public List<string?>? NullableList;
+        public HashSet<byte[]?>? NullableHashSet;
+        public Queue<int?>? NullableQueue;
+        public Task<Dictionary<string, byte[]?>?>? NullableTask;
+        public Task<Dictionary<string, byte[]?>?> NullableTask2 = null!;
+        public Task<Dictionary<string, byte[]?>>? NullableTask3;
+    }
+}
+#nullable disable

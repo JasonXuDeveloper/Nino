@@ -230,7 +230,11 @@ public static class NinoTypeHelper
             return ret;
         }
 
-        ret = typeSymbol.ToDisplayString();
+        // Remove nullable annotation and normalize tuple types before converting to string
+        // This ensures that types used in 'new' expressions don't have the trailing '?'
+        // which would cause CS8628: Cannot use a nullable reference type in object creation
+        var pureType = typeSymbol.GetPureType().GetNormalizedTypeSymbol();
+        ret = pureType.ToDisplayString();
 
         // Sanitize multi-dimensional array syntax: [*,*] -> [,], [*,*,*] -> [,,], etc.
         // This handles all cases including user-defined types and nested arrays
