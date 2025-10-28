@@ -201,4 +201,258 @@ public class ArraySerializationTests
 
         Console.WriteLine("Multi-dimensional array tests passed!");
     }
+
+    [TestMethod]
+    public void TestJaggedArrays()
+    {
+        // Test 1: Simple 2D jagged array of primitive type (int)
+        int[][] int2DJagged = new int[][]
+        {
+            new int[] { 1, 2, 3 },
+            new int[] { 4, 5 },
+            new int[] { 6, 7, 8, 9 }
+        };
+        byte[] bytes = NinoSerializer.Serialize(int2DJagged);
+        Assert.IsNotNull(bytes);
+        Console.WriteLine($"Serialized int[][]: {string.Join(", ", bytes)}");
+
+        int[][] int2DJaggedResult = NinoDeserializer.Deserialize<int[][]>(bytes);
+        Assert.AreEqual(3, int2DJaggedResult.Length);
+        Assert.AreEqual(3, int2DJaggedResult[0].Length);
+        Assert.AreEqual(2, int2DJaggedResult[1].Length);
+        Assert.AreEqual(4, int2DJaggedResult[2].Length);
+        Assert.AreEqual(1, int2DJaggedResult[0][0]);
+        Assert.AreEqual(5, int2DJaggedResult[1][1]);
+        Assert.AreEqual(9, int2DJaggedResult[2][3]);
+
+        // Test 2: Jagged array of bytes
+        byte[][] byteJagged = new byte[][]
+        {
+            new byte[] { 1, 2, 3 },
+            new byte[] { 4, 5 }
+        };
+        bytes = NinoSerializer.Serialize(byteJagged);
+        Assert.IsNotNull(bytes);
+
+        byte[][] byteJaggedResult = NinoDeserializer.Deserialize<byte[][]>(bytes);
+        Assert.AreEqual(2, byteJaggedResult.Length);
+        Assert.AreEqual(3, byteJaggedResult[0].Length);
+        Assert.AreEqual(2, byteJaggedResult[1].Length);
+        Assert.AreEqual(1, byteJaggedResult[0][0]);
+        Assert.AreEqual(5, byteJaggedResult[1][1]);
+
+        // Test 3: Jagged array of strings
+        string[][] stringJagged = new string[][]
+        {
+            new string[] { "a", "b", "c" },
+            new string[] { "d", "e" }
+        };
+        bytes = NinoSerializer.Serialize(stringJagged);
+        Assert.IsNotNull(bytes);
+
+        string[][] stringJaggedResult = NinoDeserializer.Deserialize<string[][]>(bytes);
+        Assert.AreEqual(2, stringJaggedResult.Length);
+        Assert.AreEqual(3, stringJaggedResult[0].Length);
+        Assert.AreEqual("a", stringJaggedResult[0][0]);
+        Assert.AreEqual("e", stringJaggedResult[1][1]);
+
+        // Test 4: Triple-nested jagged array
+        int[][][] int3DJagged = new int[][][]
+        {
+            new int[][]
+            {
+                new int[] { 1, 2 },
+                new int[] { 3 }
+            },
+            new int[][]
+            {
+                new int[] { 4, 5, 6 }
+            }
+        };
+        bytes = NinoSerializer.Serialize(int3DJagged);
+        Assert.IsNotNull(bytes);
+
+        int[][][] int3DJaggedResult = NinoDeserializer.Deserialize<int[][][]>(bytes);
+        Assert.AreEqual(2, int3DJaggedResult.Length);
+        Assert.AreEqual(2, int3DJaggedResult[0].Length);
+        Assert.AreEqual(2, int3DJaggedResult[0][0].Length);
+        Assert.AreEqual(1, int3DJaggedResult[0][0][0]);
+        Assert.AreEqual(3, int3DJaggedResult[0][1][0]);
+        Assert.AreEqual(6, int3DJaggedResult[1][0][2]);
+
+        // Test 5: Jagged array of user-defined struct
+        TestStruct[][] structJagged = new TestStruct[][]
+        {
+            new TestStruct[]
+            {
+                new TestStruct { A = 1, B = "First" },
+                new TestStruct { A = 2, B = "Second" }
+            },
+            new TestStruct[]
+            {
+                new TestStruct { A = 3, B = "Third" }
+            }
+        };
+        bytes = NinoSerializer.Serialize(structJagged);
+        Assert.IsNotNull(bytes);
+
+        TestStruct[][] structJaggedResult = NinoDeserializer.Deserialize<TestStruct[][]>(bytes);
+        Assert.AreEqual(2, structJaggedResult.Length);
+        Assert.AreEqual(2, structJaggedResult[0].Length);
+        Assert.AreEqual(1, structJaggedResult[1].Length);
+        Assert.AreEqual(1, structJaggedResult[0][0].A);
+        Assert.AreEqual("Second", structJaggedResult[0][1].B);
+        Assert.AreEqual(3, structJaggedResult[1][0].A);
+
+        // Test 6: Jagged array of reference type (TestClass)
+        TestClass[][] classJagged = new TestClass[][]
+        {
+            new TestClass[]
+            {
+                new TestClass { A = 10, B = "A" },
+                new TestClass { A = 20, B = "B" }
+            },
+            new TestClass[]
+            {
+                new TestClass { A = 30, B = "C" }
+            }
+        };
+        bytes = NinoSerializer.Serialize(classJagged);
+        Assert.IsNotNull(bytes);
+
+        TestClass[][] classJaggedResult = NinoDeserializer.Deserialize<TestClass[][]>(bytes);
+        Assert.AreEqual(2, classJaggedResult.Length);
+        Assert.AreEqual(2, classJaggedResult[0].Length);
+        Assert.AreEqual(1, classJaggedResult[1].Length);
+        Assert.AreEqual(10, classJaggedResult[0][0].A);
+        Assert.AreEqual("B", classJaggedResult[0][1].B);
+        Assert.AreEqual(30, classJaggedResult[1][0].A);
+
+        // Test 7: Jagged array with null inner arrays
+        int[][] jaggedWithNulls = new int[][]
+        {
+            new int[] { 1, 2 },
+            null,
+            new int[] { 3 }
+        };
+        bytes = NinoSerializer.Serialize(jaggedWithNulls);
+        Assert.IsNotNull(bytes);
+
+        int[][] jaggedWithNullsResult = NinoDeserializer.Deserialize<int[][]>(bytes);
+        Assert.AreEqual(3, jaggedWithNullsResult.Length);
+        Assert.IsNotNull(jaggedWithNullsResult[0]);
+        Assert.IsNull(jaggedWithNullsResult[1]);
+        Assert.IsNotNull(jaggedWithNullsResult[2]);
+        Assert.AreEqual(2, jaggedWithNullsResult[0][1]);
+
+        // Test 8: Null jagged array
+        int[][] nullJagged = null;
+        bytes = NinoSerializer.Serialize(nullJagged);
+        Assert.IsNotNull(bytes);
+
+        int[][] nullJaggedResult = NinoDeserializer.Deserialize<int[][]>(bytes);
+        Assert.IsNull(nullJaggedResult);
+
+        // Test 9: Empty jagged array
+        int[][] emptyJagged = new int[0][];
+        bytes = NinoSerializer.Serialize(emptyJagged);
+        Assert.IsNotNull(bytes);
+
+        int[][] emptyJaggedResult = NinoDeserializer.Deserialize<int[][]>(bytes);
+        Assert.AreEqual(0, emptyJaggedResult.Length);
+
+        // Test 10: Jagged array with empty inner arrays
+        int[][] jaggedWithEmpty = new int[][]
+        {
+            new int[0],
+            new int[] { 1 },
+            new int[0]
+        };
+        bytes = NinoSerializer.Serialize(jaggedWithEmpty);
+        Assert.IsNotNull(bytes);
+
+        int[][] jaggedWithEmptyResult = NinoDeserializer.Deserialize<int[][]>(bytes);
+        Assert.AreEqual(3, jaggedWithEmptyResult.Length);
+        Assert.AreEqual(0, jaggedWithEmptyResult[0].Length);
+        Assert.AreEqual(1, jaggedWithEmptyResult[1].Length);
+        Assert.AreEqual(0, jaggedWithEmptyResult[2].Length);
+        Assert.AreEqual(1, jaggedWithEmptyResult[1][0]);
+
+        // Test 11: List of jagged arrays
+        List<int[][]> listOfJagged = new List<int[][]>
+        {
+            new int[][] { new int[] { 1, 2 }, new int[] { 3 } },
+            new int[][] { new int[] { 4, 5, 6 } }
+        };
+        bytes = NinoSerializer.Serialize(listOfJagged);
+        Assert.IsNotNull(bytes);
+
+        List<int[][]> listOfJaggedResult = NinoDeserializer.Deserialize<List<int[][]>>(bytes);
+        Assert.AreEqual(2, listOfJaggedResult.Count);
+        Assert.AreEqual(2, listOfJaggedResult[0].Length);
+        Assert.AreEqual(1, listOfJaggedResult[1].Length);
+        Assert.AreEqual(2, listOfJaggedResult[0][0][1]);
+        Assert.AreEqual(6, listOfJaggedResult[1][0][2]);
+
+        // Test 12: Dictionary with jagged array values
+        Dictionary<string, byte[][]> dictWithJagged = new Dictionary<string, byte[][]>
+        {
+            { "first", new byte[][] { new byte[] { 1, 2 }, new byte[] { 3 } } },
+            { "second", new byte[][] { new byte[] { 4, 5, 6 } } }
+        };
+        bytes = NinoSerializer.Serialize(dictWithJagged);
+        Assert.IsNotNull(bytes);
+
+        Dictionary<string, byte[][]> dictWithJaggedResult =
+            NinoDeserializer.Deserialize<Dictionary<string, byte[][]>>(bytes);
+        Assert.AreEqual(2, dictWithJaggedResult.Count);
+        Assert.AreEqual(2, dictWithJaggedResult["first"].Length);
+        Assert.AreEqual(2, dictWithJaggedResult["first"][0][1]);
+        Assert.AreEqual(6, dictWithJaggedResult["second"][0][2]);
+
+        Console.WriteLine("Jagged array tests passed!");
+    }
+
+    [TestMethod]
+    public void TestJaggedArraysInCollections()
+    {
+        // Test 1: Queue<byte[][]>
+        var queueWithJagged = new System.Collections.Generic.Queue<byte[][]>();
+        queueWithJagged.Enqueue(new byte[][] { new byte[] { 1, 2 }, new byte[] { 3 } });
+        queueWithJagged.Enqueue(new byte[][] { new byte[] { 4, 5, 6 } });
+
+        byte[] bytes = NinoSerializer.Serialize(queueWithJagged);
+        Assert.IsNotNull(bytes);
+
+        var queueResult = NinoDeserializer.Deserialize<System.Collections.Generic.Queue<byte[][]>>(bytes);
+        Assert.AreEqual(2, queueResult.Count);
+
+        var first = queueResult.Dequeue();
+        Assert.AreEqual(2, first.Length);
+        Assert.AreEqual(2, first[0].Length);
+        Assert.AreEqual(1, first[0][0]);
+
+        var second = queueResult.Dequeue();
+        Assert.AreEqual(1, second.Length);
+        Assert.AreEqual(3, second[0].Length);
+        Assert.AreEqual(6, second[0][2]);
+
+        // Test 2: Stack<int[][]>
+        var stackWithJagged = new System.Collections.Generic.Stack<int[][]>();
+        stackWithJagged.Push(new int[][] { new int[] { 1, 2 }, new int[] { 3 } });
+        stackWithJagged.Push(new int[][] { new int[] { 4, 5, 6 } });
+
+        bytes = NinoSerializer.Serialize(stackWithJagged);
+        Assert.IsNotNull(bytes);
+
+        var stackResult = NinoDeserializer.Deserialize<System.Collections.Generic.Stack<int[][]>>(bytes);
+        Assert.AreEqual(2, stackResult.Count);
+
+        var firstStack = stackResult.Pop();
+        Assert.AreEqual(1, firstStack.Length);
+        Assert.AreEqual(3, firstStack[0].Length);
+        Assert.AreEqual(6, firstStack[0][2]);
+
+        Console.WriteLine("Jagged arrays in collections tests passed!");
+    }
 }
