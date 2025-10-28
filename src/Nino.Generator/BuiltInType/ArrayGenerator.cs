@@ -200,34 +200,6 @@ public class ArrayGenerator(
         // Fast path only works for 1D arrays
         bool canUseFastPath = rank == 1 && elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
-        // Generate creation declaration for 1D arrays
-        // For element type like "int[]", we need "int[length][]"
-        // For element type like "int[,]", we need "int[length][,]"
-        // For element type like "Dictionary<string, int[]>", we need "Dictionary<string, int[]>[length]"
-        // For element type like "int", we need "int[length]"
-        // Strategy: find the first '[' that's NOT inside angle brackets <>, then insert "[length]" before it
-        // If no such '[' exists, append "[length]"
-        string creationDecl = null!;
-        if (rank == 1)
-        {
-            int angleDepth = 0;
-            int firstBracket = -1;
-            for (int i = 0; i < elemType.Length; i++)
-            {
-                if (elemType[i] == '<') angleDepth++;
-                else if (elemType[i] == '>') angleDepth--;
-                else if (elemType[i] == '[' && angleDepth == 0)
-                {
-                    firstBracket = i;
-                    break;
-                }
-            }
-
-            creationDecl = firstBracket >= 0
-                ? elemType.Insert(firstBracket, "[length]")
-                : $"{elemType}[length]";
-        }
-
         // Out overload
         WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
@@ -254,7 +226,7 @@ public class ArrayGenerator(
                 w => { w.AppendLine("    Reader eleReader;"); });
             writer.AppendLine();
             writer.Append("    value = new ");
-            writer.Append(creationDecl);
+            writer.Append(GetArrayCreationString(elemType, "length"));
             writer.AppendLine(";");
             writer.AppendLine("    var span = value.AsSpan();");
             writer.AppendLine("    for (int i = 0; i < length; i++)");
@@ -315,7 +287,9 @@ public class ArrayGenerator(
 
             // Create array with proper dimensions using direct syntax
             var lengths = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"len{i}"));
-            writer.AppendLine($"    value = new {elemType}[{lengths}];");
+            writer.Append("    value = new ");
+            writer.Append(GetArrayCreationString(elemType, lengths));
+            writer.AppendLine(";");
             writer.AppendLine();
 
             // Generate nested loops for space-locality-aware deserialization
@@ -393,7 +367,7 @@ public class ArrayGenerator(
             writer.AppendLine("    if (value == null)");
             writer.AppendLine("    {");
             writer.Append("        value = new ");
-            writer.Append(creationDecl);
+            writer.Append(GetArrayCreationString(elemType, "length"));
             writer.AppendLine(";");
             writer.AppendLine("    }");
             writer.AppendLine("    else if (value.Length != length)");
@@ -469,7 +443,9 @@ public class ArrayGenerator(
             writer.AppendLine("    if (!canReuse)");
             writer.AppendLine("    {");
             var lengths = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"len{i}"));
-            writer.AppendLine($"        value = new {elemType}[{lengths}];");
+            writer.Append("        value = new ");
+            writer.Append(GetArrayCreationString(elemType, lengths));
+            writer.AppendLine(";");
             writer.AppendLine("    }");
             writer.AppendLine();
 

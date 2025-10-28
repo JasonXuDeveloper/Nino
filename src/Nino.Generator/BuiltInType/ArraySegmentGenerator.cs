@@ -147,19 +147,13 @@ public class ArraySegmentGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
 
-            // Handle array creation - check if element type is already an array
-            var arrayCreation = elemType.EndsWith("[]")
-                ? elemType.Insert(elemType.IndexOf("[]", System.StringComparison.Ordinal), "[length]")
-                : $"{elemType}[length]";
-
-
             // For managed element types, deserialize element by element
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("    Reader eleReader;"); });
             writer.AppendLine();
 
             writer.Append("    var array = new ");
-            writer.Append(arrayCreation);
+            writer.Append(GetArrayCreationString(elemType, "length"));
             writer.AppendLine(";");
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");

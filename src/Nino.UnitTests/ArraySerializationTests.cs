@@ -455,4 +455,412 @@ public class ArraySerializationTests
 
         Console.WriteLine("Jagged arrays in collections tests passed!");
     }
+
+    [TestMethod]
+    public void TestComplexMixedArraysInCollections()
+    {
+        // Test 1: Queue<int[][][,]> - Triple-nested jagged with 2D arrays at the end
+        var queueComplex1 = new System.Collections.Generic.Queue<int[][][,]>();
+        queueComplex1.Enqueue(new int[][][,]
+        {
+            new int[][,]
+            {
+                new int[,] { { 1, 2 }, { 3, 4 } },
+                new int[,] { { 5, 6 }, { 7, 8 } }
+            }
+        });
+        queueComplex1.Enqueue(new int[][][,]
+        {
+            new int[][,]
+            {
+                new int[,] { { 9, 10 }, { 11, 12 } }
+            }
+        });
+
+        byte[] bytes = NinoSerializer.Serialize(queueComplex1);
+        Assert.IsNotNull(bytes);
+
+        var queueResult1 = NinoDeserializer.Deserialize<System.Collections.Generic.Queue<int[][][,]>>(bytes);
+        Assert.AreEqual(2, queueResult1.Count);
+
+        var first1 = queueResult1.Dequeue();
+        Assert.AreEqual(1, first1.Length);
+        Assert.AreEqual(2, first1[0].Length);
+        Assert.AreEqual(2, first1[0][0][0, 1]);  // Row 0, Column 1 = 2
+        Assert.AreEqual(4, first1[0][0][1, 1]);  // Row 1, Column 1 = 4
+
+        var second1 = queueResult1.Dequeue();
+        Assert.AreEqual(12, second1[0][0][1, 1]);
+
+        // Test 2: Stack<byte[][,]> - Jagged array with 2D arrays
+        var stackComplex = new System.Collections.Generic.Stack<byte[][,]>();
+        stackComplex.Push(new byte[][,]
+        {
+            new byte[,] { { 1, 2, 3 }, { 4, 5, 6 } },
+            new byte[,] { { 7, 8, 9 }, { 10, 11, 12 } }
+        });
+        stackComplex.Push(new byte[][,]
+        {
+            new byte[,] { { 13, 14 }, { 15, 16 } }
+        });
+
+        bytes = NinoSerializer.Serialize(stackComplex);
+        Assert.IsNotNull(bytes);
+
+        var stackResult = NinoDeserializer.Deserialize<System.Collections.Generic.Stack<byte[][,]>>(bytes);
+        Assert.AreEqual(2, stackResult.Count);
+
+        var firstStack = stackResult.Pop();
+        Assert.AreEqual(1, firstStack.Length);
+        Assert.AreEqual(16, firstStack[0][1, 1]);
+
+        // Test 3: List<int[,][]> - 2D array with jagged arrays as elements
+        var listComplex = new System.Collections.Generic.List<int[,][]>();
+        listComplex.Add(new int[,][]
+        {
+            { new int[] { 1, 2 }, new int[] { 3 } },
+            { new int[] { 4, 5, 6 }, new int[] { 7 } }
+        });
+        listComplex.Add(new int[,][]
+        {
+            { new int[] { 8 }, new int[] { 9, 10 } }
+        });
+
+        bytes = NinoSerializer.Serialize(listComplex);
+        Assert.IsNotNull(bytes);
+
+        var listResult = NinoDeserializer.Deserialize<System.Collections.Generic.List<int[,][]>>(bytes);
+        Assert.AreEqual(2, listResult.Count);
+        Assert.AreEqual(2, listResult[0].GetLength(0));
+        Assert.AreEqual(2, listResult[0].GetLength(1));
+        Assert.AreEqual(2, listResult[0][0, 0].Length);
+        Assert.AreEqual(1, listResult[0][0, 0][0]);
+        Assert.AreEqual(6, listResult[0][1, 0][2]);
+
+        // Test 4: Dictionary<string, float[][,][,,]> - Very complex nested structure
+        var dictComplex = new System.Collections.Generic.Dictionary<string, float[][,][,,]>();
+        dictComplex["key1"] = new float[][,][,,]
+        {
+            new float[,][,,]
+            {
+                {
+                    new float[,,] { { { 1.1f, 1.2f }, { 1.3f, 1.4f } } },
+                    new float[,,] { { { 2.1f, 2.2f }, { 2.3f, 2.4f } } }
+                }
+            }
+        };
+        dictComplex["key2"] = new float[][,][,,]
+        {
+            new float[,][,,]
+            {
+                {
+                    new float[,,] { { { 3.1f, 3.2f }, { 3.3f, 3.4f } } }
+                }
+            }
+        };
+
+        bytes = NinoSerializer.Serialize(dictComplex);
+        Assert.IsNotNull(bytes);
+
+        var dictResult = NinoDeserializer.Deserialize<System.Collections.Generic.Dictionary<string, float[][,][,,]>>(bytes);
+        Assert.AreEqual(2, dictResult.Count);
+        Assert.AreEqual(1.1f, dictResult["key1"][0][0, 0][0, 0, 0]);
+        Assert.AreEqual(2.4f, dictResult["key1"][0][0, 1][0, 1, 1]);
+        Assert.AreEqual(3.4f, dictResult["key2"][0][0, 0][0, 1, 1]);
+
+        // Test 5: Queue<string[,][][]> - 2D array with double-nested jagged
+        var queueComplex2 = new System.Collections.Generic.Queue<string[,][][]>();
+        queueComplex2.Enqueue(new string[,][][]
+        {
+            {
+                new string[][] { new string[] { "a", "b" }, new string[] { "c" } },
+                new string[][] { new string[] { "d" } }
+            }
+        });
+
+        bytes = NinoSerializer.Serialize(queueComplex2);
+        Assert.IsNotNull(bytes);
+
+        var queueResult2 = NinoDeserializer.Deserialize<System.Collections.Generic.Queue<string[,][][]>>(bytes);
+        Assert.AreEqual(1, queueResult2.Count);
+
+        var item = queueResult2.Dequeue();
+        Assert.AreEqual(1, item.GetLength(0));
+        Assert.AreEqual(2, item.GetLength(1));
+        Assert.AreEqual("b", item[0, 0][0][1]);
+        Assert.AreEqual("d", item[0, 1][0][0]);
+
+        // Test 6: Stack<int[][,][,,]> - Jagged with 2D then 3D arrays
+        var stackComplex2 = new System.Collections.Generic.Stack<int[][,][,,]>();
+        stackComplex2.Push(new int[][,][,,]
+        {
+            new int[,][,,]
+            {
+                {
+                    new int[,,] { { { 1, 2 }, { 3, 4 } } },
+                    new int[,,] { { { 5, 6 }, { 7, 8 } } }
+                }
+            }
+        });
+
+        bytes = NinoSerializer.Serialize(stackComplex2);
+        Assert.IsNotNull(bytes);
+
+        var stackResult2 = NinoDeserializer.Deserialize<System.Collections.Generic.Stack<int[][,][,,]>>(bytes);
+        Assert.AreEqual(1, stackResult2.Count);
+
+        var stackItem = stackResult2.Pop();
+        Assert.AreEqual(1, stackItem.Length);
+        Assert.AreEqual(8, stackItem[0][0, 1][0, 1, 1]);
+
+        // Test 7: List<byte[][][,]> with null elements
+        var listWithNulls = new System.Collections.Generic.List<byte[][][,]>();
+        listWithNulls.Add(new byte[][][,]
+        {
+            new byte[][,] { new byte[,] { { 1, 2 } } }
+        });
+        listWithNulls.Add(null);
+        listWithNulls.Add(new byte[][][,]
+        {
+            new byte[][,] { new byte[,] { { 3, 4 } } }
+        });
+
+        bytes = NinoSerializer.Serialize(listWithNulls);
+        Assert.IsNotNull(bytes);
+
+        var listNullsResult = NinoDeserializer.Deserialize<System.Collections.Generic.List<byte[][][,]>>(bytes);
+        Assert.AreEqual(3, listNullsResult.Count);
+        Assert.IsNotNull(listNullsResult[0]);
+        Assert.IsNull(listNullsResult[1]);
+        Assert.IsNotNull(listNullsResult[2]);
+        Assert.AreEqual(2, listNullsResult[0][0][0][0, 1]);
+
+        // Test 8: Dictionary with complex mixed arrays as both key wrapper and value
+        var dictMixed = new System.Collections.Generic.Dictionary<int, int[][,]>();
+        dictMixed[1] = new int[][,]
+        {
+            new int[,] { { 10, 20 }, { 30, 40 } },
+            new int[,] { { 50, 60 }, { 70, 80 } }
+        };
+        dictMixed[2] = new int[][,]
+        {
+            new int[,] { { 90, 100 } }
+        };
+
+        bytes = NinoSerializer.Serialize(dictMixed);
+        Assert.IsNotNull(bytes);
+
+        var dictMixedResult = NinoDeserializer.Deserialize<System.Collections.Generic.Dictionary<int, int[][,]>>(bytes);
+        Assert.AreEqual(2, dictMixedResult.Count);
+        Assert.AreEqual(40, dictMixedResult[1][0][1, 1]);
+        Assert.AreEqual(80, dictMixedResult[1][1][1, 1]);
+        Assert.AreEqual(100, dictMixedResult[2][0][0, 1]);
+
+        Console.WriteLine("Complex mixed arrays in collections tests passed!");
+    }
+
+    [TestMethod]
+    public void TestArraySegmentWithComplexArrays()
+    {
+        Console.WriteLine("Testing ArraySegment with complex array types...");
+
+        // Test 1: ArraySegment<byte[]> - Simple jagged array
+        var jaggedArray1 = new byte[][]
+        {
+            new byte[] { 1, 2, 3 },
+            new byte[] { 4, 5 },
+            new byte[] { 6, 7, 8, 9 }
+        };
+        var segment1 = new System.ArraySegment<byte[]>(jaggedArray1);
+
+        byte[] bytes = NinoSerializer.Serialize(segment1);
+        Assert.IsNotNull(bytes);
+
+        var segmentResult1 = NinoDeserializer.Deserialize<System.ArraySegment<byte[]>>(bytes);
+        Assert.AreEqual(3, segmentResult1.Count);
+        Assert.AreEqual(3, segmentResult1[0].Length);
+        Assert.AreEqual(2, segmentResult1[1].Length);
+        Assert.AreEqual(4, segmentResult1[2].Length);
+        Assert.AreEqual(1, segmentResult1[0][0]);
+        Assert.AreEqual(5, segmentResult1[1][1]);
+        Assert.AreEqual(9, segmentResult1[2][3]);
+
+        // Test 2: ArraySegment<int[][]> - Double jagged
+        var doubleJagged = new int[][][]
+        {
+            new int[][]
+            {
+                new int[] { 1, 2 },
+                new int[] { 3, 4, 5 }
+            },
+            new int[][]
+            {
+                new int[] { 6 }
+            }
+        };
+        var segment2 = new System.ArraySegment<int[][]>(doubleJagged);
+
+        bytes = NinoSerializer.Serialize(segment2);
+        Assert.IsNotNull(bytes);
+
+        var segmentResult2 = NinoDeserializer.Deserialize<System.ArraySegment<int[][]>>(bytes);
+        Assert.AreEqual(2, segmentResult2.Count);
+        Assert.AreEqual(2, segmentResult2[0].Length);
+        Assert.AreEqual(1, segmentResult2[1].Length);
+        Assert.AreEqual(2, segmentResult2[0][0][1]);
+        Assert.AreEqual(5, segmentResult2[0][1][2]);
+        Assert.AreEqual(6, segmentResult2[1][0][0]);
+
+        // Test 3: ArraySegment with offset and count (non-full segment)
+        var jaggedArray2 = new int[][]
+        {
+            new int[] { 1, 2 },
+            new int[] { 3, 4 },
+            new int[] { 5, 6 },
+            new int[] { 7, 8 }
+        };
+        var segment3 = new System.ArraySegment<int[]>(jaggedArray2, 1, 2); // Only middle two elements
+
+        bytes = NinoSerializer.Serialize(segment3);
+        Assert.IsNotNull(bytes);
+
+        var segmentResult3 = NinoDeserializer.Deserialize<System.ArraySegment<int[]>>(bytes);
+        Assert.AreEqual(2, segmentResult3.Count);
+        Assert.AreEqual(3, segmentResult3[0][0]);
+        Assert.AreEqual(4, segmentResult3[0][1]);
+        Assert.AreEqual(5, segmentResult3[1][0]);
+        Assert.AreEqual(6, segmentResult3[1][1]);
+
+        Console.WriteLine("ArraySegment with complex array types tests passed!");
+    }
+
+#if NET6_0_OR_GREATER
+    [TestMethod]
+    public void TestPriorityQueueWithComplexArrays()
+    {
+        Console.WriteLine("Testing PriorityQueue with complex array types (.NET 6.0+)...");
+
+        // Test 1: PriorityQueue with jagged array elements
+        var pq1 = new System.Collections.Generic.PriorityQueue<byte[][], int>();
+        pq1.Enqueue(new byte[][] { new byte[] { 1, 2 }, new byte[] { 3, 4, 5 } }, 1);
+        pq1.Enqueue(new byte[][] { new byte[] { 6 } }, 2);
+        pq1.Enqueue(new byte[][] { new byte[] { 7, 8 }, new byte[] { 9 } }, 3);
+
+        byte[] bytes = NinoSerializer.Serialize(pq1);
+        Assert.IsNotNull(bytes);
+
+        var pqResult1 = NinoDeserializer.Deserialize<System.Collections.Generic.PriorityQueue<byte[][], int>>(bytes);
+        Assert.AreEqual(3, pqResult1.Count);
+
+        var first = pqResult1.Dequeue();
+        Assert.AreEqual(2, first.Length);
+        Assert.AreEqual(1, first[0][0]);
+        Assert.AreEqual(5, first[1][2]);
+
+        // Test 2: PriorityQueue with triple-jagged arrays
+        var pq2 = new System.Collections.Generic.PriorityQueue<int[][][], int>();
+        pq2.Enqueue(new int[][][]
+        {
+            new int[][] { new int[] { 1, 2 }, new int[] { 3 } }
+        }, 10);
+        pq2.Enqueue(new int[][][]
+        {
+            new int[][] { new int[] { 4, 5, 6 } }
+        }, 20);
+
+        bytes = NinoSerializer.Serialize(pq2);
+        Assert.IsNotNull(bytes);
+
+        var pqResult2 = NinoDeserializer.Deserialize<System.Collections.Generic.PriorityQueue<int[][][], int>>(bytes);
+        Assert.AreEqual(2, pqResult2.Count);
+
+        var firstElement = pqResult2.Dequeue();
+        Assert.AreEqual(1, firstElement.Length);
+        Assert.AreEqual(2, firstElement[0].Length);
+        Assert.AreEqual(1, firstElement[0][0][0]);
+        Assert.AreEqual(2, firstElement[0][0][1]);
+        Assert.AreEqual(3, firstElement[0][1][0]);
+
+        // Test 3: PriorityQueue with 2D arrays
+        var pq3 = new System.Collections.Generic.PriorityQueue<int[,], int>();
+        pq3.Enqueue(new int[,] { { 1, 2, 3 }, { 4, 5, 6 } }, 1);
+        pq3.Enqueue(new int[,] { { 7, 8 }, { 9, 10 } }, 2);
+
+        bytes = NinoSerializer.Serialize(pq3);
+        Assert.IsNotNull(bytes);
+
+        var pqResult3 = NinoDeserializer.Deserialize<System.Collections.Generic.PriorityQueue<int[,], int>>(bytes);
+        Assert.AreEqual(2, pqResult3.Count);
+
+        var first2D = pqResult3.Dequeue();
+        Assert.AreEqual(2, first2D.GetLength(0));
+        Assert.AreEqual(3, first2D.GetLength(1));
+        Assert.AreEqual(1, first2D[0, 0]);
+        Assert.AreEqual(6, first2D[1, 2]);
+
+        // Test 4: PriorityQueue with 3D arrays
+        var pq4 = new System.Collections.Generic.PriorityQueue<int[,,], int>();
+        pq4.Enqueue(new int[,,]
+        {
+            { { 1, 2 }, { 3, 4 } },
+            { { 5, 6 }, { 7, 8 } }
+        }, 10);
+
+        bytes = NinoSerializer.Serialize(pq4);
+        Assert.IsNotNull(bytes);
+
+        var pqResult4 = NinoDeserializer.Deserialize<System.Collections.Generic.PriorityQueue<int[,,], int>>(bytes);
+        Assert.AreEqual(1, pqResult4.Count);
+
+        var first3D = pqResult4.Dequeue();
+        Assert.AreEqual(2, first3D.GetLength(0));
+        Assert.AreEqual(2, first3D.GetLength(1));
+        Assert.AreEqual(2, first3D.GetLength(2));
+        Assert.AreEqual(1, first3D[0, 0, 0]);
+        Assert.AreEqual(8, first3D[1, 1, 1]);
+
+        // Test 5: PriorityQueue with mixed jagged/multi-dim arrays (int[][,])
+        var pq5 = new System.Collections.Generic.PriorityQueue<int[][,], int>();
+        pq5.Enqueue(new int[][,]
+        {
+            new int[,] { { 1, 2 }, { 3, 4 } },
+            new int[,] { { 5, 6 }, { 7, 8 } }
+        }, 1);
+
+        bytes = NinoSerializer.Serialize(pq5);
+        Assert.IsNotNull(bytes);
+
+        var pqResult5 = NinoDeserializer.Deserialize<System.Collections.Generic.PriorityQueue<int[][,], int>>(bytes);
+        Assert.AreEqual(1, pqResult5.Count);
+
+        var firstMixed = pqResult5.Dequeue();
+        Assert.AreEqual(2, firstMixed.Length);
+        Assert.AreEqual(4, firstMixed[0][1, 1]);
+        Assert.AreEqual(8, firstMixed[1][1, 1]);
+
+        // Test 6: PriorityQueue with mixed multi-dim/jagged arrays (int[,][])
+        var pq6 = new System.Collections.Generic.PriorityQueue<int[,][], string>();
+        pq6.Enqueue(new int[,][]
+        {
+            { new int[] { 1, 2 }, new int[] { 3 } },
+            { new int[] { 4, 5, 6 }, new int[] { 7, 8 } }
+        }, "low");
+
+        bytes = NinoSerializer.Serialize(pq6);
+        Assert.IsNotNull(bytes);
+
+        var pqResult6 = NinoDeserializer.Deserialize<System.Collections.Generic.PriorityQueue<int[,][], string>>(bytes);
+        Assert.AreEqual(1, pqResult6.Count);
+
+        var firstMixed2 = pqResult6.Dequeue();
+        Assert.AreEqual(2, firstMixed2.GetLength(0));
+        Assert.AreEqual(2, firstMixed2.GetLength(1));
+        Assert.AreEqual(1, firstMixed2[0, 0][0]);
+        Assert.AreEqual(3, firstMixed2[0, 1][0]);
+        Assert.AreEqual(6, firstMixed2[1, 0][2]);
+        Assert.AreEqual(8, firstMixed2[1, 1][1]);
+
+        Console.WriteLine("PriorityQueue with complex array types tests passed!");
+    }
+#endif
 }

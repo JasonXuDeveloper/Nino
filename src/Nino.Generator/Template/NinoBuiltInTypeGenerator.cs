@@ -211,6 +211,46 @@ public abstract class NinoBuiltInTypeGenerator(
         }
     }
 
+    /// <summary>
+    /// Generates correct array creation syntax for both jagged and multi-dimensional arrays.
+    /// Handles complex cases like int[][], int[,][], int[][,], etc.
+    /// </summary>
+    /// <param name="elementTypeString">The element type as a string (e.g., "int[]", "byte[,]")</param>
+    /// <param name="dimensionString">The dimension specifier (e.g., "length", "len0, len1")</param>
+    /// <returns>Correct array creation string (e.g., "int[length][]", "int[len0, len1][]")</returns>
+    protected static string GetArrayCreationString(string elementTypeString, string dimensionString)
+    {
+        // Find the first '[' that's not inside angle brackets (generics)
+        // Insert [dimensionString] before it
+        // Examples:
+        //   "int[]" + "length" -> "int[length][]"
+        //   "byte[,]" + "length" -> "byte[length][,]"
+        //   "int[][,]" + "length" -> "int[length][][,]"
+        //   "int" + "len0, len1" -> "int[len0, len1]"
+        //   "Dictionary<string, int[]>" + "length" -> "Dictionary<string, int[]>[length]"
+
+        int angleDepth = 0;
+        int firstBracket = -1;
+
+        for (int i = 0; i < elementTypeString.Length; i++)
+        {
+            if (elementTypeString[i] == '<') angleDepth++;
+            else if (elementTypeString[i] == '>') angleDepth--;
+            else if (elementTypeString[i] == '[' && angleDepth == 0)
+            {
+                firstBracket = i;
+                break;
+            }
+        }
+
+        // If no brackets found, append dimension at the end
+        if (firstBracket < 0)
+            return $"{elementTypeString}[{dimensionString}]";
+
+        // Insert dimension before the first bracket
+        return elementTypeString.Insert(firstBracket, $"[{dimensionString}]");
+    }
+
     private bool TryGetInlineSerializeCall(ITypeSymbol type, string valueExpression, out string invocation)
     {
         invocation = null!;

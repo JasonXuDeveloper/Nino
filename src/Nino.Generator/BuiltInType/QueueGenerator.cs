@@ -285,31 +285,11 @@ public class QueueGenerator(
             var elemType = elementType.GetDisplayString();
             var queueViewTypeName = $"Nino.Core.Internal.QueueView<{elemType}>";
 
-            // Build correct array creation syntax for jagged arrays
-            // For element type like "int[]", we need "int[length][]" not "int[][length]"
-            string creationDecl;
-            int angleDepth = 0;
-            int firstBracket = -1;
-            for (int i = 0; i < elemType.Length; i++)
-            {
-                if (elemType[i] == '<') angleDepth++;
-                else if (elemType[i] == '>') angleDepth--;
-                else if (elemType[i] == '[' && angleDepth == 0)
-                {
-                    firstBracket = i;
-                    break;
-                }
-            }
-
-            creationDecl = firstBracket >= 0
-                ? elemType.Insert(firstBracket, "[length]")
-                : $"{elemType}[length]";
-
             if (isUnmanaged)
             {
                 // For unmanaged types, use efficient memcpy via GetBytes
                 writer.Append("    var array = new ");
-                writer.Append(creationDecl);
+                writer.Append(GetArrayCreationString(elemType, "length"));
                 writer.AppendLine(";");
                 writer.Append("    reader.GetBytes(length * System.Runtime.CompilerServices.Unsafe.SizeOf<");
                 writer.Append(elemType);
@@ -321,7 +301,7 @@ public class QueueGenerator(
             {
                 // For managed types, use ref iteration for efficient element assignment
                 writer.Append("    var array = new ");
-                writer.Append(creationDecl);
+                writer.Append(GetArrayCreationString(elemType, "length"));
                 writer.AppendLine(";");
                 writer.AppendLine("    var span = array.AsSpan();");
                 writer.AppendLine("    for (int i = 0; i < length; i++)");
@@ -462,9 +442,6 @@ public class QueueGenerator(
             var queueViewTypeName = $"Nino.Core.Internal.QueueView<{elemType}>";
 
             writer.AppendLine("    // Extract existing array or create new, then resize if needed");
-            writer.Append("    ");
-            writer.Append(elemType);
-            writer.AppendLine("[] array;");
             writer.AppendLine("    if (value == null)");
             writer.AppendLine("    {");
             writer.Append("        value = new ");
@@ -477,7 +454,7 @@ public class QueueGenerator(
             writer.Append(", ");
             writer.Append(queueViewTypeName);
             writer.AppendLine(">(ref value);");
-            writer.AppendLine("    array = queue._array;");
+            writer.AppendLine("    var array = queue._array;");
             writer.AppendLine();
             writer.AppendLine("    // Resize array if needed");
             writer.AppendLine("    if (array == null || array.Length < length)");
