@@ -10,9 +10,9 @@ namespace Nino.UnitTests.UnityMock
     [NinoType]
     public struct Vector3
     {
-        [NinoMember(0)] public float x;
-        [NinoMember(1)] public float y;
-        [NinoMember(2)] public float z;
+        public float x;
+        public float y;
+        public float z;
         
         public Vector3(float x, float y, float z)
         {
@@ -30,10 +30,10 @@ namespace Nino.UnitTests.UnityMock
     [NinoType]
     public struct Quaternion
     {
-        [NinoMember(0)] public float x;
-        [NinoMember(1)] public float y;
-        [NinoMember(2)] public float z;
-        [NinoMember(3)] public float w;
+        public float x;
+        public float y;
+        public float z;
+        public float w;
         
         public Quaternion(float x, float y, float z, float w)
         {
@@ -79,14 +79,14 @@ namespace Nino.UnitTests.UnityMock
     [NinoType]
     public struct Data
     {
-        [NinoMember(1)] public int x;
-        [NinoMember(2)] public short y;
-        [NinoMember(3)] public long z;
-        [NinoMember(4)] public float f;
-        [NinoMember(5)] public decimal d;
-        [NinoMember(6)] public double db;
-        [NinoMember(7)] public bool bo;
-        [NinoMember(8)] public TestEnum en;
+        public int x;
+        public short y;
+        public long z;
+        public float f;
+        public decimal d;
+        public double db;
+        public bool bo;
+        public TestEnum en;
 
         public override string ToString()
         {
@@ -97,25 +97,15 @@ namespace Nino.UnitTests.UnityMock
     [NinoType]
     public class ComplexData
     {
-        [NinoMember(0)]
         public int[][] a;
-        [NinoMember(1)]
         public List<int[]> b;
-        [NinoMember(2)]
         public List<int>[] c;
-        [NinoMember(3)]
         public Dictionary<string, Dictionary<string, int>> d;
-        [NinoMember(4)]
         public Dictionary<string, Dictionary<string, int[][]>>[] e;
-        [NinoMember(5)]
         public Data[][] f;
-        [NinoMember(6)]
         public List<Data[]> g;
-        [NinoMember(7)]
         public Data[][][] h;
-        [NinoMember(8)]
         public List<Data>[] i;
-        [NinoMember(9)]
         public List<Data[]>[] j;
 
         public override string ToString()

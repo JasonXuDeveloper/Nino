@@ -997,8 +997,8 @@ namespace Nino.UnitTests
             [NinoType]
             public class NinoTestData
             {
-                [NinoMember(1)] public int X;
-                [NinoMember(2)] public long Y;
+                public int X;
+                public long Y;
             }
 
             protected override void RunTest()
@@ -1052,10 +1052,10 @@ namespace Nino.UnitTests
                     Female
                 }
 
-                [NinoMember(1)] public string name;
-                [NinoMember(2)] public int id;
-                [NinoMember(3)] public bool isHasPet;
-                [NinoMember(4)] public Sex sex;
+                public string name;
+                public int id;
+                public bool isHasPet;
+                public Sex sex;
             }
 
             protected override void RunTest()
@@ -1168,13 +1168,13 @@ namespace Nino.UnitTests
             [NinoType]
             public class Move
             {
-                [NinoMember(1)] public int id;
-                [NinoMember(2)] public float x;
-                [NinoMember(3)] public float y;
-                [NinoMember(4)] public float z;
-                [NinoMember(5)] public float eulerX;
-                [NinoMember(6)] public float eulerY;
-                [NinoMember(7)] public float eulerZ;
+                public int id;
+                public float x;
+                public float y;
+                public float z;
+                public float eulerX;
+                public float eulerY;
+                public float eulerZ;
 
                 public Move()
                 {
