@@ -337,13 +337,20 @@ public partial class DeserializerGenerator
                 // Only report the warning once to avoid duplicates between serializer and deserializer
                 if (!member.HasReportedUnrecognizableTypeWarning)
                 {
+                    // Check if member is from current compilation to determine location
+                    var memberAssembly = member.MemberSymbol.ContainingType.ContainingAssembly;
+                    var isCurrentAssembly = SymbolEqualityComparer.Default.Equals(memberAssembly, Compilation.Assembly);
+                    var diagnosticLocation = isCurrentAssembly
+                        ? (member.MemberSymbol.Locations.FirstOrDefault() ?? nt.TypeSymbol.Locations.FirstOrDefault() ?? Location.None)
+                        : Location.None;
+
                     spc.ReportDiagnostic(Diagnostic.Create(
                         new DiagnosticDescriptor("NINO011",
                             "Member type cannot be serialized",
                             "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization",
                             "Nino",
                             DiagnosticSeverity.Warning, true),
-                        member.MemberSymbol.Locations.FirstOrDefault() ?? nt.TypeSymbol.Locations.First(),
+                        diagnosticLocation,
                         member.Name,
                         declaredType.GetDisplayString(),
                         nt.TypeSymbol.GetDisplayString()));

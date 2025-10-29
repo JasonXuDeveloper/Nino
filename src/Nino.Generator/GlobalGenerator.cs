@@ -65,6 +65,37 @@ public class GlobalGenerator : IIncrementalGenerator
 
                 // all types
                 HashSet<ITypeSymbol> allTypes = new(TupleSanitizedEqualityComparer.Default);
+                // track which referenced assemblies we've already scanned for NinoTypes
+                HashSet<IAssemblySymbol> scannedAssemblies = new(SymbolEqualityComparer.Default);
+                scannedAssemblies.Add(compilation.Assembly); // don't scan current assembly
+
+                // Helper: Scan a referenced assembly for all NinoTypes to ensure complete type discovery
+                void ScanAssemblyForNinoTypes(IAssemblySymbol assembly, HashSet<ITypeSymbol> types, Stack<ITypeSymbol> stack)
+                {
+                    void ScanNamespace(INamespaceSymbol ns)
+                    {
+                        foreach (var member in ns.GetMembers())
+                        {
+                            if (member is INamedTypeSymbol typeSymbol
+                                && typeSymbol.DeclaredAccessibility == Accessibility.Public
+                                && typeSymbol.CheckGenericValidity()
+                                && typeSymbol.IsNinoType())
+                            {
+                                var normalizedType = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
+                                if (types.Add(normalizedType))
+                                {
+                                    stack.Push(normalizedType);
+                                }
+                            }
+                            else if (member is INamespaceSymbol childNamespace)
+                            {
+                                ScanNamespace(childNamespace);
+                            }
+                        }
+                    }
+
+                    ScanNamespace(assembly.GlobalNamespace);
+                }
 
                 // process all scanned type syntaxes (generic, array, nullable, tuple, parametrized nino types)
                 foreach (var syntax in typeSyntaxes)
@@ -76,49 +107,6 @@ public class GlobalGenerator : IIncrementalGenerator
                     {
                         var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
                         allTypes.Add(type);
-                    }
-                }
-
-                // record all array element and generic type arguments
-                Stack<ITypeSymbol> toProcess = new(allTypes);
-                while (toProcess.Count > 0)
-                {
-                    var currentType = toProcess.Pop();
-                    if (currentType is INamedTypeSymbol namedType && namedType.IsGenericType)
-                    {
-                        foreach (var arg in namedType.TypeArguments)
-                        {
-                            var pureArg = arg.GetNormalizedTypeSymbol().GetPureType();
-                            if (allTypes.Add(pureArg))
-                                toProcess.Push(pureArg);
-                        }
-                    }
-                    else if (currentType is IArrayTypeSymbol arrayType)
-                    {
-                        var elemType = arrayType.ElementType.GetNormalizedTypeSymbol().GetPureType();
-                        if (allTypes.Add(elemType))
-                            toProcess.Push(elemType);
-                    }
-
-                    // explore members of nino types
-                    if (currentType.IsNinoType())
-                    {
-                        var members = currentType.GetMembers();
-                        foreach (var member in members)
-                        {
-                            if (member is IPropertySymbol prop)
-                            {
-                                var propType = prop.Type.GetNormalizedTypeSymbol().GetPureType();
-                                if (allTypes.Add(propType))
-                                    toProcess.Push(propType);
-                            }
-                            else if (member is IFieldSymbol field)
-                            {
-                                var fieldType = field.Type.GetNormalizedTypeSymbol().GetPureType();
-                                if (allTypes.Add(fieldType))
-                                    toProcess.Push(fieldType);
-                            }
-                        }
                     }
                 }
 
@@ -146,6 +134,97 @@ public class GlobalGenerator : IIncrementalGenerator
                     {
                         var type = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
                         allTypes.Add(type);
+                    }
+                }
+
+                // record all array element and generic type arguments
+                Stack<ITypeSymbol> toProcess = new(allTypes);
+                while (toProcess.Count > 0)
+                {
+                    var currentType = toProcess.Pop();
+                    if (currentType is INamedTypeSymbol namedType && namedType.IsGenericType)
+                    {
+                        foreach (var arg in namedType.TypeArguments)
+                        {
+                            var pureArg = arg.GetNormalizedTypeSymbol().GetPureType();
+                            if (allTypes.Add(pureArg))
+                                toProcess.Push(pureArg);
+                        }
+                    }
+                    else if (currentType is IArrayTypeSymbol arrayType)
+                    {
+                        var elemType = arrayType.ElementType.GetNormalizedTypeSymbol().GetPureType();
+                        if (allTypes.Add(elemType))
+                            toProcess.Push(elemType);
+                    }
+
+                    // explore base types if they are NinoTypes
+                    if (currentType is INamedTypeSymbol { BaseType: not null } namedTypeWithBase)
+                    {
+                        var baseType = namedTypeWithBase.BaseType!.GetNormalizedTypeSymbol().GetPureType();
+                        if (baseType.IsNinoType())
+                        {
+                            // If base type is from a referenced assembly, scan that assembly for all NinoTypes
+                            // This ensures we discover all member types even if we can't access private members
+                            var baseAssembly = baseType.ContainingAssembly;
+                            if (!SymbolEqualityComparer.Default.Equals(baseAssembly, compilation.Assembly)
+                                && scannedAssemblies.Add(baseAssembly))
+                            {
+                                ScanAssemblyForNinoTypes(baseAssembly, allTypes, toProcess);
+                            }
+
+                            // Add base type to processing queue if not already added
+                            if (allTypes.Add(baseType))
+                            {
+                                toProcess.Push(baseType);
+                            }
+                        }
+                    }
+
+                    // explore interface types if they are NinoTypes
+                    if (currentType is INamedTypeSymbol namedTypeWithInterfaces)
+                    {
+                        foreach (var iface in namedTypeWithInterfaces.Interfaces)
+                        {
+                            var ifaceType = iface.GetNormalizedTypeSymbol().GetPureType();
+                            if (ifaceType.IsNinoType())
+                            {
+                                // If interface is from a referenced assembly, scan that assembly for all NinoTypes
+                                var ifaceAssembly = ifaceType.ContainingAssembly;
+                                if (!SymbolEqualityComparer.Default.Equals(ifaceAssembly, compilation.Assembly)
+                                    && scannedAssemblies.Add(ifaceAssembly))
+                                {
+                                    ScanAssemblyForNinoTypes(ifaceAssembly, allTypes, toProcess);
+                                }
+
+                                // Add interface type to processing queue if not already added
+                                if (allTypes.Add(ifaceType))
+                                {
+                                    toProcess.Push(ifaceType);
+                                }
+                            }
+                        }
+                    }
+
+                    // explore members of nino types
+                    if (currentType.IsNinoType())
+                    {
+                        var members = currentType.GetMembers();
+                        foreach (var member in members)
+                        {
+                            if (member is IPropertySymbol prop)
+                            {
+                                var propType = prop.Type.GetNormalizedTypeSymbol().GetPureType();
+                                if (allTypes.Add(propType))
+                                    toProcess.Push(propType);
+                            }
+                            else if (member is IFieldSymbol field)
+                            {
+                                var fieldType = field.Type.GetNormalizedTypeSymbol().GetPureType();
+                                if (allTypes.Add(fieldType))
+                                    toProcess.Push(fieldType);
+                            }
+                        }
                     }
                 }
 
