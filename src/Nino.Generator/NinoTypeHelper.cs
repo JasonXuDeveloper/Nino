@@ -280,13 +280,19 @@ public static class NinoTypeHelper
         return ret;
     }
 
-    public static (bool isValid, Compilation newCompilation) IsValidCompilation(this Compilation compilation)
+    public static (bool isValid, Compilation newCompilation, bool isUnityAssembly) IsValidCompilation(this Compilation compilation)
     {
         //make sure the compilation contains the Nino.Core assembly
         if (!compilation.ReferencedAssemblyNames.Any(static a => a.Name == "Nino.Core"))
         {
-            return (false, compilation);
+            return (false, compilation, false);
         }
+
+        // Detect if this is a Unity assembly
+        bool isUnityAssembly = compilation.ReferencedAssemblyNames.Any(a =>
+            a.Name == "UnityEngine" ||
+            a.Name == "UnityEngine.CoreModule" ||
+            a.Name == "UnityEditor");
 
         // Skip generation if Nino.Core namespace is not used anywhere in the compilation
         bool hasNinoCoreUsage = compilation.SyntaxTrees.Any(tree =>
@@ -300,7 +306,7 @@ public static class NinoTypeHelper
 
         if (!hasNinoCoreUsage)
         {
-            return (false, compilation);
+            return (false, compilation, false);
         }
 
         //disable nullable reference types
@@ -320,7 +326,7 @@ public static class NinoTypeHelper
         }
 
         compilation = newCompilation;
-        return (true, compilation);
+        return (true, compilation, isUnityAssembly);
     }
 
     public static IncrementalValuesProvider<CSharpSyntaxNode> GetTypeSyntaxes(

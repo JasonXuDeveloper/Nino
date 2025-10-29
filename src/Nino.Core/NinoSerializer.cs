@@ -149,6 +149,12 @@ namespace Nino.Core
                     $"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");
             }
 
+            if (serializer == null)
+            {
+                var ns = NinoHelper.GetGeneratedNamespace(type);
+                throw new Exception(NinoHelper.GetRegistrationErrorMessage(type.FullName, ns));
+            }
+
             serializer(value, ref writer);
         }
     }
@@ -220,6 +226,12 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SerializeBoxed(object value, ref Writer writer)
         {
+            if (_serializer == null)
+            {
+                var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
+                throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
+            }
+
             if (value == null)
                 _serializer(default, ref writer);
             else if (value is T val) _serializer(val, ref writer);
@@ -256,6 +268,12 @@ namespace Nino.Core
             if (IsSealed || SubTypeSerializers.Count == 0)
             {
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
+                if (_serializer == null)
+                {
+                    var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
+                    throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
+                }
+
                 _serializer(val, ref writer);
                 return;
             }
@@ -280,7 +298,13 @@ namespace Nino.Core
             // FAST PATH: Base type (common for non-polymorphic usage)
             if (actualTypeHandle == TypeHandle)
             {
-                _serializer!(val, ref writer);
+                if (_serializer == null)
+                {
+                    var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
+                    throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
+                }
+
+                _serializer(val, ref writer);
                 return;
             }
 

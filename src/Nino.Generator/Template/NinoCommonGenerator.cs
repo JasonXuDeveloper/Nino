@@ -4,8 +4,8 @@ using Nino.Generator.Metadata;
 
 namespace Nino.Generator.Template;
 
-public abstract class NinoCommonGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes)
-    : NinoGenerator(compilation)
+public abstract class NinoCommonGenerator(Compilation compilation, NinoGraph ninoGraph, List<NinoType> ninoTypes, bool isUnityAssembly = false)
+    : NinoGenerator(compilation, isUnityAssembly)
 {
     protected readonly NinoGraph NinoGraph = ninoGraph;
     protected readonly List<NinoType> NinoTypes = ninoTypes;

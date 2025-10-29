@@ -82,6 +82,12 @@ namespace Nino.Core
                     throw new Exception($"Deserializer not found for type with id {typeId}");
                 }
 
+                if (deserializer.outOverload == null)
+                {
+                    throw new Exception($"Deserializer not found for type with id {typeId}. " +
+                                        $"The type may not have been registered. Please ensure the appropriate Init() methods are called.");
+                }
+
                 return deserializer.outOverload(ref reader);
             }
 
@@ -89,6 +95,12 @@ namespace Nino.Core
             {
                 throw new Exception(
                     $"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
+            }
+
+            if (typeDeserializer.outOverload == null)
+            {
+                var ns = NinoHelper.GetGeneratedNamespace(type);
+                throw new Exception(NinoHelper.GetRegistrationErrorMessage(type.FullName, ns));
             }
 
             return typeDeserializer.outOverload(ref reader);
@@ -115,6 +127,12 @@ namespace Nino.Core
                     throw new Exception($"Deserializer not found for type with id {typeId}");
                 }
 
+                if (deserializer.refOverload == null)
+                {
+                    throw new Exception($"Deserializer not found for type with id {typeId}. " +
+                                        $"The type may not have been registered. Please ensure the appropriate Init() methods are called.");
+                }
+
                 deserializer.refOverload(ref val, ref reader);
                 return;
             }
@@ -123,6 +141,12 @@ namespace Nino.Core
             {
                 throw new Exception(
                     $"Deserializer not found for type {type.FullName}, if this is an unmanaged type, please use Deserialize<T>(ref Reader reader) instead.");
+            }
+
+            if (typeDeserializer.refOverload == null)
+            {
+                var ns = NinoHelper.GetGeneratedNamespace(type);
+                throw new Exception(NinoHelper.GetRegistrationErrorMessage(type.FullName, ns));
             }
 
             typeDeserializer.refOverload(ref val, ref reader);
@@ -325,6 +349,12 @@ namespace Nino.Core
             if (IsSealed || SubTypeDeserializers.Count == 1)
             {
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
+                if (_deserializer == null)
+                {
+                    var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
+                    throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
+                }
+
                 _deserializer(out value, ref reader);
                 return;
             }
@@ -342,7 +372,13 @@ namespace Nino.Core
             // FAST PATH: Exact type match
             if (typeId == _typeId)
             {
-                _deserializer!(out value, ref reader);
+                if (_deserializer == null)
+                {
+                    var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
+                    throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
+                }
+
+                _deserializer(out value, ref reader);
                 return;
             }
 
@@ -381,6 +417,12 @@ namespace Nino.Core
             if (IsSealed || SubTypeDeserializerRefs.Count == 1)
             {
                 // DIRECT DELEGATE: Generated code path - no polymorphism possible
+                if (_deserializerRef == null)
+                {
+                    var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
+                    throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
+                }
+
                 _deserializerRef(ref value, ref reader);
                 return;
             }
@@ -398,7 +440,13 @@ namespace Nino.Core
             // FAST PATH: Exact type match
             if (typeId == _typeId)
             {
-                _deserializerRef!(ref value, ref reader);
+                if (_deserializerRef == null)
+                {
+                    var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
+                    throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
+                }
+
+                _deserializerRef(ref value, ref reader);
                 return;
             }
 

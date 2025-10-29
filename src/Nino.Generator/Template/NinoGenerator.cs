@@ -2,9 +2,10 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Template;
 
-public abstract class NinoGenerator(Compilation compilation)
+public abstract class NinoGenerator(Compilation compilation, bool isUnityAssembly = false)
 {
     protected readonly Compilation Compilation = compilation;
+    protected readonly bool IsUnityAssembly = isUnityAssembly;
 
     protected abstract void Generate(SourceProductionContext spc);
 

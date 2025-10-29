@@ -59,9 +59,9 @@ public class GlobalGenerator : IIncrementalGenerator
 
             try
             {
-                var result = compilation.IsValidCompilation();
-                if (!result.isValid) return;
-                compilation = result.newCompilation;
+                var (isValid, newCompilation, isUnityAssembly) = compilation.IsValidCompilation();
+                if (!isValid) return;
+                compilation = newCompilation;
 
                 // all types
                 HashSet<ITypeSymbol> allTypes = new(TupleSanitizedEqualityComparer.Default);
@@ -207,12 +207,12 @@ public class GlobalGenerator : IIncrementalGenerator
                 HashSet<ITypeSymbol> generatedTypes = new(TupleSanitizedEqualityComparer.Default);
 
                 ExecuteGenerator(
-                    new NinoBuiltInTypesGenerator(graph, potentialTypeSymbols, generatedTypes, compilation), spc);
+                    new NinoBuiltInTypesGenerator(graph, potentialTypeSymbols, generatedTypes, compilation, isUnityAssembly), spc);
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new UnsafeAccessorGenerator(compilation, graph, distinctNinoTypes), spc);
                 ExecuteGenerator(new PartialClassGenerator(compilation, graph, distinctNinoTypes), spc);
-                ExecuteGenerator(new SerializerGenerator(compilation, graph, distinctNinoTypes, generatedTypes), spc);
-                ExecuteGenerator(new DeserializerGenerator(compilation, graph, distinctNinoTypes, generatedTypes), spc);
+                ExecuteGenerator(new SerializerGenerator(compilation, graph, distinctNinoTypes, generatedTypes, isUnityAssembly), spc);
+                ExecuteGenerator(new DeserializerGenerator(compilation, graph, distinctNinoTypes, generatedTypes, isUnityAssembly), spc);
             }
             catch (Exception e)
             {
