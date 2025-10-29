@@ -44,6 +44,8 @@
     </ItemGroup>
 
     <ItemGroup>
+      <PackageReference Include="System.Net.Http" Version="4.3.4" />
+      <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
         <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
                           OutputItemType="Analyzer"
