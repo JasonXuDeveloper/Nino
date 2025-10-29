@@ -284,7 +284,9 @@ public partial class DeserializerGenerator
     // Helper: Generate read statement based on type kind
     private string GenerateReadStatement(NinoMember member, string tempName,
         Func<ITypeSymbol, string> getDeserializerVar,
-        Dictionary<NinoMember, string> customFormatterVars)
+        Dictionary<NinoMember, string> customFormatterVars,
+        NinoType nt,
+        SourceProductionContext spc)
     {
         var declaredType = member.Type;
 
@@ -331,7 +333,23 @@ public partial class DeserializerGenerator
                 return $"{deserializerVar}.Deserialize(out {tempName}, ref reader);";
 
             default:
-                return $"// Unable to deserialize {tempName}";
+                // PRIORITY 6: Invalid/unrecognizable type - report warning
+                // Only report the warning once to avoid duplicates between serializer and deserializer
+                if (!member.HasReportedUnrecognizableTypeWarning)
+                {
+                    spc.ReportDiagnostic(Diagnostic.Create(
+                        new DiagnosticDescriptor("NINO011",
+                            "Member type cannot be serialized",
+                            "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization",
+                            "Nino",
+                            DiagnosticSeverity.Warning, true),
+                        member.MemberSymbol.Locations.FirstOrDefault() ?? nt.TypeSymbol.Locations.First(),
+                        member.Name,
+                        declaredType.GetDisplayString(),
+                        nt.TypeSymbol.GetDisplayString()));
+                    member.HasReportedUnrecognizableTypeWarning = true;
+                }
+                return $"// WARNING: Unable to deserialize {tempName} (unrecognizable type '{declaredType.GetDisplayString()}')";
         }
     }
 
@@ -752,7 +770,7 @@ public partial class DeserializerGenerator
         List<(string, string, bool)> privateVars,
         Dictionary<string, string> args,
         Dictionary<string, string> tupleMap) WriteMembers(
-            string valName, StringBuilder sb, NinoType nt, string[] constructorMember, bool byRef, string indent = "")
+            string valName, StringBuilder sb, NinoType nt, string[] constructorMember, bool byRef, SourceProductionContext spc, string indent = "")
     {
         List<(string, string)> vars = new List<(string, string)>();
         List<(string, string, bool)> privateVars = new List<(string, string, bool)>();
@@ -964,7 +982,7 @@ public partial class DeserializerGenerator
                     else
                     {
                         var readStatement = GenerateReadStatement(currentMember, tempName, GetDeserializerVarName,
-                            customFormatterVarsByMember);
+                            customFormatterVarsByMember, nt, spc);
                         var toleranceCode = $$$"""
                                                {{{indent}}}            {{{declaredType.GetDisplayString()}}} {{{tempName}}} = default;
                                                {{{indent}}}            #if {{{NinoTypeHelper.WeakVersionToleranceSymbol}}}
@@ -1017,7 +1035,7 @@ public partial class DeserializerGenerator
         string indent = "")
     {
         var (vars, privateVars, args, tupleMap) =
-            WriteMembers(valName, sb, nt, constructorMember, constructor == null, indent);
+            WriteMembers(valName, sb, nt, constructorMember, constructor == null, spc, indent);
 
         if (constructor != null)
         {

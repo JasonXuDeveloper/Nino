@@ -64,7 +64,7 @@ public partial class SerializerGenerator
                             }
                             else
                             {
-                                WriteMembers(subType, valName, sb, "            ");
+                                WriteMembers(subType, valName, sb, spc, "            ");
                             }
 
                             sb.AppendLine("                        return;");
@@ -115,7 +115,7 @@ public partial class SerializerGenerator
                 }
                 else
                 {
-                    WriteMembers(ninoType, "value", sb);
+                    WriteMembers(ninoType, "value", sb, spc);
                 }
 
                 sb.AppendLine("        }");
@@ -262,7 +262,7 @@ public partial class SerializerGenerator
         return true;
     }
 
-    private void WriteMembers(NinoType type, string valName, StringBuilder sb, string indent = "")
+    private void WriteMembers(NinoType type, string valName, StringBuilder sb, SourceProductionContext spc, string indent = "")
     {
         // First pass: collect all types that need serializers or custom formatters
         HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
@@ -433,6 +433,26 @@ public partial class SerializerGenerator
                                 sb.AppendLine($"{indent}            {serializerVar}.Serialize({val}, ref writer);");
                             }
 
+                            break;
+
+                        default:
+                            // PRIORITY 6: Invalid/unrecognizable type - report warning
+                            sb.AppendLine($"{indent}            // WARNING: Member '{member.Name}' of type '{declaredType.GetDisplayString()}' cannot be serialized (unrecognizable type)");
+                            // Only report the warning once to avoid duplicates between serializer and deserializer
+                            if (!member.HasReportedUnrecognizableTypeWarning)
+                            {
+                                spc.ReportDiagnostic(Diagnostic.Create(
+                                    new DiagnosticDescriptor("NINO011",
+                                        "Member type cannot be serialized",
+                                        "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization",
+                                        "Nino",
+                                        DiagnosticSeverity.Warning, true),
+                                    member.MemberSymbol.Locations.FirstOrDefault() ?? type.TypeSymbol.Locations.First(),
+                                    member.Name,
+                                    declaredType.GetDisplayString(),
+                                    type.TypeSymbol.GetDisplayString()));
+                                member.HasReportedUnrecognizableTypeWarning = true;
+                            }
                             break;
                     }
                 }

@@ -33,9 +33,41 @@ public class AnalyzerTest
         // runtime version
 #if NET8_0
         test.TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
-#elif NET6_0
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net60;
+#else
+        test.TestState.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard21;
 #endif
+
+        return test;
+    }
+
+    private CSharpSourceGeneratorTest<Generator.GlobalGenerator, DefaultVerifier> SetUpSourceGeneratorTest(
+        string code, params DiagnosticResult[] diagnostics)
+    {
+        var test = new CSharpSourceGeneratorTest<Generator.GlobalGenerator, DefaultVerifier>
+        {
+            TestState =
+            {
+                Sources = { code }
+            }
+        };
+
+        if (diagnostics.Length > 0)
+        {
+            test.TestState.ExpectedDiagnostics.AddRange(diagnostics);
+        }
+
+        var referenceAssembly = typeof(Core.Writer).Assembly;
+        // reference this assembly
+        test.TestState.AdditionalReferences.Add(referenceAssembly);
+        // runtime version
+#if NET8_0
+        test.TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
+#else
+        test.TestState.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard21;
+#endif
+
+        // Disable verification of generated sources - we only care about diagnostics
+        test.TestBehaviors |= TestBehaviors.SkipGeneratedSourcesCheck;
 
         return test;
     }
@@ -364,5 +396,46 @@ public class TestBase
             Verify.Diagnostic("NINO009")
                 .WithSpan(11, 19, 11, 20)
                 .WithArguments("TestClass", "D", "TestClass", "C")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino011()
+    {
+        var code = @"
+using System;
+using System.Threading.Tasks;
+using Nino.Core;
+
+[NinoType]
+public class TestClassWithDelegate
+{
+    // Delegates are not directly serializable and trigger NINO011 during source generation
+    public Action UnsupportedDelegate;
+
+    // Valid fields that will be serialized
+    public int Id;
+    public string Name;
+}
+
+[NinoType]
+public class TestClassWithTask
+{
+    // Task types trigger NINO011 during source generation
+    public Task<int> UnsupportedTask;
+
+    // Valid fields
+    public double Value;
+    public bool Flag;
+}
+";
+
+        await SetUpSourceGeneratorTest(code,
+            Verify.Diagnostic("NINO011")
+                .WithSpan(10, 19, 10, 38)
+                .WithArguments("UnsupportedDelegate", "System.Action", "TestClassWithDelegate"),
+            Verify.Diagnostic("NINO011")
+                .WithSpan(21, 22, 21, 37)
+                .WithArguments("UnsupportedTask", "System.Threading.Tasks.Task<int>", "TestClassWithTask")
+        ).RunAsync();
     }
 }

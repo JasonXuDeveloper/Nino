@@ -274,7 +274,12 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 "Invalid custom formatter type",
                 "Custom formatter '{0}' must inherit from NinoFormatter<{1}>",
                 "Nino",
-                DiagnosticSeverity.Error, true)
+                DiagnosticSeverity.Error, true),
+            new DiagnosticDescriptor("NINO011",
+                "Member type cannot be serialized",
+                "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization",
+                "Nino",
+                DiagnosticSeverity.Warning, true)
         );
 
     private static bool IsValidNinoFormatter(INamedTypeSymbol formatterType, ITypeSymbol memberType)

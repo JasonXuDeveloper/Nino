@@ -6,11 +6,11 @@
         <IsPackable>false</IsPackable>
         <LangVersion>10</LangVersion>
         <OutputType>Library</OutputType>
-        <TargetFrameworks>net6.0;net8.0;netstandard2.1</TargetFrameworks>
+        <TargetFrameworks>net8.0;netstandard2.1</TargetFrameworks>
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
         <ReportAnalyzer>true</ReportAnalyzer>
         <EnableNETAnalyzers>false</EnableNETAnalyzers>
-        <NoWarn>RS1022</NoWarn>
+        <NoWarn>RS1022;NU1608</NoWarn>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -24,6 +24,7 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" PrivateAssets="all"/>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Analyzer.Testing" Version="1.1.2" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.MSTest" Version="1.1.2" />
         <PackageReference Include="PolySharp" Version="1.15.0">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

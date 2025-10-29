@@ -13,6 +13,9 @@ public class NinoMember(string name, ITypeSymbol type, ISymbol memberSymbol)
     public bool IsProperty { get; set; }
     public bool IsUtf8String { get; set; }
 
+    // Track if we've already reported NINO011 warning for this member to avoid duplicates
+    internal bool HasReportedUnrecognizableTypeWarning { get; set; }
+
     public bool HasCustomFormatter()
     {
         return MemberSymbol.GetAttributes()
