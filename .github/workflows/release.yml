@@ -693,33 +693,54 @@ jobs:
                 SCOPE="${BASH_REMATCH[2]}"
                 DESC="${BASH_REMATCH[3]}"
 
-                # Group by type and scope for sorting
-                case "$TYPE" in
-                  "feat")
-                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_feat"
-                    ;;
-                  "fix")
-                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_fix"
-                    ;;
-                  "perf")
-                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_perf"
-                    ;;
-                  "docs")
-                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_docs"
-                    ;;
-                  "refactor")
-                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_refactor"
-                    ;;
-                  "test")
-                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_test"
-                    ;;
-                  "chore")
-                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_chore"
-                    ;;
-                  "style")
-                    echo "${SCOPE:-()}|${DESC} [$SHORT_HASH]|$author|$author_email" >> "$temp_style"
-                    ;;
-                esac
+                # Helper function to add entry to appropriate temp file
+                add_to_temp_file() {
+                  local scope_val="$1"
+                  local type_val="$2"
+                  local desc_val="$3"
+                  local hash_val="$4"
+                  local author_val="$5"
+                  local email_val="$6"
+
+                  local target_file=""
+                  case "$type_val" in
+                    "feat") target_file="$temp_feat" ;;
+                    "fix") target_file="$temp_fix" ;;
+                    "perf") target_file="$temp_perf" ;;
+                    "docs") target_file="$temp_docs" ;;
+                    "refactor") target_file="$temp_refactor" ;;
+                    "test") target_file="$temp_test" ;;
+                    "chore") target_file="$temp_chore" ;;
+                    "style") target_file="$temp_style" ;;
+                  esac
+
+                  if [[ -n "$target_file" ]]; then
+                    echo "${scope_val}|${desc_val} [$hash_val]|$author_val|$email_val" >> "$target_file"
+                  fi
+                }
+
+                # Split scopes by comma and add entry for each
+                if [[ -n "$SCOPE" ]]; then
+                  # Remove parentheses and split by comma
+                  SCOPE_CLEAN=$(echo "$SCOPE" | sed 's/[()]//g')
+
+                  # Check if scope contains comma
+                  if [[ "$SCOPE_CLEAN" == *","* ]]; then
+                    # Multiple scopes - add entry for each
+                    IFS=',' read -ra SCOPE_ARRAY <<< "$SCOPE_CLEAN"
+                    for single_scope in "${SCOPE_ARRAY[@]}"; do
+                      # Trim whitespace
+                      single_scope=$(echo "$single_scope" | xargs)
+                      add_to_temp_file "($single_scope)" "$TYPE" "$DESC" "$SHORT_HASH" "$author" "$author_email"
+                    done
+                  else
+                    # Single scope
+                    add_to_temp_file "($SCOPE_CLEAN)" "$TYPE" "$DESC" "$SHORT_HASH" "$author" "$author_email"
+                  fi
+                else
+                  # No scope
+                  add_to_temp_file "()" "$TYPE" "$DESC" "$SHORT_HASH" "$author" "$author_email"
+                fi
               else
                 # Direct commit
                 echo "other|$commit_msg [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
