@@ -69,7 +69,7 @@ public partial class SerializerGenerator
             {
                 sb.AppendLine($"/* Error: {e.Message} for type {ninoType.TypeSymbol.GetTypeFullName()}");
                 //add stacktrace
-                foreach (var line in e.StackTrace.Split('\n'))
+                foreach (var line in (e.StackTrace ?? "").Split('\n'))
                 {
                     sb.AppendLine($" * {line}");
                 }
