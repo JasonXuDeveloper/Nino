@@ -340,7 +340,7 @@ public abstract class NinoBuiltInTypeGenerator(
         {
             var typeName = registeredType.GetDisplayString();
             registrationCode.AppendLine(
-                $"                NinoTypeMetadata.RegisterSerializer<{typeName}>(Serializer.Serialize, Serializer.Serialize, false);");
+                $"                NinoTypeMetadata.RegisterSerializer<{typeName}>(Serializer.Serialize, false);");
             registrationCode.AppendLine(
                 $"                NinoTypeMetadata.RegisterDeserializer<{typeName}>(-1, Deserializer.Deserialize, Deserializer.DeserializeRef, Deserializer.Deserialize, Deserializer.DeserializeRef, false);");
         }
