@@ -305,6 +305,12 @@ namespace Nino.Core
                 return;
             }
 
+            if (SubTypeSerializers.Count == 1)
+            {
+                SubTypeSerializers.FirstValue()(val, ref writer);
+                return;
+            }
+
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
                 writer.CachedTypeHandle = actualTypeHandle;

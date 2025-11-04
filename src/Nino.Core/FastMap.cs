@@ -111,6 +111,23 @@ namespace Nino.Core
         {
             TryAddOrUpdate(key, value);
         }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref TValue FirstValue()
+        {
+            for (int i = 0; i < _capacity; i++)
+            {
+                ref Entry entry1 = ref _table1[i];
+                if (entry1.IsOccupied)
+                    return ref entry1.Value;
+
+                ref Entry entry2 = ref _table2[i];
+                if (entry2.IsOccupied)
+                    return ref entry2.Value;
+            }
+
+            throw new InvalidOperationException("The FastMap is empty.");
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryAdd(in TKey key, in TValue value)
