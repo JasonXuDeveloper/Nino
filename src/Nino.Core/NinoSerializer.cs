@@ -308,11 +308,11 @@ namespace Nino.Core
                 return;
             }
 
-            if (SubTypeSerializers.Count == 1)
-            {
-                SubTypeSerializers.Values[0](val, ref writer);
-                return;
-            }
+            // if (SubTypeSerializers.Count == 1)
+            // {
+            //     SubTypeSerializers.Values[0](val, ref writer);
+            //     return;
+            // }
 
             if (actualTypeHandle == writer.CachedTypeHandle &&
                 writer.CachedSerializer is SerializeDelegate<T> cachedSer)
