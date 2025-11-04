@@ -300,7 +300,7 @@ namespace Nino.Core
 
             if (SubTypeSerializers.Count == 1)
             {
-                SubTypeSerializers.Values[0](val, ref writer);
+                SubTypeSerializers.FirstValue()(val, ref writer);
                 return;
             }
 

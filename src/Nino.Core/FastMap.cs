@@ -1,102 +1,360 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
-    public sealed class FastMap<TKey, TValue> where TKey : unmanaged, IEquatable<TKey>
-    {
-        private TKey[] _keys;
-        private TValue[] _values;
-        private int _count;
 
-        public FastMap(int capacity = 16)
+    /// <summary>
+    /// Learn more from: https://github.com/TheLight-233/LuminDelegate
+    /// </summary>
+    /// <typeparam name="TKey"></typeparam>
+    /// <typeparam name="TValue"></typeparam>
+    public sealed class FastMap<TKey, TValue> : IDisposable, IEnumerable<KeyValuePair<TKey, TValue>>
+        where TKey : notnull, IEquatable<TKey>
+    {
+        private const int MaxKickCount = 16;
+        private const int MinCapacity = 8;
+
+        private struct Entry
         {
-            int safeCap = Math.Max(4, capacity);
-            _keys = new TKey[safeCap];
-            _values = new TValue[safeCap];
-            _count = 0;
+            public uint HashCode;
+            public TKey Key;
+            public TValue Value;
+            public bool IsOccupied;
         }
 
-        public ReadOnlySpan<TKey> Keys => _keys.AsSpan(0, _count);
-        
-        public ReadOnlySpan<TValue> Values => _values.AsSpan(0, _count);
+        private Entry[] _table1;
+        private Entry[] _table2;
+        private int _capacity;
+        private int _count;
+        private int _capacityMask;
+        private int _version;
 
-        public int Count
+        public int Count => _count;
+        public int Capacity => _capacity;
+        public bool IsCreated => _table1 != null;
+
+        public ref TValue this[in TKey key]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _count;
+            get
+            {
+                var hashCode = key.GetHashCode();
+                hashCode ^= hashCode >> 16;
+
+                var index1 = hashCode & _capacityMask;
+                ref Entry entry1 = ref _table1[index1];
+                if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+                    return ref entry1.Value;
+
+                var index2 = (hashCode >> 8) & _capacityMask;
+                ref Entry entry2 = ref _table2[index2];
+                if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+                    return ref entry2.Value;
+                throw new KeyNotFoundException();
+            }
+        }
+
+        public FastMap(int capacity)
+        {
+            if (capacity < 0) throw new ArgumentOutOfRangeException(nameof(capacity));
+            _capacity = CalculateCapacity(capacity);
+            _count = 0;
+            _version = 0;
+            InitializeTables();
+        }
+
+        public FastMap() : this(0)
+        {
+        }
+
+        public FastMap(in FastMap<TKey, TValue> source)
+        {
+            if (source == null) throw new ArgumentNullException(nameof(source));
+
+            _capacity = source._capacity;
+            _count = source._count;
+            _capacityMask = source._capacityMask;
+            _version = source._version;
+            _table1 = new Entry[_capacity];
+            _table2 = new Entry[_capacity];
+
+            Array.Copy(source._table1, _table1, _capacity);
+            Array.Copy(source._table2, _table2, _capacity);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(TKey key, TValue value)
+        private static int CalculateCapacity(int capacity)
         {
-            int index = CustomBinarySearch(key);
-            if (index >= 0)
-            {
-                // Key already exists, update the value
-                _values[index] = value;
-                return;
-            }
-
-            int insertAt = ~index;
-
-            if (_count >= _keys.Length)
-                Grow();
-
-            if (insertAt < _count)
-            {
-                Array.Copy(_keys, insertAt, _keys, insertAt + 1, _count - insertAt);
-                Array.Copy(_values, insertAt, _values, insertAt + 1, _count - insertAt);
-            }
-
-            _keys[insertAt] = key;
-            _values[insertAt] = value;
-            _count++;
-        }
-
-        public void Remove(TKey key)
-        {
-            if (_count == 0)
-                return;
-
-            int index = CustomBinarySearch(key);
-            if (index < 0)
-                return; // Key not found
-
-            // Shift elements to remove the key
-            if (index < _count - 1)
-            {
-                Array.Copy(_keys, index + 1, _keys, index, _count - index - 1);
-                Array.Copy(_values, index + 1, _values, index, _count - index - 1);
-            }
-
-            _keys[--_count] = default; // Clear the last element
-            _values[_count] = default;
-        }
-
-        private void Grow()
-        {
-            int newSize = Math.Max(4, _keys.Length * 2);
-            Array.Resize(ref _keys, newSize);
-            Array.Resize(ref _values, newSize);
+            if (capacity < MinCapacity) return MinCapacity;
+            capacity--;
+            capacity |= capacity >> 1;
+            capacity |= capacity >> 2;
+            capacity |= capacity >> 4;
+            capacity |= capacity >> 8;
+            capacity |= capacity >> 16;
+            return capacity + 1;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool TryGetValue(TKey key, out TValue value)
+        private void InitializeTables()
         {
-            if (_count == 0)
+            _capacityMask = _capacity - 1;
+            _table1 = new Entry[_capacity];
+            _table2 = new Entry[_capacity];
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Add(in TKey key, in TValue value)
+        {
+            TryAddOrUpdate(key, value);
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref TValue FirstValue()
+        {
+            for (int i = 0; i < _capacity; i++)
             {
-                value = default!;
+                ref Entry entry1 = ref _table1[i];
+                if (entry1.IsOccupied)
+                    return ref entry1.Value;
+
+                ref Entry entry2 = ref _table2[i];
+                if (entry2.IsOccupied)
+                    return ref entry2.Value;
+            }
+
+            throw new InvalidOperationException("The FastMap is empty.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryAdd(in TKey key, in TValue value)
+        {
+            var hashCode = key.GetHashCode();
+            hashCode ^= hashCode >> 16;
+
+            var index1 = hashCode & _capacityMask;
+            ref Entry entry1 = ref _table1[index1];
+            if (!entry1.IsOccupied)
+            {
+                entry1.HashCode = (uint)hashCode;
+                entry1.Key = key;
+                entry1.Value = value;
+                entry1.IsOccupied = true;
+                _count++;
+                _version++;
+                return true;
+            }
+            else if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
                 return false;
+
+            var index2 = (hashCode >> 8) & _capacityMask;
+            ref Entry entry2 = ref _table2[index2];
+            if (!entry2.IsOccupied)
+            {
+                entry2.HashCode = (uint)hashCode;
+                entry2.Key = key;
+                entry2.Value = value;
+                entry2.IsOccupied = true;
+                _count++;
+                _version++;
+                return true;
+            }
+            else if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+                return false;
+
+            bool res = CuckooInsert(hashCode, key, value, false);
+            if (res) _version++;
+            return res;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool TryAddOrUpdate(in TKey key, in TValue value)
+        {
+            var hashCode = key.GetHashCode();
+            hashCode ^= hashCode >> 16;
+
+            var index1 = hashCode & _capacityMask;
+            ref Entry entry1 = ref _table1[index1];
+            if (!entry1.IsOccupied)
+            {
+                entry1.HashCode = (uint)hashCode;
+                entry1.Key = key;
+                entry1.Value = value;
+                entry1.IsOccupied = true;
+                _count++;
+                _version++;
+                return true;
+            }
+            else if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            {
+                entry1.Value = value;
+                _version++;
+                return true;
             }
 
-            // For typical subtype counts (10-200), linear search is often faster
-            // than binary search due to better cache locality and branch prediction
-            int index = _count <= 64 ? LinearSearch(key) : BinarySearch(key);
-
-            if (index >= 0)
+            var index2 = (hashCode >> 8) & _capacityMask;
+            ref Entry entry2 = ref _table2[index2];
+            if (!entry2.IsOccupied)
             {
-                value = _values[index];
+                entry2.HashCode = (uint)hashCode;
+                entry2.Key = key;
+                entry2.Value = value;
+                entry2.IsOccupied = true;
+                _count++;
+                _version++;
+                return true;
+            }
+            else if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            {
+                entry2.Value = value;
+                _version++;
+                return true;
+            }
+
+            bool res = CuckooInsert(hashCode, key, value, true);
+            if (res) _version++;
+            return res;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private bool CuckooInsert(int hashCode, in TKey key, in TValue value, bool updateIfExists)
+        {
+            int currentHashCode = hashCode;
+            TKey currentKey = key;
+            TValue currentValue = value;
+            int tableIndex = 0;
+
+            for (int i = 0; i < MaxKickCount; i++)
+            {
+                if (tableIndex == 0)
+                {
+                    var index = currentHashCode & _capacityMask;
+                    ref Entry entry = ref _table1[index];
+                    if (!entry.IsOccupied)
+                    {
+                        entry.HashCode = (uint)currentHashCode;
+                        entry.Key = currentKey;
+                        entry.Value = currentValue;
+                        entry.IsOccupied = true;
+                        _count++;
+                        return true;
+                    }
+                    else if (updateIfExists && entry.HashCode == currentHashCode && EqualityComparer<TKey>.Default.Equals(entry.Key, currentKey))
+                    {
+                        entry.Value = currentValue;
+                        return true;
+                    }
+
+                    (currentHashCode, entry.HashCode) = ((int)entry.HashCode, (uint)currentHashCode);
+                    (currentKey, entry.Key) = (entry.Key, currentKey);
+                    (currentValue, entry.Value) = (entry.Value, currentValue);
+                    tableIndex = 1;
+                }
+                else
+                {
+                    var index = (currentHashCode >> 8) & _capacityMask;
+                    ref Entry entry = ref _table2[index];
+                    if (!entry.IsOccupied)
+                    {
+                        entry.HashCode = (uint)currentHashCode;
+                        entry.Key = currentKey;
+                        entry.Value = currentValue;
+                        entry.IsOccupied = true;
+                        _count++;
+                        return true;
+                    }
+                    else if (updateIfExists && entry.HashCode == currentHashCode && EqualityComparer<TKey>.Default.Equals(entry.Key, currentKey))
+                    {
+                        entry.Value = currentValue;
+                        return true;
+                    }
+
+                    (currentHashCode, entry.HashCode) = ((int)entry.HashCode, (uint)currentHashCode);
+                    (currentKey, entry.Key) = (entry.Key, currentKey);
+                    (currentValue, entry.Value) = (entry.Value, currentValue);
+                    tableIndex = 0;
+                }
+            }
+
+            Resize();
+            return updateIfExists ? TryAddOrUpdate(currentKey, currentValue) : TryAdd(currentKey, currentValue);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref TValue GetValueRefOrAddDefault(TKey key, out bool exists)
+        {
+            var hashCode = key.GetHashCode();
+            hashCode ^= hashCode >> 16;
+
+            var index1 = hashCode & _capacityMask;
+            ref Entry entry1 = ref _table1[index1];
+            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            {
+                exists = true;
+                return ref entry1.Value;
+            }
+
+            var index2 = (hashCode >> 8) & _capacityMask;
+
+            ref Entry entry2 = ref _table2[index2];
+            if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            {
+                exists = true;
+                return ref entry2.Value;
+            }
+
+            exists = false;
+
+            if (!entry1.IsOccupied)
+            {
+                entry1.HashCode = (uint)hashCode;
+                entry1.Key = key;
+                entry1.Value = default;
+                entry1.IsOccupied = true;
+                _count++;
+                _version++;
+                return ref entry1.Value;
+            }
+            else if (!entry2.IsOccupied)
+            {
+                entry2.HashCode = (uint)hashCode;
+                entry2.Key = key;
+                entry2.Value = default;
+                entry2.IsOccupied = true;
+                _count++;
+                _version++;
+                return ref entry2.Value;
+            }
+            else
+            {
+                if (!TryAdd(key, default))
+                    throw new InvalidOperationException("Failed to add key to dictionary");
+                return ref GetValueRefOrAddDefault(key, out exists);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryGetValue(in TKey key, out TValue value)
+        {
+            var hashCode = key.GetHashCode();
+            hashCode ^= hashCode >> 16;
+
+            var index1 = hashCode & _capacityMask;
+            ref Entry entry1 = ref _table1[index1];
+            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            {
+                value = entry1.Value;
+                return true;
+            }
+
+            var index2 = (hashCode >> 8) & _capacityMask;
+            ref Entry entry2 = ref _table2[index2];
+            if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            {
+                value = entry2.Value;
                 return true;
             }
 
@@ -105,166 +363,225 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool ContainsKey(TKey key) =>
-            _count <= 64 ? LinearSearch(key) >= 0 : BinarySearch(key) >= 0;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int BinarySearch(TKey key)
+        public ref TValue GetValueRef(in TKey key)
         {
-            return CustomBinarySearch(key);
+            var hashCode = key.GetHashCode();
+            hashCode ^= hashCode >> 16;
+
+            var index1 = hashCode & _capacityMask;
+            ref Entry entry1 = ref _table1[index1];
+            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+                return ref entry1.Value;
+
+            var index2 = (hashCode >> 8) & _capacityMask;
+            ref Entry entry2 = ref _table2[index2];
+            if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+                return ref entry2.Value;
+
+            throw new KeyNotFoundException();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int CustomBinarySearch(TKey key)
+        public bool ContainsKey(in TKey key)
         {
-            if (_count == 0)
-                return ~0;
+            var hashCode = key.GetHashCode();
+            hashCode ^= hashCode >> 16;
 
-            int left = 0;
-            int right = _count - 1;
+            var index1 = hashCode & _capacityMask;
+            ref Entry entry1 = ref _table1[index1];
+            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+                return true;
 
-            while (left <= right)
-            {
-                int mid = left + (right - left) / 2;
-                var midKey = _keys[mid];
-
-                int comparison = CompareKeys(midKey, key);
-
-                if (comparison == 0)
-                    return mid;
-                if (comparison < 0)
-                    left = mid + 1;
-                else
-                    right = mid - 1;
-            }
-
-            return ~left;
+            var index2 = (hashCode >> 8) & _capacityMask;
+            ref Entry entry2 = ref _table2[index2];
+            return entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareKeys(TKey left, TKey right)
+        public bool ContainsValue(in TValue value)
         {
-            // Handle specific key types without requiring IComparable
-            if (typeof(TKey) == typeof(IntPtr))
+            var comparer = EqualityComparer<TValue>.Default;
+            for (int i = 0; i < _capacity; i++)
             {
-                var leftPtr = Unsafe.As<TKey, IntPtr>(ref left);
-                var rightPtr = Unsafe.As<TKey, IntPtr>(ref right);
-                return leftPtr.ToInt64().CompareTo(rightPtr.ToInt64());
+                ref Entry entry1 = ref _table1[i];
+                if (entry1.IsOccupied && comparer.Equals(entry1.Value, value))
+                    return true;
+
+                ref Entry entry2 = ref _table2[i];
+                if (entry2.IsOccupied && comparer.Equals(entry2.Value, value))
+                    return true;
             }
 
-            if (typeof(TKey) == typeof(int))
-            {
-                var leftInt = Unsafe.As<TKey, int>(ref left);
-                var rightInt = Unsafe.As<TKey, int>(ref right);
-                return leftInt.CompareTo(rightInt);
-            }
-
-            if (typeof(TKey) == typeof(uint))
-            {
-                var leftUint = Unsafe.As<TKey, uint>(ref left);
-                var rightUint = Unsafe.As<TKey, uint>(ref right);
-                return leftUint.CompareTo(rightUint);
-            }
-
-            if (typeof(TKey) == typeof(long))
-            {
-                var leftLong = Unsafe.As<TKey, long>(ref left);
-                var rightLong = Unsafe.As<TKey, long>(ref right);
-                return leftLong.CompareTo(rightLong);
-            }
-
-            if (typeof(TKey) == typeof(ulong))
-            {
-                var leftUlong = Unsafe.As<TKey, ulong>(ref left);
-                var rightUlong = Unsafe.As<TKey, ulong>(ref right);
-                return leftUlong.CompareTo(rightUlong);
-            }
-
-            // Fallback for other types - this should work for IComparable types
-            return ((IComparable<TKey>)left).CompareTo(right);
+            return false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int LinearSearch(TKey key)
+        public bool Remove(TKey key)
         {
-            // Optimized linear search avoiding Equals() call overhead
-            var keys = _keys;
-            int count = _count;
+            var hashCode = key.GetHashCode();
+            hashCode ^= hashCode >> 16;
 
-            // Fast path for common key types - avoid virtual/interface calls
-            if (typeof(TKey) == typeof(IntPtr))
+            var index1 = hashCode & _capacityMask;
+            ref Entry entry1 = ref _table1[index1];
+            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
             {
-                var targetKey = Unsafe.As<TKey, IntPtr>(ref key);
-                var intPtrKeys = Unsafe.As<TKey[], IntPtr[]>(ref keys);
-                for (int i = 0; i < count; i++)
+                entry1.IsOccupied = false;
+                _count--;
+                _version++;
+                return true;
+            }
+
+            var index2 = (hashCode >> 8) & _capacityMask;
+            ref Entry entry2 = ref _table2[index2];
+            if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            {
+                entry2.IsOccupied = false;
+                _count--;
+                _version++;
+                return true;
+            }
+
+            return false;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Clear()
+        {
+            if (_count > 0)
+            {
+                Array.Clear(_table1, 0, _capacity);
+                Array.Clear(_table2, 0, _capacity);
+                _count = 0;
+                _version++;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EnsureCapacity(int capacity)
+        {
+            if (capacity > _capacity)
+                Resize(CalculateCapacity(capacity));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void TrimExcess()
+        {
+
+            int newCapacity = CalculateCapacity(_count);
+
+            if (newCapacity < _capacity)
+                Resize(newCapacity);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Enumerator GetEnumerator()
+        {
+            return new Enumerator(this);
+        }
+
+        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator() =>
+            GetEnumerator();
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public void Dispose()
+        {
+            _table1 = null;
+            _table2 = null;
+            _count = 0;
+            _capacity = 0;
+            _capacityMask = 0;
+            _version = 0;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void Resize() => Resize(_capacity * 2);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void Resize(int newCapacity)
+        {
+            Entry[] oldTable1 = _table1;
+            Entry[] oldTable2 = _table2;
+            int oldCapacity = _capacity;
+            int oldCount = _count;
+            _capacity = newCapacity;
+            _count = 0;
+            InitializeTables();
+            if (oldCount > 0)
+            {
+                for (int i = 0; i < oldCapacity; i++)
                 {
-                    if (intPtrKeys[i] == targetKey)
-                        return i;
+                    ref Entry oldEntry1 = ref oldTable1[i];
+                    if (oldEntry1.IsOccupied)
+                        if (!TryAdd(oldEntry1.Key, oldEntry1.Value))
+                            throw new InvalidOperationException("Failed to rehash during resize");
+                    ref Entry oldEntry2 = ref oldTable2[i];
+                    if (oldEntry2.IsOccupied)
+                        if (!TryAdd(oldEntry2.Key, oldEntry2.Value))
+                            throw new InvalidOperationException("Failed to rehash during resize");
+                }
+            }
+        }
+
+        public struct Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>
+        {
+            private readonly FastMap<TKey, TValue> _dict;
+            private int _index;
+            private int _table;
+            private KeyValuePair<TKey, TValue> _current;
+            private readonly int _version;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            internal Enumerator(FastMap<TKey, TValue> dictionary)
+            {
+                _dict = dictionary;
+                _index = -1;
+                _table = 0;
+                _current = default;
+                _version = dictionary._version;
+            }
+
+            public KeyValuePair<TKey, TValue> Current => _current;
+            object IEnumerator.Current => Current;
+
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public bool MoveNext()
+            {
+                if (_version != _dict._version)
+                    throw new InvalidOperationException("Collection was modified");
+                while (_table < 2)
+                {
+                    var table = _table == 0 ? _dict._table1 : _dict._table2;
+                    while (++_index < _dict._capacity)
+                    {
+                        ref Entry entry = ref table[_index];
+                        if (entry.IsOccupied)
+                        {
+                            _current = new KeyValuePair<TKey, TValue>(entry.Key, entry.Value);
+                            return true;
+                        }
+                    }
+
+                    _table++;
+                    _index = -1;
                 }
 
-                return -1;
+                _current = default;
+                return false;
             }
 
-            if (typeof(TKey) == typeof(int))
+            public void Reset()
             {
-                var targetKey = Unsafe.As<TKey, int>(ref key);
-                var intKeys = Unsafe.As<TKey[], int[]>(ref keys);
-                for (int i = 0; i < count; i++)
-                {
-                    if (intKeys[i] == targetKey)
-                        return i;
-                }
-
-                return -1;
+                if (_version != _dict._version)
+                    throw new InvalidOperationException("Collection was modified");
+                _index = -1;
+                _table = 0;
+                _current = default;
             }
 
-            if (typeof(TKey) == typeof(uint))
+            public void Dispose()
             {
-                var targetKey = Unsafe.As<TKey, uint>(ref key);
-                var uintKeys = Unsafe.As<TKey[], uint[]>(ref keys);
-                for (int i = 0; i < count; i++)
-                {
-                    if (uintKeys[i] == targetKey)
-                        return i;
-                }
-
-                return -1;
             }
-
-            if (typeof(TKey) == typeof(long))
-            {
-                var targetKey = Unsafe.As<TKey, long>(ref key);
-                var longKeys = Unsafe.As<TKey[], long[]>(ref keys);
-                for (int i = 0; i < count; i++)
-                {
-                    if (longKeys[i] == targetKey)
-                        return i;
-                }
-
-                return -1;
-            }
-
-            if (typeof(TKey) == typeof(ulong))
-            {
-                var targetKey = Unsafe.As<TKey, ulong>(ref key);
-                var ulongKeys = Unsafe.As<TKey[], ulong[]>(ref keys);
-                for (int i = 0; i < count; i++)
-                {
-                    if (ulongKeys[i] == targetKey)
-                        return i;
-                }
-
-                return -1;
-            }
-
-            // Fallback for other types
-            for (int i = 0; i < count; i++)
-            {
-                if (keys[i].Equals(key))
-                    return i;
-            }
-
-            return -1;
         }
     }
 }
