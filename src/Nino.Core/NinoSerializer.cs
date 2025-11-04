@@ -298,16 +298,16 @@ namespace Nino.Core
                 return;
             }
 
+            if (SubTypeSerializers.Count == 1)
+            {
+                SubTypeSerializers.FirstValue()(val, ref writer);
+                return;
+            }
+
             if (actualTypeHandle == writer.CachedTypeHandle &&
                 writer.CachedSerializer is SerializeDelegate<T> cachedSer)
             {
                 cachedSer(val, ref writer);
-                return;
-            }
-
-            if (SubTypeSerializers.Count == 1)
-            {
-                SubTypeSerializers.FirstValue()(val, ref writer);
                 return;
             }
 
