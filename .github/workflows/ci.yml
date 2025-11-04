@@ -84,6 +84,8 @@ jobs:
             Library-
 
       - name: Run Unity tests
+        # Skip Unity tests for external PRs (secrets not available in forks)
+        if: github.event.pull_request.head.repo.full_name == github.repository || secrets.UNITY_EMAIL != ''
         uses: game-ci/unity-test-runner@v4
         id: unity-tests
         env:
