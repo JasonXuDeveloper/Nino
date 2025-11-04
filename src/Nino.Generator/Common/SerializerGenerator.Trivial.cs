@@ -25,33 +25,6 @@ public partial class SerializerGenerator
                 if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
                     continue;
 
-
-                if (!ninoType.TypeSymbol.IsSealedOrStruct())
-                {
-                    sb.AppendLine();
-                    sb.AppendLine($$"""
-                                            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                            public static void SerializePolymorphic({{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Writer writer)
-                                            {
-                                                switch(value)
-                                                {
-                                                    case null:
-                                                    {
-                                                        writer.Write(TypeCollector.Null);
-                                                        return;
-                                                    }
-                                                    default:
-                                                    {
-                                                        CachedSerializer<{{ninoType.TypeSymbol.GetTypeFullName()}}>.SerializePolymorphic(value, ref writer);
-                                                        return;
-                                                    }
-                                                }
-                                            }
-                                    """);
-
-                    sb.AppendLine();
-                }
-
                 if (!ninoType.TypeSymbol.IsInstanceType() ||
                     !string.IsNullOrEmpty(ninoType.CustomSerializer))
                     continue;
@@ -392,11 +365,6 @@ public partial class SerializerGenerator
                             if (TryGetInlineSerializeCall(declaredType, val, out var inlineCall))
                             {
                                 sb.AppendLine($"{indent}            {inlineCall};");
-                            }
-                            else if (!declaredType.IsSealedOrStruct())
-                            {
-                                sb.AppendLine(
-                                    $"{indent}            Serializer.SerializePolymorphic({val}, ref writer);");
                             }
                             else
                             {

@@ -168,7 +168,6 @@ namespace Nino.Core
     [SuppressMessage("ReSharper", "StaticMemberInGenericType")]
     public static class CachedSerializer<T>
     {
-        private static SerializeDelegate<T> _optimalSerializer;
         private static SerializeDelegate<T> _serializer;
         public static readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
 
@@ -189,10 +188,9 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
-        public static void SetSerializer(SerializeDelegate<T> serializer, SerializeDelegate<T> optimalSerializer)
+        public static void SetSerializer(SerializeDelegate<T> serializer)
         {
             _serializer = serializer;
-            _optimalSerializer = optimalSerializer;
         }
 
         public static void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer) where TSub : T
@@ -245,14 +243,6 @@ namespace Nino.Core
             if (IsSimpleType)
             {
                 writer.UnsafeWrite(val);
-                return;
-            }
-
-            // FAST PATH 1: Optimal serializer for polymorphic usage (with subtypes)
-            // This is a pre-generated serializer that handles polymorphism internally
-            if (_optimalSerializer != null)
-            {
-                _optimalSerializer(val, ref writer);
                 return;
             }
 
