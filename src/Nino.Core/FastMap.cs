@@ -14,8 +14,8 @@ namespace Nino.Core
     public sealed class FastMap<TKey, TValue> : IDisposable, IEnumerable<KeyValuePair<TKey, TValue>>
         where TKey : notnull, IEquatable<TKey>
     {
-        private const int MAX_KICK_COUNT = 16;
-        private const int MIN_CAPACITY = 8;
+        private const int MaxKickCount = 16;
+        private const int MinCapacity = 8;
 
         private struct Entry
         {
@@ -88,7 +88,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int CalculateCapacity(int capacity)
         {
-            if (capacity < MIN_CAPACITY) return MIN_CAPACITY;
+            if (capacity < MinCapacity) return MinCapacity;
             capacity--;
             capacity |= capacity >> 1;
             capacity |= capacity >> 2;
@@ -210,7 +210,7 @@ namespace Nino.Core
             TValue currentValue = value;
             int tableIndex = 0;
 
-            for (int i = 0; i < MAX_KICK_COUNT; i++)
+            for (int i = 0; i < MaxKickCount; i++)
             {
                 if (tableIndex == 0)
                 {

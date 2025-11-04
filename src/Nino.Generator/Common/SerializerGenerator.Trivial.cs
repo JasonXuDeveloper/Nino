@@ -206,7 +206,8 @@ public partial class SerializerGenerator
         return true;
     }
 
-    private void WriteMembers(NinoType type, string valName, StringBuilder sb, SourceProductionContext spc, string indent = "")
+    private void WriteMembers(NinoType type, string valName, StringBuilder sb, SourceProductionContext spc,
+        string indent = "")
     {
         // First pass: collect all types that need serializers or custom formatters
         HashSet<ITypeSymbol> typesNeedingSerializers = new(SymbolEqualityComparer.Default);
@@ -376,15 +377,18 @@ public partial class SerializerGenerator
 
                         default:
                             // PRIORITY 6: Invalid/unrecognizable type - report warning
-                            sb.AppendLine($"{indent}            // WARNING: Member '{member.Name}' of type '{declaredType.GetDisplayString()}' cannot be serialized (unrecognizable type)");
+                            sb.AppendLine(
+                                $"{indent}            // WARNING: Member '{member.Name}' of type '{declaredType.GetDisplayString()}' cannot be serialized (unrecognizable type)");
                             // Only report the warning once to avoid duplicates between serializer and deserializer
                             if (!member.HasReportedUnrecognizableTypeWarning)
                             {
                                 // Check if member is from current compilation to determine location
                                 var memberAssembly = member.MemberSymbol.ContainingType.ContainingAssembly;
-                                var isCurrentAssembly = SymbolEqualityComparer.Default.Equals(memberAssembly, Compilation.Assembly);
+                                var isCurrentAssembly =
+                                    SymbolEqualityComparer.Default.Equals(memberAssembly, Compilation.Assembly);
                                 var diagnosticLocation = isCurrentAssembly
-                                    ? (member.MemberSymbol.Locations.FirstOrDefault() ?? type.TypeSymbol.Locations.FirstOrDefault() ?? Location.None)
+                                    ? (member.MemberSymbol.Locations.FirstOrDefault() ??
+                                       type.TypeSymbol.Locations.FirstOrDefault() ?? Location.None)
                                     : Location.None;
 
                                 spc.ReportDiagnostic(Diagnostic.Create(
@@ -399,6 +403,7 @@ public partial class SerializerGenerator
                                     type.TypeSymbol.GetDisplayString()));
                                 member.HasReportedUnrecognizableTypeWarning = true;
                             }
+
                             break;
                     }
                 }
