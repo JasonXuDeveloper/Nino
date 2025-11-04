@@ -26,8 +26,7 @@ namespace Nino.Core
             DeserializeDelegateRefBoxed refOverload)> TypeIdToDeserializer = new();
 
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static void RegisterSerializer<T>(SerializeDelegate<T> serializer,
-            SerializeDelegate<T> optimalSerializer, bool hasBaseType)
+        public static void RegisterSerializer<T>(SerializeDelegate<T> serializer, bool hasBaseType)
         {
             lock (SerializerRegistration<T>.Lock)
             {
@@ -42,7 +41,7 @@ namespace Nino.Core
                         HasBaseTypeMap.Add(typeHandle, true);
                 }
 
-                CachedSerializer<T>.SetSerializer(serializer, optimalSerializer);
+                CachedSerializer<T>.SetSerializer(serializer);
                 Serializers.Add(typeHandle, CachedSerializer<T>.SerializeBoxed);
 
                 SerializerRegistration<T>.Registered = true;

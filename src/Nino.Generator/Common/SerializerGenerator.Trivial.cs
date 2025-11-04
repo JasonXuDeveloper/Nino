@@ -25,62 +25,6 @@ public partial class SerializerGenerator
                 if (!generatedTypeNames.Add(ninoType.TypeSymbol.GetDisplayString()))
                     continue;
 
-
-                if (!ninoType.TypeSymbol.IsSealedOrStruct())
-                {
-                    sb.AppendLine();
-                    sb.AppendLine($$"""
-                                            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-                                            public static void SerializePolymorphic({{ninoType.TypeSymbol.GetTypeFullName()}} value, ref Writer writer)
-                                            {
-                                                    switch(value)
-                                                    {
-                                                        case null:
-                                                        {
-                                                            writer.Write(TypeCollector.Null);
-                                                            return;
-                                                        }
-                                    """);
-                    if (NinoGraph.SubTypes.TryGetValue(ninoType, out var subTypes))
-                    {
-                        foreach (var subType in subTypes)
-                        {
-                            if (!subType.TypeSymbol.IsInstanceType())
-                                continue;
-
-                            var valName = subType.TypeSymbol.GetCachedVariableName("val_");
-                            sb.AppendLine($$"""
-                                                                case {{subType.TypeSymbol.GetTypeFullName()}} {{valName}}:
-                                                                {
-                                            """);
-
-                            sb.AppendLine(
-                                $"                        writer.Write(NinoTypeConst.{subType.TypeSymbol.GetTypeFullName().GetTypeConstName()});");
-
-                            // Optimized write path - direct write for unmanaged types
-                            if (subType.TypeSymbol.IsUnmanagedType)
-                            {
-                                sb.AppendLine($"                        writer.Write({valName});");
-                            }
-                            else
-                            {
-                                WriteMembers(subType, valName, sb, spc, "            ");
-                            }
-
-                            sb.AppendLine("                        return;");
-                            sb.AppendLine("                    }");
-                        }
-                    }
-
-                    sb.AppendLine("                    default:");
-                    sb.AppendLine(
-                        $"                        CachedSerializer<{ninoType.TypeSymbol.GetTypeFullName()}>.SerializePolymorphic(value, ref writer);");
-                    sb.AppendLine("                        break;");
-                    sb.AppendLine("                }");
-                    sb.AppendLine("        }");
-                    sb.AppendLine();
-                }
-
                 if (!ninoType.TypeSymbol.IsInstanceType() ||
                     !string.IsNullOrEmpty(ninoType.CustomSerializer))
                     continue;
@@ -421,11 +365,6 @@ public partial class SerializerGenerator
                             if (TryGetInlineSerializeCall(declaredType, val, out var inlineCall))
                             {
                                 sb.AppendLine($"{indent}            {inlineCall};");
-                            }
-                            else if (!declaredType.IsSealedOrStruct())
-                            {
-                                sb.AppendLine(
-                                    $"{indent}            Serializer.SerializePolymorphic({val}, ref writer);");
                             }
                             else
                             {
