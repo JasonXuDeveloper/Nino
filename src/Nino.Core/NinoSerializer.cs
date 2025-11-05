@@ -307,70 +307,61 @@ namespace Nino.Core
             // Check expanded 8-entry inline cache using bitwise AND indexing
             // This significantly improves hit rate for patterns with 2-8 alternating types
             int cacheSlot = (int)actualTypeHandle & 7;  // Faster than % 8 for power-of-2
-            SerializeDelegate<T> cachedSer;
             switch (cacheSlot)
             {
                 case 0:
-                    if (actualTypeHandle == writer.CachedTypeHandle0 &&
-                        writer.CachedSerializer0 is SerializeDelegate<T> cached0)
+                    if (actualTypeHandle == writer.CachedTypeHandle0)
                     {
-                        cached0(val, ref writer);
+                        Unsafe.As<SerializeDelegate<T>>(writer.CachedSerializer0)(val, ref writer);
                         return;
                     }
                     break;
                 case 1:
-                    if (actualTypeHandle == writer.CachedTypeHandle1 &&
-                        writer.CachedSerializer1 is SerializeDelegate<T> cached1)
+                    if (actualTypeHandle == writer.CachedTypeHandle1)
                     {
-                        cached1(val, ref writer);
+                        Unsafe.As<SerializeDelegate<T>>(writer.CachedSerializer1)(val, ref writer);
                         return;
                     }
                     break;
                 case 2:
-                    if (actualTypeHandle == writer.CachedTypeHandle2 &&
-                        writer.CachedSerializer2 is SerializeDelegate<T> cached2)
+                    if (actualTypeHandle == writer.CachedTypeHandle2)
                     {
-                        cached2(val, ref writer);
+                        Unsafe.As<SerializeDelegate<T>>(writer.CachedSerializer2)(val, ref writer);
                         return;
                     }
                     break;
                 case 3:
-                    if (actualTypeHandle == writer.CachedTypeHandle3 &&
-                        writer.CachedSerializer3 is SerializeDelegate<T> cached3)
+                    if (actualTypeHandle == writer.CachedTypeHandle3)
                     {
-                        cached3(val, ref writer);
+                        Unsafe.As<SerializeDelegate<T>>(writer.CachedSerializer3)(val, ref writer);
                         return;
                     }
                     break;
                 case 4:
-                    if (actualTypeHandle == writer.CachedTypeHandle4 &&
-                        writer.CachedSerializer4 is SerializeDelegate<T> cached4)
+                    if (actualTypeHandle == writer.CachedTypeHandle4)
                     {
-                        cached4(val, ref writer);
+                        Unsafe.As<SerializeDelegate<T>>(writer.CachedSerializer4)(val, ref writer);
                         return;
                     }
                     break;
                 case 5:
-                    if (actualTypeHandle == writer.CachedTypeHandle5 &&
-                        writer.CachedSerializer5 is SerializeDelegate<T> cached5)
+                    if (actualTypeHandle == writer.CachedTypeHandle5)
                     {
-                        cached5(val, ref writer);
+                        Unsafe.As<SerializeDelegate<T>>(writer.CachedSerializer5)(val, ref writer);
                         return;
                     }
                     break;
                 case 6:
-                    if (actualTypeHandle == writer.CachedTypeHandle6 &&
-                        writer.CachedSerializer6 is SerializeDelegate<T> cached6)
+                    if (actualTypeHandle == writer.CachedTypeHandle6)
                     {
-                        cached6(val, ref writer);
+                        Unsafe.As<SerializeDelegate<T>>(writer.CachedSerializer6)(val, ref writer);
                         return;
                     }
                     break;
                 case 7:
-                    if (actualTypeHandle == writer.CachedTypeHandle7 &&
-                        writer.CachedSerializer7 is SerializeDelegate<T> cached7)
+                    if (actualTypeHandle == writer.CachedTypeHandle7)
                     {
-                        cached7(val, ref writer);
+                        Unsafe.As<SerializeDelegate<T>>(writer.CachedSerializer7)(val, ref writer);
                         return;
                     }
                     break;

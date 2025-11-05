@@ -395,66 +395,58 @@ namespace Nino.Core
             switch (cacheSlot)
             {
                 case 0:
-                    if (typeId == reader.CachedTypeId0 &&
-                        reader.CachedDeserializer0 is DeserializeDelegate<T> cached0)
+                    if (typeId == reader.CachedTypeId0)
                     {
-                        cached0(out value, ref reader);
+                        Unsafe.As<DeserializeDelegate<T>>(reader.CachedDeserializer0)(out value, ref reader);
                         return;
                     }
                     break;
                 case 1:
-                    if (typeId == reader.CachedTypeId1 &&
-                        reader.CachedDeserializer1 is DeserializeDelegate<T> cached1)
+                    if (typeId == reader.CachedTypeId1)
                     {
-                        cached1(out value, ref reader);
+                        Unsafe.As<DeserializeDelegate<T>>(reader.CachedDeserializer1)(out value, ref reader);
                         return;
                     }
                     break;
                 case 2:
-                    if (typeId == reader.CachedTypeId2 &&
-                        reader.CachedDeserializer2 is DeserializeDelegate<T> cached2)
+                    if (typeId == reader.CachedTypeId2)
                     {
-                        cached2(out value, ref reader);
+                        Unsafe.As<DeserializeDelegate<T>>(reader.CachedDeserializer2)(out value, ref reader);
                         return;
                     }
                     break;
                 case 3:
-                    if (typeId == reader.CachedTypeId3 &&
-                        reader.CachedDeserializer3 is DeserializeDelegate<T> cached3)
+                    if (typeId == reader.CachedTypeId3)
                     {
-                        cached3(out value, ref reader);
+                        Unsafe.As<DeserializeDelegate<T>>(reader.CachedDeserializer3)(out value, ref reader);
                         return;
                     }
                     break;
                 case 4:
-                    if (typeId == reader.CachedTypeId4 &&
-                        reader.CachedDeserializer4 is DeserializeDelegate<T> cached4)
+                    if (typeId == reader.CachedTypeId4)
                     {
-                        cached4(out value, ref reader);
+                        Unsafe.As<DeserializeDelegate<T>>(reader.CachedDeserializer4)(out value, ref reader);
                         return;
                     }
                     break;
                 case 5:
-                    if (typeId == reader.CachedTypeId5 &&
-                        reader.CachedDeserializer5 is DeserializeDelegate<T> cached5)
+                    if (typeId == reader.CachedTypeId5)
                     {
-                        cached5(out value, ref reader);
+                        Unsafe.As<DeserializeDelegate<T>>(reader.CachedDeserializer5)(out value, ref reader);
                         return;
                     }
                     break;
                 case 6:
-                    if (typeId == reader.CachedTypeId6 &&
-                        reader.CachedDeserializer6 is DeserializeDelegate<T> cached6)
+                    if (typeId == reader.CachedTypeId6)
                     {
-                        cached6(out value, ref reader);
+                        Unsafe.As<DeserializeDelegate<T>>(reader.CachedDeserializer6)(out value, ref reader);
                         return;
                     }
                     break;
                 case 7:
-                    if (typeId == reader.CachedTypeId7 &&
-                        reader.CachedDeserializer7 is DeserializeDelegate<T> cached7)
+                    if (typeId == reader.CachedTypeId7)
                     {
-                        cached7(out value, ref reader);
+                        Unsafe.As<DeserializeDelegate<T>>(reader.CachedDeserializer7)(out value, ref reader);
                         return;
                     }
                     break;
@@ -561,66 +553,58 @@ namespace Nino.Core
             switch (cacheSlotRef)
             {
                 case 0:
-                    if (typeId == reader.CachedTypeIdRef0 &&
-                        reader.CachedDeserializerRef0 is DeserializeDelegateRef<T> cachedRef0)
+                    if (typeId == reader.CachedTypeIdRef0)
                     {
-                        cachedRef0(ref value, ref reader);
+                        Unsafe.As<DeserializeDelegateRef<T>>(reader.CachedDeserializerRef0)(ref value, ref reader);
                         return;
                     }
                     break;
                 case 1:
-                    if (typeId == reader.CachedTypeIdRef1 &&
-                        reader.CachedDeserializerRef1 is DeserializeDelegateRef<T> cachedRef1)
+                    if (typeId == reader.CachedTypeIdRef1)
                     {
-                        cachedRef1(ref value, ref reader);
+                        Unsafe.As<DeserializeDelegateRef<T>>(reader.CachedDeserializerRef1)(ref value, ref reader);
                         return;
                     }
                     break;
                 case 2:
-                    if (typeId == reader.CachedTypeIdRef2 &&
-                        reader.CachedDeserializerRef2 is DeserializeDelegateRef<T> cachedRef2)
+                    if (typeId == reader.CachedTypeIdRef2)
                     {
-                        cachedRef2(ref value, ref reader);
+                        Unsafe.As<DeserializeDelegateRef<T>>(reader.CachedDeserializerRef2)(ref value, ref reader);
                         return;
                     }
                     break;
                 case 3:
-                    if (typeId == reader.CachedTypeIdRef3 &&
-                        reader.CachedDeserializerRef3 is DeserializeDelegateRef<T> cachedRef3)
+                    if (typeId == reader.CachedTypeIdRef3)
                     {
-                        cachedRef3(ref value, ref reader);
+                        Unsafe.As<DeserializeDelegateRef<T>>(reader.CachedDeserializerRef3)(ref value, ref reader);
                         return;
                     }
                     break;
                 case 4:
-                    if (typeId == reader.CachedTypeIdRef4 &&
-                        reader.CachedDeserializerRef4 is DeserializeDelegateRef<T> cachedRef4)
+                    if (typeId == reader.CachedTypeIdRef4)
                     {
-                        cachedRef4(ref value, ref reader);
+                        Unsafe.As<DeserializeDelegateRef<T>>(reader.CachedDeserializerRef4)(ref value, ref reader);
                         return;
                     }
                     break;
                 case 5:
-                    if (typeId == reader.CachedTypeIdRef5 &&
-                        reader.CachedDeserializerRef5 is DeserializeDelegateRef<T> cachedRef5)
+                    if (typeId == reader.CachedTypeIdRef5)
                     {
-                        cachedRef5(ref value, ref reader);
+                        Unsafe.As<DeserializeDelegateRef<T>>(reader.CachedDeserializerRef5)(ref value, ref reader);
                         return;
                     }
                     break;
                 case 6:
-                    if (typeId == reader.CachedTypeIdRef6 &&
-                        reader.CachedDeserializerRef6 is DeserializeDelegateRef<T> cachedRef6)
+                    if (typeId == reader.CachedTypeIdRef6)
                     {
-                        cachedRef6(ref value, ref reader);
+                        Unsafe.As<DeserializeDelegateRef<T>>(reader.CachedDeserializerRef6)(ref value, ref reader);
                         return;
                     }
                     break;
                 case 7:
-                    if (typeId == reader.CachedTypeIdRef7 &&
-                        reader.CachedDeserializerRef7 is DeserializeDelegateRef<T> cachedRef7)
+                    if (typeId == reader.CachedTypeIdRef7)
                     {
-                        cachedRef7(ref value, ref reader);
+                        Unsafe.As<DeserializeDelegateRef<T>>(reader.CachedDeserializerRef7)(ref value, ref reader);
                         return;
                     }
                     break;
