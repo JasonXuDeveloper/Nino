@@ -317,20 +317,22 @@ namespace Nino.Core
                 return;
             }
 
+            int count = value.Count;
             int eleSize = Unsafe.SizeOf<KeyValuePair<TKey, TValue>>();
-            int byteLength = value.Count * eleSize;
+            int byteLength = count * eleSize;
             int size = sizeof(int) + byteLength;
             var span = _bufferWriter.GetSpan(size);
-            var header = TypeCollector.GetCollectionHeader(value.Count);
+            var header = TypeCollector.GetCollectionHeader(count);
             if (TypeCollector.Is64Bit)
             {
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), header);
-                span = span.Slice(4);
+                ref byte ptr = ref MemoryMarshal.GetReference(span);
+                Unsafe.WriteUnaligned(ref ptr, header);
+                int offset = 4;
 
                 foreach (var item in value)
                 {
-                    Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), item);
-                    span = span.Slice(eleSize);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref ptr, offset), item);
+                    offset += eleSize;
                 }
             }
             else
@@ -361,20 +363,22 @@ namespace Nino.Core
                 return;
             }
 
+            int count = value.Count;
             int eleSize = Unsafe.SizeOf<T>();
-            int byteLength = value.Count * eleSize;
+            int byteLength = count * eleSize;
             int size = sizeof(int) + byteLength;
             var span = _bufferWriter.GetSpan(size);
-            var header = TypeCollector.GetCollectionHeader(value.Count);
+            var header = TypeCollector.GetCollectionHeader(count);
             if (TypeCollector.Is64Bit)
             {
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), header);
-                span = span.Slice(4);
+                ref byte ptr = ref MemoryMarshal.GetReference(span);
+                Unsafe.WriteUnaligned(ref ptr, header);
+                int offset = 4;
 
                 foreach (var item in value)
                 {
-                    Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), item);
-                    span = span.Slice(eleSize);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref ptr, offset), item);
+                    offset += eleSize;
                 }
             }
             else
@@ -424,9 +428,10 @@ namespace Nino.Core
                     return;
                 case var _ when !TypeCollector.Is64Bit:
                 {
-                    int spanLength = sizeof(int) + value.Length;
+                    int length = value.Length;
+                    int spanLength = sizeof(int) + length;
                     var span = _bufferWriter.GetSpan(spanLength);
-                    var header = TypeCollector.GetCollectionHeader(value.Length);
+                    var header = TypeCollector.GetCollectionHeader(length);
                     ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
                     src.CopyTo(span);
                     span = span.Slice(4);
@@ -442,9 +447,10 @@ namespace Nino.Core
                 }
                 default:
                 {
-                    int spanLength = sizeof(int) + value.Length;
+                    int length = value.Length;
+                    int spanLength = sizeof(int) + length;
                     var span = _bufferWriter.GetSpan(spanLength);
-                    var header = TypeCollector.GetCollectionHeader(value.Length);
+                    var header = TypeCollector.GetCollectionHeader(length);
                     Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), header);
                     span = span.Slice(4);
 #if NET5_0_OR_GREATER
@@ -473,10 +479,11 @@ namespace Nino.Core
                     return;
                 case var _ when !TypeCollector.Is64Bit:
                 {
+                    int length = value.Length;
                     var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
                     int spanLength = sizeof(int) + valueSpan.Length;
                     var span = _bufferWriter.GetSpan(spanLength);
-                    var header = TypeCollector.GetCollectionHeader(value.Length);
+                    var header = TypeCollector.GetCollectionHeader(length);
                     ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
                     src.CopyTo(span);
                     valueSpan.CopyTo(span.Slice(4));
@@ -485,10 +492,11 @@ namespace Nino.Core
                 }
                 default:
                 {
+                    int length = value.Length;
                     var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
                     int spanLength = sizeof(int) + valueSpan.Length;
                     var span = _bufferWriter.GetSpan(spanLength);
-                    var header = TypeCollector.GetCollectionHeader(value.Length);
+                    var header = TypeCollector.GetCollectionHeader(length);
                     Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), header);
                     valueSpan.CopyTo(span.Slice(4));
                     _bufferWriter.Advance(spanLength);

@@ -389,9 +389,9 @@ namespace Nino.Core
                 return;
             }
 
-            // Check expanded 8-entry inline cache using modulo indexing
+            // Check expanded 8-entry inline cache using bitwise AND indexing
             // This significantly improves hit rate for patterns with 2-8 alternating types
-            int cacheSlot = (int)((uint)typeId % 8);
+            int cacheSlot = (int)typeId & 7;  // Faster than % 8 for power-of-2
             switch (cacheSlot)
             {
                 case 0:
@@ -555,9 +555,9 @@ namespace Nino.Core
                 return;
             }
 
-            // Check expanded 8-entry inline cache using modulo indexing
+            // Check expanded 8-entry inline cache using bitwise AND indexing
             // This significantly improves hit rate for patterns with 2-8 alternating types
-            int cacheSlotRef = (int)((uint)typeId % 8);
+            int cacheSlotRef = (int)typeId & 7;  // Faster than % 8 for power-of-2
             switch (cacheSlotRef)
             {
                 case 0:
