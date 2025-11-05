@@ -95,14 +95,6 @@ public class ArrayGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
 
-            // Monomorphic fast path: cache the serializer delegate once
-            if (canUseMonomorphicPath)
-            {
-                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache serializer");
-                writer.AppendLine($"    var serializer = CachedSerializer<{elementType.GetDisplayString()}>.SerializePolymorphic;");
-                writer.AppendLine();
-            }
-
             // Both value and reference types benefit from ref iteration - eliminates bounds checks
             writer.AppendLine("#if NET5_0_OR_GREATER");
             writer.AppendLine("    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
@@ -118,8 +110,9 @@ public class ArrayGenerator(
 
             if (canUseMonomorphicPath)
             {
-                // Use cached serializer directly
-                writer.AppendLine("        serializer(cur, ref writer);");
+                // Monomorphic fast path: call SerializeImpl directly (skips type ID write)
+                // Type is statically known (sealed/struct), no polymorphism possible
+                writer.AppendLine("        Serializer.SerializeImpl(cur, ref writer);");
             }
             else
             {
@@ -257,28 +250,22 @@ public class ArrayGenerator(
             writer.Append(GetArrayCreationString(elemType, "length"));
             writer.AppendLine(";");
             writer.AppendLine("    var span = value.AsSpan();");
-
-            // Monomorphic fast path: cache the deserializer delegate once
-            if (canUseMonomorphicPath)
-            {
-                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache deserializer");
-                writer.AppendLine($"    var deserializer = CachedDeserializer<{elementType.GetDisplayString()}>.Deserialize;");
-            }
-
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
             if (canUseMonomorphicPath)
             {
+                // Monomorphic fast path: call DeserializeImpl directly (skips type ID read)
+                // Type is statically known (sealed/struct), no polymorphism possible
                 IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w =>
                     {
                         w.AppendLine("        eleReader = reader.Slice();");
-                        w.AppendLine("        deserializer(out span[i], ref eleReader);");
+                        w.AppendLine("        Deserializer.DeserializeImpl(out span[i], ref eleReader);");
                     },
                     w =>
                     {
-                        w.AppendLine("        deserializer(out span[i], ref reader);");
+                        w.AppendLine("        Deserializer.DeserializeImpl(out span[i], ref reader);");
                     });
             }
             else
@@ -428,28 +415,22 @@ public class ArrayGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
             writer.AppendLine("    var span = value.AsSpan();");
-
-            // Monomorphic fast path: cache the deserializer delegate once
-            if (canUseMonomorphicPath)
-            {
-                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache deserializer");
-                writer.AppendLine($"    var deserializerRef = CachedDeserializer<{elementType.GetDisplayString()}>.DeserializeRef;");
-            }
-
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
             if (canUseMonomorphicPath)
             {
+                // Monomorphic fast path: call DeserializeImplRef directly (skips type ID read)
+                // Type is statically known (sealed/struct), no polymorphism possible
                 IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w =>
                     {
                         w.AppendLine("        eleReader = reader.Slice();");
-                        w.AppendLine("        deserializerRef(ref span[i], ref eleReader);");
+                        w.AppendLine("        Deserializer.DeserializeImplRef(ref span[i], ref eleReader);");
                     },
                     w =>
                     {
-                        w.AppendLine("        deserializerRef(ref span[i], ref reader);");
+                        w.AppendLine("        Deserializer.DeserializeImplRef(ref span[i], ref reader);");
                     });
             }
             else
