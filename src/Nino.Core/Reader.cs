@@ -11,18 +11,77 @@ namespace Nino.Core
     public ref struct Reader
     {
         private ReadOnlySpan<byte> _data;
-        internal int CachedTypeId;
-        internal object CachedDeserializer;
-        internal int CachedTypeIdRef;
-        internal object CachedDeserializerRef;
+
+        // Expanded inline cache: 8 entries for better hit rate with alternating types
+        private const int CacheSize = 8;
+        internal int CachedTypeId0;
+        internal object CachedDeserializer0;
+        internal int CachedTypeIdRef0;
+        internal object CachedDeserializerRef0;
+        internal int CachedTypeId1;
+        internal object CachedDeserializer1;
+        internal int CachedTypeIdRef1;
+        internal object CachedDeserializerRef1;
+        internal int CachedTypeId2;
+        internal object CachedDeserializer2;
+        internal int CachedTypeIdRef2;
+        internal object CachedDeserializerRef2;
+        internal int CachedTypeId3;
+        internal object CachedDeserializer3;
+        internal int CachedTypeIdRef3;
+        internal object CachedDeserializerRef3;
+        internal int CachedTypeId4;
+        internal object CachedDeserializer4;
+        internal int CachedTypeIdRef4;
+        internal object CachedDeserializerRef4;
+        internal int CachedTypeId5;
+        internal object CachedDeserializer5;
+        internal int CachedTypeIdRef5;
+        internal object CachedDeserializerRef5;
+        internal int CachedTypeId6;
+        internal object CachedDeserializer6;
+        internal int CachedTypeIdRef6;
+        internal object CachedDeserializerRef6;
+        internal int CachedTypeId7;
+        internal object CachedDeserializer7;
+        internal int CachedTypeIdRef7;
+        internal object CachedDeserializerRef7;
 
         public Reader(ReadOnlySpan<byte> buffer)
         {
             _data = buffer;
-            CachedTypeId = int.MinValue;
-            CachedDeserializer = null;
-            CachedTypeIdRef = int.MinValue;
-            CachedDeserializerRef = null;
+            CachedTypeId0 = int.MinValue;
+            CachedDeserializer0 = null;
+            CachedTypeIdRef0 = int.MinValue;
+            CachedDeserializerRef0 = null;
+            CachedTypeId1 = int.MinValue;
+            CachedDeserializer1 = null;
+            CachedTypeIdRef1 = int.MinValue;
+            CachedDeserializerRef1 = null;
+            CachedTypeId2 = int.MinValue;
+            CachedDeserializer2 = null;
+            CachedTypeIdRef2 = int.MinValue;
+            CachedDeserializerRef2 = null;
+            CachedTypeId3 = int.MinValue;
+            CachedDeserializer3 = null;
+            CachedTypeIdRef3 = int.MinValue;
+            CachedDeserializerRef3 = null;
+            CachedTypeId4 = int.MinValue;
+            CachedDeserializer4 = null;
+            CachedTypeIdRef4 = int.MinValue;
+            CachedDeserializerRef4 = null;
+            CachedTypeId5 = int.MinValue;
+            CachedDeserializer5 = null;
+            CachedTypeIdRef5 = int.MinValue;
+            CachedDeserializerRef5 = null;
+            CachedTypeId6 = int.MinValue;
+            CachedDeserializer6 = null;
+            CachedTypeIdRef6 = int.MinValue;
+            CachedDeserializerRef6 = null;
+            CachedTypeId7 = int.MinValue;
+            CachedDeserializer7 = null;
+            CachedTypeIdRef7 = int.MinValue;
+            CachedDeserializerRef7 = null;
         }
 
         public bool Eof

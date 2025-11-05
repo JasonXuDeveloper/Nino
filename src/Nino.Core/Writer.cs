@@ -11,14 +11,45 @@ namespace Nino.Core
     public ref struct Writer
     {
         private readonly INinoBufferWriter _bufferWriter;
-        internal object CachedSerializer;
-        internal IntPtr CachedTypeHandle;
+
+        // Expanded inline cache: 8 entries for better hit rate with alternating types
+        private const int CacheSize = 8;
+        internal object CachedSerializer0;
+        internal IntPtr CachedTypeHandle0;
+        internal object CachedSerializer1;
+        internal IntPtr CachedTypeHandle1;
+        internal object CachedSerializer2;
+        internal IntPtr CachedTypeHandle2;
+        internal object CachedSerializer3;
+        internal IntPtr CachedTypeHandle3;
+        internal object CachedSerializer4;
+        internal IntPtr CachedTypeHandle4;
+        internal object CachedSerializer5;
+        internal IntPtr CachedTypeHandle5;
+        internal object CachedSerializer6;
+        internal IntPtr CachedTypeHandle6;
+        internal object CachedSerializer7;
+        internal IntPtr CachedTypeHandle7;
 
         public Writer(INinoBufferWriter bufferWriter)
         {
             _bufferWriter = bufferWriter;
-            CachedSerializer = null;
-            CachedTypeHandle = IntPtr.Zero;
+            CachedSerializer0 = null;
+            CachedTypeHandle0 = IntPtr.Zero;
+            CachedSerializer1 = null;
+            CachedTypeHandle1 = IntPtr.Zero;
+            CachedSerializer2 = null;
+            CachedTypeHandle2 = IntPtr.Zero;
+            CachedSerializer3 = null;
+            CachedTypeHandle3 = IntPtr.Zero;
+            CachedSerializer4 = null;
+            CachedTypeHandle4 = IntPtr.Zero;
+            CachedSerializer5 = null;
+            CachedTypeHandle5 = IntPtr.Zero;
+            CachedSerializer6 = null;
+            CachedTypeHandle6 = IntPtr.Zero;
+            CachedSerializer7 = null;
+            CachedTypeHandle7 = IntPtr.Zero;
         }
 
         /// <summary>

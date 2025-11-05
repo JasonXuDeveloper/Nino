@@ -304,17 +304,117 @@ namespace Nino.Core
                 return;
             }
 
-            if (actualTypeHandle == writer.CachedTypeHandle &&
-                writer.CachedSerializer is SerializeDelegate<T> cachedSer)
+            // Check expanded 8-entry inline cache using modulo indexing
+            // This significantly improves hit rate for patterns with 2-8 alternating types
+            int cacheSlot = (int)((ulong)actualTypeHandle % 8);
+            SerializeDelegate<T> cachedSer;
+            switch (cacheSlot)
             {
-                cachedSer(val, ref writer);
-                return;
+                case 0:
+                    if (actualTypeHandle == writer.CachedTypeHandle0 &&
+                        writer.CachedSerializer0 is SerializeDelegate<T> cached0)
+                    {
+                        cached0(val, ref writer);
+                        return;
+                    }
+                    break;
+                case 1:
+                    if (actualTypeHandle == writer.CachedTypeHandle1 &&
+                        writer.CachedSerializer1 is SerializeDelegate<T> cached1)
+                    {
+                        cached1(val, ref writer);
+                        return;
+                    }
+                    break;
+                case 2:
+                    if (actualTypeHandle == writer.CachedTypeHandle2 &&
+                        writer.CachedSerializer2 is SerializeDelegate<T> cached2)
+                    {
+                        cached2(val, ref writer);
+                        return;
+                    }
+                    break;
+                case 3:
+                    if (actualTypeHandle == writer.CachedTypeHandle3 &&
+                        writer.CachedSerializer3 is SerializeDelegate<T> cached3)
+                    {
+                        cached3(val, ref writer);
+                        return;
+                    }
+                    break;
+                case 4:
+                    if (actualTypeHandle == writer.CachedTypeHandle4 &&
+                        writer.CachedSerializer4 is SerializeDelegate<T> cached4)
+                    {
+                        cached4(val, ref writer);
+                        return;
+                    }
+                    break;
+                case 5:
+                    if (actualTypeHandle == writer.CachedTypeHandle5 &&
+                        writer.CachedSerializer5 is SerializeDelegate<T> cached5)
+                    {
+                        cached5(val, ref writer);
+                        return;
+                    }
+                    break;
+                case 6:
+                    if (actualTypeHandle == writer.CachedTypeHandle6 &&
+                        writer.CachedSerializer6 is SerializeDelegate<T> cached6)
+                    {
+                        cached6(val, ref writer);
+                        return;
+                    }
+                    break;
+                case 7:
+                    if (actualTypeHandle == writer.CachedTypeHandle7 &&
+                        writer.CachedSerializer7 is SerializeDelegate<T> cached7)
+                    {
+                        cached7(val, ref writer);
+                        return;
+                    }
+                    break;
             }
 
+            // Cache miss - look up in FastMap and update cache
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-                writer.CachedTypeHandle = actualTypeHandle;
-                writer.CachedSerializer = subTypeSerializer;
+                // Update the cache slot for this type handle
+                switch (cacheSlot)
+                {
+                    case 0:
+                        writer.CachedTypeHandle0 = actualTypeHandle;
+                        writer.CachedSerializer0 = subTypeSerializer;
+                        break;
+                    case 1:
+                        writer.CachedTypeHandle1 = actualTypeHandle;
+                        writer.CachedSerializer1 = subTypeSerializer;
+                        break;
+                    case 2:
+                        writer.CachedTypeHandle2 = actualTypeHandle;
+                        writer.CachedSerializer2 = subTypeSerializer;
+                        break;
+                    case 3:
+                        writer.CachedTypeHandle3 = actualTypeHandle;
+                        writer.CachedSerializer3 = subTypeSerializer;
+                        break;
+                    case 4:
+                        writer.CachedTypeHandle4 = actualTypeHandle;
+                        writer.CachedSerializer4 = subTypeSerializer;
+                        break;
+                    case 5:
+                        writer.CachedTypeHandle5 = actualTypeHandle;
+                        writer.CachedSerializer5 = subTypeSerializer;
+                        break;
+                    case 6:
+                        writer.CachedTypeHandle6 = actualTypeHandle;
+                        writer.CachedSerializer6 = subTypeSerializer;
+                        break;
+                    case 7:
+                        writer.CachedTypeHandle7 = actualTypeHandle;
+                        writer.CachedSerializer7 = subTypeSerializer;
+                        break;
+                }
                 subTypeSerializer(val, ref writer);
                 return;
             }

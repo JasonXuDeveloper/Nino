@@ -59,6 +59,12 @@ public class ArrayGenerator(
         // Fast path only works for 1D arrays
         bool canUseFastPath = rank == 1 && elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        // Check if we can use monomorphic fast path (sealed/struct NinoType)
+        // This allows us to cache the serializer delegate once instead of lookup per element
+        bool canUseMonomorphicPath = rank == 1 &&
+                                      elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.NinoType &&
+                                      elementType.IsSealedOrStruct();
+
         WriteAggressiveInlining(writer);
         writer.Append("public static void Serialize(this ");
         writer.Append(typeName);
@@ -89,6 +95,14 @@ public class ArrayGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
 
+            // Monomorphic fast path: cache the serializer delegate once
+            if (canUseMonomorphicPath)
+            {
+                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache serializer");
+                writer.AppendLine($"    var serializer = CachedSerializer<{elementType.GetDisplayString()}>.SerializePolymorphic;");
+                writer.AppendLine();
+            }
+
             // Both value and reference types benefit from ref iteration - eliminates bounds checks
             writer.AppendLine("#if NET5_0_OR_GREATER");
             writer.AppendLine("    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
@@ -102,8 +116,16 @@ public class ArrayGenerator(
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("        var pos = writer.Advance(4);"); });
 
-            writer.Append("        ");
-            writer.AppendLine(GetSerializeString(elementType, "cur"));
+            if (canUseMonomorphicPath)
+            {
+                // Use cached serializer directly
+                writer.AppendLine("        serializer(cur, ref writer);");
+            }
+            else
+            {
+                writer.Append("        ");
+                writer.AppendLine(GetSerializeString(elementType, "cur"));
+            }
             IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                 w => { w.AppendLine("        writer.PutLength(pos);"); });
             writer.AppendLine("        cur = ref System.Runtime.CompilerServices.Unsafe.Add(ref cur, 1);");
@@ -200,6 +222,12 @@ public class ArrayGenerator(
         // Fast path only works for 1D arrays
         bool canUseFastPath = rank == 1 && elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
+        // Check if we can use monomorphic fast path (sealed/struct NinoType)
+        // This allows us to cache the deserializer delegate once instead of lookup per element
+        bool canUseMonomorphicPath = rank == 1 &&
+                                      elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.NinoType &&
+                                      elementType.IsSealedOrStruct();
+
         // Out overload
         WriteAggressiveInlining(writer);
         writer.Append("public static void Deserialize(out ");
@@ -229,22 +257,46 @@ public class ArrayGenerator(
             writer.Append(GetArrayCreationString(elemType, "length"));
             writer.AppendLine(";");
             writer.AppendLine("    var span = value.AsSpan();");
+
+            // Monomorphic fast path: cache the deserializer delegate once
+            if (canUseMonomorphicPath)
+            {
+                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache deserializer");
+                writer.AppendLine($"    var deserializer = CachedDeserializer<{elementType.GetDisplayString()}>.Deserialize;");
+            }
+
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
-            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w =>
-                {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "span[i]", isOutVariable: false,
-                        readerName: "eleReader"));
-                },
-                w =>
-                {
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeString(elementType, "span[i]", isOutVariable: false));
-                });
+            if (canUseMonomorphicPath)
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.AppendLine("        deserializer(out span[i], ref eleReader);");
+                    },
+                    w =>
+                    {
+                        w.AppendLine("        deserializer(out span[i], ref reader);");
+                    });
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "span[i]", isOutVariable: false,
+                            readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeString(elementType, "span[i]", isOutVariable: false));
+                    });
+            }
             writer.AppendLine("    }");
         }
         else
@@ -376,21 +428,45 @@ public class ArrayGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
             writer.AppendLine("    var span = value.AsSpan();");
+
+            // Monomorphic fast path: cache the deserializer delegate once
+            if (canUseMonomorphicPath)
+            {
+                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache deserializer");
+                writer.AppendLine($"    var deserializerRef = CachedDeserializer<{elementType.GetDisplayString()}>.DeserializeRef;");
+            }
+
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
-            IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
-                w =>
-                {
-                    w.AppendLine("        eleReader = reader.Slice();");
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeRefString(elementType, "span[i]", readerName: "eleReader"));
-                },
-                w =>
-                {
-                    w.Append("        ");
-                    w.AppendLine(GetDeserializeRefString(elementType, "span[i]"));
-                });
+            if (canUseMonomorphicPath)
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.AppendLine("        deserializerRef(ref span[i], ref eleReader);");
+                    },
+                    w =>
+                    {
+                        w.AppendLine("        deserializerRef(ref span[i], ref reader);");
+                    });
+            }
+            else
+            {
+                IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w =>
+                    {
+                        w.AppendLine("        eleReader = reader.Slice();");
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeRefString(elementType, "span[i]", readerName: "eleReader"));
+                    },
+                    w =>
+                    {
+                        w.Append("        ");
+                        w.AppendLine(GetDeserializeRefString(elementType, "span[i]"));
+                    });
+            }
             writer.AppendLine("    }");
         }
         else

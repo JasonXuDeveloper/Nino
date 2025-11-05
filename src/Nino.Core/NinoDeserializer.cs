@@ -389,18 +389,116 @@ namespace Nino.Core
                 return;
             }
 
-            // FAST PATH: Cache hit (optimized for monomorphic arrays)
-            if (typeId == reader.CachedTypeId && reader.CachedDeserializer is DeserializeDelegate<T> cachedDeserializer)
+            // Check expanded 8-entry inline cache using modulo indexing
+            // This significantly improves hit rate for patterns with 2-8 alternating types
+            int cacheSlot = (int)((uint)typeId % 8);
+            switch (cacheSlot)
             {
-                cachedDeserializer(out value, ref reader);
-                return;
+                case 0:
+                    if (typeId == reader.CachedTypeId0 &&
+                        reader.CachedDeserializer0 is DeserializeDelegate<T> cached0)
+                    {
+                        cached0(out value, ref reader);
+                        return;
+                    }
+                    break;
+                case 1:
+                    if (typeId == reader.CachedTypeId1 &&
+                        reader.CachedDeserializer1 is DeserializeDelegate<T> cached1)
+                    {
+                        cached1(out value, ref reader);
+                        return;
+                    }
+                    break;
+                case 2:
+                    if (typeId == reader.CachedTypeId2 &&
+                        reader.CachedDeserializer2 is DeserializeDelegate<T> cached2)
+                    {
+                        cached2(out value, ref reader);
+                        return;
+                    }
+                    break;
+                case 3:
+                    if (typeId == reader.CachedTypeId3 &&
+                        reader.CachedDeserializer3 is DeserializeDelegate<T> cached3)
+                    {
+                        cached3(out value, ref reader);
+                        return;
+                    }
+                    break;
+                case 4:
+                    if (typeId == reader.CachedTypeId4 &&
+                        reader.CachedDeserializer4 is DeserializeDelegate<T> cached4)
+                    {
+                        cached4(out value, ref reader);
+                        return;
+                    }
+                    break;
+                case 5:
+                    if (typeId == reader.CachedTypeId5 &&
+                        reader.CachedDeserializer5 is DeserializeDelegate<T> cached5)
+                    {
+                        cached5(out value, ref reader);
+                        return;
+                    }
+                    break;
+                case 6:
+                    if (typeId == reader.CachedTypeId6 &&
+                        reader.CachedDeserializer6 is DeserializeDelegate<T> cached6)
+                    {
+                        cached6(out value, ref reader);
+                        return;
+                    }
+                    break;
+                case 7:
+                    if (typeId == reader.CachedTypeId7 &&
+                        reader.CachedDeserializer7 is DeserializeDelegate<T> cached7)
+                    {
+                        cached7(out value, ref reader);
+                        return;
+                    }
+                    break;
             }
 
-            // SLOW PATH: Full lookup in subtype map and update cache
+            // Cache miss - look up in FastMap and update cache
             if (SubTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                reader.CachedTypeId = typeId;
-                reader.CachedDeserializer = subTypeDeserializer;
+                // Update the cache slot for this type ID
+                switch (cacheSlot)
+                {
+                    case 0:
+                        reader.CachedTypeId0 = typeId;
+                        reader.CachedDeserializer0 = subTypeDeserializer;
+                        break;
+                    case 1:
+                        reader.CachedTypeId1 = typeId;
+                        reader.CachedDeserializer1 = subTypeDeserializer;
+                        break;
+                    case 2:
+                        reader.CachedTypeId2 = typeId;
+                        reader.CachedDeserializer2 = subTypeDeserializer;
+                        break;
+                    case 3:
+                        reader.CachedTypeId3 = typeId;
+                        reader.CachedDeserializer3 = subTypeDeserializer;
+                        break;
+                    case 4:
+                        reader.CachedTypeId4 = typeId;
+                        reader.CachedDeserializer4 = subTypeDeserializer;
+                        break;
+                    case 5:
+                        reader.CachedTypeId5 = typeId;
+                        reader.CachedDeserializer5 = subTypeDeserializer;
+                        break;
+                    case 6:
+                        reader.CachedTypeId6 = typeId;
+                        reader.CachedDeserializer6 = subTypeDeserializer;
+                        break;
+                    case 7:
+                        reader.CachedTypeId7 = typeId;
+                        reader.CachedDeserializer7 = subTypeDeserializer;
+                        break;
+                }
                 subTypeDeserializer(out value, ref reader);
                 return;
             }
@@ -457,19 +555,116 @@ namespace Nino.Core
                 return;
             }
 
-            // FAST PATH: Cache hit (optimized for monomorphic arrays)
-            if (typeId == reader.CachedTypeIdRef &&
-                reader.CachedDeserializerRef is DeserializeDelegateRef<T> cachedDeserializerRef)
+            // Check expanded 8-entry inline cache using modulo indexing
+            // This significantly improves hit rate for patterns with 2-8 alternating types
+            int cacheSlotRef = (int)((uint)typeId % 8);
+            switch (cacheSlotRef)
             {
-                cachedDeserializerRef(ref value, ref reader);
-                return;
+                case 0:
+                    if (typeId == reader.CachedTypeIdRef0 &&
+                        reader.CachedDeserializerRef0 is DeserializeDelegateRef<T> cachedRef0)
+                    {
+                        cachedRef0(ref value, ref reader);
+                        return;
+                    }
+                    break;
+                case 1:
+                    if (typeId == reader.CachedTypeIdRef1 &&
+                        reader.CachedDeserializerRef1 is DeserializeDelegateRef<T> cachedRef1)
+                    {
+                        cachedRef1(ref value, ref reader);
+                        return;
+                    }
+                    break;
+                case 2:
+                    if (typeId == reader.CachedTypeIdRef2 &&
+                        reader.CachedDeserializerRef2 is DeserializeDelegateRef<T> cachedRef2)
+                    {
+                        cachedRef2(ref value, ref reader);
+                        return;
+                    }
+                    break;
+                case 3:
+                    if (typeId == reader.CachedTypeIdRef3 &&
+                        reader.CachedDeserializerRef3 is DeserializeDelegateRef<T> cachedRef3)
+                    {
+                        cachedRef3(ref value, ref reader);
+                        return;
+                    }
+                    break;
+                case 4:
+                    if (typeId == reader.CachedTypeIdRef4 &&
+                        reader.CachedDeserializerRef4 is DeserializeDelegateRef<T> cachedRef4)
+                    {
+                        cachedRef4(ref value, ref reader);
+                        return;
+                    }
+                    break;
+                case 5:
+                    if (typeId == reader.CachedTypeIdRef5 &&
+                        reader.CachedDeserializerRef5 is DeserializeDelegateRef<T> cachedRef5)
+                    {
+                        cachedRef5(ref value, ref reader);
+                        return;
+                    }
+                    break;
+                case 6:
+                    if (typeId == reader.CachedTypeIdRef6 &&
+                        reader.CachedDeserializerRef6 is DeserializeDelegateRef<T> cachedRef6)
+                    {
+                        cachedRef6(ref value, ref reader);
+                        return;
+                    }
+                    break;
+                case 7:
+                    if (typeId == reader.CachedTypeIdRef7 &&
+                        reader.CachedDeserializerRef7 is DeserializeDelegateRef<T> cachedRef7)
+                    {
+                        cachedRef7(ref value, ref reader);
+                        return;
+                    }
+                    break;
             }
 
-            // SLOW PATH: Full lookup in subtype map and update cache
+            // Cache miss - look up in FastMap and update cache
             if (SubTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                reader.CachedTypeIdRef = typeId;
-                reader.CachedDeserializerRef = subTypeDeserializer;
+                // Update the cache slot for this type ID
+                switch (cacheSlotRef)
+                {
+                    case 0:
+                        reader.CachedTypeIdRef0 = typeId;
+                        reader.CachedDeserializerRef0 = subTypeDeserializer;
+                        break;
+                    case 1:
+                        reader.CachedTypeIdRef1 = typeId;
+                        reader.CachedDeserializerRef1 = subTypeDeserializer;
+                        break;
+                    case 2:
+                        reader.CachedTypeIdRef2 = typeId;
+                        reader.CachedDeserializerRef2 = subTypeDeserializer;
+                        break;
+                    case 3:
+                        reader.CachedTypeIdRef3 = typeId;
+                        reader.CachedDeserializerRef3 = subTypeDeserializer;
+                        break;
+                    case 4:
+                        reader.CachedTypeIdRef4 = typeId;
+                        reader.CachedDeserializerRef4 = subTypeDeserializer;
+                        break;
+                    case 5:
+                        reader.CachedTypeIdRef5 = typeId;
+                        reader.CachedDeserializerRef5 = subTypeDeserializer;
+                        break;
+                    case 6:
+                        reader.CachedTypeIdRef6 = typeId;
+                        reader.CachedDeserializerRef6 = subTypeDeserializer;
+                        break;
+                    case 7:
+                        reader.CachedTypeIdRef7 = typeId;
+                        reader.CachedDeserializerRef7 = subTypeDeserializer;
+                        break;
+                }
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }
