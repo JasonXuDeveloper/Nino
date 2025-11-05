@@ -192,12 +192,36 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
-        // Inline cache for polymorphic deserialization (8 entries per type, separate for out/ref)
+        // Inline cache entries - pack type ID and delegate together for better cache locality
+        private struct CacheEntry
+        {
+            public int TypeId;
+            public DeserializeDelegate<T> Deserializer;
+        }
+
+        private struct CacheEntryRef
+        {
+            public int TypeId;
+            public DeserializeDelegateRef<T> Deserializer;
+        }
+
+        // Inline cache for polymorphic deserialization (4 entries per type, separate for out/ref)
+        // Reduced from 8 to 4 for better cache locality with single array access
         // Shared across threads - benign races on cache updates are acceptable
-        internal static readonly int[] CachedTypeIds = new int[8] { int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue };
-        internal static readonly DeserializeDelegate<T>[] CachedDeserializers = new DeserializeDelegate<T>[8];
-        internal static readonly int[] CachedTypeIdsRef = new int[8] { int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue };
-        internal static readonly DeserializeDelegateRef<T>[] CachedDeserializersRef = new DeserializeDelegateRef<T>[8];
+        internal static readonly CacheEntry[] Cache = new CacheEntry[4]
+        {
+            new() { TypeId = int.MinValue },
+            new() { TypeId = int.MinValue },
+            new() { TypeId = int.MinValue },
+            new() { TypeId = int.MinValue }
+        };
+        internal static readonly CacheEntryRef[] CacheRef = new CacheEntryRef[4]
+        {
+            new() { TypeId = int.MinValue },
+            new() { TypeId = int.MinValue },
+            new() { TypeId = int.MinValue },
+            new() { TypeId = int.MinValue }
+        };
 
         public static void SetDeserializer(int typeId, DeserializeDelegate<T> deserializer,
             DeserializeDelegateRef<T> deserializerRef, DeserializeDelegate<T> optimalDeserializer,
@@ -396,21 +420,22 @@ namespace Nino.Core
                 return;
             }
 
-            // Check expanded 8-entry inline cache using bitwise AND indexing
-            // Cache is per-type in CachedDeserializer<T>, type-safe with no casting needed
-            int cacheSlot = (int)typeId & 7;  // Faster than % 8 for power-of-2
-            if (typeId == CachedTypeIds[cacheSlot])
+            // Check 4-entry inline cache using bitwise AND indexing
+            // Single struct array access for better cache locality (vs two separate arrays)
+            int cacheSlot = (int)typeId & 3;  // Faster than % 4 for power-of-2
+            ref CacheEntry entry = ref Cache[cacheSlot];
+            if (typeId == entry.TypeId)
             {
-                CachedDeserializers[cacheSlot](out value, ref reader);
+                entry.Deserializer(out value, ref reader);
                 return;
             }
 
             // Cache miss - look up in FastMap and update cache
             if (SubTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                // Update the cache slot for this type ID
-                CachedTypeIds[cacheSlot] = typeId;
-                CachedDeserializers[cacheSlot] = subTypeDeserializer;
+                // Update the cache slot with both type ID and deserializer
+                entry.TypeId = typeId;
+                entry.Deserializer = subTypeDeserializer;
                 subTypeDeserializer(out value, ref reader);
                 return;
             }
@@ -467,21 +492,22 @@ namespace Nino.Core
                 return;
             }
 
-            // Check expanded 8-entry inline cache using bitwise AND indexing
-            // Cache is per-type in CachedDeserializer<T>, type-safe with no casting needed
-            int cacheSlotRef = (int)typeId & 7;  // Faster than % 8 for power-of-2
-            if (typeId == CachedTypeIdsRef[cacheSlotRef])
+            // Check 4-entry inline cache using bitwise AND indexing
+            // Single struct array access for better cache locality (vs two separate arrays)
+            int cacheSlotRef = (int)typeId & 3;  // Faster than % 4 for power-of-2
+            ref CacheEntryRef entryRef = ref CacheRef[cacheSlotRef];
+            if (typeId == entryRef.TypeId)
             {
-                CachedDeserializersRef[cacheSlotRef](ref value, ref reader);
+                entryRef.Deserializer(ref value, ref reader);
                 return;
             }
 
             // Cache miss - look up in FastMap and update cache
             if (SubTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                // Update the cache slot for this type ID
-                CachedTypeIdsRef[cacheSlotRef] = typeId;
-                CachedDeserializersRef[cacheSlotRef] = subTypeDeserializer;
+                // Update the cache slot with both type ID and deserializer
+                entryRef.TypeId = typeId;
+                entryRef.Deserializer = subTypeDeserializer;
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }

@@ -188,10 +188,17 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
-        // Inline cache for polymorphic serialization (8 entries per type)
+        // Inline cache entry - packs type handle and delegate together for better cache locality
+        private struct CacheEntry
+        {
+            public IntPtr TypeHandle;
+            public SerializeDelegate<T> Serializer;
+        }
+
+        // Inline cache for polymorphic serialization (4 entries per type)
+        // Reduced from 8 to 4 for better cache locality with single array access
         // Shared across threads - benign races on cache updates are acceptable
-        internal static readonly IntPtr[] CachedTypeHandles = new IntPtr[8];
-        internal static readonly SerializeDelegate<T>[] CachedSerializers = new SerializeDelegate<T>[8];
+        internal static readonly CacheEntry[] Cache = new CacheEntry[4];
 
         public static void SetSerializer(SerializeDelegate<T> serializer)
         {
@@ -309,21 +316,22 @@ namespace Nino.Core
                 return;
             }
 
-            // Check expanded 8-entry inline cache using bitwise AND indexing
-            // Cache is per-type in CachedSerializer<T>, type-safe with no casting needed
-            int cacheSlot = (int)actualTypeHandle & 7;  // Faster than % 8 for power-of-2
-            if (actualTypeHandle == CachedTypeHandles[cacheSlot])
+            // Check 4-entry inline cache using bitwise AND indexing
+            // Single struct array access for better cache locality (vs two separate arrays)
+            int cacheSlot = (int)actualTypeHandle & 3;  // Faster than % 4 for power-of-2
+            ref CacheEntry entry = ref Cache[cacheSlot];
+            if (actualTypeHandle == entry.TypeHandle)
             {
-                CachedSerializers[cacheSlot](val, ref writer);
+                entry.Serializer(val, ref writer);
                 return;
             }
 
             // Cache miss - look up in FastMap and update cache
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-                // Update the cache slot for this type handle
-                CachedTypeHandles[cacheSlot] = actualTypeHandle;
-                CachedSerializers[cacheSlot] = subTypeSerializer;
+                // Update the cache slot with both type handle and serializer
+                entry.TypeHandle = actualTypeHandle;
+                entry.Serializer = subTypeSerializer;
                 subTypeSerializer(val, ref writer);
                 return;
             }
