@@ -20,9 +20,9 @@ namespace Nino.Core
         private struct Entry
         {
             public uint HashCode;
+            public bool IsOccupied;
             public TKey Key;
             public TValue Value;
-            public bool IsOccupied;
         }
 
         private Entry[] _table1;
@@ -36,13 +36,18 @@ namespace Nino.Core
         public int Capacity => _capacity;
         public bool IsCreated => _table1 != null;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int TransformHashCode(int hashCode)
+        {
+            return hashCode ^ (hashCode >> 16);
+        }
+
         public ref TValue this[in TKey key]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                var hashCode = key.GetHashCode();
-                hashCode ^= hashCode >> 16;
+                var hashCode = TransformHashCode(key.GetHashCode());
 
                 var index1 = hashCode & _capacityMask;
                 ref Entry entry1 = ref _table1[index1];
