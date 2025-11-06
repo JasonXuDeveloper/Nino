@@ -208,19 +208,19 @@ namespace Nino.Core
         // Inline cache for polymorphic deserialization (4 entries per type, separate for out/ref)
         // Reduced from 8 to 4 for better cache locality with single array access
         // Shared across threads - benign races on cache updates are acceptable
-        internal static readonly CacheEntry[] Cache = new CacheEntry[4]
+        internal static readonly CacheEntry[] Cache = new CacheEntry[]
         {
-            new() { TypeId = int.MinValue },
-            new() { TypeId = int.MinValue },
-            new() { TypeId = int.MinValue },
-            new() { TypeId = int.MinValue }
+            new CacheEntry { TypeId = int.MinValue },
+            new CacheEntry { TypeId = int.MinValue },
+            new CacheEntry { TypeId = int.MinValue },
+            new CacheEntry { TypeId = int.MinValue }
         };
-        internal static readonly CacheEntryRef[] CacheRef = new CacheEntryRef[4]
+        internal static readonly CacheEntryRef[] CacheRef = new CacheEntryRef[]
         {
-            new() { TypeId = int.MinValue },
-            new() { TypeId = int.MinValue },
-            new() { TypeId = int.MinValue },
-            new() { TypeId = int.MinValue }
+            new CacheEntryRef { TypeId = int.MinValue },
+            new CacheEntryRef { TypeId = int.MinValue },
+            new CacheEntryRef { TypeId = int.MinValue },
+            new CacheEntryRef { TypeId = int.MinValue }
         };
 
         public static void SetDeserializer(int typeId, DeserializeDelegate<T> deserializer,
