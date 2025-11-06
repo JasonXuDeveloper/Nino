@@ -193,13 +193,13 @@ namespace Nino.Core
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
         // Inline cache entries - pack type ID and delegate together for better cache locality
-        private struct CacheEntry
+        internal struct CacheEntry
         {
             public int TypeId;
             public DeserializeDelegate<T> Deserializer;
         }
 
-        private struct CacheEntryRef
+        internal struct CacheEntryRef
         {
             public int TypeId;
             public DeserializeDelegateRef<T> Deserializer;

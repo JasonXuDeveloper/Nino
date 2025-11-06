@@ -189,7 +189,7 @@ namespace Nino.Core
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
         // Inline cache entry - packs type handle and delegate together for better cache locality
-        private struct CacheEntry
+        internal struct CacheEntry
         {
             public IntPtr TypeHandle;
             public SerializeDelegate<T> Serializer;
