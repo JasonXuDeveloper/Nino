@@ -1224,17 +1224,7 @@ public partial class DeserializerGenerator
         {
             sb.AppendLine($"{indent}            // use NinoRefDeserializationAttribute method: {nt.RefDeserializationMethod}");
             sb.AppendLine($"{indent}            {valName} = {nt.TypeSymbol.GetDisplayString()}.{nt.RefDeserializationMethod}();");
-
-            // Deserialize members directly - don't call DeserializeImpl as it would read type ID again
-            // Use custom deserializer if available, otherwise deserialize members
-            if (!string.IsNullOrEmpty(nt.CustomDeserializer))
-            {
-                sb.AppendLine($"{indent}            {nt.CustomDeserializer}.DeserializeRef(ref {valName}, ref reader);");
-            }
-            else
-            {
-                WriteMembersWithCustomConstructor(spc, sb, nt, valName, [], null, indent);
-            }
+            WriteMembersWithCustomConstructor(spc, sb, nt, valName, [], null, indent);
             return;
         }
 
