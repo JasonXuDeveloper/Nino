@@ -1224,7 +1224,16 @@ public partial class DeserializerGenerator
         {
             sb.AppendLine($"{indent}            // use NinoRefDeserializationAttribute method: {nt.RefDeserializationMethod}");
             sb.AppendLine($"{indent}            {valName} = {nt.TypeSymbol.GetDisplayString()}.{nt.RefDeserializationMethod}();");
-            sb.AppendLine($"{indent}            Deserializer.DeserializeImplRef(ref {valName}, ref reader);");
+
+            // Use custom deserializer if available, otherwise use generated deserializer
+            if (!string.IsNullOrEmpty(nt.CustomDeserializer))
+            {
+                sb.AppendLine($"{indent}            {nt.CustomDeserializer}.DeserializeRef(ref {valName}, ref reader);");
+            }
+            else
+            {
+                sb.AppendLine($"{indent}            Deserializer.DeserializeImplRef(ref {valName}, ref reader);");
+            }
             return;
         }
 
