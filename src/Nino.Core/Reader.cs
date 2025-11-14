@@ -11,18 +11,10 @@ namespace Nino.Core
     public ref struct Reader
     {
         private ReadOnlySpan<byte> _data;
-        internal int CachedTypeId;
-        internal object CachedDeserializer;
-        internal int CachedTypeIdRef;
-        internal object CachedDeserializerRef;
 
         public Reader(ReadOnlySpan<byte> buffer)
         {
             _data = buffer;
-            CachedTypeId = int.MinValue;
-            CachedDeserializer = null;
-            CachedTypeIdRef = int.MinValue;
-            CachedDeserializerRef = null;
         }
 
         public bool Eof
@@ -399,17 +391,20 @@ namespace Nino.Core
                 return;
             }
 
+            // Cache element size to avoid redundant calls
+            int elementSize = Unsafe.SizeOf<T>();
+
             // Resize array if needed
             if (value == null || value.Length != length)
             {
 #if NET5_0_OR_GREATER
-                value = length <= 2048 / Unsafe.SizeOf<T>() ? new T[length] : GC.AllocateUninitializedArray<T>(length);
+                value = length <= 2048 / elementSize ? new T[length] : GC.AllocateUninitializedArray<T>(length);
 #else
                 value = new T[length];
 #endif
             }
 
-            GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+            GetBytes(length * elementSize, out var bytes);
             Span<byte> dst = MemoryMarshal.AsBytes(value.AsSpan());
             bytes.CopyTo(dst);
         }
@@ -422,6 +417,9 @@ namespace Nino.Core
                 value = null;
                 return;
             }
+
+            // Cache element size to avoid redundant calls
+            int elementSize = Unsafe.SizeOf<T>();
 
             // Initialize if null, otherwise clear
             if (value == null)
@@ -440,7 +438,7 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             CollectionsMarshal.SetCount(value, length);
             var span = CollectionsMarshal.AsSpan(value);
-            GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+            GetBytes(length * elementSize, out var bytes);
             Span<byte> dst = MemoryMarshal.AsBytes(span);
             bytes.CopyTo(dst);
 #else
@@ -449,7 +447,7 @@ namespace Nino.Core
 #if !NET5_0_OR_GREATER
             Array.Resize(ref lst._items, length);
 #endif
-            GetBytes(length * Unsafe.SizeOf<T>(), out var bytes);
+            GetBytes(length * elementSize, out var bytes);
             Span<byte> dst = MemoryMarshal.AsBytes(lst._items.AsSpan());
             bytes.CopyTo(dst);
 #endif

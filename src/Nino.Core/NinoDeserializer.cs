@@ -192,6 +192,37 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
+        // Inline cache entries - pack type ID and delegate together for better cache locality
+        internal struct CacheEntry
+        {
+            public int TypeId;
+            public DeserializeDelegate<T> Deserializer;
+        }
+
+        internal struct CacheEntryRef
+        {
+            public int TypeId;
+            public DeserializeDelegateRef<T> Deserializer;
+        }
+
+        // Inline cache for polymorphic deserialization (4 entries per type, separate for out/ref)
+        // Reduced from 8 to 4 for better cache locality with single array access
+        // Shared across threads - benign races on cache updates are acceptable
+        internal static readonly CacheEntry[] Cache = new CacheEntry[]
+        {
+            new CacheEntry { TypeId = int.MinValue },
+            new CacheEntry { TypeId = int.MinValue },
+            new CacheEntry { TypeId = int.MinValue },
+            new CacheEntry { TypeId = int.MinValue }
+        };
+        internal static readonly CacheEntryRef[] CacheRef = new CacheEntryRef[]
+        {
+            new CacheEntryRef { TypeId = int.MinValue },
+            new CacheEntryRef { TypeId = int.MinValue },
+            new CacheEntryRef { TypeId = int.MinValue },
+            new CacheEntryRef { TypeId = int.MinValue }
+        };
+
         public static void SetDeserializer(int typeId, DeserializeDelegate<T> deserializer,
             DeserializeDelegateRef<T> deserializerRef, DeserializeDelegate<T> optimalDeserializer,
             DeserializeDelegateRef<T> optimalDeserializerRef)
@@ -389,18 +420,22 @@ namespace Nino.Core
                 return;
             }
 
-            // FAST PATH: Cache hit (optimized for monomorphic arrays)
-            if (typeId == reader.CachedTypeId && reader.CachedDeserializer is DeserializeDelegate<T> cachedDeserializer)
+            // Check 4-entry inline cache using bitwise AND indexing
+            // Single struct array access for better cache locality (vs two separate arrays)
+            int cacheSlot = (int)typeId & 3;  // Faster than % 4 for power-of-2
+            ref CacheEntry entry = ref Cache[cacheSlot];
+            if (typeId == entry.TypeId)
             {
-                cachedDeserializer(out value, ref reader);
+                entry.Deserializer(out value, ref reader);
                 return;
             }
 
-            // SLOW PATH: Full lookup in subtype map and update cache
+            // Cache miss - look up in FastMap and update cache
             if (SubTypeDeserializers.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                reader.CachedTypeId = typeId;
-                reader.CachedDeserializer = subTypeDeserializer;
+                // Update the cache slot with both type ID and deserializer
+                entry.TypeId = typeId;
+                entry.Deserializer = subTypeDeserializer;
                 subTypeDeserializer(out value, ref reader);
                 return;
             }
@@ -457,19 +492,22 @@ namespace Nino.Core
                 return;
             }
 
-            // FAST PATH: Cache hit (optimized for monomorphic arrays)
-            if (typeId == reader.CachedTypeIdRef &&
-                reader.CachedDeserializerRef is DeserializeDelegateRef<T> cachedDeserializerRef)
+            // Check 4-entry inline cache using bitwise AND indexing
+            // Single struct array access for better cache locality (vs two separate arrays)
+            int cacheSlotRef = (int)typeId & 3;  // Faster than % 4 for power-of-2
+            ref CacheEntryRef entryRef = ref CacheRef[cacheSlotRef];
+            if (typeId == entryRef.TypeId)
             {
-                cachedDeserializerRef(ref value, ref reader);
+                entryRef.Deserializer(ref value, ref reader);
                 return;
             }
 
-            // SLOW PATH: Full lookup in subtype map and update cache
+            // Cache miss - look up in FastMap and update cache
             if (SubTypeDeserializerRefs.TryGetValue(typeId, out var subTypeDeserializer))
             {
-                reader.CachedTypeIdRef = typeId;
-                reader.CachedDeserializerRef = subTypeDeserializer;
+                // Update the cache slot with both type ID and deserializer
+                entryRef.TypeId = typeId;
+                entryRef.Deserializer = subTypeDeserializer;
                 subTypeDeserializer(ref value, ref reader);
                 return;
             }

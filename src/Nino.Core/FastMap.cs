@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Core
 {
@@ -17,13 +18,19 @@ namespace Nino.Core
         private const int MaxKickCount = 16;
         private const int MinCapacity = 8;
 
+        // Optimized layout: Pack=1 eliminates padding, improving cache utilization
+        // Trade-off: potential unaligned access (acceptable on modern CPUs) for better memory density
+        [StructLayout(LayoutKind.Sequential, Pack = 1)]
         private struct Entry
         {
             public uint HashCode;
+            public bool IsOccupied;
             public TKey Key;
             public TValue Value;
-            public bool IsOccupied;
         }
+
+        // Cache the equality comparer to avoid repeated lookups in hot paths
+        private static readonly IEqualityComparer<TKey> KeyComparer = EqualityComparer<TKey>.Default;
 
         private Entry[] _table1;
         private Entry[] _table2;
@@ -36,22 +43,27 @@ namespace Nino.Core
         public int Capacity => _capacity;
         public bool IsCreated => _table1 != null;
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int TransformHashCode(int hashCode)
+        {
+            return hashCode ^ (hashCode >> 16);
+        }
+
         public ref TValue this[in TKey key]
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get
             {
-                var hashCode = key.GetHashCode();
-                hashCode ^= hashCode >> 16;
+                var hashCode = TransformHashCode(key.GetHashCode());
 
                 var index1 = hashCode & _capacityMask;
                 ref Entry entry1 = ref _table1[index1];
-                if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+                if (entry1.HashCode == hashCode && KeyComparer.Equals(entry1.Key, key))
                     return ref entry1.Value;
 
                 var index2 = (hashCode >> 8) & _capacityMask;
                 ref Entry entry2 = ref _table2[index2];
-                if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+                if (entry2.HashCode == hashCode && KeyComparer.Equals(entry2.Key, key))
                     return ref entry2.Value;
                 throw new KeyNotFoundException();
             }
@@ -147,7 +159,7 @@ namespace Nino.Core
                 _version++;
                 return true;
             }
-            else if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            else if (entry1.HashCode == hashCode && KeyComparer.Equals(entry1.Key, key))
                 return false;
 
             var index2 = (hashCode >> 8) & _capacityMask;
@@ -162,7 +174,7 @@ namespace Nino.Core
                 _version++;
                 return true;
             }
-            else if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            else if (entry2.HashCode == hashCode && KeyComparer.Equals(entry2.Key, key))
                 return false;
 
             bool res = CuckooInsert(hashCode, key, value, false);
@@ -188,7 +200,7 @@ namespace Nino.Core
                 _version++;
                 return true;
             }
-            else if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            else if (entry1.HashCode == hashCode && KeyComparer.Equals(entry1.Key, key))
             {
                 entry1.Value = value;
                 _version++;
@@ -207,7 +219,7 @@ namespace Nino.Core
                 _version++;
                 return true;
             }
-            else if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            else if (entry2.HashCode == hashCode && KeyComparer.Equals(entry2.Key, key))
             {
                 entry2.Value = value;
                 _version++;
@@ -242,7 +254,7 @@ namespace Nino.Core
                         _count++;
                         return true;
                     }
-                    else if (updateIfExists && entry.HashCode == currentHashCode && EqualityComparer<TKey>.Default.Equals(entry.Key, currentKey))
+                    else if (updateIfExists && entry.HashCode == currentHashCode && KeyComparer.Equals(entry.Key, currentKey))
                     {
                         entry.Value = currentValue;
                         return true;
@@ -266,7 +278,7 @@ namespace Nino.Core
                         _count++;
                         return true;
                     }
-                    else if (updateIfExists && entry.HashCode == currentHashCode && EqualityComparer<TKey>.Default.Equals(entry.Key, currentKey))
+                    else if (updateIfExists && entry.HashCode == currentHashCode && KeyComparer.Equals(entry.Key, currentKey))
                     {
                         entry.Value = currentValue;
                         return true;
@@ -291,7 +303,7 @@ namespace Nino.Core
 
             var index1 = hashCode & _capacityMask;
             ref Entry entry1 = ref _table1[index1];
-            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            if (entry1.HashCode == hashCode && KeyComparer.Equals(entry1.Key, key))
             {
                 exists = true;
                 return ref entry1.Value;
@@ -300,7 +312,7 @@ namespace Nino.Core
             var index2 = (hashCode >> 8) & _capacityMask;
 
             ref Entry entry2 = ref _table2[index2];
-            if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            if (entry2.HashCode == hashCode && KeyComparer.Equals(entry2.Key, key))
             {
                 exists = true;
                 return ref entry2.Value;
@@ -344,7 +356,7 @@ namespace Nino.Core
 
             var index1 = hashCode & _capacityMask;
             ref Entry entry1 = ref _table1[index1];
-            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            if (entry1.HashCode == hashCode && KeyComparer.Equals(entry1.Key, key))
             {
                 value = entry1.Value;
                 return true;
@@ -352,7 +364,7 @@ namespace Nino.Core
 
             var index2 = (hashCode >> 8) & _capacityMask;
             ref Entry entry2 = ref _table2[index2];
-            if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            if (entry2.HashCode == hashCode && KeyComparer.Equals(entry2.Key, key))
             {
                 value = entry2.Value;
                 return true;
@@ -370,12 +382,12 @@ namespace Nino.Core
 
             var index1 = hashCode & _capacityMask;
             ref Entry entry1 = ref _table1[index1];
-            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            if (entry1.HashCode == hashCode && KeyComparer.Equals(entry1.Key, key))
                 return ref entry1.Value;
 
             var index2 = (hashCode >> 8) & _capacityMask;
             ref Entry entry2 = ref _table2[index2];
-            if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            if (entry2.HashCode == hashCode && KeyComparer.Equals(entry2.Key, key))
                 return ref entry2.Value;
 
             throw new KeyNotFoundException();
@@ -389,12 +401,12 @@ namespace Nino.Core
 
             var index1 = hashCode & _capacityMask;
             ref Entry entry1 = ref _table1[index1];
-            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            if (entry1.HashCode == hashCode && KeyComparer.Equals(entry1.Key, key))
                 return true;
 
             var index2 = (hashCode >> 8) & _capacityMask;
             ref Entry entry2 = ref _table2[index2];
-            return entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key);
+            return entry2.HashCode == hashCode && KeyComparer.Equals(entry2.Key, key);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -423,7 +435,7 @@ namespace Nino.Core
 
             var index1 = hashCode & _capacityMask;
             ref Entry entry1 = ref _table1[index1];
-            if (entry1.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry1.Key, key))
+            if (entry1.HashCode == hashCode && KeyComparer.Equals(entry1.Key, key))
             {
                 entry1.IsOccupied = false;
                 _count--;
@@ -433,7 +445,7 @@ namespace Nino.Core
 
             var index2 = (hashCode >> 8) & _capacityMask;
             ref Entry entry2 = ref _table2[index2];
-            if (entry2.HashCode == hashCode && EqualityComparer<TKey>.Default.Equals(entry2.Key, key))
+            if (entry2.HashCode == hashCode && KeyComparer.Equals(entry2.Key, key))
             {
                 entry2.IsOccupied = false;
                 _count--;

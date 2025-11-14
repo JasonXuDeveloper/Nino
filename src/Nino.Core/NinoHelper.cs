@@ -12,8 +12,9 @@ namespace Nino.Core
         /// <summary>
         /// Gets the generated namespace for a type's assembly.
         /// This must match the logic in NinoTypeHelper.GetNamespace()
+        /// Called only in error paths - intentionally not inlined to keep call sites small.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         internal static string GetGeneratedNamespace(Type type)
         {
             var assemblyName = type.Assembly.GetName().Name ?? string.Empty;

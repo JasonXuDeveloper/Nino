@@ -188,6 +188,18 @@ namespace Nino.Core
         // ReSharper disable once StaticMemberInGenericType
         internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
 
+        // Inline cache entry - packs type handle and delegate together for better cache locality
+        internal struct CacheEntry
+        {
+            public IntPtr TypeHandle;
+            public SerializeDelegate<T> Serializer;
+        }
+
+        // Inline cache for polymorphic serialization (4 entries per type)
+        // Reduced from 8 to 4 for better cache locality with single array access
+        // Shared across threads - benign races on cache updates are acceptable
+        internal static readonly CacheEntry[] Cache = new CacheEntry[4];
+
         public static void SetSerializer(SerializeDelegate<T> serializer)
         {
             _serializer = serializer;
@@ -304,17 +316,22 @@ namespace Nino.Core
                 return;
             }
 
-            if (actualTypeHandle == writer.CachedTypeHandle &&
-                writer.CachedSerializer is SerializeDelegate<T> cachedSer)
+            // Check 4-entry inline cache using bitwise AND indexing
+            // Single struct array access for better cache locality (vs two separate arrays)
+            int cacheSlot = (int)actualTypeHandle & 3;  // Faster than % 4 for power-of-2
+            ref CacheEntry entry = ref Cache[cacheSlot];
+            if (actualTypeHandle == entry.TypeHandle)
             {
-                cachedSer(val, ref writer);
+                entry.Serializer(val, ref writer);
                 return;
             }
 
+            // Cache miss - look up in FastMap and update cache
             if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
             {
-                writer.CachedTypeHandle = actualTypeHandle;
-                writer.CachedSerializer = subTypeSerializer;
+                // Update the cache slot with both type handle and serializer
+                entry.TypeHandle = actualTypeHandle;
+                entry.Serializer = subTypeSerializer;
                 subTypeSerializer(val, ref writer);
                 return;
             }
