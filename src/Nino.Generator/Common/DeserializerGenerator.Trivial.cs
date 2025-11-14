@@ -1041,9 +1041,9 @@ public partial class DeserializerGenerator
         IMethodSymbol? constructor,
         string indent = "")
     {
-        // For ref deserialization, RefDeserializationMethod takes priority over custom constructors when value is null
+        // RefDeserializationMethod takes priority - always use factory method when value is null
         // This enables object pooling patterns where instances should always come from the pool
-        if (constructor == null && !string.IsNullOrEmpty(nt.RefDeserializationMethod))
+        if (!string.IsNullOrEmpty(nt.RefDeserializationMethod))
         {
             sb.AppendLine($"{indent}            if ({valName} == null)");
             sb.AppendLine($"{indent}            {{");
