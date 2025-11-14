@@ -49,6 +49,22 @@ public class RefDeserializationAttributeTests
         public string Name;
     }
 
+    [NinoType]
+    public class GenericPooledClass<T>
+    {
+        [NinoRefDeserialization]
+        public static GenericPooledClass<T> CreateInstance()
+        {
+            return new GenericPooledClass<T> { FromPool = true };
+        }
+
+        public T Data;
+        public int Count;
+
+        [NinoIgnore]
+        public bool FromPool;
+    }
+
     [TestInitialize]
     public void Setup()
     {
@@ -209,5 +225,79 @@ public class RefDeserializationAttributeTests
         Assert.AreEqual(777, result2.Value);
         Assert.AreEqual("Multi", result1.Name);
         Assert.AreEqual("Multi", result2.Name);
+    }
+
+    [TestMethod]
+    public void TestGenericTypeWithRefDeserialization()
+    {
+        // Test that NinoRefDeserializationAttribute works on generic types
+        var original = new GenericPooledClass<string>
+        {
+            Data = "GenericTest",
+            Count = 42,
+            FromPool = false
+        };
+
+        byte[] bytes = NinoSerializer.Serialize(original);
+
+        // Test Deserialize
+        var result = NinoDeserializer.Deserialize<GenericPooledClass<string>>(bytes);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual("GenericTest", result.Data);
+        Assert.AreEqual(42, result.Count);
+        Assert.IsTrue(result.FromPool, "Factory method should have been called for generic type");
+
+        // Test DeserializeRef with null
+        GenericPooledClass<string> refResult = null;
+        NinoDeserializer.DeserializeRef(ref refResult, bytes);
+
+        Assert.IsNotNull(refResult);
+        Assert.AreEqual("GenericTest", refResult.Data);
+        Assert.AreEqual(42, refResult.Count);
+        Assert.IsTrue(refResult.FromPool, "Factory method should have been called for null ref");
+
+        // Test DeserializeRef with existing instance
+        GenericPooledClass<string> existingResult = new GenericPooledClass<string> { FromPool = false };
+        NinoDeserializer.DeserializeRef(ref existingResult, bytes);
+
+        Assert.IsNotNull(existingResult);
+        Assert.AreEqual("GenericTest", existingResult.Data);
+        Assert.AreEqual(42, existingResult.Count);
+        Assert.IsFalse(existingResult.FromPool, "Factory method should NOT have been called for existing instance");
+    }
+
+    [TestMethod]
+    public void TestGenericTypeWithDifferentTypeArguments()
+    {
+        // Test that different instantiations of generic type each use their own factory
+        var originalInt = new GenericPooledClass<int>
+        {
+            Data = 999,
+            Count = 10,
+            FromPool = false
+        };
+
+        var originalString = new GenericPooledClass<string>
+        {
+            Data = "Test",
+            Count = 20,
+            FromPool = false
+        };
+
+        byte[] bytesInt = NinoSerializer.Serialize(originalInt);
+        byte[] bytesString = NinoSerializer.Serialize(originalString);
+
+        // Deserialize int version
+        var resultInt = NinoDeserializer.Deserialize<GenericPooledClass<int>>(bytesInt);
+        Assert.AreEqual(999, resultInt.Data);
+        Assert.AreEqual(10, resultInt.Count);
+        Assert.IsTrue(resultInt.FromPool);
+
+        // Deserialize string version
+        var resultString = NinoDeserializer.Deserialize<GenericPooledClass<string>>(bytesString);
+        Assert.AreEqual("Test", resultString.Data);
+        Assert.AreEqual(20, resultString.Count);
+        Assert.IsTrue(resultString.FromPool);
     }
 }
