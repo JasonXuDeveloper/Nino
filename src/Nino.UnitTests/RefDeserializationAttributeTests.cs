@@ -21,6 +21,8 @@ public class RefDeserializationAttributeTests
 
         public int Value;
         public string Name;
+
+        [NinoIgnore]
         public bool WasPooled;
     }
 
@@ -35,6 +37,8 @@ public class RefDeserializationAttributeTests
 
         public int Id;
         public PooledClass NestedObject;
+
+        [NinoIgnore]
         public bool PoolCreated;
     }
 
@@ -90,7 +94,8 @@ public class RefDeserializationAttributeTests
         PooledClass result = null;
 
         // Act
-        NinoDeserializer.DeserializeRef(ref result, bytes);
+        var reader = new Reader(bytes);
+        NinoDeserializer.DeserializeRef(ref result, ref reader);
 
         // Assert
         Assert.IsNotNull(result);
@@ -117,7 +122,8 @@ public class RefDeserializationAttributeTests
         PooledClass result = new PooledClass { WasPooled = false };
 
         // Act
-        NinoDeserializer.DeserializeRef(ref result, bytes);
+        var reader = new Reader(bytes);
+        NinoDeserializer.DeserializeRef(ref result, ref reader);
 
         // Assert
         Assert.IsNotNull(result);
