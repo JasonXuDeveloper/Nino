@@ -1039,11 +1039,12 @@ public partial class DeserializerGenerator
         string valName,
         string[] constructorMember,
         IMethodSymbol? constructor,
-        string indent = "")
+        string indent = "",
+        bool checkRefDeserializationNull = true)
     {
-        // RefDeserializationMethod takes priority - always use factory method when value is null
-        // This enables object pooling patterns where instances should always come from the pool
-        if (!string.IsNullOrEmpty(nt.RefDeserializationMethod))
+        // RefDeserializationMethod: only check null when needed (ref path)
+        // Skip for non-ref path where instance is already created
+        if (checkRefDeserializationNull && !string.IsNullOrEmpty(nt.RefDeserializationMethod))
         {
             sb.AppendLine($"{indent}            if ({valName} == null)");
             sb.AppendLine($"{indent}            {{");
@@ -1224,7 +1225,8 @@ public partial class DeserializerGenerator
         {
             sb.AppendLine($"{indent}            // use NinoRefDeserializationAttribute method: {nt.RefDeserializationMethod}");
             sb.AppendLine($"{indent}            {valName} = {nt.TypeSymbol.GetDisplayString()}.{nt.RefDeserializationMethod}();");
-            WriteMembersWithCustomConstructor(spc, sb, nt, valName, [], null, indent);
+            // Instance already created, skip null check
+            WriteMembersWithCustomConstructor(spc, sb, nt, valName, [], null, indent, checkRefDeserializationNull: false);
             return;
         }
 
