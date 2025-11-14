@@ -94,8 +94,7 @@ public class RefDeserializationAttributeTests
         PooledClass result = null;
 
         // Act
-        var reader = new Reader(bytes);
-        NinoDeserializer.DeserializeRef(ref result, ref reader);
+        NinoDeserializer.DeserializeRef(ref result, bytes);
 
         // Assert
         Assert.IsNotNull(result);
@@ -122,8 +121,7 @@ public class RefDeserializationAttributeTests
         PooledClass result = new PooledClass { WasPooled = false };
 
         // Act
-        var reader = new Reader(bytes);
-        NinoDeserializer.DeserializeRef(ref result, ref reader);
+        NinoDeserializer.DeserializeRef(ref result, bytes);
 
         // Assert
         Assert.IsNotNull(result);
