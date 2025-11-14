@@ -1224,7 +1224,7 @@ public partial class DeserializerGenerator
         {
             sb.AppendLine($"{indent}            // use NinoRefDeserializationAttribute method: {nt.RefDeserializationMethod}");
             sb.AppendLine($"{indent}            {valName} = {nt.TypeSymbol.GetDisplayString()}.{nt.RefDeserializationMethod}();");
-            sb.AppendLine($"{indent}            DeserializeRef(ref {valName}, ref reader);");
+            sb.AppendLine($"{indent}            Deserializer.DeserializeImplRef(ref {valName}, ref reader);");
             return;
         }
 
