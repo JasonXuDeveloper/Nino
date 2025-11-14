@@ -12,6 +12,7 @@ public class NinoType
     public ImmutableList<NinoType> Parents { get; set; }
     public string CustomSerializer { get; set; }
     public string CustomDeserializer { get; set; }
+    public string RefDeserializationMethod { get; set; }
 
     public NinoType(Compilation compilation, ITypeSymbol typeSymbol, ImmutableList<NinoMember>? members,
         ImmutableList<NinoType>? parents)
@@ -32,6 +33,7 @@ public class NinoType
 
         CustomSerializer = "";
         CustomDeserializer = "";
+        RefDeserializationMethod = "";
 
         var declaredTypeAssembly = typeSymbol.ContainingAssembly;
         bool isSameAssembly = declaredTypeAssembly.Equals(compilation.Assembly,
@@ -138,6 +140,11 @@ public class NinoType
         if (!string.IsNullOrEmpty(CustomDeserializer))
         {
             sb.AppendLine($"CustomDeserializer: {CustomDeserializer}");
+        }
+
+        if (!string.IsNullOrEmpty(RefDeserializationMethod))
+        {
+            sb.AppendLine($"RefDeserializationMethod: {RefDeserializationMethod}");
         }
 
         sb.AppendLine("Parents:");

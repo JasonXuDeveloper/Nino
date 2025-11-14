@@ -21,6 +21,16 @@ namespace Nino.Core
             DeserializeRef(ref value, ref reader);
         }
 
+        /// <summary>
+        /// Deserialize data into an existing object reference (convenience overload for ReadOnlySpan)
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializeRef<T>(ref T value, ReadOnlySpan<byte> data)
+        {
+            var reader = new Reader(data);
+            DeserializeRef(ref value, ref reader);
+        }
+
         // ULTIMATE: Zero-overhead single entry point
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DeserializeRef<T>(ref T value, ref Reader reader)
@@ -104,6 +114,16 @@ namespace Nino.Core
             }
 
             return typeDeserializer.outOverload(ref reader);
+        }
+
+        /// <summary>
+        /// Deserialize data into an existing boxed object reference (convenience overload for ReadOnlySpan)
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializeRefBoxed(ref object val, ReadOnlySpan<byte> data, Type type = null)
+        {
+            var reader = new Reader(data);
+            DeserializeRefBoxed(ref val, ref reader, type);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

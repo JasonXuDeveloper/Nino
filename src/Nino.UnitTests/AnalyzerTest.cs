@@ -438,4 +438,134 @@ public class TestClassWithTask
                 .WithArguments("UnsupportedTask", "System.Threading.Tasks.Task<int>", "TestClassWithTask")
         ).RunAsync();
     }
+
+    [TestMethod]
+    public async Task TestNino012_NotPublic()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoRefDeserialization]
+    private static TestClass GetInstance() => new TestClass();
+
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO012")
+                .WithSpan(8, 30, 8, 41)
+                .WithArguments("GetInstance", "must be public")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino012_NotStatic()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoRefDeserialization]
+    public TestClass GetInstance() => new TestClass();
+
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO012")
+                .WithSpan(8, 22, 8, 33)
+                .WithArguments("GetInstance", "must be static")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino012_HasParameters()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoRefDeserialization]
+    public static TestClass GetInstance(int value) => new TestClass();
+
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO012")
+                .WithSpan(8, 29, 8, 40)
+                .WithArguments("GetInstance", "must be parameterless")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino012_WrongReturnType()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoRefDeserialization]
+    public static object GetInstance() => new TestClass();
+
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO012")
+                .WithSpan(8, 26, 8, 37)
+                .WithArguments("GetInstance", "must return TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino012_MultipleErrors()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoRefDeserialization]
+    private object GetInstance(int value) => new TestClass();
+
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO012")
+                .WithSpan(8, 20, 8, 31)
+                .WithArguments("GetInstance", "must be public, must be static, must be parameterless, must return TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task TestNino012_ValidUsage()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoRefDeserialization]
+    public static TestClass GetInstance() => new TestClass();
+
+    public int Value;
+}
+";
+
+        // No diagnostics expected for valid usage
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
 }

@@ -1039,8 +1039,20 @@ public partial class DeserializerGenerator
         string valName,
         string[] constructorMember,
         IMethodSymbol? constructor,
-        string indent = "")
+        string indent = "",
+        bool checkRefDeserializationNull = true)
     {
+        // RefDeserializationMethod: only check null when needed (ref path)
+        // Skip for non-ref path where instance is already created
+        if (checkRefDeserializationNull && !string.IsNullOrEmpty(nt.RefDeserializationMethod))
+        {
+            sb.AppendLine($"{indent}            if ({valName} == null)");
+            sb.AppendLine($"{indent}            {{");
+            sb.AppendLine($"{indent}                // use NinoRefDeserializationAttribute method: {nt.RefDeserializationMethod}");
+            sb.AppendLine($"{indent}                {valName} = {nt.TypeSymbol.GetDisplayString()}.{nt.RefDeserializationMethod}();");
+            sb.AppendLine($"{indent}            }}");
+        }
+
         var (vars, privateVars, args, tupleMap) =
             WriteMembers(valName, sb, nt, constructorMember, constructor == null, spc, indent);
 
@@ -1205,6 +1217,16 @@ public partial class DeserializerGenerator
         if (byRef)
         {
             WriteMembersWithCustomConstructor(spc, sb, nt, valName, [], null, indent);
+            return;
+        }
+
+        // Check for NinoRefDeserializationAttribute
+        if (!string.IsNullOrEmpty(nt.RefDeserializationMethod))
+        {
+            sb.AppendLine($"{indent}            // use NinoRefDeserializationAttribute method: {nt.RefDeserializationMethod}");
+            sb.AppendLine($"{indent}            {valName} = {nt.TypeSymbol.GetDisplayString()}.{nt.RefDeserializationMethod}();");
+            // Instance already created, skip null check
+            WriteMembersWithCustomConstructor(spc, sb, nt, valName, [], null, indent, checkRefDeserializationNull: false);
             return;
         }
 

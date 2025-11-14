@@ -354,6 +354,22 @@ public class CSharpParser(HashSet<ITypeSymbol> ninoSymbols) : NinoTypeParser
                     }
                 }
 
+                //check for NinoRefDeserializationAttribute on public static parameterless methods
+                var refDeserMethod = typeSymbol.GetMembers().OfType<IMethodSymbol>()
+                    .FirstOrDefault(m =>
+                        m.DeclaredAccessibility == Accessibility.Public &&
+                        m.IsStatic &&
+                        m.Parameters.Length == 0 &&
+                        SymbolEqualityComparer.Default.Equals(m.ReturnType, typeSymbol) &&
+                        m.GetAttributesCache().Any(a =>
+                            a.AttributeClass != null &&
+                            a.AttributeClass.ToDisplayString().EndsWith("NinoRefDeserializationAttribute")));
+
+                if (refDeserMethod != null)
+                {
+                    ninoType.RefDeserializationMethod = refDeserMethod.Name;
+                }
+
                 //add to map
                 typeMap[typeSymbol] = ninoType;
 

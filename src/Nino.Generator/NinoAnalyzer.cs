@@ -222,6 +222,56 @@ public class NinoAnalyzer : DiagnosticAnalyzer
             SyntaxKind.ClassDeclaration, SyntaxKind.StructDeclaration,
             SyntaxKind.InterfaceDeclaration, SyntaxKind.RecordDeclaration,
             SyntaxKind.RecordStructDeclaration);
+
+        // Validate NinoRefDeserializationAttribute usage - NINO012
+        context.RegisterSymbolAction(
+            symbolContext =>
+            {
+                var symbol = symbolContext.Symbol;
+                if (symbol is not IMethodSymbol methodSymbol) return;
+
+                var hasAttribute = methodSymbol.GetAttributesCache().Any(a =>
+                    a.AttributeClass != null &&
+                    a.AttributeClass.ToDisplayString().EndsWith("NinoRefDeserializationAttribute"));
+
+                if (!hasAttribute) return;
+
+                var errors = new List<string>();
+
+                // Check if method is public
+                if (methodSymbol.DeclaredAccessibility != Accessibility.Public)
+                {
+                    errors.Add("must be public");
+                }
+
+                // Check if method is static
+                if (!methodSymbol.IsStatic)
+                {
+                    errors.Add("must be static");
+                }
+
+                // Check if method is parameterless
+                if (methodSymbol.Parameters.Length > 0)
+                {
+                    errors.Add("must be parameterless");
+                }
+
+                // Check if method returns the containing type
+                if (!SymbolEqualityComparer.Default.Equals(methodSymbol.ReturnType, methodSymbol.ContainingType))
+                {
+                    errors.Add($"must return {methodSymbol.ContainingType.ToDisplayString()}");
+                }
+
+                if (errors.Count > 0)
+                {
+                    symbolContext.ReportDiagnostic(Diagnostic.Create(
+                        SupportedDiagnostics[11], // NINO012
+                        methodSymbol.Locations.First(),
+                        methodSymbol.Name,
+                        string.Join(", ", errors)));
+                }
+            },
+            SymbolKind.Method);
     }
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -279,7 +329,12 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 "Member type cannot be serialized",
                 "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization",
                 "Nino",
-                DiagnosticSeverity.Warning, true)
+                DiagnosticSeverity.Warning, true),
+            new DiagnosticDescriptor("NINO012",
+                "Invalid NinoRefDeserializationAttribute usage",
+                "Method '{0}' with [NinoRefDeserialization] {1}",
+                "Nino",
+                DiagnosticSeverity.Error, true)
         );
 
     private static bool IsValidNinoFormatter(INamedTypeSymbol formatterType, ITypeSymbol memberType)
