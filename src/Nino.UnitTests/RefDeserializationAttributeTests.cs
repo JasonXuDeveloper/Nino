@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
@@ -80,6 +81,8 @@ public class RefDeserializationAttributeTests
 
         public int BaseValue;
         public string BaseName;
+        public int[] BaseIntArray;
+        public List<string> BaseStringList;
 
         [NinoIgnore]
         public bool FromBasePool;
@@ -102,6 +105,8 @@ public class RefDeserializationAttributeTests
 
         public int DerivedValue;
         public string DerivedName;
+        public double[] DerivedDoubleArray;
+        public List<int> DerivedIntList;
 
         [NinoIgnore]
         public bool FromDerivedPool;
@@ -115,6 +120,8 @@ public class RefDeserializationAttributeTests
     {
         public int DerivedData;
         public string DerivedText;
+        public List<double> DerivedDoubleList;
+        public string[] DerivedStringArray;
     }
 
     [NinoType]
@@ -122,6 +129,7 @@ public class RefDeserializationAttributeTests
     {
         public BasePooledClass BaseField;
         public BasePooledClass[] PolymorphicArray;
+        public List<BasePooledClass> PolymorphicList;
     }
 
     [TestInitialize]
@@ -370,6 +378,8 @@ public class RefDeserializationAttributeTests
         {
             BaseValue = 100,
             BaseName = "BaseTest",
+            BaseIntArray = new[] { 1, 2, 3 },
+            BaseStringList = new List<string> { "A", "B", "C" },
             FromBasePool = false
         };
 
@@ -381,6 +391,8 @@ public class RefDeserializationAttributeTests
         Assert.IsNotNull(result);
         Assert.AreEqual(100, result.BaseValue);
         Assert.AreEqual("BaseTest", result.BaseName);
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, result.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "A", "B", "C" }, result.BaseStringList);
         Assert.IsTrue(result.FromBasePool, "Base factory method should have been called");
         Assert.AreEqual(1, BasePooledClass.GetBasePoolCallCount());
     }
@@ -393,8 +405,12 @@ public class RefDeserializationAttributeTests
         {
             BaseValue = 200,
             BaseName = "DerivedBase",
+            BaseIntArray = new[] { 10, 20 },
+            BaseStringList = new List<string> { "X", "Y" },
             DerivedValue = 300,
             DerivedName = "DerivedTest",
+            DerivedDoubleArray = new[] { 1.5, 2.5, 3.5 },
+            DerivedIntList = new List<int> { 100, 200, 300 },
             FromBasePool = false,
             FromDerivedPool = false
         };
@@ -407,8 +423,12 @@ public class RefDeserializationAttributeTests
         Assert.IsNotNull(result);
         Assert.AreEqual(200, result.BaseValue);
         Assert.AreEqual("DerivedBase", result.BaseName);
+        CollectionAssert.AreEqual(new[] { 10, 20 }, result.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "X", "Y" }, result.BaseStringList);
         Assert.AreEqual(300, result.DerivedValue);
         Assert.AreEqual("DerivedTest", result.DerivedName);
+        CollectionAssert.AreEqual(new[] { 1.5, 2.5, 3.5 }, result.DerivedDoubleArray);
+        CollectionAssert.AreEqual(new List<int> { 100, 200, 300 }, result.DerivedIntList);
         Assert.IsTrue(result.FromDerivedPool, "Derived factory method should have been called");
         Assert.AreEqual(1, DerivedPooledClass.GetDerivedPoolCallCount());
         Assert.AreEqual(0, BasePooledClass.GetBasePoolCallCount(), "Base factory should NOT be called");
@@ -422,8 +442,12 @@ public class RefDeserializationAttributeTests
         {
             BaseValue = 400,
             BaseName = "DerivedNoPool",
+            BaseIntArray = new[] { 7, 8, 9 },
+            BaseStringList = new List<string> { "D", "E" },
             DerivedData = 500,
-            DerivedText = "NoPoolTest"
+            DerivedText = "NoPoolTest",
+            DerivedDoubleList = new List<double> { 4.5, 5.5 },
+            DerivedStringArray = new[] { "P", "Q", "R" }
         };
 
         byte[] bytes = NinoSerializer.Serialize(original);
@@ -434,8 +458,12 @@ public class RefDeserializationAttributeTests
         Assert.IsNotNull(result);
         Assert.AreEqual(400, result.BaseValue);
         Assert.AreEqual("DerivedNoPool", result.BaseName);
+        CollectionAssert.AreEqual(new[] { 7, 8, 9 }, result.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "D", "E" }, result.BaseStringList);
         Assert.AreEqual(500, result.DerivedData);
         Assert.AreEqual("NoPoolTest", result.DerivedText);
+        CollectionAssert.AreEqual(new List<double> { 4.5, 5.5 }, result.DerivedDoubleList);
+        CollectionAssert.AreEqual(new[] { "P", "Q", "R" }, result.DerivedStringArray);
         // Note: This derived class doesn't have NinoRefDeserializationAttribute,
         // so it won't use base class factory either (each type needs its own attribute)
     }
@@ -450,8 +478,12 @@ public class RefDeserializationAttributeTests
             {
                 BaseValue = 600,
                 BaseName = "PolyBase",
+                BaseIntArray = new[] { 11, 12 },
+                BaseStringList = new List<string> { "F", "G" },
                 DerivedValue = 700,
                 DerivedName = "PolyDerived",
+                DerivedDoubleArray = new[] { 6.5, 7.5 },
+                DerivedIntList = new List<int> { 400, 500 },
                 FromBasePool = false,
                 FromDerivedPool = false
             }
@@ -469,8 +501,12 @@ public class RefDeserializationAttributeTests
         var derivedField = (DerivedPooledClass)result.BaseField;
         Assert.AreEqual(600, derivedField.BaseValue);
         Assert.AreEqual("PolyBase", derivedField.BaseName);
+        CollectionAssert.AreEqual(new[] { 11, 12 }, derivedField.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "F", "G" }, derivedField.BaseStringList);
         Assert.AreEqual(700, derivedField.DerivedValue);
         Assert.AreEqual("PolyDerived", derivedField.DerivedName);
+        CollectionAssert.AreEqual(new[] { 6.5, 7.5 }, derivedField.DerivedDoubleArray);
+        CollectionAssert.AreEqual(new List<int> { 400, 500 }, derivedField.DerivedIntList);
         Assert.IsTrue(derivedField.FromDerivedPool, "Derived factory should be called for polymorphic field");
         Assert.AreEqual(1, DerivedPooledClass.GetDerivedPoolCallCount());
     }
@@ -487,14 +523,20 @@ public class RefDeserializationAttributeTests
                 {
                     BaseValue = 10,
                     BaseName = "Base1",
+                    BaseIntArray = new[] { 1, 2 },
+                    BaseStringList = new List<string> { "H", "I" },
                     FromBasePool = false
                 },
                 new DerivedPooledClass
                 {
                     BaseValue = 20,
                     BaseName = "Derived1",
+                    BaseIntArray = new[] { 3, 4 },
+                    BaseStringList = new List<string> { "J", "K" },
                     DerivedValue = 30,
                     DerivedName = "DerivedName1",
+                    DerivedDoubleArray = new[] { 8.5, 9.5 },
+                    DerivedIntList = new List<int> { 600, 700 },
                     FromBasePool = false,
                     FromDerivedPool = false
                 },
@@ -502,8 +544,12 @@ public class RefDeserializationAttributeTests
                 {
                     BaseValue = 40,
                     BaseName = "DerivedNoPool1",
+                    BaseIntArray = new[] { 5, 6 },
+                    BaseStringList = new List<string> { "L", "M" },
                     DerivedData = 50,
-                    DerivedText = "NoPool1"
+                    DerivedText = "NoPool1",
+                    DerivedDoubleList = new List<double> { 10.5, 11.5 },
+                    DerivedStringArray = new[] { "S", "T" }
                 }
             }
         };
@@ -521,6 +567,8 @@ public class RefDeserializationAttributeTests
         Assert.IsInstanceOfType(result.PolymorphicArray[0], typeof(BasePooledClass));
         Assert.AreEqual(10, result.PolymorphicArray[0].BaseValue);
         Assert.AreEqual("Base1", result.PolymorphicArray[0].BaseName);
+        CollectionAssert.AreEqual(new[] { 1, 2 }, result.PolymorphicArray[0].BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "H", "I" }, result.PolymorphicArray[0].BaseStringList);
         Assert.IsTrue(result.PolymorphicArray[0].FromBasePool);
 
         // Second element - derived class
@@ -528,8 +576,12 @@ public class RefDeserializationAttributeTests
         var derived = (DerivedPooledClass)result.PolymorphicArray[1];
         Assert.AreEqual(20, derived.BaseValue);
         Assert.AreEqual("Derived1", derived.BaseName);
+        CollectionAssert.AreEqual(new[] { 3, 4 }, derived.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "J", "K" }, derived.BaseStringList);
         Assert.AreEqual(30, derived.DerivedValue);
         Assert.AreEqual("DerivedName1", derived.DerivedName);
+        CollectionAssert.AreEqual(new[] { 8.5, 9.5 }, derived.DerivedDoubleArray);
+        CollectionAssert.AreEqual(new List<int> { 600, 700 }, derived.DerivedIntList);
         Assert.IsTrue(derived.FromDerivedPool);
 
         // Third element - derived without pool
@@ -537,8 +589,79 @@ public class RefDeserializationAttributeTests
         var derivedNoPool = (DerivedWithoutPoolClass)result.PolymorphicArray[2];
         Assert.AreEqual(40, derivedNoPool.BaseValue);
         Assert.AreEqual("DerivedNoPool1", derivedNoPool.BaseName);
+        CollectionAssert.AreEqual(new[] { 5, 6 }, derivedNoPool.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "L", "M" }, derivedNoPool.BaseStringList);
         Assert.AreEqual(50, derivedNoPool.DerivedData);
         Assert.AreEqual("NoPool1", derivedNoPool.DerivedText);
+        CollectionAssert.AreEqual(new List<double> { 10.5, 11.5 }, derivedNoPool.DerivedDoubleList);
+        CollectionAssert.AreEqual(new[] { "S", "T" }, derivedNoPool.DerivedStringArray);
+
+        // Verify factory call counts
+        Assert.AreEqual(1, BasePooledClass.GetBasePoolCallCount(), "Base factory called once");
+        Assert.AreEqual(1, DerivedPooledClass.GetDerivedPoolCallCount(), "Derived factory called once");
+    }
+
+    [TestMethod]
+    public void TestPolymorphic_PolymorphicList_CallsCorrectFactories()
+    {
+        // Test list of base type containing different derived types
+        var container = new PolymorphicContainer
+        {
+            PolymorphicList = new List<BasePooledClass>
+            {
+                new BasePooledClass
+                {
+                    BaseValue = 15,
+                    BaseName = "Base2",
+                    BaseIntArray = new[] { 13, 14 },
+                    BaseStringList = new List<string> { "N", "O" },
+                    FromBasePool = false
+                },
+                new DerivedPooledClass
+                {
+                    BaseValue = 25,
+                    BaseName = "Derived2",
+                    BaseIntArray = new[] { 15, 16 },
+                    BaseStringList = new List<string> { "P", "Q" },
+                    DerivedValue = 35,
+                    DerivedName = "DerivedName2",
+                    DerivedDoubleArray = new[] { 12.5, 13.5 },
+                    DerivedIntList = new List<int> { 800, 900 },
+                    FromBasePool = false,
+                    FromDerivedPool = false
+                }
+            }
+        };
+
+        byte[] bytes = NinoSerializer.Serialize(container);
+
+        // Deserialize container
+        var result = NinoDeserializer.Deserialize<PolymorphicContainer>(bytes);
+
+        Assert.IsNotNull(result);
+        Assert.IsNotNull(result.PolymorphicList);
+        Assert.AreEqual(2, result.PolymorphicList.Count);
+
+        // First element - base class
+        Assert.IsInstanceOfType(result.PolymorphicList[0], typeof(BasePooledClass));
+        Assert.AreEqual(15, result.PolymorphicList[0].BaseValue);
+        Assert.AreEqual("Base2", result.PolymorphicList[0].BaseName);
+        CollectionAssert.AreEqual(new[] { 13, 14 }, result.PolymorphicList[0].BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "N", "O" }, result.PolymorphicList[0].BaseStringList);
+        Assert.IsTrue(result.PolymorphicList[0].FromBasePool);
+
+        // Second element - derived class
+        Assert.IsInstanceOfType(result.PolymorphicList[1], typeof(DerivedPooledClass));
+        var derived = (DerivedPooledClass)result.PolymorphicList[1];
+        Assert.AreEqual(25, derived.BaseValue);
+        Assert.AreEqual("Derived2", derived.BaseName);
+        CollectionAssert.AreEqual(new[] { 15, 16 }, derived.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "P", "Q" }, derived.BaseStringList);
+        Assert.AreEqual(35, derived.DerivedValue);
+        Assert.AreEqual("DerivedName2", derived.DerivedName);
+        CollectionAssert.AreEqual(new[] { 12.5, 13.5 }, derived.DerivedDoubleArray);
+        CollectionAssert.AreEqual(new List<int> { 800, 900 }, derived.DerivedIntList);
+        Assert.IsTrue(derived.FromDerivedPool);
 
         // Verify factory call counts
         Assert.AreEqual(1, BasePooledClass.GetBasePoolCallCount(), "Base factory called once");
@@ -553,8 +676,12 @@ public class RefDeserializationAttributeTests
         {
             BaseValue = 800,
             BaseName = "RefDerivedBase",
+            BaseIntArray = new[] { 17, 18 },
+            BaseStringList = new List<string> { "R", "S" },
             DerivedValue = 900,
             DerivedName = "RefDerivedTest",
+            DerivedDoubleArray = new[] { 14.5, 15.5 },
+            DerivedIntList = new List<int> { 1000, 1100 },
             FromBasePool = false,
             FromDerivedPool = false
         };
@@ -568,8 +695,12 @@ public class RefDeserializationAttributeTests
         Assert.IsNotNull(result);
         Assert.AreEqual(800, result.BaseValue);
         Assert.AreEqual("RefDerivedBase", result.BaseName);
+        CollectionAssert.AreEqual(new[] { 17, 18 }, result.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "R", "S" }, result.BaseStringList);
         Assert.AreEqual(900, result.DerivedValue);
         Assert.AreEqual("RefDerivedTest", result.DerivedName);
+        CollectionAssert.AreEqual(new[] { 14.5, 15.5 }, result.DerivedDoubleArray);
+        CollectionAssert.AreEqual(new List<int> { 1000, 1100 }, result.DerivedIntList);
         Assert.IsTrue(result.FromDerivedPool, "Derived factory should be called for null ref");
         Assert.AreEqual(1, DerivedPooledClass.GetDerivedPoolCallCount());
     }
@@ -582,8 +713,12 @@ public class RefDeserializationAttributeTests
         {
             BaseValue = 1000,
             BaseName = "RefExistingBase",
+            BaseIntArray = new[] { 19, 20 },
+            BaseStringList = new List<string> { "T", "U" },
             DerivedValue = 1100,
             DerivedName = "RefExistingDerived",
+            DerivedDoubleArray = new[] { 16.5, 17.5 },
+            DerivedIntList = new List<int> { 1200, 1300 },
             FromBasePool = false,
             FromDerivedPool = false
         };
@@ -603,8 +738,12 @@ public class RefDeserializationAttributeTests
         Assert.IsNotNull(result);
         Assert.AreEqual(1000, result.BaseValue);
         Assert.AreEqual("RefExistingBase", result.BaseName);
+        CollectionAssert.AreEqual(new[] { 19, 20 }, result.BaseIntArray);
+        CollectionAssert.AreEqual(new List<string> { "T", "U" }, result.BaseStringList);
         Assert.AreEqual(1100, result.DerivedValue);
         Assert.AreEqual("RefExistingDerived", result.DerivedName);
+        CollectionAssert.AreEqual(new[] { 16.5, 17.5 }, result.DerivedDoubleArray);
+        CollectionAssert.AreEqual(new List<int> { 1200, 1300 }, result.DerivedIntList);
         Assert.IsFalse(result.FromDerivedPool, "Derived factory should NOT be called for existing instance");
         Assert.AreEqual(0, DerivedPooledClass.GetDerivedPoolCallCount());
     }
