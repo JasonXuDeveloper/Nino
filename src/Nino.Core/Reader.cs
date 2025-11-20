@@ -22,8 +22,6 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _data.IsEmpty;
         }
-        
-        public int Length => _data.Length;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Reader Slice()
@@ -105,7 +103,11 @@ namespace Nino.Core
             else
             {
                 value = default;
-                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref value), ref MemoryMarshal.GetReference(_data), (uint)size);
+                unsafe
+                {
+                    Span<byte> dst = new Span<byte>(Unsafe.AsPointer(ref value), size);
+                    _data.Slice(0, dst.Length).CopyTo(dst);
+                }
             }
         }
 
@@ -120,7 +122,11 @@ namespace Nino.Core
             else
             {
                 value = default;
-                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref value), ref MemoryMarshal.GetReference(_data), (uint)size);
+                unsafe
+                {
+                    Span<byte> dst = new Span<byte>(Unsafe.AsPointer(ref value), size);
+                    _data.Slice(0, dst.Length).CopyTo(dst);
+                }
             }
 
             _data = _data.Slice(size);
