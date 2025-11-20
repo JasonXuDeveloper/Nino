@@ -111,13 +111,7 @@ namespace Nino.Core
                         break;
                     default:
                         // Use safe memory copy for 8+ byte values on 32-bit to avoid alignment issues
-                        unsafe
-                        {
-                            Span<T> srcSpan = MemoryMarshal.CreateSpan(ref value, 1);
-                            ReadOnlySpan<byte> src =
-                                new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
-                            src.CopyTo(span);
-                        }
+                        Unsafe.CopyBlockUnaligned(ref MemoryMarshal.GetReference(span), ref Unsafe.As<T, byte>(ref value), (uint)size);
 
                         break;
                 }

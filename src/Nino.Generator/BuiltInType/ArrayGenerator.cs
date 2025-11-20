@@ -50,17 +50,14 @@ public class ArrayGenerator(
     {
         var arraySymbol = (IArrayTypeSymbol)typeSymbol;
         var elementType = arraySymbol.ElementType;
-        elementType.GetDisplayString();
+        var elementTypeName = elementType.GetDisplayString();
         var rank = arraySymbol.Rank;
         var typeName = typeSymbol.GetDisplayString();
 
         // Check if we can use the fast unmanaged write path
-        // Element must be unmanaged AND cannot be polymorphic
-        // Fast path only works for 1D arrays
         bool canUseFastPath = rank == 1 && elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Check if we can use monomorphic fast path (sealed/struct NinoType)
-        // This allows us to cache the serializer delegate once instead of lookup per element
         bool canUseMonomorphicPath = rank == 1 &&
                                       elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.NinoType &&
                                       elementType.IsSealedOrStruct();
@@ -95,6 +92,14 @@ public class ArrayGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
 
+            // Monomorphic fast path: cache the serializer delegate once
+            if (canUseMonomorphicPath)
+            {
+                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache serializer");
+                writer.AppendLine($"    var serializer = CachedSerializer<{elementTypeName}>.SerializePolymorphic;");
+                writer.AppendLine();
+            }
+
             // Both value and reference types benefit from ref iteration - eliminates bounds checks
             writer.AppendLine("#if NET5_0_OR_GREATER");
             writer.AppendLine("    ref var cur = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(value);");
@@ -110,8 +115,8 @@ public class ArrayGenerator(
 
             if (canUseMonomorphicPath)
             {
-                // Monomorphic fast path: direct call to avoid delegate allocation
-                writer.AppendLine($"        CachedSerializer<{elementType.GetDisplayString()}>.SerializePolymorphic(cur, ref writer);");
+                // Use cached serializer directly
+                writer.AppendLine("        serializer(cur, ref writer);");
             }
             else
             {
@@ -126,8 +131,9 @@ public class ArrayGenerator(
         }
         else
         {
-            // Multi-dimensional array
-            // Write collection header first (handles null case)
+            // Multi-dimensional array - 根据元素类型选择实现方式
+            bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+            
             writer.AppendLine("    if (value == null)");
             writer.AppendLine("    {");
             writer.AppendLine("        writer.Write(TypeCollector.NullCollection);");
@@ -135,66 +141,114 @@ public class ArrayGenerator(
             writer.AppendLine("    }");
             writer.AppendLine();
 
-            // Calculate dimensions and total element count
-            for (int i = 0; i < rank; i++)
+            if (isUnmanaged)
             {
-                writer.AppendLine($"    int len{i} = value.GetLength({i});");
+                // Unmanaged类型使用优化后的Span实现
+                // 获取维度
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"    var dim{i} = value.GetLength({i});");
+                }
+
+                // 计算总长度
+                writer.Append("    var totalLength = ");
+                for (int i = 0; i < rank; i++)
+                {
+                    if (i > 0) writer.Append(" * ");
+                    writer.Append($"dim{i}");
+                }
+                writer.AppendLine(";");
+                
+                // 写入集合头部信息（包含空数组检测）
+                writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(totalLength));");
+                writer.AppendLine();
+
+                // 写入维度信息
+                writer.AppendLine($"    writer.Write({rank});"); // 写入秩
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"    writer.Write(dim{i});");
+                }
+                writer.AppendLine();
+
+                // 早期退出空数组
+                writer.AppendLine("    if (totalLength == 0)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // 获取数组数据引用并创建 Span
+                writer.AppendLine($"    ref var src = ref NinoMarshal.DangerousGetArrayDataReference<{elementTypeName}>(value);");
+                writer.AppendLine($"    ref var first = ref System.Runtime.CompilerServices.Unsafe.As<byte, {elementTypeName}>(ref src);");
+                writer.AppendLine($"    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref first, totalLength);");
+                writer.AppendLine();
+
+                writer.AppendLine("    writer.WriteSpanWithoutHeader(span);");
             }
-            writer.Append("    int totalElements = ");
-            for (int i = 0; i < rank; i++)
+            else
             {
-                if (i > 0) writer.Append(" * ");
-                writer.Append($"len{i}");
-            }
-            writer.AppendLine(";");
-            writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(totalElements));");
-            writer.AppendLine();
+                // 非unmanaged类型使用优化前的嵌套循环实现
+                // Calculate dimensions and total element count
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"    int len{i} = value.GetLength({i});");
+                }
+                writer.Append("    int totalElements = ");
+                for (int i = 0; i < rank; i++)
+                {
+                    if (i > 0) writer.Append(" * ");
+                    writer.Append($"len{i}");
+                }
+                writer.AppendLine(";");
+                writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(totalElements));");
+                writer.AppendLine();
 
-            // Write rank
-            writer.AppendLine($"    writer.Write({rank});");
-            writer.AppendLine();
+                // Write rank
+                writer.AppendLine($"    writer.Write({rank});");
+                writer.AppendLine();
 
-            // Write dimensions
-            for (int i = 0; i < rank; i++)
-            {
-                writer.AppendLine($"    writer.Write(len{i});");
-            }
-            writer.AppendLine();
+                // Write dimensions
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"    writer.Write(len{i});");
+                }
+                writer.AppendLine();
 
-            // Generate nested loops for space-locality-aware serialization
-            writer.AppendLine("    // Serialize in row-major order for space locality");
-            for (int i = 0; i < rank; i++)
-            {
-                var indent = new string(' ', 4 * (i + 1));
-                writer.AppendLine($"{indent}for (int i{i} = 0; i{i} < len{i}; i{i}++)");
-                writer.AppendLine($"{indent}{{");
-            }
+                // Early exit for empty arrays
+                writer.AppendLine("    if (totalElements == 0)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
 
-            var innerIndent = new string(' ', 4 * (rank + 1));
-            var indices = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"i{i}"));
+                // Generate nested loops for space-locality-aware serialization
+                writer.AppendLine("    // Serialize in row-major order for space locality");
+                for (int i = 0; i < rank; i++)
+                {
+                    var indent = new string(' ', 4 * (i + 1));
+                    writer.AppendLine($"{indent}for (int i{i} = 0; i{i} < len{i}; i{i}++)");
+                    writer.AppendLine($"{indent}{{");
+                }
 
-            // Only use WEAK_VERSION_TOLERANCE for non-unmanaged types
-            bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+                var innerIndent = new string(' ', 4 * (rank + 1));
+                var indices = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"i{i}"));
 
-            if (!isUnmanaged)
-            {
+                // Only use WEAK_VERSION_TOLERANCE for non-unmanaged types
                 IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w => { w.AppendLine($"{innerIndent}var pos = writer.Advance(4);"); });
-            }
 
-            writer.Append(innerIndent);
-            writer.AppendLine(GetSerializeString(elementType, $"value[{indices}]"));
+                writer.Append(innerIndent);
+                writer.AppendLine(GetSerializeString(elementType, $"value[{indices}]"));
 
-            if (!isUnmanaged)
-            {
                 IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w => { w.AppendLine($"{innerIndent}writer.PutLength(pos);"); });
-            }
 
-            for (int i = rank - 1; i >= 0; i--)
-            {
-                var indent = new string(' ', 4 * (i + 1));
-                writer.AppendLine($"{indent}}}");
+                for (int i = rank - 1; i >= 0; i--)
+                {
+                    var indent = new string(' ', 4 * (i + 1));
+                    writer.AppendLine($"{indent}}}");
+                }
             }
         }
 
@@ -205,17 +259,14 @@ public class ArrayGenerator(
     {
         var arraySymbol = (IArrayTypeSymbol)typeSymbol;
         var elementType = arraySymbol.ElementType;
-        var elemType = elementType.GetDisplayString();
+        var elementTypeName = elementType.GetDisplayString();
         var rank = arraySymbol.Rank;
         var typeName = typeSymbol.GetDisplayString();
 
         // Check if we can use the fast unmanaged read path
-        // Element must be unmanaged AND cannot be polymorphic
-        // Fast path only works for 1D arrays
         bool canUseFastPath = rank == 1 && elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
 
         // Check if we can use monomorphic fast path (sealed/struct NinoType)
-        // This allows us to cache the deserializer delegate once instead of lookup per element
         bool canUseMonomorphicPath = rank == 1 &&
                                       elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.NinoType &&
                                       elementType.IsSealedOrStruct();
@@ -246,25 +297,31 @@ public class ArrayGenerator(
                 w => { w.AppendLine("    Reader eleReader;"); });
             writer.AppendLine();
             writer.Append("    value = new ");
-            writer.Append(GetArrayCreationString(elemType, "length"));
+            writer.Append(GetArrayCreationString(elementTypeName, "length"));
             writer.AppendLine(";");
             writer.AppendLine("    var span = value.AsSpan();");
+
+            // Monomorphic fast path: cache the deserializer delegate once
+            if (canUseMonomorphicPath)
+            {
+                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache deserializer");
+                writer.AppendLine($"    var deserializer = CachedDeserializer<{elementTypeName}>.Deserialize;");
+            }
 
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
             if (canUseMonomorphicPath)
             {
-                // Monomorphic fast path: direct call to avoid delegate allocation
                 IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w =>
                     {
                         w.AppendLine("        eleReader = reader.Slice();");
-                        w.AppendLine($"        CachedDeserializer<{elementType.GetDisplayString()}>.Deserialize(out span[i], ref eleReader);");
+                        w.AppendLine("        deserializer(out span[i], ref eleReader);");
                     },
                     w =>
                     {
-                        w.AppendLine($"        CachedDeserializer<{elementType.GetDisplayString()}>.Deserialize(out span[i], ref reader);");
+                        w.AppendLine("        deserializer(out span[i], ref reader);");
                     });
             }
             else
@@ -287,63 +344,117 @@ public class ArrayGenerator(
         }
         else
         {
-            // Multi-dimensional array
-            // Read collection header first (handles null case)
-            writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
-            writer.AppendLine("    {");
-            writer.AppendLine("        value = null;");
-            writer.AppendLine("        return;");
-            writer.AppendLine("    }");
-            writer.AppendLine();
-
-            // Read rank
-            writer.AppendLine("    int readRank;");
-            writer.AppendLine("    reader.Read(out readRank);");
-            writer.AppendLine($"    if (readRank != {rank})");
-            writer.AppendLine("    {");
-            writer.AppendLine($"        throw new System.InvalidOperationException($\"Array rank mismatch. Expected {rank}, got {{readRank}}\");");
-            writer.AppendLine("    }");
-            writer.AppendLine();
-
-            // Read dimensions
-            for (int i = 0; i < rank; i++)
-            {
-                writer.AppendLine($"    int len{i};");
-                writer.AppendLine($"    reader.Read(out len{i});");
-            }
-            writer.AppendLine();
-
-            // Only use WEAK_VERSION_TOLERANCE reader for non-unmanaged types
+            // Multi-dimensional array - 根据元素类型选择实现方式
             bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
-
-            if (!isUnmanaged)
+            
+            if (isUnmanaged)
             {
+                // Unmanaged类型使用优化后的Span实现
+                writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
+                writer.AppendLine("    {");
+                writer.AppendLine("        value = null;");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // Read rank
+                writer.AppendLine("    int readRank;");
+                writer.AppendLine("    reader.Read(out readRank);");
+                writer.AppendLine($"    if (readRank != {rank})");
+                writer.AppendLine("    {");
+                writer.AppendLine($"        throw new System.InvalidOperationException($\"Array rank mismatch. Expected {rank}, got {{readRank}}\");");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // Read dimensions
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"    int dim{i};");
+                    writer.AppendLine($"    reader.Read(out dim{i});");
+                }
+                writer.AppendLine();
+
+                // 创建数组
+                writer.Append("    value = new ");
+                writer.Append(GetArrayCreationString(elementTypeName, string.Join(", ", Enumerable.Range(0, rank).Select(i => $"dim{i}"))));
+                writer.AppendLine(";");
+                writer.AppendLine();
+
+                // 早期退出空数组
+                writer.AppendLine("    if (totalElements == 0)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // 获取数组数据引用并创建 Span
+                writer.AppendLine($"    ref var src = ref NinoMarshal.DangerousGetArrayDataReference<{elementTypeName}>(value);");
+                writer.AppendLine($"    ref var first = ref System.Runtime.CompilerServices.Unsafe.As<byte, {elementTypeName}>(ref src);");
+                writer.AppendLine($"    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref first, totalElements);");
+                writer.AppendLine();
+
+                writer.AppendLine("    // Fast path for unmanaged types");
+                writer.AppendLine("    reader.ReadSpan(span);");
+            }
+            else
+            {
+                // 非unmanaged类型使用优化前的嵌套循环实现
+                // Read collection header first (handles null case)
+                writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
+                writer.AppendLine("    {");
+                writer.AppendLine("        value = null;");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // Read rank
+                writer.AppendLine("    int readRank;");
+                writer.AppendLine("    reader.Read(out readRank);");
+                writer.AppendLine($"    if (readRank != {rank})");
+                writer.AppendLine("    {");
+                writer.AppendLine($"        throw new System.InvalidOperationException($\"Array rank mismatch. Expected {rank}, got {{readRank}}\");");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // Read dimensions
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"    int len{i};");
+                    writer.AppendLine($"    reader.Read(out len{i});");
+                }
+                writer.AppendLine();
+
+                // Only use WEAK_VERSION_TOLERANCE reader for non-unmanaged types
                 IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w => { w.AppendLine("    Reader eleReader;"); });
-            }
-            writer.AppendLine();
+                writer.AppendLine();
 
-            // Create array with proper dimensions using direct syntax
-            var lengths = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"len{i}"));
-            writer.Append("    value = new ");
-            writer.Append(GetArrayCreationString(elemType, lengths));
-            writer.AppendLine(";");
-            writer.AppendLine();
+                // Create array with proper dimensions using direct syntax
+                var lengths = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"len{i}"));
+                writer.Append("    value = new ");
+                writer.Append(GetArrayCreationString(elementTypeName, lengths));
+                writer.AppendLine(";");
+                writer.AppendLine();
 
-            // Generate nested loops for space-locality-aware deserialization
-            writer.AppendLine("    // Deserialize in row-major order for space locality");
-            for (int i = 0; i < rank; i++)
-            {
-                var indent = new string(' ', 4 * (i + 1));
-                writer.AppendLine($"{indent}for (int i{i} = 0; i{i} < len{i}; i{i}++)");
-                writer.AppendLine($"{indent}{{");
-            }
+                // Early exit for empty arrays
+                writer.AppendLine("    if (totalElements == 0)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
 
-            var innerIndent = new string(' ', 4 * (rank + 1));
-            var indices = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"i{i}"));
+                // Generate nested loops for space-locality-aware deserialization
+                writer.AppendLine("    // Deserialize in row-major order for space locality");
+                for (int i = 0; i < rank; i++)
+                {
+                    var indent = new string(' ', 4 * (i + 1));
+                    writer.AppendLine($"{indent}for (int i{i} = 0; i{i} < len{i}; i{i}++)");
+                    writer.AppendLine($"{indent}{{");
+                }
 
-            if (!isUnmanaged)
-            {
+                var innerIndent = new string(' ', 4 * (rank + 1));
+                var indices = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"i{i}"));
+
                 IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w =>
                     {
@@ -357,18 +468,12 @@ public class ArrayGenerator(
                         w.Append($"{innerIndent}");
                         w.AppendLine(GetDeserializeString(elementType, $"value[{indices}]", isOutVariable: false));
                     });
-            }
-            else
-            {
-                // For unmanaged types, no WEAK_VERSION_TOLERANCE overhead needed
-                writer.Append($"{innerIndent}");
-                writer.AppendLine(GetDeserializeString(elementType, $"value[{indices}]", isOutVariable: false));
-            }
 
-            for (int i = rank - 1; i >= 0; i--)
-            {
-                var indent = new string(' ', 4 * (i + 1));
-                writer.AppendLine($"{indent}}}");
+                for (int i = rank - 1; i >= 0; i--)
+                {
+                    var indent = new string(' ', 4 * (i + 1));
+                    writer.AppendLine($"{indent}}}");
+                }
             }
         }
 
@@ -405,7 +510,7 @@ public class ArrayGenerator(
             writer.AppendLine("    if (value == null)");
             writer.AppendLine("    {");
             writer.Append("        value = new ");
-            writer.Append(GetArrayCreationString(elemType, "length"));
+            writer.Append(GetArrayCreationString(elementTypeName, "length"));
             writer.AppendLine(";");
             writer.AppendLine("    }");
             writer.AppendLine("    else if (value.Length != length)");
@@ -415,21 +520,27 @@ public class ArrayGenerator(
             writer.AppendLine();
             writer.AppendLine("    var span = value.AsSpan();");
 
+            // Monomorphic fast path: cache the deserializer delegate once
+            if (canUseMonomorphicPath)
+            {
+                writer.AppendLine("    // Monomorphic fast path: element type is sealed/struct, cache deserializer");
+                writer.AppendLine($"    var deserializerRef = CachedDeserializer<{elementTypeName}>.DeserializeRef;");
+            }
+
             writer.AppendLine("    for (int i = 0; i < length; i++)");
             writer.AppendLine("    {");
 
             if (canUseMonomorphicPath)
             {
-                // Monomorphic fast path: direct call to avoid delegate allocation
                 IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w =>
                     {
                         w.AppendLine("        eleReader = reader.Slice();");
-                        w.AppendLine($"        CachedDeserializer<{elementType.GetDisplayString()}>.DeserializeRef(ref span[i], ref eleReader);");
+                        w.AppendLine("        deserializerRef(ref span[i], ref eleReader);");
                     },
                     w =>
                     {
-                        w.AppendLine($"        CachedDeserializer<{elementType.GetDisplayString()}>.DeserializeRef(ref span[i], ref reader);");
+                        w.AppendLine("        deserializerRef(ref span[i], ref reader);");
                     });
             }
             else
@@ -451,74 +562,140 @@ public class ArrayGenerator(
         }
         else
         {
-            // Multi-dimensional array - cannot use Array.Resize, must recreate
-            // Read collection header first (handles null case)
-            writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
-            writer.AppendLine("    {");
-            writer.AppendLine("        value = null;");
-            writer.AppendLine("        return;");
-            writer.AppendLine("    }");
-            writer.AppendLine();
-
-            // Read rank
-            writer.AppendLine("    int readRank;");
-            writer.AppendLine("    reader.Read(out readRank);");
-            writer.AppendLine($"    if (readRank != {rank})");
-            writer.AppendLine("    {");
-            writer.AppendLine($"        throw new System.InvalidOperationException($\"Array rank mismatch. Expected {rank}, got {{readRank}}\");");
-            writer.AppendLine("    }");
-            writer.AppendLine();
-
-            // Read dimensions
-            for (int i = 0; i < rank; i++)
+            // Multi-dimensional array - 根据元素类型选择实现方式
+            bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
+            
+            if (isUnmanaged)
             {
-                writer.AppendLine($"    int len{i};");
-                writer.AppendLine($"    reader.Read(out len{i});");
+                // Unmanaged类型使用优化后的Span实现
+                writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
+                writer.AppendLine("    {");
+                writer.AppendLine("        value = null;");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // Read rank
+                writer.AppendLine("    int readRank;");
+                writer.AppendLine("    reader.Read(out readRank);");
+                writer.AppendLine($"    if (readRank != {rank})");
+                writer.AppendLine("    {");
+                writer.AppendLine($"        throw new System.InvalidOperationException($\"Array rank mismatch. Expected {rank}, got {{readRank}}\");");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // Read dimensions
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"    int dim{i};");
+                    writer.AppendLine($"    reader.Read(out dim{i});");
+                }
+                writer.AppendLine();
+
+                // 检查是否可以重用现有数组
+                writer.AppendLine("    if (value is not null");
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"        && value.GetLength({i}) == dim{i}");
+                }
+                writer.AppendLine($"        && value.Length == totalElements)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        // allow overwrite");
+                writer.AppendLine("    }");
+                writer.AppendLine("    else");
+                writer.AppendLine("    {");
+                writer.Append("        value = new ");
+                writer.Append(GetArrayCreationString(elementTypeName, string.Join(", ", Enumerable.Range(0, rank).Select(i => $"dim{i}"))));
+                writer.AppendLine(";");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // 早期退出空数组
+                writer.AppendLine("    if (totalElements == 0)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // 获取数组数据引用并创建 Span
+                writer.AppendLine($"    ref var src = ref NinoMarshal.DangerousGetArrayDataReference<{elementTypeName}>(value);");
+                writer.AppendLine($"    ref var first = ref System.Runtime.CompilerServices.Unsafe.As<byte, {elementTypeName}>(ref src);");
+                writer.AppendLine($"    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref first, totalElements);");
+                writer.AppendLine();
+
+                writer.AppendLine("    // Fast path for unmanaged types");
+                writer.AppendLine("    reader.ReadSpan(span);");
             }
-            writer.AppendLine();
-
-            // Only use WEAK_VERSION_TOLERANCE reader for non-unmanaged types
-            bool isUnmanagedRef = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
-
-            if (!isUnmanagedRef)
+            else
             {
+                // 非unmanaged类型使用优化前的嵌套循环实现
+                // Read collection header first (handles null case)
+                writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
+                writer.AppendLine("    {");
+                writer.AppendLine("        value = null;");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // Read rank
+                writer.AppendLine("    int readRank;");
+                writer.AppendLine("    reader.Read(out readRank);");
+                writer.AppendLine($"    if (readRank != {rank})");
+                writer.AppendLine("    {");
+                writer.AppendLine($"        throw new System.InvalidOperationException($\"Array rank mismatch. Expected {rank}, got {{readRank}}\");");
+                writer.AppendLine("    }");
+                writer.AppendLine();
+
+                // Read dimensions
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"    int len{i};");
+                    writer.AppendLine($"    reader.Read(out len{i});");
+                }
+                writer.AppendLine();
+
+                // Only use WEAK_VERSION_TOLERANCE reader for non-unmanaged types
                 IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w => { w.AppendLine("    Reader eleReader;"); });
-            }
-            writer.AppendLine();
+                writer.AppendLine();
 
-            // Check if we can reuse existing array
-            writer.AppendLine("    bool canReuse = value != null");
-            for (int i = 0; i < rank; i++)
-            {
-                writer.AppendLine($"        && value.GetLength({i}) == len{i}");
-            }
-            writer.AppendLine("        ;");
-            writer.AppendLine();
+                // Check if we can reuse existing array
+                writer.AppendLine("    bool canReuse = value != null");
+                for (int i = 0; i < rank; i++)
+                {
+                    writer.AppendLine($"        && value.GetLength({i}) == len{i}");
+                }
+                writer.AppendLine("        ;");
+                writer.AppendLine();
 
-            writer.AppendLine("    if (!canReuse)");
-            writer.AppendLine("    {");
-            var lengths = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"len{i}"));
-            writer.Append("        value = new ");
-            writer.Append(GetArrayCreationString(elemType, lengths));
-            writer.AppendLine(";");
-            writer.AppendLine("    }");
-            writer.AppendLine();
+                writer.AppendLine("    if (!canReuse)");
+                writer.AppendLine("    {");
+                var lengths = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"len{i}"));
+                writer.Append("        value = new ");
+                writer.Append(GetArrayCreationString(elementTypeName, lengths));
+                writer.AppendLine(";");
+                writer.AppendLine("    }");
+                writer.AppendLine();
 
-            // Generate nested loops for space-locality-aware deserialization
-            writer.AppendLine("    // Deserialize in row-major order for space locality");
-            for (int i = 0; i < rank; i++)
-            {
-                var indent = new string(' ', 4 * (i + 1));
-                writer.AppendLine($"{indent}for (int i{i} = 0; i{i} < len{i}; i{i}++)");
-                writer.AppendLine($"{indent}{{");
-            }
+                // Early exit for empty arrays
+                writer.AppendLine("    if (totalElements == 0)");
+                writer.AppendLine("    {");
+                writer.AppendLine("        return;");
+                writer.AppendLine("    }");
+                writer.AppendLine();
 
-            var innerIndent = new string(' ', 4 * (rank + 1));
-            var indices = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"i{i}"));
+                // Generate nested loops for space-locality-aware deserialization
+                writer.AppendLine("    // Deserialize in row-major order for space locality");
+                for (int i = 0; i < rank; i++)
+                {
+                    var indent = new string(' ', 4 * (i + 1));
+                    writer.AppendLine($"{indent}for (int i{i} = 0; i{i} < len{i}; i{i}++)");
+                    writer.AppendLine($"{indent}{{");
+                }
 
-            if (!isUnmanagedRef)
-            {
+                var innerIndent = new string(' ', 4 * (rank + 1));
+                var indices = string.Join(", ", Enumerable.Range(0, rank).Select(i => $"i{i}"));
+
                 IfElseDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
                     w =>
                     {
@@ -531,18 +708,12 @@ public class ArrayGenerator(
                         w.Append($"{innerIndent}");
                         w.AppendLine(GetDeserializeRefString(elementType, $"value[{indices}]"));
                     });
-            }
-            else
-            {
-                // For unmanaged types, no WEAK_VERSION_TOLERANCE overhead needed
-                writer.Append($"{innerIndent}");
-                writer.AppendLine(GetDeserializeRefString(elementType, $"value[{indices}]"));
-            }
 
-            for (int i = rank - 1; i >= 0; i--)
-            {
-                var indent = new string(' ', 4 * (i + 1));
-                writer.AppendLine($"{indent}}}");
+                for (int i = rank - 1; i >= 0; i--)
+                {
+                    var indent = new string(' ', 4 * (i + 1));
+                    writer.AppendLine($"{indent}}}");
+                }
             }
         }
 
