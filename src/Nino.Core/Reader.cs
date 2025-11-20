@@ -22,6 +22,8 @@ namespace Nino.Core
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _data.IsEmpty;
         }
+        
+        public int Length => _data.Length;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Reader Slice()
@@ -103,11 +105,7 @@ namespace Nino.Core
             else
             {
                 value = default;
-                unsafe
-                {
-                    Span<byte> dst = new Span<byte>(Unsafe.AsPointer(ref value), size);
-                    _data.Slice(0, dst.Length).CopyTo(dst);
-                }
+                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref value), ref MemoryMarshal.GetReference(_data), (uint)size);
             }
         }
 
@@ -122,11 +120,7 @@ namespace Nino.Core
             else
             {
                 value = default;
-                unsafe
-                {
-                    Span<byte> dst = new Span<byte>(Unsafe.AsPointer(ref value), size);
-                    _data.Slice(0, dst.Length).CopyTo(dst);
-                }
+                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref value), ref MemoryMarshal.GetReference(_data), (uint)size);
             }
 
             _data = _data.Slice(size);
@@ -576,6 +570,16 @@ namespace Nino.Core
                 Read(out KeyValuePair<TKey, TValue> pair);
                 value.Add(pair.Key, pair.Value);
             }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReadSpan<T>(Span<T> span) where T : unmanaged
+        {
+            var bytes = MemoryMarshal.AsBytes(span);
+            var source = _data.Slice(0, span.Length * Unsafe.SizeOf<T>());
+            _data = _data.Slice(span.Length * Unsafe.SizeOf<T>());
+            
+            source.CopyTo(bytes);
         }
     }
 }
