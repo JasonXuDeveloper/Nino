@@ -16,124 +16,9 @@ using Nino.Generator.Metadata;
 
 namespace Nino.Generator;
 
-/// <summary>
-/// Thread-safe bounded cache with automatic eviction to prevent unbounded memory growth.
-/// When the cache reaches maxSize, it evicts half of the entries.
-/// </summary>
-internal class BoundedCache<TKey, TValue> where TKey : notnull
-{
-    private readonly ConcurrentDictionary<TKey, TValue> _cache;
-    private readonly int _maxSize;
-    private int _evictionInProgress;
-
-    public BoundedCache(IEqualityComparer<TKey> comparer, int maxSize = 5000)
-    {
-        _cache = new ConcurrentDictionary<TKey, TValue>(comparer);
-        _maxSize = maxSize;
-    }
-
-    public bool TryGetValue(TKey key, out TValue value)
-    {
-        return _cache.TryGetValue(key, out value!);
-    }
-
-    public TValue GetOrAdd(TKey key, Func<TKey, TValue> valueFactory)
-    {
-        // Check cache first
-        if (_cache.TryGetValue(key, out var value))
-            return value!;
-
-        // Compute value
-        value = valueFactory(key);
-
-        // Add to cache
-        _cache[key] = value;
-        CheckAndEvict();
-
-        return value;
-    }
-
-    public void Add(TKey key, TValue value)
-    {
-        _cache[key] = value;
-        CheckAndEvict();
-    }
-
-    private void CheckAndEvict()
-    {
-        // Check if eviction is needed (single-threaded eviction to avoid race conditions)
-        if (_cache.Count > _maxSize && Interlocked.CompareExchange(ref _evictionInProgress, 1, 0) == 0)
-        {
-            try
-            {
-                EvictHalf();
-            }
-            finally
-            {
-                Interlocked.Exchange(ref _evictionInProgress, 0);
-            }
-        }
-    }
-
-    private void EvictHalf()
-    {
-        int targetSize = _maxSize / 2;
-        int toRemove = _cache.Count - targetSize;
-
-        if (toRemove <= 0) return;
-
-        // Remove first N entries (simple but effective for preventing unbounded growth)
-        int removed = 0;
-        foreach (var key in _cache.Keys)
-        {
-            if (removed >= toRemove) break;
-            if (_cache.TryRemove(key, out _))
-            {
-                removed++;
-            }
-        }
-    }
-
-    public TValue this[TKey key]
-    {
-        get => _cache[key];
-        set
-        {
-            _cache[key] = value;
-            CheckAndEvict();
-        }
-    }
-}
-
 public static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
-
-    // Bounded caches with automatic eviction to prevent unbounded memory growth
-    // Each cache is limited to 5000 entries; when exceeded, oldest 50% are evicted
-    // This prevents memory leaks in long-running IDE sessions with frequent hot-reload
-
-    // Cache for NinoTypeAttribute lookup results (including inheritance chain lookup)
-    // null means not found, non-null means attribute was found
-    private static readonly BoundedCache<ITypeSymbol, NinoTypeAttribute?> NinoTypeAttributeCache =
-        new(SymbolEqualityComparer.Default, maxSize: 5000);
-
-    private static readonly BoundedCache<ITypeSymbol, string> ToDisplayStringCache =
-        new(SymbolEqualityComparer.Default, maxSize: 5000);
-
-    // SemanticModelCache REMOVED - Compilation.GetSemanticModel() already has internal caching
-    // The old cache held strong references to Compilation objects, causing severe memory leaks
-    // private static readonly ConcurrentDictionary<(Compilation, SyntaxTree), SemanticModel> SemanticModelCache = new();
-
-    // TypeSymbolCache REMOVED - Risk of key collisions and minimal benefit
-    // GetTypeSymbol is fast enough without caching due to Roslyn's internal optimizations
-    // private static readonly BoundedCache<(string filePath, int position), ITypeSymbol?> TypeSymbolCache = ...
-
-    private static readonly BoundedCache<ISymbol, ImmutableArray<AttributeData>> AttributeCache =
-        new(SymbolEqualityComparer.Default, maxSize: 5000);
-
-    private static readonly BoundedCache<ITypeSymbol, int> TypeHierarchyLevelCache =
-        new(SymbolEqualityComparer.Default, maxSize: 5000);
 
     public enum NinoTypeKind
     {
@@ -213,28 +98,16 @@ public static class NinoTypeHelper
 
     public static ImmutableArray<AttributeData> GetAttributesCache<T>(this T typeSymbol) where T : ISymbol
     {
-        if (AttributeCache.TryGetValue(typeSymbol, out var ret))
-        {
-            return ret;
-        }
-
-        ret = typeSymbol.GetAttributes();
-        AttributeCache[typeSymbol] = ret;
-        return ret;
+        return typeSymbol.GetAttributes();
     }
 
     public static string GetDisplayString(this ITypeSymbol typeSymbol)
     {
-        if (ToDisplayStringCache.TryGetValue(typeSymbol, out var ret))
-        {
-            return ret;
-        }
-
         // Remove nullable annotation and normalize tuple types before converting to string
         // This ensures that types used in 'new' expressions don't have the trailing '?'
         // which would cause CS8628: Cannot use a nullable reference type in object creation
         var pureType = typeSymbol.GetPureType().GetNormalizedTypeSymbol();
-        ret = pureType.ToDisplayString();
+        var ret = pureType.ToDisplayString();
 
         // Sanitize multi-dimensional array syntax: [*,*] -> [,], [*,*,*] -> [,,], etc.
         // This handles all cases including user-defined types and nested arrays
@@ -276,7 +149,6 @@ public static class NinoTypeHelper
             ret = sb.ToString();
         }
 
-        ToDisplayStringCache[typeSymbol] = ret;
         return ret;
     }
 
@@ -583,22 +455,14 @@ public static class NinoTypeHelper
 
     /// <summary>
     /// Gets the NinoTypeAttribute of a type (nearest first principle: current type first, then base class, then interface)
-    /// Uses caching to avoid repeated inheritance chain traversal
     /// </summary>
     public static NinoTypeAttribute? GetNinoTypeAttribute(this ITypeSymbol typeSymbol)
     {
-        // Check cache
-        if (NinoTypeAttributeCache.TryGetValue(typeSymbol, out var cached))
-        {
-            return cached;
-        }
-
         // Check current type first
         var attr = GetDirectNinoTypeAttribute(typeSymbol);
         if (attr != null)
         {
-            NinoTypeAttributeCache[typeSymbol] = NinoTypeAttribute.GetAttribute(attr);
-            return NinoTypeAttributeCache[typeSymbol];
+            return NinoTypeAttribute.GetAttribute(attr);
         }
 
         // Then check base class chain
@@ -612,7 +476,6 @@ public static class NinoTypeHelper
                 // If base class has allowInheritance = false, don't inherit
                 if (ninoTypeAttr.allowInheritance)
                 {
-                    NinoTypeAttributeCache[typeSymbol] = ninoTypeAttr;
                     return ninoTypeAttr;
                 }
 
@@ -632,13 +495,10 @@ public static class NinoTypeHelper
                 // Check allowInheritance parameter
                 if (ninoTypeAttr.allowInheritance)
                 {
-                    NinoTypeAttributeCache[typeSymbol] = ninoTypeAttr;
                     return ninoTypeAttr;
                 }
             }
         }
-
-        NinoTypeAttributeCache[typeSymbol] = null;
 
         return null;
     }
@@ -900,16 +760,10 @@ public static class NinoTypeHelper
     /// For multi-dim arrays of arrays: int[,][] is level 4, int[,,,][] is level 6.
     /// Generic types are 1 + max(type argument levels).
     /// For example: KeyValuePair&lt;int[][], int[,,,][]&gt; is 1 + max(3, 6) = 7 - 1 = 6
-    /// Uses memoization to avoid redundant computation.
     /// </summary>
     public static int GetTypeHierarchyLevel(this ITypeSymbol type)
     {
-        if (TypeHierarchyLevelCache.TryGetValue(type, out var cached))
-        {
-            return cached;
-        }
-
-        var level = type switch
+        return type switch
         {
             // Arrays: rank + element level
             // For 1D arrays (rank=1): 1 + element level
@@ -926,9 +780,37 @@ public static class NinoTypeHelper
             // Base types (including non-generic named types)
             _ => 1
         };
+    }
 
-        TypeHierarchyLevelCache[type] = level;
-        return level;
+    /// <summary>
+    /// Scans a referenced assembly for all public NinoTypes.
+    /// Recursively traverses namespaces and adds discovered types to the collection.
+    /// </summary>
+    public static void ScanAssemblyForNinoTypes(IAssemblySymbol assembly, HashSet<ITypeSymbol> types, Stack<ITypeSymbol> stack)
+    {
+        void ScanNamespace(INamespaceSymbol ns)
+        {
+            foreach (var member in ns.GetMembers())
+            {
+                if (member is INamedTypeSymbol typeSymbol
+                    && typeSymbol.DeclaredAccessibility == Accessibility.Public
+                    && typeSymbol.CheckGenericValidity()
+                    && typeSymbol.IsNinoType())
+                {
+                    var normalizedType = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
+                    if (types.Add(normalizedType))
+                    {
+                        stack.Push(normalizedType);
+                    }
+                }
+                else if (member is INamespaceSymbol childNamespace)
+                {
+                    ScanNamespace(childNamespace);
+                }
+            }
+        }
+
+        ScanNamespace(assembly.GlobalNamespace);
     }
 }
 

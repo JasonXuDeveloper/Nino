@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Nino.Generator.BuiltInType;
 using Nino.Generator.Common;
+using Nino.Generator.DTOs;
 using Nino.Generator.Metadata;
 using Nino.Generator.Parser;
 using Nino.Generator.Template;
@@ -15,17 +16,27 @@ namespace Nino.Generator;
 [Generator(LanguageNames.CSharp)]
 public class GlobalGenerator : IIncrementalGenerator
 {
+    /// <summary>
+    /// Initialize the incremental source generator pipeline.
+    /// Extracts metadata and syntax information to build type graphs for code generation.
+    /// </summary>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // Extract compilation metadata into a value-based DTO for efficient incremental caching
+        var compilationMetadata = context.CompilationProvider
+            .Select(static (compilation, _) => TypeTransformations.ExtractCompilationMetadata(compilation));
+
         // Scan types directly marked with [NinoType]
         var ninoTypeModels = context.GetTypeSyntaxes()
             .Where(static syntax => syntax != null)
             .Collect();
 
-        // Scan all type declarations (including those that may inherit from NinoType)
+        // Scan type declarations that could potentially be NinoTypes (have attributes or base types)
         var allTypeDeclarations = context.SyntaxProvider
             .CreateSyntaxProvider<CSharpSyntaxNode>(
-                static (node, _) => node is TypeDeclarationSyntax,
+                static (node, _) =>
+                    node is TypeDeclarationSyntax tds &&
+                    (tds.AttributeLists.Count > 0 || tds.BaseList != null),
                 static (context, _) => (CSharpSyntaxNode)context.Node
             )
             .Where(static syntax => syntax != null)
@@ -42,60 +53,42 @@ public class GlobalGenerator : IIncrementalGenerator
             .Select(static (type, _) => type!)
             .Collect();
 
-        var merged = context.CompilationProvider.Combine(typeDeclarations)
+        // Combine all pipeline inputs for source generation
+        var merged = compilationMetadata
+            .Combine(typeDeclarations)
             .Combine(ninoTypeModels)
-            .Combine(allTypeDeclarations);
+            .Combine(allTypeDeclarations)
+            .Combine(context.CompilationProvider);
 
-        // Add explicit caching and error boundaries
+        // Register source output callback to generate code
         context.RegisterSourceOutput(merged, static (spc, source) =>
         {
-            var compilation = source.Left.Left.Left;
-            var typeSyntaxes = source.Left.Left.Right;
-            var ninoTypeSyntaxes = source.Left.Right;
-            var allTypeDeclarations = source.Right;
+            // Unpack pipeline inputs
+            var compilationMetadata = source.Left.Left.Left.Left;
+            var typeSyntaxes = source.Left.Left.Left.Right;
+            var ninoTypeSyntaxes = source.Left.Left.Right;
+            var allTypeDeclarations = source.Left.Right;
+            var compilation = source.Right;
 
-            // Add stability check
             if (compilation == null) return;
 
             try
             {
-                var (isValid, newCompilation, isUnityAssembly) = compilation.IsValidCompilation();
+                // Early exit if compilation doesn't reference Nino.Core
+                if (!compilationMetadata.HasNinoCoreUsage) return;
+
+                var (isValid, newCompilation, _) = compilation.IsValidCompilation();
                 if (!isValid) return;
                 compilation = newCompilation;
+
+                // Override isUnityAssembly from metadata (already computed)
+                var isUnityAssembly = compilationMetadata.IsUnityAssembly;
 
                 // all types
                 HashSet<ITypeSymbol> allTypes = new(TupleSanitizedEqualityComparer.Default);
                 // track which referenced assemblies we've already scanned for NinoTypes
                 HashSet<IAssemblySymbol> scannedAssemblies = new(SymbolEqualityComparer.Default);
                 scannedAssemblies.Add(compilation.Assembly); // don't scan current assembly
-
-                // Helper: Scan a referenced assembly for all NinoTypes to ensure complete type discovery
-                void ScanAssemblyForNinoTypes(IAssemblySymbol assembly, HashSet<ITypeSymbol> types, Stack<ITypeSymbol> stack)
-                {
-                    void ScanNamespace(INamespaceSymbol ns)
-                    {
-                        foreach (var member in ns.GetMembers())
-                        {
-                            if (member is INamedTypeSymbol typeSymbol
-                                && typeSymbol.DeclaredAccessibility == Accessibility.Public
-                                && typeSymbol.CheckGenericValidity()
-                                && typeSymbol.IsNinoType())
-                            {
-                                var normalizedType = typeSymbol.GetNormalizedTypeSymbol().GetPureType();
-                                if (types.Add(normalizedType))
-                                {
-                                    stack.Push(normalizedType);
-                                }
-                            }
-                            else if (member is INamespaceSymbol childNamespace)
-                            {
-                                ScanNamespace(childNamespace);
-                            }
-                        }
-                    }
-
-                    ScanNamespace(assembly.GlobalNamespace);
-                }
 
                 // process all scanned type syntaxes (generic, array, nullable, tuple, parametrized nino types)
                 foreach (var syntax in typeSyntaxes)
@@ -170,7 +163,7 @@ public class GlobalGenerator : IIncrementalGenerator
                             if (!SymbolEqualityComparer.Default.Equals(baseAssembly, compilation.Assembly)
                                 && scannedAssemblies.Add(baseAssembly))
                             {
-                                ScanAssemblyForNinoTypes(baseAssembly, allTypes, toProcess);
+                                NinoTypeHelper.ScanAssemblyForNinoTypes(baseAssembly, allTypes, toProcess);
                             }
 
                             // Add base type to processing queue if not already added
@@ -194,7 +187,7 @@ public class GlobalGenerator : IIncrementalGenerator
                                 if (!SymbolEqualityComparer.Default.Equals(ifaceAssembly, compilation.Assembly)
                                     && scannedAssemblies.Add(ifaceAssembly))
                                 {
-                                    ScanAssemblyForNinoTypes(ifaceAssembly, allTypes, toProcess);
+                                    NinoTypeHelper.ScanAssemblyForNinoTypes(ifaceAssembly, allTypes, toProcess);
                                 }
 
                                 // Add interface type to processing queue if not already added
@@ -285,6 +278,7 @@ public class GlobalGenerator : IIncrementalGenerator
                 var distinctNinoTypes = ninoTypes.Distinct().ToList();
                 HashSet<ITypeSymbol> generatedTypes = new(TupleSanitizedEqualityComparer.Default);
 
+                // Execute all generators
                 ExecuteGenerator(
                     new NinoBuiltInTypesGenerator(graph, potentialTypeSymbols, generatedTypes, compilation, isUnityAssembly), spc);
                 ExecuteGenerator(new TypeConstGenerator(compilation, graph, distinctNinoTypes), spc);
