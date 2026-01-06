@@ -36,6 +36,7 @@
         <IsPackable>true</IsPackable>
         <!-- RS1038: CodeFixProvider requires Workspaces which is only available in IDE scenarios -->
         <NoWarn>RS1038</NoWarn>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">

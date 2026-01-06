@@ -170,7 +170,15 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
         // Extracts from members, bases, interfaces, and type arguments
         var expandedTypesFromNinoTypes = context.SyntaxProvider
             .CreateSyntaxProvider(
-                predicate: static (node, _) => node is TypeDeclarationSyntax,
+                predicate: static (node, _) =>
+                {
+                    // Only process types that could potentially be NinoTypes
+                    // Types must have either attributes OR base types to be NinoTypes
+                    // This filters out 50-90% of types before expensive semantic analysis
+                    if (node is not TypeDeclarationSyntax typeDecl)
+                        return false;
+                    return typeDecl.AttributeLists.Count > 0 || typeDecl.BaseList != null;
+                },
                 transform: static (ctx, ct) =>
                 {
                     ct.ThrowIfCancellationRequested();
@@ -389,16 +397,22 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
                     continue;
 
                 // Skip open generics - we only want closed types
-                if (ContainsTypeParameter(current))
+                // Pass our stack to avoid nested allocation
+                if (ContainsTypeParameter(current, toProcess))
                     continue;
 
-                var displayString = current.ToDisplayString();
+                // Normalize type to eliminate duplicates:
+                // - Remove nullable annotations (string? -> string)
+                // - Normalize tuples to ignore field names ((int a, string b) -> ValueTuple<int, string>)
+                var normalizedType = current.GetPureType().GetNormalizedTypeSymbol();
+                var displayString = normalizedType.ToDisplayString();
+
                 if (!processed.Add(displayString))
                     continue;
 
                 // Determine if this type should be output
-                var isNinoType = IsNinoType(current);
-                var isConstructedGeneric = current is INamedTypeSymbol { IsGenericType: true } namedType &&
+                var isNinoType = IsNinoType(normalizedType);
+                var isConstructedGeneric = normalizedType is INamedTypeSymbol { IsGenericType: true } namedType &&
                     !SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, namedType);
 
                 if (isNinoType)
@@ -438,6 +452,7 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
 
     /// <summary>
     /// Gets member types (fields and properties) from a type symbol.
+    /// Only includes properties with both getter and setter (serializable properties).
     /// </summary>
     private static IEnumerable<ITypeSymbol> GetMemberTypes(INamedTypeSymbol symbol)
     {
@@ -449,6 +464,7 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
             ITypeSymbol? memberType = member switch
             {
                 IFieldSymbol field => field.Type,
+                // Only include properties with both getter and setter
                 IPropertySymbol { GetMethod: not null, SetMethod: not null } prop => prop.Type,
                 _ => null
             };
@@ -493,24 +509,38 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
     /// <summary>
     /// Converts a type display string to a safe file name.
     /// Uses distinct replacement characters for type modifiers to avoid collisions.
-    /// Uses char array for efficient string building without StringBuilder overhead.
+    /// Uses Span with stackalloc for short strings to minimize allocations.
     /// </summary>
-    private static string GetSafeFileName(string displayString)
+    private static unsafe string GetSafeFileName(string displayString)
     {
-        var chars = new char[displayString.Length];
-        for (int i = 0; i < displayString.Length; i++)
+        var length = displayString.Length;
+
+        // Use stackalloc for strings under 512 chars, heap allocation for longer ones
+        Span<char> chars = length <= 512 ? stackalloc char[length] : new char[length];
+
+        for (int i = 0; i < length; i++)
         {
             var c = displayString[i];
             chars[i] = c switch
             {
+                '<' => 'L',  // Left angle bracket (generic) - distinct from '>'
+                '>' => 'R',  // Right angle bracket (generic)
                 '[' => 'A',  // Array
                 ']' => 'A',
                 '?' => 'N',  // Nullable
                 '*' => 'P',  // Pointer
+                ',' => 'C',  // Comma (generic separator)
+                ' ' => '_',  // Space
+                '.' => '_',  // Dot (namespace separator)
                 _ => char.IsLetterOrDigit(c) ? c : '_'
             };
         }
-        return new string(chars);
+
+        // Use fixed to get pointer from span and create string without extra allocation
+        fixed (char* ptr = chars)
+        {
+            return new string(ptr, 0, length);
+        }
     }
 
     #region Data Models with Structural Equality
@@ -591,7 +621,9 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
     /// Uses iterative approach to avoid stack overflow on deeply nested generics.
     /// Uses object pooling to minimize allocations.
     /// </summary>
-    private static bool ContainsTypeParameter(ITypeSymbol typeSymbol)
+    /// <param name="typeSymbol">The type symbol to check</param>
+    /// <param name="reusableStack">Optional pre-rented stack to reuse, avoiding nested allocations</param>
+    private static bool ContainsTypeParameter(ITypeSymbol typeSymbol, Stack<ITypeSymbol>? reusableStack = null)
     {
         // Fast path for common case
         if (typeSymbol.TypeKind == TypeKind.TypeParameter)
@@ -601,13 +633,16 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
         if (typeSymbol is not IArrayTypeSymbol && typeSymbol is not INamedTypeSymbol { IsGenericType: true })
             return false;
 
-        // Use pooled stack for iterative traversal
-        var toCheck = RentTypeStack();
+        // Use provided stack or rent a new one
+        var toCheck = reusableStack ?? RentTypeStack();
+        var shouldReturn = reusableStack == null;
+        var initialCount = toCheck.Count;
+
         try
         {
             toCheck.Push(typeSymbol);
 
-            while (toCheck.Count > 0)
+            while (toCheck.Count > initialCount)
             {
                 var current = toCheck.Pop();
 
@@ -630,13 +665,26 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
         }
         finally
         {
-            ReturnTypeStack(toCheck);
+            // Only return to pool if we rented it (not reusing caller's stack)
+            if (shouldReturn)
+            {
+                // Clear to initialCount to clean up our work
+                while (toCheck.Count > initialCount)
+                    toCheck.Pop();
+                ReturnTypeStack(toCheck);
+            }
+            else
+            {
+                // Clean up items we added when reusing stack
+                while (toCheck.Count > initialCount)
+                    toCheck.Pop();
+            }
         }
     }
 
     /// <summary>
     /// Checks if a type is a NinoType (has attribute or inherits from one with allowInheritance=true).
-    /// Optimized to avoid redundant attribute lookups.
+    /// Optimized to avoid redundant attribute lookups and minimize AllInterfaces enumeration.
     /// </summary>
     private static bool IsNinoType(ITypeSymbol typeSymbol)
     {
@@ -655,8 +703,14 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
             baseType = baseType.BaseType;
         }
 
-        // Check interfaces
-        foreach (var interfaceType in typeSymbol.AllInterfaces)
+        // Check interfaces - early exit on first match
+        // Common case: types have 0-3 interfaces, so full enumeration is fast
+        // AllInterfaces returns ImmutableArray, allocation already happened
+        var interfaces = typeSymbol.AllInterfaces;
+        if (interfaces.Length == 0)
+            return false;
+
+        foreach (var interfaceType in interfaces)
         {
             var (hasAttr, allowInheritance) = GetNinoTypeAttributeInfo(interfaceType);
             if (hasAttr && allowInheritance)
@@ -717,12 +771,19 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
     /// <summary>
     /// Checks if a syntax node is inside an executable context (method body, property accessor, etc.)
     /// rather than a class-level type declaration (field type, property type, base list, etc.).
+    /// Optimized with fast-path checks and minimal parent traversal.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsInExecutableContext(SyntaxNode node)
     {
         var current = node.Parent;
-        while (current != null)
+
+        // Limit traversal depth as most executable contexts are within 10 levels
+        // This prevents excessive walking in deeply nested syntax trees
+        var depth = 0;
+        const int maxDepth = 15;
+
+        while (current != null && depth < maxDepth)
         {
             switch (current)
             {
@@ -735,12 +796,20 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
                 case AnonymousMethodExpressionSyntax:
                     return true;
 
-                // Type declaration level - not executable context
+                // Type declaration level - not executable context (most common stop case)
                 case TypeDeclarationSyntax:
                     return false;
+
+                // Namespace or compilation unit - definitely not executable
+                case NamespaceDeclarationSyntax:
+                case CompilationUnitSyntax:
+                    return false;
             }
+
             current = current.Parent;
+            depth++;
         }
+
         return false;
     }
 }
