@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -125,7 +126,7 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
                     var symbol = ctx.SemanticModel.GetDeclaredSymbol(ctx.TargetNode, ct);
                     if (symbol is not ITypeSymbol typeSymbol || ContainsTypeParameter(typeSymbol))
                         return (TypeModel?)null;
-                    return new TypeModel(typeSymbol.ToDisplayString());
+                    return new TypeModel(typeSymbol);
                 })
             .Where(static model => model.HasValue)
             .Select(static (model, _) => model!.Value)
@@ -149,7 +150,7 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
                     if (!IsNinoType(typeSymbol) || ContainsTypeParameter(typeSymbol))
                         return null;
 
-                    return new TypeModel(typeSymbol.ToDisplayString());
+                    return new TypeModel(typeSymbol);
                 })
             .Where(static model => model.HasValue)
             .Select(static (model, _) => model!.Value)
@@ -289,49 +290,19 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
         var dedupedFromNinoTypes = expandedTypesFromNinoTypes
             .SelectMany(static (arr, _) => arr)
             .Collect()
-            .Select(static (types, _) =>
-            {
-                var seen = new HashSet<string>(StringComparer.Ordinal);
-                var result = new List<TypeModel>();
-                foreach (var model in types)
-                {
-                    if (seen.Add(model.DisplayString))
-                        result.Add(model);
-                }
-                return new EquatableArray<TypeModel>(result.ToArray());
-            })
+            .Select(static (types, _) => DeduplicateTypes(types))
             .WithTrackingName("Tier2_DedupedFromNinoTypes");
 
         var dedupedFromGenericCalls = typesFromGenericCalls
             .SelectMany(static (arr, _) => arr)
             .Collect()
-            .Select(static (types, _) =>
-            {
-                var seen = new HashSet<string>(StringComparer.Ordinal);
-                var result = new List<TypeModel>();
-                foreach (var model in types)
-                {
-                    if (seen.Add(model.DisplayString))
-                        result.Add(model);
-                }
-                return new EquatableArray<TypeModel>(result.ToArray());
-            })
+            .Select(static (types, _) => DeduplicateTypes(types))
             .WithTrackingName("Tier2_DedupedFromGenericCalls");
 
         var dedupedFromStatements = typesFromStatements
             .SelectMany(static (arr, _) => arr)
             .Collect()
-            .Select(static (types, _) =>
-            {
-                var seen = new HashSet<string>(StringComparer.Ordinal);
-                var result = new List<TypeModel>();
-                foreach (var model in types)
-                {
-                    if (seen.Add(model.DisplayString))
-                        result.Add(model);
-                }
-                return new EquatableArray<TypeModel>(result.ToArray());
-            })
+            .Select(static (types, _) => DeduplicateTypes(types))
             .WithTrackingName("Tier2_DedupedFromStatements");
 
         // Final combine and global deduplication across all pipelines
@@ -342,7 +313,8 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
             {
                 var ((fromNinoTypes, fromGenericCalls), fromStatements) = data;
                 var seen = new HashSet<string>(StringComparer.Ordinal);
-                var result = new List<TypeModel>();
+                var result = new List<TypeModel>(
+                    fromNinoTypes.Length + fromGenericCalls.Length + fromStatements.Length);
 
                 foreach (var model in fromNinoTypes)
                 {
@@ -367,6 +339,22 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
             .WithTrackingName("Tier2_AllExpandedTypes");
 
         context.RegisterSourceOutput(allExpandedTypes, GenerateForType);
+    }
+
+    /// <summary>
+    /// Deduplicates a collection of TypeModels by DisplayString.
+    /// Uses capacity hint to avoid List resizing.
+    /// </summary>
+    private static EquatableArray<TypeModel> DeduplicateTypes(ImmutableArray<TypeModel> types)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var result = new List<TypeModel>(types.Length);
+        foreach (var model in types)
+        {
+            if (seen.Add(model.DisplayString))
+                result.Add(model);
+        }
+        return new EquatableArray<TypeModel>(result.ToArray());
     }
 
     /// <summary>
@@ -405,9 +393,10 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
                 // - Remove nullable annotations (string? -> string)
                 // - Normalize tuples to ignore field names ((int a, string b) -> ValueTuple<int, string>)
                 var normalizedType = current.GetPureType().GetNormalizedTypeSymbol();
-                var displayString = normalizedType.ToDisplayString();
 
-                if (!processed.Add(displayString))
+                // Create TypeModel early to get normalized display string for deduplication
+                var typeModel = new TypeModel(current);
+                if (!processed.Add(typeModel.DisplayString))
                     continue;
 
                 // Determine if this type should be output
@@ -421,13 +410,13 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
                     // Non-constructed NinoTypes (e.g., Foo, Bar<T>) are handled by Tier 1
                     if (isConstructedGeneric)
                     {
-                        results.Add(new TypeModel(displayString));
+                        results.Add(typeModel);
                     }
                 }
                 else
                 {
                     // Output all non-NinoTypes
-                    results.Add(new TypeModel(displayString));
+                    results.Add(typeModel);
                 }
 
                 // Recurse into child types (arrays, generics)
@@ -546,11 +535,22 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
     #region Data Models with Structural Equality
 
     /// <summary>
-    /// Model representing a discovered type. Contains only the display string for now,
-    /// but can be extended with additional properties as needed.
-    /// Record struct provides automatic IEquatable implementation for incremental caching.
+    /// Model representing a discovered type.
+    /// Automatically normalizes types to eliminate duplicates:
+    /// - Removes nullable annotations (string? -> string)
+    /// - Normalizes tuples to ignore field names ((int a, string b) -> ValueTuple&lt;int, string&gt;)
+    /// Provides automatic IEquatable implementation for incremental caching.
     /// </summary>
-    private readonly record struct TypeModel(string DisplayString);
+    private readonly record struct TypeModel
+    {
+        public string DisplayString { get; }
+
+        public TypeModel(ITypeSymbol typeSymbol)
+        {
+            var normalized = typeSymbol.GetPureType().GetNormalizedTypeSymbol();
+            DisplayString = normalized.ToDisplayString();
+        }
+    }
 
     /// <summary>
     /// An immutable array wrapper with structural equality for incremental generator caching.
@@ -665,20 +665,13 @@ public class TypeCollectionReportGenerator : IIncrementalGenerator
         }
         finally
         {
+            // Clean up items we added to the stack
+            while (toCheck.Count > initialCount)
+                toCheck.Pop();
+
             // Only return to pool if we rented it (not reusing caller's stack)
             if (shouldReturn)
-            {
-                // Clear to initialCount to clean up our work
-                while (toCheck.Count > initialCount)
-                    toCheck.Pop();
                 ReturnTypeStack(toCheck);
-            }
-            else
-            {
-                // Clean up items we added when reusing stack
-                while (toCheck.Count > initialCount)
-                    toCheck.Pop();
-            }
         }
     }
 
