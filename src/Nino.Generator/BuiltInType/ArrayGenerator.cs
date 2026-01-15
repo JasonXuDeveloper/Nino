@@ -131,9 +131,9 @@ public class ArrayGenerator(
         }
         else
         {
-            // Multi-dimensional array - 根据元素类型选择实现方式
+            // Multi-dimensional array - choose implementation based on element type
             bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
-            
+
             writer.AppendLine("    if (value == null)");
             writer.AppendLine("    {");
             writer.AppendLine("        writer.Write(TypeCollector.NullCollection);");
@@ -143,52 +143,52 @@ public class ArrayGenerator(
 
             if (isUnmanaged)
             {
-                // Unmanaged类型使用优化后的Span实现
-                // 获取维度
+                // Unmanaged types use optimized Span-based implementation
+                // Get dimensions
                 for (int i = 0; i < rank; i++)
                 {
-                    writer.AppendLine($"    var dim{i} = value.GetLength({i});");
+                    writer.AppendLine($"    var len{i} = value.GetLength({i});");
                 }
 
-                // 计算总长度
-                writer.Append("    var totalLength = ");
+                // Calculate total length
+                writer.Append("    var totalElements = ");
                 for (int i = 0; i < rank; i++)
                 {
                     if (i > 0) writer.Append(" * ");
-                    writer.Append($"dim{i}");
+                    writer.Append($"len{i}");
                 }
                 writer.AppendLine(";");
-                
-                // 写入集合头部信息（包含空数组检测）
-                writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(totalLength));");
+
+                // Write collection header (includes empty array detection)
+                writer.AppendLine("    writer.Write(TypeCollector.GetCollectionHeader(totalElements));");
                 writer.AppendLine();
 
-                // 写入维度信息
-                writer.AppendLine($"    writer.Write({rank});"); // 写入秩
+                // Write dimension info
+                writer.AppendLine($"    writer.Write({rank});"); // Write rank
                 for (int i = 0; i < rank; i++)
                 {
-                    writer.AppendLine($"    writer.Write(dim{i});");
+                    writer.AppendLine($"    writer.Write(len{i});");
                 }
                 writer.AppendLine();
 
-                // 早期退出空数组
-                writer.AppendLine("    if (totalLength == 0)");
+                // Early exit for empty arrays
+                writer.AppendLine("    if (totalElements == 0)");
                 writer.AppendLine("    {");
                 writer.AppendLine("        return;");
                 writer.AppendLine("    }");
                 writer.AppendLine();
 
-                // 获取数组数据引用并创建 Span
+                // Get array data reference and create Span
                 writer.AppendLine($"    ref var src = ref NinoMarshal.DangerousGetArrayDataReference<{elementTypeName}>(value);");
                 writer.AppendLine($"    ref var first = ref System.Runtime.CompilerServices.Unsafe.As<byte, {elementTypeName}>(ref src);");
-                writer.AppendLine($"    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref first, totalLength);");
+                writer.AppendLine($"    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref first, totalElements);");
                 writer.AppendLine();
 
                 writer.AppendLine("    writer.WriteSpanWithoutHeader(span);");
             }
             else
             {
-                // 非unmanaged类型使用优化前的嵌套循环实现
+                // Non-unmanaged types use nested loop implementation
                 // Calculate dimensions and total element count
                 for (int i = 0; i < rank; i++)
                 {
@@ -344,12 +344,12 @@ public class ArrayGenerator(
         }
         else
         {
-            // Multi-dimensional array - 根据元素类型选择实现方式
+            // Multi-dimensional array - choose implementation based on element type
             bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
-            
+
             if (isUnmanaged)
             {
-                // Unmanaged类型使用优化后的Span实现
+                // Unmanaged types use optimized Span-based implementation
                 writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
                 writer.AppendLine("    {");
                 writer.AppendLine("        value = null;");
@@ -369,25 +369,25 @@ public class ArrayGenerator(
                 // Read dimensions
                 for (int i = 0; i < rank; i++)
                 {
-                    writer.AppendLine($"    int dim{i};");
-                    writer.AppendLine($"    reader.Read(out dim{i});");
+                    writer.AppendLine($"    int len{i};");
+                    writer.AppendLine($"    reader.Read(out len{i});");
                 }
                 writer.AppendLine();
 
-                // 创建数组
+                // Create array
                 writer.Append("    value = new ");
-                writer.Append(GetArrayCreationString(elementTypeName, string.Join(", ", Enumerable.Range(0, rank).Select(i => $"dim{i}"))));
+                writer.Append(GetArrayCreationString(elementTypeName, string.Join(", ", Enumerable.Range(0, rank).Select(i => $"len{i}"))));
                 writer.AppendLine(";");
                 writer.AppendLine();
 
-                // 早期退出空数组
+                // Early exit for empty arrays
                 writer.AppendLine("    if (totalElements == 0)");
                 writer.AppendLine("    {");
                 writer.AppendLine("        return;");
                 writer.AppendLine("    }");
                 writer.AppendLine();
 
-                // 获取数组数据引用并创建 Span
+                // Get array data reference and create Span
                 writer.AppendLine($"    ref var src = ref NinoMarshal.DangerousGetArrayDataReference<{elementTypeName}>(value);");
                 writer.AppendLine($"    ref var first = ref System.Runtime.CompilerServices.Unsafe.As<byte, {elementTypeName}>(ref src);");
                 writer.AppendLine($"    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref first, totalElements);");
@@ -398,7 +398,7 @@ public class ArrayGenerator(
             }
             else
             {
-                // 非unmanaged类型使用优化前的嵌套循环实现
+                // Non-unmanaged types use nested loop implementation
                 // Read collection header first (handles null case)
                 writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
                 writer.AppendLine("    {");
@@ -562,12 +562,12 @@ public class ArrayGenerator(
         }
         else
         {
-            // Multi-dimensional array - 根据元素类型选择实现方式
+            // Multi-dimensional array - choose implementation based on element type
             bool isUnmanaged = elementType.GetKind(NinoGraph, GeneratedTypes) == NinoTypeHelper.NinoTypeKind.Unmanaged;
-            
+
             if (isUnmanaged)
             {
-                // Unmanaged类型使用优化后的Span实现
+                // Unmanaged types use optimized Span-based implementation
                 writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
                 writer.AppendLine("    {");
                 writer.AppendLine("        value = null;");
@@ -587,16 +587,16 @@ public class ArrayGenerator(
                 // Read dimensions
                 for (int i = 0; i < rank; i++)
                 {
-                    writer.AppendLine($"    int dim{i};");
-                    writer.AppendLine($"    reader.Read(out dim{i});");
+                    writer.AppendLine($"    int len{i};");
+                    writer.AppendLine($"    reader.Read(out len{i});");
                 }
                 writer.AppendLine();
 
-                // 检查是否可以重用现有数组
+                // Check if existing array can be reused
                 writer.AppendLine("    if (value is not null");
                 for (int i = 0; i < rank; i++)
                 {
-                    writer.AppendLine($"        && value.GetLength({i}) == dim{i}");
+                    writer.AppendLine($"        && value.GetLength({i}) == len{i}");
                 }
                 writer.AppendLine($"        && value.Length == totalElements)");
                 writer.AppendLine("    {");
@@ -605,19 +605,19 @@ public class ArrayGenerator(
                 writer.AppendLine("    else");
                 writer.AppendLine("    {");
                 writer.Append("        value = new ");
-                writer.Append(GetArrayCreationString(elementTypeName, string.Join(", ", Enumerable.Range(0, rank).Select(i => $"dim{i}"))));
+                writer.Append(GetArrayCreationString(elementTypeName, string.Join(", ", Enumerable.Range(0, rank).Select(i => $"len{i}"))));
                 writer.AppendLine(";");
                 writer.AppendLine("    }");
                 writer.AppendLine();
 
-                // 早期退出空数组
+                // Early exit for empty arrays
                 writer.AppendLine("    if (totalElements == 0)");
                 writer.AppendLine("    {");
                 writer.AppendLine("        return;");
                 writer.AppendLine("    }");
                 writer.AppendLine();
 
-                // 获取数组数据引用并创建 Span
+                // Get array data reference and create Span
                 writer.AppendLine($"    ref var src = ref NinoMarshal.DangerousGetArrayDataReference<{elementTypeName}>(value);");
                 writer.AppendLine($"    ref var first = ref System.Runtime.CompilerServices.Unsafe.As<byte, {elementTypeName}>(ref src);");
                 writer.AppendLine($"    var span = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(ref first, totalElements);");
@@ -628,7 +628,7 @@ public class ArrayGenerator(
             }
             else
             {
-                // 非unmanaged类型使用优化前的嵌套循环实现
+                // Non-unmanaged types use nested loop implementation
                 // Read collection header first (handles null case)
                 writer.AppendLine("    if (!reader.ReadCollectionHeader(out var totalElements))");
                 writer.AppendLine("    {");

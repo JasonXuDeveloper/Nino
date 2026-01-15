@@ -68,7 +68,7 @@ namespace Nino.Core
 #if NET6_0_OR_GREATER
             return GC.AllocateUninitializedArray<T>(length);
 #else
-        return new T[length];
+            return new T[length];
 #endif
         }
         
@@ -78,19 +78,18 @@ namespace Nino.Core
 #if NET6_0_OR_GREATER
             return Unsafe.Add(ref Unsafe.As<byte, IntPtr>(ref Unsafe.As<RawData>(obj).Data), -1);
 #else
-        return GetMethodTable(obj.GetType());
+            return GetMethodTable(obj.GetType());
 #endif
         }
-    
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static IntPtr GetMethodTable<T>(T obj) where T : class
         {
 #if NET6_0_OR_GREATER
             return Unsafe.Add(ref Unsafe.As<byte, IntPtr>(ref Unsafe.As<RawData>(obj).Data), -1);
 #else
-        return GetMethodTable(obj.GetType());
+            return GetMethodTable(obj.GetType());
 #endif
-        
         }
     
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

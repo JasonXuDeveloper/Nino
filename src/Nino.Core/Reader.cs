@@ -578,7 +578,7 @@ namespace Nino.Core
             var bytes = MemoryMarshal.AsBytes(span);
             var source = _data.Slice(0, span.Length * Unsafe.SizeOf<T>());
             _data = _data.Slice(span.Length * Unsafe.SizeOf<T>());
-            
+
             source.CopyTo(bytes);
         }
     }
