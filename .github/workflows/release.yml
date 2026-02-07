@@ -34,6 +34,8 @@ jobs:
       is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
       release_type: ${{ steps.parse.outputs.release_type }}
       full_version: ${{ steps.parse.outputs.full_version }}
+      unity_version: ${{ steps.parse.outputs.unity_version }}
+      should_skip: ${{ steps.parse.outputs.should_skip }}
     
     steps:
       - name: Parse version from tag
@@ -43,7 +45,15 @@ jobs:
           
           TAG_NAME=${GITHUB_REF#refs/tags/}
           echo "Processing tag: $TAG_NAME"
-          
+
+          # Skip OpenUPM-only preview/pre/exp tags to prevent re-trigger loops
+          if [[ $TAG_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(preview|pre|exp)\.[0-9]+$ ]]; then
+            echo "Skipping OpenUPM-only tag: $TAG_NAME"
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+
           # Security: Validate tag name doesn't contain dangerous characters
           if [[ $TAG_NAME =~ [\$\`\;\|\&] ]]; then
             echo "❌ Security: Tag contains dangerous characters: $TAG_NAME"
@@ -83,8 +93,22 @@ jobs:
             echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
             echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
             echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
-            
-            echo "✅ Valid version tag: $FULL_VERSION (prerelease: $IS_PRERELEASE)"
+
+            # Calculate Unity/OpenUPM-compatible version using offset system
+            # alpha: 0-99, beta: 100-199, rc: 200-299
+            if [[ "$IS_PRERELEASE" == "true" ]]; then
+              case "$RELEASE_TYPE" in
+                "alpha") PREVIEW_NUM=$((PRERELEASE_NUM)) ;;
+                "beta")  PREVIEW_NUM=$((100 + PRERELEASE_NUM)) ;;
+                "rc")    PREVIEW_NUM=$((200 + PRERELEASE_NUM)) ;;
+              esac
+              UNITY_VERSION="$VERSION-preview.$PREVIEW_NUM"
+            else
+              UNITY_VERSION="$VERSION"
+            fi
+            echo "unity_version=$UNITY_VERSION" >> $GITHUB_OUTPUT
+
+            echo "✅ Valid version tag: $FULL_VERSION (prerelease: $IS_PRERELEASE, unity: $UNITY_VERSION)"
           else
             echo "❌ Invalid tag format: $TAG_NAME"
             echo "Expected format: v1.2.3 or v1.2.3-beta.1"
@@ -95,6 +119,7 @@ jobs:
     name: Verify CI Status
     runs-on: ubuntu-latest
     needs: [validate-tag]
+    if: needs.validate-tag.outputs.should_skip != 'true'
     
     steps:
       - name: Checkout code
@@ -205,6 +230,7 @@ jobs:
     name: Update Version Files
     runs-on: ubuntu-latest
     needs: [validate-tag, verify-ci-status]
+    if: needs.validate-tag.outputs.should_skip != 'true'
     outputs:
       commit_sha: ${{ steps.commit.outputs.commit_sha }}
     
@@ -357,7 +383,8 @@ jobs:
     name: Build Release Artifacts
     runs-on: ubuntu-latest
     needs: [validate-tag, verify-ci-status, update-versions]
-    
+    if: needs.validate-tag.outputs.should_skip != 'true'
+
     defaults:
       run:
         working-directory: ./src
@@ -484,8 +511,36 @@ jobs:
                 
                 tag_attempt=$((tag_attempt + 1))
               done
+
+              # Create OpenUPM-compatible preview tag for pre-releases
+              if [[ "$IS_PRERELEASE" == "true" ]]; then
+                UNITY_VERSION="${{ needs.validate-tag.outputs.unity_version }}"
+                UNITY_TAG="v$UNITY_VERSION"
+
+                # Remove existing preview tag if present (from a previous failed run)
+                git push origin --delete "$UNITY_TAG" 2>/dev/null || true
+                git tag -d "$UNITY_TAG" 2>/dev/null || true
+
+                git tag -a "$UNITY_TAG" -m "Release $UNITY_TAG (Unity/OpenUPM)" "$UNITY_DLL_COMMIT"
+
+                # Push with retry (non-blocking: failure does NOT fail the release)
+                preview_attempts=3; preview_attempt=1; preview_delay=5
+                while [ $preview_attempt -le $preview_attempts ]; do
+                  if git push origin "$UNITY_TAG"; then
+                    echo "✅ Created OpenUPM tag $UNITY_TAG pointing to $UNITY_DLL_COMMIT"
+                    break
+                  fi
+                  if [ $preview_attempt -lt $preview_attempts ]; then
+                    sleep $preview_delay; preview_delay=$((preview_delay * 2))
+                  else
+                    echo "⚠️ Failed to push OpenUPM tag. Manual fix:"
+                    echo "  git tag -a $UNITY_TAG -m 'Release $UNITY_TAG' $UNITY_DLL_COMMIT && git push origin $UNITY_TAG"
+                  fi
+                  preview_attempt=$((preview_attempt + 1))
+                done
+              fi
             fi
-            
+
             # Always clean up the temporary branch (whether push succeeded or failed)
             echo "🧹 Cleaning up temporary branch..."
             if git push origin --delete temp-unity-dll-update 2>/dev/null; then
@@ -523,6 +578,7 @@ jobs:
     name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: [validate-tag, build-release, update-versions]
+    if: needs.validate-tag.outputs.should_skip != 'true'
     outputs:
       release_url: ${{ steps.create_release.outputs.html_url }}
     
@@ -900,6 +956,7 @@ jobs:
     name: Publish to NuGet
     runs-on: ubuntu-latest
     needs: [validate-tag, create-release]
+    if: needs.validate-tag.outputs.should_skip != 'true'
     environment: 
       name: nuget-production
       url: https://www.nuget.org/packages/Nino
@@ -978,7 +1035,7 @@ jobs:
     name: Trigger Benchmark
     runs-on: ubuntu-latest
     needs: [validate-tag, create-release]
-    if: success()
+    if: success() && needs.validate-tag.outputs.should_skip != 'true'
     
     steps:
       - name: Trigger benchmark workflow
@@ -1000,7 +1057,7 @@ jobs:
     name: Notify Release Completion
     runs-on: ubuntu-latest
     needs: [validate-tag, create-release, publish-nuget, trigger-benchmark, cleanup-release-branches]
-    if: always()
+    if: always() && needs.validate-tag.outputs.should_skip != 'true'
     
     steps:
       - name: Release Summary
@@ -1010,6 +1067,9 @@ jobs:
           echo "- **Version**: ${{ needs.validate-tag.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Type**: ${{ needs.validate-tag.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Prerelease**: ${{ needs.validate-tag.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.validate-tag.outputs.is_prerelease }}" == "true" ]]; then
+            echo "- **OpenUPM Tag**: v${{ needs.validate-tag.outputs.unity_version }}" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "- **Release URL**: ${{ needs.create-release.outputs.release_url }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -1029,7 +1089,7 @@ jobs:
     name: Cleanup Old Release Branches
     runs-on: ubuntu-latest
     needs: [validate-tag, create-release]
-    if: success()
+    if: success() && needs.validate-tag.outputs.should_skip != 'true'
     
     steps:
       - name: Checkout code
