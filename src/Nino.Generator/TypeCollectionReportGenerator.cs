@@ -30,7 +30,7 @@ namespace Nino.Generator;
 /// - Tier 1: Per-item cached (no Collect) - maximum incrementality
 /// - Tier 2: Collect required for deduplication (same type from multiple sources)
 /// </summary>
-[Generator(LanguageNames.CSharp)]
+// [Generator(LanguageNames.CSharp)] // Disabled: not yet needed, re-enable when ready
 public class TypeCollectionReportGenerator : IIncrementalGenerator
 {
     private const string NinoTypeAttributeName = "NinoTypeAttribute";
