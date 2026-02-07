@@ -94,6 +94,11 @@ public class HashSetGenerator(
 
         if (isHashSet)
         {
+            // On NET5_0_OR_GREATER, use Unsafe.As<HashSet, HashSetView> + GetArrayDataReference
+            // for direct entry access (safe because GetArrayDataReference bypasses ldelema).
+            // On pre-NET5 (Unity), use foreach to avoid ArrayTypeMismatchException in HybridCLR
+            // caused by HashSetView.Entry vs HashSet.Entry type mismatch on ldelema.
+            writer.AppendLine("#if NET5_0_OR_GREATER");
             var hashSetViewTypeName = $"Nino.Core.Internal.HashSetView<{elementType.GetDisplayString()}>";
             writer.Append("    ref var hashSet = ref System.Runtime.CompilerServices.Unsafe.As<");
             writer.Append(typeName);
@@ -106,11 +111,7 @@ public class HashSetGenerator(
             writer.AppendLine("        return;");
             writer.AppendLine("    }");
             writer.AppendLine("    // Iterate entries via direct ref to avoid bounds checks");
-            writer.AppendLine("#if NET5_0_OR_GREATER");
             writer.AppendLine("    ref var entryRef = ref System.Runtime.InteropServices.MemoryMarshal.GetArrayDataReference(entries);");
-            writer.AppendLine("#else");
-            writer.AppendLine("    ref var entryRef = ref entries[0];");
-            writer.AppendLine("#endif");
             writer.AppendLine("    int index = 0;");
             writer.AppendLine("    while ((uint)index < (uint)cnt)");
             writer.AppendLine("    {");
@@ -136,6 +137,29 @@ public class HashSetGenerator(
             }
 
             writer.AppendLine("    }");
+            writer.AppendLine("#else");
+
+            // Safe foreach path for pre-NET5 (Unity) — struct enumerator, zero allocation
+            writer.AppendLine("    foreach (var item in value)");
+            writer.AppendLine("    {");
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        var pos = writer.Advance(4);"); });
+            }
+
+            writer.Append("        ");
+            writer.AppendLine(GetSerializeString(elementType, "item"));
+
+            if (!isUnmanaged)
+            {
+                IfDirective(NinoTypeHelper.WeakVersionToleranceSymbol, writer,
+                    w => { w.AppendLine("        writer.PutLength(pos);"); });
+            }
+
+            writer.AppendLine("    }");
+            writer.AppendLine("#endif");
         }
         else
         {
