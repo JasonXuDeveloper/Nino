@@ -115,6 +115,13 @@ if [[ -n $(git status --porcelain) ]]; then
     fi
 fi
 
+# Pull latest changes to avoid non-fast-forward push in CI
+print_color $BLUE "📥 Pulling latest changes from origin/$CURRENT_BRANCH..."
+git pull origin "$CURRENT_BRANCH" --rebase || {
+    print_color $RED "❌ Failed to pull latest changes. Please resolve conflicts first."
+    exit 1
+}
+
 # Confirm release
 echo
 print_color $BLUE "📋 Release Summary:"
