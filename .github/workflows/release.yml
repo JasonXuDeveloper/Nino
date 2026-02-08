@@ -717,7 +717,39 @@ jobs:
             temp_other=$(mktemp)
             
             git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%H|%s|%an|%ae" --reverse > "$temp_commits"
-            
+
+            # Build a cache of author→GitHub username mappings using the commit API
+            declare -A USERNAME_CACHE
+            while IFS='|' read -r commit_hash _msg cache_author cache_email; do
+              cache_key="${cache_author}|${cache_email}"
+              # Skip if already cached
+              if [[ -n "${USERNAME_CACHE[$cache_key]+x}" ]]; then
+                continue
+              fi
+              # Skip bots
+              if [[ "$cache_author" == "github-actions[bot]" ]]; then
+                USERNAME_CACHE["$cache_key"]="__bot__"
+                continue
+              fi
+              # Claude AI (Anthropic) → claude[bot], not the unrelated human user
+              if [[ "$cache_email" == "noreply@anthropic.com" ]]; then
+                USERNAME_CACHE["$cache_key"]="claude[bot]"
+                continue
+              fi
+              # Noreply emails: extract username directly (no API call needed)
+              if [[ "$cache_email" =~ ^([0-9]+\+)?([^@]+)@users\.noreply\.github\.com$ ]]; then
+                USERNAME_CACHE["$cache_key"]="${BASH_REMATCH[2]}"
+                continue
+              fi
+              # All other emails: resolve via commit API
+              resolved=$(gh api "repos/${{ github.repository }}/commits/${commit_hash}" --jq '.author.login // empty' 2>/dev/null || echo "")
+              if [[ -n "$resolved" ]]; then
+                USERNAME_CACHE["$cache_key"]="$resolved"
+              else
+                USERNAME_CACHE["$cache_key"]="__unknown__"
+              fi
+            done < "$temp_commits"
+
             # Process commits and group by type and scope
             while IFS='|' read -r commit_hash commit_msg author author_email; do
               # Skip version bump commits
@@ -816,7 +848,7 @@ jobs:
                 
                 # Sort by scope, then group by scope with sub-headers
                 current_scope=""
-                sort -t'|' -k1,1 "$file" | while IFS='|' read -r scope_key entry author author_email; do
+                while IFS='|' read -r scope_key entry author author_email; do
                   # Clean scope for display (remove parentheses)
                   display_scope=""
                   if [[ "$scope_key" != "()" && -n "$scope_key" ]]; then
@@ -837,24 +869,20 @@ jobs:
                     current_scope="$scope_key"
                   fi
                   
-                  # Create GitHub user link if not a bot
+                  # Create GitHub user link from cache
                   author_link=""
-                  if [[ "$author" != "github-actions[bot]" && -n "$author_email" && "$author_email" != *"@users.noreply.github.com" ]]; then
-                    # Try to extract GitHub username from email or use author name
-                    if [[ "$author_email" =~ ^([^@]+)@users\.noreply\.github\.com$ ]]; then
-                      github_username="${BASH_REMATCH[1]}"
-                      author_link=" by [@$github_username](https://github.com/$github_username)"
-                    else
-                      # Use author name as fallback, trying to create a reasonable GitHub link
-                      github_username=$(echo "$author" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
-                      author_link=" by [@$author](https://github.com/$github_username)"
-                    fi
-                  elif [[ "$author" != "github-actions[bot]" ]]; then
-                    author_link=" by @$author"
+                  cache_key="${author}|${author_email}"
+                  cached_username="${USERNAME_CACHE[$cache_key]:-}"
+                  if [[ "$cached_username" == "__bot__" || -z "$cached_username" ]]; then
+                    author_link=""
+                  elif [[ "$cached_username" == "__unknown__" ]]; then
+                    author_link=" by $author"
+                  else
+                    author_link=" by @$cached_username"
                   fi
                   
                   echo "- $entry$author_link" >> release_notes.md
-                done
+                done < <(sort -t'|' -k1,1 "$file")
               fi
             }
             
@@ -869,36 +897,38 @@ jobs:
             add_section "Maintenance" "$temp_chore" "🏗️"
             add_section "Other Changes" "$temp_other" "🔀"
 
+            # Count contributions per resolved username (before temp file cleanup)
+            declare -A CONTRIBUTION_COUNT
+            declare -A UNKNOWN_DISPLAY  # maps "__unknown__:displayname" -> displayname
+            while IFS='|' read -r _hash _msg count_author count_email; do
+              cache_key="${count_author}|${count_email}"
+              resolved="${USERNAME_CACHE[$cache_key]:-}"
+              if [[ -z "$resolved" || "$resolved" == "__bot__" ]]; then
+                continue
+              fi
+              if [[ "$resolved" == "__unknown__" ]]; then
+                contrib_key="__unknown__:${count_author}"
+                UNKNOWN_DISPLAY["$contrib_key"]="$count_author"
+              else
+                contrib_key="$resolved"
+              fi
+              CONTRIBUTION_COUNT["$contrib_key"]=$(( ${CONTRIBUTION_COUNT["$contrib_key"]:-0} + 1 ))
+            done < "$temp_commits"
+
             # Cleanup temp files
             rm -f "$temp_commits" "$temp_feat" "$temp_fix" "$temp_perf" "$temp_docs" "$temp_refactor" "$temp_test" "$temp_chore" "$temp_style" "$temp_other"
-            
-            # Add contributors with GitHub profile links
+
+            # Add contributors sorted by contribution count (descending)
             echo "" >> release_notes.md
             echo "### 👥 Contributors" >> release_notes.md
-            
-            # Get unique contributors with their emails
-            git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%an|%ae" | sort -u | while IFS='|' read -r author author_email; do
-              if [[ "$author" != "github-actions[bot]" ]]; then
-                # Try to create GitHub profile link
-                author_link=""
-                if [[ -n "$author_email" && "$author_email" =~ ^([^@]+)@users\.noreply\.github\.com$ ]]; then
-                  # GitHub no-reply email format
-                  github_username="${BASH_REMATCH[1]}"
-                  # Handle numeric GitHub usernames (e.g., 12345+username@users.noreply.github.com)
-                  if [[ "$github_username" =~ ^[0-9]+\+(.+)$ ]]; then
-                    github_username="${BASH_REMATCH[1]}"
-                  fi
-                  author_link="[@$github_username](https://github.com/$github_username)"
-                elif [[ -n "$author_email" && "$author_email" != *"@users.noreply.github.com" ]]; then
-                  # Try to guess GitHub username from author name
-                  github_username=$(echo "$author" | tr '[:upper:]' '[:lower:]' | tr -d ' .' )
-                  author_link="[@$author](https://github.com/$github_username)"
-                else
-                  # Fallback to just author name
-                  author_link="$author"
-                fi
-                
-                echo "- $author_link" >> release_notes.md
+
+            for contrib_key in "${!CONTRIBUTION_COUNT[@]}"; do
+              echo "${CONTRIBUTION_COUNT[$contrib_key]}|${contrib_key}"
+            done | sort -t'|' -k1,1 -rn | while IFS='|' read -r _count contrib_key; do
+              if [[ "$contrib_key" == __unknown__:* ]]; then
+                echo "- ${UNKNOWN_DISPLAY[$contrib_key]}" >> release_notes.md
+              else
+                echo "- @$contrib_key" >> release_notes.md
               fi
             done
             
