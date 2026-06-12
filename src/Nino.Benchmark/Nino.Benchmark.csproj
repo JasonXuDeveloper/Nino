@@ -11,8 +11,8 @@
         <PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
         <PackageReference Include="Jil" Version="3.0.0-alpha2" />
         <PackageReference Include="MemoryPack" Version="1.21.4" />
-        <PackageReference Include="MessagePack" Version="3.1.4" />
-        <PackageReference Include="MessagePackAnalyzer" Version="3.1.4">
+        <PackageReference Include="MessagePack" Version="3.1.7" />
+        <PackageReference Include="MessagePackAnalyzer" Version="3.1.7">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
