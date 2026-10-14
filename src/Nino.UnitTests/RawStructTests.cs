@@ -70,3 +70,40 @@ namespace Nino.UnitTests
         }
     }
 }
+
+[TestClass]
+public class TopLevelFastPathTests
+{
+    private static byte[] ViaWriter<T>(T value)
+    {
+        var buffer = new NinoArrayBufferWriter();
+        NinoSerializer.Serialize(value, buffer);
+        return buffer.WrittenSpan.ToArray();
+    }
+
+    [TestMethod]
+    public void RawArraysMatchTheWriterPath()
+    {
+        var ints = new[] { 1, -2, 3 };
+        CollectionAssert.AreEqual(ViaWriter(ints), NinoSerializer.Serialize(ints));
+        CollectionAssert.AreEqual(ints, NinoDeserializer.Deserialize<int[]>(NinoSerializer.Serialize(ints)));
+        var empty = new long[0];
+        CollectionAssert.AreEqual(ViaWriter(empty), NinoSerializer.Serialize(empty));
+        int[] none = null;
+        CollectionAssert.AreEqual(ViaWriter(none), NinoSerializer.Serialize(none));
+        var guids = new[] { System.Guid.NewGuid(), System.Guid.NewGuid() };
+        CollectionAssert.AreEqual(ViaWriter(guids), NinoSerializer.Serialize(guids));
+        CollectionAssert.AreEqual(guids, NinoDeserializer.Deserialize<System.Guid[]>(NinoSerializer.Serialize(guids)));
+    }
+
+    [TestMethod]
+    public void NullableRawValuesRoundTrip()
+    {
+        var values = new int?[] { 1, null, -3 };
+        var bytes = NinoSerializer.Serialize(values);
+        Assert.AreEqual(4 + 5 + 1 + 5, bytes.Length);
+        CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<int?[]>(bytes));
+        var dates = new System.DateTime?[] { null, System.DateTime.UtcNow };
+        CollectionAssert.AreEqual(dates, NinoDeserializer.Deserialize<System.DateTime?[]>(NinoSerializer.Serialize(dates)));
+    }
+}

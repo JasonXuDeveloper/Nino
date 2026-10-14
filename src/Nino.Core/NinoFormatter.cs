@@ -53,6 +53,15 @@ namespace Nino.Core
 
         /// <summary>Whether the formatter writes exactly the in-memory bytes of <typeparamref name="T"/>.</summary>
         internal virtual bool IsRaw => false;
+
+        /// <summary>Element size when <typeparamref name="T"/> is an array written as one raw block, else 0.</summary>
+        internal virtual int RawArrayElementSize => 0;
+    }
+
+    /// <summary>Formatters of arrays whose elements are written as one raw block.</summary>
+    internal interface INinoRawArrayFormatter
+    {
+        int ElementSize { get; }
     }
 
     /// <summary>
@@ -84,6 +93,9 @@ namespace Nino.Core
             default(TFormatter).Deserialize(ref value, ref reader);
 
         internal override bool IsRaw => RawFormatter<TFormatter>.Is;
+
+        internal override int RawArrayElementSize =>
+            default(TFormatter) is INinoRawArrayFormatter raw ? raw.ElementSize : 0;
     }
 
     /// <summary>

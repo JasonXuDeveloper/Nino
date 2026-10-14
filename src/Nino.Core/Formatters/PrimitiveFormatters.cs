@@ -46,6 +46,15 @@ namespace Nino.Core
                 return;
             }
 
+            if (RawFormatter<TFormatter>.Is)
+            {
+                // Flag and value in one reservation.
+                ref byte dst = ref writer.Reserve(1 + Unsafe.SizeOf<T>());
+                dst = 1;
+                NinoUnsafe.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
+                return;
+            }
+
             writer.UnsafeWrite((byte)1);
             default(TFormatter).Serialize(value.GetValueOrDefault(), ref writer);
         }
@@ -56,6 +65,12 @@ namespace Nino.Core
             if (reader.UnsafeRead<byte>() == 0)
             {
                 NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            if (RawFormatter<TFormatter>.Is)
+            {
+                value = reader.UnsafeRead<T>();
                 return;
             }
 

@@ -48,6 +48,9 @@ namespace Nino.Core
                 return bytes;
             }
 
+            if (RawArray<T>.ElementSize != 0 && value != null)
+                return SerializeRawArray(value, RawArray<T>.ElementSize);
+
             var buffer = RentScratch();
             try
             {
@@ -61,6 +64,43 @@ namespace Nino.Core
             {
                 ReturnScratch(buffer);
             }
+        }
+
+        /// <summary>Element size when <typeparamref name="T"/> is an array of raw elements, else 0.</summary>
+        private static class RawArray<T>
+        {
+            public static readonly int ElementSize = Compute();
+
+            private static int Compute()
+            {
+                if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1)
+                    return 0;
+                try
+                {
+                    return NinoFormatterCache<T>.Instance.RawArrayElementSize;
+                }
+                catch (Exception)
+                {
+                    // No formatter: the regular path reports it.
+                    return 0;
+                }
+            }
+        }
+
+        /// <summary>An array of raw elements: the result is allocated at its exact size and filled with one copy.</summary>
+        private static byte[] SerializeRawArray<T>(T value, int elementSize)
+        {
+            // Any single-dimension array has the same layout as byte[] up to the elements.
+            var array = Unsafe.As<byte[]>(value);
+            int length = array.Length;
+            int size = checked(length * elementSize);
+            var bytes = NinoUnsafe.AllocateUninitializedArray<byte>(4 + size);
+            ref byte dst = ref NinoUnsafe.GetArrayDataReference(bytes);
+            NinoUnsafe.Write(ref dst, length);
+            if (size != 0)
+                Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref dst, 4), ref NinoUnsafe.GetArrayDataReference(array),
+                    (uint)size);
+            return bytes;
         }
 
         /// <summary>

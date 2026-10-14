@@ -109,8 +109,10 @@ namespace Nino.Core
     }
 
     /// <summary>Unmanaged <c>T[]</c>: length (-1 = null), then one block copy.</summary>
-    public struct UnmanagedArrayFormatter<T> : INinoFormatter<T[]> where T : unmanaged
+    public struct UnmanagedArrayFormatter<T> : INinoFormatter<T[]>, INinoRawArrayFormatter where T : unmanaged
     {
+        int INinoRawArrayFormatter.ElementSize => Unsafe.SizeOf<T>();
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T[] value, ref Writer writer) => writer.Write(value);
 
