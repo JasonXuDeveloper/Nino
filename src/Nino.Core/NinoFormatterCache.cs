@@ -68,6 +68,31 @@ namespace Nino.Core
     }
 
     /// <summary>
+    /// Whether the registered formatter of <typeparamref name="T"/> writes its raw memory. Evaluated once, on the first
+    /// top-level call for a value type; as a <c>static readonly</c> field it is a JIT-time constant afterwards, so the
+    /// top-level APIs copy raw values directly instead of calling the formatter. Register custom formatters for
+    /// such types before first use.
+    /// </summary>
+    internal static class NinoRaw<T>
+    {
+        public static readonly bool IsRaw = Compute();
+
+        private static bool Compute()
+        {
+            if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
+                return false;
+            try
+            {
+                return NinoFormatterCache<T>.Instance.IsRaw;
+            }
+            catch
+            {
+                return false; // no formatter: the regular path reports it
+            }
+        }
+    }
+
+    /// <summary>
     /// Builds struct formatter types for types without a registered formatter. Uses reflection, so it only runs on
     /// first use of a type. Ahead-of-time platforms (IL2CPP) need the generated registrations for value-type
     /// instantiations; the generator emits them for every type it sees used.

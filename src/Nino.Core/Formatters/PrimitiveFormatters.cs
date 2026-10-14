@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 namespace Nino.Core
 {
     /// <summary>Writes an unmanaged value (primitive, enum, or plain struct) as its raw bytes.</summary>
-    public struct UnmanagedFormatter<T> : INinoFormatter<T> where T : unmanaged
+    public struct UnmanagedFormatter<T> : INinoFormatter<T>, INinoRawFormatter where T : unmanaged
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T value, ref Writer writer) => writer.UnsafeWrite(value);

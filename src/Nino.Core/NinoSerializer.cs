@@ -41,6 +41,13 @@ namespace Nino.Core
         /// <summary>Serializes <paramref name="value"/> into a new byte array.</summary>
         public static byte[] Serialize<T>(T value)
         {
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            {
+                var bytes = new byte[Unsafe.SizeOf<T>()];
+                NinoUnsafe.Write(ref bytes[0], value);
+                return bytes;
+            }
+
             var buffer = RentScratch();
             try
             {
@@ -61,6 +68,12 @@ namespace Nino.Core
         /// </summary>
         public static void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
         {
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            {
+                WriteRaw(value, bufferWriter);
+                return;
+            }
+
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
                 var writer = new Writer(nino);
@@ -87,7 +100,37 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            {
+                writer.UnsafeWrite(value);
+                return;
+            }
+
             NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteRaw<T>(T value, IBufferWriter<byte> bufferWriter)
+        {
+            int size = Unsafe.SizeOf<T>();
+            if (bufferWriter is NinoArrayBufferWriter nino)
+            {
+                int index = nino.Index;
+                if (size > nino.Buffer.Length - index)
+                {
+                    nino.Grow(size);
+                }
+
+                NinoUnsafe.Write(ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(nino.Buffer), index), value);
+                nino.Index = index + size;
+                return;
+            }
+
+            var span = bufferWriter.GetSpan(size);
+            if (span.Length < size)
+                NinoThrow.EndOfData();
+            NinoUnsafe.Write(ref System.Runtime.InteropServices.MemoryMarshal.GetReference(span), value);
+            bufferWriter.Advance(size);
         }
 
         /// <summary>
@@ -125,6 +168,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(ReadOnlySpan<byte> data)
         {
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+                return ReadRaw<T>(data);
+
             var reader = new Reader(data);
             T value = default;
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
@@ -138,22 +184,38 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(ReadOnlySpan<byte> data, ref T value)
         {
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            {
+                value = ReadRaw<T>(data);
+                return;
+            }
+
             var reader = new Reader(data);
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
         }
 
         /// <summary>Same as <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeRef<T>(ref T value, ReadOnlySpan<byte> data)
+        public static void DeserializeRef<T>(ref T value, ReadOnlySpan<byte> data) => Deserialize(data, ref value);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static T ReadRaw<T>(ReadOnlySpan<byte> data)
         {
-            var reader = new Reader(data);
-            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+            if (data.Length < Unsafe.SizeOf<T>())
+                NinoThrow.EndOfData();
+            return NinoUnsafe.Read<T>(ref System.Runtime.InteropServices.MemoryMarshal.GetReference(data));
         }
 
         /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DeserializeRef<T>(ref T value, ref Reader reader)
         {
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            {
+                value = reader.UnsafeRead<T>();
+                return;
+            }
+
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
         }
 
@@ -161,6 +223,12 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(ref T value, ref Reader reader)
         {
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            {
+                value = reader.UnsafeRead<T>();
+                return;
+            }
+
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
         }
 
@@ -168,6 +236,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(ref Reader reader)
         {
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+                return reader.UnsafeRead<T>();
+
             T value = default;
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
             return value;

@@ -94,6 +94,8 @@ internal static class Emitter
 
         sb.AppendLine($"    /// <summary>Nino formatter for <c>{EscapeXml(t.Replace("global::", ""))}</c>.</summary>");
         sb.AppendLine("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+        if (m.RawStruct)
+            iface += $", {Core}INinoRawFormatter";
         sb.AppendLine($"    internal struct {f} : {iface}{m.Constraints}");
         sb.AppendLine("    {");
 

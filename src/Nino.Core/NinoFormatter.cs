@@ -50,6 +50,17 @@ namespace Nino.Core
         public abstract void Serialize(T value, ref Writer writer);
 
         public abstract void Deserialize(ref T value, ref Reader reader);
+
+        /// <summary>Whether the formatter writes exactly the in-memory bytes of <typeparamref name="T"/>.</summary>
+        internal virtual bool IsRaw => false;
+    }
+
+    /// <summary>
+    /// Marker for struct formatters whose output is exactly the in-memory bytes of the value
+    /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly.
+    /// </summary>
+    public interface INinoRawFormatter
+    {
     }
 
     /// <summary>Wraps a struct formatter as a <see cref="NinoFormatter{T}"/>.</summary>
@@ -62,6 +73,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Deserialize(ref T value, ref Reader reader) =>
             default(TFormatter).Deserialize(ref value, ref reader);
+
+        internal override bool IsRaw => default(TFormatter) is INinoRawFormatter;
     }
 
     /// <summary>
