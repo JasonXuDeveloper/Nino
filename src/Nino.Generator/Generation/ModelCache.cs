@@ -22,8 +22,7 @@ internal static class ModelCache
     {
         public ProjectState State = null!;
         public string Symbols = "";
-        // Null until collected (see GetOrBuild).
-        public SyntaxTree[]? Trees;
+        public SyntaxTree[] Trees = null!;
         public TypeModel? Model;
     }
 
@@ -53,19 +52,17 @@ internal static class ModelCache
         string symbols = options == null ? "" : string.Join(";", options.PreprocessorSymbolNames);
         var key = (state.AssemblyName, type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
 
-        bool seen;
         lock (Lock)
         {
-            seen = Entries.TryGetValue(key, out var entry);
-            if (seen && entry!.Trees != null && entry.State == state && entry.Symbols == symbols &&
+            if (Entries.TryGetValue(key, out var entry) && entry.State == state && entry.Symbols == symbols &&
                 entry.Trees.All(compilation.ContainsSyntaxTree))
                 return entry.Model;
         }
 
         var model = build();
-        // Dependencies are only collected once a type is built a second time: a command-line build runs the
-        // generator once and never pays for them.
-        var trees = seen ? Dependencies(type.OriginalDefinition) : null;
+        // Direct dependencies are memoized per compilation, so collecting them for every type costs a walk
+        // over the closure, not a member lookup per reachable type and root.
+        var trees = Dependencies(type.OriginalDefinition, compilation);
         lock (Lock)
         {
             Entries[key] = new Entry { State = state, Symbols = symbols, Trees = trees, Model = model };
@@ -107,12 +104,23 @@ internal static class ModelCache
         }
     }
 
-    /// <summary>Syntax trees declaring the source types a model of <paramref name="root"/> can depend on.</summary>
-    private static SyntaxTree[] Dependencies(INamedTypeSymbol root)
+    /// <summary>Direct dependencies of one source type definition, memoized per compilation.</summary>
+    private sealed class Node
     {
+        public SyntaxTree[] Trees = null!;
+        public List<ITypeSymbol> Types = null!;
+    }
+
+    private static readonly ConditionalWeakTable<Compilation, Dictionary<ISymbol, Node>> Nodes = new();
+
+    /// <summary>Syntax trees declaring the source types a model of <paramref name="root"/> can depend on.</summary>
+    private static SyntaxTree[] Dependencies(INamedTypeSymbol root, Compilation compilation)
+    {
+        var nodes = Nodes.GetValue(compilation, static _ => new Dictionary<ISymbol, Node>(SymbolEqualityComparer.Default));
         var trees = new HashSet<SyntaxTree>();
         var visited = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
         var pending = new Stack<ITypeSymbol>();
+        visited.Add(root);
         pending.Push(root);
 
         void Add(ITypeSymbol? t)
@@ -121,19 +129,6 @@ internal static class ModelCache
                 pending.Push(t);
         }
 
-        void AddAttributes(ISymbol symbol)
-        {
-            foreach (var attribute in symbol.GetAttributes())
-            {
-                foreach (var arg in attribute.ConstructorArguments.Concat(attribute.NamedArguments.Select(n => n.Value)))
-                {
-                    if (arg.Kind == TypedConstantKind.Type)
-                        Add(arg.Value as ITypeSymbol);
-                }
-            }
-        }
-
-        visited.Add(root);
         while (pending.Count != 0)
         {
             var type = pending.Pop();
@@ -163,34 +158,75 @@ internal static class ModelCache
             if (definition.DeclaringSyntaxReferences.Length == 0)
                 continue; // metadata: covered by the reference set
 
-            foreach (var reference in definition.DeclaringSyntaxReferences)
-                trees.Add(reference.SyntaxTree);
-            Add(definition.ContainingType);
-            Add(definition.BaseType);
-            foreach (var i in definition.Interfaces)
-                Add(i);
-            AddAttributes(definition);
-            foreach (var member in definition.GetMembers())
+            Node? node;
+            lock (nodes)
+                nodes.TryGetValue(definition, out node);
+            if (node == null)
             {
-                switch (member)
+                node = Direct(definition);
+                lock (nodes)
+                    nodes[definition] = node;
+            }
+
+            trees.UnionWith(node.Trees);
+            foreach (var t in node.Types)
+                Add(t);
+        }
+
+        return trees.ToArray();
+    }
+
+    private static Node Direct(INamedTypeSymbol definition)
+    {
+        var types = new List<ITypeSymbol>();
+
+        void Add(ITypeSymbol? t)
+        {
+            if (t != null)
+                types.Add(t);
+        }
+
+        void AddAttributes(ISymbol symbol)
+        {
+            foreach (var attribute in symbol.GetAttributes())
+            {
+                foreach (var arg in attribute.ConstructorArguments.Concat(attribute.NamedArguments.Select(n => n.Value)))
                 {
-                    case IFieldSymbol field:
-                        Add(field.Type);
-                        AddAttributes(field);
-                        break;
-                    case IPropertySymbol property:
-                        Add(property.Type);
-                        AddAttributes(property);
-                        break;
-                    case IMethodSymbol { MethodKind: MethodKind.Constructor } constructor:
-                        foreach (var parameter in constructor.Parameters)
-                            Add(parameter.Type);
-                        AddAttributes(constructor);
-                        break;
+                    if (arg.Kind == TypedConstantKind.Type)
+                        Add(arg.Value as ITypeSymbol);
                 }
             }
         }
 
-        return trees.ToArray();
+        Add(definition.ContainingType);
+        Add(definition.BaseType);
+        foreach (var i in definition.Interfaces)
+            Add(i);
+        AddAttributes(definition);
+        foreach (var member in definition.GetMembers())
+        {
+            switch (member)
+            {
+                case IFieldSymbol field:
+                    Add(field.Type);
+                    AddAttributes(field);
+                    break;
+                case IPropertySymbol property:
+                    Add(property.Type);
+                    AddAttributes(property);
+                    break;
+                case IMethodSymbol { MethodKind: MethodKind.Constructor } constructor:
+                    foreach (var parameter in constructor.Parameters)
+                        Add(parameter.Type);
+                    AddAttributes(constructor);
+                    break;
+            }
+        }
+
+        return new Node
+        {
+            Trees = definition.DeclaringSyntaxReferences.Select(r => r.SyntaxTree).Distinct().ToArray(),
+            Types = types,
+        };
     }
 }

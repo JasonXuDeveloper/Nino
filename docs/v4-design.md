@@ -286,8 +286,8 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   every syntax tree it depends on (its type, bases, interfaces, containing types, member types and their
   fields, `typeof` attribute arguments) is still part of the compilation, and the references, file set and
   preprocessor symbols are unchanged. Edited files get new tree instances, so only the models that can see
-  an edit are rebuilt. Dependencies are collected the second time a type is built, so a command-line build
-  (one run) pays nothing. With 1,100 NinoTypes in 1,200 files, an edit went from about 350 ms to about
+  an edit are rebuilt. Each type's direct dependencies are looked up once per compilation and shared by all
+  models that reach it, so collecting them does not measurably slow a full build. With 1,100 NinoTypes in 1,200 files, an edit went from about 350 ms to about
   100 ms, close to the 60-100 ms a no-op generator with the same attribute lookup costs.
 * Each type is emitted into its own file. Editing a member of `Foo` re-emits only `Foo.g.cs`.
 * The registry stage consumes only formatter names, so it only re-runs when types are added, removed or
