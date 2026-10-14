@@ -2,7 +2,6 @@ using System;
 using MessagePack;
 using System.Text;
 using System.Diagnostics;
-using Test.Editor.NinoGen;
 using MessagePack.Resolvers;
 using Nino.Core;
 

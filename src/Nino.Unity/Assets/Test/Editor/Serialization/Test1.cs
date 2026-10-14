@@ -3,7 +3,6 @@ using System.IO;
 using System.Text;
 using System.Diagnostics;
 using Nino.Core;
-using Test.Editor.NinoGen;
 
 
 

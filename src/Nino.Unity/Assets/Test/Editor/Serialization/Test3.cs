@@ -4,7 +4,6 @@ using System.Text;
 using System.Diagnostics;
 using System.Collections.Generic;
 using Nino.Core;
-using Test.Editor.NinoGen;
 
 
 

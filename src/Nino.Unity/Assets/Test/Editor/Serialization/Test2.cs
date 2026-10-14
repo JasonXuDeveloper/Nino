@@ -4,7 +4,6 @@ using System.Text;
 using System.Diagnostics;
 using System.Runtime.Serialization.Formatters.Binary;
 using Nino.Core;
-using Test.Editor.NinoGen;
 
 // ReSharper disable RedundantJumpStatement
 

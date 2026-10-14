@@ -11,7 +11,6 @@ using System.Collections.Generic;
 using MongoDB.Bson.Serialization;
 using UnityEngine.SceneManagement;
 using System.Runtime.Serialization.Formatters.Binary;
-using Test.NinoGen;
 using Nino.Core;
 using Debug = UnityEngine.Debug;
 

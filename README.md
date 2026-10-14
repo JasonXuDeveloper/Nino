@@ -74,6 +74,25 @@
 
 ---
 
+## 🆕 What's New in v4
+
+v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier v4 betas.**
+
+- **Truly incremental source generator**: one file per `[NinoType]`, equatable models, no whole-compilation
+  scans. Editing a type re-generates only that type, and generated code is a fraction of v3's.
+- **Faster runtime**: struct-composed formatters the JIT/AOT compiler inlines, raw memory copies for
+  unmanaged `[NinoType]` structs and their arrays/lists, no allocations beyond the result objects.
+- **Thread safe and cache friendly**: lock-free, copy-on-write registries; no shared mutable state on hot paths.
+- **One format everywhere**: `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` produce identical bytes.
+- **Pool-friendly ref deserialization**: instances that are dropped (payload is `null`, list shrinks, type
+  changes) are handed to `NinoRecycler<T>` so object pools get them back.
+- **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members at any depth.
+- **User collections**: types derived from `List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>` and friends.
+
+See [docs/v4-design.md](docs/v4-design.md) for the format and architecture.
+
+---
+
 ## 📖 Quick Start
 
 ### Installation

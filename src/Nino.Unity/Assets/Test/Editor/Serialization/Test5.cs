@@ -3,7 +3,6 @@ using System.IO;
 using System.Text;
 using MongoDB.Bson.IO;
 using System.Diagnostics;
-using Test.Editor.NinoGen;
 
 using MongoDB.Bson.Serialization;
 using Nino.Core;

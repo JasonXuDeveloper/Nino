@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Test.NinoGen;
 using Nino.Test;
 using Nino.Core;
 using NUnit.Framework;
