@@ -440,7 +440,6 @@ internal static class ModelBuilder
         if (memberType == null)
             return null;
         memberType = memberType.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
-        var location = LocationInfo.From(symbol.Locations.FirstOrDefault());
         bool utf8 = HasAttribute(symbol, "NinoUtf8Attribute");
 
         string? formatter;
@@ -461,7 +460,7 @@ internal static class ModelBuilder
         {
             diagnostics.Add(new DiagnosticInfo("NINO011", "Member type cannot be serialized",
                 "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization",
-                DiagnosticSeverity.Warning, location, symbol.Name, memberType.ToDisplayString(), type.ToDisplayString()));
+                DiagnosticSeverity.Warning, LocationInfo.From(symbol.Locations.FirstOrDefault()), symbol.Name, memberType.ToDisplayString(), type.ToDisplayString()));
             return null;
         }
 

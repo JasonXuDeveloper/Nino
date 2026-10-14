@@ -333,7 +333,8 @@ internal static class Emitter
             var first = group[0];
             if (first.RawSize.Length == 0)
             {
-                sb.AppendLine($"            default({first.Formatter}).Serialize({Get(m, first, "value")}, ref writer);");
+                sb.AppendLine("            " + (DirectWrite(first, Get(m, first, "value")) ??
+                                             $"default({first.Formatter}).Serialize({Get(m, first, "value")}, ref writer);"));
                 continue;
             }
 
@@ -486,8 +487,33 @@ internal static class Emitter
         }
     }
 
+    /// <summary>
+    /// For formatters that never reuse the current value (strings), the read expression that replaces the
+    /// formatter call. Avoids a property getter call and keeps the generated code short.
+    /// </summary>
+    private static string? DirectRead(MemberModel member, string r) => member.Formatter switch
+    {
+        Core + "StringFormatter" => $"{r}.ReadString()",
+        Core + "Utf8StringFormatter" => $"{r}.ReadUtf8()",
+        _ => null,
+    };
+
+    private static string? DirectWrite(MemberModel member, string value) => member.Formatter switch
+    {
+        Core + "StringFormatter" => $"writer.Write({value});",
+        Core + "Utf8StringFormatter" => $"writer.WriteUtf8({value});",
+        _ => null,
+    };
+
     private static void EmitFormatterRead(StringBuilder sb, TypeModel m, MemberModel member, string r, bool inPlace)
     {
+        var direct = DirectRead(member, r);
+        if (direct != null)
+        {
+            sb.AppendLine("            " + (inPlace ? Set(m, member, "value", direct) : $"{Local(member)} = {direct};"));
+            return;
+        }
+
         if (!inPlace)
         {
             sb.AppendLine($"            default({member.Formatter}).Deserialize(ref {Local(member)}, ref {r});");

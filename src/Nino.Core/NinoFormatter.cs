@@ -63,6 +63,15 @@ namespace Nino.Core
     {
     }
 
+    /// <summary>
+    /// Whether <typeparamref name="TFormatter"/> is an <see cref="INinoRawFormatter"/>. A <c>static readonly</c>
+    /// field, so the JIT folds checks against it; AOT runtimes read a field instead of boxing the formatter.
+    /// </summary>
+    internal static class RawFormatter<TFormatter>
+    {
+        public static readonly bool Is = typeof(INinoRawFormatter).IsAssignableFrom(typeof(TFormatter));
+    }
+
     /// <summary>Wraps a struct formatter as a <see cref="NinoFormatter{T}"/>.</summary>
     public sealed class StructFormatter<T, TFormatter> : NinoFormatter<T>
         where TFormatter : struct, INinoFormatter<T>
@@ -74,7 +83,7 @@ namespace Nino.Core
         public override void Deserialize(ref T value, ref Reader reader) =>
             default(TFormatter).Deserialize(ref value, ref reader);
 
-        internal override bool IsRaw => default(TFormatter) is INinoRawFormatter;
+        internal override bool IsRaw => RawFormatter<TFormatter>.Is;
     }
 
     /// <summary>

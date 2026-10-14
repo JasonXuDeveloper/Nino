@@ -12,9 +12,14 @@ internal static class TypeNames
                                   SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
 
     /// <summary>Fully qualified C# name, e.g. <c>global::Ns.Outer.Box&lt;int&gt;</c>.</summary>
+    // Display strings are requested many times per type (member types, formatter names, registrations); symbols
+    // are immutable, so cache by instance. Weak keys never keep an old compilation alive.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ITypeSymbol, string> GlobalNames = new();
+
     public static string Global(ITypeSymbol type)
     {
-        return type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(GlobalFormat);
+        return GlobalNames.GetValue(type, static t =>
+            t.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(GlobalFormat));
     }
 
     /// <summary>All type arguments of a named type, outermost containing type first.</summary>

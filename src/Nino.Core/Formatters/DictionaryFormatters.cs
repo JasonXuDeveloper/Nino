@@ -22,6 +22,28 @@ namespace Nino.Core
                 return;
             }
 
+            if (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is)
+            {
+                // Raw keys and values: one reservation for the whole dictionary, no per-element bounds checks.
+                int keySize = Unsafe.SizeOf<TKey>();
+                int pairSize = keySize + Unsafe.SizeOf<TValue>();
+                int count = value.Count;
+                ref byte dst = ref writer.Reserve(4 + count * pairSize);
+                NinoUnsafe.Write(ref dst, count);
+                int offset = 4;
+                int written = 0;
+                foreach (var pair in value)
+                {
+                    if (++written > count)
+                        NinoThrow.InvalidData("collection was modified during serialization");
+                    NinoUnsafe.Write(ref dst, offset, pair.Key);
+                    NinoUnsafe.Write(ref dst, offset + keySize, pair.Value);
+                    offset += pairSize;
+                }
+
+                return;
+            }
+
             writer.WriteLength(value.Count);
             foreach (var pair in value)
             {
@@ -32,7 +54,8 @@ namespace Nino.Core
 
         public void Deserialize(ref TDictionary value, ref Reader reader)
         {
-            int length = reader.ReadLength();
+            bool raw = RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is;
+            int length = reader.ReadLength(raw ? Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>() : 1);
             if (length < 0)
             {
                 NinoRecycler.Discard(ref value);
@@ -56,6 +79,16 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
             dictionary.EnsureCapacity(length);
 #endif
+            if (raw)
+            {
+                int keySize = Unsafe.SizeOf<TKey>();
+                int pairSize = keySize + Unsafe.SizeOf<TValue>();
+                ref byte src = ref reader.ReadBlock(length * pairSize);
+                for (int i = 0, offset = 0; i < length; i++, offset += pairSize)
+                    dictionary[NinoUnsafe.Read<TKey>(ref src, offset)] = NinoUnsafe.Read<TValue>(ref src, offset + keySize);
+                return;
+            }
+
             for (int i = 0; i < length; i++)
             {
                 TKey key = default;

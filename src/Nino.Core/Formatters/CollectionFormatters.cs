@@ -69,6 +69,24 @@ namespace Nino.Core
                 return;
             }
 
+            if (RawFormatter<TFormatter>.Is)
+            {
+                int size = Unsafe.SizeOf<T>();
+                int count = value.Count;
+                ref byte dst = ref writer.Reserve(4 + count * size);
+                NinoUnsafe.Write(ref dst, count);
+                int offset = 4, written = 0;
+                foreach (var item in value)
+                {
+                    if (++written > count)
+                        NinoThrow.InvalidData("collection was modified during serialization");
+                    NinoUnsafe.Write(ref dst, offset, item);
+                    offset += size;
+                }
+
+                return;
+            }
+
             writer.WriteLength(value.Count);
             foreach (var item in value)
                 default(TFormatter).Serialize(item, ref writer);
@@ -76,7 +94,8 @@ namespace Nino.Core
 
         public void Deserialize(ref TSet value, ref Reader reader)
         {
-            int length = reader.ReadLength();
+            bool raw = RawFormatter<TFormatter>.Is;
+            int length = reader.ReadLength(raw ? Unsafe.SizeOf<T>() : 1);
             if (length < 0)
             {
                 NinoRecycler.Discard(ref value);
@@ -98,6 +117,15 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
             set.EnsureCapacity(length);
 #endif
+            if (raw)
+            {
+                int size = Unsafe.SizeOf<T>();
+                ref byte src = ref reader.ReadBlock(length * size);
+                for (int i = 0, offset = 0; i < length; i++, offset += size)
+                    set.Add(NinoUnsafe.Read<T>(ref src, offset));
+                return;
+            }
+
             for (int i = 0; i < length; i++)
             {
                 T item = default;
