@@ -105,11 +105,21 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .WithTrackingName("Usage")
             .Where(static u => u != null)
             .Select(static (u, _) => u!)
-            .Collect()
-            .Select(static (list, _) => new DTOs.EquatableArray<FormatterRegistration>(
-                list.Distinct().OrderBy(u => u.TypeName, System.StringComparer.Ordinal)));
+            .Collect();
 
-        context.RegisterSourceOutput(usages.Combine(enabled), static (spc, x) =>
+        // Closed built-in formatters used by members: registered once per assembly here rather than by every
+        // type that uses them (the same List<int> formatter is typically used by many types).
+        var memberFormatters = models.Select(static (m, _) => m.UsedFormatters).Collect()
+            .Combine(inheritedModels.Select(static (m, _) => m.UsedFormatters).Collect());
+
+        var registrations = usages.Combine(memberFormatters)
+            .Select(static (x, _) => new DTOs.EquatableArray<FormatterRegistration>(
+                x.Left.Concat(x.Right.Left.SelectMany(static a => a)).Concat(x.Right.Right.SelectMany(static a => a))
+                    .Distinct()
+                    .OrderBy(u => u.TypeName, System.StringComparer.Ordinal)
+                    .ThenBy(u => u.Formatter, System.StringComparer.Ordinal)));
+
+        context.RegisterSourceOutput(registrations.Combine(enabled), static (spc, x) =>
         {
             if (x.Right)
                 spc.AddSource("NinoGen.Usages.g.cs", Emitter.EmitUsages(x.Left));

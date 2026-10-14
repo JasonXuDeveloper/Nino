@@ -50,7 +50,6 @@ internal static class Emitter
 
         int index = 0;
         foreach (var formatter in m.Members.Select(x => x.Formatter)
-                     .Concat(m.UsedFormatters.Select(x => x.Formatter))
                      .Where(f => f.Length > 48 && !MentionsAny(f, typeParameters))
                      .Distinct()
                      .OrderByDescending(f => f.Length))
@@ -58,7 +57,6 @@ internal static class Emitter
             string alias = "__NinoF" + index++;
             aliases.AppendLine($"    using {alias} = {formatter};");
             body.Replace($"default({formatter})", $"default({alias})");
-            body.Replace($"TryRegister<{formatter}>", $"TryRegister<{alias}>");
         }
 
         return aliases.AppendLine().Append(body).ToString();
@@ -209,9 +207,6 @@ internal static class Emitter
                 sb.AppendLine($"            {Core}NinoPolymorphic<{b}>.Register<{t}, {f}>(Id);");
             sb.AppendLine($"            {Core}NinoPolymorphic<object>.Register<{t}, {f}>(Id);");
         }
-
-        foreach (var u in m.UsedFormatters.Distinct())
-            sb.AppendLine($"            {Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();");
         sb.AppendLine("        }");
     }
 
