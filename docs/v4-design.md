@@ -259,3 +259,41 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
 
 For a hierarchy of 220 types (20 roots × depth 8), v3 generated about 911,000 lines (47 MB) because every
 polymorphic base inlined the full body of every subtype twice. v4 emits each body once.
+
+## Proposals (not implemented)
+
+Both requests below change the wire format of the types that use them. Each is designed as an opt-in per
+type, so types that do not opt in keep their current bytes and speed.
+
+### Keyed members (#154)
+
+Goal: remove, reorder or insert members freely (MessagePack's `[Key("name")]`), mainly for data authored in
+the Unity editor. Version tolerance already allows appending members; this would allow any edit.
+
+* Opt in with `[NinoType(keyed: true)]`. Body: `int32 bodyLength | uint16 count | { int32 key, int32 length,
+  value }*`. The key is the FNV-1a hash of the member name (or `[NinoMember("name")]`), computed by the
+  generator, so no strings are written. The per-member length lets old readers skip members they do not know.
+* Writing stays straight-line code (constant keys). Reading is a `switch (key)` in generated code, which C#
+  compiles to a jump table or binary search; unknown keys are skipped by length, and members not present
+  keep their default.
+* Cost: 8 bytes per member and one branch per member on read. Expected 1.5-2x slower than positional bodies
+  for small members, still well ahead of name-keyed formats that compare strings.
+* Generator: a member-name hash collision within one type is a compile-time error (diagnostic), so it can
+  never corrupt data at runtime.
+
+### Reference tracking (#132)
+
+Goal: shared references and cycles (`a.Next = b; b.Next = a`) round-trip as the same object graph.
+
+* Opt in with `[NinoType(trackReferences: true)]` on the classes that can be shared. Only those types pay;
+  everything else is written as today.
+* A tracked reference is written as `int32 ref`: `0` = null, `-n` = back reference to the n-th object already
+  written in this call, otherwise the normal type id followed by the body (the object gets the next index).
+* State: an identity map (object → index) while writing and an index → object list while reading, kept in
+  the `Writer`/`Reader` and created only when the first tracked type is met, so other calls allocate nothing.
+  Both are per call, so concurrent calls stay independent.
+* Reading a cycle needs the instance before its members: the generated reader creates the object, records it,
+  then reads members into it. Types that must be re-created from constructor arguments cannot be tracked
+  (diagnostic), since a back reference could not point at an object that does not exist yet.
+* Ref deserialization: an existing graph is reused by position like today; objects that drop out of the graph
+  are recycled once, even if they were referenced several times.
