@@ -174,22 +174,6 @@ internal static class ModelBuilder
             }
         }
 
-        var bases = new List<string>();
-        if (kind != FormatterKind.Polymorphic && typeParameters.Count == 0)
-        {
-            for (var b = type.BaseType; b != null; b = b.BaseType)
-            {
-                if (b.IsNinoType() && b.SpecialType != SpecialType.System_Object)
-                    bases.Add(TypeNames.Global(b));
-            }
-
-            foreach (var i in type.AllInterfaces)
-            {
-                if (i.IsNinoType())
-                    bases.Add(TypeNames.Global(i));
-            }
-        }
-
         string accessorNamespace = "";
         var accessorDeclarations = new List<string>();
         if (needsPartialAccessor)
@@ -230,7 +214,6 @@ internal static class ModelBuilder
             baseMemberCount,
             new EquatableArray<MemberModel>(members),
             construction,
-            new EquatableArray<string>(bases),
             new EquatableArray<FormatterRegistration>(used),
             accessorNamespace,
             new EquatableArray<string>(accessorDeclarations),

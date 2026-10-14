@@ -164,9 +164,12 @@ readers never lock.
 
 ### Polymorphism
 
-Every non-sealed `[NinoType]` gets a `NinoPolymorphic<TBase>` registry, filled at startup by the generated
-code of each subtype's assembly. Registration is decentralized, so the generator never scans referenced
-assemblies.
+Every `[NinoType]` registers one handler, once, in the global (`NinoPolymorphic<object>`) registry, from the
+generated code of its own assembly. Registration is decentralized, so the generator never scans referenced
+assemblies. Each base type (non-sealed class or interface) has its own `NinoPolymorphic<TBase>` table, which
+adopts a subtype from the global registry on its first lookup after checking that it derives from `TBase`.
+Registering per type instead of per (base, subtype) pair keeps generated code linear in the number of types
+rather than in the sum of hierarchy depths, and avoids one generic instantiation per pair.
 
 * **Serialize**: if `value.GetType() == typeof(TBase)`, write the base body directly. Otherwise look up the
   runtime type in a lock-free open-addressing table and call the subtype's body serializer through its

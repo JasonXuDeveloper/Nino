@@ -114,8 +114,6 @@ public sealed record TypeModel(
     int BaseMemberCount,
     EquatableArray<MemberModel> Members,
     ConstructionModel Construction,
-    // NinoType base classes and interfaces this type is registered under (non-generic, instantiable types only).
-    EquatableArray<string> PolymorphicBases,
     // (type, formatter) pairs registered for AOT platforms and top-level calls.
     EquatableArray<FormatterRegistration> UsedFormatters,
     // Namespace and containing declarations used to emit the partial accessor class; empty when not needed.

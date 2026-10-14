@@ -203,9 +203,7 @@ internal static class Emitter
         sb.AppendLine($"            {Core}NinoFormatterCache<{t}>.TryRegister<{f}>();");
         if (m.Kind != FormatterKind.Polymorphic)
         {
-            foreach (var b in m.PolymorphicBases)
-                sb.AppendLine($"            {Core}NinoPolymorphic<{b}>.Register<{t}, {f}>(Id);");
-            sb.AppendLine($"            {Core}NinoPolymorphic<object>.Register<{t}, {f}>(Id);");
+            sb.AppendLine($"            {Core}NinoPolymorphic.Register<{t}, {f}>(Id);");
         }
         sb.AppendLine("        }");
     }
