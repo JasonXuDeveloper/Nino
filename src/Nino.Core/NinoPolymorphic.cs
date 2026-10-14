@@ -58,14 +58,28 @@ namespace Nino.Core
     /// <see cref="object"/>). Generated code registers every <c>[NinoType]</c> under each of its <c>[NinoType]</c>
     /// base types and interfaces, and under <see cref="object"/>.
     /// <para>
-    /// Lookups are lock free: the tables are arrays of immutable handler references, published with a single
-    /// reference write. Each 64-byte cache line holds eight slots and the first probe almost always hits.
+    /// Lookups are lock free. The tables are open-addressing arrays of 16-byte entries (key inline next to the
+    /// handler, four entries per 64-byte cache line), kept at most half full, so a lookup usually touches a
+    /// single cache line. A slot is written once: the handler first, then the key with release semantics, so a
+    /// reader that sees the key also sees the handler. Growing publishes a new array with one reference write.
     /// </para>
     /// </summary>
     public static class NinoPolymorphic<TBase>
     {
-        private static NinoSubtypeHandler<TBase>[] _byType = new NinoSubtypeHandler<TBase>[8];
-        private static NinoSubtypeHandler<TBase>[] _byId = new NinoSubtypeHandler<TBase>[8];
+        private struct TypeEntry
+        {
+            public Type Key;
+            public NinoSubtypeHandler<TBase> Handler;
+        }
+
+        private struct IdEntry
+        {
+            public int Key; // 0 = empty (id 0 is reserved for null)
+            public NinoSubtypeHandler<TBase> Handler;
+        }
+
+        private static TypeEntry[] _byType = new TypeEntry[8];
+        private static IdEntry[] _byId = new IdEntry[8];
         private static int _count;
         private static readonly object Lock = new object();
 
@@ -105,12 +119,12 @@ namespace Nino.Core
                 if ((_count + 1) * 2 > byType.Length)
                 {
                     // Keep the load factor at or below 50%, so probes stay short.
-                    byType = new NinoSubtypeHandler<TBase>[byType.Length * 2];
-                    byId = new NinoSubtypeHandler<TBase>[byType.Length];
-                    foreach (var h in _byType)
+                    byType = new TypeEntry[byType.Length * 2];
+                    byId = new IdEntry[byType.Length];
+                    foreach (var e in _byType)
                     {
-                        if (h != null)
-                            Insert(byType, byId, h);
+                        if (e.Key != null)
+                            Insert(byType, byId, e.Handler);
                     }
 
                     Insert(byType, byId, handler);
@@ -126,45 +140,52 @@ namespace Nino.Core
             }
         }
 
-        private static void Insert(NinoSubtypeHandler<TBase>[] byType, NinoSubtypeHandler<TBase>[] byId,
-            NinoSubtypeHandler<TBase> handler)
+        private static void Insert(TypeEntry[] byType, IdEntry[] byId, NinoSubtypeHandler<TBase> handler)
         {
             int mask = byType.Length - 1;
             int i = RuntimeHelpers.GetHashCode(handler.Type) & mask;
-            while (byType[i] != null)
+            while (byType[i].Key != null)
                 i = (i + 1) & mask;
-            Volatile.Write(ref byType[i], handler);
+            byType[i].Handler = handler;
+            Volatile.Write(ref byType[i].Key, handler.Type);
 
             i = handler.Id & mask;
-            while (byId[i] != null)
+            while (byId[i].Key != 0)
                 i = (i + 1) & mask;
-            Volatile.Write(ref byId[i], handler);
+            byId[i].Handler = handler;
+            Volatile.Write(ref byId[i].Key, handler.Id);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static NinoSubtypeHandler<TBase> FindByType(NinoSubtypeHandler<TBase>[] table, Type type)
+        private static NinoSubtypeHandler<TBase> FindByType(TypeEntry[] table, Type type)
         {
             int mask = table.Length - 1;
             int i = RuntimeHelpers.GetHashCode(type) & mask;
             while (true)
             {
-                var h = Volatile.Read(ref table[i]);
-                if (h == null || ReferenceEquals(h.Type, type))
-                    return h;
+                ref var e = ref table[i];
+                var key = Volatile.Read(ref e.Key);
+                if (ReferenceEquals(key, type))
+                    return e.Handler;
+                if (key == null)
+                    return null;
                 i = (i + 1) & mask;
             }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static NinoSubtypeHandler<TBase> FindById(NinoSubtypeHandler<TBase>[] table, int id)
+        private static NinoSubtypeHandler<TBase> FindById(IdEntry[] table, int id)
         {
             int mask = table.Length - 1;
             int i = id & mask;
             while (true)
             {
-                var h = Volatile.Read(ref table[i]);
-                if (h == null || h.Id == id)
-                    return h;
+                ref var e = ref table[i];
+                int key = Volatile.Read(ref e.Key);
+                if (key == id)
+                    return e.Handler;
+                if (key == 0)
+                    return null;
                 i = (i + 1) & mask;
             }
         }

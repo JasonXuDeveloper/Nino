@@ -178,12 +178,19 @@ assemblies.
 
 ### Concurrency and cache lines
 
-* No hot path writes shared memory. Scratch buffers are `[ThreadStatic]`. There is no global "default
-  buffer" guarded by `Interlocked`, which bounced one cache line between all serializing threads.
-* Registry tables are read-only after publication and laid out so that a lookup touches one cache line in
-  the common case.
-* The few remaining shared mutable fields (registration locks, overflow pool head) are padded to 64 bytes
-  so they never share a line with hot read-only data.
+Cache-line reasoning assumes 64-byte lines.
+
+* No hot path writes shared memory, so serializing threads never contend for a line. Scratch buffers are
+  `[ThreadStatic]` and are taken out of their slot while in use, so re-entrant calls are safe. There is no
+  global "default buffer" guarded by `Interlocked` (v3 bounced that line between all serializing threads).
+* Formatter lookup is a static generic field (`NinoFormatterCache<T>.Instance`), written once at
+  registration and only read afterwards.
+* Polymorphic tables use 16-byte entries with the key inline (four per line) and stay at most half full,
+  so a lookup normally reads one line plus the handler it dispatches to.
+* Mutable registration state (`_count`, locks) is only touched during registration, which happens at
+  startup, so no padding is needed to protect the read-only tables from false sharing.
+* Consecutive unmanaged members are reserved and written as one block, and unmanaged arrays, lists and raw
+  structs are single block copies, so the writer streams through the buffer line by line.
 
 ### Ref deserialization and pooling
 
