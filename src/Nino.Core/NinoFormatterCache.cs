@@ -51,7 +51,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static NinoFormatter<T> Resolve()
         {
-            NinoRegistry.EnsureInitializedFor(typeof(T));
+            NinoRegistry.RegisterType(typeof(T));
             var instance = Volatile.Read(ref _instance);
             if (instance != null)
                 return instance;
@@ -173,7 +173,7 @@ namespace Nino.Core
 
         private static Type ElementFormatter(Type type)
         {
-            NinoRegistry.EnsureInitializedFor(type);
+            NinoRegistry.RegisterType(type);
             if (IsRegistered(type) || IsNinoType(type))
                 return typeof(CachedFormatter<>).MakeGenericType(type);
             return GetFormatterType(type) ?? typeof(CachedFormatter<>).MakeGenericType(type);

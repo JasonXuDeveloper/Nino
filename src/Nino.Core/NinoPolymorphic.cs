@@ -218,8 +218,9 @@ namespace Nino.Core
             if (typeof(TBase) != typeof(object))
                 return Adopt(NinoPolymorphic<object>.Find(type));
 
-            // The subtype's assembly may not have run its registration yet (no module initializer support).
-            NinoRegistry.EnsureInitialized(type.Assembly);
+            // Registration is lazy (and the subtype's assembly may not have run its registry's static constructor
+            // yet where there is no module initializer support).
+            NinoRegistry.RegisterType(type);
             return FindByType(Volatile.Read(ref _byType), type);
         }
 
@@ -229,7 +230,13 @@ namespace Nino.Core
             if (typeof(TBase) != typeof(object))
                 return Adopt(NinoPolymorphic<object>.Find(id));
 
+            // Registries already loaded first; scanning every loaded assembly is the expensive last resort.
+            NinoRegistry.RegisterId(id);
+            var handler = FindById(Volatile.Read(ref _byId), id);
+            if (handler != null)
+                return handler;
             NinoRegistry.EnsureAllInitialized();
+            NinoRegistry.RegisterId(id);
             return FindById(Volatile.Read(ref _byId), id);
         }
 

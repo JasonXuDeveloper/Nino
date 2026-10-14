@@ -666,6 +666,63 @@ internal static class Emitter
 
     // ----- registry --------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// Emits <c>Register(int id)</c> as a switch over small bucket methods: the JIT resolves every call in a method
+    /// it compiles, so one switch over every type would load every formatter on the first lookup. With buckets of
+    /// about eight ids, a lookup only loads the types of its bucket.
+    /// </summary>
+    private static void EmitIdDispatch(StringBuilder sb, string modifiers, string prelude,
+        List<KeyValuePair<int, List<string>>> cases)
+    {
+        int buckets = 1;
+        while (buckets < 256 && buckets * 8 < cases.Count)
+            buckets *= 2;
+
+        sb.AppendLine($"        {modifiers} void Register(int id)");
+        sb.AppendLine("        {");
+        if (prelude.Length != 0)
+            sb.AppendLine($"            {prelude}");
+        if (buckets == 1)
+        {
+            EmitIdSwitch(sb, cases);
+            sb.AppendLine("        }");
+            return;
+        }
+
+        sb.AppendLine($"            switch (id & {buckets - 1})");
+        sb.AppendLine("            {");
+        var byBucket = cases.GroupBy(c => c.Key & (buckets - 1)).OrderBy(g => g.Key).ToList();
+        foreach (var bucket in byBucket)
+            sb.AppendLine($"                case {bucket.Key}: __Bucket{bucket.Key}(id); break;");
+        sb.AppendLine("            }");
+        sb.AppendLine("        }");
+        foreach (var bucket in byBucket)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"        private static void __Bucket{bucket.Key}(int id)");
+            sb.AppendLine("        {");
+            EmitIdSwitch(sb, bucket.ToList());
+            sb.AppendLine("        }");
+        }
+    }
+
+    private static void EmitIdSwitch(StringBuilder sb, List<KeyValuePair<int, List<string>>> cases)
+    {
+        if (cases.Count == 0)
+            return;
+        sb.AppendLine("            switch (id)");
+        sb.AppendLine("            {");
+        foreach (var c in cases)
+        {
+            sb.AppendLine($"                case {c.Key}:");
+            foreach (var statement in c.Value)
+                sb.AppendLine($"                    {statement}");
+            sb.AppendLine("                    break;");
+        }
+
+        sb.AppendLine("            }");
+    }
+
     public static string EmitRegistry(GeneratorOptions options, IEnumerable<RegistryEntry> entries)
     {
         string name = "NinoGenRegistry_" + new string(options.AssemblyName
@@ -676,22 +733,31 @@ internal static class Emitter
         sb.AppendLine();
         sb.AppendLine("namespace NinoGen");
         sb.AppendLine("{");
-        sb.AppendLine("    /// <summary>Registers the Nino formatters generated for this assembly.</summary>");
+        sb.AppendLine("    /// <summary>");
+        sb.AppendLine("    /// Registers the Nino formatters generated for this assembly, lazily: a lookup that misses asks for the");
+        sb.AppendLine("    /// type id it needs, so startup does not touch types that are never used.");
+        sb.AppendLine("    /// </summary>");
         sb.AppendLine("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
-        sb.AppendLine($"    internal static class {name}");
+        sb.AppendLine($"    internal sealed class {name} : {Core}INinoRegistry");
         sb.AppendLine("    {");
         sb.AppendLine($"        static {name}()");
         sb.AppendLine("        {");
-        sb.AppendLine("            global::NinoGen.NinoGenUsages.Register();");
-        foreach (var entry in entries.OrderBy(e => e.FormatterName, System.StringComparer.Ordinal))
-        {
-            if (entry.OpenTypeName.Length == 0)
-                sb.AppendLine($"            {entry.FormatterName}.__Register();");
-            else
-                sb.AppendLine($"            {Core}NinoRegistry.RegisterGeneric(typeof({entry.OpenTypeName}), typeof({entry.FormatterName}<{new string(',', entry.Arity - 1)}>));");
-        }
-
+        sb.AppendLine($"            {Core}NinoRegistry.Add(new {name}());");
+        var list = entries.OrderBy(e => e.FormatterName, System.StringComparer.Ordinal).ToList();
+        foreach (var entry in list.Where(e => e.OpenTypeName.Length != 0))
+            sb.AppendLine($"            {Core}NinoRegistry.RegisterGeneric(typeof({entry.OpenTypeName}), typeof({entry.FormatterName}<{new string(',', entry.Arity - 1)}>));");
         sb.AppendLine("        }");
+        sb.AppendLine();
+        EmitIdDispatch(sb, "public", "global::NinoGen.NinoGenUsages.Register(id);",
+            // Keyed by wire id (polymorphic reads) and, for [NinoFormerName] types, also by name id (by-type lookups).
+            list.Where(e => e.OpenTypeName.Length == 0)
+                .SelectMany(e => e.NameId == e.TypeId
+                    ? new[] { (Id: e.TypeId, Entry: e) }
+                    : new[] { (Id: e.TypeId, Entry: e), (Id: e.NameId, Entry: e) })
+                .GroupBy(x => x.Id, x => x.Entry).OrderBy(g => g.Key)
+                .Select(g => new KeyValuePair<int, List<string>>(g.Key,
+                    g.Select(e => $"{e.FormatterName}.__Register();").ToList()))
+                .ToList());
         sb.AppendLine();
         sb.AppendLine("        /// <summary>Runs the registration (once).</summary>");
         sb.AppendLine("        public static void Init()");
@@ -731,11 +797,12 @@ internal static class Emitter
         sb.AppendLine("{");
         sb.AppendLine("    internal static class NinoGenUsages");
         sb.AppendLine("    {");
-        sb.AppendLine("        internal static void Register()");
-        sb.AppendLine("        {");
-        foreach (var u in usages)
-            sb.AppendLine($"            {Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();");
-        sb.AppendLine("        }");
+        sb.AppendLine("        /// <summary>Registers the closed built-in formatters whose type has id <paramref name=\"id\"/>.</summary>");
+        EmitIdDispatch(sb, "internal static", "",
+            usages.GroupBy(u => u.Id).OrderBy(g => g.Key)
+                .Select(g => new KeyValuePair<int, List<string>>(g.Key,
+                    g.Select(u => $"{Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();").ToList()))
+                .ToList());
         sb.AppendLine("    }");
         sb.AppendLine("}");
         return sb.ToString();
@@ -899,4 +966,4 @@ internal static class Emitter
     private static string EscapeString(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 }
 
-internal sealed record RegistryEntry(string FormatterName, string OpenTypeName, int Arity);
+internal sealed record RegistryEntry(string FormatterName, string OpenTypeName, int Arity, int TypeId, int NameId);

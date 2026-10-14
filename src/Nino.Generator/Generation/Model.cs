@@ -49,7 +49,9 @@ public sealed record MemberModel(
     // Whether the member can only be assigned while constructing the instance (readonly field, init-only).
     bool ConstructionOnly,
     // Whether the member is read-only for us even at construction (no way to assign it): read and dropped.
-    bool Unassignable);
+    bool Unassignable,
+    // Runtime type id of the member type when its built-in formatter is registered for top-level use, else 0.
+    int TypeId);
 
 public sealed record ConstructionModel(
     // Re-create the instance on every read (constructor arguments, init-only or readonly members).
@@ -101,6 +103,8 @@ public sealed record TypeModel(
     // Type id, or 0 for generic types (computed at runtime).
     int TypeId,
     string IdName,
+    // Hash of the runtime name ignoring [NinoFormerName]: the key a by-type lookup computes without reflection.
+    int NameId,
     bool VersionTolerant,
     // Unmanaged struct written as its raw memory.
     bool RawStruct,
@@ -124,7 +128,8 @@ public sealed record TypeModel(
     public bool IsGeneric => TypeParameters.Length != 0;
 }
 
-public sealed record FormatterRegistration(string TypeName, string Formatter);
+// Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.
+public sealed record FormatterRegistration(string TypeName, string Formatter, int Id);
 
 public sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,
     bool HasUnityEditor);

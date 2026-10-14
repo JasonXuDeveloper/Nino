@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Nino.Core
 {
@@ -21,6 +22,16 @@ namespace Nino.Core
     }
 
     /// <summary>
+    /// The generated registry of one assembly. Registration is lazy: a lookup that misses asks every registry to
+    /// register the type with that id (a switch in generated code), so startup does not pay for types never used.
+    /// </summary>
+    public interface INinoRegistry
+    {
+        /// <summary>Registers the formatters of the types (and built-in closed generics) whose type id is <paramref name="id"/>.</summary>
+        void Register(int id);
+    }
+
+    /// <summary>
     /// Runs the generated registration of assemblies. Generated code calls this from a module initializer (and from
     /// Unity's load hooks); lookups that miss also call it lazily, so registration never depends on load order.
     /// </summary>
@@ -30,10 +41,51 @@ namespace Nino.Core
         private static readonly HashSet<Assembly> Initialized = new HashSet<Assembly>();
         private static readonly Dictionary<Type, Type> GenericFormatters = new Dictionary<Type, Type>();
         private static int _scannedAssemblyCount;
+        private static INinoRegistry[] _registries = new INinoRegistry[0];
+
+        /// <summary>Adds an assembly's generated registry. Called by its static constructor.</summary>
+        public static void Add(INinoRegistry registry)
+        {
+            lock (Lock)
+            {
+                // Its assembly's registration has run: lookups need not look for its attribute.
+                Initialized.Add(registry.GetType().Assembly);
+                var current = _registries;
+                if (Array.IndexOf(current, registry) >= 0)
+                    return;
+                var next = new INinoRegistry[current.Length + 1];
+                current.CopyTo(next, 0);
+                next[current.Length] = registry;
+                Volatile.Write(ref _registries, next);
+            }
+        }
+
+        /// <summary>Asks every generated registry to register the types with type id <paramref name="id"/>.</summary>
+        internal static void RegisterId(int id)
+        {
+            foreach (var registry in Volatile.Read(ref _registries))
+                registry.Register(id);
+        }
+
+        /// <summary>
+        /// Makes sure the generated formatter of <paramref name="type"/> (and of its element and argument types)
+        /// is registered, if there is one.
+        /// </summary>
+        internal static void RegisterType(Type type)
+        {
+            EnsureInitializedFor(type);
+            // Keyed by the plain name hash (generated registries also list [NinoFormerName] types under it), which
+            // needs no attribute reflection.
+            if (!type.ContainsGenericParameters)
+                RegisterId(NinoTypeId.Compute(NinoTypeId.GetName(type)));
+        }
 
         /// <summary>Runs the generated registration of <paramref name="assembly"/> once.</summary>
         public static void EnsureInitialized(Assembly assembly)
         {
+            // The core library and Nino.Core never contain generated code.
+            if (assembly == typeof(object).Assembly || assembly == typeof(NinoRegistry).Assembly)
+                return;
             lock (Lock)
             {
                 if (!Initialized.Add(assembly))

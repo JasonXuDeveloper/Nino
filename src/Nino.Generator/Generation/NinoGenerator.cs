@@ -211,7 +211,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
         if (formatter == null || !ModelBuilder.IsBuiltInFormatter(formatter) ||
             FormatterResolver.IsRawUnmanaged(type, weak ? assembly : null))
             return null;
-        return new FormatterRegistration(TypeNames.Global(type), formatter);
+        return new FormatterRegistration(TypeNames.Global(type), formatter,
+            TypeNames.ComputeId(TypeNames.RuntimeName(type)));
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
@@ -225,7 +226,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
     private static RegistryEntry ToEntry(TypeModel model)
     {
         int arity = model.IsGeneric ? model.TypeParameters.Count(c => c == ',') + 1 : 0;
-        return new RegistryEntry(model.FormatterName, model.OpenTypeName, arity);
+        return new RegistryEntry(model.FormatterName, model.OpenTypeName, arity, model.TypeId, model.NameId);
     }
 
     private static void Emit(SourceProductionContext spc, TypeModel model)

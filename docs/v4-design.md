@@ -153,8 +153,14 @@ deserialization.
 `NinoFormatterCache<T>.Instance` is a static generic field, so lookup is free after the first use. It is
 populated by:
 
-1. Generated registration code (`[ModuleInitializer]` on .NET 5+, plus
-   `RuntimeInitializeOnLoadMethod` / `InitializeOnLoadMethod` in Unity).
+1. Generated registration code, on demand. Each assembly's generated registry is added at load
+   (`[ModuleInitializer]` on .NET 5+, `RuntimeInitializeOnLoadMethod` / `InitializeOnLoadMethod` in Unity, or
+   the `[NinoGenerated]` attribute as a fallback), but registers nothing yet. A lookup that misses asks the
+   registries for the type's id: the plain name hash for by-type lookups (no attribute reflection) or the wire
+   id for polymorphic reads; `[NinoFormerName]` types are listed under both. The dispatch is a switch over
+   small bucket methods of about eight ids, because the JIT resolves every call in a method it compiles: one
+   switch over every type would load every formatter on the first lookup. Startup no longer grows with the
+   number of types (1100 types: 309 ms → 67 ms process time on .NET 8, against 43 ms for an empty app).
 2. Lazy resolution on first access: built-in generic types (`List<T>`, `Dictionary<,>`, arrays, tuples,
    and so on) and generic `[NinoType]`s registered by generic type definition are constructed with
    `MakeGenericType`.

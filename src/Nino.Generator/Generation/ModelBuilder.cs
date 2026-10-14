@@ -170,7 +170,7 @@ internal static class ModelBuilder
             {
                 // Only built-in formatters: a member's custom formatter must not become the global one.
                 if (IsBuiltInFormatter(m.Formatter) && m.RawSize.Length == 0)
-                    used.Add(new FormatterRegistration(m.TypeName, m.Formatter));
+                    used.Add(new FormatterRegistration(m.TypeName, m.Formatter, m.TypeId));
             }
         }
 
@@ -206,6 +206,7 @@ internal static class ModelBuilder
             kind,
             typeId,
             idName,
+            typeParameters.Count == 0 ? (formerName == null ? typeId : TypeNames.ComputeId(TypeNames.RuntimeName(type))) : 0,
             tolerant,
             rawStruct,
             collectionFormatter,
@@ -616,8 +617,11 @@ internal static class ModelBuilder
             ? FormatterResolver.RawSize(memberType)
             : "";
 
+        int typeId = IsBuiltInFormatter(formatter) && rawSize.Length == 0
+            ? TypeNames.ComputeId(TypeNames.RuntimeName(memberType))
+            : 0;
         return new MemberModel(symbol.Name, TypeNames.Global(memberType), formatter, rawSize, isProperty, access,
-            TypeNames.Global(declaring), declaring.IsValueType, constructionOnly, false);
+            TypeNames.Global(declaring), declaring.IsValueType, constructionOnly, false, typeId);
     }
 
     private static bool IsAccessorVisible(IMethodSymbol? method, INamedTypeSymbol type)
