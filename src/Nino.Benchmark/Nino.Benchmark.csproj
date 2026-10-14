@@ -21,7 +21,10 @@
         <PackageReference Include="Utf8Json" Version="1.3.7" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
+        <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to benchmark a specific Nino.Core build. -->
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
+                          SetTargetFramework="TargetFramework=$(NinoCoreTfm)"/>
         <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"/>
