@@ -121,6 +121,33 @@ header | int32 bodyLength | { int32 key, int32 length, value }*
   deserialize about 1.2x the positional time, while staying faster than MemoryPack's positional mode.
 * A member-name hash collision within one type is a compile-time error (NINO015), so it cannot corrupt data.
 
+### Reference tracking
+
+A class marked `[NinoType(trackReferences: true)]` (and every subtype of it) is written behind an `int32`
+reference header, so shared references and cycles round-trip as the same object graph:
+
+```
+int32 ref: 0 = null | n > 0 = the n-th object already written in this call | -1 = new object, then its usual encoding
+```
+
+* For a sealed class the new-object encoding is the body alone (the header already says it is not null); for
+  other classes it is the type id and the body, so polymorphism works as usual.
+* The writer keeps an identity map (object to index) and the reader an index to object list. Both are rented
+  from a per-thread cache on the first tracked object and returned when the top-level call ends, so calls
+  without tracked objects touch nothing and tracked calls do not allocate in steady state. Both are per call,
+  so concurrent calls stay independent.
+* Cycles: the generated reader records the instance right after creating it (`Reader.SetReference`), before
+  reading its members, so a back reference inside its own members resolves. Types that must be re-created
+  from constructor arguments or read-only members cannot be tracked (error NINO016); `trackReferences` on a
+  struct is ignored with a warning.
+* Bodies read through a slice (version tolerant or keyed) hand their table back to the parent reader
+  (`Reader.EndSlice`), so references stay shared across slices.
+* Ref deserialization reuses instances for new objects as usual; a back reference replaces the current value
+  without recycling it, since the old value may still be referenced elsewhere in the graph.
+* Cost (net8, an 8-member sealed class): about 28 ns per top-level call for renting the tables, plus 4 bytes
+  and one identity lookup per object. A list repeating one object 100 times is written in a fraction of the
+  bytes and time of the untracked list.
+
 ## Runtime (`Nino.Core`)
 
 ### Writer
@@ -280,25 +307,3 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
 
 For a hierarchy of 220 types (20 roots × depth 8), v3 generated about 911,000 lines (47 MB) because every
 polymorphic base inlined the full body of every subtype twice. v4 emits each body once.
-
-## Proposals (not implemented)
-
-The request below changes the wire format of the types that use it. It is designed as an opt-in per type,
-so types that do not opt in keep their current bytes and speed.
-
-### Reference tracking (#132)
-
-Goal: shared references and cycles (`a.Next = b; b.Next = a`) round-trip as the same object graph.
-
-* Opt in with `[NinoType(trackReferences: true)]` on the classes that can be shared. Only those types pay;
-  everything else is written as today.
-* A tracked reference is written as `int32 ref`: `0` = null, `-n` = back reference to the n-th object already
-  written in this call, otherwise the normal type id followed by the body (the object gets the next index).
-* State: an identity map (object → index) while writing and an index → object list while reading, kept in
-  the `Writer`/`Reader` and created only when the first tracked type is met, so other calls allocate nothing.
-  Both are per call, so concurrent calls stay independent.
-* Reading a cycle needs the instance before its members: the generated reader creates the object, records it,
-  then reads members into it. Types that must be re-created from constructor arguments cannot be tracked
-  (diagnostic), since a back reference could not point at an object that does not exist yet.
-* Ref deserialization: an existing graph is reused by position like today; objects that drop out of the graph
-  are recycled once, even if they were referenced several times.

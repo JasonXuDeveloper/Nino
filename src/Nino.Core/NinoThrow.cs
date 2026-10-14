@@ -38,6 +38,21 @@ namespace Nino.Core
                 "NinoFormatterCache<T>.Register.");
 
         [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void InvalidReference(int index) =>
+            throw new InvalidOperationException($"Nino: invalid object reference {index}.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void IncompleteReference(int index) =>
+            throw new InvalidOperationException(
+                $"Nino: object reference {index} points at an object that is still being created. Cycles must " +
+                "go through types marked [NinoType(trackReferences: true)].");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ReferenceTypeMismatch(Type expected, Type actual) =>
+            throw new InvalidOperationException(
+                $"Nino: object reference to a {actual?.FullName} where a {expected.FullName} is expected.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static void InvalidRank(int expected, int actual) =>
             throw new InvalidOperationException($"Nino: expected an array of rank {expected}, got {actual}.");
     }

@@ -104,9 +104,8 @@ internal static class Emitter
         // MethodImpl attributes on them only cost compile time.
         if (m.Kind == FormatterKind.Polymorphic)
         {
-            sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer) => default({Core}PolymorphicFormatter<{t}>).Serialize(value, ref writer);");
-            sb.AppendLine();
-            sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => default({Core}PolymorphicFormatter<{t}>).Deserialize(ref value, ref reader);");
+            EmitEntryPoints(sb, m, $"default({Core}PolymorphicFormatter<{t}>).Serialize(value, ref writer)",
+                $"default({Core}PolymorphicFormatter<{t}>).Deserialize(ref value, ref reader)");
             sb.AppendLine();
             if (m.EmitMembers)
             {
@@ -149,15 +148,17 @@ internal static class Emitter
                 sb.AppendLine();
                 sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => ReadBody(ref value, ref reader);");
                 break;
+            case FormatterKind.SealedClass when m.TrackReferences:
+                // The reference header already says the object is not null.
+                EmitEntryPoints(sb, m, "WriteBody(value, ref writer)", "ReadBody(ref value, ref reader)");
+                break;
             case FormatterKind.SealedClass:
-                sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeSealed<{t}, {self}>(value, ref writer);");
-                sb.AppendLine();
-                sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader);");
+                EmitEntryPoints(sb, m, $"{Core}NinoObject.SerializeSealed<{t}, {self}>(value, ref writer)",
+                    $"{Core}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader)");
                 break;
             default:
-                sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.Serialize<{t}, {self}>(value, ref writer);");
-                sb.AppendLine();
-                sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.Deserialize<{t}, {self}>(ref value, ref reader);");
+                EmitEntryPoints(sb, m, $"{Core}NinoObject.Serialize<{t}, {self}>(value, ref writer)",
+                    $"{Core}NinoObject.Deserialize<{t}, {self}>(ref value, ref reader)");
                 break;
         }
 
@@ -185,6 +186,33 @@ internal static class Emitter
         }
 
         sb.AppendLine("    }");
+    }
+
+    /// <summary>Serialize/Deserialize forwarding to the given calls, behind a reference header when tracked.</summary>
+    private static void EmitEntryPoints(StringBuilder sb, TypeModel m, string write, string read)
+    {
+        string t = m.TypeName;
+        if (!m.TrackReferences)
+        {
+            sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer) => {write};");
+            sb.AppendLine();
+            sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => {read};");
+            return;
+        }
+
+        sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (writer.WriteReference(value))");
+        sb.AppendLine($"                {write};");
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader)");
+        sb.AppendLine("        {");
+        sb.AppendLine("            if (!reader.ReadReference(ref value, out int __index))");
+        sb.AppendLine("                return;");
+        sb.AppendLine($"            {read};");
+        sb.AppendLine("            reader.EndReference(__index, value);");
+        sb.AppendLine("        }");
     }
 
     private static void EmitRegister(StringBuilder sb, TypeModel m)
@@ -417,6 +445,8 @@ internal static class Emitter
                 string create = c.RefFactory.Length != 0 ? c.RefFactory + "()" : c.Creator + "()";
                 sb.AppendLine("            if (value == null)");
                 sb.AppendLine($"                value = {create};");
+                if (m.TrackReferences)
+                    sb.AppendLine("            reader.SetReference(value);");
             }
 
             if (m.CollectionFormatter.Length != 0)
@@ -433,6 +463,9 @@ internal static class Emitter
                     sb.AppendLine("            __end: ;");
             }
 
+            if (Sliced(m))
+                sb.AppendLine("            reader.EndSlice(in __reader);");
+
             sb.AppendLine("        }");
             return;
         }
@@ -442,6 +475,8 @@ internal static class Emitter
         EmitMemberReads(sb, m, r, inPlace: false, onEnd: "goto __end;");
         if (m.VersionTolerant && !m.Keyed)
             sb.AppendLine("            __end:");
+        if (Sliced(m))
+            sb.AppendLine("            reader.EndSlice(in __reader);");
 
         if (c.Creator.Length == 0)
         {
@@ -626,6 +661,7 @@ internal static class Emitter
             sb.AppendLine("            {");
             sb.AppendLine($"                var __m = {r}.ReadSlice();");
             EmitKeyedMemberRead(sb, m, member, inPlace, "    ");
+            sb.AppendLine($"                {r}.EndSlice(in __m);");
             sb.AppendLine("            }");
         }
 
@@ -645,6 +681,8 @@ internal static class Emitter
                 sb.AppendLine($"                    case {Key(member)}:");
                 sb.AppendLine("                    {");
                 EmitKeyedMemberRead(sb, m, member, inPlace, "            ");
+                if (member.RawSize.Length == 0)
+                    sb.AppendLine($"                        {r}.EndSlice(in __m);");
                 sb.AppendLine("                        break;");
                 sb.AppendLine("                    }");
             }

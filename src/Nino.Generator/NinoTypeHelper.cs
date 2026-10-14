@@ -133,6 +133,7 @@ public class NinoTypeAttribute
     public bool allowInheritance = true;
     public bool versionTolerant;
     public bool keyed;
+    public bool trackReferences;
 
     public static NinoTypeAttribute GetAttribute(AttributeData attributeData)
     {
@@ -145,6 +146,7 @@ public class NinoTypeAttribute
                 NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(allowInheritance), true),
             versionTolerant = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(versionTolerant), false),
             keyed = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(keyed), false),
+            trackReferences = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(trackReferences), false),
         };
     }
 }

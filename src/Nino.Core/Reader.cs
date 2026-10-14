@@ -13,11 +13,87 @@ namespace Nino.Core
     {
         private readonly ReadOnlySpan<byte> _data;
         private int _pos;
+        private NinoReferenceReadTable _refs;
 
         public Reader(ReadOnlySpan<byte> data)
         {
             _data = data;
             _pos = 0;
+            _refs = null;
+        }
+
+        /// <summary>
+        /// Ends reference tracking for this reader. Called by the <see cref="NinoDeserializer"/> APIs that create
+        /// the reader; the table is reused by the next call. Slices of this reader must not be used afterwards.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReleaseReferences()
+        {
+            if (_refs == null)
+                return;
+            NinoReferenceReadTable.Return(_refs);
+            _refs = null;
+        }
+
+        /// <summary>
+        /// Reads what <see cref="Writer.WriteReference"/> wrote. Returns true when a new object follows: the
+        /// caller reads it, calls <see cref="SetReference"/> as soon as the instance exists (so cycles resolve),
+        /// and <see cref="EndReference"/> when done. Otherwise <paramref name="value"/> is now null or the
+        /// object read earlier.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool ReadReference<T>(ref T value, out int index) where T : class
+        {
+            int head = UnsafeRead<int>();
+            index = 0;
+            if (head == -1)
+            {
+                index = BeginReference();
+                return true;
+            }
+
+            if (head == 0)
+                NinoRecycler.Discard(ref value);
+            else
+                value = GetReference<T>(head);
+            return false;
+        }
+
+        private int BeginReference() => (_refs ??= NinoReferenceReadTable.Rent()).Begin();
+
+        private T GetReference<T>(int index) where T : class
+        {
+            if (_refs == null)
+                NinoThrow.InvalidReference(index);
+            var obj = _refs.Get(index);
+            if (obj is T t)
+                return t;
+            NinoThrow.ReferenceTypeMismatch(typeof(T), obj.GetType());
+            return null;
+        }
+
+        /// <summary>Records the instance of the object whose header was just read.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void SetReference(object value)
+        {
+            var refs = _refs;
+            if (refs != null && refs.Pending != 0)
+                refs.Set(refs.Pending, value);
+        }
+
+        /// <summary>Records the object read after <see cref="ReadReference{T}"/> returned true.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EndReference(int index, object value) => _refs.Set(index, value);
+
+        /// <summary>
+        /// Call when done with a reader returned by <see cref="ReadSlice"/>: objects it read stay visible to
+        /// later back references.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EndSlice(in Reader slice)
+        {
+            if (_refs == null)
+                _refs = slice._refs;
         }
 
         /// <summary>Number of bytes consumed so far.</summary>
@@ -161,6 +237,7 @@ namespace Nino.Core
             if ((uint)length > (uint)Remaining)
                 NinoThrow.InvalidLength(length);
             var slice = new Reader(_data.Slice(_pos, length));
+            slice._refs = _refs;
             _pos += length;
             return slice;
         }

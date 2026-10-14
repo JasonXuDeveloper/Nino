@@ -18,12 +18,45 @@ namespace Nino.Core
         private readonly NinoArrayBufferWriter _owner;
         private Span<byte> _buffer;
         private int _pos;
+        private NinoReferenceWriteTable _refs;
 
         public Writer(NinoArrayBufferWriter buffer)
         {
             _owner = buffer ?? throw new ArgumentNullException(nameof(buffer));
             _buffer = buffer.Buffer;
             _pos = buffer.Index;
+            _refs = null;
+        }
+
+        /// <summary>
+        /// Ends reference tracking: later objects are not matched against the ones written so far. Called by
+        /// the <see cref="NinoSerializer"/> APIs that create the writer; the table is reused by the next call.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ReleaseReferences()
+        {
+            if (_refs == null)
+                return;
+            NinoReferenceWriteTable.Return(_refs);
+            _refs = null;
+        }
+
+        /// <summary>
+        /// Writes the reference header of an object of a type marked <c>trackReferences</c>: <c>0</c> for null,
+        /// the 1-based index of an object already written by this writer, or <c>-1</c> for a new object, in which
+        /// case it returns true and the caller writes the object.
+        /// </summary>
+        public bool WriteReference(object value)
+        {
+            if (value == null)
+            {
+                UnsafeWrite(0);
+                return false;
+            }
+
+            int index = (_refs ??= NinoReferenceWriteTable.Rent()).GetOrAdd(value);
+            UnsafeWrite(index == 0 ? -1 : index);
+            return index == 0;
         }
 
         /// <summary>Absolute position in the underlying buffer.</summary>

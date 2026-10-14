@@ -54,6 +54,7 @@ namespace Nino.Core
                 var writer = new Writer(buffer);
                 NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
                 writer.Flush();
+                writer.ReleaseReferences();
                 return buffer.ToArray();
             }
             finally
@@ -79,6 +80,7 @@ namespace Nino.Core
                 var writer = new Writer(nino);
                 NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
                 writer.Flush();
+                writer.ReleaseReferences();
                 return;
             }
 
@@ -88,6 +90,7 @@ namespace Nino.Core
                 var writer = new Writer(buffer);
                 NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
                 writer.Flush();
+                writer.ReleaseReferences();
                 bufferWriter.Write(buffer.WrittenSpan);
             }
             finally
@@ -174,6 +177,7 @@ namespace Nino.Core
             var reader = new Reader(data);
             T value = default;
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+            reader.ReleaseReferences();
             return value;
         }
 
@@ -192,6 +196,7 @@ namespace Nino.Core
 
             var reader = new Reader(data);
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+            reader.ReleaseReferences();
         }
 
         /// <summary>Same as <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>.</summary>
@@ -252,6 +257,7 @@ namespace Nino.Core
             var reader = new Reader(data);
             object value = null;
             BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+            reader.ReleaseReferences();
             return value;
         }
 
@@ -262,6 +268,7 @@ namespace Nino.Core
                 throw new ArgumentNullException(nameof(type));
             var reader = new Reader(data);
             BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+            reader.ReleaseReferences();
         }
 
         /// <summary>Deserializes a value of <paramref name="type"/> with an existing reader.</summary>

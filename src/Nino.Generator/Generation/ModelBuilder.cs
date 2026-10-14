@@ -184,6 +184,23 @@ internal static class ModelBuilder
             }
         }
 
+        // Tracking is inherited: a tracked base's reference header is resolved by the subtype's body as soon as
+        // the instance exists, so every subtype of a tracked type must record itself.
+        bool tracked = attr.trackReferences || InheritsTracking(type);
+        bool trackReferences = tracked && kind != FormatterKind.Struct;
+        if (tracked && kind == FormatterKind.Struct)
+        {
+            diagnostics.Add(new DiagnosticInfo("NINO016", "Cannot track references",
+                "'{0}' is a struct; trackReferences only applies to classes and is ignored",
+                DiagnosticSeverity.Warning, location, type.ToDisplayString()));
+        }
+        else if (trackReferences && construction.Recreate)
+        {
+            diagnostics.Add(new DiagnosticInfo("NINO016", "Cannot track references",
+                "'{0}' is re-created from constructor arguments or read-only members, so a reference to it cannot be read before it exists; trackReferences needs a type whose members are all assignable",
+                DiagnosticSeverity.Error, location, type.ToDisplayString()));
+        }
+
         if (typeParameters.Count == 0 && kind != FormatterKind.Polymorphic)
         {
             foreach (var m in members)
@@ -229,6 +246,7 @@ internal static class ModelBuilder
             typeParameters.Count == 0 ? (formerName == null ? typeId : TypeNames.ComputeId(TypeNames.RuntimeName(type))) : 0,
             tolerant,
             attr.keyed,
+            trackReferences,
             rawStruct,
             collectionFormatter,
             emitMembers,
@@ -261,6 +279,23 @@ internal static class ModelBuilder
     /// assignable.
     /// Computed from symbols only, so a subtype's transform reaches the same answer as the base's own.
     /// </summary>
+    private static bool InheritsTracking(INamedTypeSymbol type)
+    {
+        for (var b = type.BaseType; b != null; b = b.BaseType)
+        {
+            if (b.GetDirectNinoTypeAttribute() is { } a && NinoTypeAttribute.GetAttribute(a).trackReferences)
+                return true;
+        }
+
+        foreach (var i in type.AllInterfaces)
+        {
+            if (i.GetDirectNinoTypeAttribute() is { } a && NinoTypeAttribute.GetAttribute(a).trackReferences)
+                return true;
+        }
+
+        return false;
+    }
+
     public static bool IsDelegatable(INamedTypeSymbol type, IAssemblySymbol assembly)
     {
         // Sealed classes have no subtypes to delegate to them.

@@ -108,6 +108,8 @@ public sealed record TypeModel(
     bool VersionTolerant,
     // Members written as (key, length, value): see NinoTypeAttribute.keyed.
     bool Keyed,
+    // Objects written with a reference header (null, back reference or new): see trackReferences.
+    bool TrackReferences,
     // Unmanaged struct written as its raw memory.
     bool RawStruct,
     // For [NinoType] collections: the formatter of the elements, written before the members.

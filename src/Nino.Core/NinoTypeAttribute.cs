@@ -21,8 +21,14 @@ namespace Nino.Core
         /// reordered or inserted without breaking existing data. Unknown members are skipped and missing ones keep
         /// their current value. Costs 8 bytes per member and a key dispatch per member when reading.
         /// </param>
+        /// <param name="trackReferences">
+        /// Classes only. An object referenced several times in one call is written once and read back as one
+        /// instance, so shared references and cycles round-trip. Costs 4 bytes and a hash lookup per object.
+        /// Types that must be re-created from constructor arguments cannot be tracked.
+        /// </param>
         public NinoTypeAttribute(bool autoCollect = true, bool containNonPublicMembers = false,
-            bool allowInheritance = true, bool versionTolerant = false, bool keyed = false)
+            bool allowInheritance = true, bool versionTolerant = false, bool keyed = false,
+            bool trackReferences = false)
         {
         }
     }
