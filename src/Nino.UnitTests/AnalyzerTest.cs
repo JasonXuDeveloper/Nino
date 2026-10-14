@@ -40,10 +40,10 @@ public class AnalyzerTest
         return test;
     }
 
-    private CSharpSourceGeneratorTest<Generator.GlobalGenerator, DefaultVerifier> SetUpSourceGeneratorTest(
+    private CSharpSourceGeneratorTest<Generator.Generation.NinoGenerator, DefaultVerifier> SetUpSourceGeneratorTest(
         string code, params DiagnosticResult[] diagnostics)
     {
-        var test = new CSharpSourceGeneratorTest<Generator.GlobalGenerator, DefaultVerifier>
+        var test = new CSharpSourceGeneratorTest<Generator.Generation.NinoGenerator, DefaultVerifier>
         {
             TestState =
             {

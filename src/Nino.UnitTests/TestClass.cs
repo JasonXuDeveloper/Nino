@@ -163,7 +163,7 @@ public sealed class ListElementClass : IListElementClass
 }
 
 [NinoType]
-[NinoFormerName("global::ListElementClass2")]
+[NinoFormerName("ListElementClass2")]
 public sealed class ListElementClass2Renamed : IListElementClass
 {
     public int Id;
@@ -175,10 +175,7 @@ public sealed class ListElementClass2Renamed : IListElementClass
 
 [NinoType(containNonPublicMembers: true)]
 public
-#if !NET8_0_OR_GREATER
-    partial
-#endif
-    class ProtectedShouldInclude
+partial class ProtectedShouldInclude
 {
     protected int _id;
 
@@ -192,10 +189,7 @@ public
 
 [NinoType]
 public
-#if !NET8_0_OR_GREATER
-    partial
-#endif
-    class ShouldIgnorePrivate
+partial class ShouldIgnorePrivate
 {
     private int _id;
 
@@ -213,10 +207,7 @@ public
 //We make it no namespace on purpose to see if it still works
 [NinoType(false, true)]
 public
-#if !NET8_0_OR_GREATER
-    partial
-#endif
-    class Bindable<T>
+partial class Bindable<T>
 {
     [NinoMember(0)] private T mValue;
 
@@ -236,10 +227,7 @@ namespace Nino.UnitTests
 {
     [NinoType(containNonPublicMembers: true)]
     public
-#if !NET8_0_OR_GREATER
-        partial
-#endif
-        class
+partial class
         TestPrivateMemberClass : Base
     {
         private int Id { get; set; }
@@ -258,10 +246,7 @@ namespace Nino.UnitTests
 
     [NinoType(containNonPublicMembers: true)]
     public
-#if !NET8_0_OR_GREATER
-        partial
-#endif
-        record RecordWithPrivateMember(string Name)
+partial record RecordWithPrivateMember(string Name)
     {
         private int Id { get; set; }
 
@@ -270,10 +255,7 @@ namespace Nino.UnitTests
 
     [NinoType(containNonPublicMembers: true)]
     public
-#if !NET8_0_OR_GREATER
-        partial
-#endif
-        record struct RecordWithPrivateMember2(string Name)
+partial record struct RecordWithPrivateMember2(string Name)
     {
         private int Id { get; set; } = 0;
 
@@ -282,10 +264,7 @@ namespace Nino.UnitTests
 
     [NinoType(containNonPublicMembers: true)]
     public
-#if !NET8_0_OR_GREATER
-        partial
-#endif
-        struct StructWithPrivateMember
+partial struct StructWithPrivateMember
     {
         public int Id;
         private string Name;
@@ -296,10 +275,7 @@ namespace Nino.UnitTests
 
     [NinoType(containNonPublicMembers: true)]
     public
-#if !NET8_0_OR_GREATER
-        partial
-#endif
-        class ClassWithPrivateMember<T>
+partial class ClassWithPrivateMember<T>
     {
         public int Id;
         [NinoIgnore] public bool Flag;

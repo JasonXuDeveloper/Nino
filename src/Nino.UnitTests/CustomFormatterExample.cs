@@ -20,7 +20,6 @@ public struct SpecialValue
 /// </summary>
 public class SpecialValueFormatter : NinoFormatter<SpecialValue>
 {
-    // No need to declare Instance - NinoFormatterInstance<SpecialValueFormatter, SpecialValue> handles it automatically!
     public override void Serialize(SpecialValue value, ref Writer writer)
     {
         // Custom logic: serialize as value + label length + label
@@ -32,7 +31,7 @@ public class SpecialValueFormatter : NinoFormatter<SpecialValue>
         }
     }
 
-    public override void Deserialize(out SpecialValue value, ref Reader reader)
+    public override void Deserialize(ref SpecialValue value, ref Reader reader)
     {
         reader.Read(out int intValue);
         reader.Read(out int labelLength);
@@ -45,11 +44,6 @@ public class SpecialValueFormatter : NinoFormatter<SpecialValue>
 
         value = new SpecialValue { Value = intValue, Label = label };
     }
-
-    public override void DeserializeRef(ref SpecialValue value, ref Reader reader)
-    {
-        Deserialize(out value, ref reader);
-    }
 }
 
 /// <summary>
@@ -58,7 +52,6 @@ public class SpecialValueFormatter : NinoFormatter<SpecialValue>
 /// </summary>
 public class CompactIntFormatter : NinoFormatter<int>
 {
-    // No need to declare Instance - NinoFormatterInstance<CompactIntFormatter, int> handles it automatically!
     public override void Serialize(int value, ref Writer writer)
     {
         // Simple variable-length integer encoding
@@ -71,7 +64,7 @@ public class CompactIntFormatter : NinoFormatter<int>
         writer.Write((byte)value);
     }
 
-    public override void Deserialize(out int value, ref Reader reader)
+    public override void Deserialize(ref int value, ref Reader reader)
     {
         value = 0;
         int shift = 0;
@@ -83,11 +76,6 @@ public class CompactIntFormatter : NinoFormatter<int>
             value |= (b & 0x7F) << shift;
             shift += 7;
         } while ((b & 0x80) != 0);
-    }
-
-    public override void DeserializeRef(ref int value, ref Reader reader)
-    {
-        Deserialize(out value, ref reader);
     }
 }
 

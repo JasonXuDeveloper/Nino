@@ -31,9 +31,13 @@ public class VersionToleranceTests
         //print all const int in NinoTypeConst
 
         Console.WriteLine(string.Join(", ", NinoSerializer.Serialize(data)));
+        // SaveData is sealed and version tolerant: null flag, body length, then the members.
         byte[] oldData =
         {
-            151, 164, 134, 105, 1, 0, 0, 0, 128, 0, 0, 4, 84, 101, 115, 116
+            1, // not null
+            12, 0, 0, 0, // body length
+            1, 0, 0, 0, // Id
+            4, 0, 0, 0, 84, 101, 115, 116 // Name (UTF-8)
         };
         //require symbol WEAK_VERSION_TOLERANCE to be defined
 #if WEAK_VERSION_TOLERANCE
@@ -74,13 +78,25 @@ public class VersionToleranceTests
         var buf = NinoSerializer.Serialize(list);
         Console.WriteLine(string.Join(", ", buf));
 
-        // serialized old data structure
-        byte[] bytes = new byte[]
-        {
-            128, 0, 0, 2, 32, 0, 0, 0, 125, 234, 9, 159, 1, 0, 0, 0, 128, 0, 0, 4, 84, 0, 101, 0, 115, 0, 116, 0, 0,
-            64, 172, 217, 211, 82, 221, 136, 34, 0, 0, 0, 75, 83, 158, 19, 2, 0, 0, 0, 128, 0, 0, 5, 84, 0, 101, 0,
-            115, 0, 116, 0, 50, 0, 0, 64, 172, 217, 211, 82, 221, 136
-        };
+        // The old data structure (without the Extra members), written by hand: count, then for each element
+        // its type id and its length-prefixed body.
+        var oldBuffer = new NinoArrayBufferWriter();
+        var writer = new Writer(oldBuffer);
+        writer.WriteLength(2);
+        writer.Write(NinoTypeId.Compute("ListElementClass"));
+        int body = writer.ReserveInt32();
+        writer.Write(1);
+        writer.Write("Test");
+        writer.Write(new DateTime(2025, 2, 22));
+        writer.PatchLength(body);
+        writer.Write(NinoTypeId.Compute("ListElementClass2")); // [NinoFormerName]
+        body = writer.ReserveInt32();
+        writer.Write(2);
+        writer.Write("Test2");
+        writer.Write(new DateTime(2025, 2, 22));
+        writer.PatchLength(body);
+        writer.Flush();
+        byte[] bytes = oldBuffer.ToArray();
 
         List<IListElementClass> result = NinoDeserializer.Deserialize<List<IListElementClass>>(bytes);
         Assert.AreEqual(list.Count, result.Count);

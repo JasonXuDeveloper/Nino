@@ -19,6 +19,10 @@ namespace Nino.Core
             get => IntPtr.Size == 8;
         }
 
+        /// <summary>Size of <typeparamref name="T"/> in bytes. Constant-folded by the JIT.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int SizeOf<T>() => Unsafe.SizeOf<T>();
+
         /// <summary>
         /// Stores <paramref name="value"/> at <paramref name="destination"/> without alignment requirements.
         /// </summary>

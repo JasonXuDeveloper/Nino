@@ -42,10 +42,13 @@ namespace Nino.Core
         public override void Deserialize(ref TBase value, ref Reader reader)
         {
             TBase old = value;
-            TSub sub = old != null && old.GetType() == typeof(TSub) ? (TSub)(object)old : default;
+            bool reuse = old != null && old.GetType() == typeof(TSub);
+            TSub sub = reuse ? (TSub)(object)old : default;
+            // ReadBody recycles the instance it was given if it has to re-create it; here we only recycle an
+            // instance of another type that was never passed in.
             default(TFormatter).ReadBody(ref sub, ref reader);
             value = (TBase)(object)sub;
-            if (old != null && !ReferenceEquals(old, value) && !typeof(TSub).IsValueType)
+            if (old != null && !reuse)
                 NinoRecycler<TBase>.Recycle(old);
         }
     }

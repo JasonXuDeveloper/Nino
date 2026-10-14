@@ -46,14 +46,15 @@ public class PolymorphismTests
             B = DateTime.Today,
             C = Guid.NewGuid()
         };
-        //polymorphism serialization and real type deserialization
-        byte[] bytes = NinoSerializer.Serialize((ISerializable)a);
+        // Data must be read as the type it was written as: a polymorphic payload carries a type id, a
+        // concrete struct payload has no header.
+        byte[] bytes = NinoSerializer.Serialize(a);
         Console.WriteLine(string.Join(",", bytes));
         Struct1 i11 = NinoDeserializer.Deserialize<Struct1>(bytes);
         Assert.AreEqual(a, i11);
 
-        //real type serialization and deserialization with polymorphism
-        bytes = NinoSerializer.Serialize(a);
+        // polymorphic serialization and deserialization
+        bytes = NinoSerializer.Serialize((ISerializable)a);
         Console.WriteLine(string.Join(",", bytes));
         ISerializable i1 = NinoDeserializer.Deserialize<ISerializable>(bytes);
 
@@ -71,7 +72,7 @@ public class PolymorphismTests
             D = a
         };
 
-        bytes = NinoSerializer.Serialize(b);
+        bytes = NinoSerializer.Serialize((ISerializable)b);
         ISerializable i2 = NinoDeserializer.Deserialize<ISerializable>(bytes);
         Assert.IsInstanceOfType(i2, typeof(Class1));
         var result2 = (Class1)i2;
@@ -88,7 +89,7 @@ public class PolymorphismTests
             D = b
         };
 
-        bytes = NinoSerializer.Serialize(c);
+        bytes = NinoSerializer.Serialize((ISerializable)c);
         ISerializable i3 = NinoDeserializer.Deserialize<ISerializable>(bytes);
         Assert.IsInstanceOfType(i3, typeof(Struct2));
         var result3 = (Struct2)i3;

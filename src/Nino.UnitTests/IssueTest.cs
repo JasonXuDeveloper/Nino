@@ -517,10 +517,10 @@ namespace Nino.UnitTests
         {
             protected override void RunTest()
             {
-                var data = new NinoTuple<byte, int>(4, 1920);
+                var data = ((byte)4, 1920);
                 var bytes = NinoSerializer.Serialize(data);
 
-                var data2 = new NinoTuple<int, byte>(1920, 4);
+                var data2 = (1920, (byte)4);
                 var bytes2 = NinoSerializer.Serialize(data2);
 
                 Console.WriteLine(string.Join(",", bytes));

@@ -152,6 +152,13 @@ namespace Nino.Core
 
         /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializeRef<T>(ref T value, ref Reader reader)
+        {
+            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+        }
+
+        /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(ref T value, ref Reader reader)
         {
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
