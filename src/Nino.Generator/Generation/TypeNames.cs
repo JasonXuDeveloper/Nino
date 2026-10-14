@@ -7,20 +7,139 @@ namespace Nino.Generator.Generation;
 
 internal static class TypeNames
 {
-    private static readonly SymbolDisplayFormat GlobalFormat = SymbolDisplayFormat.FullyQualifiedFormat
-        .WithMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers |
-                                  SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+    // Built by hand: SymbolDisplay is by far the most expensive part of a model build (it pools and trims display
+    // part arrays per call), and every transform re-runs on each edit.
 
     /// <summary>Fully qualified C# name, e.g. <c>global::Ns.Outer.Box&lt;int&gt;</c>.</summary>
-    // Display strings are requested many times per type (member types, formatter names, registrations); symbols
-    // are immutable, so cache by instance. Weak keys never keep an old compilation alive.
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ITypeSymbol, string> GlobalNames = new();
-
     public static string Global(ITypeSymbol type)
     {
-        return GlobalNames.GetValue(type, static t =>
-            t.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString(GlobalFormat));
+        var sb = new StringBuilder(64);
+        AppendGlobal(sb, type);
+        return sb.ToString();
     }
+
+    /// <summary>Dotted namespace name without <c>global::</c>; empty for the global namespace.</summary>
+    public static string Namespace(INamespaceSymbol? ns)
+    {
+        if (ns == null || ns.IsGlobalNamespace)
+            return "";
+        var parent = Namespace(ns.ContainingNamespace);
+        return parent.Length == 0 ? ns.Name : parent + "." + ns.Name;
+    }
+
+    private static string Escape(string name) =>
+        Microsoft.CodeAnalysis.CSharp.SyntaxFacts.GetKeywordKind(name) != Microsoft.CodeAnalysis.CSharp.SyntaxKind.None
+            ? "@" + name
+            : name;
+
+    private static void AppendGlobal(StringBuilder sb, ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol array:
+            {
+                // C# writes rank specifiers outermost first: int[][,] is an array of int[,].
+                ITypeSymbol element = array;
+                var ranks = new List<int>();
+                while (element is IArrayTypeSymbol a)
+                {
+                    ranks.Add(a.Rank);
+                    element = a.ElementType;
+                }
+
+                AppendGlobal(sb, element);
+                foreach (var rank in ranks)
+                {
+                    sb.Append('[');
+                    sb.Append(',', rank - 1);
+                    sb.Append(']');
+                }
+
+                return;
+            }
+            case IPointerTypeSymbol pointer:
+                AppendGlobal(sb, pointer.PointedAtType);
+                sb.Append('*');
+                return;
+            case ITypeParameterSymbol parameter:
+                sb.Append(Escape(parameter.Name));
+                return;
+            case INamedTypeSymbol named when named.TypeKind != TypeKind.Error:
+            {
+                var keyword = Keyword(named.SpecialType);
+                if (keyword != null)
+                {
+                    sb.Append(keyword);
+                    return;
+                }
+
+                if (named.IsTupleType && named.TupleUnderlyingType != null)
+                    named = named.TupleUnderlyingType;
+                AppendNamed(sb, named);
+                return;
+            }
+            default:
+                sb.Append(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated)
+                    .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+                return;
+        }
+    }
+
+    private static void AppendNamed(StringBuilder sb, INamedTypeSymbol named)
+    {
+        if (named.ContainingType != null)
+        {
+            AppendNamed(sb, named.ContainingType);
+            sb.Append('.');
+        }
+        else
+        {
+            sb.Append("global::");
+            var ns = Namespace(named.ContainingNamespace);
+            if (ns.Length != 0)
+            {
+                foreach (var part in ns.Split('.'))
+                {
+                    sb.Append(Escape(part));
+                    sb.Append('.');
+                }
+            }
+        }
+
+        sb.Append(Escape(named.Name));
+        if (named.TypeArguments.Length == 0)
+            return;
+        sb.Append('<');
+        for (int i = 0; i < named.TypeArguments.Length; i++)
+        {
+            if (i != 0)
+                sb.Append(", ");
+            AppendGlobal(sb, named.TypeArguments[i]);
+        }
+
+        sb.Append('>');
+    }
+
+    private static string? Keyword(SpecialType type) => type switch
+    {
+        SpecialType.System_Object => "object",
+        SpecialType.System_Boolean => "bool",
+        SpecialType.System_Char => "char",
+        SpecialType.System_SByte => "sbyte",
+        SpecialType.System_Byte => "byte",
+        SpecialType.System_Int16 => "short",
+        SpecialType.System_UInt16 => "ushort",
+        SpecialType.System_Int32 => "int",
+        SpecialType.System_UInt32 => "uint",
+        SpecialType.System_Int64 => "long",
+        SpecialType.System_UInt64 => "ulong",
+        SpecialType.System_Decimal => "decimal",
+        SpecialType.System_Single => "float",
+        SpecialType.System_Double => "double",
+        SpecialType.System_String => "string",
+        SpecialType.System_Void => "void",
+        _ => null,
+    };
 
     /// <summary>All type arguments of a named type, outermost containing type first.</summary>
     public static List<ITypeSymbol> AllTypeArguments(INamedTypeSymbol type)
@@ -53,7 +172,7 @@ internal static class TypeNames
             parts.Add(t.Name.Replace("_", "__") + (t.Arity > 0 ? "_" + t.Arity : ""));
         parts.Reverse();
         var ns = type.ContainingNamespace;
-        var nsName = ns == null || ns.IsGlobalNamespace ? "" : ns.ToDisplayString();
+        var nsName = Namespace(ns);
         var sb = new StringBuilder();
         if (nsName.Length != 0)
         {
@@ -121,7 +240,7 @@ internal static class TypeNames
         }
         else if (type.ContainingNamespace is { IsGlobalNamespace: false } ns)
         {
-            sb.Append(ns.ToDisplayString());
+            sb.Append(Namespace(ns));
             sb.Append('.');
         }
 

@@ -149,6 +149,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     private static FormatterRegistration? TransformUsage(GeneratorSyntaxContext ctx, CancellationToken ct)
     {
+        ModelBuilder.ResetMemo();
         if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol { IsGenericMethod: true } method)
             return null;
         var owner = method.ContainingType;

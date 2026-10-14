@@ -44,6 +44,7 @@ internal static class ModelBuilder
 
     public static TypeModel? Build(INamedTypeSymbol type, Compilation compilation, ParseOptions? parseOptions)
     {
+        ResetMemo();
         type = type.OriginalDefinition;
         if (!IsEligible(type))
             return null;
@@ -200,7 +201,25 @@ internal static class ModelBuilder
     /// instance field is serialized (nested <c>[NinoType]</c> structs must qualify too). Such structs are copied as
     /// one block, and arrays/lists of them with a single memory copy.
     /// </summary>
+    // Memo for IsRawStruct within one transform: a struct is typically referenced by many members.
+    [ThreadStatic] private static Dictionary<ISymbol, bool>? _rawStructs;
+
+    /// <summary>Clears per-transform memos (symbols differ per compilation; never keep them across transforms).</summary>
+    public static void ResetMemo() => _rawStructs?.Clear();
+
     public static bool IsRawStruct(INamedTypeSymbol type, IAssemblySymbol? weakAssembly)
+    {
+        if (!type.IsValueType || type.TypeKind != TypeKind.Struct)
+            return false;
+        var memo = _rawStructs ??= new Dictionary<ISymbol, bool>(SymbolEqualityComparer.Default);
+        if (memo.TryGetValue(type, out bool known))
+            return known;
+        bool raw = ComputeIsRawStruct(type, weakAssembly);
+        memo[type] = raw;
+        return raw;
+    }
+
+    private static bool ComputeIsRawStruct(INamedTypeSymbol type, IAssemblySymbol? weakAssembly)
     {
         if (!type.IsValueType || !type.IsUnmanagedType || type.TypeKind != TypeKind.Struct)
             return false;
@@ -245,7 +264,7 @@ internal static class ModelBuilder
         if (type.ContainingType != null)
             return OpenName(type.ContainingType) + "." + own;
         return type.ContainingNamespace is { IsGlobalNamespace: false } ns
-            ? "global::" + ns.ToDisplayString() + "." + own
+            ? "global::" + TypeNames.Namespace(ns) + "." + own
             : "global::" + own;
     }
 

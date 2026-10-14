@@ -49,6 +49,11 @@ public static class NinoTypeHelper
     /// </summary>
     public static NinoTypeAttribute? GetNinoTypeAttribute(this ITypeSymbol typeSymbol)
     {
+        // BCL types are never NinoTypes; skip walking their (substituted) interfaces.
+        if (IsSystemNamespace(typeSymbol.ContainingNamespace) || typeSymbol.TypeKind is TypeKind.Array or
+                TypeKind.Pointer or TypeKind.TypeParameter or TypeKind.Enum or TypeKind.Delegate or TypeKind.Error)
+            return null;
+
         var attr = GetDirectNinoTypeAttribute(typeSymbol);
         if (attr != null)
             return NinoTypeAttribute.GetAttribute(attr);
@@ -87,6 +92,15 @@ public static class NinoTypeHelper
         }
 
         return null;
+    }
+
+    private static bool IsSystemNamespace(INamespaceSymbol? ns)
+    {
+        if (ns == null || ns.IsGlobalNamespace)
+            return false;
+        while (!ns.ContainingNamespace.IsGlobalNamespace)
+            ns = ns.ContainingNamespace;
+        return ns.Name == "System";
     }
 
     /// <summary>Whether <paramref name="ns"/> is <c>Nino.Core</c> (without allocating its display string).</summary>

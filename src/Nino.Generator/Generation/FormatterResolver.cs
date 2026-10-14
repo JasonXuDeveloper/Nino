@@ -93,7 +93,8 @@ internal sealed class FormatterResolver
     public static string MetadataName(INamedTypeSymbol definition)
     {
         var ns = definition.ContainingNamespace;
-        var prefix = ns == null || ns.IsGlobalNamespace ? "" : ns.ToDisplayString() + ".";
+        var nsName = TypeNames.Namespace(ns);
+        var prefix = nsName.Length == 0 ? "" : nsName + ".";
         return definition.ContainingType != null
             ? MetadataName(definition.ContainingType) + "+" + definition.MetadataName
             : prefix + definition.MetadataName;
@@ -178,9 +179,6 @@ internal sealed class FormatterResolver
         if (IsRawUnmanaged(type, _weakAssembly))
             return $"{Core}UnmanagedFormatter<{t}>";
 
-        if (type.IsNinoType())
-            return IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type);
-
         if (type.IsTupleType && type.TupleUnderlyingType is { } underlying)
             type = underlying;
 
@@ -249,6 +247,11 @@ internal sealed class FormatterResolver
                 return $"{Core}{formatter}<{string.Join(", ", a)}, {string.Join(", ", args.Select(x => Element(x, utf8)))}>";
             }
         }
+
+        // Checked after the built-in generics: walking the base types and interfaces of BCL instantiations
+        // (List<T>, Dictionary<K, V>...) is the most expensive part of a model build.
+        if (type.IsNinoType())
+            return IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type);
 
         return ResolveUserCollection(type, t, utf8);
     }
