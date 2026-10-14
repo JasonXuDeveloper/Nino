@@ -91,7 +91,8 @@ internal static class ModelBuilder
         bool tolerant = attr.versionTolerant || weakTolerance;
         bool isClass = type.TypeKind == TypeKind.Class;
         // Abstract classes have no body of their own, but emit WriteMembers/ReadMembers for their subtypes.
-        bool emitMembers = isClass && IsDelegatable(type, compilation.Assembly);
+        // Keyed bodies are self-describing per member: no delegation to or from them.
+        bool emitMembers = isClass && !attr.keyed && IsDelegatable(type, compilation.Assembly);
         string baseFormatter = "";
         int baseMemberCount = 0;
 
@@ -102,7 +103,7 @@ internal static class ModelBuilder
             // Reuse the base formatter's member code when the base's members are exactly our first members, in
             // the same order: the bytes are identical, and each member is compiled once instead of once per subtype.
             int basePrefix = 0;
-            if (isClass && type.BaseType is { } baseType && baseType.SpecialType != SpecialType.System_Object &&
+            if (isClass && !attr.keyed && type.BaseType is { } baseType && baseType.SpecialType != SpecialType.System_Object &&
                 IsDelegatable(baseType, compilation.Assembly) &&
                 (baseType.GetNinoTypeAttribute()!.versionTolerant || weakTolerance) == tolerant)
             {
@@ -135,6 +136,25 @@ internal static class ModelBuilder
             {
                 baseFormatter = "";
                 baseMemberCount = 0;
+            }
+        }
+
+        if (attr.keyed)
+        {
+            var seen = new Dictionary<int, string>();
+            foreach (var member in members)
+            {
+                int key = TypeNames.ComputeId(member.Name);
+                if (seen.TryGetValue(key, out var other))
+                {
+                    diagnostics.Add(new DiagnosticInfo("NINO015", "Member key collision",
+                        "Members '{0}' and '{1}' of keyed NinoType '{2}' hash to the same key; rename one of them",
+                        DiagnosticSeverity.Error, location, other, member.Name, type.ToDisplayString()));
+                }
+                else
+                {
+                    seen[key] = member.Name;
+                }
             }
         }
 
@@ -208,6 +228,7 @@ internal static class ModelBuilder
             idName,
             typeParameters.Count == 0 ? (formerName == null ? typeId : TypeNames.ComputeId(TypeNames.RuntimeName(type))) : 0,
             tolerant,
+            attr.keyed,
             rawStruct,
             collectionFormatter,
             emitMembers,
@@ -259,7 +280,7 @@ internal static class ModelBuilder
             !IsEligible(type.OriginalDefinition))
             return false;
         var attr = type.GetNinoTypeAttribute();
-        if (attr == null)
+        if (attr == null || attr.keyed)
             return false;
 
         bool Visible(ISymbol? s) => s == null || s.DeclaredAccessibility == Accessibility.Public ||
@@ -312,7 +333,7 @@ internal static class ModelBuilder
         if (weakAssembly != null && SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, weakAssembly))
             return false;
         var attr = type.GetNinoTypeAttribute();
-        if (attr == null || attr.versionTolerant)
+        if (attr == null || attr.versionTolerant || attr.keyed)
             return false;
         var layout = GetAttribute(type, "StructLayoutAttribute");
         if (layout != null && layout.ConstructorArguments.Length > 0 &&

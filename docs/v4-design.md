@@ -100,6 +100,24 @@ On read, the body is sliced. Members that are missing from the slice (old data) 
 and trailing bytes (new data read by old code) are skipped. Each nested tolerant object delimits itself, so
 fields can be appended to any type at any depth, not just to the root.
 
+### Keyed members
+
+A type marked `[NinoType(keyed: true)]` writes each member with a key and a length, so members can be removed,
+reordered or inserted freely (MessagePack's `[Key("name")]`), mainly for data authored in the Unity editor:
+
+```
+header | int32 bodyLength | { int32 key, int32 length, value }*
+```
+
+* The key is the FNV-1a hash of the member name, computed by the generator, so no strings are written.
+* Writing stays straight-line code with constant keys. Reading loops over the body and dispatches with
+  `switch (key)` (a jump table or binary search); unknown keys are skipped by length, and members that are
+  missing keep their current value (in place) or their default (re-created types).
+* Keyed types are never raw structs and do not delegate members to or from base classes, since each member
+  is self-describing. Polymorphism works as usual: the type id comes before the body.
+* Cost: 8 bytes per member and one dispatch per member on read.
+* A member-name hash collision within one type is a compile-time error (NINO015), so it cannot corrupt data.
+
 ## Runtime (`Nino.Core`)
 
 ### Writer
@@ -262,24 +280,8 @@ polymorphic base inlined the full body of every subtype twice. v4 emits each bod
 
 ## Proposals (not implemented)
 
-Both requests below change the wire format of the types that use them. Each is designed as an opt-in per
-type, so types that do not opt in keep their current bytes and speed.
-
-### Keyed members (#154)
-
-Goal: remove, reorder or insert members freely (MessagePack's `[Key("name")]`), mainly for data authored in
-the Unity editor. Version tolerance already allows appending members; this would allow any edit.
-
-* Opt in with `[NinoType(keyed: true)]`. Body: `int32 bodyLength | uint16 count | { int32 key, int32 length,
-  value }*`. The key is the FNV-1a hash of the member name (or `[NinoMember("name")]`), computed by the
-  generator, so no strings are written. The per-member length lets old readers skip members they do not know.
-* Writing stays straight-line code (constant keys). Reading is a `switch (key)` in generated code, which C#
-  compiles to a jump table or binary search; unknown keys are skipped by length, and members not present
-  keep their default.
-* Cost: 8 bytes per member and one branch per member on read. Expected 1.5-2x slower than positional bodies
-  for small members, still well ahead of name-keyed formats that compare strings.
-* Generator: a member-name hash collision within one type is a compile-time error (diagnostic), so it can
-  never corrupt data at runtime.
+The request below changes the wire format of the types that use it. It is designed as an opt-in per type,
+so types that do not opt in keep their current bytes and speed.
 
 ### Reference tracking (#132)
 

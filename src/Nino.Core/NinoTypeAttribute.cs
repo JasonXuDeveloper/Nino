@@ -16,8 +16,13 @@ namespace Nino.Core
         /// Prefix the body with its byte length, so members can be appended later without breaking existing data.
         /// Defining <c>WEAK_VERSION_TOLERANCE</c> in the project turns this on for every type.
         /// </param>
+        /// <param name="keyed">
+        /// Write each member with a key (the hash of its name) and its length, so members can be removed,
+        /// reordered or inserted without breaking existing data. Unknown members are skipped and missing ones keep
+        /// their current value. Costs 8 bytes per member and a key dispatch per member when reading.
+        /// </param>
         public NinoTypeAttribute(bool autoCollect = true, bool containNonPublicMembers = false,
-            bool allowInheritance = true, bool versionTolerant = false)
+            bool allowInheritance = true, bool versionTolerant = false, bool keyed = false)
         {
         }
     }

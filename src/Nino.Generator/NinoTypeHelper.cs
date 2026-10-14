@@ -132,6 +132,7 @@ public class NinoTypeAttribute
     public bool containNonPublicMembers;
     public bool allowInheritance = true;
     public bool versionTolerant;
+    public bool keyed;
 
     public static NinoTypeAttribute GetAttribute(AttributeData attributeData)
     {
@@ -143,6 +144,7 @@ public class NinoTypeAttribute
             allowInheritance =
                 NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(allowInheritance), true),
             versionTolerant = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(versionTolerant), false),
+            keyed = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(keyed), false),
         };
     }
 }

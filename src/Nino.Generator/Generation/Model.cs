@@ -106,6 +106,8 @@ public sealed record TypeModel(
     // Hash of the runtime name ignoring [NinoFormerName]: the key a by-type lookup computes without reflection.
     int NameId,
     bool VersionTolerant,
+    // Members written as (key, length, value): see NinoTypeAttribute.keyed.
+    bool Keyed,
     // Unmanaged struct written as its raw memory.
     bool RawStruct,
     // For [NinoType] collections: the formatter of the elements, written before the members.

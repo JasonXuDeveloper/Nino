@@ -312,11 +312,14 @@ internal static class Emitter
         return string.Join(" + ", parts);
     }
 
+    /// <summary>Whether the body is prefixed with its length (version tolerant or keyed).</summary>
+    private static bool Sliced(TypeModel m) => m.VersionTolerant || m.Keyed;
+
     private static void EmitWriteBody(StringBuilder sb, TypeModel m)
     {
         sb.AppendLine($"        public void WriteBody({m.TypeName} value, ref {Core}Writer writer)");
         sb.AppendLine("        {");
-        if (m.VersionTolerant)
+        if (Sliced(m))
             sb.AppendLine("            int __length = writer.ReserveInt32();");
         if (m.CollectionFormatter.Length != 0)
             sb.AppendLine($"            default({m.CollectionFormatter}).Serialize(value, ref writer);");
@@ -324,7 +327,7 @@ internal static class Emitter
             sb.AppendLine("            WriteMembers(value, ref writer);");
         else
             EmitMemberWrites(sb, m);
-        if (m.VersionTolerant)
+        if (Sliced(m))
             sb.AppendLine("            writer.PatchLength(__length);");
         sb.AppendLine("        }");
 
@@ -362,6 +365,25 @@ internal static class Emitter
         if (m.BaseFormatter.Length != 0)
             sb.AppendLine($"            {m.BaseFormatter}.WriteMembers(value, ref writer);");
 
+        if (m.Keyed)
+        {
+            // Each member as (key, length, value) so readers can skip, reorder or miss members.
+            int index = 0;
+            foreach (var member in OwnMembers(m))
+            {
+                string l = "__l" + index++;
+                sb.AppendLine($"            writer.UnsafeWrite<int>({TypeNames.ComputeId(member.Name)});");
+                sb.AppendLine($"            int {l} = writer.ReserveInt32();");
+                sb.AppendLine("            " + (member.RawSize.Length != 0
+                    ? $"writer.UnsafeWrite<{member.TypeName}>({Get(m, member, "value")});"
+                    : DirectWrite(member, Get(m, member, "value")) ??
+                      $"default({member.Formatter}).Serialize({Get(m, member, "value")}, ref writer);"));
+                sb.AppendLine($"            writer.PatchLength({l});");
+            }
+
+            return;
+        }
+
         int block = 0;
         foreach (var group in Groups(OwnMembers(m)))
         {
@@ -392,7 +414,7 @@ internal static class Emitter
         sb.AppendLine($"        public void ReadBody(ref {m.TypeName} value, ref {Core}Reader reader)");
         sb.AppendLine("        {");
         string r = "reader";
-        if (m.VersionTolerant)
+        if (Sliced(m))
         {
             sb.AppendLine("            var __reader = reader.ReadSlice();");
             r = "__reader";
@@ -420,7 +442,7 @@ internal static class Emitter
             else
             {
                 EmitMemberReads(sb, m, r, inPlace: true, onEnd: "goto __end;");
-                if (m.VersionTolerant)
+                if (m.VersionTolerant && !m.Keyed)
                     sb.AppendLine("            __end: ;");
             }
 
@@ -431,7 +453,7 @@ internal static class Emitter
         foreach (var member in m.Members)
             sb.AppendLine($"            {member.TypeName} {Local(member)} = default;");
         EmitMemberReads(sb, m, r, inPlace: false, onEnd: "goto __end;");
-        if (m.VersionTolerant)
+        if (m.VersionTolerant && !m.Keyed)
             sb.AppendLine("            __end:");
 
         if (c.Creator.Length == 0)
@@ -485,6 +507,41 @@ internal static class Emitter
             sb.AppendLine(m.VersionTolerant
                 ? $"            if (!{m.BaseFormatter}.ReadMembers(value, ref {r})) {onEnd}"
                 : $"            {m.BaseFormatter}.ReadMembers(value, ref {r});");
+        }
+
+        if (m.Keyed)
+        {
+            // Members in any order; unknown keys are skipped and missing members keep their value.
+            sb.AppendLine($"            while (!{r}.Eof)");
+            sb.AppendLine("            {");
+            sb.AppendLine($"                int __key = {r}.UnsafeRead<int>();");
+            sb.AppendLine($"                var __m = {r}.ReadSlice();");
+            sb.AppendLine("                switch (__key)");
+            sb.AppendLine("                {");
+            foreach (var member in members)
+            {
+                sb.AppendLine($"                    case {TypeNames.ComputeId(member.Name)}:");
+                sb.AppendLine("                    {");
+                var body = new StringBuilder();
+                if (member.RawSize.Length != 0)
+                {
+                    string read = "__m.UnsafeRead<" + member.TypeName + ">()";
+                    body.AppendLine("            " + (inPlace ? Set(m, member, "value", read) : $"{Local(member)} = {read};"));
+                }
+                else
+                {
+                    EmitFormatterRead(body, m, member, "__m", inPlace);
+                }
+
+                foreach (var line in body.ToString().Split(new[] { '\n' }, System.StringSplitOptions.RemoveEmptyEntries))
+                    sb.AppendLine("            " + line.TrimEnd('\r'));
+                sb.AppendLine("                        break;");
+                sb.AppendLine("                    }");
+            }
+
+            sb.AppendLine("                }");
+            sb.AppendLine("            }");
+            return;
         }
 
         if (m.VersionTolerant)
