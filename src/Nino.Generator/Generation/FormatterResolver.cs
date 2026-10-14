@@ -250,6 +250,18 @@ internal sealed class FormatterResolver
             }
         }
 
+        return ResolveUserCollection(type, t, utf8);
+    }
+
+    /// <summary>
+    /// The collection formatter for a user collection: a class derived from <c>List&lt;T&gt;</c>,
+    /// <c>HashSet&lt;T&gt;</c> or <c>Dictionary&lt;TKey, TValue&gt;</c>, or implementing the collection interfaces,
+    /// with a public parameterless constructor. Also used for the elements of <c>[NinoType]</c> collections.
+    /// </summary>
+    public string? ResolveUserCollection(INamedTypeSymbol type) => ResolveUserCollection(type, TypeNames.Global(type), false);
+
+    private string? ResolveUserCollection(INamedTypeSymbol type, string t, bool utf8)
+    {
         // User collections derived from List<T>, HashSet<T> or Dictionary<TKey, TValue>, or implementing the
         // collection interfaces, with a public parameterless constructor.
         if (type.TypeKind == TypeKind.Class && !type.IsAbstract &&

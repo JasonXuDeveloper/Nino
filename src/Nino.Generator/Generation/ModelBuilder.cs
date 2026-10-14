@@ -103,6 +103,10 @@ internal static class ModelBuilder
             ? new ConstructionModel(false, "", EquatableArray<string>.Empty, "")
             : BuildConstruction(type, members, diagnostics, location);
 
+        string collectionFormatter = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
+            ? resolver.ResolveUserCollection(type) ?? ""
+            : "";
+
         if (construction.Recreate)
         {
             // Read-only members that are not constructor arguments cannot be assigned (init-only properties can,
@@ -181,6 +185,7 @@ internal static class ModelBuilder
             idName,
             attr.versionTolerant || weakTolerance,
             rawStruct,
+            collectionFormatter,
             new EquatableArray<MemberModel>(members),
             construction,
             new EquatableArray<string>(bases),

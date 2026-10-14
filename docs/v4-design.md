@@ -78,6 +78,15 @@ must qualify as well. The bytes are the in-memory layout, **padding included**, 
 the format; mark the struct `versionTolerant` (or ignore a field) to opt out. Otherwise structs are written
 member by member.
 
+### Collections
+
+User collection types work without attributes: a class derived from `List<T>`, `HashSet<T>` or
+`Dictionary<TKey, TValue>`, or implementing `IDictionary<TKey, TValue>`, `IProducerConsumerCollection<T>` or
+`ICollection<T>`, with a public parameterless constructor, is written like the collection it extends. A
+`[NinoType]` collection writes its elements first and then its own serialized members, so a collection
+with extra state (for example a synchronized list) keeps both. Ref deserialization reuses the existing
+collection instance.
+
 ### Version tolerance
 
 A type marked `[NinoType(versionTolerant: true)]` (or every type when the project defines

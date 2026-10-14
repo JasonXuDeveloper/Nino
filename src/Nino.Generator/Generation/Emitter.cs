@@ -322,6 +322,8 @@ internal static class Emitter
         sb.AppendLine("        {");
         if (m.VersionTolerant)
             sb.AppendLine("            int __length = writer.ReserveInt32();");
+        if (m.CollectionFormatter.Length != 0)
+            sb.AppendLine($"            default({m.CollectionFormatter}).Serialize(value, ref writer);");
 
         int block = 0;
         foreach (var group in Groups(m.Members))
@@ -373,6 +375,9 @@ internal static class Emitter
                 sb.AppendLine("            if (value == null)");
                 sb.AppendLine($"                value = {create};");
             }
+
+            if (m.CollectionFormatter.Length != 0)
+                sb.AppendLine($"            default({m.CollectionFormatter}).Deserialize(ref value, ref {r});");
 
             EmitMemberReads(sb, m, r, inPlace: true);
             if (m.VersionTolerant)
