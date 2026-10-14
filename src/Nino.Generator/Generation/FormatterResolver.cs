@@ -315,8 +315,11 @@ internal sealed class FormatterResolver
     {
         element = element.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         var e = TypeNames.Global(element);
-        return IsRawUnmanaged(element, _weakAssembly)
-            ? $"{Core}UnmanagedListFormatter<{listType}, {e}>"
-            : $"{Core}ListFormatter<{listType}, {e}, {Element(element, utf8)}>";
+        if (IsRawUnmanaged(element, _weakAssembly))
+            return $"{Core}UnmanagedListFormatter<{listType}, {e}>";
+        if (element is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable &&
+            IsRawUnmanaged(nullable.TypeArguments[0], _weakAssembly))
+            return $"{Core}NullableListFormatter<{listType}, {TypeNames.Global(nullable.TypeArguments[0])}>";
+        return $"{Core}ListFormatter<{listType}, {e}, {Element(element, utf8)}>";
     }
 }

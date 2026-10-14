@@ -90,6 +90,42 @@ namespace Nino.Core
         }
     }
 
+    /// <summary><c>List&lt;T?&gt;</c> of raw <typeparamref name="T"/>: same bytes as the per-element encoding.</summary>
+    public struct NullableListFormatter<TList, T> : INinoFormatter<TList>
+        where TList : List<T?>, new()
+        where T : unmanaged
+    {
+        public void Serialize(TList value, ref Writer writer)
+        {
+            if (value == null)
+            {
+                writer.WriteNullLength();
+                return;
+            }
+
+            NinoNullables.Write<T>(ListAccess.AsSpan<T?>(value), ref writer);
+        }
+
+        public void Deserialize(ref TList value, ref Reader reader)
+        {
+            int length = reader.ReadLength();
+            if (length < 0)
+            {
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            var list = value;
+            if (list == null)
+            {
+                list = typeof(TList) == typeof(List<T?>) ? (TList)new List<T?>(length) : new TList();
+                value = list;
+            }
+
+            NinoNullables.Read<T>(ListAccess.SetCount<T?>(list, length), ref reader);
+        }
+    }
+
     /// <summary>
     /// Collection interfaces (<c>IEnumerable&lt;T&gt;</c>, <c>IList&lt;T&gt;</c>, <c>ICollection&lt;T&gt;</c>,
     /// <c>IReadOnlyList&lt;T&gt;</c>, <c>IReadOnlyCollection&lt;T&gt;</c>, <c>ISet&lt;T&gt;</c>, ...):

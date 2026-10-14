@@ -148,13 +148,38 @@ namespace Nino.Core
                 return;
             }
 
+            NinoNullables.Write<T>(value, ref writer);
+        }
+
+        public void Deserialize(ref T?[] value, ref Reader reader)
+        {
+            int length = reader.ReadLength();
+            if (length < 0)
+            {
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            var array = value;
+            if (array == null || array.Length != length)
+                array = NinoElements.Resize(ref value, length, uninitialized: true);
+            NinoNullables.Read<T>(array, ref reader);
+        }
+    }
+
+    /// <summary>Element loops for sequences of raw nullables (a has-value byte, then the value if present).</summary>
+    internal static class NinoNullables
+    {
+        /// <summary>Writes the count and the elements into one reservation, trimmed afterwards.</summary>
+        public static void Write<T>(ReadOnlySpan<T?> values, ref Writer writer) where T : unmanaged
+        {
             int size = Unsafe.SizeOf<T>();
-            int max = checked(4 + value.Length * (1 + size));
+            int max = checked(4 + values.Length * (1 + size));
             ref byte dst = ref writer.Reserve(max);
-            NinoUnsafe.Write(ref dst, value.Length);
+            NinoUnsafe.Write(ref dst, values.Length);
             int offset = 4;
-            ref T? item = ref NinoUnsafe.GetArrayDataReference(value);
-            for (int i = 0; i < value.Length; i++, item = ref Unsafe.Add(ref item, 1))
+            ref T? item = ref MemoryMarshal.GetReference(values);
+            for (int i = 0; i < values.Length; i++, item = ref Unsafe.Add(ref item, 1))
             {
                 if (item.HasValue)
                 {
@@ -172,25 +197,15 @@ namespace Nino.Core
             writer.Unreserve(max - offset);
         }
 
-        public void Deserialize(ref T?[] value, ref Reader reader)
+        /// <summary>Reads <c>destination.Length</c> elements (the count has been read).</summary>
+        public static void Read<T>(Span<T?> destination, ref Reader reader) where T : unmanaged
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
-                return;
-            }
-
-            var array = value;
-            if (array == null || array.Length != length)
-                array = NinoElements.Resize(ref value, length, uninitialized: true);
-
             int size = Unsafe.SizeOf<T>();
             var src = reader.RemainingSpan;
             ref byte first = ref MemoryMarshal.GetReference(src);
-            ref T? item = ref NinoUnsafe.GetArrayDataReference(array);
+            ref T? item = ref MemoryMarshal.GetReference(destination);
             int offset = 0;
-            for (int i = 0; i < array.Length; i++, item = ref Unsafe.Add(ref item, 1))
+            for (int i = 0; i < destination.Length; i++, item = ref Unsafe.Add(ref item, 1))
             {
                 // One check covers a full element; only the last bytes of the data take the careful path.
                 if (size >= src.Length - offset)

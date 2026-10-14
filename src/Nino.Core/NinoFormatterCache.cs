@@ -290,9 +290,11 @@ namespace Nino.Core
 
         private static Type ListFormatter(Type listType, Type element)
         {
-            return IsRawUnmanaged(element)
-                ? typeof(UnmanagedListFormatter<,>).MakeGenericType(listType, element)
-                : typeof(ListFormatter<,,>).MakeGenericType(listType, element, ElementFormatter(element));
+            if (IsRawUnmanaged(element))
+                return typeof(UnmanagedListFormatter<,>).MakeGenericType(listType, element);
+            if (Nullable.GetUnderlyingType(element) is { } underlying && IsRawUnmanaged(underlying))
+                return typeof(NullableListFormatter<,>).MakeGenericType(listType, underlying);
+            return typeof(ListFormatter<,,>).MakeGenericType(listType, element, ElementFormatter(element));
         }
 
         private static Type BuildGeneric(Type type, Type definition, Type[] args)

@@ -104,8 +104,15 @@ public class TopLevelFastPathTests
         var bytes = NinoSerializer.Serialize(values);
         Assert.AreEqual(4 + 5 + 1 + 5, bytes.Length);
         CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<int?[]>(bytes));
-        // Same bytes as the per-element encoding used by lists.
+        // The per-element encoding: count, then a has-value byte and the value when present.
+        CollectionAssert.AreEqual(new byte[] { 3, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0xFD, 0xFF, 0xFF, 0xFF }, bytes);
         CollectionAssert.AreEqual(NinoSerializer.Serialize(new List<int?>(values)), bytes);
+        var holder = NinoDeserializer.Deserialize<NullableHolder>(NinoSerializer.Serialize(
+            new NullableHolder { Array = values, List = new List<int?>(values), Dates = new List<System.DateTime?> { null } }));
+        CollectionAssert.AreEqual(values, holder.Array);
+        CollectionAssert.AreEqual(values, holder.List);
+        Assert.AreEqual(1, holder.Dates.Count);
+        Assert.IsNull(holder.Dates[0]);
         CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<List<int?>>(bytes));
         var reused = new int?[] { 9, 9, 9 };
         NinoDeserializer.DeserializeRef(ref reused, bytes);
@@ -115,4 +122,12 @@ public class TopLevelFastPathTests
         var dates = new System.DateTime?[] { null, System.DateTime.UtcNow };
         CollectionAssert.AreEqual(dates, NinoDeserializer.Deserialize<System.DateTime?[]>(NinoSerializer.Serialize(dates)));
     }
+}
+
+[NinoType]
+public class NullableHolder
+{
+    public int?[] Array;
+    public List<int?> List;
+    public List<System.DateTime?> Dates;
 }
