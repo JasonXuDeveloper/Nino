@@ -189,7 +189,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
         if (symbol == null)
             return null;
         ct.ThrowIfCancellationRequested();
-        return ModelBuilder.Build(symbol, semanticModel.Compilation, semanticModel.SyntaxTree.Options);
+        var compilation = semanticModel.Compilation;
+        var options = semanticModel.SyntaxTree.Options;
+        return ModelCache.GetOrBuild(symbol, compilation, options, () => ModelBuilder.Build(symbol, compilation, options));
     }
 
     private static FormatterRegistration? TransformUsage(GeneratorSyntaxContext ctx, CancellationToken ct)
