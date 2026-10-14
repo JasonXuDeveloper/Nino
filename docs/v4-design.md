@@ -110,12 +110,15 @@ header | int32 bodyLength | { int32 key, int32 length, value }*
 ```
 
 * The key is the FNV-1a hash of the member name, computed by the generator, so no strings are written.
-* Writing stays straight-line code with constant keys. Reading loops over the body and dispatches with
-  `switch (key)` (a jump table or binary search); unknown keys are skipped by length, and members that are
-  missing keep their current value (in place) or their default (re-created types).
+* Writing stays straight-line code with constant keys; consecutive unmanaged members share one reservation.
+* Reading first assumes the declaration order (data written by the same schema): each unmanaged member is
+  matched with one 8-byte compare of (key, length), others with a 4-byte key compare. At the first mismatch it
+  falls back to a loop that dispatches any key with `switch (key)`; unknown keys are skipped by length, and
+  members that are missing keep their current value (in place) or their default (re-created types).
 * Keyed types are never raw structs and do not delegate members to or from base classes, since each member
   is self-describing. Polymorphism works as usual: the type id comes before the body.
-* Cost: 8 bytes per member and one dispatch per member on read.
+* Cost: 8 bytes per member. On an 8-member class (net8, no tiering) serialize takes about 1.3x and
+  deserialize about 1.2x the positional time, while staying faster than MemoryPack's positional mode.
 * A member-name hash collision within one type is a compile-time error (NINO015), so it cannot corrupt data.
 
 ## Runtime (`Nino.Core`)

@@ -24,6 +24,17 @@ public sealed class KeyedV2
     public List<int> Items;
 }
 
+// Same prefix as V1, then diverges: the in-order fast path reads Id and Name, then falls back.
+[NinoType(keyed: true)]
+public sealed class KeyedV3
+{
+    public int Id;
+    public string Name;
+    public long Extra = -1;
+    public float Old;
+    public List<int> Items;
+}
+
 [NinoType(keyed: true)]
 public struct KeyedStruct
 {
@@ -87,6 +98,19 @@ public class KeyedMemberTests
         Assert.AreEqual("x", back.Name);
         Assert.IsNull(back.Items);
         Assert.AreEqual(0f, back.Old);
+    }
+
+    [TestMethod]
+    public void FallsBackAfterAMatchingPrefix()
+    {
+        var bytes = NinoSerializer.Serialize(new KeyedV1
+            { Id = 7, Name = "nino", Items = new List<int> { 1 }, Old = 2.5f });
+        var v3 = NinoDeserializer.Deserialize<KeyedV3>(bytes);
+        Assert.AreEqual(7, v3.Id);
+        Assert.AreEqual("nino", v3.Name);
+        Assert.AreEqual(-1, v3.Extra);
+        Assert.AreEqual(2.5f, v3.Old);
+        CollectionAssert.AreEqual(new List<int> { 1 }, v3.Items);
     }
 
     [TestMethod]

@@ -109,6 +109,30 @@ namespace Nino.Core
             return NinoUnsafe.Read<int>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), _pos));
         }
 
+        /// <summary>Consumes 4 bytes if they equal <paramref name="expected"/>; otherwise consumes nothing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryReadInt32(int expected)
+        {
+            int pos = _pos;
+            if (_data.Length - pos < 4 ||
+                NinoUnsafe.Read<int>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos)) != expected)
+                return false;
+            _pos = pos + 4;
+            return true;
+        }
+
+        /// <summary>Consumes 8 bytes if they equal <paramref name="expected"/>; otherwise consumes nothing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryReadInt64(long expected)
+        {
+            int pos = _pos;
+            if (_data.Length - pos < 8 ||
+                NinoUnsafe.Read<long>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos)) != expected)
+                return false;
+            _pos = pos + 8;
+            return true;
+        }
+
         /// <summary>
         /// Reads a collection length. Returns -1 for null. Throws if the payload cannot possibly contain
         /// <c>length * minElementSize</c> more bytes.
