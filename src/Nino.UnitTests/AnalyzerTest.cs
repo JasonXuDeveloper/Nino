@@ -27,15 +27,7 @@ public class AnalyzerTest
             test.TestState.ExpectedDiagnostics.AddRange(diagnostics);
         }
 
-        var referenceAssembly = typeof(Core.Writer).Assembly;
-        // reference this assembly
-        test.TestState.AdditionalReferences.Add(referenceAssembly);
-        // runtime version
-#if NET8_0
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
-#else
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard21;
-#endif
+        TestReferences.Apply(test.TestState);
 
         return test;
     }
@@ -56,15 +48,7 @@ public class AnalyzerTest
             test.TestState.ExpectedDiagnostics.AddRange(diagnostics);
         }
 
-        var referenceAssembly = typeof(Core.Writer).Assembly;
-        // reference this assembly
-        test.TestState.AdditionalReferences.Add(referenceAssembly);
-        // runtime version
-#if NET8_0
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
-#else
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard21;
-#endif
+        TestReferences.Apply(test.TestState);
 
         // Disable verification of generated sources - we only care about diagnostics
         test.TestBehaviors |= TestBehaviors.SkipGeneratedSourcesCheck;

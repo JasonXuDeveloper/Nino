@@ -205,7 +205,7 @@ internal sealed class FormatterResolver
                 case "System.ArraySegment`1":
                     return $"{Core}ArraySegmentFormatter<{a[0]}, {Element(args[0], utf8)}>";
                 case "System.Collections.Generic.PriorityQueue`2":
-                    return $"{Core}PriorityQueueFormatter<{a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
+                    return $"global::NinoGen.NinoPriorityQueueFormatter<{a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
                 case "System.Collections.Generic.SortedSet`1":
                 case "System.Collections.Generic.LinkedList`1":
                     return $"{Core}CollectionFormatter<{t}, {a[0]}, {Element(args[0], utf8)}>";

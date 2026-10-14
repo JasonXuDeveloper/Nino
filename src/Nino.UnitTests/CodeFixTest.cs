@@ -28,17 +28,8 @@ public class CodeFixTest
             test.TestState.ExpectedDiagnostics.AddRange(diagnostics);
         }
 
-        var referenceAssembly = typeof(Core.Writer).Assembly;
-        test.TestState.AdditionalReferences.Add(referenceAssembly);
-        test.FixedState.AdditionalReferences.Add(referenceAssembly);
-
-#if NET8_0
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
-        test.FixedState.ReferenceAssemblies = ReferenceAssemblies.Net.Net80;
-#else
-        test.TestState.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard21;
-        test.FixedState.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard21;
-#endif
+        TestReferences.Apply(test.TestState);
+        TestReferences.Apply(test.FixedState);
 
         return test;
     }

@@ -594,6 +594,74 @@ internal static class Emitter
         return sb.ToString();
     }
 
+    public static string EmitPriorityQueueFormatter()
+    {
+        return Header + $$"""
+            namespace NinoGen
+            {
+                /// <summary><c>PriorityQueue&lt;TElement, TPriority&gt;</c>: count (-1 = null), then (element, priority) pairs.</summary>
+                internal struct NinoPriorityQueueFormatter<TElement, TPriority, TElementFormatter, TPriorityFormatter>
+                    : {{Core}}INinoFormatter<global::System.Collections.Generic.PriorityQueue<TElement, TPriority>>
+                    where TElementFormatter : struct, {{Core}}INinoFormatter<TElement>
+                    where TPriorityFormatter : struct, {{Core}}INinoFormatter<TPriority>
+                {
+                    public void Serialize(global::System.Collections.Generic.PriorityQueue<TElement, TPriority> value, ref {{Core}}Writer writer)
+                    {
+                        if (value == null)
+                        {
+                            writer.WriteNullLength();
+                            return;
+                        }
+
+                        writer.WriteLength(value.Count);
+                        foreach (var (element, priority) in value.UnorderedItems)
+                        {
+                            default(TElementFormatter).Serialize(element, ref writer);
+                            default(TPriorityFormatter).Serialize(priority, ref writer);
+                        }
+                    }
+
+                    public void Deserialize(ref global::System.Collections.Generic.PriorityQueue<TElement, TPriority> value, ref {{Core}}Reader reader)
+                    {
+                        int length = reader.ReadLength();
+                        if (length < 0)
+                        {
+                            {{Core}}NinoRecycler.Discard(ref value);
+                            return;
+                        }
+
+                        var queue = value;
+                        if (queue == null)
+                        {
+                            queue = new global::System.Collections.Generic.PriorityQueue<TElement, TPriority>(length);
+                            value = queue;
+                        }
+                        else
+                        {
+                            if ({{Core}}NinoRecycler<TElement>.IsRegistered)
+                            {
+                                foreach (var (element, _) in queue.UnorderedItems)
+                                    {{Core}}NinoRecycler<TElement>.Recycle(element);
+                            }
+
+                            queue.Clear();
+                        }
+
+                        for (int i = 0; i < length; i++)
+                        {
+                            TElement element = default;
+                            TPriority priority = default;
+                            default(TElementFormatter).Deserialize(ref element, ref reader);
+                            default(TPriorityFormatter).Deserialize(ref priority, ref reader);
+                            queue.Enqueue(element, priority);
+                        }
+                    }
+                }
+            }
+
+            """;
+    }
+
     public static string EmitImmutableFormatters()
     {
         return Header + $$"""

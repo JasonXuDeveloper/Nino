@@ -47,8 +47,11 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                     var attr = typeSymbol.GetAttributesCache().FirstOrDefault(a =>
                         a.AttributeClass != null &&
                         a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
-                    bool autoCollect = attr == null || (bool)(attr.ConstructorArguments[0].Value ?? false);
-                    bool containNonPublic = attr != null && (bool)(attr.ConstructorArguments[1].Value ?? false);
+                    bool autoCollect = attr == null ||
+                                       NinoTypeHelper.GetConstructorArgumentByName(attr, "autoCollect", true);
+                    bool containNonPublic = attr != null &&
+                                            NinoTypeHelper.GetConstructorArgumentByName(attr,
+                                                "containNonPublicMembers", false);
 
                     // check if the type is nested
                     if (typeDeclarationSyntax.Parent is TypeDeclarationSyntax && containNonPublic)

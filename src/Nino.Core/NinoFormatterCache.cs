@@ -292,11 +292,6 @@ namespace Nino.Core
                     ElementFormatter(args[0]), ElementFormatter(args[1]));
             if (definition == typeof(ArraySegment<>))
                 return typeof(ArraySegmentFormatter<,>).MakeGenericType(args[0], ElementFormatter(args[0]));
-#if NET8_0_OR_GREATER
-            if (definition == typeof(PriorityQueue<,>))
-                return typeof(PriorityQueueFormatter<,,,>).MakeGenericType(args[0], args[1],
-                    ElementFormatter(args[0]), ElementFormatter(args[1]));
-#endif
 
             if (InterfaceCollections.TryGetValue(definition, out var concrete))
                 return typeof(InterfaceCollectionFormatter<,,,>).MakeGenericType(type,

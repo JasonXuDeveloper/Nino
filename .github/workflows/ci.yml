@@ -46,10 +46,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '8.0.x' }}
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
             8.0.x
-            6.0.x
-            2.1.x
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -72,6 +71,18 @@ jobs:
 
       - name: Run unit tests
         run: dotnet test --no-build --verbosity normal --configuration Debug --collect:"XPlat Code Coverage" --results-directory ./TestResults
+
+      # Every Nino.Core build must produce identical bytes (GoldenBytesTests pins them): run the suite against the
+      # netstandard builds too.
+      - name: Run unit tests against Nino.Core netstandard2.0
+        run: |
+          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0
+
+      - name: Run unit tests against Nino.Core netstandard2.1
+        run: |
+          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1
 
       - name: Cache Unity Library
         uses: actions/cache@v4
@@ -139,10 +150,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '8.0.x' }}
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
             8.0.x
-            6.0.x
-            2.1.x
 
       - name: Cache NuGet packages
         uses: actions/cache@v4

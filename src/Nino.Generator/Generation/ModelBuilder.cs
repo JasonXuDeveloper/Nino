@@ -189,7 +189,8 @@ internal static class ModelBuilder
     public static bool IsBuiltInFormatter(string formatter) =>
         (formatter.StartsWith(Core) && !formatter.StartsWith(Core + "CachedFormatter<") &&
          !formatter.StartsWith(Core + "CustomFormatter<")) ||
-        formatter.StartsWith("global::NinoGen.NinoImmutable");
+        formatter.StartsWith("global::NinoGen.NinoImmutable") ||
+        formatter.StartsWith("global::NinoGen.NinoPriorityQueueFormatter<");
 
     private static string OpenName(INamedTypeSymbol type)
     {

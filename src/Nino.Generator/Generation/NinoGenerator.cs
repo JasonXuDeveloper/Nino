@@ -68,13 +68,20 @@ public sealed class NinoGenerator : IIncrementalGenerator
             c.GetTypeByMetadataName("UnityEngine.RuntimeInitializeOnLoadMethodAttribute") != null,
             c.GetTypeByMetadataName("UnityEditor.InitializeOnLoadMethodAttribute") != null));
 
-        var hasImmutable = context.CompilationProvider.Select(static (c, _) =>
-            c.ReferencedAssemblyNames.Any(static a => a.Name == "Nino.Core") &&
-            c.GetTypeByMetadataName("System.Collections.Immutable.ImmutableArray`1") != null);
-        context.RegisterSourceOutput(hasImmutable, static (spc, has) =>
+        // Formatters for collection types Nino.Core cannot reference (System.Collections.Immutable is not
+        // available everywhere, PriorityQueue only exists on .NET 6+) are emitted into the assembly that uses them.
+        var helpers = context.CompilationProvider.Select(static (c, _) => (
+            Enabled: c.ReferencedAssemblyNames.Any(static a => a.Name == "Nino.Core"),
+            Immutable: c.GetTypeByMetadataName("System.Collections.Immutable.ImmutableArray`1") != null,
+            PriorityQueue: c.GetTypeByMetadataName("System.Collections.Generic.PriorityQueue`2") != null));
+        context.RegisterSourceOutput(helpers, static (spc, x) =>
         {
-            if (has)
+            if (!x.Enabled)
+                return;
+            if (x.Immutable)
                 spc.AddSource("NinoGen.ImmutableFormatters.g.cs", Emitter.EmitImmutableFormatters());
+            if (x.PriorityQueue)
+                spc.AddSource("NinoGen.PriorityQueueFormatter.g.cs", Emitter.EmitPriorityQueueFormatter());
         });
 
         var entries = models.Select(static (m, _) => ToEntry(m)).Collect()

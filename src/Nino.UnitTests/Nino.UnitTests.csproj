@@ -6,7 +6,7 @@
         <IsPackable>false</IsPackable>
         <LangVersion>10</LangVersion>
         <OutputType>Library</OutputType>
-        <TargetFrameworks>net8.0;netstandard2.1</TargetFrameworks>
+        <TargetFrameworks>net8.0;net10.0;netstandard2.1</TargetFrameworks>
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
         <ReportAnalyzer>true</ReportAnalyzer>
         <EnableNETAnalyzers>false</EnableNETAnalyzers>
@@ -49,7 +49,10 @@
     <ItemGroup>
       <PackageReference Include="System.Net.Http" Version="4.3.4" />
       <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
-        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
+        <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to test a specific Nino.Core build. -->
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
+                          SetTargetFramework="TargetFramework=$(NinoCoreTfm)"/>
         <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="true"/>
