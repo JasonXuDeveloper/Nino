@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -103,6 +104,14 @@ public class TopLevelFastPathTests
         var bytes = NinoSerializer.Serialize(values);
         Assert.AreEqual(4 + 5 + 1 + 5, bytes.Length);
         CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<int?[]>(bytes));
+        // Same bytes as the per-element encoding used by lists.
+        CollectionAssert.AreEqual(NinoSerializer.Serialize(new List<int?>(values)), bytes);
+        CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<List<int?>>(bytes));
+        var reused = new int?[] { 9, 9, 9 };
+        NinoDeserializer.DeserializeRef(ref reused, bytes);
+        CollectionAssert.AreEqual(values, reused);
+        Assert.ThrowsException<System.InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<int?[]>(bytes.AsSpan(0, bytes.Length - 1).ToArray()));
         var dates = new System.DateTime?[] { null, System.DateTime.UtcNow };
         CollectionAssert.AreEqual(dates, NinoDeserializer.Deserialize<System.DateTime?[]>(NinoSerializer.Serialize(dates)));
     }

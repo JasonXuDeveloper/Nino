@@ -131,6 +131,13 @@ namespace Nino.Core
             return ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos);
         }
 
+        /// <summary>The unread bytes, without consuming them; pair with <see cref="Advance"/>.</summary>
+        internal ReadOnlySpan<byte> RemainingSpan
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _data.Slice(_pos);
+        }
+
         /// <summary>Skips <paramref name="count"/> bytes.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Advance(int count) => ReadBlock(count);

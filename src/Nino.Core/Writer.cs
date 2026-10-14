@@ -96,6 +96,10 @@ namespace Nino.Core
             return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
         }
 
+        /// <summary>Gives back the last <paramref name="count"/> reserved bytes (reserve the most, then trim).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void Unreserve(int count) => _pos -= count;
+
         /// <summary>Writes an unmanaged value. <typeparamref name="T"/> must not contain references.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnsafeWrite<T>(T value)

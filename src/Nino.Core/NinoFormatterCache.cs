@@ -213,9 +213,11 @@ namespace Nino.Core
                 switch (type.GetArrayRank())
                 {
                     case 1 when type == element.MakeArrayType():
-                        return IsRawUnmanaged(element)
-                            ? typeof(UnmanagedArrayFormatter<>).MakeGenericType(element)
-                            : typeof(ArrayFormatter<,>).MakeGenericType(element, ElementFormatter(element));
+                        if (IsRawUnmanaged(element))
+                            return typeof(UnmanagedArrayFormatter<>).MakeGenericType(element);
+                        if (Nullable.GetUnderlyingType(element) is { } underlying && IsRawUnmanaged(underlying))
+                            return typeof(NullableArrayFormatter<>).MakeGenericType(underlying);
+                        return typeof(ArrayFormatter<,>).MakeGenericType(element, ElementFormatter(element));
                     case 2:
                         return typeof(Array2DFormatter<,>).MakeGenericType(element, ElementFormatter(element));
                     case 3:

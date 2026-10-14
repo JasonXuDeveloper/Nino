@@ -148,9 +148,12 @@ internal sealed class FormatterResolver
         var e = TypeNames.Global(element);
         if (array.IsSZArray)
         {
-            return IsRawUnmanaged(element, _weakAssembly)
-                ? $"{Core}UnmanagedArrayFormatter<{e}>"
-                : $"{Core}ArrayFormatter<{e}, {Element(element, utf8)}>";
+            if (IsRawUnmanaged(element, _weakAssembly))
+                return $"{Core}UnmanagedArrayFormatter<{e}>";
+            if (element is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable &&
+                IsRawUnmanaged(nullable.TypeArguments[0], _weakAssembly))
+                return $"{Core}NullableArrayFormatter<{TypeNames.Global(nullable.TypeArguments[0])}>";
+            return $"{Core}ArrayFormatter<{e}, {Element(element, utf8)}>";
         }
 
         return array.Rank switch

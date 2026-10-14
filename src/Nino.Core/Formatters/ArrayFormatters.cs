@@ -133,6 +133,88 @@ namespace Nino.Core
         }
     }
 
+    /// <summary>
+    /// <c>T?[]</c> of raw <typeparamref name="T"/>: the same bytes as <see cref="ArrayFormatter{T,TFormatter}"/> with
+    /// <see cref="NullableFormatter{T,TFormatter}"/> (length, then a has-value byte and the value per element),
+    /// written into one reservation and read without per-element calls.
+    /// </summary>
+    public struct NullableArrayFormatter<T> : INinoFormatter<T?[]> where T : unmanaged
+    {
+        public void Serialize(T?[] value, ref Writer writer)
+        {
+            if (value == null)
+            {
+                writer.WriteNullLength();
+                return;
+            }
+
+            int size = Unsafe.SizeOf<T>();
+            int max = checked(4 + value.Length * (1 + size));
+            ref byte dst = ref writer.Reserve(max);
+            NinoUnsafe.Write(ref dst, value.Length);
+            int offset = 4;
+            ref T? item = ref NinoUnsafe.GetArrayDataReference(value);
+            for (int i = 0; i < value.Length; i++, item = ref Unsafe.Add(ref item, 1))
+            {
+                if (item.HasValue)
+                {
+                    Unsafe.Add(ref dst, offset) = 1;
+                    NinoUnsafe.Write(ref Unsafe.Add(ref dst, offset + 1), item.GetValueOrDefault());
+                    offset += 1 + size;
+                }
+                else
+                {
+                    Unsafe.Add(ref dst, offset) = 0;
+                    offset++;
+                }
+            }
+
+            writer.Unreserve(max - offset);
+        }
+
+        public void Deserialize(ref T?[] value, ref Reader reader)
+        {
+            int length = reader.ReadLength();
+            if (length < 0)
+            {
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            var array = value;
+            if (array == null || array.Length != length)
+                array = NinoElements.Resize(ref value, length, uninitialized: true);
+
+            int size = Unsafe.SizeOf<T>();
+            var src = reader.RemainingSpan;
+            ref byte first = ref MemoryMarshal.GetReference(src);
+            ref T? item = ref NinoUnsafe.GetArrayDataReference(array);
+            int offset = 0;
+            for (int i = 0; i < array.Length; i++, item = ref Unsafe.Add(ref item, 1))
+            {
+                // One check covers a full element; only the last bytes of the data take the careful path.
+                if (size >= src.Length - offset)
+                {
+                    if (offset >= src.Length || (Unsafe.Add(ref first, offset) != 0 && size >= src.Length - offset))
+                        NinoThrow.EndOfData();
+                }
+
+                if (Unsafe.Add(ref first, offset) == 0)
+                {
+                    item = null;
+                    offset++;
+                }
+                else
+                {
+                    item = NinoUnsafe.Read<T>(ref Unsafe.Add(ref first, offset + 1));
+                    offset += 1 + size;
+                }
+            }
+
+            reader.Advance(offset);
+        }
+    }
+
     /// <summary><c>ArraySegment&lt;T&gt;</c>: written like an array; read into a new array.</summary>
     public struct ArraySegmentFormatter<T, TFormatter> : INinoFormatter<ArraySegment<T>>
         where TFormatter : struct, INinoFormatter<T>
