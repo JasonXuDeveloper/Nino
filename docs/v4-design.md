@@ -212,9 +212,10 @@ Cache-line reasoning assumes 64-byte lines.
 ### Pipeline
 
 ```
-ForAttributeWithMetadataName("Nino.Core.NinoTypeAttribute") ─┐
-CreateSyntaxProvider(class/struct/record with base list)      ├─► TypeModel (equatable) ─► per-type source
-                                    (inherited NinoType)      ┘          │
+ForAttributeWithMetadataName("Nino.Core.NinoTypeAttribute") ───────────────┐
+CreateSyntaxProvider(names + base names, syntax only) ─► Collect ─┐         ├─► TypeModel (equatable) ─► per-type source
+referenced NinoType names (cached per reference set) ─────────────┴► candidates ┘          │
+                                    (inherited NinoType)                                   │
                                                                          └─► formatter names ─► Collect ─► registry source
 CompilationProvider.Select(GeneratorOptions)  ──────────────────────────────┘ (assembly name, symbols, Unity)
 ```
@@ -222,6 +223,10 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
 * All symbol work happens inside the transform, which converts symbols into an **equatable model** made
   only of strings, primitives and `EquatableArray<T>`. Nothing downstream holds a symbol, a syntax node or
   the `Compilation`, so Roslyn's caching cuts off unchanged types.
+* Types that inherit `[NinoType]` without the attribute are found from syntax alone: the closure of type
+  names whose base list names a NinoType (declared in source, or in a referenced assembly that references
+  Nino.Core). Only those candidates are bound, so types unrelated to Nino (every `MonoBehaviour` in a Unity
+  project) cost a few microseconds of syntax per edit instead of a semantic lookup each.
 * Each type is emitted into its own file. Editing a member of `Foo` re-emits only `Foo.g.cs`.
 * The registry stage consumes only formatter names, so it only re-runs when types are added, removed or
   renamed.

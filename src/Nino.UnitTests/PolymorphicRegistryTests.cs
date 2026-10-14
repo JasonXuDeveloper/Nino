@@ -113,3 +113,22 @@ namespace Nino.UnitTests
         }
     }
 }
+
+namespace Nino.UnitTests
+{
+    [TestClass]
+    public class CrossAssemblyInheritanceTests
+    {
+        [TestMethod]
+        public void UnmarkedSubtypesOfReferencedNinoTypeAreGenerated()
+        {
+            var value = new CrossAssemblyInherited2 { Name = "n", Extra = 3, More = "m" };
+            var result = NinoDeserializer.Deserialize<Nino.UnitTests.Subset.SubsetClassWithPrivateField>(
+                NinoSerializer.Serialize<Nino.UnitTests.Subset.SubsetClassWithPrivateField>(value));
+            var typed = (CrossAssemblyInherited2)result;
+            Assert.AreEqual("n", typed.Name);
+            Assert.AreEqual(3, typed.Extra);
+            Assert.AreEqual("m", typed.More);
+        }
+    }
+}

@@ -44,14 +44,10 @@ public class NinoAnalyzer : DiagnosticAnalyzer
                 if (typeSymbol.IsNinoType())
                 {
                     // check redundant NinoMemberAttribute and NinoIgnoreAttribute
-                    var attr = typeSymbol.GetAttributesCache().FirstOrDefault(a =>
-                        a.AttributeClass != null &&
-                        a.AttributeClass.ToDisplayString().EndsWith("NinoTypeAttribute"));
-                    bool autoCollect = attr == null ||
-                                       NinoTypeHelper.GetConstructorArgumentByName(attr, "autoCollect", true);
-                    bool containNonPublic = attr != null &&
-                                            NinoTypeHelper.GetConstructorArgumentByName(attr,
-                                                "containNonPublicMembers", false);
+                    // The attribute that applies, which may be inherited from a base type (as the generator uses).
+                    var attr = typeSymbol.GetNinoTypeAttribute()!;
+                    bool autoCollect = attr.autoCollect;
+                    bool containNonPublic = attr.containNonPublicMembers;
 
                     // check if the type is nested
                     if (typeDeclarationSyntax.Parent is TypeDeclarationSyntax && containNonPublic)

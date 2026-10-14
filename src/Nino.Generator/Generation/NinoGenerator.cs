@@ -31,24 +31,44 @@ public sealed class NinoGenerator : IIncrementalGenerator
             static (ctx, ct) => Transform(ctx.TargetSymbol as INamedTypeSymbol, ctx.SemanticModel, ct))
             .WithTrackingName("NinoType");
 
-        // Types that inherit [NinoType] from a base class or an interface.
-        var inherited = context.SyntaxProvider.CreateSyntaxProvider(
-            static (node, _) => node is TypeDeclarationSyntax { BaseList: not null } t && !HasNinoTypeSyntax(t),
-            static (ctx, ct) =>
+        // Types that inherit [NinoType] from a base class or an interface. Candidates are found from syntax alone
+        // (type and base list names), so only types whose base list can reach a NinoType are ever bound.
+        var declarations = context.SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) => node is TypeDeclarationSyntax t && (t.BaseList != null || t.AttributeLists.Count != 0),
+                static (ctx, _) =>
+                {
+                    var syntax = (TypeDeclarationSyntax)ctx.Node;
+                    bool marked = HasNinoTypeSyntax(syntax);
+                    return marked || syntax.BaseList != null ? InheritedCandidates.From(syntax, marked) : null;
+                })
+            .Where(static d => d != null)
+            .Collect();
+        var referencedNinoTypes = context.CompilationProvider
+            .Select(static (c, ct) => InheritedCandidates.ReferencedNinoTypes(c, ct));
+        var candidates = declarations.Combine(referencedNinoTypes)
+            .Select(static (x, _) => InheritedCandidates.Find(x.Left!, x.Right));
+
+        var inherited = candidates.Combine(context.CompilationProvider)
+            .SelectMany(static (x, ct) =>
             {
-                var syntax = (TypeDeclarationSyntax)ctx.Node;
-                if (ctx.SemanticModel.GetDeclaredSymbol(syntax, ct) is not INamedTypeSymbol symbol)
-                    return null;
-                if (symbol.GetDirectNinoTypeAttribute() != null || !symbol.IsNinoType())
-                    return null;
-                // Partial types: only the first declaration with a base list produces the model.
-                var first = symbol.DeclaringSyntaxReferences
-                    .Select(r => r.GetSyntax(ct))
-                    .OfType<TypeDeclarationSyntax>()
-                    .FirstOrDefault(t => t.BaseList != null);
-                if (first != syntax)
-                    return null;
-                return Transform(symbol, ctx.SemanticModel, ct);
+                var result = new System.Collections.Generic.List<TypeModel?>();
+                foreach (var (syntax, model) in InheritedCandidates.Resolve(x.Left, x.Right, ct))
+                {
+                    if (model.GetDeclaredSymbol(syntax, ct) is not INamedTypeSymbol symbol)
+                        continue;
+                    if (symbol.GetDirectNinoTypeAttribute() != null || !symbol.IsNinoType())
+                        continue;
+                    // Partial types: only the first declaration with a base list produces the model.
+                    var first = symbol.DeclaringSyntaxReferences
+                        .Select(r => r.GetSyntax(ct))
+                        .OfType<TypeDeclarationSyntax>()
+                        .FirstOrDefault(t => t.BaseList != null);
+                    if (first != syntax)
+                        continue;
+                    result.Add(Transform(symbol, model, ct));
+                }
+
+                return result;
             })
             .WithTrackingName("InheritedNinoType");
 
