@@ -114,13 +114,15 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // Built-in generic types used directly with the top-level APIs (e.g. NinoSerializer.Serialize(list)):
         // register closed formatters so AOT platforms have them and generator-only formatters are found.
         var usages = context.SyntaxProvider.CreateSyntaxProvider(
+                // Receiver checked syntactically too: binding every Serialize call of other libraries
+                // (JsonSerializer...) on each edit is not free.
                 static (node, _) => node is InvocationExpressionSyntax
                 {
                     Expression: MemberAccessExpressionSyntax
                     {
                         Name.Identifier.ValueText: "Serialize" or "Deserialize" or "DeserializeRef"
-                    }
-                },
+                    } access
+                } && IsNinoReceiver(access.Expression),
                 static (ctx, ct) => TransformUsage(ctx, ct))
             .WithTrackingName("Usage")
             .Where(static u => u != null)
@@ -152,6 +154,19 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 return;
             spc.AddSource("NinoGen.Registry.g.cs", Emitter.EmitRegistry(opts, list));
         });
+    }
+
+    private static bool IsNinoReceiver(ExpressionSyntax receiver)
+    {
+        var name = receiver switch
+        {
+            IdentifierNameSyntax id => id.Identifier.ValueText,
+            MemberAccessExpressionSyntax m => m.Name.Identifier.ValueText,
+            QualifiedNameSyntax q => q.Right.Identifier.ValueText,
+            AliasQualifiedNameSyntax a => a.Name.Identifier.ValueText,
+            _ => null,
+        };
+        return name is "NinoSerializer" or "NinoDeserializer";
     }
 
     private static bool HasNinoTypeSyntax(TypeDeclarationSyntax syntax)
