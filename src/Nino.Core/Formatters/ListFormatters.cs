@@ -86,7 +86,7 @@ namespace Nino.Core
                 value = list;
             }
 
-            reader.ReadUnmanagedRaw(ListAccess.SetCount<T>(list, length));
+            reader.ReadUnmanagedRaw(ListAccess.SetCount<T>(list, length, overwritten: true));
         }
     }
 
@@ -122,7 +122,7 @@ namespace Nino.Core
                 value = list;
             }
 
-            NinoNullables.Read<T>(ListAccess.SetCount<T?>(list, length), ref reader);
+            NinoNullables.Read<T>(ListAccess.SetCount<T?>(list, length, overwritten: true), ref reader);
         }
     }
 
