@@ -3,16 +3,18 @@ using System;
 namespace Nino.Core
 {
     /// <summary>
-    /// This attribute is used to mark the former name of a type.
+    /// The type's former name (runtime form, e.g. <c>Old.Namespace.Outer+Type</c>). The type id is computed
+    /// from this name, so data written before the type was renamed or moved can still be read.
     /// <see href="https://nino.xgamedev.net/en/doc/advanced#former-name"/>
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct |
-                    AttributeTargets.Interface
-        , Inherited = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface, Inherited = false)]
     public class NinoFormerNameAttribute : Attribute
     {
+        public readonly string FormerName;
+
         public NinoFormerNameAttribute(string formerName)
         {
+            FormerName = formerName;
         }
     }
 }

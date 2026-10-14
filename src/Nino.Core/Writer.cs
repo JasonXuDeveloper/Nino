@@ -1,367 +1,218 @@
 using System;
-// ReSharper disable once RedundantUsingDirective
-using System.Buffers;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
-using Nino.Core.Internal;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Nino.Core
 {
+    /// <summary>
+    /// Writes Nino binary data into a <see cref="NinoArrayBufferWriter"/>.
+    /// <para>
+    /// The writer caches the destination buffer; call <see cref="Flush"/> (or <see cref="Dispose"/>) when done so
+    /// the buffer's <see cref="NinoArrayBufferWriter.WrittenCount"/> is updated. The top-level
+    /// <see cref="NinoSerializer"/> APIs do this for you.
+    /// </para>
+    /// </summary>
     public ref struct Writer
     {
-        private readonly INinoBufferWriter _bufferWriter;
+        private readonly NinoArrayBufferWriter _owner;
+        private Span<byte> _buffer;
+        private int _pos;
 
-        public Writer(INinoBufferWriter bufferWriter)
+        public Writer(NinoArrayBufferWriter buffer)
         {
-            _bufferWriter = bufferWriter;
+            _owner = buffer ?? throw new ArgumentNullException(nameof(buffer));
+            _buffer = buffer.Buffer;
+            _pos = buffer.Index;
+        }
+
+        /// <summary>Absolute position in the underlying buffer.</summary>
+        public int Position
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => _pos;
+        }
+
+        /// <summary>Commits the written bytes to the underlying buffer.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Flush() => _owner.Index = _pos;
+
+        /// <summary>Same as <see cref="Flush"/>; enables <c>using var writer = ...</c>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Dispose() => Flush();
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void Grow(int size)
+        {
+            _owner.Index = _pos;
+            _owner.Grow(size);
+            _buffer = _owner.Buffer;
         }
 
         /// <summary>
-        /// Returns the position before advancing
+        /// Reserves <paramref name="size"/> bytes and returns a reference to the first one.
+        /// Use <see cref="NinoUnsafe.Write{T}(ref byte, int, T)"/> to fill the block.
         /// </summary>
-        /// <param name="count"></param>
-        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Advance(int count)
+        public ref byte Reserve(int size)
         {
-            var pos = _bufferWriter.WrittenCount;
-            _bufferWriter.GetSpan(count);
-            _bufferWriter.Advance(count);
-
-            return pos;
+            int pos = _pos;
+            if ((uint)size > (uint)(_buffer.Length - pos))
+                Grow(size);
+            _pos = pos + size;
+            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void PutLength(int oldPos)
-        {
-            var diff = _bufferWriter.WrittenCount - oldPos;
-            if (TypeCollector.Is64Bit)
-            {
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.WrittenSpan.Slice(oldPos)), diff);
-            }
-            else
-            {
-                ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref diff, 1));
-                ref byte dst = ref MemoryMarshal.GetReference(_bufferWriter.WrittenSpan.Slice(oldPos));
-                src.CopyTo(MemoryMarshal.CreateSpan(ref dst, 4));
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void PutBack<T>(T value, int oldPos)
-            where T : unmanaged
-        {
-            if (TypeCollector.Is64Bit)
-            {
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(_bufferWriter.WrittenSpan.Slice(oldPos)), value);
-            }
-            else
-            {
-                ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref value, 1));
-                ref byte dst = ref MemoryMarshal.GetReference(_bufferWriter.WrittenSpan.Slice(oldPos));
-                src.CopyTo(MemoryMarshal.CreateSpan(ref dst, Unsafe.SizeOf<T>()));
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write(byte value)
-        {
-            _bufferWriter.GetSpan(1)[0] = value;
-            _bufferWriter.Advance(1);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write(sbyte value)
-        {
-            _bufferWriter.GetSpan(1)[0] = (byte)value;
-            _bufferWriter.Advance(1);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write(bool value)
-        {
-            _bufferWriter.GetSpan(1)[0] = value ? (byte)1 : (byte)0;
-            _bufferWriter.Advance(1);
-        }
-
+        /// <summary>Writes an unmanaged value. <typeparamref name="T"/> must not contain references.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnsafeWrite<T>(T value)
         {
             int size = Unsafe.SizeOf<T>();
-            var span = _bufferWriter.GetSpan(size);
-
-            if (TypeCollector.Is64Bit)
-            {
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), value);
-            }
-            else
-            {
-                // Safe paths for 32-bit platforms - avoid potentially problematic unaligned 8-byte writes
-                switch (size)
-                {
-                    case 1:
-                        span[0] = Unsafe.As<T, byte>(ref value);
-                        break;
-                    case 2:
-                        Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, ushort>(ref value));
-                        break;
-                    case 4:
-                        Unsafe.WriteUnaligned(ref span[0], Unsafe.As<T, uint>(ref value));
-                        break;
-                    default:
-                        // Use safe memory copy for 8+ byte values on 32-bit to avoid alignment issues
-                        unsafe
-                        {
-                            Span<T> srcSpan = MemoryMarshal.CreateSpan(ref value, 1);
-                            ReadOnlySpan<byte> src =
-                                new ReadOnlySpan<byte>(Unsafe.AsPointer(ref srcSpan.GetPinnableReference()), size);
-                            src.CopyTo(span);
-                        }
-
-                        break;
-                }
-            }
-
-            _bufferWriter.Advance(size);
+            int pos = _pos;
+            if ((uint)size > (uint)(_buffer.Length - pos))
+                Grow(size);
+            NinoUnsafe.Write(ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos), value);
+            _pos = pos + size;
         }
 
+        /// <summary>Writes an unmanaged value.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(T value) where T : unmanaged
-        {
-            UnsafeWrite(value);
-        }
+        public void Write<T>(T value) where T : unmanaged => UnsafeWrite(value);
 
+        /// <summary>Writes a nullable unmanaged value: a has-value byte, then the value if present.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(T? value) where T : unmanaged
         {
             if (!value.HasValue)
             {
-                Write(false);
+                UnsafeWrite((byte)0);
                 return;
             }
 
-            int size = Unsafe.SizeOf<T>() + 1;
-            var span = _bufferWriter.GetSpan(size);
-            T val = value.Value;
-            span[0] = 1;
-            if (TypeCollector.Is64Bit)
-            {
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span.Slice(1)), val);
-            }
-            else
-            {
-                ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref val, 1));
-                src.CopyTo(span.Slice(1));
-            }
-
-            _bufferWriter.Advance(size);
+            ref byte dst = ref Reserve(1 + Unsafe.SizeOf<T>());
+            dst = 1;
+            NinoUnsafe.Write(ref dst, 1, value.GetValueOrDefault());
         }
 
+        /// <summary>Writes a collection length; use -1 for null.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(T[] value) where T : unmanaged
+        public void WriteLength(int length) => UnsafeWrite(length);
+
+        /// <summary>Writes the null collection marker (-1).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteNullLength() => UnsafeWrite(-1);
+
+        /// <summary>Reserves 4 bytes to be patched later and returns their position.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int ReserveInt32()
         {
-            if (value == null)
+            int pos = _pos;
+            Reserve(4);
+            return pos;
+        }
+
+        /// <summary>Overwrites 4 bytes at an absolute position previously returned by <see cref="ReserveInt32"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void PatchInt32(int position, int value)
+        {
+            NinoUnsafe.Write(ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), position), value);
+        }
+
+        /// <summary>
+        /// Writes, at <paramref name="lengthPosition"/>, the number of bytes written after that 4-byte slot.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void PatchLength(int lengthPosition) => PatchInt32(lengthPosition, _pos - lengthPosition - 4);
+
+        /// <summary>Writes raw bytes without a length prefix.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteRaw(ReadOnlySpan<byte> bytes)
+        {
+            if (bytes.IsEmpty)
+                return;
+            Unsafe.CopyBlockUnaligned(ref Reserve(bytes.Length), ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+        }
+
+        /// <summary>Writes the elements of an unmanaged span as one block, without a length prefix.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteUnmanagedRaw<T>(ReadOnlySpan<T> values) where T : unmanaged
+        {
+            WriteRaw(MemoryMarshal.AsBytes(values));
+        }
+
+        /// <summary>Writes a length-prefixed block of unmanaged values.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T>(ReadOnlySpan<T> values) where T : unmanaged
+        {
+            var bytes = MemoryMarshal.AsBytes(values);
+            ref byte dst = ref Reserve(4 + bytes.Length);
+            NinoUnsafe.Write(ref dst, values.Length);
+            if (bytes.Length != 0)
+                Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref dst, 4), ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+        }
+
+        /// <summary>Writes a length-prefixed unmanaged array (-1 for null).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Write<T>(T[] values) where T : unmanaged
+        {
+            if (values == null)
             {
-                Write(TypeCollector.NullCollection);
+                WriteNullLength();
                 return;
             }
 
-            Write(value.AsSpan());
+            Write((ReadOnlySpan<T>)values);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(T?[] value) where T : unmanaged
-        {
-            if (value == null)
-            {
-                Write(TypeCollector.NullCollection);
-                return;
-            }
-
-            Write(value.AsSpan());
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(Span<T> value) where T : unmanaged
-        {
-            if (value.IsEmpty)
-            {
-                Write(TypeCollector.EmptyCollectionHeader);
-                return;
-            }
-
-            var valueSpan = MemoryMarshal.AsBytes(value);
-            int size = sizeof(int) + valueSpan.Length;
-            var span = _bufferWriter.GetSpan(size);
-            var header = TypeCollector.GetCollectionHeader(value.Length);
-            if (TypeCollector.Is64Bit)
-            {
-                Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), header);
-            }
-            else
-            {
-                ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
-                src.CopyTo(span);
-            }
-
-            valueSpan.CopyTo(span.Slice(4));
-            _bufferWriter.Advance(size);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteSpanWithoutHeader<T>(Span<T> value) where T : unmanaged
-        {
-            if (value.IsEmpty)
-            {
-                return;
-            }
-
-            var valueSpan = MemoryMarshal.AsBytes(value);
-            var span = _bufferWriter.GetSpan(valueSpan.Length);
-            valueSpan.CopyTo(span);
-            _bufferWriter.Advance(valueSpan.Length);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(Span<T?> value) where T : unmanaged
-        {
-            if (value.IsEmpty)
-            {
-                Write(TypeCollector.EmptyCollectionHeader);
-                return;
-            }
-
-            Write(TypeCollector.GetCollectionHeader(value.Length));
-            foreach (var item in value)
-            {
-                Write(item);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(List<T> value) where T : unmanaged
-        {
-            if (value == null)
-            {
-                Write(TypeCollector.NullCollection);
-                return;
-            }
-
-#if NET6_0_OR_GREATER
-            Write(CollectionsMarshal.AsSpan(value));
-#else
-            ref var lst = ref Unsafe.As<List<T>, ListView<T>>(ref value);
-            Write(lst._items.AsSpan(0, lst._size));
-#endif
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(List<T?> value) where T : unmanaged
-        {
-            if (value == null)
-            {
-                Write(TypeCollector.NullCollection);
-                return;
-            }
-
-#if NET6_0_OR_GREATER
-            Write(CollectionsMarshal.AsSpan(value));
-#else
-            ref var lst = ref Unsafe.As<List<T?>, ListView<T?>>(ref value);
-            Write(lst._items.AsSpan(0, lst._size));
-#endif
-        }
-
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteUtf8(string value)
-        {
-            switch (value)
-            {
-                case null:
-                    Write(TypeCollector.NullCollection);
-                    return;
-                case "":
-                    Write(TypeCollector.EmptyCollectionHeader);
-                    return;
-                case var _ when !TypeCollector.Is64Bit:
-                {
-                    int length = value.Length;
-                    int spanLength = sizeof(int) + length;
-                    var span = _bufferWriter.GetSpan(spanLength);
-                    var header = TypeCollector.GetCollectionHeader(length);
-                    ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
-                    src.CopyTo(span);
-                    span = span.Slice(4);
-#if NET5_0_OR_GREATER
-                    if (System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), span, out _, out _,
-                            replaceInvalidSequences: false) != OperationStatus.Done)
-                        throw new InvalidOperationException("Failed to convert utf16 to utf8");
-#else
-                    System.Text.Encoding.UTF8.GetBytes(value, span);
-#endif
-                    _bufferWriter.Advance(spanLength);
-                    return;
-                }
-                default:
-                {
-                    int length = value.Length;
-                    int spanLength = sizeof(int) + length;
-                    var span = _bufferWriter.GetSpan(spanLength);
-                    var header = TypeCollector.GetCollectionHeader(length);
-                    Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), header);
-                    span = span.Slice(4);
-#if NET5_0_OR_GREATER
-                    if (System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), span, out _, out _,
-                            replaceInvalidSequences: false) != OperationStatus.Done)
-                        throw new InvalidOperationException("Failed to convert utf16 to utf8");
-#else
-                    System.Text.Encoding.UTF8.GetBytes(value, span);
-#endif
-                    _bufferWriter.Advance(spanLength);
-                    return;
-                }
-            }
-        }
-
+        /// <summary>Writes a string as UTF-16: char count (-1 for null), then the code units.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write(string value)
         {
-            switch (value)
+            if (value == null)
             {
-                case null:
-                    Write(TypeCollector.NullCollection);
-                    return;
-                case "":
-                    Write(TypeCollector.EmptyCollectionHeader);
-                    return;
-                case var _ when !TypeCollector.Is64Bit:
-                {
-                    int length = value.Length;
-                    var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
-                    int spanLength = sizeof(int) + valueSpan.Length;
-                    var span = _bufferWriter.GetSpan(spanLength);
-                    var header = TypeCollector.GetCollectionHeader(length);
-                    ReadOnlySpan<byte> src = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref header, 1));
-                    src.CopyTo(span);
-                    valueSpan.CopyTo(span.Slice(4));
-                    _bufferWriter.Advance(spanLength);
-                    return;
-                }
-                default:
-                {
-                    int length = value.Length;
-                    var valueSpan = MemoryMarshal.AsBytes(value.AsSpan());
-                    int spanLength = sizeof(int) + valueSpan.Length;
-                    var span = _bufferWriter.GetSpan(spanLength);
-                    var header = TypeCollector.GetCollectionHeader(length);
-                    Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(span), header);
-                    valueSpan.CopyTo(span.Slice(4));
-                    _bufferWriter.Advance(spanLength);
-                    return;
-                }
+                WriteNullLength();
+                return;
             }
+
+            Write(value.AsSpan());
+        }
+
+        /// <summary>Writes a string as UTF-8: byte count (-1 for null), then the bytes.</summary>
+        public void WriteUtf8(string value)
+        {
+            if (value == null)
+            {
+                WriteNullLength();
+                return;
+            }
+
+            int maxBytes = checked(value.Length * 3);
+            int lengthPos = _pos;
+            ref byte dst = ref Reserve(4 + maxBytes);
+            int written = EncodeUtf8(value, ref Unsafe.Add(ref dst, 4), maxBytes);
+            NinoUnsafe.Write(ref dst, written);
+            // give back the unused part of the worst-case reservation
+            _pos = lengthPos + 4 + written;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe int EncodeUtf8(string value, ref byte destination, int capacity)
+        {
+            if (value.Length == 0)
+                return 0;
+#if NET8_0_OR_GREATER
+            var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), MemoryMarshal.CreateSpan(ref destination, capacity),
+                out _, out int written, replaceInvalidSequences: true);
+            if (status != System.Buffers.OperationStatus.Done)
+                NinoThrow.InvalidData("Failed to encode UTF-8 string");
+            return written;
+#else
+            fixed (char* src = value)
+            fixed (byte* dst = &destination)
+            {
+                return Encoding.UTF8.GetBytes(src, value.Length, dst, capacity);
+            }
+#endif
         }
     }
 }

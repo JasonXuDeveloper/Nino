@@ -1,343 +1,235 @@
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace Nino.Core
 {
+    /// <summary>Serializes values to Nino binary data. All methods are thread safe.</summary>
     public static class NinoSerializer
     {
-        private static readonly ConcurrentQueue<NinoArrayBufferWriter> BufferWriters = new();
+        [ThreadStatic] private static NinoArrayBufferWriter _scratch;
 
-        private static readonly NinoArrayBufferWriter
-            DefaultBufferWriter = new(2048); // Slightly larger but not excessive
-
-        private static int _defaultUsed;
-        [ThreadStatic] private static NinoArrayBufferWriter _threadLocalBufferWriter;
-        [ThreadStatic] private static bool _threadLocalBufferInUse;
+        /// <summary>Largest scratch buffer kept per thread between calls.</summary>
+        private const int MaxRetainedScratch = 1024 * 1024;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static NinoArrayBufferWriter GetBufferWriter()
+        private static NinoArrayBufferWriter RentScratch()
         {
-            // Fast path - use default buffer if available (single interlocked op, no branches)
-            if (Interlocked.CompareExchange(ref _defaultUsed, 1, 0) == 0)
-            {
-                return DefaultBufferWriter;
-            }
-
-            // Fallback to thread-local buffer
-            if (!_threadLocalBufferInUse)
-            {
-                var local = _threadLocalBufferWriter;
-                if (local == null)
-                {
-                    local = new NinoArrayBufferWriter(2048);
-                    _threadLocalBufferWriter = local;
-                }
-
-                _threadLocalBufferInUse = true;
-                return local;
-            }
-
-            // Try to reuse from pool
-            if (BufferWriters.TryDequeue(out var bufferWriter))
-            {
-                return bufferWriter;
-            }
-
-            // Create new with reasonable initial capacity
-            return new NinoArrayBufferWriter(2048);
+            // Taking the buffer out of the slot makes nested calls (e.g. from a custom formatter) safe: they see an
+            // empty slot and use their own buffer.
+            var buffer = _scratch;
+            if (buffer == null)
+                return new NinoArrayBufferWriter();
+            _scratch = null;
+            buffer.Index = 0;
+            return buffer;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReturnBufferWriter(NinoArrayBufferWriter bufferWriter)
+        private static void ReturnScratch(NinoArrayBufferWriter buffer)
         {
-#if NET8_0_OR_GREATER
-            bufferWriter.ResetWrittenCount();
-#else
-            bufferWriter.Clear();
-#endif
-
-            // Fast path - return default buffer (most common case in single-threaded scenarios)
-            // Direct reference comparison - JIT will optimize this to a single pointer comparison
-            if (bufferWriter == DefaultBufferWriter)
+            if (buffer.Capacity > MaxRetainedScratch)
             {
-                Interlocked.Exchange(ref _defaultUsed, 0);
+                buffer.Dispose();
                 return;
             }
 
-            // Thread-local buffer
-            if (bufferWriter == _threadLocalBufferWriter)
-            {
-                _threadLocalBufferInUse = false;
-                return;
-            }
-
-            // Return to pool for reuse
-            BufferWriters.Enqueue(bufferWriter);
+            _scratch = buffer;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Serializes <paramref name="value"/> into a new byte array.</summary>
         public static byte[] Serialize<T>(T value)
         {
-            var bufferWriter = GetBufferWriter();
+            var buffer = RentScratch();
             try
             {
-                var writer = new Writer(bufferWriter);
-                Serialize(value, ref writer);
-                return bufferWriter.WrittenSpan.ToArray();
+                var writer = new Writer(buffer);
+                NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+                writer.Flush();
+                return buffer.ToArray();
             }
             finally
             {
-                ReturnBufferWriter(bufferWriter);
+                ReturnScratch(buffer);
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Serialize<T>(T value, INinoBufferWriter bufferWriter)
+        /// <summary>
+        /// Serializes <paramref name="value"/> into <paramref name="bufferWriter"/>. Writing into a
+        /// <see cref="NinoArrayBufferWriter"/> is done in place; other buffer writers receive one copy.
+        /// </summary>
+        public static void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
         {
-            var writer = new Writer(bufferWriter);
-            Serialize(value, ref writer);
+            if (bufferWriter is NinoArrayBufferWriter nino)
+            {
+                var writer = new Writer(nino);
+                NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+                writer.Flush();
+                return;
+            }
+
+            var buffer = RentScratch();
+            try
+            {
+                var writer = new Writer(buffer);
+                NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+                writer.Flush();
+                bufferWriter.Write(buffer.WrittenSpan);
+            }
+            finally
+            {
+                ReturnScratch(buffer);
+            }
         }
 
-        // ULTIMATE: Zero-overhead single entry point
+        /// <summary>Serializes <paramref name="value"/> with an existing writer.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
-            CachedSerializer<T>.Serialize(value, ref writer);
+            NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>
+        /// Serializes a boxed value as its runtime type. Read it back with
+        /// <see cref="NinoDeserializer.Deserialize(ReadOnlySpan{byte}, Type)"/> and the same type.
+        /// </summary>
         public static byte[] Serialize(object value)
         {
-            var bufferWriter = GetBufferWriter();
-            try
-            {
-                var writer = new Writer(bufferWriter);
-                SerializeBoxed(value, ref writer, value?.GetType());
-                return bufferWriter.WrittenSpan.ToArray();
-            }
-            finally
-            {
-                ReturnBufferWriter(bufferWriter);
-            }
+            if (value == null)
+                throw new ArgumentNullException(nameof(value), "Use Serialize<T> to serialize null values.");
+            return BoxedFormatter.Get(value.GetType()).Serialize(value);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Serialize(object value, INinoBufferWriter bufferWriter)
-        {
-            Writer writer = new Writer(bufferWriter);
-            SerializeBoxed(value, ref writer, value?.GetType());
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Serializes a boxed value as <paramref name="type"/>.</summary>
         public static void SerializeBoxed(object value, ref Writer writer, Type type)
         {
-            if (value == null)
-            {
-                writer.Write(TypeCollector.Null);
-                return;
-            }
-
             if (type == null)
-                throw new ArgumentNullException(nameof(type), "Type cannot be null when serializing boxed objects.");
+                throw new ArgumentNullException(nameof(type));
+            BoxedFormatter.Get(type).Serialize(value, ref writer);
+        }
 
-            if (!NinoTypeMetadata.Serializers.TryGetValue(type.TypeHandle.Value, out var serializer))
-            {
-                throw new Exception(
-                    $"Serializer not found for type {type.FullName}, if this is an unmanaged type, please use Serialize<T>(T value, ref Writer writer) instead.");
-            }
-
-            if (serializer == null)
-            {
-                var ns = NinoHelper.GetGeneratedNamespace(type);
-                throw new Exception(NinoHelper.GetRegistrationErrorMessage(type.FullName, ns));
-            }
-
-            serializer(value, ref writer);
+        /// <summary>Serializes a boxed value as <paramref name="type"/> into <paramref name="bufferWriter"/>.</summary>
+        public static void SerializeBoxed(object value, IBufferWriter<byte> bufferWriter, Type type)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            BoxedFormatter.Get(type).Serialize(value, bufferWriter);
         }
     }
 
-    public delegate void SerializeDelegate<TVal>(TVal value, ref Writer writer);
-
-    public delegate void SerializeDelegateBoxed(object value, ref Writer writer);
-
-
-#pragma warning disable CA1000 // Do not declare static members on generic types
-    [SuppressMessage("ReSharper", "StaticMemberInGenericType")]
-    public static class CachedSerializer<T>
+    /// <summary>Deserializes Nino binary data. All methods are thread safe.</summary>
+    public static class NinoDeserializer
     {
-        private static SerializeDelegate<T> _serializer;
-        public static readonly FastMap<IntPtr, SerializeDelegate<T>> SubTypeSerializers = new();
-
-        // Cache expensive type checks
-        internal static readonly bool IsReferenceOrContainsReferences =
-            RuntimeHelpers.IsReferenceOrContainsReferences<T>();
-
-        // ReSharper disable once StaticMemberInGenericType
-        private static readonly IntPtr TypeHandle = typeof(T).TypeHandle.Value;
-
-        // ReSharper disable once StaticMemberInGenericType
-        internal static readonly bool HasBaseType = NinoTypeMetadata.HasBaseType(typeof(T));
-
-        // ReSharper disable once StaticMemberInGenericType
-        private static readonly bool IsSealed = typeof(T).IsSealed || typeof(T).IsValueType;
-
-        // ULTIMATE: JIT-eliminated constant for maximum performance
-        // ReSharper disable once StaticMemberInGenericType
-        internal static readonly bool IsSimpleType = !IsReferenceOrContainsReferences && !HasBaseType;
-
-        // Inline cache entry - packs type handle and delegate together for better cache locality
-        internal struct CacheEntry
-        {
-            public IntPtr TypeHandle;
-            public SerializeDelegate<T> Serializer;
-        }
-
-        // Inline cache for polymorphic serialization (4 entries per type)
-        // Reduced from 8 to 4 for better cache locality with single array access
-        // Shared across threads - benign races on cache updates are acceptable
-        internal static readonly CacheEntry[] Cache = new CacheEntry[4];
-
-        public static void SetSerializer(SerializeDelegate<T> serializer)
-        {
-            _serializer = serializer;
-        }
-
-        public static void AddSubTypeSerializer<TSub>(SerializeDelegate<TSub> serializer) where TSub : T
-        {
-            // Use a static generic helper class to create an inlineable wrapper
-            SubTypeSerializerWrapper<TSub>.SubSerializer = serializer;
-            SubTypeSerializers.Add(typeof(TSub).TypeHandle.Value, SubTypeSerializerWrapper<TSub>.SerializeWrapper);
-        }
-
-        // Static wrapper class per TSub - allows better inlining than lambda
-        private static class SubTypeSerializerWrapper<TSub> where TSub : T
-        {
-            public static SerializeDelegate<TSub> SubSerializer;
-            private static readonly bool IsValueType = typeof(TSub).IsValueType;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            public static void SerializeWrapper(T val, ref Writer writer)
-            {
-                if (IsValueType)
-                {
-                    SubSerializer((TSub)(object)val!, ref writer);
-                }
-                else
-                {
-                    // Runtime handle check already guaranteed T is TSub so skip casts for reference types.
-                    SubSerializer(Unsafe.As<T, TSub>(ref val), ref writer);
-                }
-            }
-        }
-
+        /// <summary>Deserializes a new value.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void SerializeBoxed(object value, ref Writer writer)
+        public static T Deserialize<T>(ReadOnlySpan<byte> data)
         {
-            if (_serializer == null)
-            {
-                var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
-                throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
-            }
-
-            if (value == null)
-                _serializer(default, ref writer);
-            else if (value is T val) _serializer(val, ref writer);
+            var reader = new Reader(data);
+            T value = default;
+            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+            return value;
         }
 
-        // ULTRA-OPTIMIZED: Single core method with all paths optimized
+        /// <summary>
+        /// Deserializes into <paramref name="value"/>, reusing the existing instance (and nested instances) where
+        /// possible. Instances that are dropped are passed to <see cref="NinoRecycler{T}"/>.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Serialize(T val, ref Writer writer)
+        public static void Deserialize<T>(ReadOnlySpan<byte> data, ref T value)
         {
-            // FASTEST PATH: JIT-eliminated branch for simple types
-            if (IsSimpleType)
-            {
-                writer.UnsafeWrite(val);
-                return;
-            }
-
-            SerializePolymorphic(val, ref writer);
+            var reader = new Reader(data);
+            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
         }
 
+        /// <summary>Same as <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void SerializePolymorphic(T val, ref Writer writer)
+        public static void DeserializeRef<T>(ref T value, ReadOnlySpan<byte> data)
         {
-            // FAST PATH 2: JIT-eliminated branch for sealed types
-            // If T is sealed or a value type, it CANNOT have a different runtime type
-            // This completely eliminates the need for GetType() calls
-            if (IsSealed || SubTypeSerializers.Count == 0)
-            {
-                // DIRECT DELEGATE: Generated code path - no polymorphism possible
-                if (_serializer == null)
-                {
-                    var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
-                    throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
-                }
+            var reader = new Reader(data);
+            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+        }
 
-                _serializer(val, ref writer);
-                return;
-            }
+        /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Deserialize<T>(ref T value, ref Reader reader)
+        {
+            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+        }
 
-            if (val == null)
-            {
-                writer.Write(TypeCollector.Null);
-                return;
-            }
+        /// <summary>Deserializes a new value with an existing reader.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T Deserialize<T>(ref Reader reader)
+        {
+            T value = default;
+            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+            return value;
+        }
 
-            // Get type handle - optimized for .NET 5.0+ to avoid expensive GetType() call
-            // Read RuntimeTypeHandle.Value directly from object header via double pointer dereference
-#if NET5_0_OR_GREATER
-            // Object header at offset 0 contains a pointer to the type handle
-            // Double dereference: first * gets the pointer, second * gets the RuntimeTypeHandle.Value
-            IntPtr actualTypeHandle = **(IntPtr**)Unsafe.AsPointer(ref val);
-#else
-            // Fallback to GetType() for older runtimes
-            IntPtr actualTypeHandle = val.GetType().TypeHandle.Value;
-#endif
+        /// <summary>Deserializes a value of <paramref name="type"/> and returns it boxed.</summary>
+        public static object Deserialize(ReadOnlySpan<byte> data, Type type)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            var reader = new Reader(data);
+            object value = null;
+            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+            return value;
+        }
 
-            // FAST PATH: Base type (common for non-polymorphic usage)
-            if (actualTypeHandle == TypeHandle)
-            {
-                if (_serializer == null)
-                {
-                    var ns = NinoHelper.GetGeneratedNamespace(typeof(T));
-                    throw new Exception(NinoHelper.GetRegistrationErrorMessage(typeof(T).FullName, ns));
-                }
+        /// <summary>Deserializes a value of <paramref name="type"/> into <paramref name="value"/>.</summary>
+        public static void Deserialize(ReadOnlySpan<byte> data, Type type, ref object value)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            var reader = new Reader(data);
+            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
+        }
 
-                _serializer(val, ref writer);
-                return;
-            }
-
-            if (SubTypeSerializers.Count == 1)
-            {
-                SubTypeSerializers.FirstValue()(val, ref writer);
-                return;
-            }
-
-            // Check 4-entry inline cache using bitwise AND indexing
-            // Single struct array access for better cache locality (vs two separate arrays)
-            int cacheSlot = (int)actualTypeHandle & 3;  // Faster than % 4 for power-of-2
-            ref CacheEntry entry = ref Cache[cacheSlot];
-            if (actualTypeHandle == entry.TypeHandle)
-            {
-                entry.Serializer(val, ref writer);
-                return;
-            }
-
-            // Cache miss - look up in FastMap and update cache
-            if (SubTypeSerializers.TryGetValue(actualTypeHandle, out var subTypeSerializer))
-            {
-                // Update the cache slot with both type handle and serializer
-                entry.TypeHandle = actualTypeHandle;
-                entry.Serializer = subTypeSerializer;
-                subTypeSerializer(val, ref writer);
-                return;
-            }
-
-            throw new Exception($"Serializer not found for type {val.GetType().FullName}");
+        /// <summary>Deserializes a value of <paramref name="type"/> with an existing reader.</summary>
+        public static void DeserializeBoxed(ref object value, ref Reader reader, Type type)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
         }
     }
-#pragma warning restore CA1000
+
+    /// <summary>Non-generic entry point to <see cref="NinoFormatterCache{T}"/> for a runtime type.</summary>
+    internal abstract class BoxedFormatter
+    {
+        private static readonly ConcurrentDictionary<Type, BoxedFormatter> Cache =
+            new ConcurrentDictionary<Type, BoxedFormatter>();
+
+        public static BoxedFormatter Get(Type type)
+        {
+            return Cache.TryGetValue(type, out var formatter)
+                ? formatter
+                : Cache.GetOrAdd(type,
+                    t => (BoxedFormatter)Activator.CreateInstance(typeof(BoxedFormatter<>).MakeGenericType(t)));
+        }
+
+        public abstract byte[] Serialize(object value);
+        public abstract void Serialize(object value, IBufferWriter<byte> bufferWriter);
+        public abstract void Serialize(object value, ref Writer writer);
+        public abstract void Deserialize(ref object value, ref Reader reader);
+    }
+
+    internal sealed class BoxedFormatter<T> : BoxedFormatter
+    {
+        public override byte[] Serialize(object value) => NinoSerializer.Serialize((T)value);
+
+        public override void Serialize(object value, IBufferWriter<byte> bufferWriter) =>
+            NinoSerializer.Serialize((T)value, bufferWriter);
+
+        public override void Serialize(object value, ref Writer writer) =>
+            NinoFormatterCache<T>.Instance.Serialize((T)value, ref writer);
+
+        public override void Deserialize(ref object value, ref Reader reader)
+        {
+            T typed = value is T existing ? existing : default;
+            NinoFormatterCache<T>.Instance.Deserialize(ref typed, ref reader);
+            value = typed;
+        }
+    }
 }

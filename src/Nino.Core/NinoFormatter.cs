@@ -1,48 +1,95 @@
+using System.Runtime.CompilerServices;
+
 namespace Nino.Core
 {
     /// <summary>
-    /// Abstract base class for high-performance custom formatters.
-    /// Inherit from this class and implement the abstract methods to create a custom formatter.
-    /// The base class provides automatic singleton instance management via the Instance property.
+    /// Serializes and deserializes values of <typeparamref name="T"/>.
+    /// <para>
+    /// Implement this on a <c>struct</c> to get a zero-cost formatter: generic code constrained with
+    /// <c>where TFormatter : struct, INinoFormatter&lt;T&gt;</c> calls it as <c>default(TFormatter).Serialize(...)</c>,
+    /// which the JIT/AOT compiler specializes and inlines.
+    /// </para>
     /// </summary>
-    /// <typeparam name="T">The type to be formatted</typeparam>
-    public abstract class NinoFormatter<T>
+    public interface INinoFormatter<T>
     {
-        /// <summary>
-        /// Serializes a value to the writer.
-        /// </summary>
-        /// <param name="value">The value to serialize</param>
-        /// <param name="writer">The writer to serialize to</param>
-        public abstract void Serialize(T value, ref Writer writer);
+        /// <summary>Writes <paramref name="value"/>.</summary>
+        void Serialize(T value, ref Writer writer);
 
         /// <summary>
-        /// Deserializes a value from the reader (out parameter variant).
+        /// Reads a value into <paramref name="value"/>. When <paramref name="value"/> already holds an instance,
+        /// formatters reuse it where possible and pass instances they drop to <see cref="NinoRecycler{T}"/>.
         /// </summary>
-        /// <param name="value">The deserialized value</param>
-        /// <param name="reader">The reader to deserialize from</param>
-        public abstract void Deserialize(out T value, ref Reader reader);
-
-        /// <summary>
-        /// Deserializes a value from the reader (ref parameter variant).
-        /// Used for updating existing instances.
-        /// </summary>
-        /// <param name="value">The value to update</param>
-        /// <param name="reader">The reader to deserialize from</param>
-        public abstract void DeserializeRef(ref T value, ref Reader reader);
+        void Deserialize(ref T value, ref Reader reader);
     }
 
     /// <summary>
-    /// Provides singleton instance management for concrete formatter implementations.
+    /// Formatter for the body of a <c>[NinoType]</c>: the members, without the null/type header.
+    /// Implemented by generated formatters and used for polymorphic dispatch.
     /// </summary>
-    /// <typeparam name="TFormatter">The concrete formatter type</typeparam>
-    /// <typeparam name="T">The type being formatted</typeparam>
-    public static class NinoFormatterInstance<TFormatter, T>
-        where TFormatter : NinoFormatter<T>, new()
+    public interface INinoBodyFormatter<T> : INinoFormatter<T>
     {
+        /// <summary>The type id written in front of the body when the declared type is not sealed.</summary>
+        int TypeId { get; }
+
+        /// <summary>Writes the members of a non-null <paramref name="value"/>.</summary>
+        void WriteBody(T value, ref Writer writer);
+
         /// <summary>
-        /// Thread-safe singleton instance of the concrete formatter.
-        /// Users don't need to declare this - it's automatically provided.
+        /// Reads the members into <paramref name="value"/>, which is either <c>null</c> or an instance of exactly
+        /// <typeparamref name="T"/>. Creates the instance when needed.
         /// </summary>
-        public static readonly TFormatter Instance = new();
+        void ReadBody(ref T value, ref Reader reader);
+    }
+
+    /// <summary>
+    /// Base class for class-based formatters, used where the formatter has to be resolved at runtime
+    /// (<see cref="NinoFormatterCache{T}"/>) and for custom formatters that need state.
+    /// </summary>
+    public abstract class NinoFormatter<T> : INinoFormatter<T>
+    {
+        public abstract void Serialize(T value, ref Writer writer);
+
+        public abstract void Deserialize(ref T value, ref Reader reader);
+    }
+
+    /// <summary>Wraps a struct formatter as a <see cref="NinoFormatter{T}"/>.</summary>
+    public sealed class StructFormatter<T, TFormatter> : NinoFormatter<T>
+        where TFormatter : struct, INinoFormatter<T>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void Deserialize(ref T value, ref Reader reader) =>
+            default(TFormatter).Deserialize(ref value, ref reader);
+    }
+
+    /// <summary>
+    /// Forwards to <see cref="NinoFormatterCache{T}.Instance"/>. Used for generic type parameters and types whose
+    /// formatter is only known at runtime. Costs one virtual call.
+    /// </summary>
+    public struct CachedFormatter<T> : INinoFormatter<T>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(T value, ref Writer writer) => NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref T value, ref Reader reader) =>
+            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+    }
+
+    /// <summary>
+    /// Adapts a custom class formatter (<c>[NinoCustomFormatter(typeof(F))]</c> where <c>F : NinoFormatter&lt;T&gt;</c>)
+    /// to the struct formatter pattern. <typeparamref name="TCustom"/> is instantiated once.
+    /// </summary>
+    public struct CustomFormatter<T, TCustom> : INinoFormatter<T> where TCustom : NinoFormatter<T>, new()
+    {
+        private static readonly TCustom Instance = new TCustom();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(T value, ref Writer writer) => Instance.Serialize(value, ref writer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref T value, ref Reader reader) => Instance.Deserialize(ref value, ref reader);
     }
 }

@@ -5,75 +5,126 @@ using System.Runtime.CompilerServices;
 namespace Nino.Core
 {
     /// <summary>
-    /// A wrapper for <see cref="ArrayBufferWriter{T}"/> that implements <see cref="INinoBufferWriter"/>.
+    /// A contiguous, growable byte buffer backed by <see cref="ArrayPool{T}.Shared"/>.
+    /// <see cref="Writer"/> writes into it directly, so serializing into a reused instance allocates nothing.
+    /// Not thread safe: use one instance per thread (or per operation).
     /// </summary>
-    public class NinoArrayBufferWriter : INinoBufferWriter
+    public sealed class NinoArrayBufferWriter : IBufferWriter<byte>, IDisposable
     {
-        private readonly ArrayBufferWriter<byte> _bufferWriter;
+        private const int DefaultCapacity = 256;
+        private const int MaxArrayLength = 0x7FFFFFC7;
 
-        public NinoArrayBufferWriter(int initialSizeHint = 0)
+        internal byte[] Buffer;
+        internal int Index;
+
+        public NinoArrayBufferWriter() : this(DefaultCapacity)
         {
-            _bufferWriter = new ArrayBufferWriter<byte>(initialSizeHint);
         }
 
-        public NinoArrayBufferWriter(ArrayBufferWriter<byte> bufferWriter)
+        public NinoArrayBufferWriter(int initialCapacity)
         {
-            _bufferWriter = bufferWriter;
+            if (initialCapacity < 0)
+                throw new ArgumentOutOfRangeException(nameof(initialCapacity));
+
+            Buffer = initialCapacity == 0 ? Array.Empty<byte>() : ArrayPool<byte>.Shared.Rent(initialCapacity);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Advance(int count)
-        {
-            _bufferWriter.Advance(count);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Memory<byte> GetMemory(int sizeHint = 0)
-        {
-            return _bufferWriter.GetMemory(sizeHint);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Span<byte> GetSpan(int sizeHint = 0)
-        {
-            return _bufferWriter.GetSpan(sizeHint);
-        }
-
+        /// <summary>Number of bytes written so far.</summary>
         public int WrittenCount
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _bufferWriter.WrittenCount;
+            get => Index;
         }
 
+        /// <summary>Total capacity of the underlying buffer.</summary>
+        public int Capacity => Buffer.Length;
+
+        /// <summary>Remaining capacity before the buffer has to grow.</summary>
+        public int FreeCapacity => Buffer.Length - Index;
+
+        /// <summary>The bytes written so far.</summary>
         public ReadOnlySpan<byte> WrittenSpan
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _bufferWriter.WrittenSpan;
+            get => new ReadOnlySpan<byte>(Buffer, 0, Index);
         }
 
-        public ReadOnlyMemory<byte> WrittenMemory
+        /// <summary>The bytes written so far.</summary>
+        public ReadOnlyMemory<byte> WrittenMemory => new ReadOnlyMemory<byte>(Buffer, 0, Index);
+
+        /// <summary>Copies the written bytes into a new array.</summary>
+        public byte[] ToArray()
         {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _bufferWriter.WrittenMemory;
+            if (Index == 0)
+                return Array.Empty<byte>();
+
+            var result = new byte[Index];
+            System.Buffer.BlockCopy(Buffer, 0, result, 0, Index);
+            return result;
         }
 
+        /// <summary>Resets the written count without clearing or releasing the buffer.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Clear()
+        public void ResetWrittenCount() => Index = 0;
+
+        /// <summary>Resets the written count without clearing or releasing the buffer.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Clear() => Index = 0;
+
+        public void Advance(int count)
         {
-            _bufferWriter.Clear();
+            if (count < 0 || Index > Buffer.Length - count)
+                throw new ArgumentOutOfRangeException(nameof(count));
+            Index += count;
         }
 
-#if NET8_0_OR_GREATER
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void ResetWrittenCount()
+        public Memory<byte> GetMemory(int sizeHint = 0)
         {
-            _bufferWriter.ResetWrittenCount();
+            EnsureCapacity(sizeHint);
+            return Buffer.AsMemory(Index);
         }
-#endif
-        
-        public static implicit operator ArrayBufferWriter<byte>(NinoArrayBufferWriter writer)
+
+        public Span<byte> GetSpan(int sizeHint = 0)
         {
-            return writer._bufferWriter;
+            EnsureCapacity(sizeHint);
+            return Buffer.AsSpan(Index);
+        }
+
+        /// <summary>Ensures at least <paramref name="sizeHint"/> (minimum 1) free bytes.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EnsureCapacity(int sizeHint)
+        {
+            if (sizeHint < 1)
+                sizeHint = 1;
+            if (sizeHint > Buffer.Length - Index)
+                Grow(sizeHint);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal void Grow(int sizeHint)
+        {
+            int current = Buffer.Length;
+            int needed = checked(Index + sizeHint);
+            int newSize = Math.Max(needed, current < DefaultCapacity ? DefaultCapacity : current * 2);
+            if ((uint)newSize > MaxArrayLength)
+                newSize = Math.Max(needed, MaxArrayLength);
+
+            var newBuffer = ArrayPool<byte>.Shared.Rent(newSize);
+            System.Buffer.BlockCopy(Buffer, 0, newBuffer, 0, Index);
+            var old = Buffer;
+            Buffer = newBuffer;
+            if (old.Length != 0)
+                ArrayPool<byte>.Shared.Return(old);
+        }
+
+        /// <summary>Returns the underlying buffer to the pool. The instance must not be used afterwards.</summary>
+        public void Dispose()
+        {
+            var old = Buffer;
+            Buffer = Array.Empty<byte>();
+            Index = 0;
+            if (old.Length != 0)
+                ArrayPool<byte>.Shared.Return(old);
         }
     }
 }
