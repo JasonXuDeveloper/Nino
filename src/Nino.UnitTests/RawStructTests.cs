@@ -24,6 +24,19 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
+        public void RawStructMultiDimArraysAreOneBlock()
+        {
+            var grid = new SubsetRawStruct[3, 4];
+            for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 4; j++)
+                grid[i, j] = new SubsetRawStruct { X = i, Y = j };
+            var bytes = NinoSerializer.Serialize(grid);
+            Assert.AreEqual(8 + 12 * Unsafe.SizeOf<SubsetRawStruct>(), bytes.Length);
+            var result = NinoDeserializer.Deserialize<SubsetRawStruct[,]>(bytes);
+            CollectionAssert.AreEqual(grid, result);
+        }
+
+        [TestMethod]
         public void RawStructCollectionsAreOneBlock()
         {
             var array = new SubsetRawStruct[100];

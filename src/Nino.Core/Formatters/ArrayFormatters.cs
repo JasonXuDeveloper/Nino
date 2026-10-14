@@ -293,19 +293,12 @@ namespace Nino.Core
 
     internal static class MultiDim
     {
-        private static class Kind<T, TFormatter>
-        {
-            // Unmanaged elements are copied as one block.
-            public static readonly bool IsUnmanaged =
-                typeof(TFormatter).IsGenericType &&
-                typeof(TFormatter).GetGenericTypeDefinition() == typeof(UnmanagedFormatter<>);
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write<T, TFormatter>(ref T first, int count, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (Kind<T, TFormatter>.IsUnmanaged)
+            // Raw elements (unmanaged values and raw [NinoType] structs) are copied as one block.
+            if (RawFormatter<TFormatter>.Is)
             {
                 int size = checked(count * Unsafe.SizeOf<T>());
                 Unsafe.CopyBlockUnaligned(ref writer.Reserve(size), ref Unsafe.As<T, byte>(ref first), (uint)size);
@@ -319,7 +312,8 @@ namespace Nino.Core
         public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (Kind<T, TFormatter>.IsUnmanaged)
+            // Raw elements (unmanaged values and raw [NinoType] structs) are copied as one block.
+            if (RawFormatter<TFormatter>.Is)
             {
                 int size = checked(count * Unsafe.SizeOf<T>());
                 Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref first), ref reader.ReadBlock(size), (uint)size);
