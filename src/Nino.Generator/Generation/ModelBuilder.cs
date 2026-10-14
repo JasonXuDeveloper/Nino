@@ -88,15 +88,53 @@ internal static class ModelBuilder
         var used = new List<FormatterRegistration>();
         bool needsPartialAccessor = false;
 
-        if (kind != FormatterKind.Polymorphic && !rawStruct)
+        bool tolerant = attr.versionTolerant || weakTolerance;
+        bool isClass = type.TypeKind == TypeKind.Class;
+        // Abstract classes have no body of their own, but emit WriteMembers/ReadMembers for their subtypes.
+        bool emitMembers = isClass && IsDelegatable(type, compilation.Assembly);
+        string baseFormatter = "";
+        int baseMemberCount = 0;
+
+        if ((kind != FormatterKind.Polymorphic || emitMembers) && !rawStruct)
         {
-            foreach (var symbol in CollectMembers(type, attr))
+            var symbolsToBuild = CollectMembers(type, attr).ToList();
+
+            // Reuse the base formatter's member code when the base's members are exactly our first members, in
+            // the same order: the bytes are identical, and each member is compiled once instead of once per subtype.
+            int basePrefix = 0;
+            if (isClass && type.BaseType is { } baseType && baseType.SpecialType != SpecialType.System_Object &&
+                IsDelegatable(baseType, compilation.Assembly) &&
+                (baseType.GetNinoTypeAttribute()!.versionTolerant || weakTolerance) == tolerant)
             {
-                var member = BuildMember(type, symbol, resolver, net8, weakAssembly, diagnostics,
+                var baseSymbols = CollectMembers(baseType, baseType.GetNinoTypeAttribute()!).ToList();
+                if (baseSymbols.Count <= symbolsToBuild.Count &&
+                    baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbolsToBuild[i])).All(x => x))
+                {
+                    basePrefix = baseSymbols.Count;
+                    baseFormatter = FormatterResolver.GeneratedFormatter(baseType);
+                }
+            }
+
+            // Abstract types do not report member diagnostics: their subtypes do.
+            var memberDiagnostics = kind == FormatterKind.Polymorphic ? new List<DiagnosticInfo>() : diagnostics;
+            for (int i = 0; i < symbolsToBuild.Count; i++)
+            {
+                var member = BuildMember(type, symbolsToBuild[i], resolver, net8, weakAssembly, memberDiagnostics,
                     ref needsPartialAccessor);
                 if (member == null)
                     continue;
                 members.Add(member);
+                if (i < basePrefix)
+                    baseMemberCount++;
+            }
+
+            // Raw members on both sides of the boundary would be written as one block inline; delegating would
+            // split it into two reservations (measurably slower for small types), so keep such members inline.
+            if (baseMemberCount > 0 && baseMemberCount < members.Count &&
+                members[baseMemberCount - 1].RawSize.Length != 0 && members[baseMemberCount].RawSize.Length != 0)
+            {
+                baseFormatter = "";
+                baseMemberCount = 0;
             }
         }
 
@@ -126,7 +164,7 @@ internal static class ModelBuilder
             }
         }
 
-        if (typeParameters.Count == 0)
+        if (typeParameters.Count == 0 && kind != FormatterKind.Polymorphic)
         {
             foreach (var m in members)
             {
@@ -184,9 +222,12 @@ internal static class ModelBuilder
             kind,
             typeId,
             idName,
-            attr.versionTolerant || weakTolerance,
+            tolerant,
             rawStruct,
             collectionFormatter,
+            emitMembers,
+            baseFormatter,
+            baseMemberCount,
             new EquatableArray<MemberModel>(members),
             construction,
             new EquatableArray<string>(bases),
@@ -196,17 +237,73 @@ internal static class ModelBuilder
             new EquatableArray<DiagnosticInfo>(diagnostics));
     }
 
+    // Per-transform memos: a struct or base class is typically referenced by many members and subtypes.
+    [ThreadStatic] private static Dictionary<ISymbol, bool>? _rawStructs;
+    [ThreadStatic] private static Dictionary<ISymbol, bool>? _delegatable;
+
+    /// <summary>Clears per-transform memos (symbols differ per compilation; never keep them across transforms).</summary>
+    public static void ResetMemo()
+    {
+        _rawStructs?.Clear();
+        _delegatable?.Clear();
+    }
+
+    /// <summary>
+    /// Whether a class's formatter emits static <c>WriteMembers</c>/<c>ReadMembers</c> that subtypes can call: a
+    /// <c>[NinoType]</c> class generated in this assembly whose members are all directly readable and assignable.
+    /// Computed from symbols only, so a subtype's transform reaches the same answer as the base's own.
+    /// </summary>
+    public static bool IsDelegatable(INamedTypeSymbol type, IAssemblySymbol assembly)
+    {
+        if (type.TypeKind != TypeKind.Class || type.IsStatic)
+            return false;
+        var memo = _delegatable ??= new Dictionary<ISymbol, bool>(SymbolEqualityComparer.Default);
+        if (memo.TryGetValue(type, out bool known))
+            return known;
+        bool result = ComputeIsDelegatable(type, assembly);
+        memo[type] = result;
+        return result;
+    }
+
+    private static bool ComputeIsDelegatable(INamedTypeSymbol type, IAssemblySymbol assembly)
+    {
+        if (!SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, assembly) ||
+            !IsEligible(type.OriginalDefinition))
+            return false;
+        var attr = type.GetNinoTypeAttribute();
+        if (attr == null)
+            return false;
+
+        bool Visible(ISymbol? s) => s == null || s.DeclaredAccessibility == Accessibility.Public ||
+                                    (s.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedOrInternal &&
+                                     SymbolEqualityComparer.Default.Equals(s.ContainingAssembly, assembly));
+
+        foreach (var member in CollectMembers(type, attr))
+        {
+            switch (member)
+            {
+                case IFieldSymbol field:
+                    if (field.IsReadOnly || !Visible(field))
+                        return false;
+                    break;
+                case IPropertySymbol property:
+                    if (property.GetMethod == null || property.SetMethod == null || property.SetMethod.IsInitOnly ||
+                        !Visible(property) || !Visible(property.GetMethod) || !Visible(property.SetMethod))
+                        return false;
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>
     /// Whether a <c>[NinoType]</c> struct is written as its raw memory: unmanaged, not version tolerant, and every
     /// instance field is serialized (nested <c>[NinoType]</c> structs must qualify too). Such structs are copied as
     /// one block, and arrays/lists of them with a single memory copy.
     /// </summary>
-    // Memo for IsRawStruct within one transform: a struct is typically referenced by many members.
-    [ThreadStatic] private static Dictionary<ISymbol, bool>? _rawStructs;
-
-    /// <summary>Clears per-transform memos (symbols differ per compilation; never keep them across transforms).</summary>
-    public static void ResetMemo() => _rawStructs?.Clear();
-
     public static bool IsRawStruct(INamedTypeSymbol type, IAssemblySymbol? weakAssembly)
     {
         if (!type.IsValueType || type.TypeKind != TypeKind.Struct)

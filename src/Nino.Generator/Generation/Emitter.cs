@@ -107,6 +107,12 @@ internal static class Emitter
             sb.AppendLine($"        {Inline}");
             sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => default({Core}PolymorphicFormatter<{t}>).Deserialize(ref value, ref reader);");
             sb.AppendLine();
+            if (m.EmitMembers)
+            {
+                EmitMembersMethods(sb, m);
+                sb.AppendLine();
+            }
+
             EmitRegister(sb, m);
             sb.AppendLine("    }");
             return;
@@ -326,9 +332,50 @@ internal static class Emitter
             sb.AppendLine("            int __length = writer.ReserveInt32();");
         if (m.CollectionFormatter.Length != 0)
             sb.AppendLine($"            default({m.CollectionFormatter}).Serialize(value, ref writer);");
+        if (m.EmitMembers)
+            sb.AppendLine("            WriteMembers(value, ref writer);");
+        else
+            EmitMemberWrites(sb, m);
+        if (m.VersionTolerant)
+            sb.AppendLine("            writer.PatchLength(__length);");
+        sb.AppendLine("        }");
+
+        if (m.EmitMembers)
+        {
+            sb.AppendLine();
+            EmitMembersMethods(sb, m);
+        }
+    }
+
+    /// <summary>Static member (de)serializers that derived types call instead of repeating these members.</summary>
+    private static void EmitMembersMethods(StringBuilder sb, TypeModel m)
+    {
+        // Inlined so the writer/reader state stays in registers across levels, as if the members were written inline.
+        sb.AppendLine($"        {Inline}");
+        sb.AppendLine($"        internal static void WriteMembers({m.TypeName} value, ref {Core}Writer writer)");
+        sb.AppendLine("        {");
+        EmitMemberWrites(sb, m);
+        sb.AppendLine("        }");
+        sb.AppendLine();
+        sb.AppendLine("        /// <summary>Reads the members into an existing instance; false when a tolerant body ended early.</summary>");
+        sb.AppendLine($"        {Inline}");
+        sb.AppendLine($"        internal static bool ReadMembers({m.TypeName} value, ref {Core}Reader reader)");
+        sb.AppendLine("        {");
+        EmitMemberReads(sb, m, "reader", inPlace: true, onEnd: "return false;");
+        sb.AppendLine("            return true;");
+        sb.AppendLine("        }");
+    }
+
+    private static IEnumerable<MemberModel> OwnMembers(TypeModel m) =>
+        m.BaseFormatter.Length == 0 ? m.Members : m.Members.Skip(m.BaseMemberCount);
+
+    private static void EmitMemberWrites(StringBuilder sb, TypeModel m)
+    {
+        if (m.BaseFormatter.Length != 0)
+            sb.AppendLine($"            {m.BaseFormatter}.WriteMembers(value, ref writer);");
 
         int block = 0;
-        foreach (var group in Groups(m.Members))
+        foreach (var group in Groups(OwnMembers(m)))
         {
             var first = group[0];
             if (first.RawSize.Length == 0)
@@ -350,10 +397,6 @@ internal static class Emitter
             for (int i = 0; i < group.Count; i++)
                 sb.AppendLine($"            {Core}NinoUnsafe.Write<{group[i].TypeName}>(ref {p}, {offsets[i]}, {Get(m, group[i], "value")});");
         }
-
-        if (m.VersionTolerant)
-            sb.AppendLine("            writer.PatchLength(__length);");
-        sb.AppendLine("        }");
     }
 
     private static void EmitReadBody(StringBuilder sb, TypeModel m)
@@ -382,16 +425,24 @@ internal static class Emitter
             if (m.CollectionFormatter.Length != 0)
                 sb.AppendLine($"            default({m.CollectionFormatter}).Deserialize(ref value, ref {r});");
 
-            EmitMemberReads(sb, m, r, inPlace: true);
-            if (m.VersionTolerant)
-                sb.AppendLine("            __end: ;");
+            if (m.EmitMembers)
+            {
+                sb.AppendLine($"            ReadMembers(value, ref {r});");
+            }
+            else
+            {
+                EmitMemberReads(sb, m, r, inPlace: true, onEnd: "goto __end;");
+                if (m.VersionTolerant)
+                    sb.AppendLine("            __end: ;");
+            }
+
             sb.AppendLine("        }");
             return;
         }
 
         foreach (var member in m.Members)
             sb.AppendLine($"            {member.TypeName} {Local(member)} = default;");
-        EmitMemberReads(sb, m, r, inPlace: false);
+        EmitMemberReads(sb, m, r, inPlace: false, onEnd: "goto __end;");
         if (m.VersionTolerant)
             sb.AppendLine("            __end:");
 
@@ -437,14 +488,23 @@ internal static class Emitter
 
     private static string Local(MemberModel member) => "__v_" + member.Name;
 
-    private static void EmitMemberReads(StringBuilder sb, TypeModel m, string r, bool inPlace)
+    private static void EmitMemberReads(StringBuilder sb, TypeModel m, string r, bool inPlace, string onEnd)
     {
+        // Base members through the base formatter (in place only: recreated types read everything into locals).
+        var members = inPlace ? OwnMembers(m) : m.Members;
+        if (inPlace && m.BaseFormatter.Length != 0)
+        {
+            sb.AppendLine(m.VersionTolerant
+                ? $"            if (!{m.BaseFormatter}.ReadMembers(value, ref {r})) {onEnd}"
+                : $"            {m.BaseFormatter}.ReadMembers(value, ref {r});");
+        }
+
         if (m.VersionTolerant)
         {
             // Tolerant bodies may end early (data written by an older version): check before every member.
-            foreach (var member in m.Members)
+            foreach (var member in members)
             {
-                sb.AppendLine($"            if ({r}.Eof) goto __end;");
+                sb.AppendLine($"            if ({r}.Eof) {onEnd}");
                 if (member.RawSize.Length != 0)
                 {
                     string read = $"{r}.UnsafeRead<{member.TypeName}>()";
@@ -460,7 +520,7 @@ internal static class Emitter
         }
 
         int block = 0;
-        foreach (var group in Groups(m.Members))
+        foreach (var group in Groups(members))
         {
             var first = group[0];
             if (first.RawSize.Length == 0)

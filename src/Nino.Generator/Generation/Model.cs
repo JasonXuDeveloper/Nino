@@ -106,6 +106,12 @@ public sealed record TypeModel(
     bool RawStruct,
     // For [NinoType] collections: the formatter of the elements, written before the members.
     string CollectionFormatter,
+    // Whether static WriteMembers/ReadMembers are emitted so derived types can reuse them (classes whose
+    // members are all directly accessible).
+    bool EmitMembers,
+    // Formatter whose WriteMembers/ReadMembers cover the first BaseMemberCount members, or "".
+    string BaseFormatter,
+    int BaseMemberCount,
     EquatableArray<MemberModel> Members,
     ConstructionModel Construction,
     // NinoType base classes and interfaces this type is registered under (non-generic, instantiable types only).

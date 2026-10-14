@@ -235,6 +235,11 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   Type-parameter members use `CachedFormatter<T>`.
 * Private members use `[UnsafeAccessor]` when the compilation targets .NET 8+, and generated `partial`
   accessors otherwise.
+* Classes whose members are all directly accessible also get static `WriteMembers`/`ReadMembers`. A subtype
+  whose leading members are exactly its base's members calls the base's methods instead of repeating them, so
+  each inherited member is compiled once per hierarchy rather than once per subtype (about a third less code for
+  deep hierarchies). The bytes are unchanged. Delegation is skipped when raw members on both sides of the
+  boundary would otherwise be written as one block, since splitting that block costs an extra reservation.
 * Preprocessor-dependent choices (`WEAK_VERSION_TOLERANCE`, `NET8_0_OR_GREATER`) are resolved at
   generation time from the compilation's parse options, so generated code contains no `#if` branches.
 
