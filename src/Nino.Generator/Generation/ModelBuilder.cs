@@ -97,7 +97,7 @@ internal static class ModelBuilder
 
         if ((kind != FormatterKind.Polymorphic || emitMembers) && !rawStruct)
         {
-            var symbolsToBuild = CollectMembers(type, attr).ToList();
+            var symbolsToBuild = CollectMembers(type, attr);
 
             // Reuse the base formatter's member code when the base's members are exactly our first members, in
             // the same order: the bytes are identical, and each member is compiled once instead of once per subtype.
@@ -106,7 +106,7 @@ internal static class ModelBuilder
                 IsDelegatable(baseType, compilation.Assembly) &&
                 (baseType.GetNinoTypeAttribute()!.versionTolerant || weakTolerance) == tolerant)
             {
-                var baseSymbols = CollectMembers(baseType, baseType.GetNinoTypeAttribute()!).ToList();
+                var baseSymbols = CollectMembers(baseType, baseType.GetNinoTypeAttribute()!);
                 if (baseSymbols.Count <= symbolsToBuild.Count &&
                     baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbolsToBuild[i])).All(x => x))
                 {
@@ -223,12 +223,14 @@ internal static class ModelBuilder
     // Per-transform memos: a struct or base class is typically referenced by many members and subtypes.
     [ThreadStatic] private static Dictionary<ISymbol, bool>? _rawStructs;
     [ThreadStatic] private static Dictionary<ISymbol, bool>? _delegatable;
+    [ThreadStatic] private static Dictionary<ISymbol, IReadOnlyList<ISymbol>>? _members;
 
     /// <summary>Clears per-transform memos (symbols differ per compilation; never keep them across transforms).</summary>
     public static void ResetMemo()
     {
         _rawStructs?.Clear();
         _delegatable?.Clear();
+        _members?.Clear();
     }
 
     /// <summary>
@@ -384,7 +386,19 @@ internal static class ModelBuilder
     /// <summary>The access helper names used for a member's partial accessor.</summary>
     public static string AccessorClass(TypeModel model) => "__NinoAccess_" + model.FormatterName;
 
-    private static IEnumerable<ISymbol> CollectMembers(INamedTypeSymbol type, NinoTypeAttribute attr)
+    /// <summary>
+    /// Serialized members of <paramref name="type"/> (whose effective attribute is <paramref name="attr"/>), in
+    /// order. Memoized per transform: a type's own list and its base's are needed several times.
+    /// </summary>
+    private static IReadOnlyList<ISymbol> CollectMembers(INamedTypeSymbol type, NinoTypeAttribute attr)
+    {
+        var memo = _members ??= new Dictionary<ISymbol, IReadOnlyList<ISymbol>>(SymbolEqualityComparer.Default);
+        if (!memo.TryGetValue(type, out var result))
+            memo[type] = result = CollectMembersCore(type, attr);
+        return result;
+    }
+
+    private static List<ISymbol> CollectMembersCore(INamedTypeSymbol type, NinoTypeAttribute attr)
     {
         bool autoCollect = attr.autoCollect;
         bool containNonPublic = attr.containNonPublicMembers;
