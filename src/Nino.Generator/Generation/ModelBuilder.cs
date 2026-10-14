@@ -56,7 +56,9 @@ internal static class ModelBuilder
         var symbols = parseOptions?.PreprocessorSymbolNames.ToArray() ?? Array.Empty<string>();
         bool weakTolerance = symbols.Contains(NinoTypeHelper.WeakVersionToleranceSymbol);
         bool net8 = symbols.Contains("NET8_0_OR_GREATER");
-        var resolver = new FormatterResolver(compilation.Assembly);
+        var resolver = new FormatterResolver(compilation.Assembly, weakTolerance);
+        var weakAssembly = weakTolerance ? compilation.Assembly : null;
+        bool rawStruct = IsRawStruct(type, weakAssembly);
 
         var kind = type.TypeKind == TypeKind.Interface || type.IsAbstract
             ? FormatterKind.Polymorphic
@@ -85,18 +87,19 @@ internal static class ModelBuilder
         var used = new List<FormatterRegistration>();
         bool needsPartialAccessor = false;
 
-        if (kind != FormatterKind.Polymorphic)
+        if (kind != FormatterKind.Polymorphic && !rawStruct)
         {
             foreach (var symbol in CollectMembers(type, attr))
             {
-                var member = BuildMember(type, symbol, resolver, net8, diagnostics, ref needsPartialAccessor);
+                var member = BuildMember(type, symbol, resolver, net8, weakAssembly, diagnostics,
+                    ref needsPartialAccessor);
                 if (member == null)
                     continue;
                 members.Add(member);
             }
         }
 
-        var construction = kind == FormatterKind.Polymorphic
+        var construction = kind == FormatterKind.Polymorphic || rawStruct
             ? new ConstructionModel(false, "", EquatableArray<string>.Empty, "")
             : BuildConstruction(type, members, diagnostics, location);
 
@@ -177,6 +180,7 @@ internal static class ModelBuilder
             typeId,
             idName,
             attr.versionTolerant || weakTolerance,
+            rawStruct,
             new EquatableArray<MemberModel>(members),
             construction,
             new EquatableArray<string>(bases),
@@ -184,6 +188,44 @@ internal static class ModelBuilder
             accessorNamespace,
             new EquatableArray<string>(accessorDeclarations),
             new EquatableArray<DiagnosticInfo>(diagnostics));
+    }
+
+    /// <summary>
+    /// Whether a <c>[NinoType]</c> struct is written as its raw memory: unmanaged, not version tolerant, and every
+    /// instance field is serialized (nested <c>[NinoType]</c> structs must qualify too). Such structs are copied as
+    /// one block, and arrays/lists of them with a single memory copy.
+    /// </summary>
+    public static bool IsRawStruct(INamedTypeSymbol type, IAssemblySymbol? weakAssembly)
+    {
+        if (!type.IsValueType || !type.IsUnmanagedType || type.TypeKind != TypeKind.Struct)
+            return false;
+        // WEAK_VERSION_TOLERANCE only applies to the types of the assembly that defines it.
+        if (weakAssembly != null && SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, weakAssembly))
+            return false;
+        var attr = type.GetNinoTypeAttribute();
+        if (attr == null || attr.versionTolerant)
+            return false;
+        var layout = GetAttribute(type, "StructLayoutAttribute");
+        if (layout != null && layout.ConstructorArguments.Length > 0 &&
+            layout.ConstructorArguments[0].Value is int kind && kind != 0 /* Sequential */)
+            return false;
+
+        var members = new HashSet<ISymbol>(CollectMembers(type.OriginalDefinition, attr),
+            SymbolEqualityComparer.Default);
+        foreach (var field in type.GetMembers().OfType<IFieldSymbol>())
+        {
+            if (field.IsStatic || field.IsConst)
+                continue;
+            var member = field.AssociatedSymbol ?? field;
+            if (!members.Contains(member.OriginalDefinition))
+                return false;
+            if (HasAttribute(member, "NinoCustomFormatterAttribute"))
+                return false;
+            if (field.Type is INamedTypeSymbol nested && nested.IsNinoType() && !IsRawStruct(nested, weakAssembly))
+                return false;
+        }
+
+        return true;
     }
 
     public static bool IsBuiltInFormatter(string formatter) =>
@@ -382,7 +424,7 @@ internal static class ModelBuilder
     }
 
     private static MemberModel? BuildMember(INamedTypeSymbol type, ISymbol symbol, FormatterResolver resolver,
-        bool net8, List<DiagnosticInfo> diagnostics, ref bool needsPartialAccessor)
+        bool net8, IAssemblySymbol? weakAssembly, List<DiagnosticInfo> diagnostics, ref bool needsPartialAccessor)
     {
         var memberType = symbol switch
         {
@@ -451,7 +493,7 @@ internal static class ModelBuilder
             needsPartialAccessor = true;
         }
 
-        string rawSize = custom == null && FormatterResolver.IsRawUnmanaged(memberType)
+        string rawSize = custom == null && FormatterResolver.IsRawUnmanaged(memberType, weakAssembly)
             ? FormatterResolver.RawSize(memberType)
             : "";
 

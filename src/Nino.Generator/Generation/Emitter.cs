@@ -107,9 +107,21 @@ internal static class Emitter
         }
 
         sb.AppendLine();
-        EmitWriteBody(sb, m);
-        sb.AppendLine();
-        EmitReadBody(sb, m);
+        if (m.RawStruct)
+        {
+            sb.AppendLine("        // Unmanaged and every field serialized: the struct is written as its raw memory.");
+            sb.AppendLine($"        {Inline}");
+            sb.AppendLine($"        public void WriteBody({m.TypeName} value, ref {Core}Writer writer) => writer.UnsafeWrite(value);");
+            sb.AppendLine();
+            sb.AppendLine($"        {Inline}");
+            sb.AppendLine($"        public void ReadBody(ref {m.TypeName} value, ref {Core}Reader reader) => value = reader.UnsafeRead<{m.TypeName}>();");
+        }
+        else
+        {
+            EmitWriteBody(sb, m);
+            sb.AppendLine();
+            EmitReadBody(sb, m);
+        }
         EmitUnsafeAccessors(sb, m);
         if (!m.IsGeneric)
         {

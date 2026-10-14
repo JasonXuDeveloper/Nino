@@ -49,7 +49,7 @@ hosts are not supported.
 | `T?` (nullable value type) | 1 byte has-value flag, then the value if present |
 | Collection / array / string length | `int32`; `-1` means `null` |
 | `string` (default, UTF-16) | `int32` char count, then UTF-16 code units |
-| `string` with `[NinoUtf8]` | `int32` byte count (`-1` = null), `int32` char count, then UTF-8 bytes |
+| `string` with `[NinoUtf8]` | `int32` byte count (`-1` = null), then UTF-8 bytes |
 | Array / list of unmanaged `T` | length, then one block copy of the elements |
 | Other collections | length, then each element |
 | Dictionary | length, then key/value pairs |
@@ -71,7 +71,12 @@ After the header comes the **body**: the members in declaration order (or `[Nino
 `[NinoExplicitOrder]`), base-class members first. Consecutive unmanaged members are written as one block
 (a single bounds check and reservation for the whole block).
 
-A struct whose members are all unmanaged, and which is not version tolerant, is written as one raw block.
+A `[NinoType]` struct is written as its **raw memory** (one copy, and arrays/lists of it as one block) when it
+is unmanaged, not version tolerant, uses the default sequential layout, has no custom member formatters, and
+every instance field (including auto-property backing fields) is serialized. Nested `[NinoType]` struct fields
+must qualify as well. The bytes are the in-memory layout, **padding included**, so reordering fields changes
+the format; mark the struct `versionTolerant` (or ignore a field) to opt out. Otherwise structs are written
+member by member.
 
 ### Version tolerance
 
@@ -155,10 +160,10 @@ code of each subtype's assembly. Registration is decentralized, so the generator
 assemblies.
 
 * **Serialize**: if `value.GetType() == typeof(TBase)`, write the base body directly. Otherwise look up the
-  runtime type handle in an open-addressing table of 16-byte entries (four per 64-byte cache line) and call
-  the subtype's body serializer.
-* **Deserialize**: read the type id. Subtypes in the same assembly are dispatched by a generated `switch`
-  with direct calls. Other ids fall back to the registry.
+  runtime type in a lock-free open-addressing table and call the subtype's body serializer through its
+  handler.
+* **Deserialize**: read the type id and look it up in a second open-addressing table keyed by id. Unknown
+  ids trigger lazy initialization of not-yet-loaded generated registries before failing.
 * Registries are immutable snapshots replaced copy-on-write, so concurrent readers never see a torn
   entry. (The v3 inline caches could pair one type's id with another type's delegate under contention.)
 
@@ -191,7 +196,7 @@ assemblies.
 ForAttributeWithMetadataName("Nino.Core.NinoTypeAttribute") ─┐
 CreateSyntaxProvider(class/struct/record with base list)      ├─► TypeModel (equatable) ─► per-type source
                                     (inherited NinoType)      ┘          │
-                                                                         └─► TypeSummary ─► Collect ─► registry + dispatch source
+                                                                         └─► formatter names ─► Collect ─► registry source
 CompilationProvider.Select(GeneratorOptions)  ──────────────────────────────┘ (assembly name, symbols, Unity)
 ```
 
@@ -199,8 +204,11 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   only of strings, primitives and `EquatableArray<T>`. Nothing downstream holds a symbol, a syntax node or
   the `Compilation`, so Roslyn's caching cuts off unchanged types.
 * Each type is emitted into its own file. Editing a member of `Foo` re-emits only `Foo.g.cs`.
-* The global stage consumes only `TypeSummary` (name, id, base types, flags), so it only re-runs when types
-  are added or removed, or the hierarchy changes.
+* The registry stage consumes only formatter names, so it only re-runs when types are added, removed or
+  renamed.
+* A separate syntax provider finds `NinoSerializer`/`NinoDeserializer` calls whose type argument is a
+  built-in generic (e.g. `ImmutableArray<T>`, `List<MyStruct>`) and registers those closed formatters, so
+  AOT runtimes never need `MakeGenericType` for them.
 * The v3 generator combined everything with `CompilationProvider`, scanned every generic type syntax in
   the project and every `using` directive in every file, and re-emitted all types on every keystroke.
 

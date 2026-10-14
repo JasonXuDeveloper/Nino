@@ -35,3 +35,34 @@ public class SomeCollections
     public List<UniTask<int>> UniTasks2;
     public List<UniTask<string>> UniTasks3;
 }
+// Unmanaged and every field serialized: written as raw memory (including padding).
+[NinoType]
+public struct SubsetRawStruct
+{
+    public int X;
+    public long Y;
+}
+
+[NinoType]
+public struct SubsetRawOuter
+{
+    public SubsetRawStruct Inner;
+    public int Z { get; set; }
+}
+
+// A field is not serialized, so the struct is written member by member.
+[NinoType]
+public struct SubsetPartialStruct
+{
+    public int X;
+    [NinoIgnore] public int Ignored;
+    public long Y;
+}
+
+// Version tolerant structs are never raw.
+[NinoType(versionTolerant: true)]
+public struct SubsetTolerantStruct
+{
+    public int X;
+    public long Y;
+}

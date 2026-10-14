@@ -155,9 +155,12 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var type = method.TypeArguments[0];
         if (ContainsTypeParameter(type))
             return null;
-        var formatter = new FormatterResolver(ctx.SemanticModel.Compilation.Assembly).Resolve(type, false);
+        bool weak = ctx.SemanticModel.SyntaxTree.Options.PreprocessorSymbolNames
+            .Contains(NinoTypeHelper.WeakVersionToleranceSymbol);
+        var assembly = ctx.SemanticModel.Compilation.Assembly;
+        var formatter = new FormatterResolver(assembly, weak).Resolve(type, false);
         if (formatter == null || !ModelBuilder.IsBuiltInFormatter(formatter) ||
-            FormatterResolver.IsRawUnmanaged(type))
+            FormatterResolver.IsRawUnmanaged(type, weak ? assembly : null))
             return null;
         return new FormatterRegistration(TypeNames.Global(type), formatter);
     }

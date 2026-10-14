@@ -11,10 +11,13 @@ internal sealed class FormatterResolver
 {
     private const string Core = "global::Nino.Core.";
     private readonly IAssemblySymbol _assembly;
+    // The assembly compiled with WEAK_VERSION_TOLERANCE, if any: its types are all version tolerant.
+    private readonly IAssemblySymbol? _weakAssembly;
 
-    public FormatterResolver(IAssemblySymbol assembly)
+    public FormatterResolver(IAssemblySymbol assembly, bool weakTolerance)
     {
         _assembly = assembly;
+        _weakAssembly = weakTolerance ? assembly : null;
     }
 
     public static string Cached(ITypeSymbol type) => $"{Core}CachedFormatter<{TypeNames.Global(type)}>";
@@ -35,10 +38,12 @@ internal sealed class FormatterResolver
     }
 
     /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
-    public static bool IsRawUnmanaged(ITypeSymbol type)
+    public static bool IsRawUnmanaged(ITypeSymbol type, IAssemblySymbol? weakAssembly)
     {
-        if (type is ITypeParameterSymbol || !type.IsUnmanagedType || type.IsNinoType())
+        if (type is ITypeParameterSymbol || !type.IsUnmanagedType)
             return false;
+        if (type.IsNinoType())
+            return type is INamedTypeSymbol ninoStruct && ModelBuilder.IsRawStruct(ninoStruct, weakAssembly);
         if (type is INamedTypeSymbol named)
         {
             if (named.IsTupleType)
@@ -142,7 +147,7 @@ internal sealed class FormatterResolver
         var e = TypeNames.Global(element);
         if (array.IsSZArray)
         {
-            return IsRawUnmanaged(element)
+            return IsRawUnmanaged(element, _weakAssembly)
                 ? $"{Core}UnmanagedArrayFormatter<{e}>"
                 : $"{Core}ArrayFormatter<{e}, {Element(element, utf8)}>";
         }
@@ -169,12 +174,12 @@ internal sealed class FormatterResolver
                 return $"{Core}PolymorphicFormatter<object>";
         }
 
+        var t = TypeNames.Global(type);
+        if (IsRawUnmanaged(type, _weakAssembly))
+            return $"{Core}UnmanagedFormatter<{t}>";
+
         if (type.IsNinoType())
             return IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type);
-
-        var t = TypeNames.Global(type);
-        if (IsRawUnmanaged(type))
-            return $"{Core}UnmanagedFormatter<{t}>";
 
         if (type.IsTupleType && type.TupleUnderlyingType is { } underlying)
             type = underlying;
@@ -292,7 +297,7 @@ internal sealed class FormatterResolver
     {
         element = element.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         var e = TypeNames.Global(element);
-        return IsRawUnmanaged(element)
+        return IsRawUnmanaged(element, _weakAssembly)
             ? $"{Core}UnmanagedListFormatter<{listType}, {e}>"
             : $"{Core}ListFormatter<{listType}, {e}, {Element(element, utf8)}>";
     }

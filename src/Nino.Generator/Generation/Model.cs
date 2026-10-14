@@ -102,6 +102,8 @@ public sealed record TypeModel(
     int TypeId,
     string IdName,
     bool VersionTolerant,
+    // Unmanaged struct written as its raw memory.
+    bool RawStruct,
     EquatableArray<MemberModel> Members,
     ConstructionModel Construction,
     // NinoType base classes and interfaces this type is registered under (non-generic, instantiable types only).
