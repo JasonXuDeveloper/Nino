@@ -233,12 +233,14 @@ internal static class ModelBuilder
 
     /// <summary>
     /// Whether a class's formatter emits static <c>WriteMembers</c>/<c>ReadMembers</c> that subtypes can call: a
-    /// <c>[NinoType]</c> class generated in this assembly whose members are all directly readable and assignable.
+    /// non-sealed <c>[NinoType]</c> class generated in this assembly whose members are all directly readable and
+    /// assignable.
     /// Computed from symbols only, so a subtype's transform reaches the same answer as the base's own.
     /// </summary>
     public static bool IsDelegatable(INamedTypeSymbol type, IAssemblySymbol assembly)
     {
-        if (type.TypeKind != TypeKind.Class || type.IsStatic)
+        // Sealed classes have no subtypes to delegate to them.
+        if (type.TypeKind != TypeKind.Class || type.IsStatic || type.IsSealed)
             return false;
         var memo = _delegatable ??= new Dictionary<ISymbol, bool>(SymbolEqualityComparer.Default);
         if (memo.TryGetValue(type, out bool known))

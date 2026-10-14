@@ -44,9 +44,12 @@ internal static class Emitter
             ? new string[0]
             : m.TypeParameters.Trim('<', '>').Split(',').Select(p => p.Trim()).ToArray();
         var aliases = new StringBuilder();
-        aliases.AppendLine("    using __NinoInline = global::System.Runtime.CompilerServices.MethodImplAttribute;");
-        aliases.AppendLine("    using __NinoInlineOptions = global::System.Runtime.CompilerServices.MethodImplOptions;");
-        body.Replace(Inline, "[__NinoInline(__NinoInlineOptions.AggressiveInlining)]");
+        if (body.ToString().Contains(Inline))
+        {
+            aliases.AppendLine("    using __NinoInline = global::System.Runtime.CompilerServices.MethodImplAttribute;");
+            aliases.AppendLine("    using __NinoInlineOptions = global::System.Runtime.CompilerServices.MethodImplOptions;");
+            body.Replace(Inline, "[__NinoInline(__NinoInlineOptions.AggressiveInlining)]");
+        }
 
         int index = 0;
         foreach (var formatter in m.Members.Select(x => x.Formatter)
@@ -97,12 +100,12 @@ internal static class Emitter
         sb.AppendLine($"    internal struct {f} : {iface}{m.Constraints}");
         sb.AppendLine("    {");
 
+        // The forwarders and TypeId are a few bytes of IL, which every runtime inlines without being told to;
+        // MethodImpl attributes on them only cost compile time.
         if (m.Kind == FormatterKind.Polymorphic)
         {
-            sb.AppendLine($"        {Inline}");
             sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer) => default({Core}PolymorphicFormatter<{t}>).Serialize(value, ref writer);");
             sb.AppendLine();
-            sb.AppendLine($"        {Inline}");
             sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => default({Core}PolymorphicFormatter<{t}>).Deserialize(ref value, ref reader);");
             sb.AppendLine();
             if (m.EmitMembers)
@@ -123,7 +126,6 @@ internal static class Emitter
             sb.AppendLine();
             sb.AppendLine("        public int TypeId");
             sb.AppendLine("        {");
-            sb.AppendLine($"            {Inline}");
             sb.AppendLine("            get => s_typeId;");
             sb.AppendLine("        }");
         }
@@ -134,7 +136,6 @@ internal static class Emitter
             sb.AppendLine();
             sb.AppendLine("        public int TypeId");
             sb.AppendLine("        {");
-            sb.AppendLine($"            {Inline}");
             sb.AppendLine("            get => Id;");
             sb.AppendLine("        }");
         }
@@ -144,24 +145,18 @@ internal static class Emitter
         switch (m.Kind)
         {
             case FormatterKind.Struct:
-                sb.AppendLine($"        {Inline}");
                 sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer) => WriteBody(value, ref writer);");
                 sb.AppendLine();
-                sb.AppendLine($"        {Inline}");
                 sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => ReadBody(ref value, ref reader);");
                 break;
             case FormatterKind.SealedClass:
-                sb.AppendLine($"        {Inline}");
                 sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeSealed<{t}, {self}>(value, ref writer);");
                 sb.AppendLine();
-                sb.AppendLine($"        {Inline}");
                 sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader);");
                 break;
             default:
-                sb.AppendLine($"        {Inline}");
                 sb.AppendLine($"        public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.Serialize<{t}, {self}>(value, ref writer);");
                 sb.AppendLine();
-                sb.AppendLine($"        {Inline}");
                 sb.AppendLine($"        public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.Deserialize<{t}, {self}>(ref value, ref reader);");
                 break;
         }
