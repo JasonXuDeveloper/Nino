@@ -82,12 +82,16 @@ public static class NinoTypeHelper
         foreach (var attribute in typeSymbol.GetAttributes())
         {
             if (attribute.AttributeClass?.Name == "NinoTypeAttribute" &&
-                attribute.AttributeClass.ContainingNamespace?.ToDisplayString() == "Nino.Core")
+                IsNinoCoreNamespace(attribute.AttributeClass.ContainingNamespace))
                 return attribute;
         }
 
         return null;
     }
+
+    /// <summary>Whether <paramref name="ns"/> is <c>Nino.Core</c> (without allocating its display string).</summary>
+    public static bool IsNinoCoreNamespace(INamespaceSymbol? ns) =>
+        ns is { Name: "Core", ContainingNamespace: { Name: "Nino", ContainingNamespace.IsGlobalNamespace: true } };
 
     public static T GetConstructorArgumentByName<T>(AttributeData? attributeData, string parameterName,
         T defaultValue = default!)

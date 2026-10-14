@@ -28,7 +28,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var marked = context.SyntaxProvider.ForAttributeWithMetadataName(
             NinoTypeAttribute,
             static (node, _) => node is TypeDeclarationSyntax,
-            static (ctx, ct) => Transform(ctx.TargetSymbol as INamedTypeSymbol, ctx.SemanticModel, ct));
+            static (ctx, ct) => Transform(ctx.TargetSymbol as INamedTypeSymbol, ctx.SemanticModel, ct))
+            .WithTrackingName("NinoType");
 
         // Types that inherit [NinoType] from a base class or an interface.
         var inherited = context.SyntaxProvider.CreateSyntaxProvider(
@@ -48,7 +49,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 if (first != syntax)
                     return null;
                 return Transform(symbol, ctx.SemanticModel, ct);
-            });
+            })
+            .WithTrackingName("InheritedNinoType");
 
         var models = marked.Where(static m => m != null)
             .Combine(enabled)
@@ -100,6 +102,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     }
                 },
                 static (ctx, ct) => TransformUsage(ctx, ct))
+            .WithTrackingName("Usage")
             .Where(static u => u != null)
             .Select(static (u, _) => u!)
             .Collect()
@@ -150,7 +153,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             return null;
         var owner = method.ContainingType;
         if (owner == null || owner.Name is not ("NinoSerializer" or "NinoDeserializer") ||
-            owner.ContainingNamespace?.ToDisplayString() != "Nino.Core")
+            !NinoTypeHelper.IsNinoCoreNamespace(owner.ContainingNamespace))
             return null;
         var type = method.TypeArguments[0];
         if (ContainsTypeParameter(type))

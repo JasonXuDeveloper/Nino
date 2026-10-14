@@ -19,16 +19,70 @@ internal static class Emitter
 
     public static string EmitType(TypeModel model)
     {
-        var sb = new StringBuilder(4096);
+        var body = new StringBuilder(4096);
+        EmitFormatter(body, model);
+
+        var sb = new StringBuilder(body.Length + 1024);
         sb.Append(Header);
         sb.AppendLine("namespace NinoGen");
         sb.AppendLine("{");
-        EmitFormatter(sb, model);
+        sb.Append(ShortenNames(body, model));
         sb.AppendLine("}");
         if (model.AccessorDeclarations.Length > 0)
             EmitPartialAccessor(sb, model);
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Replaces repeated formatter type names with file-local <c>using</c> aliases. Member formatter names are
+    /// long and repeated (serialize, deserialize, registration), so this keeps generated files small and fast to
+    /// parse.
+    /// </summary>
+    private static string ShortenNames(StringBuilder body, TypeModel m)
+    {
+        var typeParameters = m.TypeParameters.Length == 0
+            ? new string[0]
+            : m.TypeParameters.Trim('<', '>').Split(',').Select(p => p.Trim()).ToArray();
+        var aliases = new StringBuilder();
+        aliases.AppendLine("    using __NinoInline = global::System.Runtime.CompilerServices.MethodImplAttribute;");
+        aliases.AppendLine("    using __NinoInlineOptions = global::System.Runtime.CompilerServices.MethodImplOptions;");
+        body.Replace(Inline, "[__NinoInline(__NinoInlineOptions.AggressiveInlining)]");
+
+        int index = 0;
+        foreach (var formatter in m.Members.Select(x => x.Formatter)
+                     .Concat(m.UsedFormatters.Select(x => x.Formatter))
+                     .Where(f => f.Length > 48 && !MentionsAny(f, typeParameters))
+                     .Distinct()
+                     .OrderByDescending(f => f.Length))
+        {
+            string alias = "__NinoF" + index++;
+            aliases.AppendLine($"    using {alias} = {formatter};");
+            body.Replace($"default({formatter})", $"default({alias})");
+            body.Replace($"TryRegister<{formatter}>", $"TryRegister<{alias}>");
+        }
+
+        return aliases.AppendLine().Append(body).ToString();
+    }
+
+    private static bool MentionsAny(string text, string[] identifiers)
+    {
+        foreach (var id in identifiers)
+        {
+            int i = 0;
+            while ((i = text.IndexOf(id, i, System.StringComparison.Ordinal)) >= 0)
+            {
+                bool start = i == 0 || !IsIdentifierChar(text[i - 1]);
+                bool end = i + id.Length == text.Length || !IsIdentifierChar(text[i + id.Length]);
+                if (start && end)
+                    return true;
+                i += id.Length;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsIdentifierChar(char c) => char.IsLetterOrDigit(c) || c == '_' || c == '@';
 
     private static void EmitFormatter(StringBuilder sb, TypeModel m)
     {
