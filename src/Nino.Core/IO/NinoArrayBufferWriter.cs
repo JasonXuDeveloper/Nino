@@ -64,7 +64,8 @@ namespace Nino.Core
             if (Index == 0)
                 return Array.Empty<byte>();
 
-            var result = new byte[Index];
+            // Every byte is overwritten by the copy.
+            var result = NinoUnsafe.AllocateUninitializedArray<byte>(Index);
             System.Buffer.BlockCopy(Buffer, 0, result, 0, Index);
             return result;
         }

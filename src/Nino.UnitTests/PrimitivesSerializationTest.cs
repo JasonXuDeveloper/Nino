@@ -20,6 +20,28 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
+        public void LongUtf8Strings()
+        {
+            // Past the worst-case reservation's limit the byte count is computed first: the same bytes, and a buffer
+            // sized for them rather than for three bytes per char.
+            var text = string.Concat(Enumerable.Repeat("ascii é ニ 😀 ", 400)) + "\ud800 tail";
+            foreach (var value in new[] { text, text.Substring(0, 1024), text.Substring(0, 1025), new string('a', 100_000) })
+            {
+                using var buffer = new NinoArrayBufferWriter();
+                var writer = new Writer(buffer);
+                writer.WriteUtf8(value);
+                writer.Flush();
+                var expected = System.Text.Encoding.UTF8.GetBytes(value);
+                CollectionAssert.AreEqual(BitConverter.GetBytes(expected.Length).Concat(expected).ToArray(),
+                    buffer.WrittenSpan.ToArray());
+                var reader = new Reader(buffer.WrittenSpan);
+                Assert.AreEqual(System.Text.Encoding.UTF8.GetString(expected), reader.ReadUtf8());
+                if (value.Length == 100_000)
+                    Assert.IsTrue(buffer.Capacity < 200_000, buffer.Capacity.ToString());
+            }
+        }
+
+        [TestMethod]
         public void TestEmptyStruct()
         {
             var val = new EmptyStruct();

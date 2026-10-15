@@ -13,10 +13,12 @@ namespace Nino.Core
 
 #if NET5_0_OR_GREATER
         /// <summary>
-        /// Smallest array (in bytes) worth allocating uninitialized: below it the runtime zeroes the memory anyway
-        /// and a zeroed allocation is cheaper.
+        /// Smallest array (in bytes) worth allocating uninitialized. Every caller fills the array right away, and
+        /// filling zeroed memory is cheaper while it is small: zeroing pulls the lines into the cache, which the copy
+        /// then hits. Measured (.NET 8, x64) allocating and copying into the array: 2 KB 198 ns zeroed vs 393 ns
+        /// uninitialized, 8 KB 806 vs 825, 16 KB 1248 vs 1169, 64 KB 5.6 vs 3.9 µs.
         /// </summary>
-        private const int MinUninitializedArrayBytes = 2048;
+        private const int MinUninitializedArrayBytes = 16 * 1024;
 #endif
 
         /// <summary>

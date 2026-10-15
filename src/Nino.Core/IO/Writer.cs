@@ -233,6 +233,9 @@ namespace Nino.Core
             Write(value.AsSpan());
         }
 
+        /// <summary>Longest string <see cref="WriteUtf8"/> reserves 3 bytes per char for.</summary>
+        private const int Utf8WorstCaseMaxChars = 1024;
+
         /// <summary>Writes a string as UTF-8: byte count (-1 for null), then the bytes.</summary>
         public void WriteUtf8(string value)
         {
@@ -242,7 +245,11 @@ namespace Nino.Core
                 return;
             }
 
-            int maxBytes = checked(value.Length * 3);
+            // Short strings reserve the worst case (3 bytes per char) and encode in one pass; long ones count their
+            // bytes first, so the buffer does not grow to three times the string (or overflow the count).
+            int maxBytes = value.Length <= Utf8WorstCaseMaxChars
+                ? value.Length * 3
+                : Encoding.UTF8.GetByteCount(value);
             int lengthPos = _pos;
             ref byte dst = ref Reserve(NinoWire.LengthSize + maxBytes);
             int written = EncodeUtf8(value, ref Unsafe.Add(ref dst, NinoWire.LengthSize), maxBytes);
