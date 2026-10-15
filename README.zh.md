@@ -139,10 +139,10 @@ public class Node { public string Name; public List<Node> Links; }
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
 | Unity | 2022.3+，`netstandard2.0` 和 `2.1`，HybridCLR | `netstandard2.1` |
 
-MemoryPack 仍有 Nino 没有的功能：更多内置类型（`BigInteger`、`Uri`、全部不可变集合、`AnimationCurve` 等 Unity 类）、
-`Stream` 和异步 API、多段 `ReadOnlySequence<byte>` 输入、序列化回调、内置 Brotli 压缩、TypeScript 生成和 ASP.NET Core
-格式化器。它的 Union 标签是 1 字节，而 Nino 写 4 字节类型 ID。多数都有替代做法，详见
-[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)。
+MemoryPack 内置支持的类型更多（`BigInteger`、`Uri`、全部不可变集合、`AnimationCurve` 等 Unity 类），支持多段
+`ReadOnlySequence<byte>` 输入、TypeScript 生成和 ASP.NET Core 格式化器；它的 Union 标签是 1 字节，Nino 的类型 ID 是 4 字节。
+流、异步读写、回调和压缩只需在 Nino 的 `IBufferWriter<byte>` 和 `ReadOnlySpan<byte>` API 外包几行代码，
+[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有示例。
 
 ## v4
 

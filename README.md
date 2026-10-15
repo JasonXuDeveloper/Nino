@@ -146,11 +146,11 @@ networking, persistence and Unity.
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | 2022.3+, `netstandard2.0` and `2.1`, HybridCLR | `netstandard2.1` |
 
-MemoryPack still does things Nino doesn't: more built-in types (`BigInteger`, `Uri`, every immutable collection,
-Unity classes such as `AnimationCurve`), `Stream` and async APIs, multi-segment `ReadOnlySequence<byte>` input,
-serialization callbacks, built-in Brotli compression, TypeScript generation and ASP.NET Core formatters. Its
-union tag is 1 byte where Nino writes a 4-byte type id. Most have a workaround; the
-[full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) lists them.
+MemoryPack still has more built-in types (`BigInteger`, `Uri`, every immutable collection, Unity classes such as
+`AnimationCurve`), multi-segment `ReadOnlySequence<byte>` input, TypeScript generation and ASP.NET Core formatters,
+and its union tag is 1 byte where Nino writes a 4-byte type id. Streams, async I/O, callbacks and compression are a
+few lines around Nino's `IBufferWriter<byte>` and `ReadOnlySpan<byte>` APIs; the
+[full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) has examples.
 
 ## v4
 
