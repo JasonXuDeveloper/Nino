@@ -227,13 +227,15 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(ReadOnlySpan<byte> data)
         {
-            // Raw values inline into the caller as a length check and a load; the rest is out of line.
+            // Raw values inline into the caller as a length check and a load.
             if (NinoRaw.Is<T>())
                 return ReadRaw<T>(data);
             return DeserializeFormatted<T>(data);
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        // Inlined into the caller, where T is usually exact: the formatter cache is then a static field load rather
+        // than a generic dictionary lookup (T a reference type makes this method shared code).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static T DeserializeFormatted<T>(ReadOnlySpan<byte> data)
         {
             var reader = new Reader(data);
