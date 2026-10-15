@@ -29,6 +29,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO019](#nino019) | Error | `[NinoPooled]` class does not implement its pool hooks 🔧 |
 | [NINO020](#nino020) | Error | Invalid `[assembly: NinoFormatter]` registration |
 | [NINO021](#nino021) | Error | `[NinoConstructor]` is not accessible to generated code |
+| [NINO022](#nino022) | Warning | A member hidden with `new` cannot be reached by generated code |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -60,6 +61,10 @@ itself. 🔧 Add `[NinoType]`.
 
 The deserializer needs a way to create the type: an accessible parameterless constructor, a constructor whose
 parameters all match serialized members (by name, ignoring case), or one marked `[NinoConstructor]`.
+
+With C# 11 `required` members, a constructor that is not `[SetsRequiredMembers]` is only usable when every
+required member is serialized, assignable by generated code (public or internal) and not one of its
+parameters: the object initializer sets them.
 
 ### NINO005
 
@@ -120,6 +125,13 @@ A member cannot be both included and ignored. 🔧 Remove `[NinoMember]`, `[Nino
 
 Indices define the order of members on the wire and must be unique within a type. Reported once per duplicated
 index. 🔧 Use the next free index.
+
+### NINO022
+
+A non-public base member is hidden by a member of the same name (`new`) declared by a subtype. Both are
+serialized, but generated code can only reach the hidden one through `[UnsafeAccessor]` (.NET 8+, non-generic
+types): the partial accessor class inside the type would name the hiding member, and cannot reach a `protected`
+base member through a cast. The hidden member is skipped. Rename one of the members, or make it public.
 
 ## Features
 

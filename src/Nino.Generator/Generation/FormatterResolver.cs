@@ -309,40 +309,7 @@ internal sealed class FormatterResolver
         type is INamedTypeSymbol { TypeKind: TypeKind.Class, IsAbstract: false, IsStatic: false } named &&
         (FindFactory(named) != null || named.InstanceConstructors.Any(c =>
             c.DeclaredAccessibility == Accessibility.Public && ConstructionPlanner.CallableWithoutArguments(c) &&
-            (!HasRequiredMembers(named) || c.GetAttributes().Any(a =>
-                a.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"))));
-
-    /// <summary>
-    /// Whether the type or a base declares C# 11 <c>required</c> members, which <c>new T()</c> must set unless the
-    /// constructor is <c>[SetsRequiredMembers]</c>. <c>IsRequired</c> is read by reflection: Roslyn 4.3, which the
-    /// generator is built against, predates it (and the language feature).
-    /// </summary>
-    private static bool HasRequiredMembers(INamedTypeSymbol type)
-    {
-        for (var t = type; t != null; t = t.BaseType)
-        {
-            foreach (var member in t.GetMembers())
-            {
-                var isRequired = member switch
-                {
-                    IPropertySymbol => PropertyIsRequired,
-                    IFieldSymbol => FieldIsRequired,
-                    _ => null,
-                };
-                if (isRequired != null && !member.IsStatic && isRequired.GetValue(member) is true)
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    // Interface properties of the Roslyn that runs the generator (4.4+); null on 4.3, which has no required members.
-    private static readonly System.Reflection.PropertyInfo? PropertyIsRequired =
-        typeof(IPropertySymbol).GetProperty("IsRequired");
-
-    private static readonly System.Reflection.PropertyInfo? FieldIsRequired =
-        typeof(IFieldSymbol).GetProperty("IsRequired");
+            (NinoSymbols.SetsRequiredMembers(c) || !NinoSymbols.HasRequiredMembers(named))));
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
     {

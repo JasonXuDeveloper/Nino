@@ -4,7 +4,7 @@ namespace Nino.Generator;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021), its members (007-013), features (014-017), pooling
+/// the type (001-003), how it is constructed (004-006, 021), its members (007-013, 022), features (014-017), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -71,6 +71,9 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor DuplicateIndex = Error("NINO013", "Duplicate member index",
         "Member '{0}.{1}' has the same index as another member '{2}.{3}'");
+
+    public static readonly DiagnosticDescriptor HiddenMember = Warning("NINO022", "Hidden member cannot be serialized",
+        "Member '{0}' of '{1}' is hidden by a member of the same name in '{2}', and generated code can only reach it through [UnsafeAccessor] (.NET 8+, non-generic types); it is skipped");
 
     // Features
 

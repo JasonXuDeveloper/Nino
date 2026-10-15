@@ -78,6 +78,22 @@ After the header comes the **body**: the members in declaration order (or `[Nino
 `[NinoExplicitOrder]`), base-class members first. Consecutive unmanaged members are written as one block
 (a single bounds check and reservation for the whole block).
 
+The serialized members are the type's fields and properties (its own and its `[NinoType]` bases'):
+
+* Public ones, and non-public ones with `containNonPublicMembers` (private members of a base class are never
+  part of a subtype). Properties need a getter and a setter (`set` or `init`).
+* Get-only auto-properties (`public int Id { get; }`) only when a constructor (or `[NinoConstructor]` factory)
+  takes them: a parameter of the same name, ignoring case, or a name the `[NinoConstructor]` lists. Nothing
+  else can restore them, so otherwise they are skipped.
+* Explicit interface implementations (`int IHasId.Id { get; set; }`) never, even with
+  `containNonPublicMembers`: they have no name generated code can use on the type. A `[NinoType]` interface
+  serializes its own members through the implementing type's members of the same name.
+* An `override` is the member it overrides, collected once with the base. A member hiding a base member with
+  `new` is another member: both are serialized, the base one first. Generated code reaches the hidden one
+  through a cast (`((Base)value).X`), or `[UnsafeAccessor]` when it is not public; without either (a
+  non-public hidden member of a generic type, or before .NET 8) it is skipped with warning NINO022. In keyed
+  types, a hidden member that is serialized next to its hiding member has the key of `Base.X`.
+
 A `[NinoType]` struct is written as its **raw memory** (one copy, and arrays/lists of it as one block) when it
 is unmanaged, not version tolerant, uses the default sequential layout, has no custom member formatters, and
 every instance field (including auto-property backing fields) is serialized. Nested `[NinoType]` struct fields
@@ -394,8 +410,10 @@ Cache-line reasoning assumes 64-byte lines.
 * Existing target of the right type: populated in place. Lists and arrays reuse elements by index.
   Dictionaries are merged by key: each value is read into the value its key already maps to, and keys missing
   from the data are removed.
-* Types whose members cannot be assigned after construction (constructor parameters, `init`-only, or
-  `readonly` members) are re-created, and the old instance is recycled.
+* Types whose members cannot be assigned after construction (constructor parameters, `init`-only, get-only or
+  `readonly` members) are re-created, and the old instance is recycled. So are types with C# 11 `required`
+  members whose parameterless constructor is not `[SetsRequiredMembers]`: a `[SetsRequiredMembers]` constructor
+  is used when one matches, else the object initializer sets the required members.
 * Whenever an existing non-null instance is dropped (payload is `null`, list shrinks, array reallocates,
   dictionary key removed, polymorphic type changes), it is passed, exactly once, to
   `NinoRecycler<TDeclared>.Recycle`: the handler registered with `NinoSettings.SetRecycler<TDeclared>`, else

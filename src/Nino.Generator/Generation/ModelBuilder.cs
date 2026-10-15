@@ -79,7 +79,7 @@ internal static class ModelBuilder
             var memberDiagnostics = kind == FormatterKind.Polymorphic ? null : diagnostics;
             for (int i = 0; i < symbols.Count; i++)
             {
-                var member = BuildMember(type, symbols[i], facts, memberDiagnostics, ref needsPartialAccessor,
+                var member = BuildMember(type, symbols, i, facts, memberDiagnostics, ref needsPartialAccessor,
                     factories);
                 if (member == null)
                     continue;
@@ -166,7 +166,7 @@ internal static class ModelBuilder
             {
                 var m = members[i];
                 if (args.Contains(m.Name) || !m.ConstructionOnly ||
-                    (m.Access == MemberAccess.Direct && m.IsProperty))
+                    (m.Access == MemberAccess.Direct && memberSymbols[i] is IPropertySymbol { SetMethod: not null }))
                     continue;
                 members[i] = m with { Unassignable = true };
                 diagnostics?.Report(NinoDiagnostics.ReadOnlyMember, memberSymbols[i], m.Name, type.ToDisplayString());
@@ -304,9 +304,11 @@ internal static class ModelBuilder
         return true;
     }
 
-    private static MemberModel? BuildMember(INamedTypeSymbol type, ISymbol symbol, TypeFacts facts,
-        DiagnosticSink? diagnostics, ref bool needsPartialAccessor, List<FactoryRegistration> factories)
+    private static MemberModel? BuildMember(INamedTypeSymbol type, IReadOnlyList<ISymbol> symbols, int index,
+        TypeFacts facts, DiagnosticSink? diagnostics, ref bool needsPartialAccessor,
+        List<FactoryRegistration> factories)
     {
+        var symbol = symbols[index];
         var memberType = MemberCollector.MemberType(symbol)?.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         if (memberType == null)
             return null;
@@ -338,14 +340,27 @@ internal static class ModelBuilder
         }
 
         var declaring = symbol.ContainingType;
+        // A base member hidden by a derived member of the same name (`new`): generated code names it through a cast
+        // to its declaring type, and under its own name when the derived member is serialized too.
+        int renamed = DerivedSameNamed(symbols, index);
         MemberAccess access;
         if (facts.Visibility.IsDirectlyAccessible(symbol))
         {
-            access = MemberAccess.Direct;
+            access = renamed != 0 || IsHidden(type, symbol, facts.Visibility.IsVisible)
+                ? MemberAccess.Cast
+                : MemberAccess.Direct;
         }
         else if (facts.Net8 && !declaring.IsGenericType && !type.IsGenericType)
         {
             access = MemberAccess.UnsafeAccessor;
+        }
+        else if (renamed != 0 || IsHidden(type, symbol, _ => true))
+        {
+            // The accessor class inside the type would name the hiding member, and cannot reach a protected base
+            // member through a cast to the base.
+            diagnostics?.Report(NinoDiagnostics.HiddenMember, symbol, symbol.Name, declaring.ToDisplayString(),
+                type.ToDisplayString());
+            return null;
         }
         else
         {
@@ -361,8 +376,70 @@ internal static class ModelBuilder
 
         // Only registered formatters: a member's custom formatter must not become the global one.
         int typeId = registered && raw == null ? facts.TypeId(memberType) : 0;
-        return new MemberModel(symbol.Name, ComputeId(symbol.Name), Global(memberType), formatter, raw,
+        string name = renamed == 0 ? symbol.Name : $"{symbol.Name}__{renamed}";
+        // Keyed: a renamed member's key is its declaring type's name with its own.
+        int key = ComputeId(renamed == 0 ? symbol.Name : $"{declaring.Name}.{symbol.Name}");
+        return new MemberModel(name, symbol.Name, key, Global(memberType), formatter, raw,
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
             Visibility.IsConstructionOnly(symbol), false, typeId);
+    }
+
+    /// <summary>How many more derived members of the same name are serialized after <c>symbols[index]</c>.</summary>
+    private static int DerivedSameNamed(IReadOnlyList<ISymbol> symbols, int index)
+    {
+        var symbol = symbols[index];
+        int count = 0;
+        for (int i = 0; i < symbols.Count; i++)
+        {
+            if (i != index && symbols[i].Name == symbol.Name &&
+                InheritsFrom(symbols[i].ContainingType, symbol.ContainingType))
+                count++;
+        }
+
+        return count;
+    }
+
+    private static bool InheritsFrom(INamedTypeSymbol type, INamedTypeSymbol baseType)
+    {
+        for (var t = type.BaseType; t != null; t = t.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(t, baseType))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Whether <c>value.Name</c> on <paramref name="type"/> names another member than <paramref name="member"/>, a
+    /// member of a base class: a class in between declares a member of the same name that
+    /// <paramref name="visible"/> lets generated code see, and that is not an override of it.
+    /// </summary>
+    private static bool IsHidden(INamedTypeSymbol type, ISymbol member, System.Func<ISymbol, bool> visible)
+    {
+        var declaring = member.ContainingType;
+        if (declaring.TypeKind != TypeKind.Class)
+            return false;
+        for (var t = type; t != null && !SymbolEqualityComparer.Default.Equals(t, declaring); t = t.BaseType)
+        {
+            foreach (var other in t.GetMembers(member.Name))
+            {
+                if (visible(other) && !Overrides(other, member))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool Overrides(ISymbol other, ISymbol member)
+    {
+        for (var p = (other as IPropertySymbol)?.OverriddenProperty; p != null; p = p.OverriddenProperty)
+        {
+            if (SymbolEqualityComparer.Default.Equals(p, member))
+                return true;
+        }
+
+        return false;
     }
 }

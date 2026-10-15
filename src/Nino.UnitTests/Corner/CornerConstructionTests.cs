@@ -301,19 +301,27 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
-        [Ignore("BUG: generated code creates a type with settable `required` members with `new T()`, which does not compile (CS9035)")]
         public void RequiredSettableMembers()
         {
-            // Not compilable in this project (C# 10, Roslyn 4.3 test compiler); repro, built with C# 11+:
-            //   [NinoType] public class R { public required int Id { get; set; } public required string Name; }
-            //   -> NinoGen.R Formatter.g.cs: error CS9035: Required member 'R.Id' must be set in the object initializer
-            // Same with an extra [SetsRequiredMembers] constructor next to a parameterless one: the parameterless
-            // constructor is picked.
-            Assert.Fail("see the comment");
+            // `new T()` must set required members in its object initializer: the type is re-created.
+            var back = Rt.RoundTrip(CornerFactory.RequiredSettable(4, "req", 8));
+            Assert.AreEqual(4, back.Id);
+            Assert.AreEqual("req", back.Name);
+            Assert.AreEqual(8, back.Extra);
+
+            var target = CornerFactory.RequiredSettable(0, "old", 0);
+            Rt.Into(back, ref target);
+            Assert.AreEqual(4, target.Id);
+            Assert.AreEqual("req", target.Name);
+            Assert.AreEqual(8, target.Extra);
+
+            // A [SetsRequiredMembers] constructor is preferred to the parameterless one.
+            var withCtor = Rt.RoundTrip(CornerFactory.RequiredWithCtor(5, "c"));
+            Assert.AreEqual(5, withCtor.Id);
+            Assert.AreEqual("c", withCtor.Name);
         }
 
         [TestMethod]
-        [Ignore("BUG: get-only auto-properties are not serialized members, so a constructor taking them is rejected (NINO004)")]
         public void GetOnlyAutoPropertiesWithMatchingConstructor()
         {
             var compiled = CornerCompiler.Compile(@"
@@ -328,18 +336,31 @@ namespace C
         public Immutable(int id, string name) { Id = id; Name = name; }
     }
 
+    // A get-only auto-property no constructor takes is not a member (no NINO006): only Id is serialized.
+    [NinoType]
+    public class Partly
+    {
+        public int Id { get; }
+        public int Fixed { get; } = 5;
+        public int Twice => Id * 2;
+        public Partly(int id) { Id = id; }
+    }
+
     public static class Api
     {
         public static string Run()
         {
             var back = NinoDeserializer.Deserialize<Immutable>(NinoSerializer.Serialize(new Immutable(3, ""x"")));
-            return back.Id + back.Name;
+            var partly = NinoDeserializer.Deserialize<Partly>(NinoSerializer.Serialize(new Partly(4)));
+            return back.Id + back.Name + partly.Twice + NinoSerializer.Serialize(new Partly(4)).Length;
         }
     }
 }");
             Assert.IsFalse(compiled.HasAnalyzer("NINO004"), string.Join("\n", compiled.AnalyzerDiagnostics));
+            Assert.IsFalse(compiled.HasAnalyzer("NINO006"), string.Join("\n", compiled.AnalyzerDiagnostics));
             Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
-            Assert.AreEqual("3x", compiled.Assembly.GetType("C.Api")!.GetMethod("Run")!.Invoke(null, null));
+            // Partly: type id (4 bytes) + Id.
+            Assert.AreEqual("3x88", compiled.Assembly.GetType("C.Api")!.GetMethod("Run")!.Invoke(null, null));
         }
 
         [TestMethod]

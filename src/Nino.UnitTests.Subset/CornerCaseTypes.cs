@@ -15,7 +15,31 @@ namespace Nino.UnitTests.Subset.Corner
         public int Settable { get; set; }
     }
 
-    // C# 12 primary constructor (no parameterless constructor) whose parameters initialize settable
+    // Settable required members: re-created with an object initializer that sets them.
+    [NinoType]
+    public class RequiredSettableMembers
+    {
+        public required int Id { get; set; }
+        public required string Name;
+        public int Extra { get; set; }
+    }
+
+    // A [SetsRequiredMembers] constructor next to a parameterless one: re-created from it.
+    [NinoType]
+    public class RequiredWithSettingConstructor
+    {
+        public required int Id { get; set; }
+        public string Name { get; set; }
+
+        public RequiredWithSettingConstructor()
+        {
+        }
+
+        [System.Diagnostics.CodeAnalysis.SetsRequiredMembers]
+        public RequiredWithSettingConstructor(int id) => Id = id;
+    }
+
+        // C# 12 primary constructor (no parameterless constructor) whose parameters initialize settable
     // properties: re-created from it, then the extra member is assigned.
     [NinoType]
     public class PrimaryCtorClass(int id, string name)
@@ -119,7 +143,13 @@ namespace Nino.UnitTests.Subset.Corner
         public static RequiredInitMembers RequiredInit(int id, string name, int settable) =>
             new RequiredInitMembers { Id = id, Name = name, Settable = settable };
 
-        public static PrimaryCtorClass Primary(int id, string name, int extra) =>
+        public static RequiredSettableMembers RequiredSettable(int id, string name, int extra) =>
+            new RequiredSettableMembers { Id = id, Name = name, Extra = extra };
+
+        public static RequiredWithSettingConstructor RequiredWithCtor(int id, string name) =>
+            new RequiredWithSettingConstructor(id) { Name = name };
+
+                public static PrimaryCtorClass Primary(int id, string name, int extra) =>
             new PrimaryCtorClass(id, name) { Extra = extra };
 
         public static PrimaryCtorStruct PrimaryStruct(int x, long y) => new PrimaryCtorStruct(x, y);

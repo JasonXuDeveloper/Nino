@@ -26,3 +26,4 @@ NINO018 | Nino | Error | Type cannot be pooled
 NINO019 | Nino | Error | Pool hooks not implemented
 NINO020 | Nino | Error | Invalid formatter registration
 NINO021 | Nino | Error | NinoConstructor is not accessible
+NINO022 | Nino | Warning | Hidden member cannot be serialized

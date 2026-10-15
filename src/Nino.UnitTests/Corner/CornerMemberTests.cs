@@ -410,7 +410,6 @@ namespace C
         }
 
         [TestMethod]
-        [Ignore("BUG: a member hiding a base member with `new` is silently not serialized")]
         public void NewHidingSameTypeKeepsBothMembers()
         {
             var value = new HideSameType { Value = 2, Name = "n" };
@@ -436,7 +435,6 @@ namespace C
         }
 
         [TestMethod]
-        [Ignore("BUG: a member hiding a base member with `new` is silently not serialized")]
         public void NewHidingOtherTypeKeepsBothMembers()
         {
             var value = new HideOtherType { Value = "derived", Name = 42 };
@@ -452,6 +450,85 @@ namespace C
             var poly = (HideOtherType)Rt.RoundTrip<HideBase>(value);
             Assert.AreEqual("derived", poly.Value);
             Assert.AreEqual("base", ((HideBase)poly).Name);
+        }
+
+        [TestMethod]
+        public void NewHidingWithoutBaseFormatter()
+        {
+            // The hidden base member is written by the subtype's own formatter: through a cast when it is public,
+            // [UnsafeAccessor] when it is not; a generic type has neither (NINO022).
+            var compiled = CornerCompiler.Compile(@"
+using Nino.Core;
+namespace C
+{
+    [NinoType]
+    public class Base { public int Value; public string Name; }
+
+    // Re-created from its constructor: the hidden member is assigned after construction.
+    [NinoType]
+    public class Ctor : Base
+    {
+        public new readonly string Value;
+        public Ctor(string value) { Value = value; }
+    }
+
+    // Keyed bodies never delegate to the base formatter; the hidden member has a key of its own.
+    [NinoType(keyed: true)]
+    public class KeyedBase { public int Value { get; set; } }
+
+    [NinoType(keyed: true)]
+    public class Keyed : KeyedBase { public new string Value { get; set; } }
+
+    // Hidden by a member that is not serialized.
+    [NinoType]
+    public class IgnoredHiding : Base { [NinoIgnore] public new long Value; }
+
+    [NinoType(containNonPublicMembers: true)]
+    public partial class PBase { protected int Value; public int Get() => Value; public void Set(int v) => Value = v; }
+
+    [NinoType(containNonPublicMembers: true)]
+    public partial class PDerived : PBase { public new string Value; }
+
+    [NinoType(containNonPublicMembers: true)]
+    public partial class GBase<T> { protected int Value; public int Get() => Value; public void Set(int v) => Value = v; }
+
+    [NinoType(containNonPublicMembers: true)]
+    public partial class GDerived<T> : GBase<T> { public new T Value; }
+
+    public static class Api
+    {
+        static T Rt<T>(T value) => NinoDeserializer.Deserialize<T>(NinoSerializer.Serialize(value));
+
+        public static string Run()
+        {
+            var ctor = new Ctor(""c"") { Name = ""n"" };
+            ((Base)ctor).Value = 1;
+            ctor = Rt(ctor);
+
+            var keyed = new Keyed { Value = ""k"" };
+            ((KeyedBase)keyed).Value = 2;
+            keyed = Rt(keyed);
+
+            var ignored = new IgnoredHiding { Value = 9 };
+            ((Base)ignored).Value = 3;
+            ignored = Rt(ignored);
+
+            var p = new PDerived { Value = ""p"" };
+            p.Set(4);
+            p = Rt(p);
+
+            var g = new GDerived<string> { Value = ""g"" };
+            g.Set(5);
+            g = Rt(g);
+
+            return string.Join("","", ctor.Value, ((Base)ctor).Value, ctor.Name, keyed.Value, ((KeyedBase)keyed).Value,
+                ignored.Value, ((Base)ignored).Value, p.Value, p.Get(), g.Value, g.Get());
+        }
+    }
+}", preprocessorSymbols: new[] { "NET8_0_OR_GREATER" });
+            Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
+            Assert.IsTrue(compiled.HasAnalyzer("NINO022"), string.Join("\n", compiled.AnalyzerDiagnostics));
+            Assert.AreEqual("c,1,n,k,2,0,3,p,4,g,0", compiled.Assembly.GetType("C.Api")!.GetMethod("Run")!.Invoke(null, null));
         }
 
         [TestMethod]
@@ -502,8 +579,7 @@ namespace C
         }
 
         [TestMethod]
-        [Ignore("BUG: explicit interface property with containNonPublicMembers generates uncompilable accessors")]
-        public void ExplicitInterfacePropertyWithNonPublicMembers()
+        public void ExplicitInterfacePropertyWithNonPublicMembersIsSkipped()
         {
             var compiled = CornerCompiler.Compile(@"
 using Nino.Core;
@@ -529,10 +605,11 @@ namespace C
         }
     }
 }");
-            // Either serialized (53) or skipped (3), but it must compile.
+            // Explicit interface implementations are never members of the implementing type, even with
+            // containNonPublicMembers: they belong to the interface (serialized when it is a [NinoType]).
             Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
             var result = (int)compiled.Assembly.GetType("C.Api")!.GetMethod("Run")!.Invoke(null, null)!;
-            Assert.AreEqual(53, result);
+            Assert.AreEqual(3, result);
         }
 
         [TestMethod]

@@ -705,6 +705,51 @@ public class ReadOnlyInConstructor
     }
 
     [TestMethod]
+    public async Task NINO006_GetOnlyAutoProperties()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class Immutable
+{
+    public int Id { get; }
+    public string Name { get; }
+
+    // Taken by no constructor: not a member.
+    public int Fixed { get; } = 1;
+
+    public Immutable(int id, string name)
+    {
+        Id = id;
+        Name = name;
+    }
+}
+
+[NinoType]
+public class OtherConstructor
+{
+    // Taken by a constructor that cannot be used (c matches no member): a member nothing restores.
+    public int {|#0:A|} { get; }
+    public int B { get; set; }
+
+    public OtherConstructor(int b)
+    {
+        B = b;
+    }
+
+    public OtherConstructor(int a, int c)
+    {
+        A = a;
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO006").WithLocation(0).WithArguments("A", "OtherConstructor")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO006_InitOnlyPrivateAndAbstract()
     {
         var code = @"
@@ -803,7 +848,7 @@ public class TestClass
 
     #endregion
 
-    #region Members (NINO007-NINO013)
+    #region Members (NINO007-NINO013, NINO022)
 
     [TestMethod]
     public async Task NINO007_UnserializableMember()
@@ -1326,6 +1371,44 @@ public class AutoCollect
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO013").WithLocation(0).WithArguments("TestClass", "B", "TestClass", "A"),
             Verify.Diagnostic("NINO013").WithLocation(1).WithArguments("TestClass", "E", "TestClass", "D")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO022_HiddenMember()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(containNonPublicMembers: true)]
+public partial class Base
+{
+    protected int {|#0:Value|};
+    public string Name;
+}
+
+[NinoType(containNonPublicMembers: true)]
+public partial class Derived : Base
+{
+    public new string Value;
+}
+
+[NinoType]
+public class PublicBase
+{
+    public int Value;
+}
+
+[NinoType]
+public class PublicDerived : PublicBase
+{
+    public new string Value;
+}
+";
+
+        // The test compilation does not define NET8_0_OR_GREATER: no [UnsafeAccessor]. A public hidden member is
+        // reached through a cast.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO022").WithLocation(0).WithArguments("Value", "Base", "Derived")).RunAsync();
     }
 
     #endregion

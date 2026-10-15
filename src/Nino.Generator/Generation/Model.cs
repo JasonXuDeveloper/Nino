@@ -30,6 +30,12 @@ internal enum MemberAccess
 
     /// <summary>Accessor class generated inside the (partial) declaring type.</summary>
     Partial,
+
+    /// <summary>
+    /// <c>((Declaring)value).Member</c>: a public member of a base class that a derived member of the same name hides
+    /// (<c>new</c>). Never part of an object initializer, which would name the derived member.
+    /// </summary>
+    Cast,
 }
 
 /// <summary>
@@ -46,7 +52,11 @@ internal sealed record RawSize(int Bytes, string Expression)
 }
 
 internal sealed record MemberModel(
+    // Unique among the type's members, names its locals and accessors: the member's name, unless a more derived
+    // member of the same name is serialized too (`new`), then "Name__N" with N the number of such levels.
     string Name,
+    // The member's name in C#.
+    string SourceName,
     // Id of the member in keyed bodies: the hash of its name.
     int Key,
     string TypeName,

@@ -45,21 +45,28 @@ internal static class ConstructionPlanner
         var marked = type.InstanceConstructors.Concat(factories)
             .FirstOrDefault(m => NinoSymbols.Has(m, known.Constructor));
 
+        // C# 11 required members: a constructor that is not [SetsRequiredMembers] is only callable with an object
+        // initializer setting all of them, which only a re-created instance has.
+        var required = NinoSymbols.RequiredMembers(type);
+        bool SetsRequired(IMethodSymbol m) => required.Count == 0 || NinoSymbols.SetsRequiredMembers(m);
+
         if (marked == null && !members.Any(m => m.ConstructionOnly) &&
-            (type.IsValueType || constructors.Any(CallableWithoutArguments)))
+            (type.IsValueType || constructors.Any(c => CallableWithoutArguments(c) && SetsRequired(c))))
             return new ConstructionModel(false, $"new {typeName}", EquatableArray<string>.Empty, refFactoryName);
 
         string Creator(IMethodSymbol m) => m.MethodKind == MethodKind.Constructor
             ? $"new {typeName}"
             : $"{typeName}.{m.Name}";
 
-        // Constructor parameters match serialized members by name, ignoring case; null when one matches none.
+        // Constructor parameters match serialized members by name, ignoring case; null when one matches none. A
+        // member hidden by a derived one of the same name (renamed) matches no parameter: the derived one does.
         List<string>? Match(IEnumerable<string> names, out string? missing)
         {
             var args = new List<string>();
             foreach (var name in names)
             {
-                var match = members.FirstOrDefault(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
+                var match = members.FirstOrDefault(m => m.Name == m.SourceName &&
+                                                        string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase));
                 if (match == null)
                 {
                     missing = name;
@@ -98,6 +105,11 @@ internal static class ConstructionPlanner
             return new ConstructionModel(true, Creator(marked), new EquatableArray<string>(args), "");
         }
 
+        // Whether the object initializer (the members that are not arguments and are assigned directly) sets every
+        // required member.
+        bool InitializerSetsRequired(List<string> args) => required.All(r => members.Any(m =>
+            m.Name == r.Name && m.SourceName == r.Name && m.Access == MemberAccess.Direct && !args.Contains(m.Name)));
+
         // Pick the visible constructor with the most parameters that all map to serialized members.
         IMethodSymbol? best = null;
         List<string>? bestArgs = null;
@@ -107,7 +119,8 @@ internal static class ConstructionPlanner
                 SymbolEqualityComparer.Default.Equals(ctor.Parameters[0].Type, type))
                 continue; // record copy constructor
             var args = Match(ctor.Parameters.Select(p => p.Name), out _);
-            if (args != null && (bestArgs == null || args.Count > bestArgs.Count))
+            if (args != null && (SetsRequired(ctor) || InitializerSetsRequired(args)) &&
+                (bestArgs == null || args.Count > bestArgs.Count))
             {
                 best = ctor;
                 bestArgs = args;

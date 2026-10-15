@@ -18,14 +18,14 @@ internal static class AccessorEmitter
             w.Line();
             if (member.IsProperty)
             {
-                w.Line($"[{attr}({kind}.Method, Name = \"get_{member.Name}\")]");
+                w.Line($"[{attr}({kind}.Method, Name = \"get_{member.SourceName}\")]");
                 w.Line($"private static extern {member.TypeName} __G_{member.Name}({self});");
-                w.Line($"[{attr}({kind}.Method, Name = \"set_{member.Name}\")]");
+                w.Line($"[{attr}({kind}.Method, Name = \"set_{member.SourceName}\")]");
                 w.Line($"private static extern void __S_{member.Name}({self}, {member.TypeName} value);");
             }
             else
             {
-                w.Line($"[{attr}({kind}.Field, Name = \"{member.Name}\")]");
+                w.Line($"[{attr}({kind}.Field, Name = \"{member.SourceName}\")]");
                 w.Line($"private static extern ref {member.TypeName} __F_{member.Name}({self});");
             }
         }
@@ -69,7 +69,7 @@ internal static class AccessorEmitter
         foreach (var member in m.Members.Where(x => x.Access == MemberAccess.Partial))
         {
             string o = (member.DeclaringTypeIsValueType ? "ref " : "") + m.TypeName + " o";
-            string name = Identifier(member.Name);
+            string name = Identifier(member.SourceName);
             w.Line(InlineAttribute);
             w.Line($"internal static {member.TypeName} G_{member.Name}({o}) => o.{name};");
             if (member.ConstructionOnly)

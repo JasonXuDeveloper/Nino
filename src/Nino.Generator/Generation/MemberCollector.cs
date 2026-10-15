@@ -101,11 +101,15 @@ internal static class MemberCollector
 
         AddLevel(type);
 
+        // Get-only auto-properties can only be restored through a constructor: they are members when one takes them.
+        var constructorNames = ConstructorParameterNames(type, known);
+
         // The indices of the members the type declares, to find duplicates.
         var indices = findings != null && !autoCollect ? new Dictionary<int, ISymbol>() : null;
         HashSet<int>? duplicated = null;
 
-        var inserted = new HashSet<string>();
+        var inserted = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
+        var names = new HashSet<string>();
         var result = new MemberList();
         foreach (var level in levels)
         {
@@ -115,7 +119,7 @@ internal static class MemberCollector
             int declarationIndex = 0;
             foreach (var member in level.GetMembers())
             {
-                bool candidate = IsCandidate(member, containNonPublic);
+                bool candidate = IsCandidate(member, containNonPublic, constructorNames);
                 if (!candidate && !inspect)
                     continue;
 
@@ -170,10 +174,17 @@ internal static class MemberCollector
 
             foreach (var c in sorted)
             {
-                if (!inserted.Add(c.Symbol.Name))
+                // Interface members are serialized through the implementing type's member of the same name, once
+                // whatever the number of interfaces declaring it.
+                bool fromInterface = level.TypeKind == TypeKind.Interface;
+                var symbol = fromInterface ? FindImplementation(type, c.Symbol) : c.Symbol;
+                // An override is the member it overrides, already collected with its base. A member hiding a base
+                // one (`new`) is another member: both are serialized, the base one first.
+                if ((fromInterface && names.Contains(symbol.Name)) || Overrides(symbol, inserted) ||
+                    !inserted.Add(symbol))
                     continue;
-                // Interface members are serialized through the implementing type's member of the same name.
-                result.Add(level.TypeKind == TypeKind.Interface ? FindImplementation(type, c.Symbol) : c.Symbol);
+                names.Add(symbol.Name);
+                result.Add(symbol);
             }
 
             // Interfaces are not levels of their own: their members open the level of the class implementing them.
@@ -241,7 +252,56 @@ internal static class MemberCollector
         return member;
     }
 
-    private static bool IsCandidate(ISymbol member, bool containNonPublic)
+    private static bool Overrides(ISymbol member, HashSet<ISymbol> collected)
+    {
+        if (member is not IPropertySymbol { IsOverride: true } property)
+            return false;
+        for (var p = property.OverriddenProperty; p != null; p = p.OverriddenProperty)
+        {
+            if (collected.Contains(p))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The parameter names (any case) of the constructors and <c>[NinoConstructor]</c> factories of
+    /// <paramref name="type"/> that generated code may call, and the member names a <c>[NinoConstructor]</c> lists.
+    /// </summary>
+    private static HashSet<string> ConstructorParameterNames(INamedTypeSymbol type, NinoSymbols known)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var member in type.GetMembers())
+        {
+            if (member is not IMethodSymbol method ||
+                !(method.MethodKind == MethodKind.Constructor && !method.IsStatic ||
+                  method.IsStatic && method.MethodKind == MethodKind.Ordinary))
+                continue;
+            var marked = NinoSymbols.Get(method, known.Constructor);
+            if (method.IsStatic && marked == null)
+                continue;
+            if (marked is { ConstructorArguments: { Length: > 0 } a } && a[0].Kind == TypedConstantKind.Array &&
+                a[0].Values.Length > 0)
+            {
+                foreach (var v in a[0].Values)
+                {
+                    if (v.Value is string s)
+                        names.Add(s);
+                }
+            }
+            else if (method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
+                     or Accessibility.ProtectedOrInternal)
+            {
+                foreach (var parameter in method.Parameters)
+                    names.Add(parameter.Name);
+            }
+        }
+
+        return names;
+    }
+
+    private static bool IsCandidate(ISymbol member, bool containNonPublic, HashSet<string> constructorNames)
     {
         if (member.IsStatic || !(containNonPublic || member.DeclaredAccessibility == Accessibility.Public))
             return false;
@@ -249,10 +309,29 @@ internal static class MemberCollector
         {
             // Implicit fields are backing fields: their properties are the members.
             IFieldSymbol field => !field.IsImplicitlyDeclared && !field.IsConst && !field.IsFixedSizeBuffer,
-            // The only implicit properties with a setter are a record's positional ones (EqualityContract has none).
+            // Explicit interface implementations belong to the interface, which serializes them if it is a
+            // [NinoType]; they have no name generated code could use on the type. The only implicit properties with
+            // a setter are a record's positional ones (EqualityContract has none).
             IPropertySymbol property => !property.IsIndexer && property.GetMethod != null &&
-                                        property.SetMethod != null,
+                                        property.ExplicitInterfaceImplementations.IsEmpty &&
+                                        (property.SetMethod != null ||
+                                         IsGetOnlyAutoProperty(property) && constructorNames.Contains(property.Name)),
             _ => false,
         };
+    }
+
+    /// <summary>A get-only property backed by a compiler-generated field (<c>public int Id { get; }</c>).</summary>
+    private static bool IsGetOnlyAutoProperty(IPropertySymbol property)
+    {
+        if (property.SetMethod != null || property.IsImplicitlyDeclared || property.IsAbstract)
+            return false;
+        foreach (var member in property.ContainingType.GetMembers())
+        {
+            if (member is IFieldSymbol { IsImplicitlyDeclared: true } field &&
+                SymbolEqualityComparer.Default.Equals(field.AssociatedSymbol, property))
+                return true;
+        }
+
+        return false;
     }
 }

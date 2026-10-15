@@ -29,9 +29,9 @@ internal static class CornerCompiler
     }
 
     public static Result Compile(string source, bool allowUnsafe = false, bool load = true,
-        params Assembly[] extraReferences)
+        string[] preprocessorSymbols = null, params Assembly[] extraReferences)
     {
-        var parse = new CSharpParseOptions(LanguageVersion.Latest);
+        var parse = new CSharpParseOptions(LanguageVersion.Latest, preprocessorSymbols: preprocessorSymbols);
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
         refs.Add(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location));

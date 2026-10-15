@@ -16,10 +16,15 @@ internal static class MemberCode
 
     private static string Instance(MemberModel member, string v) => member.DeclaringTypeIsValueType ? "ref " + v : v;
 
+    // The member of v, named in C#: through a cast to its declaring type when a derived member hides it.
+    private static string Direct(MemberModel member, string v) => member.Access == MemberAccess.Cast
+        ? $"(({member.DeclaringType}){v}).{Identifier(member.SourceName)}"
+        : $"{v}.{Identifier(member.SourceName)}";
+
     /// <summary>Expression reading the member of <paramref name="v"/>.</summary>
     public static string Get(TypeModel m, MemberModel member, string v) => member.Access switch
     {
-        MemberAccess.Direct => $"{v}.{Identifier(member.Name)}",
+        MemberAccess.Direct or MemberAccess.Cast => Direct(member, v),
         MemberAccess.UnsafeAccessor => member.IsProperty
             ? $"__G_{member.Name}({Instance(member, v)})"
             : $"__F_{member.Name}({Instance(member, v)})",
@@ -35,7 +40,7 @@ internal static class MemberCode
             return null;
         return member.Access switch
         {
-            MemberAccess.Direct => $"{v}.{Identifier(member.Name)}",
+            MemberAccess.Direct or MemberAccess.Cast => Direct(member, v),
             MemberAccess.UnsafeAccessor => $"__F_{member.Name}({Instance(member, v)})",
             _ => $"{Accessor(m)}.F_{member.Name}({Instance(member, v)})",
         };
@@ -48,7 +53,7 @@ internal static class MemberCode
             return $"{Ref(m, member, v)} = {expr};";
         return member.Access switch
         {
-            MemberAccess.Direct => $"{v}.{Identifier(member.Name)} = {expr};",
+            MemberAccess.Direct or MemberAccess.Cast => $"{Direct(member, v)} = {expr};",
             MemberAccess.UnsafeAccessor => $"__S_{member.Name}({Instance(member, v)}, {expr});",
             _ => $"{Accessor(m)}.S_{member.Name}({Instance(member, v)}, {expr});",
         };
