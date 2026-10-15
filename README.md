@@ -14,7 +14,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
 [🌐 **Website**](https://nino.xgamedev.net/en) ·
-[📚 **Documentation**](https://nino.xgamedev.net/en/docs/v4/start) ·
+[🚀 **Getting Started**](https://nino.xgamedev.net/en/docs/v4/start) ·
 [**What's new in v4**](https://nino.xgamedev.net/en/docs/v4/whats-new) ·
 [**Benchmarks**](https://nino.xgamedev.net/en/docs/v4/perf) ·
 [**vs MemoryPack**](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) ·
@@ -55,13 +55,15 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 
 | | |
 |---|---|
-| 🎮 **Unity** | Unity 2022.3+, Mono and IL2CPP, HybridCLR hot-update assemblies. `Vector3`, `Quaternion`, `Color32` and other unmanaged structs are copied as raw memory. Install from OpenUPM. |
-| 👾 **Godot 4 (.NET)** | A regular NuGet package for Godot's .NET projects. Godot's math structs (`Vector3`, `Transform3D`, …) are unmanaged and copied as raw memory. |
-| 🌐 **Game servers & networking** | Serialize straight into an `IBufferWriter<byte>` (a `PipeWriter`, a pooled buffer), deserialize from a `ReadOnlySpan<byte>`, and reuse pooled message objects. Polymorphic messages need no tags. |
-| 💾 **Save games & persistence** | Version tolerance and keyed members let you add, reorder and remove fields across releases. Reference tracking keeps object graphs with shared references and cycles. |
-| ⚙️ **Services, caches & IPC** | Compact binary payloads, no per-call allocations, and safe concurrent use from ASP.NET Core, workers and actors. |
+| 🎮 **[Unity](https://nino.xgamedev.net/en/docs/v4/advanced/unity)** | Unity 2022.3+, Mono and IL2CPP, HybridCLR hot-update assemblies. `Vector3`, `Quaternion`, `Color32` and other unmanaged structs are copied as raw memory. Install from OpenUPM. |
+| 👾 **[Godot 4 (.NET)](https://nino.xgamedev.net/en/docs/v4/platforms)** | A regular NuGet package for Godot's .NET projects. Godot's math structs (`Vector3`, `Transform3D`, …) are unmanaged and copied as raw memory. |
+| 🌐 **[Game servers & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)** | Serialize straight into an `IBufferWriter<byte>` (a `PipeWriter`, a pooled buffer), deserialize from a `ReadOnlySpan<byte>`, and reuse pooled message objects. Polymorphic messages need no tags. |
+| 💾 **[Save games & persistence](https://nino.xgamedev.net/en/docs/v4/advanced/persistence)** | Version tolerance and keyed members let you add, reorder and remove fields across releases. Reference tracking keeps object graphs with shared references and cycles. |
+| ⚙️ **[Services, caches & IPC](https://nino.xgamedev.net/en/docs/v4/advanced/high-performance)** | Compact binary payloads, no per-call allocations, and safe concurrent use from ASP.NET Core, workers and actors. |
 
 ## Install
+
+> New to Nino? Follow **[Getting Started](https://nino.xgamedev.net/en/docs/v4/start)** on the website: installation for .NET, Unity and Godot, your first type, and the basics.
 
 ```bash
 dotnet add package Nino                # .NET, Godot
