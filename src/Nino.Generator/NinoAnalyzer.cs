@@ -46,12 +46,13 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(start =>
         {
-            // Nothing to check in compilations that do not reference Nino.
-            if (start.Compilation.GetTypeByMetadataName("Nino.Core.NinoTypeAttribute") == null)
+            // Nothing to check in compilations that do not reference Nino (checked before building any facts).
+            if (start.Compilation.GetTypeByMetadataName(NinoNames.NinoTypeAttributeMetadataName) == null)
                 return;
+            var symbols = TypeFacts.For(start.Compilation, start.Compilation.SyntaxTrees.FirstOrDefault()?.Options).Symbols;
             // Symbol actions run once per type, not once per partial declaration.
             start.RegisterSymbolAction(AnalyzeType, SymbolKind.NamedType);
-            if (start.Compilation.GetTypeByMetadataName("Nino.Core.NinoRefDeserializationAttribute") is { } refAttribute)
+            if (symbols.RefDeserialization is { } refAttribute)
                 start.RegisterSymbolAction(c => AnalyzeMethod(c, refAttribute), SymbolKind.Method);
             start.RegisterSyntaxNodeAction(AnalyzeAssemblyAttributes, SyntaxKind.AttributeList);
         });
@@ -207,6 +208,4 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.InvalidRefDeserialization,
                 method.Locations.FirstOrDefault(), method.Name, string.Join(", ", errors)));
     }
-
-    /// <summary>Whether <paramref name="formatter"/> derives from <c>NinoFormatter&lt;memberType&gt;</c>.</summary>
 }

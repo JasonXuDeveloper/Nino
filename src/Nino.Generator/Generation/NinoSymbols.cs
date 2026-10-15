@@ -3,19 +3,20 @@ using Microsoft.CodeAnalysis;
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// The attribute types Nino reads, resolved once per compilation (through <see cref="TypeFacts"/>), so attributes are
+/// The Nino types the generator and analyzer compare against (mostly attributes), resolved once per compilation (through <see cref="TypeFacts"/>), so attributes are
 /// compared by symbol: a same-named attribute from another namespace never matches. A type missing from the
 /// referenced Nino.Core is null and matches nothing.
 /// </summary>
 internal sealed class NinoSymbols
 {
     public readonly INamedTypeSymbol? NinoType, Member, Ignore, CustomFormatter, Formatter, Utf8, FormerName,
-        ExplicitOrder, Constructor, RefDeserialization, Pooled, StructLayout, IFormatter, FormatterAttribute;
+        ExplicitOrder, Constructor, RefDeserialization, Pooled, StructLayout, IFormatter, FormatterAttribute,
+        Serializer, Deserializer;
 
     public NinoSymbols(Compilation compilation)
     {
-        INamedTypeSymbol? Core(string name) => compilation.GetTypeByMetadataName("Nino.Core." + name);
-        NinoType = Core("NinoTypeAttribute");
+        INamedTypeSymbol? Core(string name) => compilation.GetTypeByMetadataName(NinoNames.Core(name));
+        NinoType = Core(NinoNames.NinoTypeAttribute);
         Member = Core("NinoMemberAttribute");
         Ignore = Core("NinoIgnoreAttribute");
         CustomFormatter = Core("NinoCustomFormatterAttribute");
@@ -28,6 +29,8 @@ internal sealed class NinoSymbols
         Constructor = Core("NinoConstructorAttribute");
         RefDeserialization = Core("NinoRefDeserializationAttribute");
         Pooled = Core("NinoPooledAttribute");
+        Serializer = Core(NinoNames.Serializer);
+        Deserializer = Core(NinoNames.Deserializer);
         StructLayout = compilation.GetTypeByMetadataName("System.Runtime.InteropServices.StructLayoutAttribute");
     }
 

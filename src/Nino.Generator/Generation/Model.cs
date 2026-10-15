@@ -32,12 +32,27 @@ internal enum MemberAccess
     Partial,
 }
 
+/// <summary>
+/// Size of a member written raw (as part of an unmanaged block). <see cref="Bytes"/> is the size when it is a
+/// compile-time constant (primitives, enums), else 0; <see cref="Expression"/> is the size as C# source either way.
+/// </summary>
+internal sealed record RawSize(int Bytes, string Expression)
+{
+    /// <summary>Whether the size is a constant; otherwise the member is a struct (<c>NinoUnsafe.SizeOf&lt;T&gt;()</c>).</summary>
+    public bool IsConstant => Bytes != 0;
+
+    public static RawSize Constant(int bytes) =>
+        new(bytes, bytes.ToString(System.Globalization.CultureInfo.InvariantCulture));
+}
+
 internal sealed record MemberModel(
     string Name,
+    // Id of the member in keyed bodies: the hash of its name.
+    int Key,
     string TypeName,
     string Formatter,
-    // Size expression when the member is written raw as part of an unmanaged block, otherwise empty.
-    string RawSize,
+    // Set when the member is written raw as part of an unmanaged block, otherwise null.
+    RawSize? Raw,
     bool IsProperty,
     MemberAccess Access,
     // Type that declares the member (global-qualified), used by accessors.

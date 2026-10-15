@@ -86,7 +86,7 @@ internal static class ModelBuilder
             // Raw members on both sides of the boundary would be written as one block inline; delegating would
             // split it into two reservations (measurably slower for small types), so keep such members inline.
             if (baseMemberCount > 0 && baseMemberCount < members.Count &&
-                members[baseMemberCount - 1].RawSize.Length != 0 && members[baseMemberCount].RawSize.Length != 0)
+                members[baseMemberCount - 1].Raw != null && members[baseMemberCount].Raw != null)
             {
                 baseFormatter = "";
                 baseMemberCount = 0;
@@ -98,11 +98,10 @@ internal static class ModelBuilder
             var seen = new Dictionary<int, string>();
             foreach (var member in members)
             {
-                int key = ComputeId(member.Name);
-                if (seen.TryGetValue(key, out var other))
+                if (seen.TryGetValue(member.Key, out var other))
                     diagnostics.Report(NinoDiagnostics.KeyCollision, type, other, member.Name, type.ToDisplayString());
                 else
-                    seen[key] = member.Name;
+                    seen[member.Key] = member.Name;
             }
         }
 
@@ -300,13 +299,14 @@ internal static class ModelBuilder
 
         // Members join unmanaged blocks when their layout is the same on every runtime; others (rare struct
         // shapes such as { int; long }) go through their formatter, which converts them where needed.
-        string rawSize = custom == null && facts.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType)
-            ? FormatterResolver.RawSize(memberType)
-            : "";
+        var raw = custom == null && facts.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType)
+            ? FormatterResolver.RawSizeOf(memberType)
+            : null;
 
         // Only registered formatters: a member's custom formatter must not become the global one.
-        int typeId = registered && rawSize.Length == 0 ? facts.TypeId(memberType) : 0;
-        return new MemberModel(symbol.Name, Global(memberType), formatter, rawSize, symbol is IPropertySymbol, access,
-            Global(declaring), declaring.IsValueType, TypeFacts.IsConstructionOnly(symbol), false, typeId);
+        int typeId = registered && raw == null ? facts.TypeId(memberType) : 0;
+        return new MemberModel(symbol.Name, ComputeId(symbol.Name), Global(memberType), formatter, raw,
+            symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
+            TypeFacts.IsConstructionOnly(symbol), false, typeId);
     }
 }

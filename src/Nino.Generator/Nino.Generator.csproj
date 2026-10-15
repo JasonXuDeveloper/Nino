@@ -34,6 +34,8 @@
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <!-- Selects the namespace of the sources shared with Nino.Core. -->
+        <DefineConstants>$(DefineConstants);NINO_GENERATOR</DefineConstants>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
@@ -46,6 +48,8 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="..\Version.cs"/>
+        <!-- Shared with Nino.Core so compile-time and run-time ids cannot drift apart. -->
+        <Compile Include="..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>
 

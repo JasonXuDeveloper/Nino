@@ -70,7 +70,9 @@ hosts are not supported.
 
 The **type id** is a stable 32-bit hash (FNV-1a) of the type's name in runtime form
 (`Namespace.Outer+Inner`, generic arguments in angle brackets). `[NinoFormerName("Old.Name")]` substitutes
-the hashed name, so types can be renamed or moved without breaking existing data.
+the hashed name, so types can be renamed or moved without breaking existing data. The hash is implemented
+once (`Nino.Core/Internal/NinoHash.cs`) and that file is also compiled into the generator, so ids computed at
+compile time and at run time cannot diverge.
 
 After the header comes the **body**: the members in declaration order (or `[NinoMember(n)]` order /
 `[NinoExplicitOrder]`), base-class members first. Consecutive unmanaged members are written as one block
@@ -337,13 +339,17 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
 * Types that inherit `[NinoType]` without the attribute are found from syntax alone: the closure of type
   names whose base list names a NinoType (declared in source, or in a referenced assembly that references
   Nino.Core). Only those candidates are bound, so types unrelated to Nino (every `MonoBehaviour` in a Unity
-  project) cost a few microseconds of syntax per edit instead of a semantic lookup each.
+  project) cost a few microseconds of syntax per edit instead of a semantic lookup each. Source NinoTypes are
+  named by `ForAttributeWithMetadataName`, so an aliased attribute (`using NT = Nino.Core.NinoTypeAttribute;`)
+  still makes its subtypes candidates. The NinoTypes of a referenced assembly are collected once per assembly
+  symbol, which unchanged references keep across edits and share between the projects of a solution.
 * Roslyn re-runs every `[NinoType]` transform on every compilation change, since semantics may have
   changed anywhere. Models are therefore cached across compilations (`ModelCache`): a model is reused while
   every syntax tree it depends on (its type, bases, interfaces, containing types, member types and their
   fields, `typeof` attribute arguments) is still part of the compilation, and the references, file set and
   preprocessor symbols are unchanged. Edited files get new tree instances, so only the models that can see
-  an edit are rebuilt. Each type's direct dependencies are looked up once per compilation and shared by all
+  an edit are rebuilt. Entries whose trees left the compilation (types renamed or deleted while typing) are
+  swept whenever a project's entry count doubles, so the cache stays bounded without a per-edit scan. Each type's direct dependencies are looked up once per compilation and shared by all
   models that reach it, so collecting them does not measurably slow a full build. With 1,100 NinoTypes in 1,200 files, an edit went from about 350 ms to about
   100 ms, close to the 60-100 ms a no-op generator with the same attribute lookup costs.
 * The generator reports no diagnostics; the analyzer does (below). Models therefore hold no locations, and

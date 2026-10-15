@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -19,22 +20,7 @@ namespace Nino.Core
         private static readonly ConcurrentDictionary<Type, int> Cache = new ConcurrentDictionary<Type, int>();
 
         /// <summary>Hashes a type name.</summary>
-        public static int Compute(string name)
-        {
-            unchecked
-            {
-                uint hash = 2166136261;
-                foreach (char c in name)
-                {
-                    hash ^= (byte)c;
-                    hash *= 16777619;
-                    hash ^= (byte)(c >> 8);
-                    hash *= 16777619;
-                }
-
-                return hash == 0 ? 1 : (int)hash;
-            }
-        }
+        public static int Compute(string name) => NinoHash.Compute(name);
 
         /// <summary>Returns the id of <paramref name="type"/>, honoring <see cref="NinoFormerNameAttribute"/>.</summary>
         public static int Of(Type type) => Cache.GetOrAdd(type, t => Compute(GetIdName(t)));

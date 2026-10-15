@@ -122,7 +122,7 @@ internal sealed class BodyEmitter
         foreach (var group in RawBlock.Groups(OwnMembers))
         {
             var first = group[0];
-            if (first.RawSize.Length == 0)
+            if (first.Raw == null)
             {
                 EmitFormatterWrite(first);
                 continue;
@@ -160,10 +160,10 @@ internal sealed class BodyEmitter
         foreach (var group in RawBlock.Groups(_m.Members))
         {
             var first = group[0];
-            if (first.RawSize.Length == 0)
+            if (first.Raw == null)
             {
                 string l = "__l" + lengths++;
-                _w.Line($"writer.UnsafeWrite<int>({Key(first)});");
+                _w.Line($"writer.UnsafeWrite<int>({first.Key});");
                 _w.Line($"int {l} = writer.ReserveInt32();");
                 EmitFormatterWrite(first);
                 _w.Line($"writer.PatchLength({l});");
@@ -175,8 +175,8 @@ internal sealed class BodyEmitter
             _w.Line($"ref byte {p} = ref writer.Reserve({block.Total});");
             for (int i = 0; i < group.Count; i++)
             {
-                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {Key(group[i])});");
-                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].RawSize});");
+                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {group[i].Key});");
+                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].Raw!.Expression});");
                 _w.Line(RawWrite(group[i], p, block.Offsets[i]));
             }
         }
@@ -206,8 +206,11 @@ internal sealed class BodyEmitter
         var c = _m.Construction;
         if (_m.Kind != FormatterKind.Struct)
         {
+            string create = (c.RefFactory.Length != 0 ? c.RefFactory : c.Creator) + "()";
+            if (_m.Pooled)
+                create = T + ".RentFromNinoPool() ?? " + create;
             _w.Line("if (value == null)");
-            _w.Indented(() => _w.Line($"value = {(_m.Pooled ? T + ".RentFromNinoPool() ?? " : "")}{(c.RefFactory.Length != 0 ? c.RefFactory : c.Creator)}();"));
+            _w.Indented(() => _w.Line($"value = {create};"));
             if (_m.TrackReferences)
                 _w.Line("reader.SetReference(value);");
         }
@@ -221,13 +224,23 @@ internal sealed class BodyEmitter
         }
         else
         {
-            EmitMemberReads(r, inPlace: true, onEnd: "goto __end;");
-            if (_m.VersionTolerant && !_m.Keyed)
-                _w.Line("__end: ;");
+            EmitMemberReads(r, inPlace: true, onEnd: EndJump);
+            EmitEndLabel();
         }
 
         if (Sliced)
             _w.Line("reader.EndSlice(in __reader);");
+    }
+
+    /// <summary>Where a tolerant body that ended early jumps to: just before the slice is closed.</summary>
+    private const string EndJump = "goto __end;";
+
+    /// <summary>The target of <see cref="EndJump"/>, which only tolerant positional bodies emit.</summary>
+    private void EmitEndLabel()
+    {
+        // Always followed by reader.EndSlice: tolerant bodies are sliced.
+        if (_m.VersionTolerant && !_m.Keyed)
+            _w.Line("__end:");
     }
 
     /// <summary>Reads every member into locals, then constructs the instance from them.</summary>
@@ -236,9 +249,8 @@ internal sealed class BodyEmitter
         var c = _m.Construction;
         foreach (var member in _m.Members)
             _w.Line($"{member.TypeName} {Local(member)} = default;");
-        EmitMemberReads(r, inPlace: false, onEnd: "goto __end;");
-        if (_m.VersionTolerant && !_m.Keyed)
-            _w.Line("__end:");
+        EmitMemberReads(r, inPlace: false, onEnd: EndJump);
+        EmitEndLabel();
         if (Sliced)
             _w.Line("reader.EndSlice(in __reader);");
 
@@ -332,7 +344,7 @@ internal sealed class BodyEmitter
     /// <summary>Reads one member: raw members directly, others through their formatter.</summary>
     private void EmitMemberRead(MemberModel member, string r, bool inPlace)
     {
-        if (member.RawSize.Length != 0)
+        if (member.Raw != null)
         {
             _w.Line(Store(_m, member, inPlace, $"{r}.UnsafeRead<{member.TypeName}>()"));
             return;
@@ -369,14 +381,13 @@ internal sealed class BodyEmitter
 
     // ----- keyed ---------------------------------------------------------------------------------------------
 
-    private static int Key(MemberModel member) => ComputeId(member.Name);
-
     /// <summary>(key, length) as the int64 a reader sees, for raw members of constant size; else null.</summary>
     private static string? KeyHeader(MemberModel member)
     {
-        if (member.RawSize.Length == 0 || !int.TryParse(member.RawSize, out int size))
+        if (member.Raw is not { IsConstant: true } raw)
             return null;
-        uint key = unchecked((uint)Key(member));
+        int size = raw.Bytes;
+        uint key = unchecked((uint)member.Key);
         long le = (long)size << 32 | key;
         long be = (long)key << 32 | (uint)size;
         return le == be ? $"{le}L" : $"(global::System.BitConverter.IsLittleEndian ? {le}L : {be}L)";
@@ -398,7 +409,7 @@ internal sealed class BodyEmitter
                 continue;
             }
 
-            _w.Line($"if (!{r}.TryReadInt32({Key(member)})) goto __keyed;");
+            _w.Line($"if (!{r}.TryReadInt32({member.Key})) goto __keyed;");
             _w.Open();
             _w.Line($"var __m = {r}.ReadSlice();");
             EmitMemberRead(member, "__m", inPlace);
@@ -417,10 +428,10 @@ internal sealed class BodyEmitter
             _w.Open("switch (__key)");
             foreach (var member in members)
             {
-                _w.Line($"case {Key(member)}:");
+                _w.Line($"case {member.Key}:");
                 _w.Open();
                 EmitMemberRead(member, "__m", inPlace);
-                if (member.RawSize.Length == 0)
+                if (member.Raw == null)
                     _w.Line($"{r}.EndSlice(in __m);");
                 _w.Line("break;");
                 _w.Close();

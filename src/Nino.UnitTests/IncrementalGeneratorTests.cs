@@ -74,6 +74,17 @@ public class IncrementalGeneratorTests
     }
 
     [TestMethod]
+    public void SubtypesOfAliasedNinoTypesAreGenerated()
+    {
+        var compilation = Create(
+            ("Base.cs", "using NT = Nino.Core.NinoTypeAttribute;\nnamespace Inc {\n[NT] public class AliasedBase { public int X; }\n}"),
+            ("Derived.cs", Usings + "public class AliasedDerived : AliasedBase { public int Y; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(Output(driver, "AliasedDerived"), "value.Y");
+    }
+
+    [TestMethod]
     public void NewPartialDeclarationsAreSeen()
     {
         var compilation = Create(

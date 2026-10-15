@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,23 +21,33 @@ internal sealed class TypeFacts
     private readonly ConcurrentDictionary<ISymbol, bool> _delegatable = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, IReadOnlyList<ISymbol>> _members = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, int> _typeIds = new(SymbolEqualityComparer.Default);
+    private readonly Func<ISymbol, bool> _computeDelegatable;
+    private readonly Func<ISymbol, bool> _computeRawStruct;
+    private readonly ParseOptions? _options;
     private readonly string[] _symbols;
 
     /// <summary>The facts of <paramref name="compilation"/> (whose files share <paramref name="options"/>).</summary>
     public static TypeFacts For(Compilation compilation, ParseOptions? options)
     {
-        var facts = Shared.GetValue(compilation, c => new TypeFacts(c, options));
-        // A project's files share their parse options; anything else gets facts of its own.
-        return SymbolsOf(options).SequenceEqual(facts._symbols) ? facts : new TypeFacts(compilation, options);
+        if (!Shared.TryGetValue(compilation, out var facts))
+            facts = Shared.GetValue(compilation, c => new TypeFacts(c, options));
+        // A project's files normally share one ParseOptions instance: compare symbols only when they do not.
+        if (ReferenceEquals(options, facts._options) || SymbolsOf(options).SequenceEqual(facts._symbols))
+            return facts;
+        // Files of the same compilation with other preprocessor symbols get facts of their own.
+        return new TypeFacts(compilation, options);
     }
 
     private static IEnumerable<string> SymbolsOf(ParseOptions? options) =>
-        options?.PreprocessorSymbolNames ?? System.Array.Empty<string>();
+        options?.PreprocessorSymbolNames ?? Array.Empty<string>();
 
     private TypeFacts(Compilation compilation, ParseOptions? options)
     {
         Compilation = compilation;
         Assembly = compilation.Assembly;
+        _options = options;
+        _computeDelegatable = s => ComputeIsDelegatable((INamedTypeSymbol)s);
+        _computeRawStruct = s => ComputeIsRawStruct((INamedTypeSymbol)s);
         Symbols = new NinoSymbols(compilation);
         _symbols = SymbolsOf(options).ToArray();
         WeakTolerance = _symbols.Contains("WEAK_VERSION_TOLERANCE");
@@ -127,9 +138,10 @@ internal sealed class TypeFacts
     /// <summary>Serialized members of <paramref name="type"/> (whose effective attribute is <paramref name="attr"/>), in order.</summary>
     public IReadOnlyList<ISymbol> Members(INamedTypeSymbol type, NinoTypeOptions attr)
     {
-        if (!_members.TryGetValue(type, out var result))
-            _members[type] = result = MemberCollector.Collect(type, attr, Symbols);
-        return result; // races compute the same list
+        // No GetOrAdd overload passes attr without allocating a closure on every hit.
+        return _members.TryGetValue(type, out var result)
+            ? result
+            : _members.GetOrAdd(type, MemberCollector.Collect(type, attr, Symbols));
     }
 
     /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
@@ -148,9 +160,8 @@ internal sealed class TypeFacts
             var definition = named.OriginalDefinition;
             if (definition.SpecialType == SpecialType.System_Nullable_T)
                 return false;
-            var name = TypeNames.MetadataName(definition);
-            if (name == "System.Collections.Generic.KeyValuePair`2" || name.StartsWith("System.ValueTuple`", System.StringComparison.Ordinal) ||
-                name == "System.DateTimeOffset")
+            if (TypeNames.HasMetadataName(definition, "System.Collections.Generic.KeyValuePair`2") ||
+                TypeNames.IsValueTuple(definition) || TypeNames.HasMetadataName(definition, "System.DateTimeOffset"))
                 return false;
         }
 
@@ -168,11 +179,7 @@ internal sealed class TypeFacts
         // Sealed classes have no subtypes to delegate to them.
         if (type.TypeKind != TypeKind.Class || type.IsStatic || type.IsSealed)
             return false;
-        if (_delegatable.TryGetValue(type, out bool known))
-            return known;
-        bool result = ComputeIsDelegatable(type);
-        _delegatable[type] = result;
-        return result;
+        return _delegatable.GetOrAdd(type, _computeDelegatable);
     }
 
     private bool ComputeIsDelegatable(INamedTypeSymbol type)
@@ -201,11 +208,7 @@ internal sealed class TypeFacts
     {
         if (!type.IsValueType || type.TypeKind != TypeKind.Struct)
             return false;
-        if (_rawStructs.TryGetValue(type, out bool known))
-            return known;
-        bool raw = ComputeIsRawStruct(type);
-        _rawStructs[type] = raw;
-        return raw;
+        return _rawStructs.GetOrAdd(type, _computeRawStruct);
     }
 
     private bool ComputeIsRawStruct(INamedTypeSymbol type)

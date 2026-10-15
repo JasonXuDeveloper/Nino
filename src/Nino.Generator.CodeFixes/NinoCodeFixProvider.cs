@@ -37,7 +37,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         public Func<SyntaxNode, bool>? Applies { get; }
     }
 
-    private const string NinoMember = "NinoMember", NinoIgnore = "NinoIgnore", NinoType = "NinoType";
+    private const string NinoMember = "NinoMember", NinoIgnore = "NinoIgnore", NinoType = NinoNames.NinoType;
 
     private static readonly Dictionary<string, Fix[]> Fixes = new()
     {
@@ -140,7 +140,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
 
     /// <summary>Nino.Core's <c>[name]</c> attribute type in the document's compilation.</summary>
     private static INamedTypeSymbol? AttributeType(SemanticModel model, string name) =>
-        model.Compilation.GetTypeByMetadataName("Nino.Core." + name + "Attribute");
+        model.Compilation.GetTypeByMetadataName(NinoNames.Core(name + "Attribute"));
 
     private static AttributeSyntax? FindAttribute(DocumentEditor editor, MemberDeclarationSyntax member, string name) =>
         member.AttributeLists.SelectMany(l => l.Attributes)
@@ -175,11 +175,11 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         bool imported = member.Ancestors().OfType<BaseNamespaceDeclarationSyntax>()
             .SelectMany(ns => ns.Usings)
             .Concat((editor.OriginalRoot as CompilationUnitSyntax)?.Usings ?? default)
-            .Any(u => u.Name.ToString() == "Nino.Core");
+            .Any(u => u.Name.ToString() == NinoNames.CoreNamespace);
         if (!imported)
         {
             editor.ReplaceNode(editor.OriginalRoot, (current, generator) =>
-                generator.AddNamespaceImports(current, generator.NamespaceImportDeclaration("Nino.Core")));
+                generator.AddNamespaceImports(current, generator.NamespaceImportDeclaration(NinoNames.CoreNamespace)));
         }
     }
 

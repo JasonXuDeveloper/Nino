@@ -10,6 +10,11 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal sealed class FormatterNames
 {
+    /// <summary>
+    /// Formatter names longer than this get an alias; shorter ones cost little more than the alias declaration.
+    /// </summary>
+    private const int MinAliasedLength = 48;
+
     private readonly Dictionary<string, string> _aliases = new();
     private readonly HashSet<string> _used = new();
     private bool _inline;
@@ -19,7 +24,7 @@ internal sealed class FormatterNames
         int index = 0;
         // Formatters mentioning the type's own type parameters cannot be aliased outside the type.
         foreach (var formatter in m.Members.Select(x => x.Formatter)
-                     .Where(f => f.Length > 48 && !MentionsAny(f, m.TypeParameters))
+                     .Where(f => f.Length > MinAliasedLength && !MentionsAny(f, m.TypeParameters))
                      .Distinct()
                      .OrderByDescending(f => f.Length))
             _aliases[formatter] = "__NinoF" + index++;
@@ -49,8 +54,8 @@ internal sealed class FormatterNames
     {
         if (_inline)
         {
-            sb.Append("    using __NinoInline = global::System.Runtime.CompilerServices.MethodImplAttribute;\n");
-            sb.Append("    using __NinoInlineOptions = global::System.Runtime.CompilerServices.MethodImplOptions;\n");
+            sb.Append("    using __NinoInline = " + TypeNames.CompilerServices + "MethodImplAttribute;\n");
+            sb.Append("    using __NinoInlineOptions = " + TypeNames.CompilerServices + "MethodImplOptions;\n");
         }
 
         foreach (var pair in _aliases.Where(p => _used.Contains(p.Key)).OrderBy(p => p.Value.Length).ThenBy(p => p.Value))

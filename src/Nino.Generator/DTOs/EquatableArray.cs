@@ -9,6 +9,10 @@ namespace Nino.Generator.DTOs;
 /// <summary>
 /// Immutable array wrapper with value-based equality for use in source generator DTOs.
 /// Enables proper incremental caching by implementing structural equality.
+/// <para>
+/// The items are always copied in, so no caller can mutate them afterwards. <c>default</c> is the same value as
+/// <see cref="Empty"/>.
+/// </para>
 /// </summary>
 internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnumerable<T>
 {
@@ -19,26 +23,23 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
         _array = items?.ToArray();
     }
 
-    public EquatableArray(params T[] items)
-    {
-        _array = items;
-    }
+    public static EquatableArray<T> Empty => default;
 
-    public static EquatableArray<T> Empty => new(Array.Empty<T>());
+    private T[] Items => _array ?? Array.Empty<T>();
 
     public int Length => _array?.Length ?? 0;
 
-    public T this[int index] => _array![index];
+    public T this[int index] => Items[index];
 
     public bool Equals(EquatableArray<T> other)
     {
-        if (_array is null) return other._array is null;
-        if (other._array is null) return false;
-        if (_array.Length != other._array.Length) return false;
+        var items = Items;
+        var otherItems = other.Items;
+        if (items.Length != otherItems.Length) return false;
 
-        for (int i = 0; i < _array.Length; i++)
+        for (int i = 0; i < items.Length; i++)
         {
-            if (!EqualityComparer<T>.Default.Equals(_array[i], other._array[i]))
+            if (!EqualityComparer<T>.Default.Equals(items[i], otherItems[i]))
                 return false;
         }
 
@@ -52,13 +53,11 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
 
     public override int GetHashCode()
     {
-        if (_array is null) return 0;
-
-        // Simple hash code calculation compatible with .NET Standard 2.0
+        // Simple hash code calculation compatible with .NET Standard 2.0; empty and default hash alike.
         unchecked
         {
             int hash = 17;
-            foreach (var item in _array)
+            foreach (var item in Items)
             {
                 hash = hash * 31 + (item?.GetHashCode() ?? 0);
             }
@@ -68,7 +67,7 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
 
     public IEnumerator<T> GetEnumerator()
     {
-        return (_array ?? Array.Empty<T>()).AsEnumerable().GetEnumerator();
+        return Items.AsEnumerable().GetEnumerator();
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -98,11 +97,11 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
 
     public ImmutableArray<T> ToImmutableArray()
     {
-        return _array is null ? ImmutableArray<T>.Empty : ImmutableArray.Create(_array);
+        return ImmutableArray.Create(Items);
     }
 
     public T[] ToArray()
     {
-        return _array is null ? Array.Empty<T>() : _array.ToArray();
+        return Items.ToArray();
     }
 }

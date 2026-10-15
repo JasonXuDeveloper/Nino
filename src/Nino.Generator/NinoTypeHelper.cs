@@ -56,7 +56,7 @@ internal static class NinoTypeHelper
     {
         foreach (var attribute in typeSymbol.GetAttributes())
         {
-            if (attribute.AttributeClass?.Name == "NinoTypeAttribute" &&
+            if (attribute.AttributeClass?.Name == NinoNames.NinoTypeAttribute &&
                 IsNinoCoreNamespace(attribute.AttributeClass.ContainingNamespace))
                 return attribute;
         }

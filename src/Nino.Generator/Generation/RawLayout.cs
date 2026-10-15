@@ -58,13 +58,11 @@ internal static class RawLayout
 
         if (type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } named)
             return false;
-        switch (TypeNames.MetadataName(named.OriginalDefinition))
-        {
-            case "System.TimeSpan":
-                return Primitive(8, cap, baseOffset, offsets, out size, out align);
-            case "System.Guid":
-                return Primitive(16, 4, baseOffset, offsets, out size, out align);
-        }
+        var definition = named.OriginalDefinition;
+        if (TypeNames.HasMetadataName(definition, "System.TimeSpan"))
+            return Primitive(8, cap, baseOffset, offsets, out size, out align);
+        if (TypeNames.HasMetadataName(definition, "System.Guid"))
+            return Primitive(16, 4, baseOffset, offsets, out size, out align);
 
         int end = 0;
         align = 1;

@@ -24,16 +24,14 @@ namespace Nino.Generator.Generation;
 [Generator(LanguageNames.CSharp)]
 public sealed class NinoGenerator : IIncrementalGenerator
 {
-    private const string NinoTypeAttribute = "Nino.Core.NinoTypeAttribute";
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var enabled = context.CompilationProvider.Select(static (c, _) =>
-            c.ReferencedAssemblyNames.Any(static a => a.Name == "Nino.Core"));
+            c.ReferencedAssemblyNames.Any(static a => a.Name == NinoNames.CoreAssembly));
 
         // Types marked [NinoType] directly.
         var marked = context.SyntaxProvider.ForAttributeWithMetadataName(
-            NinoTypeAttribute,
+            NinoNames.NinoTypeAttributeMetadataName,
             static (node, _) => node is TypeDeclarationSyntax,
             static (ctx, ct) => Transform(ctx.TargetSymbol as INamedTypeSymbol, ctx.SemanticModel, ct))
             .WithTrackingName("NinoType");
@@ -52,8 +50,15 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Collect();
         var referencedNinoTypes = context.CompilationProvider
             .Select(static (c, ct) => InheritedCandidates.ReferencedNinoTypes(c, ct));
-        var candidates = declarations.Combine(referencedNinoTypes)
-            .Select(static (x, _) => InheritedCandidates.Find(x.Left!, x.Right));
+        // Names of the types marked [NinoType], as the compiler binds the attribute: unlike the syntactic check
+        // above, this sees aliases (using NT = Nino.Core.NinoTypeAttribute), so their subtypes are found too.
+        var markedNames = context.SyntaxProvider.ForAttributeWithMetadataName(
+                NinoNames.NinoTypeAttributeMetadataName,
+                static (node, _) => node is TypeDeclarationSyntax,
+                static (ctx, _) => ((TypeDeclarationSyntax)ctx.TargetNode).Identifier.ValueText)
+            .Collect();
+        var candidates = declarations.Combine(referencedNinoTypes).Combine(markedNames)
+            .Select(static (x, _) => InheritedCandidates.Find(x.Left.Left!, x.Left.Right, x.Right));
 
         var inherited = candidates.Combine(context.CompilationProvider)
             .SelectMany(static (x, ct) =>
@@ -180,9 +185,15 @@ public sealed class NinoGenerator : IIncrementalGenerator
             TypeSyntax t => InheritedCandidates.SimpleName(t),
             _ => null,
         };
-        return name is "NinoSerializer" or "NinoDeserializer";
+        return name is NinoNames.Serializer or NinoNames.Deserializer;
     }
 
+    /// <summary>
+    /// Whether the declaration has an attribute named like <c>[NinoType]</c>. A syntax-only hint, which keeps
+    /// marked types from being bound as inheritance candidates: it misses aliased attributes, whose types then
+    /// become candidates and are skipped once bound, and whose names reach <see cref="InheritedCandidates.Find"/>
+    /// through the bound attribute instead.
+    /// </summary>
     private static bool HasNinoTypeSyntax(TypeDeclarationSyntax syntax)
     {
         foreach (var list in syntax.AttributeLists)
@@ -190,8 +201,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
             foreach (var attribute in list.Attributes)
             {
                 if (InheritedCandidates.SimpleName(attribute.Name) is { } name &&
-                    (name.EndsWith("NinoType", StringComparison.Ordinal) ||
-                     name.EndsWith("NinoTypeAttribute", StringComparison.Ordinal)))
+                    (name.EndsWith(NinoNames.NinoType, StringComparison.Ordinal) ||
+                     name.EndsWith(NinoNames.NinoTypeAttribute, StringComparison.Ordinal)))
                     return true;
             }
         }
@@ -214,14 +225,14 @@ public sealed class NinoGenerator : IIncrementalGenerator
     {
         if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol { IsGenericMethod: true } method)
             return null;
+        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
         var owner = method.ContainingType;
-        if (owner == null || owner.Name is not ("NinoSerializer" or "NinoDeserializer") ||
-            !NinoTypeHelper.IsNinoCoreNamespace(owner.ContainingNamespace))
+        if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
+            !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
             return null;
         var type = method.TypeArguments[0];
         if (ContainsTypeParameter(type))
             return null;
-        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
         var formatter = facts.Resolver.Resolve(type, false);
         if (formatter is not { Registered: true } || facts.IsRawUnmanaged(type))
             return null;

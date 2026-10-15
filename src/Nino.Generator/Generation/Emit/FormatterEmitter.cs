@@ -19,7 +19,7 @@ internal static class FormatterEmitter
 
         var sb = new StringBuilder(body.Length + 1024);
         sb.Append(Header);
-        sb.Append("namespace NinoGen\n{\n");
+        sb.Append("namespace " + GenNamespace + "\n{\n");
         names.WriteAliases(sb);
         sb.Append(body);
         sb.Append("}\n");

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -52,11 +53,15 @@ internal static class InheritedCandidates
     };
 
     /// <summary>Unmarked declarations whose base names reach a NinoType name (source or referenced).</summary>
+    /// <param name="declarations">Declarations with a base list or a syntactic <c>[NinoType]</c>.</param>
+    /// <param name="referencedNinoTypes">NinoTypes of referenced assemblies.</param>
+    /// <param name="markedTypes">Types of this compilation with a bound <c>[NinoType]</c> (aliases included).</param>
     public static EquatableArray<InheritedCandidate> Find(IEnumerable<TypeDeclarationInfo> declarations,
-        IEnumerable<string> referencedNinoTypes)
+        IEnumerable<string> referencedNinoTypes, IEnumerable<string> markedTypes)
     {
         var all = declarations.ToList();
         var names = new HashSet<string>(referencedNinoTypes);
+        names.UnionWith(markedTypes);
         foreach (var d in all)
         {
             if (d.Marked)
@@ -118,66 +123,86 @@ internal static class InheritedCandidates
         }
     }
 
-    private static readonly object CacheLock = new();
-    private static MetadataReference[]? _cachedReferences;
-    private static EquatableArray<string> _cachedNames;
+    /// <summary>What a referenced assembly contributes; computed once per assembly symbol.</summary>
+    private sealed class AssemblyInfo
+    {
+        /// <summary>Names of the assemblies it references.</summary>
+        public readonly HashSet<string> References = new();
 
-    /// <summary>
-    /// Simple names of the NinoTypes (including inherited ones) declared in referenced assemblies. Recomputed only
-    /// when the set of references changes, not on every edit.
-    /// </summary>
+        /// <summary>Simple names of its NinoTypes (including inherited ones), once collected.</summary>
+        public string[]? NinoTypes;
+    }
+
+    // Keyed by assembly symbol: the symbols of unchanged references are reused across compilations (edits) and
+    // shared by the projects of a solution, which a single cached reference list would make evict each other.
+    private static readonly ConditionalWeakTable<IAssemblySymbol, AssemblyInfo> Assemblies = new();
+
+    /// <summary>Simple names of the NinoTypes (including inherited ones) declared in referenced assemblies.</summary>
     public static EquatableArray<string> ReferencedNinoTypes(Compilation compilation, CancellationToken ct)
     {
-        var references = compilation.References.ToArray();
-        lock (CacheLock)
-        {
-            if (_cachedReferences != null && _cachedReferences.Length == references.Length &&
-                _cachedReferences.Zip(references, ReferenceEquals).All(x => x))
-                return _cachedNames;
-        }
-
-        var assemblies = new List<IAssemblySymbol>();
-        foreach (var reference in references)
+        var assemblies = new List<(IAssemblySymbol Assembly, AssemblyInfo Info)>();
+        foreach (var reference in compilation.References)
         {
             if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol assembly)
-                assemblies.Add(assembly);
+                assemblies.Add((assembly, Assemblies.GetValue(assembly, Describe)));
         }
 
         // Only assemblies that reference Nino.Core, directly or through another such assembly, can declare or
         // inherit NinoTypes.
-        var ninoAware = new HashSet<string> { "Nino.Core" };
+        var ninoAware = new HashSet<string> { NinoNames.CoreAssembly };
         bool grew = true;
         while (grew)
         {
             grew = false;
-            foreach (var assembly in assemblies)
+            foreach (var (assembly, info) in assemblies)
             {
-                if (ninoAware.Contains(assembly.Name))
+                if (ninoAware.Contains(assembly.Name) || !info.References.Overlaps(ninoAware))
                     continue;
-                if (assembly.Modules.Any(m => m.ReferencedAssemblies.Any(r => ninoAware.Contains(r.Name))))
-                {
-                    ninoAware.Add(assembly.Name);
-                    grew = true;
-                }
+                ninoAware.Add(assembly.Name);
+                grew = true;
             }
         }
 
-        var names = new HashSet<string>();
-        foreach (var assembly in assemblies)
+        var names = new List<string>();
+        foreach (var (assembly, info) in assemblies)
         {
-            if (assembly.Name == "Nino.Core" || !ninoAware.Contains(assembly.Name))
+            if (assembly.Name == NinoNames.CoreAssembly || !ninoAware.Contains(assembly.Name))
                 continue;
-            Collect(assembly.GlobalNamespace, names, ct);
+            if (info.NinoTypes == null)
+            {
+                var collected = new HashSet<string>();
+                Collect(assembly.GlobalNamespace, collected, ct);
+                info.NinoTypes = collected.ToArray(); // races collect the same names
+            }
+
+            names.AddRange(info.NinoTypes);
         }
 
-        var result = new EquatableArray<string>(names.OrderBy(n => n, System.StringComparer.Ordinal));
-        lock (CacheLock)
+        if (names.Count == 0)
+            return EquatableArray<string>.Empty;
+        names.Sort(System.StringComparer.Ordinal);
+        // Distinct after sorting: the same name may come from several assemblies.
+        int count = 1;
+        for (int i = 1; i < names.Count; i++)
         {
-            _cachedReferences = references;
-            _cachedNames = result;
+            if (names[i] != names[count - 1])
+                names[count++] = names[i];
         }
 
-        return result;
+        names.RemoveRange(count, names.Count - count);
+        return new EquatableArray<string>(names);
+    }
+
+    private static AssemblyInfo Describe(IAssemblySymbol assembly)
+    {
+        var info = new AssemblyInfo();
+        foreach (var module in assembly.Modules)
+        {
+            foreach (var referenced in module.ReferencedAssemblies)
+                info.References.Add(referenced.Name);
+        }
+
+        return info;
     }
 
     private static void Collect(INamespaceOrTypeSymbol container, HashSet<string> names, CancellationToken ct)

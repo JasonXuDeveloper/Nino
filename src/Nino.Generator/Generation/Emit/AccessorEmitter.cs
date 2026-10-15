@@ -10,8 +10,8 @@ internal static class AccessorEmitter
     /// <summary><c>[UnsafeAccessor]</c> declarations inside the formatter.</summary>
     public static void EmitUnsafeAccessors(CodeWriter w, TypeModel m)
     {
-        const string attr = "global::System.Runtime.CompilerServices.UnsafeAccessor";
-        const string kind = "global::System.Runtime.CompilerServices.UnsafeAccessorKind";
+        const string attr = CompilerServices + "UnsafeAccessor";
+        const string kind = CompilerServices + "UnsafeAccessorKind";
         foreach (var member in m.Members.Where(x => x.Access == MemberAccess.UnsafeAccessor))
         {
             string self = (member.DeclaringTypeIsValueType ? "ref " : "") + member.DeclaringType + " @this";
@@ -64,19 +64,17 @@ internal static class AccessorEmitter
 
     private static void EmitAccessorClass(CodeWriter w, TypeModel m)
     {
-        const string inline =
-            "[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]";
-        w.Line(Hidden);
+        w.Line(HiddenAttribute);
         w.Open($"internal static class {AccessorClass(m)}");
         foreach (var member in m.Members.Where(x => x.Access == MemberAccess.Partial))
         {
             string o = (member.DeclaringTypeIsValueType ? "ref " : "") + m.TypeName + " o";
             string name = Identifier(member.Name);
-            w.Line(inline);
+            w.Line(InlineAttribute);
             w.Line($"internal static {member.TypeName} G_{member.Name}({o}) => o.{name};");
             if (member.ConstructionOnly)
                 continue;
-            w.Line(inline);
+            w.Line(InlineAttribute);
             w.Line(member.IsProperty
                 ? $"internal static void S_{member.Name}({o}, {member.TypeName} value) => o.{name} = value;"
                 : $"internal static ref {member.TypeName} F_{member.Name}({o}) => ref o.{name};");
@@ -118,7 +116,7 @@ internal static class AccessorEmitter
             w.Line("s_ninoPool.Add(this, ref t_ninoPool);");
         });
         w.Line();
-        w.Line(Hidden);
+        w.Line(HiddenAttribute);
         w.Block($"internal static {t} RentFromNinoPool()", () =>
         {
             w.Line("if (s_ninoPool.BeginWarmup())");
@@ -136,7 +134,4 @@ internal static class AccessorEmitter
             w.Line("return value;");
         });
     }
-
-    private const string Hidden =
-        "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]";
 }

@@ -9,6 +9,12 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal sealed class RawBlock
 {
+    /// <summary>Size of a keyed member's key (an int32), which its length follows.</summary>
+    private const int KeySize = 4;
+
+    /// <summary>Size of a keyed member's header: key and length, both int32.</summary>
+    private const int HeaderSize = KeySize + 4;
+
     private readonly List<string> _symbolic = new();
     private int _constant;
 
@@ -30,15 +36,16 @@ internal sealed class RawBlock
             if (headers)
             {
                 HeaderOffsets.Add(Sum(0));
-                HeaderOffsets.Add(Sum(4));
-                _constant += 8;
+                HeaderOffsets.Add(Sum(KeySize));
+                _constant += HeaderSize;
             }
 
             Offsets.Add(Sum(0));
-            if (int.TryParse(member.RawSize, out int size))
-                _constant += size;
+            var raw = member.Raw!;
+            if (raw.IsConstant)
+                _constant += raw.Bytes;
             else
-                _symbolic.Add(member.RawSize);
+                _symbolic.Add(raw.Expression);
         }
     }
 
@@ -60,7 +67,7 @@ internal sealed class RawBlock
         List<MemberModel>? run = null;
         foreach (var member in members)
         {
-            if (member.RawSize.Length == 0)
+            if (member.Raw == null)
             {
                 run = null;
                 groups.Add(new List<MemberModel> { member });
@@ -76,5 +83,5 @@ internal sealed class RawBlock
     }
 
     /// <summary>Whether the member is a struct (non-constant size), whose padding the write must clear.</summary>
-    public static bool IsStruct(MemberModel member) => !char.IsDigit(member.RawSize[0]);
+    public static bool IsStruct(MemberModel member) => member.Raw is { IsConstant: false };
 }

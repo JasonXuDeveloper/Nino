@@ -44,40 +44,29 @@ internal sealed class FormatterResolver
 
     public static string GeneratedFormatter(INamedTypeSymbol type)
     {
-        var name = "global::NinoGen." + TypeNames.FormatterName(type.OriginalDefinition);
+        var name = TypeNames.Gen + TypeNames.FormatterName(type.OriginalDefinition);
         var args = TypeNames.AllTypeArguments(type);
         return args.Count == 0 ? name : $"{name}<{string.Join(", ", args.Select(TypeNames.Global))}>";
     }
 
-    /// <summary>Size expression of a raw unmanaged type.</summary>
-    public static string RawSize(ITypeSymbol type)
+    /// <summary>Size of a raw unmanaged type: a constant for primitives and enums, symbolic for structs.</summary>
+    public static RawSize RawSizeOf(ITypeSymbol type)
     {
         var t = type is INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: { } underlying }
             ? underlying
             : type;
-        switch (t.SpecialType)
+        int bytes = t.SpecialType switch
         {
-            case SpecialType.System_Boolean:
-            case SpecialType.System_Byte:
-            case SpecialType.System_SByte:
-                return "1";
-            case SpecialType.System_Char:
-            case SpecialType.System_Int16:
-            case SpecialType.System_UInt16:
-                return "2";
-            case SpecialType.System_Int32:
-            case SpecialType.System_UInt32:
-            case SpecialType.System_Single:
-                return "4";
-            case SpecialType.System_Int64:
-            case SpecialType.System_UInt64:
-            case SpecialType.System_Double:
-                return "8";
-            case SpecialType.System_Decimal:
-                return "16";
-            default:
-                return $"{Core}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()";
-        }
+            SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte => 1,
+            SpecialType.System_Char or SpecialType.System_Int16 or SpecialType.System_UInt16 => 2,
+            SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Single => 4,
+            SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_Double => 8,
+            SpecialType.System_Decimal => 16,
+            _ => 0,
+        };
+        return bytes != 0
+            ? RawSize.Constant(bytes)
+            : new RawSize(0, $"{Core}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
     }
 
     /// <summary>

@@ -14,6 +14,26 @@ internal static class TypeNames
     /// <summary>Prefix of every Nino.Core type in generated code.</summary>
     public const string Core = "global::Nino.Core.";
 
+    /// <summary>Namespace of everything the generator emits.</summary>
+    public const string GenNamespace = "NinoGen";
+
+    /// <summary>Prefix of every generated type in generated code.</summary>
+    public const string Gen = "global::" + GenNamespace + ".";
+
+    /// <summary>Prefix of <c>System.Runtime.CompilerServices</c> types in generated code.</summary>
+    public const string CompilerServices = "global::System.Runtime.CompilerServices.";
+
+    /// <summary>Hides generated helpers from IntelliSense.</summary>
+    public const string HiddenAttribute =
+        "[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]";
+
+    /// <summary>
+    /// The aggressive inlining attribute, spelled out (formatter files use the shorter alias from
+    /// <c>FormatterNames.Inline</c> instead).
+    /// </summary>
+    public const string InlineAttribute =
+        "[" + CompilerServices + "MethodImpl(" + CompilerServices + "MethodImplOptions.AggressiveInlining)]";
+
     /// <summary>Fully qualified C# name, e.g. <c>global::Ns.Outer.Box&lt;int&gt;</c>.</summary>
     public static string Global(ITypeSymbol type)
     {
@@ -31,13 +51,37 @@ internal static class TypeNames
         return parent.Length == 0 ? ns.Name : parent + "." + ns.Name;
     }
 
-    /// <summary>Metadata name, e.g. <c>System.Collections.Generic.List`1</c>; nested types joined by <c>+</c>.</summary>
-    public static string MetadataName(INamedTypeSymbol definition)
+    /// <summary>
+    /// Whether the metadata name of <paramref name="definition"/> (e.g. <c>System.Collections.Generic.List`1</c>,
+    /// nested types joined by <c>+</c>) is <paramref name="name"/>, compared without building it. For BCL types,
+    /// which may come from any of several referenced assemblies, so are matched by name rather than by symbol.
+    /// </summary>
+    public static bool HasMetadataName(INamedTypeSymbol definition, string name) =>
+        MatchMetadataName(definition, name, name.Length) == 0;
+
+    /// <summary>Whether <paramref name="definition"/> is a generic <c>System.ValueTuple`N</c>.</summary>
+    public static bool IsValueTuple(INamedTypeSymbol definition) =>
+        definition is { Name: "ValueTuple", Arity: > 0, ContainingType: null } &&
+        definition.ContainingNamespace is { Name: "System", ContainingNamespace.IsGlobalNamespace: true };
+
+    // Matches the symbol's name (and its containers') against name[..end]; returns where the match starts, or -1.
+    private static int MatchMetadataName(ISymbol symbol, string name, int end)
     {
-        if (definition.ContainingType != null)
-            return MetadataName(definition.ContainingType) + "+" + definition.MetadataName;
-        var ns = Namespace(definition.ContainingNamespace);
-        return ns.Length == 0 ? definition.MetadataName : ns + "." + definition.MetadataName;
+        string own = symbol.MetadataName;
+        int start = end - own.Length;
+        if (start < 0 || string.CompareOrdinal(name, start, own, 0, own.Length) != 0)
+            return -1;
+        ISymbol? container = symbol.ContainingType;
+        char separator = '+';
+        if (container == null)
+        {
+            if (symbol.ContainingNamespace is not { IsGlobalNamespace: false } ns)
+                return start;
+            container = ns;
+            separator = '.';
+        }
+
+        return start > 0 && name[start - 1] == separator ? MatchMetadataName(container, name, start - 1) : -1;
     }
 
     /// <summary>
@@ -275,23 +319,8 @@ internal static class TypeNames
         sb.Append(type.MetadataName.Split('`')[0]);
     }
 
-    /// <summary>FNV-1a over UTF-16 code units (low byte, then high byte); must match <c>NinoTypeId.Compute</c>.</summary>
-    public static int ComputeId(string name)
-    {
-        unchecked
-        {
-            uint hash = 2166136261;
-            foreach (char c in name)
-            {
-                hash ^= (byte)c;
-                hash *= 16777619;
-                hash ^= (byte)(c >> 8);
-                hash *= 16777619;
-            }
-
-            return hash == 0 ? 1 : (int)hash;
-        }
-    }
+    /// <summary>The id hashed from a name; shares its implementation with <c>NinoTypeId.Compute</c>.</summary>
+    public static int ComputeId(string name) => NinoHash.Compute(name);
 
     /// <summary>Constraint clauses for the given type parameters.</summary>
     public static string Constraints(IEnumerable<ITypeParameterSymbol> parameters)

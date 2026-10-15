@@ -20,42 +20,69 @@ internal static class ModelCache
 {
     private sealed class Entry
     {
-        public ProjectState State = null!;
         public string Symbols = "";
         public SyntaxTree[] Trees = null!;
         public TypeModel? Model;
     }
 
-    /// <summary>Project-wide inputs of one compilation; equal states mean the same references and files.</summary>
+    /// <summary>
+    /// Project-wide inputs of one compilation, and the models built under them; equal states mean the same
+    /// references and files.
+    /// </summary>
     private sealed class ProjectState
     {
         public string AssemblyName = "";
         public MetadataReference[] References = null!;
         public string[] Paths = null!;
 
-        public bool SameAs(ProjectState other) =>
-            AssemblyName == other.AssemblyName &&
-            References.Length == other.References.Length &&
-            References.Zip(other.References, ReferenceEquals).All(x => x) &&
-            Paths.SequenceEqual(other.Paths);
+        /// <summary>Models by type name. Guarded by <see cref="Lock"/>.</summary>
+        public readonly Dictionary<string, Entry> Entries = new();
+
+        /// <summary>Entry count at which stale entries are swept next. Guarded by <see cref="Lock"/>.</summary>
+        public int SweepAt = MinSweep;
+
+        public bool SameAs(ProjectState other)
+        {
+            if (AssemblyName != other.AssemblyName || References.Length != other.References.Length ||
+                Paths.Length != other.Paths.Length)
+                return false;
+            for (int i = 0; i < References.Length; i++)
+            {
+                if (!ReferenceEquals(References[i], other.References[i]))
+                    return false;
+            }
+
+            for (int i = 0; i < Paths.Length; i++)
+            {
+                if (Paths[i] != other.Paths[i])
+                    return false;
+            }
+
+            return true;
+        }
     }
+
+    /// <summary>Entries a project holds before the first sweep.</summary>
+    private const int MinSweep = 64;
 
     private static readonly object Lock = new();
     private static readonly ConditionalWeakTable<Compilation, ProjectState> States = new();
+    private static readonly ConditionalWeakTable<ParseOptions, string> SymbolKeys = new();
     private static readonly Dictionary<string, ProjectState> LatestState = new();
-    private static readonly Dictionary<(string Assembly, string Type), Entry> Entries = new();
 
     public static TypeModel? GetOrBuild(INamedTypeSymbol type, Compilation compilation, ParseOptions? options,
         System.Func<TypeModel?> build)
     {
         var state = GetState(compilation);
-        string symbols = options == null ? "" : string.Join(";", options.PreprocessorSymbolNames);
-        var key = (state.AssemblyName, TypeNames.Global(type.OriginalDefinition));
+        string symbols = options == null
+            ? ""
+            : SymbolKeys.GetValue(options, static o => string.Join(";", o.PreprocessorSymbolNames));
+        var key = TypeNames.Global(type.OriginalDefinition);
 
         lock (Lock)
         {
-            if (Entries.TryGetValue(key, out var entry) && entry.State == state && entry.Symbols == symbols &&
-                entry.Trees.All(compilation.ContainsSyntaxTree))
+            if (state.Entries.TryGetValue(key, out var entry) && entry.Symbols == symbols &&
+                ContainsAll(compilation, entry.Trees))
                 return entry.Model;
         }
 
@@ -65,10 +92,46 @@ internal static class ModelCache
         var trees = Dependencies(type.OriginalDefinition, compilation);
         lock (Lock)
         {
-            Entries[key] = new Entry { State = state, Symbols = symbols, Trees = trees, Model = model };
+            state.Entries[key] = new Entry { Symbols = symbols, Trees = trees, Model = model };
+            if (state.Entries.Count >= state.SweepAt)
+                Sweep(state, compilation);
         }
 
         return model;
+    }
+
+    private static bool ContainsAll(Compilation compilation, SyntaxTree[] trees)
+    {
+        foreach (var tree in trees)
+        {
+            if (!compilation.ContainsSyntaxTree(tree))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Drops entries that depend on trees the compilation no longer has: types renamed or deleted while typing
+    /// would otherwise keep their entries, and the old syntax trees those reference, until the next project-wide
+    /// change. Such entries would be rebuilt anyway. Runs when the count doubles, so its cost is amortized.
+    /// </summary>
+    private static void Sweep(ProjectState state, Compilation compilation)
+    {
+        List<string>? stale = null;
+        foreach (var pair in state.Entries)
+        {
+            if (!ContainsAll(compilation, pair.Value.Trees))
+                (stale ??= new List<string>()).Add(pair.Key);
+        }
+
+        if (stale != null)
+        {
+            foreach (var key in stale)
+                state.Entries.Remove(key);
+        }
+
+        state.SweepAt = System.Math.Max(MinSweep, state.Entries.Count * 2);
     }
 
     private static ProjectState GetState(Compilation compilation)
@@ -78,26 +141,23 @@ internal static class ModelCache
             if (States.TryGetValue(compilation, out var known))
                 return known;
 
+            var paths = new List<string>();
+            foreach (var tree in compilation.SyntaxTrees)
+                paths.Add(tree.FilePath);
+            paths.Sort(System.StringComparer.Ordinal);
             var state = new ProjectState
             {
                 AssemblyName = compilation.AssemblyName ?? "",
                 References = compilation.References.ToArray(),
-                Paths = compilation.SyntaxTrees.Select(t => t.FilePath).OrderBy(p => p, System.StringComparer.Ordinal)
-                    .ToArray(),
+                Paths = paths.ToArray(),
             };
 
-            // Reuse the previous state object while nothing project-wide changed, so entries stay valid;
-            // otherwise every entry of this project is rebuilt once.
+            // Reuse the previous state object while nothing project-wide changed, so its entries stay valid;
+            // otherwise the new state starts empty and every model of this project is rebuilt once.
             if (LatestState.TryGetValue(state.AssemblyName, out var latest) && latest.SameAs(state))
-            {
                 state = latest;
-            }
             else
-            {
                 LatestState[state.AssemblyName] = state;
-                foreach (var stale in Entries.Keys.Where(k => k.Assembly == state.AssemblyName).ToList())
-                    Entries.Remove(stale);
-            }
 
             States.Add(compilation, state);
             return state;

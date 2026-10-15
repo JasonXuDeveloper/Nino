@@ -11,6 +11,7 @@ namespace Nino.Generator.Generation.Emit;
 internal static class HelperSources
 {
     private const string Core = TypeNames.Core;
+    private const string Gen = TypeNames.Gen;
 
     private const string PriorityQueue = "System.Collections.Generic.PriorityQueue`2";
     private const string ImmutableArray = "System.Collections.Immutable.ImmutableArray`1";
@@ -37,7 +38,7 @@ internal static class HelperSources
                 formatters.Add(formatter);
             }
 
-            return $"global::NinoGen.{name}<{string.Join(", ", args)}, {string.Join(", ", formatters)}>";
+            return $"{Gen}{name}<{string.Join(", ", args)}, {string.Join(", ", formatters)}>";
         }
     }
 
@@ -65,7 +66,7 @@ internal static class HelperSources
     public static string EmitPriorityQueueFormatter()
     {
         return FormatterEmitter.Header + $$"""
-            [assembly: {{Core}}NinoFormatter(typeof(global::NinoGen.NinoPriorityQueueFormatter<,,,>))]
+            [assembly: {{Core}}NinoFormatter(typeof({{Gen}}NinoPriorityQueueFormatter<,,,>))]
 
             namespace NinoGen
             {
@@ -135,8 +136,8 @@ internal static class HelperSources
     public static string EmitImmutableFormatters()
     {
         return FormatterEmitter.Header + $$"""
-            [assembly: {{Core}}NinoFormatter(typeof(global::NinoGen.NinoImmutableArrayFormatter<,>))]
-            [assembly: {{Core}}NinoFormatter(typeof(global::NinoGen.NinoImmutableListFormatter<,>))]
+            [assembly: {{Core}}NinoFormatter(typeof({{Gen}}NinoImmutableArrayFormatter<,>))]
+            [assembly: {{Core}}NinoFormatter(typeof({{Gen}}NinoImmutableListFormatter<,>))]
 
             namespace NinoGen
             {
