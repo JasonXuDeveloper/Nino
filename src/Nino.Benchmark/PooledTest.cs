@@ -73,6 +73,9 @@ public class PooledTest
     }
 
     [Benchmark, BenchmarkCategory("PooledDeserialize")]
+    public PooledSimpleClass MemoryPackDeserializeNew() => MemoryPackSerializer.Deserialize<PooledSimpleClass>(MemoryPackData);
+
+    [Benchmark, BenchmarkCategory("PooledDeserialize")]
     public PooledSimpleClass MemoryPackDeserializeOverwrite()
     {
         MemoryPackSerializer.Deserialize(MemoryPackData, ref _memoryPackTarget);

@@ -27,6 +27,19 @@ public sealed partial class PooledLeaf
         new() { A = r.Next(), B = r.NextSingle(), Items = Enumerable.Range(0, 8).Select(_ => r.Next()).ToList() };
 }
 
+/// <summary>The same as <see cref="PooledLeaf"/>, not pooled.</summary>
+[NinoType]
+[MemoryPackable]
+public sealed partial class PlainLeaf
+{
+    public int A;
+    public float B;
+    public List<int> Items;
+
+    public static PlainLeaf Create(Random r) =>
+        new() { A = r.Next(), B = r.NextSingle(), Items = Enumerable.Range(0, 8).Select(_ => r.Next()).ToList() };
+}
+
 /// <summary>No strings: primitives, an array, a list, a dictionary, a pooled child and a list of pooled children.</summary>
 [NinoType, NinoPooled]
 [MemoryPackable]
@@ -80,6 +93,17 @@ public class PooledGraphTest
     private static readonly byte[] NinoLeaves = NinoSerializer.Serialize(Leaves);
     private static readonly byte[] MemoryPackLeaves = MemoryPackSerializer.Serialize(Leaves);
 
+    private static readonly List<PlainLeaf> Plain =
+        Enumerable.Range(0, 100).Select(_ => PlainLeaf.Create(new Random(2))).ToList();
+    private static readonly byte[] NinoPlain = NinoSerializer.Serialize(Plain);
+    private static readonly byte[] MemoryPackPlain = MemoryPackSerializer.Serialize(Plain);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("Plain")]
+    public List<PlainLeaf> NinoPlainNew() => NinoDeserializer.Deserialize<List<PlainLeaf>>(NinoPlain);
+
+    [Benchmark, BenchmarkCategory("Plain")]
+    public List<PlainLeaf> MemoryPackPlainNew() => MemoryPackSerializer.Deserialize<List<PlainLeaf>>(MemoryPackPlain);
+
     private PooledNode _memoryPackNode;
     private List<PooledLeaf> _memoryPackLeaves, _ninoLeaves;
 
@@ -102,6 +126,9 @@ public class PooledGraphTest
         node.ReturnToPool();
         return id;
     }
+
+    [Benchmark, BenchmarkCategory("Node")]
+    public PooledNode MemoryPackNodeNew() => MemoryPackSerializer.Deserialize<PooledNode>(MemoryPackNode);
 
     [Benchmark, BenchmarkCategory("Node")]
     public PooledNode MemoryPackNodeOverwrite()
@@ -131,6 +158,9 @@ public class PooledGraphTest
         NinoDeserializer.Deserialize(NinoLeaves, ref _ninoLeaves);
         return _ninoLeaves;
     }
+
+    [Benchmark, BenchmarkCategory("Leaves")]
+    public List<PooledLeaf> MemoryPackLeavesNew() => MemoryPackSerializer.Deserialize<List<PooledLeaf>>(MemoryPackLeaves);
 
     [Benchmark, BenchmarkCategory("Leaves")]
     public List<PooledLeaf> MemoryPackLeavesOverwrite()
