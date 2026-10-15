@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Nino.Generator.Generation;
 
@@ -31,7 +32,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         NinoDiagnostics.ReadOnlyMember,
         NinoDiagnostics.KeyCollision,
         NinoDiagnostics.TrackReferencesOnStruct,
-        NinoDiagnostics.TrackReferencesNeedsAssignableMembers);
+        NinoDiagnostics.TrackReferencesNeedsAssignableMembers,
+        NinoDiagnostics.InvalidPooledType,
+        NinoDiagnostics.PoolHooksNotImplemented);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => Supported;
 
@@ -55,7 +58,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     private sealed class KnownTypes
     {
         public INamedTypeSymbol Member = null!, Ignore = null!, CustomFormatter = null!, Formatter = null!;
-        public INamedTypeSymbol? RefDeserialization;
+        public INamedTypeSymbol? RefDeserialization, Pooled;
 
         public static KnownTypes? Create(Compilation compilation)
         {
@@ -69,6 +72,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             {
                 Member = member, Ignore = ignore, CustomFormatter = custom, Formatter = formatter,
                 RefDeserialization = compilation.GetTypeByMetadataName("Nino.Core.NinoRefDeserializationAttribute"),
+                Pooled = compilation.GetTypeByMetadataName("Nino.Core.NinoPooledAttribute"),
             };
         }
     }
@@ -76,7 +80,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeType(SymbolAnalysisContext context, KnownTypes known)
     {
         var type = (INamedTypeSymbol)context.Symbol;
-        var attr = type.GetNinoTypeAttribute();
+        var attr = type.GetNinoTypeOptions();
         if (attr == null)
         {
             ReportMissingNinoType(context, type);
@@ -90,7 +94,11 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             ModelBuilder.Build(type, context.Compilation, declaration.SyntaxTree.Options,
                 new DiagnosticSink(context.ReportDiagnostic));
 
-        var indices = attr.autoCollect ? null : new Dictionary<ushort, ISymbol>();
+        if (known.Pooled != null && type.GetAttributes().Any(a =>
+                SymbolEqualityComparer.Default.Equals(a.AttributeClass, known.Pooled)))
+            ReportMissingPoolHooks(context, type);
+
+        var indices = attr.AutoCollect ? null : new Dictionary<ushort, ISymbol>();
         HashSet<ushort>? reported = null;
         foreach (var member in type.GetMembers())
         {
@@ -114,9 +122,14 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                     memberType.ToDisplayString());
 
             bool annotated = ninoMember != null;
-            if (attr.autoCollect)
+            // Non-public members are only collected with containNonPublicMembers: [NinoMember] cannot opt one in.
+            bool dropped = annotated && member.DeclaredAccessibility != Accessibility.Public &&
+                           !attr.ContainNonPublicMembers;
+            if (dropped)
+                Report(context, NinoDiagnostics.PrivateMember, member, member.Name, type.Name);
+            if (attr.AutoCollect)
             {
-                if (annotated)
+                if (annotated && !dropped)
                     Report(context, NinoDiagnostics.RedundantMember, member, member.Name, type.Name);
                 continue;
             }
@@ -125,8 +138,6 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 Report(context, NinoDiagnostics.AmbiguousMember, member, member.Name, type.Name);
             else if (ignored)
                 Report(context, NinoDiagnostics.RedundantIgnore, member, member.Name, type.Name);
-            if (annotated && member.DeclaredAccessibility == Accessibility.Private && !attr.containNonPublicMembers)
-                Report(context, NinoDiagnostics.PrivateMember, member, member.Name, type.Name);
 
             if (ninoMember is { ConstructorArguments: { Length: > 0 } indexArgs } && indexArgs[0].Value is ushort index)
             {
@@ -161,6 +172,24 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 return;
             }
         }
+    }
+
+    /// <summary>The partial methods a <c>[NinoPooled]</c> class implements (the generator declares them).</summary>
+    internal static readonly string[] PoolHooks = { "OnNinoPoolWarmup", "OnNinoPoolReturn" };
+
+    /// <summary>Names of the pool hooks <paramref name="type"/> has no body for.</summary>
+    internal static IEnumerable<string> MissingPoolHooks(INamedTypeSymbol type, System.Threading.CancellationToken cancellationToken) =>
+        PoolHooks.Where(name => !type.GetMembers(name).OfType<IMethodSymbol>().Any(m =>
+            (m.PartialImplementationPart ?? m).DeclaringSyntaxReferences.Any(r =>
+                r.GetSyntax(cancellationToken) is MethodDeclarationSyntax { Body: not null } or
+                    MethodDeclarationSyntax { ExpressionBody: not null })));
+
+    private static void ReportMissingPoolHooks(SymbolAnalysisContext context, INamedTypeSymbol type)
+    {
+        var missing = MissingPoolHooks(type, context.CancellationToken).ToList();
+        if (missing.Count > 0)
+            Report(context, NinoDiagnostics.PoolHooksNotImplemented, type, type.ToDisplayString(),
+                string.Join(" and ", missing.Select(name => name + "()")));
     }
 
     private static void AnalyzeMethod(SymbolAnalysisContext context, INamedTypeSymbol attribute)

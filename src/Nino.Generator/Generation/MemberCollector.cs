@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -17,10 +18,10 @@ internal static class MemberCollector
         public int Index;
     }
 
-    public static List<ISymbol> Collect(INamedTypeSymbol type, NinoTypeAttribute attr)
+    public static List<ISymbol> Collect(INamedTypeSymbol type, NinoTypeOptions attr)
     {
-        bool autoCollect = attr.autoCollect;
-        bool containNonPublic = attr.containNonPublicMembers;
+        bool autoCollect = attr.AutoCollect;
+        bool containNonPublic = attr.ContainNonPublicMembers;
 
         var explicitOrder = GetAttribute(type, "NinoExplicitOrderAttribute");
         var order = new Dictionary<string, int>();
@@ -68,8 +69,6 @@ internal static class MemberCollector
                     continue;
 
                 var attrs = member.GetAttributes();
-                if (attrs.Any(a => a.AttributeClass?.Name == "NinoPrivateProxyAttribute"))
-                    continue;
                 if (autoCollect && attrs.Any(a => a.AttributeClass?.Name == "NinoIgnoreAttribute"))
                     continue;
 
@@ -89,7 +88,7 @@ internal static class MemberCollector
                     if (ninoMember == null || ninoMember.ConstructorArguments.Length == 0 ||
                         ninoMember.ConstructorArguments[0].Value == null)
                         continue;
-                    index = Convert.ToInt32(ninoMember.ConstructorArguments[0].Value);
+                    index = Convert.ToInt32(ninoMember.ConstructorArguments[0].Value, CultureInfo.InvariantCulture);
                 }
 
                 candidates.Add(new Candidate { Symbol = member, Name = member.Name, Index = index });

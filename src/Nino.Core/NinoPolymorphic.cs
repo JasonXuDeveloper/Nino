@@ -10,8 +10,11 @@ namespace Nino.Core
     /// </summary>
     public abstract class NinoSubtypeHandler
     {
-        public readonly Type Type;
-        public readonly int Id;
+        /// <summary>The exact runtime type this handler writes and reads.</summary>
+        public Type Type { get; }
+
+        /// <summary>The type id written before the body.</summary>
+        public int Id { get; }
 
         protected NinoSubtypeHandler(Type type, int id)
         {

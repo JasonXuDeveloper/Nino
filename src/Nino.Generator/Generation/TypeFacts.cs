@@ -92,7 +92,7 @@ internal sealed class TypeFacts
         _typeIds.GetOrAdd(type, static t => TypeNames.ComputeId(TypeNames.RuntimeName(t)));
 
     /// <summary>Serialized members of <paramref name="type"/> (whose effective attribute is <paramref name="attr"/>), in order.</summary>
-    public IReadOnlyList<ISymbol> Members(INamedTypeSymbol type, NinoTypeAttribute attr)
+    public IReadOnlyList<ISymbol> Members(INamedTypeSymbol type, NinoTypeOptions attr)
     {
         if (!_members.TryGetValue(type, out var result))
             _members[type] = result = MemberCollector.Collect(type, attr);
@@ -147,8 +147,8 @@ internal sealed class TypeFacts
         if (!SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, Assembly) ||
             !IsEligible(type.OriginalDefinition))
             return false;
-        var attr = type.GetNinoTypeAttribute();
-        if (attr == null || attr.keyed)
+        var attr = type.GetNinoTypeOptions();
+        if (attr == null || attr.Keyed)
             return false;
 
         bool Visible(ISymbol? s) => s == null || s.DeclaredAccessibility == Accessibility.Public ||
@@ -199,8 +199,8 @@ internal sealed class TypeFacts
         // WEAK_VERSION_TOLERANCE only applies to the types of the assembly that defines it.
         if (IsWeak(type))
             return false;
-        var attr = type.GetNinoTypeAttribute();
-        if (attr == null || attr.versionTolerant || attr.keyed)
+        var attr = type.GetNinoTypeOptions();
+        if (attr == null || attr.VersionTolerant || attr.Keyed)
             return false;
         var layout = GetAttribute(type, "StructLayoutAttribute");
         if (layout != null && layout.ConstructorArguments.Length > 0 &&

@@ -22,8 +22,8 @@ internal static class FormatterEmitter
         names.WriteAliases(sb, body.Contains(FormatterNames.Inline));
         sb.Append(body);
         sb.Append("}\n");
-        if (m.AccessorDeclarations.Length > 0)
-            sb.Append(AccessorEmitter.EmitPartialAccessor(m));
+        if (m.PartialDeclarations.Length > 0)
+            sb.Append(AccessorEmitter.EmitPartial(m));
         return sb.ToString();
     }
 

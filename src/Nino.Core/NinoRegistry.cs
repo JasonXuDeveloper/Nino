@@ -13,7 +13,8 @@ namespace Nino.Core
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
     public sealed class NinoGeneratedAttribute : Attribute
     {
-        public readonly Type Registry;
+        /// <summary>The generated registry type; its static constructor registers the assembly.</summary>
+        public Type Registry { get; }
 
         public NinoGeneratedAttribute(Type registry)
         {
@@ -41,7 +42,7 @@ namespace Nino.Core
         private static readonly HashSet<Assembly> Initialized = new HashSet<Assembly>();
         private static readonly Dictionary<Type, Type> GenericFormatters = new Dictionary<Type, Type>();
         private static int _scannedAssemblyCount;
-        private static INinoRegistry[] _registries = new INinoRegistry[0];
+        private static INinoRegistry[] _registries = Array.Empty<INinoRegistry>();
 
         /// <summary>Adds an assembly's generated registry. Called by its static constructor.</summary>
         public static void Add(INinoRegistry registry)

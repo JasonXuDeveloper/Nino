@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -18,7 +19,7 @@ internal sealed class FormatterNames
     public FormatterNames(TypeModel m)
     {
         var typeParameters = m.TypeParameters.Length == 0
-            ? new string[0]
+            ? Array.Empty<string>()
             : m.TypeParameters.Trim('<', '>').Split(',').Select(p => p.Trim()).ToArray();
         int index = 0;
         // Formatters mentioning the type's own type parameters cannot be aliased outside the type.

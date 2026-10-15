@@ -21,7 +21,7 @@ internal static class ModelBuilder
         type = type.OriginalDefinition;
         if (!IsEligible(type))
             return null;
-        var attr = type.GetNinoTypeAttribute();
+        var attr = type.GetNinoTypeOptions();
         if (attr == null)
             return null;
 
@@ -57,11 +57,11 @@ internal static class ModelBuilder
         var used = new List<FormatterRegistration>();
         bool needsPartialAccessor = false;
 
-        bool tolerant = attr.versionTolerant || weakTolerance;
+        bool tolerant = attr.VersionTolerant || weakTolerance;
         bool isClass = type.TypeKind == TypeKind.Class;
         // Abstract classes have no body of their own, but emit WriteMembers/ReadMembers for their subtypes.
         // Keyed bodies are self-describing per member: no delegation to or from them.
-        bool emitMembers = isClass && !attr.keyed && facts.IsDelegatable(type);
+        bool emitMembers = isClass && !attr.Keyed && facts.IsDelegatable(type);
         string baseFormatter = "";
         int baseMemberCount = 0;
 
@@ -72,11 +72,11 @@ internal static class ModelBuilder
             // Reuse the base formatter's member code when the base's members are exactly our first members, in
             // the same order: the bytes are identical, and each member is compiled once instead of once per subtype.
             int basePrefix = 0;
-            if (isClass && !attr.keyed && type.BaseType is { } baseType && baseType.SpecialType != SpecialType.System_Object &&
+            if (isClass && !attr.Keyed && type.BaseType is { } baseType && baseType.SpecialType != SpecialType.System_Object &&
                 facts.IsDelegatable(baseType) &&
-                (baseType.GetNinoTypeAttribute()!.versionTolerant || weakTolerance) == tolerant)
+                (baseType.GetNinoTypeOptions()!.VersionTolerant || weakTolerance) == tolerant)
             {
-                var baseSymbols = facts.Members(baseType, baseType.GetNinoTypeAttribute()!);
+                var baseSymbols = facts.Members(baseType, baseType.GetNinoTypeOptions()!);
                 if (baseSymbols.Count <= symbolsToBuild.Count &&
                     baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbolsToBuild[i])).All(x => x))
                 {
@@ -108,7 +108,7 @@ internal static class ModelBuilder
             }
         }
 
-        if (attr.keyed)
+        if (attr.Keyed)
         {
             var seen = new Dictionary<int, string>();
             foreach (var member in members)
@@ -145,13 +145,13 @@ internal static class ModelBuilder
                     (m.Access == MemberAccess.Direct && m.IsProperty))
                     continue;
                 members[i] = m with { Unassignable = true };
-                diagnostics?.Report(NinoDiagnostics.ReadOnlyMember, type, m.Name, type.ToDisplayString());
+                diagnostics?.Report(NinoDiagnostics.ReadOnlyMember, MemberSymbol(type, m.Name), m.Name, type.ToDisplayString());
             }
         }
 
         // Tracking is inherited: a tracked base's reference header is resolved by the subtype's body as soon as
         // the instance exists, so every subtype of a tracked type must record itself.
-        bool tracked = attr.trackReferences || InheritsTracking(type);
+        bool tracked = attr.TrackReferences || InheritsTracking(type);
         bool trackReferences = tracked && kind != FormatterKind.Struct;
         if (tracked && kind == FormatterKind.Struct)
         {
@@ -172,24 +172,32 @@ internal static class ModelBuilder
             }
         }
 
-        string accessorNamespace = "";
-        var accessorDeclarations = new List<string>();
-        if (needsPartialAccessor)
+        bool pooled = HasAttribute(type, "NinoPooledAttribute");
+        if (pooled && (kind != FormatterKind.SealedClass || construction.Recreate))
+        {
+            pooled = false;
+            diagnostics?.Report(NinoDiagnostics.InvalidPooledType, type, type.ToDisplayString());
+        }
+
+        string partialNamespace = "";
+        var partialDeclarations = new List<string>();
+        if (needsPartialAccessor || pooled)
         {
             if (!IsPartialChain(type))
             {
+                pooled = false;
                 diagnostics?.Report(NinoDiagnostics.NotPartial, type, type.ToDisplayString());
             }
             else
             {
-                accessorNamespace = type.ContainingNamespace is { IsGlobalNamespace: false } ns
+                partialNamespace = type.ContainingNamespace is { IsGlobalNamespace: false } ns
                     ? ns.ToDisplayString()
                     : "";
                 var chain = new List<INamedTypeSymbol>();
                 for (var t = type; t != null; t = t.ContainingType)
                     chain.Add(t);
                 chain.Reverse();
-                accessorDeclarations.AddRange(chain.Select(Declaration));
+                partialDeclarations.AddRange(chain.Select(Declaration));
             }
         }
 
@@ -204,7 +212,7 @@ internal static class ModelBuilder
             idName,
             typeParameters.Count == 0 ? (formerName == null ? typeId : TypeNames.ComputeId(TypeNames.RuntimeName(type))) : 0,
             tolerant,
-            attr.keyed,
+            attr.Keyed,
             trackReferences,
             rawStruct,
             collectionFormatter,
@@ -214,8 +222,21 @@ internal static class ModelBuilder
             new EquatableArray<MemberModel>(members),
             construction,
             new EquatableArray<FormatterRegistration>(used),
-            accessorNamespace,
-            new EquatableArray<string>(accessorDeclarations));
+            pooled,
+            partialNamespace,
+            new EquatableArray<string>(partialDeclarations));
+    }
+
+    /// <summary>The declared member named <paramref name="name"/> (own or inherited), for diagnostic locations.</summary>
+    private static ISymbol MemberSymbol(INamedTypeSymbol type, string name)
+    {
+        for (var t = type; t != null; t = t.BaseType)
+        {
+            if (t.GetMembers(name).FirstOrDefault(x => x is IFieldSymbol or IPropertySymbol) is { } member)
+                return member;
+        }
+
+        return type;
     }
 
     /// <summary>Whether a base class or interface asks for reference tracking.</summary>
@@ -223,13 +244,13 @@ internal static class ModelBuilder
     {
         for (var b = type.BaseType; b != null; b = b.BaseType)
         {
-            if (b.GetDirectNinoTypeAttribute() is { } a && NinoTypeAttribute.GetAttribute(a).trackReferences)
+            if (b.GetDirectNinoTypeAttribute() is { } a && NinoTypeOptions.From(a).TrackReferences)
                 return true;
         }
 
         foreach (var i in type.AllInterfaces)
         {
-            if (i.GetDirectNinoTypeAttribute() is { } a && NinoTypeAttribute.GetAttribute(a).trackReferences)
+            if (i.GetDirectNinoTypeAttribute() is { } a && NinoTypeOptions.From(a).TrackReferences)
                 return true;
         }
 

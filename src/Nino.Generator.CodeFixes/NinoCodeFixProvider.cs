@@ -40,11 +40,25 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
 
     private static readonly Dictionary<string, Fix[]> Fixes = new()
     {
-        ["NINO002"] = new[] { new Fix("Make type public", "MakePublic", MakeAccessible) },
+        ["NINO001"] = new[]
+        {
+            // A static class stays unserializable whatever its accessibility.
+            new Fix("Make type public", "MakePublic", MakeAccessible,
+                n => !Type(n).Modifiers.Any(m => m.IsKind(SyntaxKind.StaticKeyword))),
+        },
+        ["NINO002"] = new[] { new Fix("Make type partial", "MakePartial", MakePartial) },
         ["NINO003"] = new[] { new Fix("Add [NinoType]", "AddNinoType", (e, n) => AddAttribute(e, Type(n), NinoType)) },
-        ["NINO004"] = new[] { RemoveAttributeFix(NinoMember) },
-        ["NINO005"] = new[] { RemoveAttributeFix(NinoIgnore) },
-        ["NINO006"] = new[]
+        ["NINO006"] = new[] { AddIgnoreFix() },
+        ["NINO007"] = new[] { AddIgnoreFix() },
+        ["NINO009"] = new[]
+        {
+            RemoveAttributeFix(NinoMember),
+            new Fix("Update type to allow non-public members", "AllowNonPublic",
+                (e, n) => SetTypeArgument(e, n, "containNonPublicMembers", 1, true)),
+        },
+        ["NINO010"] = new[] { RemoveAttributeFix(NinoMember) },
+        ["NINO011"] = new[] { RemoveAttributeFix(NinoIgnore) },
+        ["NINO012"] = new[]
         {
             RemoveAttributeFix(NinoMember), RemoveAttributeFix(NinoIgnore),
             new Fix("Remove both attributes", "RemoveBoth", (e, n) =>
@@ -53,24 +67,21 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 RemoveAttribute(e, n, NinoIgnore);
             }),
         },
-        ["NINO007"] = new[]
+        ["NINO013"] = new[] { new Fix("Use the next free index", "NextIndex", UseNextFreeIndex) },
+        ["NINO015"] = new[]
         {
-            RemoveAttributeFix(NinoMember),
-            new Fix("Update type to allow non-public members", "AllowNonPublic",
-                (e, n) => SetTypeArgument(e, n, "containNonPublicMembers", 1, true)),
-        },
-        ["NINO009"] = new[] { new Fix("Use the next free index", "NextIndex", UseNextFreeIndex) },
-        ["NINO011"] = new[] { AddIgnoreFix() },
-        ["NINO013"] = new[] { new Fix("Make type partial", "MakePartial", MakePartial) },
-        ["NINO014"] = new[] { AddIgnoreFix() },
-        ["NINO016"] = new[]
-        {
-            // Only the struct variant: classes that cannot be tracked need a different design, not an edit.
             new Fix("Remove trackReferences", "RemoveTrackReferences",
-                (e, n) => SetTypeArgument(e, n, "trackReferences", 5, false),
-                n => Type(n) is StructDeclarationSyntax ||
-                     Type(n) is RecordDeclarationSyntax r && r.ClassOrStructKeyword.IsKind(SyntaxKind.StructKeyword)),
+                (e, n) => SetTypeArgument(e, n, "trackReferences", 5, false)),
         },
+        ["NINO018"] = new[]
+        {
+            new Fix("Make class sealed", "MakeSealed",
+                (e, n) => e.SetModifiers(Type(n), e.Generator.GetModifiers(Type(n)).WithIsSealed(true)),
+                n => Type(n) is ClassDeclarationSyntax or RecordDeclarationSyntax { ClassOrStructKeyword.RawKind: 0 } &&
+                     !Type(n).Modifiers.Any(m => m.IsKind(SyntaxKind.AbstractKeyword) || m.IsKind(SyntaxKind.StaticKeyword) ||
+                                                 m.IsKind(SyntaxKind.SealedKeyword))),
+        },
+        ["NINO019"] = new[] { new Fix("Implement pool hooks", "ImplementPoolHooks", ImplementPoolHooks) },
     };
 
     public override ImmutableArray<string> FixableDiagnosticIds { get; } = Fixes.Keys.ToImmutableArray();
@@ -118,25 +129,22 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     private static TypeDeclarationSyntax Type(SyntaxNode node) =>
         node.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().First();
 
-    private static bool IsAttribute(AttributeSyntax attribute, string name)
-    {
-        var text = attribute.Name switch
-        {
-            QualifiedNameSyntax q => q.Right.Identifier.ValueText,
-            AliasQualifiedNameSyntax a => a.Name.Identifier.ValueText,
-            SimpleNameSyntax s => s.Identifier.ValueText,
-            _ => "",
-        };
-        return text == name || text == name + "Attribute";
-    }
+    /// <summary>
+    /// Whether <paramref name="attribute"/> is Nino.Core's <c>[name]</c>: resolved through the semantic model, so
+    /// aliases (<c>using NM = Nino.Core.NinoMemberAttribute;</c>) and qualified names match too.
+    /// </summary>
+    private static bool IsAttribute(SemanticModel model, AttributeSyntax attribute, string name) =>
+        model.GetSymbolInfo(attribute).Symbol is IMethodSymbol { ContainingType: { } type } &&
+        type.Name == name + "Attribute" && type.ContainingNamespace.ToDisplayString() == "Nino.Core";
 
-    private static AttributeSyntax? FindAttribute(MemberDeclarationSyntax member, string name) =>
-        member.AttributeLists.SelectMany(l => l.Attributes).FirstOrDefault(a => IsAttribute(a, name));
+    private static AttributeSyntax? FindAttribute(DocumentEditor editor, MemberDeclarationSyntax member, string name) =>
+        member.AttributeLists.SelectMany(l => l.Attributes)
+            .FirstOrDefault(a => IsAttribute(editor.SemanticModel, a, name));
 
     private static void RemoveAttribute(DocumentEditor editor, SyntaxNode node, string name)
     {
         var member = Member(node);
-        if (FindAttribute(member, name) is not { Parent: AttributeListSyntax list } attribute)
+        if (FindAttribute(editor, member, name) is not { Parent: AttributeListSyntax list } attribute)
             return;
         if (list.Attributes.Count > 1)
         {
@@ -148,7 +156,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         editor.ReplaceNode(member, (current, _) =>
         {
             var m = (MemberDeclarationSyntax)current;
-            var currentList = m.AttributeLists.First(l => l.Attributes.Any(a => IsAttribute(a, name)));
+            var currentList = m.AttributeLists.First(l => l.Attributes.Any(a => a.IsEquivalentTo(attribute)));
             var leading = m.AttributeLists[0] == currentList ? currentList.GetLeadingTrivia() : default;
             var removed = m.RemoveNode(currentList, SyntaxRemoveOptions.KeepNoTrivia)!;
             return leading.Count == 0 ? removed : removed.WithLeadingTrivia(leading);
@@ -167,6 +175,27 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         {
             editor.ReplaceNode(editor.OriginalRoot, (current, generator) =>
                 generator.AddNamespaceImports(current, generator.NamespaceImportDeclaration("Nino.Core")));
+        }
+    }
+
+    /// <summary>Adds empty bodies for the pool hooks the type does not implement yet.</summary>
+    private static void ImplementPoolHooks(DocumentEditor editor, SyntaxNode node)
+    {
+        var type = Type(node);
+        if (editor.SemanticModel.GetDeclaredSymbol(type) is not { } symbol)
+            return;
+        foreach (var (name, declaration) in new[]
+                 {
+                     ("OnNinoPoolWarmup", "static partial void OnNinoPoolWarmup()\n{\n}\n"),
+                     ("OnNinoPoolReturn", "partial void OnNinoPoolReturn()\n{\n}\n"),
+                 })
+        {
+            bool implemented = symbol.GetMembers(name).OfType<IMethodSymbol>().Any(m =>
+                (m.PartialImplementationPart ?? m).DeclaringSyntaxReferences.Any(r =>
+                    r.GetSyntax() is MethodDeclarationSyntax { Body: not null } or
+                        MethodDeclarationSyntax { ExpressionBody: not null }));
+            if (!implemented && SyntaxFactory.ParseMemberDeclaration(declaration) is { } member)
+                editor.AddMember(type, member.WithAdditionalAnnotations(Formatter.Annotation));
         }
     }
 
@@ -195,7 +224,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     /// <summary>Sets a <c>[NinoType]</c> argument to true, or removes it (false is its default).</summary>
     private static void SetTypeArgument(DocumentEditor editor, SyntaxNode node, string name, int position, bool value)
     {
-        if (FindAttribute(Type(node), NinoType) is not { } attribute)
+        if (FindAttribute(editor, Type(node), NinoType) is not { } attribute)
             return;
         var arguments = attribute.ArgumentList?.Arguments ?? default;
         int index = -1;
@@ -229,19 +258,48 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
             updated.Count == 0 ? null : SyntaxFactory.AttributeArgumentList(updated)));
     }
 
+    /// <summary>
+    /// Gives the member a free index. The analyzer reports the first repeat of each index; the n-th reported member
+    /// takes the n-th free index, so fixing them all at once (each fix sees the original document) assigns
+    /// distinct indices.
+    /// </summary>
     private static void UseNextFreeIndex(DocumentEditor editor, SyntaxNode node)
     {
         var member = Member(node);
-        if (FindAttribute(member, NinoMember) is not { ArgumentList.Arguments.Count: > 0 } attribute ||
-            editor.SemanticModel.GetDeclaredSymbol(Type(member)) is not { } type)
+        if (FindAttribute(editor, member, NinoMember) is not { ArgumentList.Arguments.Count: > 0 } attribute ||
+            editor.SemanticModel.GetDeclaredSymbol(Type(member)) is not { } type ||
+            editor.SemanticModel.GetDeclaredSymbol(member is FieldDeclarationSyntax f ? f.Declaration.Variables[0] : member)
+                is not { } symbol)
             return;
-        var used = new HashSet<ushort>(type.GetMembers()
-            .SelectMany(m => m.GetAttributes())
-            .Where(a => a.AttributeClass?.Name == "NinoMemberAttribute" && a.ConstructorArguments.Length > 0)
-            .Select(a => a.ConstructorArguments[0].Value is ushort index ? index : (ushort)0));
+
+        var used = new HashSet<ushort>();
+        var reported = new HashSet<ushort>();
+        int rank = -1, seenDuplicates = 0;
+        foreach (var m in type.GetMembers())
+        {
+            var index = m.GetAttributes()
+                .Where(a => a.AttributeClass is { Name: "NinoMemberAttribute" } && a.ConstructorArguments.Length > 0)
+                .Select(a => a.ConstructorArguments[0].Value as ushort?)
+                .FirstOrDefault();
+            if (index is not { } i)
+                continue;
+            if (!used.Add(i) && reported.Add(i))
+            {
+                if (SymbolEqualityComparer.Default.Equals(m, symbol))
+                    rank = seenDuplicates;
+                seenDuplicates++;
+            }
+        }
+
+        if (rank < 0)
+            rank = 0;
         ushort next = 0;
-        while (used.Contains(next))
-            next++;
+        for (int free = -1; ; next++)
+        {
+            if (!used.Contains(next) && ++free == rank)
+                break;
+        }
+
         var expression = attribute.ArgumentList!.Arguments[0].Expression;
         editor.ReplaceNode(expression, SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression,
             SyntaxFactory.Literal(next)).WithTriviaFrom(expression));

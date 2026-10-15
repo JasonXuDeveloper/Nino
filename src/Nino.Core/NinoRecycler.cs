@@ -13,7 +13,8 @@ namespace Nino.Core
     /// replaced by an instance of a different runtime type.
     /// </para>
     /// <para>
-    /// Handlers are looked up by the declared (static) type of the member, falling back to
+    /// Handlers are looked up by the declared (static) type of the member. Without one, a
+    /// <see cref="NinoPooledAttribute"/> instance goes back to its pool, and anything else to
     /// <see cref="NinoRecycler.Fallback"/>. Only register a handler for objects that are exclusively owned by
     /// the deserialized object graph.
     /// </para>
@@ -23,13 +24,18 @@ namespace Nino.Core
     {
         private static Action<T> _handler;
 
+        // Whether a T can be a [NinoPooled] instance: sealed types (string...) that are not pooled never are.
+        private static readonly bool MayBePooled = !typeof(T).IsValueType &&
+                                                   (typeof(INinoPooled).IsAssignableFrom(typeof(T)) || !typeof(T).IsSealed);
+
         /// <summary>
         /// Whether a handler is registered for <typeparamref name="T"/> (or a fallback handler exists).
         /// </summary>
         public static bool IsRegistered
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _handler != null || (!typeof(T).IsValueType && NinoRecycler.Fallback != null);
+            get => _handler != null || (!typeof(T).IsValueType && NinoRecycler.Fallback != null) ||
+                   (MayBePooled && NinoRecycler.PoolsInUse);
         }
 
         /// <summary>
@@ -61,6 +67,12 @@ namespace Nino.Core
             if (typeof(T).IsValueType)
                 return; // the fallback takes objects; boxing a struct to recycle it would only allocate
 
+            if (MayBePooled && value is INinoPooled pooled)
+            {
+                pooled.ReturnToPool();
+                return;
+            }
+
             var fallback = NinoRecycler.Fallback;
             if (fallback != null)
                 fallback(value);
@@ -76,7 +88,10 @@ namespace Nino.Core
         /// Handler invoked for discarded instances whose declared type has no handler registered via
         /// <see cref="NinoRecycler{T}.Register"/>. Not called for value types.
         /// </summary>
-        public static Action<object> Fallback;
+        public static Action<object> Fallback { get; set; }
+
+        /// <summary>Set once a <see cref="NinoPool{T}"/> holds an instance: dropped objects may then be pooled.</summary>
+        internal static bool PoolsInUse;
 
         /// <summary>
         /// Recycles the current value (if any) and resets it to default.

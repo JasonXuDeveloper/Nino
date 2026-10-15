@@ -47,7 +47,7 @@ public sealed class NinoSuppressor : DiagnosticSuppressor
     private static bool IsSerialized(ISymbol member)
     {
         var type = member.ContainingType;
-        if (type?.GetNinoTypeAttribute() is not { } attr)
+        if (type?.GetNinoTypeOptions() is not { } attr)
             return false;
         return MemberCollector.Collect(type, attr).Contains(member, SymbolEqualityComparer.Default);
     }

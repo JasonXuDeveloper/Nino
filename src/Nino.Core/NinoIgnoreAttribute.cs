@@ -8,7 +8,7 @@ namespace Nino.Core
     /// <see href="https://nino.xgamedev.net/en/doc/types#custom-types"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
-    public class NinoIgnoreAttribute : Attribute
+    public sealed class NinoIgnoreAttribute : Attribute
     {
     }
 }

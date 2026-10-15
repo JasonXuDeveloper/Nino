@@ -64,6 +64,76 @@ namespace Nino.Core
 #endif
         }
 
+        /// <summary>
+        /// Refills an existing dictionary with <paramref name="length"/> pairs. Raw pairs are cleared and rewritten;
+        /// otherwise the data is merged by key, each value read into the one the key already maps to, so nested
+        /// objects, collections and unchanged strings are reused. Keys missing from the data are removed (and their
+        /// values recycled).
+        /// </summary>
+        public static void Refill(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
+        {
+            int before = dictionary.Count;
+            if (before == 0 || (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is))
+            {
+                Reset(dictionary, length);
+                Read(dictionary, length, ref reader);
+                return;
+            }
+
+            var seen = System.Buffers.ArrayPool<TKey>.Shared.Rent(length == 0 ? 1 : length);
+            try
+            {
+                int matched = 0;
+                for (int i = 0; i < length; i++)
+                {
+                    TKey key = default;
+                    default(TKeyFormatter).Deserialize(ref key, ref reader);
+                    seen[i] = key;
+#if NET8_0_OR_GREATER
+                    // Reading the value never touches this dictionary, so the reference stays valid.
+                    ref TValue slot = ref System.Runtime.InteropServices.CollectionsMarshal.GetValueRefOrAddDefault(
+                        dictionary, key, out bool exists);
+                    if (exists)
+                        matched++;
+                    default(TValueFormatter).Deserialize(ref slot, ref reader);
+#else
+                    if (dictionary.TryGetValue(key, out TValue item))
+                        matched++;
+                    default(TValueFormatter).Deserialize(ref item, ref reader);
+                    dictionary[key] = item;
+#endif
+                }
+
+                if (matched != before)
+                    RemoveStale(dictionary, seen, length);
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<TKey>.Shared.Return(seen, !typeof(TKey).IsValueType);
+            }
+        }
+
+        /// <summary>Removes (and recycles) the entries whose key is not among the <paramref name="count"/> read.</summary>
+        private static void RemoveStale(Dictionary<TKey, TValue> dictionary, TKey[] keys, int count)
+        {
+            var read = new HashSet<TKey>(dictionary.Comparer);
+            for (int i = 0; i < count; i++)
+                read.Add(keys[i]);
+            var stale = new List<KeyValuePair<TKey, TValue>>(dictionary.Count - read.Count);
+            foreach (var pair in dictionary)
+            {
+                if (!read.Contains(pair.Key))
+                    stale.Add(pair);
+            }
+
+            foreach (var pair in stale)
+            {
+                dictionary.Remove(pair.Key);
+                NinoRecycler<TKey>.Recycle(pair.Key);
+                NinoRecycler<TValue>.Recycle(pair.Value);
+            }
+        }
+
         /// <summary>Reads <paramref name="length"/> pairs into <paramref name="dictionary"/>.</summary>
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
@@ -90,7 +160,7 @@ namespace Nino.Core
 
     /// <summary>
     /// <c>Dictionary&lt;TKey, TValue&gt;</c>: count (-1 = null), then key/value pairs. An existing dictionary is
-    /// cleared and refilled, keeping its comparer.
+    /// refilled in place (merged by key), keeping its comparer.
     /// </summary>
     public struct DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>
         : INinoFormatter<Dictionary<TKey, TValue>>
@@ -115,16 +185,20 @@ namespace Nino.Core
             }
 
             if (value == null)
+            {
                 value = new Dictionary<TKey, TValue>(length);
+                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(value, length, ref reader);
+            }
             else
-                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Reset(value, length);
-            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(value, length, ref reader);
+            {
+                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref reader);
+            }
         }
     }
 
     /// <summary>
     /// A type derived from <c>Dictionary&lt;TKey, TValue&gt;</c>: count (-1 = null), then key/value pairs. An existing
-    /// dictionary is cleared and refilled, keeping its comparer.
+    /// dictionary is refilled in place (merged by key), keeping its comparer.
     /// </summary>
     public struct DictionaryFormatter<TDictionary, TKey, TValue, TKeyFormatter, TValueFormatter>
         : INinoFormatter<TDictionary>
@@ -149,10 +223,8 @@ namespace Nino.Core
                 return;
             }
 
-            if (value == null)
-                value = new TDictionary();
-            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Reset(value, length);
-            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(value, length, ref reader);
+            value ??= new TDictionary();
+            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref reader);
         }
     }
 

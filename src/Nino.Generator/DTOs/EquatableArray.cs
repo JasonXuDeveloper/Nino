@@ -10,7 +10,7 @@ namespace Nino.Generator.DTOs;
 /// Immutable array wrapper with value-based equality for use in source generator DTOs.
 /// Enables proper incremental caching by implementing structural equality.
 /// </summary>
-public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnumerable<T>
+internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnumerable<T>
 {
     private readonly T[]? _array;
 

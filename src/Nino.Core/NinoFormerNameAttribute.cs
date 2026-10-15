@@ -8,9 +8,9 @@ namespace Nino.Core
     /// <see href="https://nino.xgamedev.net/en/doc/advanced#former-name"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface, Inherited = false)]
-    public class NinoFormerNameAttribute : Attribute
+    public sealed class NinoFormerNameAttribute : Attribute
     {
-        public readonly string FormerName;
+        public string FormerName { get; }
 
         public NinoFormerNameAttribute(string formerName)
         {

@@ -206,9 +206,14 @@ deserialization.
 `NinoFormatterCache<T>.Instance` is a static generic field, so lookup is free after the first use. It is
 populated by:
 
-1. Generated registration code, on demand. Each assembly's generated registry is added at load
-   (`[ModuleInitializer]` on .NET 5+, `RuntimeInitializeOnLoadMethod` / `InitializeOnLoadMethod` in Unity, or
-   the `[NinoGenerated]` attribute as a fallback), but registers nothing yet. A lookup that misses asks the
+1. Generated registration code, on demand. Each assembly carries `[assembly: NinoGenerated(typeof(Registry))]`.
+   Nothing has to call it: the first lookup that meets a type of that assembly (or, for polymorphic reads, an
+   unknown type id, which scans the loaded assemblies once per newly loaded assembly) runs the registry's
+   static constructor. `[ModuleInitializer]` (.NET 5+) and `RuntimeInitializeOnLoadMethod` /
+   `InitializeOnLoadMethod` (Unity) only make this eager, and keep the registry rooted for the IL2CPP linker.
+   Hot-update runtimes such as HybridCLR, which `Assembly.Load` an assembly without running any of those entry
+   points, therefore need no manual `Init()` call (covered by `HotUpdateAssemblyTests`). The registry itself
+   registers nothing yet. A lookup that misses asks the
    registries for the type's id: the plain name hash for by-type lookups (no attribute reflection) or the wire
    id for polymorphic reads; `[NinoFormerName]` types are listed under both. The dispatch is a switch over
    small bucket methods of about eight ids, because the JIT resolves every call in a method it compiles: one
@@ -256,15 +261,27 @@ Cache-line reasoning assumes 64-byte lines.
 
 ### Ref deserialization and pooling
 
-* `null` target: a new instance is created (or `[NinoRefDeserialization]` factory is called).
-* Existing target of the right type: populated in place. Collections are cleared and refilled. Lists
-  reuse elements by index.
+* `null` target: a new instance is created (from the pool for `[NinoPooled]` types, or through a
+  `[NinoRefDeserialization]` factory).
+* Existing target of the right type: populated in place. Lists and arrays reuse elements by index.
+  Dictionaries are merged by key: each value is read into the value its key already maps to, and keys missing
+  from the data are removed.
 * Types whose members cannot be assigned after construction (constructor parameters, `init`-only, or
   `readonly` members) are re-created, and the old instance is recycled.
 * Whenever an existing non-null instance is dropped (payload is `null`, list shrinks, array reallocates,
-  polymorphic type changes), it is passed to `NinoRecycler<TDeclared>.Recycle`. That lets object pools take
-  it back, which fixes the leak where a pooled `List<T>` assigned in a factory was simply overwritten with
-  `null`.
+  dictionary key removed, polymorphic type changes), it is passed to `NinoRecycler<TDeclared>.Recycle`: a
+  registered handler, else `ReturnToPool()` for `[NinoPooled]` instances, else `NinoRecycler.Fallback`. That
+  fixes the leak where a pooled `List<T>` assigned in a factory was simply overwritten with `null`.
+
+`[NinoPooled]` on a sealed, in-place `[NinoType]` class makes the generator add `ReturnToPool()` and two
+partial methods the class must implement (the analyzer reports NINO019 and offers a fix that adds them):
+`static partial void OnNinoPoolWarmup()`, run once before the first deserialization of the type, and
+`partial void OnNinoPoolReturn()`, run by `ReturnToPool()`. Wherever Nino creates an instance of the type
+(top level, member, element) it first takes one from `NinoPool<T>`, and deserializes into it in place. The
+pool keeps one instance per thread without locking plus a locked shared stack (`MaxRetained`, default 256).
+Returning an instance twice throws; a per-instance flag, reset when it is rented, detects it. An instance that
+is never returned is simply collected. Steady state on the benchmark type (an array, a list, two dictionaries
+and strings): only the strings are allocated (see [v4-benchmarks.md](v4-benchmarks.md)).
 
 ## Source generator
 

@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Nino.Generator;
 
-public static class NinoTypeHelper
+internal static class NinoTypeHelper
 {
     public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
 
@@ -40,14 +40,14 @@ public static class NinoTypeHelper
 
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
-        return GetNinoTypeAttribute(typeSymbol) != null;
+        return GetNinoTypeOptions(typeSymbol) != null;
     }
 
     /// <summary>
     /// The NinoType attribute that applies to the type: its own, then the nearest base class's (if it allows
     /// inheritance), then an interface's (if it allows inheritance).
     /// </summary>
-    public static NinoTypeAttribute? GetNinoTypeAttribute(this ITypeSymbol typeSymbol)
+    public static NinoTypeOptions? GetNinoTypeOptions(this ITypeSymbol typeSymbol)
     {
         // BCL types are never NinoTypes; skip walking their (substituted) interfaces.
         if (IsSystemNamespace(typeSymbol.ContainingNamespace) || typeSymbol.TypeKind is TypeKind.Array or
@@ -56,15 +56,15 @@ public static class NinoTypeHelper
 
         var attr = GetDirectNinoTypeAttribute(typeSymbol);
         if (attr != null)
-            return NinoTypeAttribute.GetAttribute(attr);
+            return NinoTypeOptions.From(attr);
 
         for (var baseType = typeSymbol.BaseType; baseType != null; baseType = baseType.BaseType)
         {
             attr = GetDirectNinoTypeAttribute(baseType);
             if (attr == null)
                 continue;
-            var ninoTypeAttr = NinoTypeAttribute.GetAttribute(attr);
-            if (ninoTypeAttr.allowInheritance)
+            var ninoTypeAttr = NinoTypeOptions.From(attr);
+            if (ninoTypeAttr.AllowInheritance)
                 return ninoTypeAttr;
             break;
         }
@@ -74,8 +74,8 @@ public static class NinoTypeHelper
             attr = GetDirectNinoTypeAttribute(interfaceType);
             if (attr == null)
                 continue;
-            var ninoTypeAttr = NinoTypeAttribute.GetAttribute(attr);
-            if (ninoTypeAttr.allowInheritance)
+            var ninoTypeAttr = NinoTypeOptions.From(attr);
+            if (ninoTypeAttr.AllowInheritance)
                 return ninoTypeAttr;
         }
 
@@ -125,28 +125,23 @@ public static class NinoTypeHelper
     }
 }
 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("ReSharper", "InconsistentNaming")]
-public class NinoTypeAttribute
+/// <summary>The arguments of a <c>[NinoType]</c> attribute (by parameter name, so any argument order works).</summary>
+internal sealed class NinoTypeOptions
 {
-    public bool autoCollect = true;
-    public bool containNonPublicMembers;
-    public bool allowInheritance = true;
-    public bool versionTolerant;
-    public bool keyed;
-    public bool trackReferences;
+    public bool AutoCollect { get; private set; } = true;
+    public bool ContainNonPublicMembers { get; private set; }
+    public bool AllowInheritance { get; private set; } = true;
+    public bool VersionTolerant { get; private set; }
+    public bool Keyed { get; private set; }
+    public bool TrackReferences { get; private set; }
 
-    public static NinoTypeAttribute GetAttribute(AttributeData attributeData)
+    public static NinoTypeOptions From(AttributeData attribute) => new()
     {
-        return new NinoTypeAttribute
-        {
-            autoCollect = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(autoCollect), true),
-            containNonPublicMembers =
-                NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(containNonPublicMembers), false),
-            allowInheritance =
-                NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(allowInheritance), true),
-            versionTolerant = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(versionTolerant), false),
-            keyed = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(keyed), false),
-            trackReferences = NinoTypeHelper.GetConstructorArgumentByName(attributeData, nameof(trackReferences), false),
-        };
-    }
+        AutoCollect = NinoTypeHelper.GetConstructorArgumentByName(attribute, "autoCollect", true),
+        ContainNonPublicMembers = NinoTypeHelper.GetConstructorArgumentByName(attribute, "containNonPublicMembers", false),
+        AllowInheritance = NinoTypeHelper.GetConstructorArgumentByName(attribute, "allowInheritance", true),
+        VersionTolerant = NinoTypeHelper.GetConstructorArgumentByName(attribute, "versionTolerant", false),
+        Keyed = NinoTypeHelper.GetConstructorArgumentByName(attribute, "keyed", false),
+        TrackReferences = NinoTypeHelper.GetConstructorArgumentByName(attribute, "trackReferences", false),
+    };
 }

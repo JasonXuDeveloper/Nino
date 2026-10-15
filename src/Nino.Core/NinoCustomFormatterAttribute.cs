@@ -12,7 +12,7 @@ namespace Nino.Core
         /// <summary>
         /// The formatter type that implements NinoFormatter{T}.
         /// </summary>
-        public readonly Type FormatterType;
+        public Type FormatterType { get; }
         
         /// <summary>
         /// Initializes a new instance of the custom formatter attribute.

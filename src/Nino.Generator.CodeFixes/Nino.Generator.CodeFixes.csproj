@@ -6,6 +6,7 @@
     Shipped inside the Nino.Generator package.
     -->
     <PropertyGroup>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
         <TargetFramework>netstandard2.0</TargetFramework>
         <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>

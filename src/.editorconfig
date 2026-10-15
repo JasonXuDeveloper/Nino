@@ -1,0 +1,9 @@
+root = true
+
+[*.cs]
+# Static members of generic types are Nino's per-type caches (NinoFormatterCache<T>, NinoPool<T>...): by design,
+# a static field per closed type is the cheapest lookup there is.
+dotnet_diagnostic.CA1000.severity = none
+# ArgumentNullException.ThrowIfNull and friends do not exist on netstandard2.0/2.1, which share the source.
+dotnet_diagnostic.CA1510.severity = none
+dotnet_diagnostic.CA1512.severity = none

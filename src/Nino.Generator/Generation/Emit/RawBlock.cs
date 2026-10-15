@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -45,10 +46,10 @@ internal sealed class RawBlock
     {
         int constant = _constant + extra;
         if (_symbolic.Count == 0)
-            return constant.ToString();
+            return constant.ToString(CultureInfo.InvariantCulture);
         var parts = new List<string>(_symbolic);
         if (constant != 0)
-            parts.Insert(0, constant.ToString());
+            parts.Insert(0, constant.ToString(CultureInfo.InvariantCulture));
         return string.Join(" + ", parts);
     }
 

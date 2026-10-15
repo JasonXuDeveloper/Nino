@@ -32,8 +32,10 @@ public class AnalyzerTest
         return test;
     }
 
+    #region The type (NINO001-NINO003)
+
     [TestMethod]
-    public async Task TestNino002()
+    public async Task NINO001_InaccessibleType()
     {
         var code = @"
 using Nino.Core;
@@ -55,14 +57,14 @@ public class NestedTestClass
     }
 
     [NinoType]
-    private class NestedB
+    private class {|#0:NestedB|}
     {
         public int A;
         public string B;
     }
 
     [NinoType]
-    private static class NestedC
+    private static class {|#1:NestedC|}
     {
         public static int A;
         public static string B;
@@ -74,18 +76,18 @@ internal class SomeContainer
     public class A
     {
         [NinoType]
-        private class B
+        private class {|#2:B|}
         {
-            
+
         }
     }
     [NinoType]
-    class C
+    class {|#3:C|}
     {
         [NinoType]
-        public class D
+        public class {|#4:D|}
         {
-            
+
         }
     }
 }
@@ -93,25 +95,195 @@ internal class SomeContainer
 
         // Internal types are fine; private and protected ones cannot be named by the generated formatters.
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO002")
-                .WithLocation(21, 19)
-                .WithArguments("NestedTestClass.NestedB"),
-            Verify.Diagnostic("NINO002")
-                .WithLocation(28, 26)
-                .WithArguments("NestedTestClass.NestedC"),
-            Verify.Diagnostic("NINO002")
-                .WithLocation(40, 23)
-                .WithArguments("SomeContainer.A.B"),
-            Verify.Diagnostic("NINO002")
-                .WithLocation(46, 11)
-                .WithArguments("SomeContainer.C"),
-            Verify.Diagnostic("NINO002")
-                .WithLocation(49, 22)
-                .WithArguments("SomeContainer.C.D")).RunAsync();
+            Verify.Diagnostic("NINO001").WithLocation(0).WithArguments("NestedTestClass.NestedB"),
+            Verify.Diagnostic("NINO001").WithLocation(1).WithArguments("NestedTestClass.NestedC"),
+            Verify.Diagnostic("NINO001").WithLocation(2).WithArguments("SomeContainer.A.B"),
+            Verify.Diagnostic("NINO001").WithLocation(3).WithArguments("SomeContainer.C"),
+            Verify.Diagnostic("NINO001").WithLocation(4).WithArguments("SomeContainer.C.D")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino003()
+    public async Task NINO001_TopLevelStaticRefStructAndProtectedNesting()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public static class {|#0:StaticClass|}
+{
+}
+
+[NinoType]
+public ref struct {|#1:RefStruct|}
+{
+    public int A;
+}
+
+public class Container
+{
+    [NinoType]
+    protected class {|#2:ProtectedNested|}
+    {
+        public int A;
+    }
+
+    [NinoType]
+    private protected class {|#3:PrivateProtectedNested|}
+    {
+        public int A;
+    }
+
+    [NinoType]
+    protected internal class ProtectedInternalNested
+    {
+        public int A;
+    }
+}
+";
+
+        // protected internal is reachable from the generated code in the same assembly.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO001").WithLocation(0).WithArguments("StaticClass"),
+            Verify.Diagnostic("NINO001").WithLocation(1).WithArguments("RefStruct"),
+            Verify.Diagnostic("NINO001").WithLocation(2).WithArguments("Container.ProtectedNested"),
+            Verify.Diagnostic("NINO001").WithLocation(3).WithArguments("Container.PrivateProtectedNested")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO001_InaccessibleTypeSkipsModelDiagnostics()
+    {
+        var code = @"
+using System;
+using Nino.Core;
+
+public class Container
+{
+    [NinoType(containNonPublicMembers: true)]
+    private class {|#0:Hidden|}
+    {
+        private int _value;
+        public Action Callback;
+    }
+}
+";
+
+        // Only NINO001: the model (NINO002, NINO007, ...) is not built for a type the generator skips.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO001").WithLocation(0).WithArguments("Container.Hidden")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO002_NonPublicMembersNeedPartial()
+    {
+        var code = @"
+using Nino.Core;
+
+public class Outer
+{
+    [NinoType(containNonPublicMembers: true)]
+    public class {|#0:TestClass|}
+    {
+        private int _value;
+        public int Value => _value;
+    }
+}
+
+[NinoType(containNonPublicMembers: true)]
+public partial class PartialClass
+{
+    private int _value;
+    public int Value => _value;
+}
+";
+
+        // The test compilation does not define NET8_0_OR_GREATER, so private members need a partial accessor.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO002").WithLocation(0).WithArguments("Outer.TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO002_PooledTypeNeedsPartial()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public sealed class {|#0:TestClass|}
+{
+    public int Value;
+
+    static void OnNinoPoolWarmup() { }
+    void OnNinoPoolReturn() { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO002").WithLocation(0).WithArguments("TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO002_NestedAndGenericTypes()
+    {
+        var code = @"
+using Nino.Core;
+
+public class Outer
+{
+    [NinoType, NinoPooled]
+    public sealed partial class {|#0:Pooled|}
+    {
+        public int Value;
+
+        static void OnNinoPoolWarmup() { }
+        void OnNinoPoolReturn() { }
+    }
+}
+
+[NinoType(containNonPublicMembers: true)]
+public class {|#1:Box|}<T>
+{
+    private T _value;
+    public T Value => _value;
+}
+
+[NinoType]
+public class PublicMembersOnly
+{
+    public int Value;
+}
+";
+
+        // The containing type must be partial too, and generic types never use [UnsafeAccessor].
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO002").WithLocation(0).WithArguments("Outer.Pooled"),
+            Verify.Diagnostic("NINO002").WithLocation(1).WithArguments("Box<T>")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO002_PartialDeclarationsReportOnce()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(containNonPublicMembers: true)]
+public partial class TestClass
+{
+    private int _a;
+    public int A => _a;
+}
+
+public partial class TestClass
+{
+    private int _b;
+    public int B => _b;
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO003_SubTypeWithoutNinoType()
     {
         var code = @"
 using Nino.Core;
@@ -140,11 +312,11 @@ public abstract class AbstractClass2
     public string B;
 }
 
-public class TestClass2 : AbstractClass2
+public class {|#0:TestClass2|} : AbstractClass2
 {
 }
 
-public class TestClass3 : TestClass2
+public class {|#1:TestClass3|} : TestClass2
 {
 }
 
@@ -157,16 +329,180 @@ public class Something
 }
 ";
 
-        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO003")
-                .WithLocation(28, 14)
-                .WithArguments("TestClass2", "AbstractClass2"),
-            Verify.Diagnostic("NINO003")
-                .WithLocation(32, 14)
-                .WithArguments("TestClass3", "AbstractClass2")).RunAsync();
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO003").WithLocation(0).WithArguments("TestClass2", "AbstractClass2"),
+            Verify.Diagnostic("NINO003").WithLocation(1).WithArguments("TestClass3", "AbstractClass2")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino004()
+    public async Task NINO003_ViaInterface()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(allowInheritance: false)]
+public interface IBase
+{
+    int A { get; set; }
+}
+
+public class {|#0:Implementation|} : IBase
+{
+    public int A { get; set; }
+}
+
+public struct {|#1:StructImplementation|} : IBase
+{
+    public int A { get; set; }
+}
+
+public interface {|#2:IDerived|} : IBase
+{
+}
+
+[NinoType]
+public class Annotated : IBase
+{
+    public int A { get; set; }
+}
+
+public enum NotAType
+{
+    A,
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO003").WithLocation(0).WithArguments("Implementation", "IBase"),
+            Verify.Diagnostic("NINO003").WithLocation(1).WithArguments("StructImplementation", "IBase"),
+            Verify.Diagnostic("NINO003").WithLocation(2).WithArguments("IDerived", "IBase")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO003_ReportsNearestBase()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(allowInheritance: false)]
+public interface IBase
+{
+}
+
+[NinoType(allowInheritance: false)]
+public class Base : IBase
+{
+    public int A;
+}
+
+public class {|#0:Derived|} : Base, IBase
+{
+}
+";
+
+        // Base classes are checked before interfaces, and only one diagnostic is reported per type.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO003").WithLocation(0).WithArguments("Derived", "Base")).RunAsync();
+    }
+
+    #endregion
+
+    #region Construction (NINO004-NINO006)
+
+    [TestMethod]
+    public async Task NINO004_NoUsableConstructor()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class {|#0:TestClass|}
+{
+    public int A;
+
+    public TestClass(int unrelated)
+    {
+        A = unrelated;
+    }
+}
+
+[NinoType]
+public class MatchingConstructor
+{
+    public int A;
+
+    public MatchingConstructor(int a)
+    {
+        A = a;
+    }
+}
+
+[NinoType]
+public struct StructWithoutMatch
+{
+    public int A;
+
+    public StructWithoutMatch(int unrelated)
+    {
+        A = unrelated;
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO004").WithLocation(0).WithArguments("TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO004_NonPublicParameterlessConstructor()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class {|#0:PrivateConstructor|}
+{
+    public int A;
+
+    private PrivateConstructor()
+    {
+    }
+}
+
+[NinoType]
+public class InternalConstructor
+{
+    public int A;
+
+    internal InternalConstructor()
+    {
+    }
+}
+
+[NinoType]
+public abstract class AbstractWithoutConstructor
+{
+    public int A;
+
+    protected AbstractWithoutConstructor(string unrelated)
+    {
+    }
+}
+
+[NinoType]
+public record Person(string Name, int Age);
+
+[NinoType]
+public record struct Point(int X, int Y);
+";
+
+        // Abstract types are never constructed; records use their positional constructor.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO004").WithLocation(0).WithArguments("PrivateConstructor")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO005_MissingConstructorMember()
     {
         var code = @"
 using Nino.Core;
@@ -174,100 +510,405 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    [NinoMember(1)]
     public int A;
 
-    [NinoMember(2)]
-    public string B;
-}
-
-[NinoType(false)]
-public class TestClass2
-{
-    [NinoMember(1)]
-    public int A;
-
-    [NinoMember(2)]
-    public string B;
-}
-";
-
-        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO004")
-                .WithSpan(8, 16, 8, 17)
-                .WithArguments("A", "TestClass"),
-            Verify.Diagnostic("NINO004")
-                .WithSpan(11, 19, 11, 20)
-                .WithArguments("B", "TestClass")).RunAsync();
-    }
-
-    [TestMethod]
-    public async Task TestNino005()
+    [NinoConstructor]
+    public {|#0:TestClass|}(int b)
     {
-        var code = @"
-using Nino.Core;
-
-[NinoType(false)]
-public class TestClass
-{
-    [NinoIgnore]
-    public int A;
-
-    [NinoMember(2)]
-    public string B;
+        A = b;
+    }
 }
 
 [NinoType]
-public class TestClass2
+public class NamedParameters
 {
-    [NinoIgnore]
     public int A;
 
-    public string B;
+    [NinoConstructor(""missing"")]
+    public {|#1:NamedParameters|}(int x)
+    {
+        A = x;
+    }
+}
+
+[NinoType]
+public class ValidConstructor
+{
+    public int A;
+
+    [NinoConstructor(nameof(A))]
+    public ValidConstructor(int x)
+    {
+        A = x;
+    }
 }
 ";
 
-        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO005")
-            .WithSpan(8, 16, 8, 17)
-            .WithArguments("A", "TestClass")).RunAsync();
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO005").WithLocation(0).WithArguments("b", "TestClass"),
+            Verify.Diagnostic("NINO005").WithLocation(1).WithArguments("missing", "NamedParameters")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino006()
+    public async Task NINO005_StaticFactoryAndStruct()
     {
         var code = @"
 using Nino.Core;
 
-[NinoType(false)]
-public class TestClass
+[NinoType]
+public class Factory
 {
-    [NinoIgnore]
-    [NinoMember(2)]
     public int A;
 
-    public string B;
+    [NinoConstructor]
+    public static Factory {|#0:Create|}(int b) => new Factory { A = b };
 }
 
 [NinoType]
-public class TestClass2
+public class ValidFactory
 {
-    [NinoIgnore]
-    [NinoMember(2)]
     public int A;
 
-    public string B;
+    [NinoConstructor]
+    public static ValidFactory Create(int a) => new ValidFactory { A = a };
+}
+
+[NinoType]
+public struct TestStruct
+{
+    public int A;
+    public string Name;
+
+    [NinoConstructor]
+    public {|#1:TestStruct|}(int b)
+    {
+        A = b;
+        Name = null;
+    }
+}
+
+[NinoType]
+public struct RawStruct
+{
+    public int A;
+
+    [NinoConstructor]
+    public RawStruct(int b)
+    {
+        A = b;
+    }
 }
 ";
 
-        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO006")
-                .WithSpan(9, 16, 9, 17)
-                .WithArguments("A", "TestClass"),
-            Verify.Diagnostic("NINO004")
-                .WithSpan(19, 16, 19, 17)
-                .WithArguments("A", "TestClass2")).RunAsync();
+        // Unmanaged structs are copied as raw bytes, so their constructors are never planned.
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO005").WithLocation(0).WithArguments("b", "Factory"),
+            Verify.Diagnostic("NINO005").WithLocation(1).WithArguments("b", "TestStruct")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino007()
+    public async Task NINO006_ReadOnlyMember()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    public readonly int {|#0:A|};
+    public int B;
+
+    public TestClass(int b)
+    {
+        B = b;
+    }
+}
+
+[NinoType]
+public class ReadOnlyInConstructor
+{
+    public readonly int A;
+    public int B;
+
+    public ReadOnlyInConstructor(int a)
+    {
+        A = a;
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO006").WithLocation(0).WithArguments("A", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO006_InitOnlyPrivateAndAbstract()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class InitOnly
+{
+    public int A { get; init; }
+    public readonly int B;
+
+    public InitOnly(int b)
+    {
+        B = b;
+    }
+}
+
+[NinoType(containNonPublicMembers: true)]
+public partial class PrivateReadOnly
+{
+    private readonly int {|#0:_a|};
+    public int B;
+
+    public PrivateReadOnly(int b)
+    {
+        B = b;
+    }
+}
+
+[NinoType]
+public abstract class AbstractBase
+{
+    public readonly int A;
+}
+";
+
+        // Accessible init-only properties are set through the object initializer; abstract types are not built.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO006").WithLocation(0).WithArguments("_a", "PrivateReadOnly")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO006_InheritedMember()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class Base
+{
+    public readonly int {|#0:A|};
+}
+
+[NinoType]
+public class Derived : Base
+{
+    public int B;
+
+    public Derived(int b)
+    {
+        B = b;
+    }
+}
+";
+
+        // Reported where the member is declared, once for each type that re-creates it.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO006").WithLocation(0).WithArguments("A", "Base"),
+            Verify.Diagnostic("NINO006").WithLocation(0).WithArguments("A", "Derived")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO006_SeveralMembersReportedSeparately()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    public readonly int {|#0:A|};
+    public readonly int {|#1:B|};
+    public int C;
+
+    public TestClass(int c)
+    {
+        C = c;
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO006").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO006").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    #endregion
+
+    #region Members (NINO007-NINO013)
+
+    [TestMethod]
+    public async Task NINO007_UnserializableMember()
+    {
+        var code = @"
+using System;
+using System.Threading.Tasks;
+using Nino.Core;
+
+[NinoType]
+public class TestClassWithDelegate
+{
+    // Delegates are not directly serializable
+    public Action {|#0:UnsupportedDelegate|};
+
+    // Valid fields that will be serialized
+    public int Id;
+    public string Name;
+}
+
+[NinoType]
+public class TestClassWithTask
+{
+    // Task types cannot be serialized
+    public Task<int> {|#1:UnsupportedTask|};
+
+    // Valid fields
+    public double Value;
+    public bool Flag;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO007").WithLocation(0)
+                .WithArguments("UnsupportedDelegate", "System.Action", "TestClassWithDelegate"),
+            Verify.Diagnostic("NINO007").WithLocation(1)
+                .WithArguments("UnsupportedTask", "System.Threading.Tasks.Task<int>", "TestClassWithTask")
+        ).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO007_PropertiesAndInheritedMembers()
+    {
+        var code = @"
+using System;
+using Nino.Core;
+
+[NinoType]
+public abstract class AbstractBase
+{
+    public Action {|#0:Callback|};
+    public int Id;
+}
+
+[NinoType]
+public class Derived : AbstractBase
+{
+    public Func<int> {|#1:Factory|} { get; set; }
+
+    [NinoIgnore]
+    public Action Ignored;
+}
+";
+
+        // Abstract types report nothing themselves; the subtype reports the inherited member where it is declared.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO007").WithLocation(0).WithArguments("Callback", "System.Action", "Derived"),
+            Verify.Diagnostic("NINO007").WithLocation(1).WithArguments("Factory", "System.Func<int>", "Derived"))
+            .RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO008_InvalidCustomFormatter()
+    {
+        var code = @"
+using Nino.Core;
+
+public class StringFormatter : NinoFormatter<string>
+{
+    public override void Serialize(string value, ref Writer writer) { }
+    public override void Deserialize(ref string value, ref Reader reader) { }
+}
+
+public class IntFormatter : NinoFormatter<int>
+{
+    public override void Serialize(int value, ref Writer writer) { }
+    public override void Deserialize(ref int value, ref Reader reader) { }
+}
+
+public class NotAFormatter
+{
+}
+
+[NinoType]
+public class TestClass
+{
+    [NinoCustomFormatter(typeof(StringFormatter))]
+    public int {|#0:A|};
+
+    [NinoCustomFormatter(typeof(NotAFormatter))]
+    public int {|#1:B|};
+
+    [NinoCustomFormatter(typeof(IntFormatter))]
+    public int C;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("StringFormatter", "int"),
+            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("NotAFormatter", "int")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO008_PropertiesDerivedAndStructFormatters()
+    {
+        var code = @"
+using Nino.Core;
+
+public class IntFormatter : NinoFormatter<int>
+{
+    public override void Serialize(int value, ref Writer writer) { }
+    public override void Deserialize(ref int value, ref Reader reader) { }
+}
+
+public class DerivedIntFormatter : IntFormatter
+{
+}
+
+public class NullableIntFormatter : NinoFormatter<int?>
+{
+    public override void Serialize(int? value, ref Writer writer) { }
+    public override void Deserialize(ref int? value, ref Reader reader) { }
+}
+
+public struct StructIntFormatter : INinoFormatter<int>
+{
+    public void Serialize(int value, ref Writer writer) { }
+    public void Deserialize(ref int value, ref Reader reader) { }
+}
+
+[NinoType]
+public class TestClass
+{
+    [NinoCustomFormatter(typeof(DerivedIntFormatter))]
+    public int Derived { get; set; }
+
+    [NinoCustomFormatter(typeof(NullableIntFormatter))]
+    public int {|#0:Nullable|} { get; set; }
+
+    [NinoCustomFormatterAttribute(typeof(IntFormatter))]
+    public int? {|#1:NullableMember|};
+
+    [NinoCustomFormatter(typeof(StructIntFormatter))]
+    public int {|#2:Struct|};
+}
+";
+
+        // Formatters must derive from NinoFormatter<T> for exactly the member type; struct INinoFormatter<T>
+        // implementations are rejected as well.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("NullableIntFormatter", "int"),
+            Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("IntFormatter", "int?"),
+            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("StructIntFormatter", "int")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO009_PrivateMember()
     {
         var code = @"
 using Nino.Core;
@@ -276,7 +917,7 @@ using Nino.Core;
 public class TestClass
 {
     [NinoMember(1)]
-    private int A;
+    private int {|#0:A|};
 
     public string B;
 }
@@ -291,13 +932,12 @@ public partial class TestClass2
 }
 ";
 
-        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO007")
-            .WithSpan(8, 17, 8, 18)
-            .WithArguments("A", "TestClass")).RunAsync();
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO009").WithLocation(0).WithArguments("A", "TestClass")).RunAsync();
     }
 
     [TestMethod]
-    public async Task NestedTypeMayContainNonPublicMembers()
+    public async Task NINO009_NestedTypeMayContainNonPublicMembers()
     {
         var code = @"
 using Nino.Core;
@@ -318,7 +958,211 @@ public partial class TestNested
     }
 
     [TestMethod]
-    public async Task TestNino009()
+    public async Task NINO009_PropertiesAndAttributeSpellings()
+    {
+        var code = @"
+using Nino.Core;
+using NM = Nino.Core.NinoMemberAttribute;
+
+[NinoType(autoCollect: false)]
+public class TestClass
+{
+    [NinoMemberAttribute(0)]
+    private int {|#0:A|} { get; set; }
+
+    [Nino.Core.NinoMember(1)]
+    private int {|#1:B|};
+
+    [NM(2)]
+    private int {|#2:C|};
+
+    [NinoMember(3)]
+    public int D;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO009").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO009").WithLocation(1).WithArguments("B", "TestClass"),
+            Verify.Diagnostic("NINO009").WithLocation(2).WithArguments("C", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO009_AnyNonPublicMember()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false)]
+public class TestClass
+{
+    [NinoMember(0)]
+    protected int {|#0:A|};
+
+    [NinoMember(1)]
+    internal int {|#1:B|};
+
+    [NinoMember(2)]
+    public int C;
+}
+";
+
+        // Protected and internal [NinoMember]s are not collected without containNonPublicMembers either.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO009").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO009").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO010_RedundantNinoMember()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoMember(1)]
+    public int {|#0:A|};
+
+    [NinoMember(2)]
+    public string {|#1:B|};
+}
+
+[NinoType(false)]
+public class TestClass2
+{
+    [NinoMember(1)]
+    public int A;
+
+    [NinoMember(2)]
+    public string B;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO010").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO010").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO010_PropertiesPartialDeclarationsAndSpellings()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public partial class TestClass
+{
+    [NinoMemberAttribute(0)]
+    public int {|#0:A|} { get; set; }
+}
+
+public partial class TestClass
+{
+    [Nino.Core.NinoMember(1)]
+    public int {|#1:B|};
+
+    [NinoMember(2)]
+    private int {|#2:C|};
+}
+";
+
+        // A non-public [NinoMember] in an autoCollect type is not collected without containNonPublicMembers:
+        // that is NINO009, not NINO010.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO010").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO010").WithLocation(1).WithArguments("B", "TestClass"),
+            Verify.Diagnostic("NINO009").WithLocation(2).WithArguments("C", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO011_RedundantNinoIgnore()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(false)]
+public class TestClass
+{
+    [NinoIgnore]
+    public int {|#0:A|};
+
+    [NinoMember(2)]
+    public string B;
+}
+
+[NinoType]
+public class TestClass2
+{
+    [NinoIgnore]
+    public int A;
+
+    public string B;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO011").WithLocation(0).WithArguments("A", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO011_PropertiesAndSpellings()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false)]
+public class TestClass
+{
+    [Nino.Core.NinoIgnore]
+    public int {|#0:A|} { get; set; }
+
+    [NinoIgnoreAttribute]
+    public int {|#1:B|};
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO011").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO011").WithLocation(1).WithArguments("B", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO012_AmbiguousMember()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(false)]
+public class TestClass
+{
+    [NinoIgnore]
+    [NinoMember(2)]
+    public int {|#0:A|};
+
+    public string B;
+}
+
+[NinoType]
+public class TestClass2
+{
+    [NinoIgnore]
+    [NinoMember(2)]
+    public int {|#1:A|};
+
+    public string B;
+}
+";
+
+        // With autoCollect the [NinoMember] is redundant instead (NINO010).
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO012").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO010").WithLocation(1).WithArguments("A", "TestClass2")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO013_DuplicateIndex()
     {
         var code = @"
 using Nino.Core;
@@ -330,7 +1174,7 @@ public class TestClass : TestBase
     public float C;
 
     [NinoMember(3)]
-    public double D;
+    public double {|#0:D|};
 
     [NinoMember(2)]
     public bool E;
@@ -348,54 +1192,262 @@ public class TestBase
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO009")
-                .WithSpan(11, 19, 11, 20)
-                .WithArguments("TestClass", "D", "TestClass", "C")).RunAsync();
+            Verify.Diagnostic("NINO013").WithLocation(0).WithArguments("TestClass", "D", "TestClass", "C")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino011()
+    public async Task NINO012_PrivateAmbiguousMember()
     {
         var code = @"
-using System;
-using System.Threading.Tasks;
 using Nino.Core;
 
-[NinoType]
-public class TestClassWithDelegate
+[NinoType(autoCollect: false)]
+public class TestClass
 {
-    // Delegates are not directly serializable and are reported as NINO011
-    public Action UnsupportedDelegate;
+    [NinoMember(0), NinoIgnore]
+    private int {|#0:A|} { get; set; }
+}
+";
 
-    // Valid fields that will be serialized
-    public int Id;
-    public string Name;
+        // Both problems are reported on the same member.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO012").WithLocation(0).WithArguments("A", "TestClass"),
+            Verify.Diagnostic("NINO009").WithLocation(0).WithArguments("A", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO013_ReportedOncePerIndex()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false)]
+public class TestClass
+{
+    [NinoMember(0)]
+    public int A;
+
+    [NinoMember(0)]
+    public int {|#0:B|};
+
+    [NinoMember(0)]
+    public int C;
+
+    [NinoMember(1)]
+    public int D { get; set; }
+
+    [NinoMember(1)]
+    public int {|#1:E|} { get; set; }
 }
 
 [NinoType]
-public class TestClassWithTask
+public class AutoCollect
 {
-    // Task types are reported as NINO011
-    public Task<int> UnsupportedTask;
+    public int A;
+    public int B;
+}
+";
 
-    // Valid fields
-    public double Value;
-    public bool Flag;
+        // A third member with an index already reported adds nothing; autoCollect types do not check indices.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO013").WithLocation(0).WithArguments("TestClass", "B", "TestClass", "A"),
+            Verify.Diagnostic("NINO013").WithLocation(1).WithArguments("TestClass", "E", "TestClass", "D")).RunAsync();
+    }
+
+    #endregion
+
+    #region Features (NINO014-NINO017)
+
+    [TestMethod]
+    public async Task NINO014_KeyCollision()
+    {
+        // dzFy and zsaa have the same 32-bit FNV-1a hash.
+        var code = @"
+using Nino.Core;
+
+[NinoType(keyed: true)]
+public class {|#0:TestClass|}
+{
+    public int dzFy;
+    public int zsaa;
+}
+
+[NinoType]
+public class NotKeyed
+{
+    public int dzFy;
+    public int zsaa;
+}
+
+[NinoType(keyed: true)]
+public class NoCollision
+{
+    public int A;
+    public int B;
 }
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO011")
-                .WithSpan(10, 19, 10, 38)
-                .WithArguments("UnsupportedDelegate", "System.Action", "TestClassWithDelegate"),
-            Verify.Diagnostic("NINO011")
-                .WithSpan(21, 22, 21, 37)
-                .WithArguments("UnsupportedTask", "System.Threading.Tasks.Task<int>", "TestClassWithTask")
-        ).RunAsync();
+            Verify.Diagnostic("NINO014").WithLocation(0).WithArguments("dzFy", "zsaa", "TestClass")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino012_NotPublic()
+    public async Task NINO014_CollisionWithInheritedMember()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(keyed: true)]
+public class Base
+{
+    public int dzFy;
+}
+
+[NinoType(keyed: true)]
+public class {|#0:Derived|} : Base
+{
+    public int zsaa { get; set; }
+}
+";
+
+        // Inherited members share the key space; only the type that has both reports.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO014").WithLocation(0).WithArguments("dzFy", "zsaa", "Derived")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO015_TrackReferencesOnStruct()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(trackReferences: true)]
+public struct {|#0:TestStruct|}
+{
+    public int Value;
+}
+
+[NinoType(trackReferences: true)]
+public class TestClass
+{
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO015").WithLocation(0).WithArguments("TestStruct")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO015_InheritedFromInterfaceAndRecordStruct()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(trackReferences: true)]
+public interface ITracked
+{
+}
+
+[NinoType]
+public struct {|#0:Implementation|} : ITracked
+{
+    public int Value;
+}
+
+[NinoType(trackReferences: true)]
+public record struct {|#1:Point|}(int X, int Y);
+
+[NinoType]
+public class ClassImplementation : ITracked
+{
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO015").WithLocation(0).WithArguments("Implementation"),
+            Verify.Diagnostic("NINO015").WithLocation(1).WithArguments("Point")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO016_TrackReferencesOnRecreatedClass()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(trackReferences: true)]
+public class {|#0:TestClass|}
+{
+    public readonly int Value;
+
+    public TestClass(int value)
+    {
+        Value = value;
+    }
+}
+
+[NinoType(trackReferences: true)]
+public class Assignable
+{
+    public int Value;
+
+    public Assignable(int value)
+    {
+        Value = value;
+    }
+
+    public Assignable()
+    {
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO016").WithLocation(0).WithArguments("TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO016_InheritedTrackingAndRecords()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(trackReferences: true)]
+public class Base
+{
+    public int A;
+}
+
+[NinoType]
+public class {|#0:Derived|} : Base
+{
+    public readonly int B;
+
+    public Derived(int b)
+    {
+        B = b;
+    }
+}
+
+[NinoType(trackReferences: true)]
+public record {|#1:Person|}(string Name);
+
+[NinoType]
+public class AssignableDerived : Base
+{
+    public int C;
+}
+";
+
+        // Tracking is inherited by subtypes; positional records are re-created from their constructor.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO016").WithLocation(0).WithArguments("Derived"),
+            Verify.Diagnostic("NINO016").WithLocation(1).WithArguments("Person")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO017_NotPublic()
     {
         var code = @"
 using Nino.Core;
@@ -404,20 +1456,18 @@ using Nino.Core;
 public class TestClass
 {
     [NinoRefDeserialization]
-    private static TestClass GetInstance() => new TestClass();
+    private static TestClass {|#0:GetInstance|}() => new TestClass();
 
     public int Value;
 }
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO012")
-                .WithSpan(8, 30, 8, 41)
-                .WithArguments("GetInstance", "must be public")).RunAsync();
+            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance", "must be public")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino012_NotStatic()
+    public async Task NINO017_NotStatic()
     {
         var code = @"
 using Nino.Core;
@@ -426,20 +1476,18 @@ using Nino.Core;
 public class TestClass
 {
     [NinoRefDeserialization]
-    public TestClass GetInstance() => new TestClass();
+    public TestClass {|#0:GetInstance|}() => new TestClass();
 
     public int Value;
 }
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO012")
-                .WithSpan(8, 22, 8, 33)
-                .WithArguments("GetInstance", "must be static")).RunAsync();
+            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance", "must be static")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino012_HasParameters()
+    public async Task NINO017_HasParameters()
     {
         var code = @"
 using Nino.Core;
@@ -448,20 +1496,18 @@ using Nino.Core;
 public class TestClass
 {
     [NinoRefDeserialization]
-    public static TestClass GetInstance(int value) => new TestClass();
+    public static TestClass {|#0:GetInstance|}(int value) => new TestClass();
 
     public int Value;
 }
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO012")
-                .WithSpan(8, 29, 8, 40)
-                .WithArguments("GetInstance", "must be parameterless")).RunAsync();
+            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance", "must be parameterless")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino012_WrongReturnType()
+    public async Task NINO017_WrongReturnType()
     {
         var code = @"
 using Nino.Core;
@@ -470,20 +1516,18 @@ using Nino.Core;
 public class TestClass
 {
     [NinoRefDeserialization]
-    public static object GetInstance() => new TestClass();
+    public static object {|#0:GetInstance|}() => new TestClass();
 
     public int Value;
 }
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO012")
-                .WithSpan(8, 26, 8, 37)
-                .WithArguments("GetInstance", "must return TestClass")).RunAsync();
+            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance", "must return TestClass")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino012_MultipleErrors()
+    public async Task NINO017_MultipleErrors()
     {
         var code = @"
 using Nino.Core;
@@ -492,20 +1536,19 @@ using Nino.Core;
 public class TestClass
 {
     [NinoRefDeserialization]
-    private object GetInstance(int value) => new TestClass();
+    private object {|#0:GetInstance|}(int value) => new TestClass();
 
     public int Value;
 }
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO012")
-                .WithSpan(8, 20, 8, 31)
-                .WithArguments("GetInstance", "must be public, must be static, must be parameterless, must return TestClass")).RunAsync();
+            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance",
+                "must be public, must be static, must be parameterless, must return TestClass")).RunAsync();
     }
 
     [TestMethod]
-    public async Task TestNino012_ValidUsage()
+    public async Task NINO017_ValidUsage()
     {
         var code = @"
 using Nino.Core;
@@ -520,7 +1563,301 @@ public class TestClass
 }
 ";
 
-        // No diagnostics expected for valid usage
         await SetUpAnalyzerTest(code).RunAsync();
     }
+
+    [TestMethod]
+    public async Task NINO017_InternalStructAndNonNinoType()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoRefDeserialization]
+    internal static TestClass {|#0:GetInstance|}() => new TestClass();
+
+    public int Value;
+}
+
+[NinoType]
+public struct TestStruct
+{
+    [NinoRefDeserialization]
+    public static TestStruct GetInstance() => default;
+
+    public int Value;
+}
+
+public class NotANinoType
+{
+    [NinoRefDeserialization]
+    public NotANinoType {|#1:GetInstance|}() => this;
+}
+";
+
+        // The method is checked wherever the attribute is used.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance", "must be public"),
+            Verify.Diagnostic("NINO017").WithLocation(1).WithArguments("GetInstance", "must be static")).RunAsync();
+    }
+
+    #endregion
+
+    #region Pooling (NINO018-NINO019)
+
+    [TestMethod]
+    public async Task NINO018_InvalidPooledType()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public partial class {|#0:NotSealed|}
+{
+    public int Value;
+
+    static void OnNinoPoolWarmup() { }
+    void OnNinoPoolReturn() { }
+}
+
+[NinoType, NinoPooled]
+public sealed partial class {|#1:Recreated|}
+{
+    public readonly int Value;
+
+    public Recreated(int value)
+    {
+        Value = value;
+    }
+
+    static void OnNinoPoolWarmup() { }
+    void OnNinoPoolReturn() { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO018").WithLocation(0).WithArguments("NotSealed"),
+            Verify.Diagnostic("NINO018").WithLocation(1).WithArguments("Recreated")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO018_PooledStruct()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType, {|#1:NinoPooled|}]
+public partial struct {|#0:TestStruct|}
+{
+    public int Value;
+
+    static void OnNinoPoolWarmup() { }
+    void OnNinoPoolReturn() { }
+}
+";
+
+        // [NinoPooled] only targets classes, so the compiler rejects it as well.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO018").WithLocation(0).WithArguments("TestStruct"),
+            DiagnosticResult.CompilerError("CS0592").WithLocation(1).WithArguments("NinoPooled", "class")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO018_AbstractAndRecords()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public abstract partial class {|#0:AbstractPooled|}
+{
+    public int Value;
+
+    static void OnNinoPoolWarmup() { }
+    void OnNinoPoolReturn() { }
+}
+
+[NinoType, Nino.Core.NinoPooled]
+public sealed partial record {|#1:PositionalRecord|}(int Value)
+{
+    static void OnNinoPoolWarmup() { }
+    void OnNinoPoolReturn() { }
+}
+
+[NinoType, NinoPooledAttribute]
+public sealed partial record AssignableRecord
+{
+    public int Value { get; set; }
+
+    static void OnNinoPoolWarmup() { }
+    void OnNinoPoolReturn() { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO018").WithLocation(0).WithArguments("AbstractPooled"),
+            Verify.Diagnostic("NINO018").WithLocation(1).WithArguments("PositionalRecord")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO018_AndNINO019_Together()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public class {|#0:TestClass|}
+{
+    public int Value;
+}
+";
+
+        // An invalid pooled type is not reported as non-partial, but its hooks are still required.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO018").WithLocation(0).WithArguments("TestClass"),
+            Verify.Diagnostic("NINO019").WithLocation(0)
+                .WithArguments("TestClass", "OnNinoPoolWarmup() and OnNinoPoolReturn()")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO019_PoolHooksNotImplemented()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public sealed partial class {|#0:NoHooks|}
+{
+    public int Value;
+}
+
+[NinoType, NinoPooled]
+public sealed partial class {|#1:OnlyWarmup|}
+{
+    public int Value;
+
+    static void OnNinoPoolWarmup() { }
+}
+
+[NinoType, NinoPooled]
+public sealed partial class {|#2:OnlyReturn|}
+{
+    public int Value;
+
+    void OnNinoPoolReturn() => Value = 0;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO019").WithLocation(0)
+                .WithArguments("NoHooks", "OnNinoPoolWarmup() and OnNinoPoolReturn()"),
+            Verify.Diagnostic("NINO019").WithLocation(1).WithArguments("OnlyWarmup", "OnNinoPoolReturn()"),
+            Verify.Diagnostic("NINO019").WithLocation(2).WithArguments("OnlyReturn", "OnNinoPoolWarmup()")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO019_PartialDefinitionWithoutBody()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public sealed partial class {|#0:TestClass|}
+{
+    public int Value;
+
+    static partial void OnNinoPoolWarmup();
+    partial void OnNinoPoolReturn();
+    partial void OnNinoPoolReturn() { }
+}
+";
+
+        // A partial method declaration (as the generator emits it) is not an implementation.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO019").WithLocation(0).WithArguments("TestClass", "OnNinoPoolWarmup()")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO019_PartialDeclarationsReportOnce()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public sealed partial class {|#0:TestClass|}
+{
+    public int Value;
+}
+
+public sealed partial class TestClass
+{
+    void OnNinoPoolReturn() { }
+}
+
+[NinoType, NinoPooled]
+public sealed partial class SplitHooks
+{
+    public int Value;
+}
+
+public sealed partial class SplitHooks
+{
+    static void OnNinoPoolWarmup() { }
+}
+
+public sealed partial class SplitHooks
+{
+    void OnNinoPoolReturn() { }
+}
+";
+
+        // Hooks may live in any declaration; the type is reported once, at its first declaration.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO019").WithLocation(0).WithArguments("TestClass", "OnNinoPoolWarmup()")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO019_NotReportedWithoutNinoType()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoPooled]
+public sealed class NotANinoType
+{
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task ValidPooledType_NoDiagnostics()
+    {
+        var code = @"
+using System.Collections.Generic;
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public sealed partial class TestClass
+{
+    public int Value;
+    public List<int> Items;
+
+    static void OnNinoPoolWarmup() { }
+
+    void OnNinoPoolReturn()
+    {
+        Items?.Clear();
+    }
+}
+";
+
+        await SetUpAnalyzerTest(code).RunAsync();
+    }
+
+    #endregion
 }

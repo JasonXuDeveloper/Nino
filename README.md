@@ -84,8 +84,10 @@ v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier 
   unmanaged `[NinoType]` structs and their arrays/lists, no allocations beyond the result objects.
 - **Thread safe and cache friendly**: lock-free, copy-on-write registries; no shared mutable state on hot paths.
 - **One format everywhere**: `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` produce identical bytes.
-- **Pool-friendly ref deserialization**: instances that are dropped (payload is `null`, list shrinks, type
-  changes) are handed to `NinoRecycler<T>` so object pools get them back.
+- **Pooled deserialization**: mark a class `[NinoPooled]` and Nino deserializes into instances
+  you hand back with `ReturnToPool()`, reusing their lists, arrays and dictionaries. Dropped
+  instances (payload is `null`, list shrinks, type changes) go back to their pool or to `NinoRecycler<T>`.
+- **No init calls**: generated registries are found lazily, so hot-update assemblies (HybridCLR) just work.
 - **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members at any depth.
 - **User collections**: types derived from `List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>` and friends.
 
@@ -125,6 +127,25 @@ byte[] bytes = NinoSerializer.Serialize(data);
 
 // Deserialize
 var restored = NinoDeserializer.Deserialize<GameData>(bytes);
+```
+
+### Pooled deserialization
+
+```csharp
+[NinoType, NinoPooled]
+public sealed partial class Packet
+{
+    public int Id;
+    public List<int> Values;
+
+    // Required (the analyzer offers a fix that adds both).
+    static partial void OnNinoPoolWarmup() { for (int i = 0; i < 16; i++) new Packet().ReturnToPool(); }
+    partial void OnNinoPoolReturn() { /* clear state Nino does not deserialize */ }
+}
+
+var packet = NinoDeserializer.Deserialize<Packet>(bytes); // reuses a pooled instance (and its list) if there is one
+// ... use it ...
+packet.ReturnToPool();                                      // returning it twice throws
 ```
 
 **[📚 Full Documentation →](https://nino.xgamedev.net/en/doc/start)**

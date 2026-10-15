@@ -7,7 +7,7 @@ namespace Nino.Core
     /// <see href="https://nino.xgamedev.net/en/doc/types#custom-types"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface, Inherited = false)]
-    public class NinoTypeAttribute : Attribute
+    public sealed class NinoTypeAttribute : Attribute
     {
         /// <param name="autoCollect">Serialize every public field and property (otherwise only <c>[NinoMember]</c>s).</param>
         /// <param name="containNonPublicMembers">With <paramref name="autoCollect"/>, also serialize non-public members.</param>

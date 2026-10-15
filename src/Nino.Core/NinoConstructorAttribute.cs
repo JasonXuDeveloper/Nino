@@ -7,9 +7,10 @@ namespace Nino.Core
     /// <see href="https://nino.xgamedev.net/en/doc/advanced#custom-constructors"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method)]
-    public class NinoConstructorAttribute : Attribute
+    public sealed class NinoConstructorAttribute : Attribute
     {
-        public string[] Parameters;
+        /// <summary>The serialized members passed as the arguments, in order (empty: matched by parameter name).</summary>
+        public string[] Parameters { get; }
 
         public NinoConstructorAttribute(params string[] parameters)
         {

@@ -20,7 +20,7 @@ namespace Nino.Core
     /// </para>
     /// </summary>
     [AttributeUsage(AttributeTargets.Method)]
-    public class NinoRefDeserializationAttribute : Attribute
+    public sealed class NinoRefDeserializationAttribute : Attribute
     {
     }
 }

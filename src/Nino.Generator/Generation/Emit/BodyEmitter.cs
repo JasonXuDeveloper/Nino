@@ -206,7 +206,7 @@ internal sealed class BodyEmitter
         if (_m.Kind != FormatterKind.Struct)
         {
             _w.Line("if (value == null)");
-            _w.Indented(() => _w.Line($"value = {(c.RefFactory.Length != 0 ? c.RefFactory : c.Creator)}();"));
+            _w.Indented(() => _w.Line($"value = {(_m.Pooled ? T + ".RentFromNinoPool() ?? " : "")}{(c.RefFactory.Length != 0 ? c.RefFactory : c.Creator)}();"));
             if (_m.TrackReferences)
                 _w.Line("reader.SetReference(value);");
         }

@@ -8,9 +8,10 @@ namespace Nino.Core
     /// <see href="https://nino.xgamedev.net/en/doc/types#custom-types"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Parameter)]
-    public class NinoMemberAttribute : Attribute
+    public sealed class NinoMemberAttribute : Attribute
     {
-        public ushort Index;
+        /// <summary>Position of the member in the serialized data.</summary>
+        public ushort Index { get; }
 
         public NinoMemberAttribute(ushort index)
         {

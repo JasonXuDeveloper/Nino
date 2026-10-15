@@ -84,8 +84,10 @@ v4 是一次大版本重写，**二进制格式与 v3 及之前的 v4 beta 不�
   除结果对象外零分配。
 - **线程安全、缓存友好**：无锁、写时复制的注册表；热路径上没有共享可变状态。
 - **全平台同一格式**：`netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 输出完全相同的字节。
-- **对对象池友好的 ref 反序列化**：被丢弃的实例（数据为 `null`、列表变短、类型变化）会交给 `NinoRecycler<T>`，
-  对象池可以把它们收回。
+- **池化反序列化**：给类加上 `[NinoPooled]`，Nino 会反序列化到你用 `ReturnToPool()` 归还的实例里，
+  复用其中的列表、数组和字典。被丢弃的实例（数据为 `null`、列表变短、类型变化）会回到对象池或交给
+  `NinoRecycler<T>`。
+- **无需手动初始化**：生成的注册表按需懒加载，HybridCLR 等热更程序集无需调用任何 Init。
 - **可选的版本兼容**：`[NinoType(versionTolerant: true)]` 允许在任意层级追加成员。
 - **自定义集合**：支持派生自 `List<T>`、`HashSet<T>`、`Dictionary<TKey, TValue>` 等的类型。
 
@@ -124,6 +126,25 @@ byte[] bytes = NinoSerializer.Serialize(data);
 
 // 反序列化
 var restored = NinoDeserializer.Deserialize<GameData>(bytes);
+```
+
+### 池化反序列化
+
+```csharp
+[NinoType, NinoPooled]
+public sealed partial class Packet
+{
+    public int Id;
+    public List<int> Values;
+
+    // 必须实现（analyzer 提供一键补全）。
+    static partial void OnNinoPoolWarmup() { for (int i = 0; i < 16; i++) new Packet().ReturnToPool(); }
+    partial void OnNinoPoolReturn() { /* 清理 Nino 不会反序列化的状态 */ }
+}
+
+var packet = NinoDeserializer.Deserialize<Packet>(bytes); // 池里有实例就复用（连同它的 List）
+// ... 使用 ...
+packet.ReturnToPool();                                      // 重复归还会抛异常
 ```
 
 **[📚 完整文档 →](https://nino.xgamedev.net/zh/start)**

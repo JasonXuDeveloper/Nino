@@ -8,7 +8,7 @@ namespace Nino.Generator.Generation;
 // Everything in this file is an immutable value: the incremental pipeline compares these to decide what to
 // re-emit, so they must never hold symbols, syntax nodes or the compilation.
 
-public enum FormatterKind
+internal enum FormatterKind
 {
     /// <summary>Value type: body only.</summary>
     Struct,
@@ -23,7 +23,7 @@ public enum FormatterKind
     Polymorphic,
 }
 
-public enum MemberAccess
+internal enum MemberAccess
 {
     /// <summary><c>value.Member</c>.</summary>
     Direct,
@@ -35,7 +35,7 @@ public enum MemberAccess
     Partial,
 }
 
-public sealed record MemberModel(
+internal sealed record MemberModel(
     string Name,
     string TypeName,
     string Formatter,
@@ -53,7 +53,7 @@ public sealed record MemberModel(
     // Runtime type id of the member type when its built-in formatter is registered for top-level use, else 0.
     int TypeId);
 
-public sealed record ConstructionModel(
+internal sealed record ConstructionModel(
     // Re-create the instance on every read (constructor arguments, init-only or readonly members).
     bool Recreate,
     // "new global::Ns.T" or "global::Ns.T.Factory"; empty when the type cannot be constructed.
@@ -77,7 +77,7 @@ internal sealed class DiagnosticSink
         _report(Diagnostic.Create(descriptor, at.Locations.FirstOrDefault(), args));
 }
 
-public sealed record TypeModel(
+internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
     string TypeName,
     // Formatter type name without type parameters, e.g. "Ns_Outer_Box_1Formatter".
@@ -95,7 +95,7 @@ public sealed record TypeModel(
     // Hash of the runtime name ignoring [NinoFormerName]: the key a by-type lookup computes without reflection.
     int NameId,
     bool VersionTolerant,
-    // Members written as (key, length, value): see NinoTypeAttribute.keyed.
+    // Members written as (key, length, value): see NinoTypeAttribute.Keyed.
     bool Keyed,
     // Objects written with a reference header (null, back reference or new): see trackReferences.
     bool TrackReferences,
@@ -113,15 +113,18 @@ public sealed record TypeModel(
     ConstructionModel Construction,
     // (type, formatter) pairs registered for AOT platforms and top-level calls.
     EquatableArray<FormatterRegistration> UsedFormatters,
-    // Namespace and containing declarations used to emit the partial accessor class; empty when not needed.
-    string AccessorNamespace,
-    EquatableArray<string> AccessorDeclarations)
+    // [NinoPooled]: instances are taken from NinoPool<T> before being created, and the partial adds the pool hooks.
+    bool Pooled,
+    // Namespace and containing declarations of the generated partial (accessor class, pool hooks); empty when
+    // neither is needed.
+    string PartialNamespace,
+    EquatableArray<string> PartialDeclarations)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 }
 
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.
-public sealed record FormatterRegistration(string TypeName, string Formatter, int Id);
+internal sealed record FormatterRegistration(string TypeName, string Formatter, int Id);
 
-public sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,
+internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,
     bool HasUnityEditor);

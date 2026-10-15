@@ -5,6 +5,7 @@
         <Nullable>disable</Nullable>
         <TargetFrameworks>netstandard2.0;netstandard2.1;net8.0;net10.0</TargetFrameworks>
         <LangVersion>latest</LangVersion>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
         <PackageId>Nino.Serialization</PackageId>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Version>4.0.0-beta.47</Version>
@@ -18,7 +19,6 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <BranchName>refs/heads/main</BranchName>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <!-- Enable embedding repository URL in the PDB -->
