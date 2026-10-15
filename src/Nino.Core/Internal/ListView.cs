@@ -47,6 +47,11 @@ namespace Nino.Core.Internal
         /// Sets the list's count, keeping the first elements. New slots are default; dropped slots are cleared.
         /// Returns the elements as a span. Pass <paramref name="overwritten"/> when the caller writes every
         /// element of the span, so new slots are not cleared first.
+        /// <para>
+        /// Slots past the count of a list of references are already default: every <see cref="List{T}"/> (CoreCLR,
+        /// .NET Framework, Mono, IL2CPP) clears them when it removes elements, so the garbage collector does not keep
+        /// what they referenced, and a grown backing array is new. Only unmanaged slots can hold stale values.
+        /// </para>
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Span<T> SetCount<T>(List<T> list, int count, bool overwritten = false)
@@ -55,7 +60,7 @@ namespace Nino.Core.Internal
             int old = list.Count;
             CollectionsMarshal.SetCount(list, count);
             var span = CollectionsMarshal.AsSpan(list);
-            if (count > old && !overwritten)
+            if (count > old && !overwritten && !RuntimeHelpers.IsReferenceOrContainsReferences<T>())
                 span.Slice(old).Clear(); // unmanaged slots past the old count may hold stale values
             return span;
 #else
@@ -64,7 +69,7 @@ namespace Nino.Core.Internal
             var view = Unsafe.As<ListView<T>>(list);
             if (count < view._size && NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 Array.Clear(view._items, count, view._size - count);
-            else if (count > view._size && !overwritten)
+            else if (count > view._size && !overwritten && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 Array.Clear(view._items, view._size, count - view._size);
             view._size = count;
             return new Span<T>(view._items, 0, count);

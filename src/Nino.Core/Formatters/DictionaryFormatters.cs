@@ -104,7 +104,9 @@ namespace Nino.Core
 #endif
                 }
 
-                if (matched != before)
+                // Every key that was there before was read again, unless the data repeats a key: a repeated key
+                // counts twice, so equal counts are only trusted when the keys come back in the same order.
+                if (matched != before || !SameKeys(dictionary, seen, length))
                     RemoveStale(dictionary, seen, length);
             }
             finally
@@ -113,15 +115,32 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>
+        /// Whether the dictionary holds exactly the <paramref name="count"/> keys read, in that order: true when it
+        /// was filled from data of the same shape, without hashing anything.
+        /// </summary>
+        private static bool SameKeys(Dictionary<TKey, TValue> dictionary, TKey[] keys, int count)
+        {
+            if (dictionary.Count != count)
+                return false;
+            var comparer = dictionary.Comparer;
+            int i = 0;
+            foreach (var pair in dictionary)
+            {
+                if (!comparer.Equals(pair.Key, keys[i++]))
+                    return false;
+            }
+
+            return true;
+        }
+
         /// <summary>Removes (and recycles) the entries whose key is not among the <paramref name="count"/> read.</summary>
         private static void RemoveStale(Dictionary<TKey, TValue> dictionary, TKey[] keys, int count)
         {
+            // A key read twice is one key (the last value won).
             var read = new HashSet<TKey>(dictionary.Comparer);
             for (int i = 0; i < count; i++)
-            {
-                if (!read.Add(keys[i]))
-                    NinoThrow.DuplicateKey(dictionary.GetType());
-            }
+                read.Add(keys[i]);
 
             var stale = new List<KeyValuePair<TKey, TValue>>(dictionary.Count - read.Count);
             foreach (var pair in dictionary)

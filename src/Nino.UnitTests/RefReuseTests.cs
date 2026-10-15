@@ -83,4 +83,42 @@ public class RefReuseTests
         NinoDeserializer.Deserialize(NinoSerializer.Serialize(new ReuseHolder { Names = new Dictionary<int, string>() }), ref target);
         Assert.AreEqual(0, target.Names.Count);
     }
+
+    [TestMethod]
+    public void RepeatedKeyDoesNotKeepStaleEntries()
+    {
+        // The data repeats key 1 (as a dictionary written under another comparer can): the pair count matches the
+        // dictionary's, but key 2 is gone, and the last value of key 1 wins.
+        var bytes = NinoSerializer.Serialize(new List<KeyValuePair<int, string>>
+            { new(1, "x"), new(1, "y") });
+        var target = new Dictionary<int, string> { [1] = "a", [2] = "b" };
+        NinoDeserializer.Deserialize(bytes, ref target);
+        Assert.AreEqual(1, target.Count);
+        Assert.AreEqual("y", target[1]);
+
+        // The same keys in another order are merged in place without dropping anything.
+        target = new Dictionary<int, string> { [2] = "b", [1] = "a" };
+        var same = target;
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(new Dictionary<int, string> { [1] = "c", [2] = "d" }),
+            ref target);
+        Assert.AreSame(same, target);
+        Assert.AreEqual(2, target.Count);
+        Assert.AreEqual("c", target[1]);
+        Assert.AreEqual("d", target[2]);
+    }
+
+    [TestMethod]
+    public void GrownListGetsNewElements()
+    {
+        // Slots past a list's count are never stale: grown elements are new instances, not ones dropped earlier.
+        var list = new List<ReuseItem> { new() { Value = 1 }, new() { Value = 2 }, new() { Value = 3 } };
+        var dropped = list[2];
+        list.RemoveAt(2);
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(new List<ReuseItem>
+            { new() { Value = 4 }, new() { Value = 5 }, new() { Value = 6 } }), ref list);
+        Assert.AreEqual(3, list.Count);
+        Assert.AreNotSame(dropped, list[2]);
+        Assert.AreEqual(6, list[2].Value);
+        Assert.AreEqual(3, dropped.Value);
+    }
 }
