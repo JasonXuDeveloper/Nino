@@ -35,15 +35,7 @@ namespace Nino.Core
                 return;
             }
 
-            var collection = value;
-            if (collection == null)
-            {
-                // InterfaceSetFormatter reads into a plain HashSet<T>, which no generated code registers a creator for.
-                collection = typeof(TCollection) == typeof(HashSet<T>)
-                    ? (TCollection)(object)new HashSet<T>()
-                    : NinoFactory<TCollection>.Create();
-                value = collection;
-            }
+            var collection = value ??= NinoFactory<TCollection>.Create();
 
             if (collection.IsReadOnly)
                 NinoThrow.ReadOnlyCollection(collection.GetType());
@@ -111,7 +103,10 @@ namespace Nino.Core
                 return;
             }
 
-            var set = value ??= NinoFactory<TSet>.Create();
+            // InterfaceSetFormatter reads into a plain HashSet<T>, which no generated code registers a creator for.
+            var set = value ??= typeof(TSet) == typeof(HashSet<T>)
+                ? (TSet)new HashSet<T>()
+                : NinoFactory<TSet>.Create();
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             if (set.Count != 0)
             {

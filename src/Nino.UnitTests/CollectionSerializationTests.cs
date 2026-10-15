@@ -443,4 +443,29 @@ public class CollectionSerializationTests
         Assert.IsTrue(tempStack.TryPop(out int sval1) && sval1 == 2);
         Assert.IsTrue(tempStack.TryPop(out int sval2) && sval2 == 1);
     }
+
+    [TestMethod]
+    public void SetInterfacesReadLikeHashSets()
+    {
+        // ISet<T> writes and reads exactly like HashSet<T>: the same bytes, and a repeated element is an error.
+        ISet<int> set = new HashSet<int> { 1, 2, 3 };
+        var bytes = NinoSerializer.Serialize(set);
+        CollectionAssert.AreEqual(NinoSerializer.Serialize((HashSet<int>)set), bytes);
+        Assert.IsTrue(NinoDeserializer.Deserialize<ISet<int>>(bytes).SetEquals(set));
+        ISet<string> strings = new HashSet<string> { "a", null };
+        Assert.IsTrue(NinoDeserializer.Deserialize<ISet<string>>(NinoSerializer.Serialize(strings)).SetEquals(strings));
+
+        var repeated = NinoSerializer.Serialize(new List<int> { 7, 7 });
+        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<HashSet<int>>(repeated));
+        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<ISet<int>>(repeated));
+        repeated = NinoSerializer.Serialize(new List<string> { "s", "s" });
+        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<ISet<string>>(repeated));
+
+        // An existing set is refilled in place.
+        ISet<int> target = new HashSet<int> { 9 };
+        var same = target;
+        NinoDeserializer.Deserialize(bytes, ref target);
+        Assert.AreSame(same, target);
+        Assert.IsTrue(target.SetEquals(set));
+    }
 }

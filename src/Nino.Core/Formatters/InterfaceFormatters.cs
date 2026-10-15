@@ -25,20 +25,28 @@ namespace Nino.Core
 
     /// <summary>
     /// Set interfaces (<c>ISet&lt;T&gt;</c>, <c>IReadOnlySet&lt;T&gt;</c>): count (-1 = null), then the elements.
-    /// Read into a <c>HashSet&lt;T&gt;</c> (an existing one is reused).
+    /// Read into a <c>HashSet&lt;T&gt;</c> (an existing one is reused), exactly like a <c>HashSet&lt;T&gt;</c> member.
     /// </summary>
     public struct InterfaceSetFormatter<TInterface, T, TFormatter> : INinoFormatter<TInterface>
         where TInterface : class, IEnumerable<T>
         where TFormatter : struct, INinoFormatter<T>
     {
-        public void Serialize(TInterface value, ref Writer writer) =>
+        public void Serialize(TInterface value, ref Writer writer)
+        {
+            if (value is HashSet<T> set)
+            {
+                default(HashSetFormatter<HashSet<T>, T, TFormatter>).Serialize(set, ref writer);
+                return;
+            }
+
             NinoCollections.WriteInterface<T, TFormatter>(value, ref writer);
+        }
 
         public void Deserialize(ref TInterface value, ref Reader reader)
         {
             // A HashSet<T> is handed to its formatter (which reuses or drops it); another collection is recycled here.
             var set = NinoRecycler.Reuse<TInterface, HashSet<T>>(ref value);
-            default(CollectionFormatter<HashSet<T>, T, TFormatter>).Deserialize(ref set, ref reader);
+            default(HashSetFormatter<HashSet<T>, T, TFormatter>).Deserialize(ref set, ref reader);
             value = (TInterface)(object)set;
         }
     }
