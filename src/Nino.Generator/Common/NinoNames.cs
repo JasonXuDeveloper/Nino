@@ -1,4 +1,4 @@
-namespace Nino.Generator;
+namespace Nino.Generator.Common;
 
 /// <summary>
 /// Names of Nino.Core for the places that cannot compare symbols: syntax-only filters, attributes of referenced

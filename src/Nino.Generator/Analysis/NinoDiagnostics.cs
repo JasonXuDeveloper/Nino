@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:

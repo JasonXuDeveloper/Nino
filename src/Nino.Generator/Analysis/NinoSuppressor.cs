@@ -3,8 +3,9 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Nino.Generator.Generation;
+using Nino.Generator.Common;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Private members that Nino serializes are read and written by generated code (through <c>[UnsafeAccessor]</c> on

@@ -46,7 +46,7 @@ internal static class CornerCompiler
             .RunGenerators(compilation).GetRunResult();
         var output = compilation.AddSyntaxTrees(run.GeneratedTrees);
 
-        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new Generator.NinoAnalyzer());
+        var analyzers = ImmutableArray.Create<DiagnosticAnalyzer>(new Generator.Analysis.NinoAnalyzer());
         var result = new Result
         {
             AnalyzerDiagnostics = compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().Result,

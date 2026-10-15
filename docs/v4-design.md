@@ -288,7 +288,7 @@ raw unmanaged values, `[NinoType]`s), every formatter is declared on its assembl
 [assembly: NinoFormatter(typeof(InterfaceListFormatter<,,>), typeof(IList<>), typeof(IEnumerable<>))]
 ```
 
-Nino.Core declares its BCL formatters this way (`BuiltInFormatters.cs`; `PriorityQueue<,>` only in its .NET 6+
+Nino.Core declares its BCL formatters this way (`Formatters/BuiltInFormatters.cs`; `PriorityQueue<,>` only in its .NET 6+
 builds, since netstandard and Unity have none), the `Nino.Immutable` package declares `ImmutableArray<T>` and
 `ImmutableList<T>`, generated code declares the formatter definition of each generic `[NinoType]`
 (`[assembly: NinoFormatter(typeof(NinoGen.Box_1Formatter<>))]`, which implements `INinoFormatter<Box<T>>` in exactly
@@ -594,18 +594,43 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   get internal ones.
 * Calls in generic code (`T` a type parameter) are left alone: the interceptor would be shared code too.
 
+### The API generated code calls
+
+Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in formatter structs, `NinoObject`
+(class headers and subtype dispatch), `NinoDirect` (intercepted top-level calls), `NinoPolymorphic`, `NinoRegistry`,
+`NinoFormatterCache`, `NinoFactory`, `NinoRecycler` and `NinoUnsafe`. The members that exist only for generated code
+(`NinoObject`, `NinoDirect`, `NinoRegistry.Add`, `INinoRegistry`, `[NinoGenerated]`, the pool's per-thread stack)
+are hidden from IntelliSense. There is deliberately no forwarding facade in front of them: every call it added is a
+real call under Mono's interpreter and in HybridCLR hot-update code, which do not inline.
+
 ### Sources shared with the runtime
 
 Rules that must agree between compile time and run time live once, in Nino.Core, and are compiled into the
 generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 
 * `Internal/NinoHash.cs`: the FNV-1a hash of type ids and keyed member ids.
-* `NinoWire.cs`: the wire constants generated code writes (null type id, length and key sizes...).
+* `IO/NinoWire.cs`: the wire constants generated code writes (null type id, length and key sizes...).
 * `Internal/NinoLayoutCore.cs`: the struct layout algorithm (leaves, alignment caps, `Pack`, `Size`, explicit
   offsets). The runtime runs it over `System.Type` to get the wire layout and this runtime's memory layout; the
   generator runs it over `ITypeSymbol` under the 64-bit and 32-bit models to decide whether a struct's memory is
   the same everywhere (and so can be written inline as raw bytes). Each side supplies a small view of its type
   system (`INinoLayoutView<TType>`).
+* `Internal/NinoFormatterBinding.cs`: how a formatter rule binds to a type (unify the rule's pattern with the
+  type or one of its supertypes, check the formatter's type parameter constraints, substitute). The runtime
+  resolver runs it over `System.Type`, the generator over `ITypeSymbol` (`INinoTypeSystem<TType>`), so a type
+  resolves to the same formatter whichever side picks it.
+
+### Source layout
+
+* Nino.Core: `NinoSerializer`/`NinoDeserializer` and `NinoSettings` at the root; `Attributes/` (everything users
+  put on types), `IO/` (`Writer`, `Reader`, buffers, wire constants), `Formatters/` (the formatter interface,
+  cache, resolver and every built-in formatter), `Polymorphism/` (type ids, registry, subtype dispatch,
+  reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoFactory`) and `Internal/` (unsafe helpers,
+  layout, thread caches, the shared sources above). Namespaces stay flat (`Nino.Core`) so user code needs one
+  `using`.
+* Nino.Generator: `Analysis/` (analyzer, suppressor, diagnostics), `Common/` (equatable collections, names and
+  `[NinoType]` lookup shared by the analyzer, generator and code fixes), `Generation/` (symbols to models) and
+  `Generation/Emit/` (models to source).
 
 ### Analyzer, suppressor and code fixes
 
@@ -620,7 +645,7 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 * Code fixes live in their own assembly, since they need `Microsoft.CodeAnalysis.Workspaces`, which the
   command-line compiler and Unity do not load. The provider maps each diagnostic id to its fixes, edits through
   `DocumentEditor`, leaves formatting to the code action cleanup and supports Fix All. It compiles in the
-  analyzer's `NinoDiagnostics.cs` and `PoolHooks.cs`, so ids and pool hook names have one definition.
+  analyzer's `Analysis/NinoDiagnostics.cs`, `Common/NinoNames.cs` and `Common/PoolHooks.cs`, so ids and pool hook names have one definition.
 * Descriptors are static and shared (`NinoDiagnostics`), with help links and release tracking
   (`AnalyzerReleases.*.md`). Analyzer projects enforce ordinal string comparisons (CA1309/CA1310).
 

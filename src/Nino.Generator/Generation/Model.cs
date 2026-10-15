@@ -1,4 +1,4 @@
-using Nino.Generator.DTOs;
+using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
 

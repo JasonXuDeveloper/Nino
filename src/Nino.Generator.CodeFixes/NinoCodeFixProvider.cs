@@ -14,6 +14,8 @@ using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.CodeAnalysis.Text;
+using Nino.Generator.Common;
+using Nino.Generator.Analysis;
 
 namespace Nino.Generator;
 

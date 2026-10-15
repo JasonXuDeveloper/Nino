@@ -3,8 +3,9 @@ using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Nino.Generator.DTOs;
+using Nino.Generator.Common;
 using static Nino.Generator.Generation.TypeNames;
+using Nino.Generator.Analysis;
 
 namespace Nino.Generator.Generation;
 

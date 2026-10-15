@@ -11,6 +11,7 @@ namespace Nino.Core
     /// constructor registers the assembly's formatters.
     /// </summary>
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public sealed class NinoGeneratedAttribute : Attribute
     {
         /// <summary>The generated registry type; its static constructor registers the assembly.</summary>
@@ -26,6 +27,7 @@ namespace Nino.Core
     /// The generated registry of one assembly. Registration is lazy: a lookup that misses asks every registry to
     /// register the type with that id (a switch in generated code), so startup does not pay for types never used.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public interface INinoRegistry
     {
         /// <summary>Registers the formatters of the types (and built-in closed generics) whose type id is <paramref name="id"/>.</summary>
@@ -44,6 +46,7 @@ namespace Nino.Core
         private static INinoRegistry[] _registries = Array.Empty<INinoRegistry>();
 
         /// <summary>Adds an assembly's generated registry. Called by its static constructor.</summary>
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         public static void Add(INinoRegistry registry)
         {
             lock (Lock)

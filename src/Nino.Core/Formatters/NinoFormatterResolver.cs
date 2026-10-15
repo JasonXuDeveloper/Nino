@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Reflection;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -212,51 +213,16 @@ namespace Nino.Core
             /// <summary>The closed formatter type for <paramref name="target"/>, or null if the rule does not apply.</summary>
             public Type Bind(Type target)
             {
-                var args = new Type[_parameters.Length];
-                var isFormatter = new bool[_parameters.Length];
-                if (!Unifier.Unify(Pattern, target, args))
+                if (!NinoFormatterBinding.Bind<Type, Type, TypeSystem, Parameters>(default, new Parameters(_parameters),
+                        Pattern, target, out var types, out var formatters))
                     return null;
-
-                bool progress = true;
-                while (progress)
-                {
-                    progress = false;
-                    for (int i = 0; i < _parameters.Length; i++)
-                    {
-                        if (args[i] != null)
-                        {
-                            if (isFormatter[i])
-                                continue;
-                            foreach (var constraint in _parameters[i].GetGenericParameterConstraints())
-                            {
-                                if (Unifier.IsBound(constraint, args))
-                                    continue;
-                                if (!Unifier.UnifyWithSupertype(constraint, args[i], args))
-                                    return null;
-                                progress = true;
-                            }
-                        }
-                        else if (FormatterElement(_parameters[i]) is { } element && Unifier.IsBound(element, args))
-                        {
-                            var elementType = Unifier.Substitute(element, args);
-                            args[i] = ElementFormatter(elementType);
-                            isFormatter[i] = true;
-                            progress = true;
-                        }
-                    }
-                }
-
-                for (int i = 0; i < _parameters.Length; i++)
-                {
-                    if (args[i] == null || (!isFormatter[i] && !Satisfies(_parameters[i], args[i], args)))
-                        return null;
-                }
-
                 if (_parameters.Length == 0)
                     return _formatter;
+                for (int i = 0; i < types.Length; i++)
+                    types[i] ??= formatters[i];
                 try
                 {
-                    return _formatter.MakeGenericType(args);
+                    return _formatter.MakeGenericType(types);
                 }
                 catch (ArgumentException)
                 {
@@ -264,18 +230,38 @@ namespace Nino.Core
                 }
             }
 
-            private static Type FormatterElement(Type parameter)
+            /// <summary>The formatter's type parameters, for <see cref="NinoFormatterBinding"/>.</summary>
+            private readonly struct Parameters : INinoFormatterParameters<Type, Type>
             {
-                foreach (var constraint in parameter.GetGenericParameterConstraints())
+                private readonly Type[] _parameters;
+
+                public Parameters(Type[] parameters) => _parameters = parameters;
+
+                public int Count => _parameters.Length;
+
+                public IEnumerable<Type> Constraints(int index) => _parameters[index].GetGenericParameterConstraints();
+
+                public Type FormatterElement(int index)
                 {
-                    if (constraint.IsGenericType && constraint.GetGenericTypeDefinition() == typeof(INinoFormatter<>))
-                        return constraint.GetGenericArguments()[0];
+                    foreach (var constraint in _parameters[index].GetGenericParameterConstraints())
+                    {
+                        if (constraint.IsGenericType && constraint.GetGenericTypeDefinition() == typeof(INinoFormatter<>))
+                            return constraint.GetGenericArguments()[0];
+                    }
+
+                    return null;
                 }
 
-                return null;
+                public bool ResolveElement(Type element, out Type formatter)
+                {
+                    formatter = ElementFormatter(element);
+                    return true;
+                }
+
+                public bool Satisfies(int index, Type bound, Type[] types) => Rule.Satisfies(_parameters[index], bound, types);
             }
 
-            private static bool Satisfies(Type parameter, Type type, Type[] args)
+            internal static bool Satisfies(Type parameter, Type type, Type[] args)
             {
                 var attributes = parameter.GenericParameterAttributes;
                 if ((attributes & GenericParameterAttributes.ReferenceTypeConstraint) != 0 && type.IsValueType)
@@ -298,7 +284,7 @@ namespace Nino.Core
                 {
                     if (constraint == typeof(ValueType))
                         continue;
-                    if (!Unifier.UnifyWithSupertype(constraint, type, args))
+                    if (!NinoFormatterBinding.UnifyWithSupertype<Type, TypeSystem>(default, constraint, type, args))
                         return false;
                 }
 
@@ -400,137 +386,69 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>The generator's <c>TypeUnifier</c> over <see cref="Type"/>: binds formatter type parameters by position.</summary>
-        private static class Unifier
+        /// <summary><see cref="Type"/> for <see cref="NinoFormatterBinding"/>.</summary>
+        private readonly struct TypeSystem : INinoTypeSystem<Type>
         {
-            public static bool Unify(Type pattern, Type actual, Type[] args)
+            public bool IsTypeParameter(Type type, out int ordinal)
             {
-                var trial = (Type[])args.Clone();
-                if (!Match(pattern, actual, trial))
+                bool result = type.IsGenericParameter && type.DeclaringMethod == null;
+                ordinal = result ? type.GenericParameterPosition : -1;
+                return result;
+            }
+
+            public bool IsArray(Type type, out int key, out Type element)
+            {
+                if (!type.IsArray)
+                {
+                    key = 0;
+                    element = null;
                     return false;
-                trial.CopyTo(args, 0);
+                }
+
+                key = ArrayKey(type);
+                element = type.GetElementType();
                 return true;
             }
 
-            public static bool UnifyWithSupertype(Type pattern, Type actual, Type[] args)
+            public bool IsConstructed(Type type, out Type definition, out IReadOnlyList<Type> arguments)
             {
-                if (Unify(pattern, actual, args))
-                    return true;
-                if (!pattern.IsGenericType || actual.IsGenericParameter)
-                    return pattern.IsGenericParameter ? false : pattern.IsAssignableFrom(actual);
-                var definition = pattern.GetGenericTypeDefinition();
-                if (pattern.IsInterface)
+                if (!type.IsGenericType || type.IsGenericTypeDefinition)
                 {
-                    // Implemented for two different arguments (ICollection<int> and ICollection<string>): ambiguous,
-                    // so neither matches, as in the generator.
-                    Type[] found = null;
-                    foreach (var i in actual.GetInterfaces())
-                    {
-                        if (!i.IsGenericType || i.GetGenericTypeDefinition() != definition)
-                            continue;
-                        var trial = (Type[])args.Clone();
-                        if (!Unify(pattern, i, trial))
-                            continue;
-                        if (found != null && !SameBindings(found, trial))
-                            return false;
-                        found = trial;
-                    }
-
-                    if (found == null)
-                        return false;
-                    found.CopyTo(args, 0);
-                    return true;
+                    definition = null;
+                    arguments = null;
+                    return false;
                 }
 
-                for (var b = actual.BaseType; b != null; b = b.BaseType)
-                {
-                    if (b.IsGenericType && b.GetGenericTypeDefinition() == definition)
-                        return Unify(pattern, b, args);
-                }
-
-                return false;
-            }
-
-            private static bool SameBindings(Type[] a, Type[] b)
-            {
-                for (int i = 0; i < a.Length; i++)
-                {
-                    if (a[i] != b[i])
-                        return false;
-                }
-
+                definition = type.GetGenericTypeDefinition();
+                arguments = type.GetGenericArguments();
                 return true;
             }
 
-            public static bool IsBound(Type type, Type[] args)
+            public bool IsInterface(Type type) => type.IsInterface;
+
+            public bool IsPointerLike(Type type) => type.IsPointer || type.IsByRef;
+
+            public bool Same(Type a, Type b) => a == b;
+
+            public Type Bound(Type type) => type;
+
+            public Type BaseType(Type type) => type.BaseType;
+
+            public IEnumerable<Type> Interfaces(Type type) => type.GetInterfaces();
+
+            public Type MakeArray(Type element, int key) =>
+                key == 1 ? element.MakeArrayType() : element.MakeArrayType(-key);
+
+            public Type Construct(Type definition, Type[] arguments)
             {
-                if (type.IsGenericParameter)
-                    return type.DeclaringMethod == null && args[type.GenericParameterPosition] != null;
-                if (type.HasElementType)
-                    return IsBound(type.GetElementType()!, args);
-                if (type.IsGenericType)
+                try
                 {
-                    foreach (var arg in type.GetGenericArguments())
-                    {
-                        if (!IsBound(arg, args))
-                            return false;
-                    }
+                    return definition.MakeGenericType(arguments);
                 }
-
-                return true;
-            }
-
-            public static Type Substitute(Type type, Type[] args)
-            {
-                if (type.IsGenericParameter)
-                    return args[type.GenericParameterPosition];
-                if (type.IsArray)
+                catch (ArgumentException)
                 {
-                    var element = Substitute(type.GetElementType()!, args);
-                    return ArrayKey(type) == 1 ? element.MakeArrayType() : element.MakeArrayType(type.GetArrayRank());
+                    return null;
                 }
-
-                if (!type.IsGenericType)
-                    return type;
-                var arguments = type.GetGenericArguments();
-                for (int i = 0; i < arguments.Length; i++)
-                    arguments[i] = Substitute(arguments[i], args);
-                return type.GetGenericTypeDefinition().MakeGenericType(arguments);
-            }
-
-            private static bool Match(Type pattern, Type actual, Type[] args)
-            {
-                if (pattern.IsGenericParameter && pattern.DeclaringMethod == null)
-                {
-                    int position = pattern.GenericParameterPosition;
-                    if (args[position] != null)
-                        return args[position] == actual;
-                    if (actual.IsPointer || actual.IsByRef)
-                        return false;
-                    args[position] = actual;
-                    return true;
-                }
-
-                if (pattern.IsArray)
-                    return actual.IsArray && ArrayKey(pattern) == ArrayKey(actual) &&
-                           Match(pattern.GetElementType()!, actual.GetElementType()!, args);
-
-                if (pattern.IsGenericType)
-                {
-                    if (!actual.IsGenericType || actual.GetGenericTypeDefinition() != pattern.GetGenericTypeDefinition())
-                        return false;
-                    var p = pattern.GetGenericArguments();
-                    var a = actual.GetGenericArguments();
-                    for (int i = 0; i < p.Length; i++)
-                    {
-                        if (!Match(p[i], a[i], args))
-                            return false;
-                    }
-
-                    return true;
-                }
-
-                return pattern == actual;
             }
         }
     }

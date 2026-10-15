@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Nino.Generator.DTOs;
+using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
 

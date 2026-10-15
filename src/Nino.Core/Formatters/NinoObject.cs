@@ -6,6 +6,7 @@ namespace Nino.Core
     /// Header handling for generated class formatters. A generated formatter implements
     /// <see cref="INinoBodyFormatter{T}"/> and forwards <c>Serialize</c>/<c>Deserialize</c> to one of these.
     /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
     public static class NinoObject
     {
         /// <summary>

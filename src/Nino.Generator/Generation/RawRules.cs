@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
 

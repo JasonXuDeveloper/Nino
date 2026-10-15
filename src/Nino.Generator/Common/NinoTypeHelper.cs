@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Common;
 
 /// <summary>
 /// Which <c>[NinoType]</c> applies to a type. Context-free (no compilation needed), since it also runs over the

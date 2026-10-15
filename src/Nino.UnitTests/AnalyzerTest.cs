@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Verify = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerifier<
-    Nino.Generator.NinoAnalyzer,
+    Nino.Generator.Analysis.NinoAnalyzer,
     Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
 
 namespace Nino.UnitTests;
@@ -11,10 +11,10 @@ namespace Nino.UnitTests;
 [TestClass]
 public class AnalyzerTest
 {
-    private CSharpAnalyzerTest<Generator.NinoAnalyzer, DefaultVerifier> SetUpAnalyzerTest(string code,
+    private CSharpAnalyzerTest<Generator.Analysis.NinoAnalyzer, DefaultVerifier> SetUpAnalyzerTest(string code,
         params DiagnosticResult[] diagnostics)
     {
-        var test = new CSharpAnalyzerTest<Generator.NinoAnalyzer, DefaultVerifier>
+        var test = new CSharpAnalyzerTest<Generator.Analysis.NinoAnalyzer, DefaultVerifier>
         {
             TestState =
             {

@@ -3,7 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Testing;
 using Microsoft.CodeAnalysis.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using VerifyCF = Microsoft.CodeAnalysis.CSharp.Testing.CSharpCodeFixVerifier<
-    Nino.Generator.NinoAnalyzer,
+    Nino.Generator.Analysis.NinoAnalyzer,
     Nino.Generator.NinoCodeFixProvider,
     Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
 
@@ -12,10 +12,10 @@ namespace Nino.UnitTests;
 [TestClass]
 public class CodeFixTest
 {
-    private CSharpCodeFixTest<Generator.NinoAnalyzer, Generator.NinoCodeFixProvider, DefaultVerifier>
+    private CSharpCodeFixTest<Generator.Analysis.NinoAnalyzer, Generator.NinoCodeFixProvider, DefaultVerifier>
         SetUpCodeFixTest(string code, string fixedCode, params DiagnosticResult[] diagnostics)
     {
-        var test = new CSharpCodeFixTest<Generator.NinoAnalyzer, Generator.NinoCodeFixProvider, DefaultVerifier>
+        var test = new CSharpCodeFixTest<Generator.Analysis.NinoAnalyzer, Generator.NinoCodeFixProvider, DefaultVerifier>
         {
             TestState =
             {

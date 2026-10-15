@@ -54,7 +54,7 @@ for (int r = 0; r < roots; r++)
 
 src.AppendLine("}");
 
-var types = generatorPath == null ? typeof(Nino.Generator.NinoAnalyzer).Assembly.GetTypes() : LoadTypes(generatorPath);
+var types = generatorPath == null ? typeof(Nino.Generator.Analysis.NinoAnalyzer).Assembly.GetTypes() : LoadTypes(generatorPath);
 var generators = types
     .Where(t => !t.IsAbstract && typeof(IIncrementalGenerator).IsAssignableFrom(t) &&
                 t.GetCustomAttributes(typeof(GeneratorAttribute), false).Length != 0)

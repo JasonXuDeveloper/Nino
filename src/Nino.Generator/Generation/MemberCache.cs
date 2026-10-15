@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
 

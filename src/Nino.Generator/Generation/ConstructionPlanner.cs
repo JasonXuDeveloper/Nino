@@ -2,7 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Nino.Generator.DTOs;
+using Nino.Generator.Common;
+using Nino.Generator.Analysis;
 
 namespace Nino.Generator.Generation;
 

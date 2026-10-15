@@ -48,10 +48,12 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="..\Version.cs"/>
-        <!-- Shared with Nino.Core so compile-time and run-time ids cannot drift apart. -->
+        <!-- Shared with Nino.Core so compile-time and run-time rules (ids, wire constants, layouts, formatter binding)
+             cannot drift apart. -->
         <Compile Include="..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
         <Compile Include="..\Nino.Core\Internal\NinoLayoutCore.cs" Link="Shared\NinoLayoutCore.cs"/>
-        <Compile Include="..\Nino.Core\NinoWire.cs" Link="Shared\NinoWire.cs"/>
+        <Compile Include="..\Nino.Core\IO\NinoWire.cs" Link="Shared\NinoWire.cs"/>
+        <Compile Include="..\Nino.Core\Internal\NinoFormatterBinding.cs" Link="Shared\NinoFormatterBinding.cs"/>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
     </ItemGroup>
 

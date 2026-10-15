@@ -4,7 +4,7 @@ using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Common;
 
 /// <summary>
 /// The partial methods a <c>[NinoPooled]</c> class implements: the generator declares them, the analyzer reports

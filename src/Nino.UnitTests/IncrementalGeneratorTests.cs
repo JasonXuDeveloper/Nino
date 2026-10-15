@@ -180,7 +180,7 @@ public class Plain { private int _unused; }
         compilation = compilation.RemoveAllSyntaxTrees()
             .AddSyntaxTrees(compilation.SyntaxTrees.Select(t => t.WithRootAndOptions(t.GetRoot(), parse)));
         var analyzers = System.Collections.Immutable.ImmutableArray.Create<Microsoft.CodeAnalysis.Diagnostics.DiagnosticAnalyzer>(
-            new Generator.NinoSuppressor());
+            new Generator.Analysis.NinoSuppressor());
         var diagnostics = compilation.WithAnalyzers(analyzers, new Microsoft.CodeAnalysis.Diagnostics.CompilationWithAnalyzersOptions(
                 new Microsoft.CodeAnalysis.Diagnostics.AnalyzerOptions(System.Collections.Immutable.ImmutableArray<AdditionalText>.Empty),
                 null, concurrentAnalysis: true, logAnalyzerExecutionTime: false, reportSuppressedDiagnostics: true))

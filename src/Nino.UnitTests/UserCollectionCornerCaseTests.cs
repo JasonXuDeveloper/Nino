@@ -11,7 +11,7 @@ using Microsoft.CodeAnalysis.Testing;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 using Verify = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerifier<
-    Nino.Generator.NinoAnalyzer,
+    Nino.Generator.Analysis.NinoAnalyzer,
     Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
 
 #nullable disable
@@ -696,7 +696,7 @@ public class Holder
     public RequiredArgumentList {|#6:NoConstructor|};
 }
 ";
-        var test = new CSharpAnalyzerTest<Generator.NinoAnalyzer, DefaultVerifier> { TestState = { Sources = { code } } };
+        var test = new CSharpAnalyzerTest<Generator.Analysis.NinoAnalyzer, DefaultVerifier> { TestState = { Sources = { code } } };
         TestReferences.Apply(test.TestState);
         string[] names = { "Internal", "Abstract", "Legacy", "Ambiguous", "ReadOnly", "Struct", "NoConstructor" };
         string[] types =

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace Nino.Generator.DTOs;
+namespace Nino.Generator.Common;
 
 /// <summary>
 /// Immutable array wrapper with value-based equality for use in source generator DTOs.

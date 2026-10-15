@@ -1,8 +1,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Nino.Generator.DTOs;
+using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
 
@@ -185,74 +186,76 @@ internal sealed class FormatterResolver
     }
 
     /// <summary>
-    /// Binds the formatter's type parameters for <paramref name="target"/> (see <c>NinoFormatterAttribute</c>):
-    /// match the pattern, infer from type constraints, resolve element formatters, then check every constraint.
+    /// Binds the formatter's type parameters for <paramref name="target"/> (see <c>NinoFormatterAttribute</c>), with
+    /// the binding the runtime uses too (<see cref="NinoFormatterBinding"/>).
     /// </summary>
     private string? Bind(FormatterRule rule, ITypeSymbol target, bool utf8, List<FactoryRegistration> factories)
     {
-        var parameters = rule.Formatter.TypeParameters;
-        var types = new ITypeSymbol?[parameters.Length];
-        var formatters = new string?[parameters.Length];
-        List<FactoryRegistration>? created = null;
-        if (!TypeUnifier.Unify(rule.Pattern, target, types))
+        var parameters = new Parameters(this, rule.Formatter.TypeParameters, utf8);
+        if (!NinoFormatterBinding.Bind<ITypeSymbol, string, SymbolTypeSystem, Parameters>(
+                new SymbolTypeSystem(_compilation), parameters, rule.Pattern, target, out var types,
+                out var formatters))
             return null;
-
-        bool progress = true;
-        while (progress)
-        {
-            progress = false;
-            for (int i = 0; i < parameters.Length; i++)
-            {
-                if (types[i] is { } bound)
-                {
-                    foreach (var constraint in parameters[i].ConstraintTypes)
-                    {
-                        if (TypeUnifier.IsBound(constraint, types))
-                            continue;
-                        if (!TypeUnifier.UnifyWithSupertype(constraint, bound, types))
-                            return null;
-                        progress = true;
-                    }
-                }
-                else if (formatters[i] == null &&
-                         FormatterRules.FormatterElement(parameters[i], _symbols) is { } element &&
-                         TypeUnifier.IsBound(element, types))
-                {
-                    var elementType = TypeUnifier.Substitute(element, types, _compilation);
-                    if (elementType == null || Resolve(elementType, utf8) is not { } resolved)
-                        return null;
-                    formatters[i] = resolved.Code;
-                    if (resolved.Factories.Length != 0)
-                        (created ??= new List<FactoryRegistration>()).AddRange(resolved.Factories);
-                    progress = true;
-                }
-            }
-        }
-
-        if (parameters.Length == 0)
+        if (types.Length == 0)
             return rule.Prefix;
-        var args = new string[parameters.Length];
-        for (int i = 0; i < parameters.Length; i++)
+        var args = new string[types.Length];
+        for (int i = 0; i < types.Length; i++)
         {
             if (types[i] is { } bound)
             {
-                if (!Satisfies(parameters[i], bound, types))
-                    return null;
                 args[i] = TypeNames.Global(bound);
-                if (IsCreated(parameters[i]) && Factory(bound) is { } factory)
-                    (created ??= new List<FactoryRegistration>()).Add(factory);
+                if (IsCreated(rule.Formatter.TypeParameters[i]) && Factory(bound) is { } factory)
+                    parameters.Created.Add(factory);
             }
             else
             {
-                args[i] = formatters[i]!; // every parameter is inferable (FormatterRules.Read), so it is bound
-                if (args[i] == null)
-                    return null;
+                args[i] = formatters[i];
             }
         }
 
-        if (created != null)
-            factories.AddRange(created);
+        factories.AddRange(parameters.Created);
         return $"{rule.Prefix}<{string.Join(", ", args)}>";
+    }
+
+    /// <summary>A formatter's type parameters, for <see cref="NinoFormatterBinding"/>.</summary>
+    private readonly struct Parameters : INinoFormatterParameters<ITypeSymbol, string>
+    {
+        private readonly FormatterResolver _resolver;
+        private readonly ImmutableArray<ITypeParameterSymbol> _parameters;
+        private readonly bool _utf8;
+
+        public Parameters(FormatterResolver resolver, ImmutableArray<ITypeParameterSymbol> parameters, bool utf8)
+        {
+            _resolver = resolver;
+            _parameters = parameters;
+            _utf8 = utf8;
+        }
+
+        /// <summary>Creators the bound formatter needs (its element formatters' and its own [NinoCreated] types').</summary>
+        public List<FactoryRegistration> Created { get; } = new();
+
+        public int Count => _parameters.Length;
+
+        public IEnumerable<ITypeSymbol> Constraints(int index) => _parameters[index].ConstraintTypes;
+
+        public ITypeSymbol? FormatterElement(int index) =>
+            FormatterRules.FormatterElement(_parameters[index], _resolver._symbols);
+
+        public bool ResolveElement(ITypeSymbol element, out string formatter)
+        {
+            if (_resolver.Resolve(element, _utf8) is not { } resolved)
+            {
+                formatter = null!;
+                return false;
+            }
+
+            formatter = resolved.Code;
+            Created.AddRange(resolved.Factories);
+            return true;
+        }
+
+        public bool Satisfies(int index, ITypeSymbol bound, ITypeSymbol[] types) =>
+            _resolver.Satisfies(_parameters[index], bound, types);
     }
 
     /// <summary>
@@ -320,7 +323,7 @@ internal sealed class FormatterResolver
         _ => false,
     };
 
-    private bool Satisfies(ITypeParameterSymbol parameter, ITypeSymbol type, ITypeSymbol?[] types)
+    private bool Satisfies(ITypeParameterSymbol parameter, ITypeSymbol type, ITypeSymbol[] types)
     {
         if (parameter.HasReferenceTypeConstraint && !type.IsReferenceType)
             return false;
@@ -338,7 +341,8 @@ internal sealed class FormatterResolver
             return false;
         foreach (var constraint in parameter.ConstraintTypes)
         {
-            if (!TypeUnifier.UnifyWithSupertype(constraint, type, types))
+            if (!NinoFormatterBinding.UnifyWithSupertype<ITypeSymbol, SymbolTypeSystem>(
+                    new SymbolTypeSystem(_compilation), constraint, type, types))
                 return false;
         }
 

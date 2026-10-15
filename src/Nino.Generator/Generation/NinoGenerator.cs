@@ -6,8 +6,9 @@ using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Nino.Generator.DTOs;
+using Nino.Generator.Common;
 using Nino.Generator.Generation.Emit;
+using Nino.Generator.Analysis;
 
 namespace Nino.Generator.Generation;
 

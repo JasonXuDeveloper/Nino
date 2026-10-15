@@ -6,8 +6,9 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Nino.Generator.Generation;
+using Nino.Generator.Common;
 
-namespace Nino.Generator;
+namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Reports every Nino diagnostic: attribute usage, and what the generator would find while building a type's model

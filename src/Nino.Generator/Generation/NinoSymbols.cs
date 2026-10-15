@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
 
