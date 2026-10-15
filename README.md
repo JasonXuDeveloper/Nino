@@ -13,7 +13,8 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 [![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square)](LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
-[**Documentation**](https://nino.xgamedev.net/en/docs/v4/start) ·
+[🌐 **Website**](https://nino.xgamedev.net/en) ·
+[📚 **Documentation**](https://nino.xgamedev.net/en/docs/v4/start) ·
 [**What's new in v4**](https://nino.xgamedev.net/en/docs/v4/whats-new) ·
 [**Benchmarks**](https://nino.xgamedev.net/en/docs/v4/perf) ·
 [**vs MemoryPack**](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) ·
@@ -127,7 +128,7 @@ public class SaveGame { public int Level; public string Hero; }
 public class Node { public string Name; public List<Node> Links; }
 ```
 
-**[Read the documentation →](https://nino.xgamedev.net/en/docs/v4/start)**, including
+**[Read the documentation on nino.xgamedev.net →](https://nino.xgamedev.net/en/docs/v4/start)**, including
 [advanced guides](https://nino.xgamedev.net/en/docs/v4/advanced) for high-performance serialization,
 networking, persistence and Unity.
 

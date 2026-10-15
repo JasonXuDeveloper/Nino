@@ -13,7 +13,8 @@
 [![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square)](LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
-[**文档**](https://nino.xgamedev.net/zh/docs/v4/start) ·
+[🌐 **官网**](https://nino.xgamedev.net/zh) ·
+[📚 **文档**](https://nino.xgamedev.net/zh/docs/v4/start) ·
 [**v4 新特性**](https://nino.xgamedev.net/zh/docs/v4/whats-new) ·
 [**性能**](https://nino.xgamedev.net/zh/docs/v4/perf) ·
 [**对比 MemoryPack**](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack) ·
@@ -121,7 +122,7 @@ public class SaveGame { public int Level; public string Hero; }
 public class Node { public string Name; public List<Node> Links; }
 ```
 
-**[阅读文档 →](https://nino.xgamedev.net/zh/docs/v4/start)**，包括高性能序列化、网络层、存档和 Unity 的
+**[在官网 nino.xgamedev.net 阅读文档 →](https://nino.xgamedev.net/zh/docs/v4/start)**，包括高性能序列化、网络层、存档和 Unity 的
 [高级用法](https://nino.xgamedev.net/zh/docs/v4/advanced)。
 
 ## Nino 与 MemoryPack
