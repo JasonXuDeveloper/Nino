@@ -274,14 +274,21 @@ Cache-line reasoning assumes 64-byte lines.
   fixes the leak where a pooled `List<T>` assigned in a factory was simply overwritten with `null`.
 
 `[NinoPooled]` on a sealed, in-place `[NinoType]` class makes the generator add `ReturnToPool()` and two
-partial methods the class must implement (the analyzer reports NINO019 and offers a fix that adds them):
-`static partial void OnNinoPoolWarmup()`, run once before the first deserialization of the type, and
-`partial void OnNinoPoolReturn()`, run by `ReturnToPool()`. Wherever Nino creates an instance of the type
-(top level, member, element) it first takes one from `NinoPool<T>`, and deserializes into it in place. The
-pool keeps one instance per thread without locking plus a locked shared stack (`MaxRetained`, default 256).
-Returning an instance twice throws; a per-instance flag, reset when it is rented, detects it. An instance that
-is never returned is simply collected. Steady state on the benchmark type (an array, a list, two dictionaries
-and strings): only the strings are allocated (see [v4-benchmarks.md](v4-benchmarks.md)).
+partial methods the class must implement (the compiler and NINO019 report them; a code fix adds both):
+`private static partial IEnumerable<T> OnNinoPoolWarmup()`, run once before the first deserialization of the
+type, whose instances go straight into the pool, and `private partial void OnNinoPoolReturn()`, run by
+`ReturnToPool()`. Wherever Nino creates an instance of the type (top level, member, element) it first takes
+one from the pool and deserializes into it in place, reusing its arrays, lists, dictionaries and nested
+objects.
+
+`NinoPool<T>.Shared` holds a locked shared stack (`MaxRetained`, default 256). Each thread also keeps a stack
+of up to 64 instances in a `[ThreadStatic]` field of the pooled type itself: a thread-static of a generic
+class is reached through shared generic code with a run-time lookup for reference types, one in the user's
+type is a direct thread-local access. A full thread stack moves half of itself to the shared stack and an
+empty one takes half a stack back, one lock per batch. `Clear()` bumps a generation that thread stacks check.
+Returning an instance twice throws (a per-instance flag, reset when rented); one that is never returned is
+simply collected. Measured in [v4-benchmarks.md](v4-benchmarks.md): a string-free graph deserializes 3x faster
+than a fresh one with no allocation, and a list of 100 pooled elements twice as fast.
 
 ## Source generator
 

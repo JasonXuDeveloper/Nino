@@ -85,21 +85,25 @@ internal static class AccessorEmitter
     }
 
     /// <summary>
-    /// <c>ReturnToPool</c>, the rent the formatter calls before creating an instance, and the two partial methods
-    /// the user implements (the analyzer requires them: NINO019).
+    /// <c>ReturnToPool</c>, the rent the formatter calls before creating an instance, the pool fields, and the two
+    /// partial methods the user implements (required: the compiler and NINO019 report them).
     /// </summary>
     private static void EmitPoolHooks(CodeWriter w, TypeModel m)
     {
         string t = m.TypeName;
         string pool = $"{Core}NinoPool<{t}>";
-        w.Line("/// <summary>Fills the pool before Nino first deserializes this type; runs once.</summary>");
-        w.Line("static partial void OnNinoPoolWarmup();");
+        const string exchange = "global::System.Threading.Interlocked.Exchange(ref";
+        w.Line("/// <summary>Instances to pool before Nino first deserializes this type; runs once.</summary>");
+        w.Line($"private static partial global::System.Collections.Generic.IEnumerable<{t}> OnNinoPoolWarmup();");
         w.Line();
         w.Line("/// <summary>Releases what must not outlive this use of the instance; called by <see cref=\"ReturnToPool\"/>.</summary>");
-        w.Line("partial void OnNinoPoolReturn();");
+        w.Line("private partial void OnNinoPoolReturn();");
         w.Line();
+        w.Line($"private static readonly {pool} s_ninoPool = {pool}.Shared;");
+        w.Line("[global::System.ThreadStatic]");
+        w.Line($"private static {pool}.ThreadStack t_ninoPool;");
         w.Line($"[{Core}NinoIgnore]");
-        w.Line("private int _ninoPooled;");
+        w.Line("private int _ninoPooled; // 1 while in the pool");
         w.Line();
         w.Line("/// <summary>");
         w.Line("/// Returns the instance to its pool: the next deserialization of this type reuses it, with the lists, arrays");
@@ -107,18 +111,25 @@ internal static class AccessorEmitter
         w.Line("/// </summary>");
         w.Block("public void ReturnToPool()", () =>
         {
-            w.Line("if (global::System.Threading.Interlocked.Exchange(ref _ninoPooled, 1) != 0)");
+            w.Line($"if ({exchange} _ninoPooled, 1) != 0)");
             w.Indented(() => w.Line($"{pool}.ThrowReturnedTwice();"));
             w.Line("OnNinoPoolReturn();");
-            w.Line($"{pool}.Add(this);");
+            w.Line("s_ninoPool.Add(this, ref t_ninoPool);");
         });
         w.Line();
         w.Line(Hidden);
         w.Block($"internal static {t} RentFromNinoPool()", () =>
         {
-            w.Line($"if ({pool}.BeginWarmup())");
-            w.Indented(() => w.Line("OnNinoPoolWarmup();"));
-            w.Line($"var value = {pool}.TryTake();");
+            w.Line("if (s_ninoPool.BeginWarmup())");
+            w.Open();
+            w.Line("foreach (var item in OnNinoPoolWarmup() ?? global::System.Linq.Enumerable.Empty<" + t + ">())");
+            w.Open();
+            w.Line($"if (item != null && {exchange} item._ninoPooled, 1) == 0)");
+            w.Indented(() => w.Line("s_ninoPool.Add(item, ref t_ninoPool);"));
+            w.Close();
+            w.Close();
+            w.Line();
+            w.Line("var value = s_ninoPool.TryTake(ref t_ninoPool);");
             w.Line("if (value != null)");
             w.Indented(() => w.Line("value._ninoPooled = 0;"));
             w.Line("return value;");

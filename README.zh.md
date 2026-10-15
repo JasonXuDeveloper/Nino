@@ -137,9 +137,9 @@ public sealed partial class Packet
     public int Id;
     public List<int> Values;
 
-    // 必须实现（analyzer 提供一键补全）。
-    static partial void OnNinoPoolWarmup() { for (int i = 0; i < 16; i++) new Packet().ReturnToPool(); }
-    partial void OnNinoPoolReturn() { /* 清理 Nino 不会反序列化的状态 */ }
+    // 必须实现（analyzer 提供一键补全）。预热返回的实例直接放进池子。
+    private static partial IEnumerable<Packet> OnNinoPoolWarmup() => Enumerable.Range(0, 16).Select(_ => new Packet());
+    private partial void OnNinoPoolReturn() { /* 清理 Nino 不会反序列化的状态 */ }
 }
 
 var packet = NinoDeserializer.Deserialize<Packet>(bytes); // 池里有实例就复用（连同它的 List）

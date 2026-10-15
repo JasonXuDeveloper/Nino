@@ -12,6 +12,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.Formatting;
+using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Nino.Generator;
@@ -186,8 +187,9 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
             return;
         foreach (var (name, declaration) in new[]
                  {
-                     ("OnNinoPoolWarmup", "static partial void OnNinoPoolWarmup()\n{\n}\n"),
-                     ("OnNinoPoolReturn", "partial void OnNinoPoolReturn()\n{\n}\n"),
+                     ("OnNinoPoolWarmup",
+                         $"private static partial System.Collections.Generic.IEnumerable<{type.Identifier.ValueText}{TypeArguments(type)}> OnNinoPoolWarmup()\n{{\n    return System.Array.Empty<{type.Identifier.ValueText}{TypeArguments(type)}>();\n}}\n"),
+                     ("OnNinoPoolReturn", "private partial void OnNinoPoolReturn()\n{\n}\n"),
                  })
         {
             bool implemented = symbol.GetMembers(name).OfType<IMethodSymbol>().Any(m =>
@@ -195,9 +197,13 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                     r.GetSyntax() is MethodDeclarationSyntax { Body: not null } or
                         MethodDeclarationSyntax { ExpressionBody: not null }));
             if (!implemented && SyntaxFactory.ParseMemberDeclaration(declaration) is { } member)
-                editor.AddMember(type, member.WithAdditionalAnnotations(Formatter.Annotation));
+                editor.AddMember(type, member.WithAdditionalAnnotations(Formatter.Annotation, Simplifier.Annotation));
         }
     }
+
+    private static string TypeArguments(TypeDeclarationSyntax type) => type.TypeParameterList is { } list
+        ? "<" + string.Join(", ", list.Parameters.Select(p => p.Identifier.ValueText)) + ">"
+        : "";
 
     /// <summary>The type becomes public; containing types only need to be public or internal.</summary>
     private static void MakeAccessible(DocumentEditor editor, SyntaxNode node)

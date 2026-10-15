@@ -1641,10 +1641,11 @@ using Nino.Core;
 public sealed partial class TestClass
 {
     public int Value;
-    static partial void {|#0:OnNinoPoolWarmup|}()
+    private static partial System.Collections.Generic.IEnumerable<TestClass> {|#0:OnNinoPoolWarmup|}()
     {
+        return System.Array.Empty<TestClass>();
     }
-    partial void {|#1:OnNinoPoolReturn|}()
+    private partial void {|#1:OnNinoPoolReturn|}()
     {
     }
 }";
@@ -1683,7 +1684,7 @@ public sealed partial class TestClass
     public int Value;
 
     static void OnNinoPoolWarmup() { }
-    partial void {|#0:OnNinoPoolReturn|}()
+    private partial void {|#0:OnNinoPoolReturn|}()
     {
     }
 }";
@@ -1706,8 +1707,8 @@ public sealed partial class {|#0:TestClass|}
 {
     public int Value;
 
-    static partial void OnNinoPoolWarmup();
-    partial void OnNinoPoolReturn();
+    private static partial System.Collections.Generic.IEnumerable<TestClass> OnNinoPoolWarmup();
+    private partial void OnNinoPoolReturn();
 }";
 
         var fixedCode = @"
@@ -1718,20 +1719,26 @@ public sealed partial class TestClass
 {
     public int Value;
 
-    static partial void OnNinoPoolWarmup();
-    partial void OnNinoPoolReturn();
-    static partial void OnNinoPoolWarmup()
+    private static partial System.Collections.Generic.IEnumerable<TestClass> OnNinoPoolWarmup();
+    private partial void OnNinoPoolReturn();
+    private static partial System.Collections.Generic.IEnumerable<TestClass> OnNinoPoolWarmup()
     {
+        return System.Array.Empty<TestClass>();
     }
-    partial void OnNinoPoolReturn()
+    private partial void OnNinoPoolReturn()
     {
     }
 }";
 
-        // With the declarations present (as the generator emits them) the implementations compile.
-        await SetUpCodeFixTest(code, fixedCode,
+        // The declarations as the generator emits them: until implemented, the compiler reports them too.
+        var test = SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO019").WithLocation(0)
-                .WithArguments("TestClass", "OnNinoPoolWarmup() and OnNinoPoolReturn()")).RunAsync();
+                .WithArguments("TestClass", "OnNinoPoolWarmup() and OnNinoPoolReturn()"),
+            DiagnosticResult.CompilerError("CS8795").WithSpan(9, 78, 9, 94).WithArguments("TestClass.OnNinoPoolWarmup()"),
+            DiagnosticResult.CompilerError("CS8795").WithSpan(10, 26, 10, 42).WithArguments("TestClass.OnNinoPoolReturn()"));
+        // Implemented: nothing is left to report (the test state's compiler errors are not inherited).
+        test.FixedState.InheritanceMode = StateInheritanceMode.Explicit;
+        await test.RunAsync();
     }
 
     #endregion

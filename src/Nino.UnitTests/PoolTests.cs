@@ -19,14 +19,13 @@ public sealed partial class PooledPacket
     // Not serialized: must be cleared by the return hook.
     [NinoIgnore] public object Session;
 
-    static partial void OnNinoPoolWarmup()
+    private static partial IEnumerable<PooledPacket> OnNinoPoolWarmup()
     {
         Warmups++;
-        for (int i = 0; i < 2; i++)
-            new PooledPacket().ReturnToPool();
+        return new[] { new PooledPacket(), new PooledPacket() };
     }
 
-    partial void OnNinoPoolReturn()
+    private partial void OnNinoPoolReturn()
     {
         Returns++;
         Session = null;
@@ -40,11 +39,9 @@ public sealed partial class PooledChild
 
     public string Name;
 
-    static partial void OnNinoPoolWarmup()
-    {
-    }
+    private static partial IEnumerable<PooledChild> OnNinoPoolWarmup() => null;
 
-    partial void OnNinoPoolReturn() => Returns++;
+    private partial void OnNinoPoolReturn() => Returns++;
 }
 
 [NinoType]
@@ -61,8 +58,8 @@ public class PoolTests
     [TestInitialize]
     public void Reset()
     {
-        NinoPool<PooledPacket>.Clear();
-        NinoPool<PooledChild>.Clear();
+        NinoPool<PooledPacket>.Shared.Clear();
+        NinoPool<PooledChild>.Shared.Clear();
     }
 
     private static byte[] Packet(int id, params int[] values) => NinoSerializer.Serialize(new PooledPacket
@@ -74,6 +71,8 @@ public class PoolTests
         var first = NinoDeserializer.Deserialize<PooledPacket>(Packet(1, 1));
         NinoDeserializer.Deserialize<PooledPacket>(Packet(2, 2));
         Assert.AreEqual(1, PooledPacket.Warmups);
+        // A warmed-up instance can be returned once it has been handed out (its flag says "in use").
+        first.ReturnToPool();
         Assert.AreEqual(1, first.Id);
     }
 
@@ -100,7 +99,7 @@ public class PoolTests
     public void EmptyPoolCreatesInstances()
     {
         NinoDeserializer.Deserialize<PooledPacket>(Packet(0)); // warmup happened in another test or now
-        NinoPool<PooledPacket>.Clear();
+        NinoPool<PooledPacket>.Shared.Clear();
         var a = NinoDeserializer.Deserialize<PooledPacket>(Packet(1));
         var b = NinoDeserializer.Deserialize<PooledPacket>(Packet(2));
         Assert.AreNotSame(a, b);
@@ -172,6 +171,40 @@ public class PoolTests
                 seen.Add(packet);
             }
         });
-        Assert.IsTrue(NinoPool<PooledPacket>.Count <= NinoPool<PooledPacket>.MaxRetained);
+        Assert.IsTrue(NinoPool<PooledPacket>.Shared.Count <= NinoPool<PooledPacket>.Shared.MaxRetained);
+    }
+
+    [TestMethod]
+    public void ManyReturnsOnOneThreadAreAllReused()
+    {
+        // More than a thread keeps: the overflow goes through the shared stack and comes back.
+        var children = new List<PooledChild>();
+        for (int i = 0; i < 200; i++)
+            children.Add(new PooledChild());
+        foreach (var child in children)
+            child.ReturnToPool();
+
+        var data = NinoSerializer.Serialize(new PooledChild { Name = "x" });
+        var rented = new HashSet<PooledChild>();
+        for (int i = 0; i < 200; i++)
+            Assert.IsTrue(rented.Add(NinoDeserializer.Deserialize<PooledChild>(data)), "an instance was handed out twice");
+        Assert.IsTrue(rented.SetEquals(children));
+    }
+
+    [TestMethod]
+    public void SharedStackRespectsMaxRetained()
+    {
+        int max = NinoPool<PooledChild>.Shared.MaxRetained;
+        try
+        {
+            NinoPool<PooledChild>.Shared.MaxRetained = 0;
+            for (int i = 0; i < 500; i++)
+                new PooledChild().ReturnToPool();
+            Assert.AreEqual(0, NinoPool<PooledChild>.Shared.Count);
+        }
+        finally
+        {
+            NinoPool<PooledChild>.Shared.MaxRetained = max;
+        }
     }
 }

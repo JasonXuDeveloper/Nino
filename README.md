@@ -139,8 +139,8 @@ public sealed partial class Packet
     public List<int> Values;
 
     // Required (the analyzer offers a fix that adds both).
-    static partial void OnNinoPoolWarmup() { for (int i = 0; i < 16; i++) new Packet().ReturnToPool(); }
-    partial void OnNinoPoolReturn() { /* clear state Nino does not deserialize */ }
+    private static partial IEnumerable<Packet> OnNinoPoolWarmup() => Enumerable.Range(0, 16).Select(_ => new Packet());
+    private partial void OnNinoPoolReturn() { /* clear state Nino does not deserialize */ }
 }
 
 var packet = NinoDeserializer.Deserialize<Packet>(bytes); // reuses a pooled instance (and its list) if there is one

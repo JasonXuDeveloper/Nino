@@ -28,11 +28,9 @@ public sealed partial class PooledSimpleClass
     public Dictionary<int, string> Map1;
     public Dictionary<int, int> Map2 { get; set; }
 
-    static partial void OnNinoPoolWarmup()
-    {
-    }
+    private static partial IEnumerable<PooledSimpleClass> OnNinoPoolWarmup() => null;
 
-    partial void OnNinoPoolReturn()
+    private partial void OnNinoPoolReturn()
     {
     }
 

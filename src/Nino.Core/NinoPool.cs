@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace Nino.Core
@@ -8,10 +9,10 @@ namespace Nino.Core
     /// Makes Nino reuse instances of a sealed <c>[NinoType]</c> class. The generator adds to the (partial) class:
     /// <list type="bullet">
     /// <item><c>ReturnToPool()</c>: hands the instance back once you are done with it. Returning it twice throws.</item>
-    /// <item>two partial methods you must implement: <c>static partial void OnNinoPoolWarmup()</c>, called once
-    /// before Nino first deserializes the type (e.g. <c>new T().ReturnToPool()</c> a few times, or nothing), and
-    /// <c>partial void OnNinoPoolReturn()</c>, called by <c>ReturnToPool</c> to release what must not outlive this
-    /// use (state Nino does not deserialize, resources from other pools).</item>
+    /// <item>two partial methods you must implement: <c>private static partial IEnumerable&lt;T&gt; OnNinoPoolWarmup()</c>,
+    /// called once before Nino first deserializes the type, whose instances go straight into the pool (return none
+    /// to start empty), and <c>private partial void OnNinoPoolReturn()</c>, called by <c>ReturnToPool</c> to release
+    /// what must not outlive this use (state Nino does not deserialize, resources from other pools).</item>
     /// </list>
     /// Wherever Nino deserializes the type (top level, members, collection elements) it takes a pooled instance if
     /// there is one and deserializes into it, reusing its lists, arrays and nested objects as well; otherwise it
@@ -31,20 +32,33 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// The instances of a <see cref="NinoPooledAttribute"/> class waiting to be reused. Thread safe; each thread
-    /// also keeps one instance of its own, so a return followed by a deserialization on one thread takes no lock.
+    /// The instances of a <see cref="NinoPooledAttribute"/> class waiting to be reused (<see cref="Shared"/>). Thread
+    /// safe. Each thread keeps a stack of its own, held by the pooled type itself (a <c>[ThreadStatic]</c> field
+    /// there is a direct thread-local access, one here would go through shared generic code), so a thread that
+    /// returns what it deserializes never takes a lock; a full thread stack moves half of itself to the shared
+    /// stack and an empty one takes half a stack back, one lock per batch.
     /// </summary>
-    public static class NinoPool<T> where T : class, INinoPooled
+    public sealed class NinoPool<T> where T : class, INinoPooled
     {
-        [ThreadStatic] private static T _local;
-        private static readonly object Lock = new object();
-        private static T[] _items = new T[8];
-        private static int _count;
-        private static int _maxRetained = 256;
-        private static int _warmedUp;
+        private const int ThreadCapacity = 64;
 
-        /// <summary>Most instances kept by the shared pool; more are left to the garbage collector. Default 256.</summary>
-        public static int MaxRetained
+        private readonly object _lock = new object();
+        private T[] _items = new T[ThreadCapacity];
+        private int _count;
+        private int _maxRetained = 256;
+        private int _warmedUp;
+        // Bumped by Clear: thread stacks filled before it drop their instances.
+        private int _generation;
+
+        private NinoPool()
+        {
+        }
+
+        /// <summary>The pool of <typeparamref name="T"/>.</summary>
+        public static NinoPool<T> Shared { get; } = new NinoPool<T>();
+
+        /// <summary>Most instances kept by the shared stack; more are left to the garbage collector. Default 256.</summary>
+        public int MaxRetained
         {
             get => _maxRetained;
             set
@@ -55,74 +69,131 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>Instances in the shared pool (not counting the one each thread keeps).</summary>
-        public static int Count
+        /// <summary>Instances in the shared stack (not counting those the threads keep).</summary>
+        public int Count
         {
             get
             {
-                lock (Lock)
+                lock (_lock)
                     return _count;
             }
         }
 
-        /// <summary>Drops the instances of the shared pool and the calling thread's own.</summary>
-        public static void Clear()
+        /// <summary>Drops every pooled instance: the shared stack now, and each thread's own on its next use.</summary>
+        public void Clear()
         {
-            _local = null;
-            lock (Lock)
+            lock (_lock)
             {
                 Array.Clear(_items, 0, _count);
                 _count = 0;
+                Volatile.Write(ref _generation, _generation + 1);
             }
+        }
+
+        /// <summary>For generated code: one thread's instances.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public sealed class ThreadStack
+        {
+            internal readonly T[] Items = new T[ThreadCapacity];
+            internal int Count;
+            internal int Generation;
         }
 
         /// <summary>For generated code: true for the first caller only, which then runs the warmup.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static bool BeginWarmup() =>
+        public bool BeginWarmup() =>
             Volatile.Read(ref _warmedUp) == 0 && Interlocked.Exchange(ref _warmedUp, 1) == 0;
 
         /// <summary>For generated code: a pooled instance, or null when the pool is empty.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static T TryTake()
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public T TryTake(ref ThreadStack stack)
         {
-            var value = _local;
-            if (value != null)
+            var s = stack;
+            if (s != null && s.Count != 0 && s.Generation == _generation)
             {
-                _local = null;
+                int count = --s.Count;
+                var value = s.Items[count];
+                s.Items[count] = null;
                 return value;
             }
 
-            if (Volatile.Read(ref _count) == 0)
-                return null;
-            lock (Lock)
-            {
-                if (_count == 0)
-                    return null;
-                value = _items[--_count];
-                _items[_count] = null;
-                return value;
-            }
+            return TakeShared(ref stack);
         }
 
         /// <summary>For generated code: adds an instance that <c>ReturnToPool</c> has checked.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public static void Add(T value)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Add(T value, ref ThreadStack stack)
+        {
+            var s = stack;
+            if (s != null && s.Count != ThreadCapacity && s.Generation == _generation)
+                s.Items[s.Count++] = value;
+            else
+                AddSlow(value, ref stack);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private T TakeShared(ref ThreadStack stack)
+        {
+            if (Volatile.Read(ref _count) == 0)
+                return null;
+            var s = Current(ref stack);
+            lock (_lock)
+            {
+                // Half a stack: the next takes on this thread are lock free.
+                int n = Math.Min(_count, ThreadCapacity / 2);
+                if (n == 0)
+                    return null;
+                _count -= n;
+                Array.Copy(_items, _count, s.Items, 0, n);
+                Array.Clear(_items, _count, n);
+                s.Count = n - 1;
+                var value = s.Items[n - 1];
+                s.Items[n - 1] = null;
+                return value;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void AddSlow(T value, ref ThreadStack stack)
         {
             NinoRecycler.PoolsInUse = true;
-            if (_local == null)
+            var s = Current(ref stack);
+            if (s.Count == ThreadCapacity)
             {
-                _local = value;
-                return;
+                // The older half goes to the shared stack (or to the garbage collector once that is full).
+                const int half = ThreadCapacity / 2;
+                lock (_lock)
+                {
+                    int n = Math.Min(half, Math.Max(0, _maxRetained - _count));
+                    if (_count + n > _items.Length)
+                        Array.Resize(ref _items, Math.Max(_items.Length * 2, _count + n));
+                    Array.Copy(s.Items, 0, _items, _count, n);
+                    _count += n;
+                }
+
+                Array.Copy(s.Items, half, s.Items, 0, half);
+                Array.Clear(s.Items, half, half);
+                s.Count = half;
             }
 
-            lock (Lock)
+            s.Items[s.Count++] = value;
+        }
+
+        /// <summary>The calling thread's stack, created or emptied after a <see cref="Clear"/> as needed.</summary>
+        private ThreadStack Current(ref ThreadStack stack)
+        {
+            var s = stack ??= new ThreadStack();
+            int generation = Volatile.Read(ref _generation);
+            if (s.Generation != generation)
             {
-                if (_count >= _maxRetained)
-                    return;
-                if (_count == _items.Length)
-                    Array.Resize(ref _items, _count * 2);
-                _items[_count++] = value;
+                Array.Clear(s.Items, 0, s.Count);
+                s.Count = 0;
+                s.Generation = generation;
             }
+
+            return s;
         }
 
         /// <summary>For generated code.</summary>
