@@ -89,7 +89,8 @@ v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier 
 - **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members at any depth.
 - **User collections**: types derived from `List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>` and friends.
 
-See [docs/v4-design.md](docs/v4-design.md) for the format and architecture.
+See [docs/v4-design.md](docs/v4-design.md) for the format and architecture, and
+[docs/v4-benchmarks.md](docs/v4-benchmarks.md) for build-time and runtime numbers against v3 and MemoryPack.
 
 ---
 
@@ -135,6 +136,8 @@ var restored = NinoDeserializer.Deserialize<GameData>(bytes);
 Nino consistently delivers exceptional performance across various scenarios. See detailed benchmarks and comparisons with other popular serialization libraries.
 
 **[🚀 View Benchmarks →](https://nino.xgamedev.net/en/perf/micro)**
+
+For v4: [build time, generated code size and runtime vs v3 and MemoryPack](docs/v4-benchmarks.md).
 
 ---
 
