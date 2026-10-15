@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -30,6 +31,7 @@ namespace Nino.Core
         public static void Register(NinoFormatter<T> formatter)
         {
             Volatile.Write(ref _instance, formatter ?? throw new ArgumentNullException(nameof(formatter)));
+            NinoFormatterCache.MarkRegistered(typeof(T));
         }
 
         /// <summary>Registers (or replaces) the formatter for <typeparamref name="T"/>.</summary>
@@ -41,8 +43,10 @@ namespace Nino.Core
         /// <summary>Registers the formatter unless one is already registered. Used by generated code.</summary>
         public static void TryRegister<TFormatter>() where TFormatter : struct, INinoFormatter<T>
         {
-            if (Volatile.Read(ref _instance) == null)
-                Interlocked.CompareExchange(ref _instance, new StructFormatter<T, TFormatter>(), null);
+            if (Volatile.Read(ref _instance) != null)
+                return;
+            Interlocked.CompareExchange(ref _instance, new StructFormatter<T, TFormatter>(), null);
+            NinoFormatterCache.MarkRegistered(typeof(T));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -60,8 +64,24 @@ namespace Nino.Core
             var created = (NinoFormatter<T>)Activator.CreateInstance(
                 typeof(StructFormatter<,>).MakeGenericType(typeof(T), formatterType));
             Interlocked.CompareExchange(ref _instance, created, null);
+            NinoFormatterCache.MarkRegistered(typeof(T));
             return _instance;
         }
+    }
+
+    /// <summary>
+    /// The types whose <see cref="NinoFormatterCache{T}"/> holds a formatter (registered or resolved), for the
+    /// resolver, which only has a <see cref="Type"/> and would otherwise need reflection to ask.
+    /// </summary>
+    internal static class NinoFormatterCache
+    {
+        private static readonly ConcurrentDictionary<Type, bool> Registered = new ConcurrentDictionary<Type, bool>();
+
+        /// <summary>Called after the formatter of <paramref name="type"/> has been stored.</summary>
+        public static void MarkRegistered(Type type) => Registered.TryAdd(type, true);
+
+        /// <summary>Same as <see cref="NinoFormatterCache{T}.IsRegistered"/>.</summary>
+        public static bool IsRegistered(Type type) => Registered.ContainsKey(type);
     }
 
     /// <summary>
@@ -87,5 +107,15 @@ namespace Nino.Core
                 return false; // no formatter: the regular path reports it
             }
         }
+    }
+
+    internal static class NinoRaw
+    {
+        /// <summary>
+        /// Whether the top-level APIs copy values of <typeparamref name="T"/> as their raw bytes. Folds to a
+        /// constant once inlined; for reference types <see cref="NinoRaw{T}"/> is never touched.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Is<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw;
     }
 }

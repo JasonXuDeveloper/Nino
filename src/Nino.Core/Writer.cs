@@ -44,18 +44,18 @@ namespace Nino.Core
         /// <summary>
         /// Writes the reference header of an object of a type marked <c>trackReferences</c>: <c>0</c> for null,
         /// the 1-based index of an object already written by this writer, or <c>-1</c> for a new object, in which
-        /// case it returns true and the caller writes the object.
+        /// case it returns true and the caller writes the object (see <see cref="NinoWire"/>).
         /// </summary>
         public bool WriteReference(object value)
         {
             if (value == null)
             {
-                UnsafeWrite(0);
+                UnsafeWrite(NinoWire.NullReference);
                 return false;
             }
 
             int index = (_refs ??= NinoReferenceWriteTable.Rent()).GetOrAdd(value);
-            UnsafeWrite(index == 0 ? -1 : index);
+            UnsafeWrite(index == 0 ? NinoWire.NewReference : index);
             return index == 0;
         }
 
@@ -125,12 +125,12 @@ namespace Nino.Core
         {
             if (!value.HasValue)
             {
-                UnsafeWrite((byte)0);
+                UnsafeWrite(NinoWire.Null);
                 return;
             }
 
             ref byte dst = ref Reserve(1 + NinoLayout<T>.Size);
-            dst = 1;
+            dst = NinoWire.NotNull;
             NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
         }
 
@@ -140,14 +140,14 @@ namespace Nino.Core
 
         /// <summary>Writes the null collection marker (-1).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteNullLength() => UnsafeWrite(-1);
+        public void WriteNullLength() => UnsafeWrite(NinoWire.NullLength);
 
         /// <summary>Reserves 4 bytes to be patched later and returns their position.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReserveInt32()
         {
             int pos = _pos;
-            Reserve(4);
+            Reserve(sizeof(int));
             return pos;
         }
 
@@ -162,7 +162,8 @@ namespace Nino.Core
         /// Writes, at <paramref name="lengthPosition"/>, the number of bytes written after that 4-byte slot.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void PatchLength(int lengthPosition) => PatchInt32(lengthPosition, _pos - lengthPosition - 4);
+        public void PatchLength(int lengthPosition) =>
+            PatchInt32(lengthPosition, _pos - lengthPosition - NinoWire.LengthSize);
 
         /// <summary>Writes raw bytes without a length prefix.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -202,8 +203,8 @@ namespace Nino.Core
             }
 
             var bytes = MemoryMarshal.AsBytes(values);
-            NinoLayout<T>.WriteLengthPrefixed(ref Reserve(4 + bytes.Length), ref MemoryMarshal.GetReference(bytes),
-                values.Length);
+            NinoLayout<T>.WriteLengthPrefixed(ref Reserve(NinoWire.LengthSize + bytes.Length),
+                ref MemoryMarshal.GetReference(bytes), values.Length);
         }
 
         /// <summary>Writes a length-prefixed unmanaged array (-1 for null).</summary>
@@ -243,11 +244,11 @@ namespace Nino.Core
 
             int maxBytes = checked(value.Length * 3);
             int lengthPos = _pos;
-            ref byte dst = ref Reserve(4 + maxBytes);
-            int written = EncodeUtf8(value, ref Unsafe.Add(ref dst, 4), maxBytes);
+            ref byte dst = ref Reserve(NinoWire.LengthSize + maxBytes);
+            int written = EncodeUtf8(value, ref Unsafe.Add(ref dst, NinoWire.LengthSize), maxBytes);
             NinoUnsafe.Write(ref dst, written);
             // give back the unused part of the worst-case reservation
-            _pos = lengthPos + 4 + written;
+            _pos = lengthPos + NinoWire.LengthSize + written;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

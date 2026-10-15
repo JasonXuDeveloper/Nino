@@ -73,9 +73,9 @@ namespace Nino.Core
             {
                 int size = Unsafe.SizeOf<T>();
                 int count = value.Count;
-                ref byte dst = ref writer.Reserve(4 + count * size);
+                ref byte dst = ref writer.Reserve(checked(NinoWire.LengthSize + count * size));
                 NinoUnsafe.Write(ref dst, count);
-                int offset = 4, written = 0;
+                int offset = NinoWire.LengthSize, written = 0;
                 foreach (var item in value)
                 {
                     if (++written > count)
@@ -84,7 +84,7 @@ namespace Nino.Core
                     offset += size;
                 }
 
-                NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref dst, 4), count);
+                NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref dst, NinoWire.LengthSize), count);
 
                 return;
             }

@@ -21,9 +21,9 @@ namespace Nino.Core
                 int keySize = Unsafe.SizeOf<TKey>();
                 int pairSize = keySize + Unsafe.SizeOf<TValue>();
                 int count = value.Count;
-                ref byte dst = ref writer.Reserve(4 + count * pairSize);
+                ref byte dst = ref writer.Reserve(checked(NinoWire.LengthSize + count * pairSize));
                 NinoUnsafe.Write(ref dst, count);
-                int offset = 4;
+                int offset = NinoWire.LengthSize;
                 int written = 0;
                 foreach (var pair in value)
                 {

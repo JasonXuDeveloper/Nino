@@ -14,7 +14,13 @@ namespace Nino.Core
         private const int DefaultCapacity = 256;
         private const int MaxArrayLength = 0x7FFFFFC7;
 
+        // Fields rather than properties: Writer reads both when it is created, reloads Buffer after growing it and
+        // stores Index on every flush; a property is only free where the JIT inlines it (not under Mono's interpreter).
+
+        /// <summary>The pooled backing array; replaced when the buffer grows.</summary>
         internal byte[] Buffer;
+
+        /// <summary>Number of bytes written into <see cref="Buffer"/>.</summary>
         internal int Index;
 
         public NinoArrayBufferWriter() : this(DefaultCapacity)

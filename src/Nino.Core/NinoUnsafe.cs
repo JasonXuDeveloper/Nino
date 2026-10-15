@@ -10,6 +10,14 @@ namespace Nino.Core
     /// </summary>
     public static class NinoUnsafe
     {
+#if NET5_0_OR_GREATER
+        /// <summary>
+        /// Smallest array (in bytes) worth allocating uninitialized: below it the runtime zeroes the memory anyway
+        /// and a zeroed allocation is cheaper.
+        /// </summary>
+        private const int MinUninitializedArrayBytes = 2048;
+#endif
+
         /// <summary>
         /// Whether the process is 64-bit. Constant-folded by the JIT.
         /// </summary>
@@ -103,8 +111,7 @@ namespace Nino.Core
         public static T[] AllocateUninitializedArray<T>(int length)
         {
 #if NET5_0_OR_GREATER
-            // Small arrays are cheaper to allocate zeroed (the runtime does that for them anyway).
-            if (Unsafe.SizeOf<T>() * length >= 2048)
+            if (Unsafe.SizeOf<T>() * length >= MinUninitializedArrayBytes)
                 return GC.AllocateUninitializedArray<T>(length);
 #endif
             return new T[length];

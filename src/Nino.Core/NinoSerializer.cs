@@ -17,12 +17,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static NinoArrayBufferWriter RentScratch()
         {
-            // Taking the buffer out of the slot makes nested calls (e.g. from a custom formatter) safe: they see an
-            // empty slot and use their own buffer.
-            var buffer = _scratch;
+            var buffer = NinoThreadCache.Take(ref _scratch);
             if (buffer == null)
                 return new NinoArrayBufferWriter();
-            _scratch = null;
             buffer.Index = 0;
             return buffer;
         }
@@ -42,7 +39,7 @@ namespace Nino.Core
         /// <summary>Serializes <paramref name="value"/> into a new byte array.</summary>
         public static byte[] Serialize<T>(T value)
         {
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            if (NinoRaw.Is<T>())
             {
                 var bytes = new byte[Unsafe.SizeOf<T>()];
                 NinoLayout<T>.Write(ref bytes[0], value);
@@ -115,7 +112,7 @@ namespace Nino.Core
             }
 
             /// <summary>Length plus element bytes.</summary>
-            public int Size(Array array) => checked(4 + array.Length * _elementSize);
+            public int Size(Array array) => checked(NinoWire.LengthSize + array.Length * _elementSize);
 
             /// <summary>The result is allocated at its exact size and filled with one copy.</summary>
             public byte[] Serialize(Array array)
@@ -134,7 +131,7 @@ namespace Nino.Core
         /// </summary>
         public static void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
         {
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            if (NinoRaw.Is<T>())
             {
                 WriteRaw(value, bufferWriter);
                 return;
@@ -169,7 +166,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, ref Writer writer)
         {
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            if (NinoRaw.Is<T>())
             {
                 writer.WriteValue(value);
                 return;
@@ -231,7 +228,7 @@ namespace Nino.Core
         public static T Deserialize<T>(ReadOnlySpan<byte> data)
         {
             // Raw values inline into the caller as a length check and a load; the rest is out of line.
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            if (NinoRaw.Is<T>())
                 return ReadRaw<T>(data);
             return DeserializeFormatted<T>(data);
         }
@@ -253,7 +250,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(ReadOnlySpan<byte> data, ref T value)
         {
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            if (NinoRaw.Is<T>())
             {
                 value = ReadRaw<T>(data);
                 return;
@@ -284,7 +281,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T>(ref T value, ref Reader reader)
         {
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            if (NinoRaw.Is<T>())
             {
                 value = reader.UnsafeRead<T>();
                 return;
@@ -297,7 +294,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T>(ref Reader reader)
         {
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
+            if (NinoRaw.Is<T>())
                 return reader.UnsafeRead<T>();
 
             T value = default;
@@ -338,13 +335,9 @@ namespace Nino.Core
         private static readonly ConcurrentDictionary<Type, BoxedFormatter> Cache =
             new ConcurrentDictionary<Type, BoxedFormatter>();
 
-        public static BoxedFormatter Get(Type type)
-        {
-            return Cache.TryGetValue(type, out var formatter)
-                ? formatter
-                : Cache.GetOrAdd(type,
-                    t => (BoxedFormatter)Activator.CreateInstance(typeof(BoxedFormatter<>).MakeGenericType(t)));
-        }
+        // A lambda rather than a method group: older compilers (Unity's) allocate a delegate per method group use.
+        public static BoxedFormatter Get(Type type) => Cache.GetOrAdd(type,
+            t => (BoxedFormatter)Activator.CreateInstance(typeof(BoxedFormatter<>).MakeGenericType(t)));
 
         public abstract byte[] Serialize(object value);
         public abstract void Serialize(object value, IBufferWriter<byte> bufferWriter);

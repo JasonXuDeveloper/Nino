@@ -42,17 +42,19 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(DateTimeOffset value, ref Writer writer)
         {
-            ref byte dst = ref writer.Reserve(10);
+            ref byte dst = ref writer.Reserve(NinoWire.DateTimeOffsetSize);
             NinoUnsafe.Write(ref dst, value.UtcTicks);
-            NinoUnsafe.Write(ref dst, 8, (short)(value.Offset.Ticks / TimeSpan.TicksPerMinute));
+            NinoUnsafe.Write(ref dst, NinoWire.DateTimeOffsetMinutesPosition,
+                (short)(value.Offset.Ticks / TimeSpan.TicksPerMinute));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref DateTimeOffset value, ref Reader reader)
         {
-            ref byte src = ref reader.ReadBlock(10);
+            ref byte src = ref reader.ReadBlock(NinoWire.DateTimeOffsetSize);
             long utc = NinoUnsafe.Read<long>(ref src);
-            long offset = NinoUnsafe.Read<short>(ref src, 8) * TimeSpan.TicksPerMinute;
+            long offset = NinoUnsafe.Read<short>(ref src, NinoWire.DateTimeOffsetMinutesPosition) *
+                          TimeSpan.TicksPerMinute;
             value = new DateTimeOffset(utc + offset, new TimeSpan(offset));
         }
     }
@@ -87,7 +89,7 @@ namespace Nino.Core
         {
             if (!value.HasValue)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
@@ -95,19 +97,19 @@ namespace Nino.Core
             {
                 // Flag and value in one reservation.
                 ref byte dst = ref writer.Reserve(1 + Unsafe.SizeOf<T>());
-                dst = 1;
+                dst = NinoWire.NotNull;
                 NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TFormatter).Serialize(value.GetValueOrDefault(), ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T? value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -136,7 +138,7 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite(0);
+                writer.UnsafeWrite(NinoWire.NullTypeId);
                 return;
             }
 

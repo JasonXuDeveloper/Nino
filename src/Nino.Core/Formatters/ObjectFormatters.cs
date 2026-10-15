@@ -16,7 +16,7 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite(0);
+                writer.UnsafeWrite(NinoWire.NullTypeId);
                 return;
             }
 
@@ -64,11 +64,11 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TFormatter).WriteBody(value, ref writer);
         }
 
@@ -78,7 +78,7 @@ namespace Nino.Core
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;

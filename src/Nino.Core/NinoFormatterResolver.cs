@@ -83,14 +83,10 @@ namespace Nino.Core
         private static Type ElementFormatter(Type type)
         {
             NinoRegistry.RegisterType(type);
-            if (IsRegistered(type) || IsNinoType(type))
+            if (NinoFormatterCache.IsRegistered(type) || IsNinoType(type))
                 return typeof(CachedFormatter<>).MakeGenericType(type);
             return GetFormatterType(type) ?? typeof(CachedFormatter<>).MakeGenericType(type);
         }
-
-        private static bool IsRegistered(Type type) =>
-            (bool)typeof(NinoFormatterCache<>).MakeGenericType(type)
-                .GetProperty(nameof(NinoFormatterCache<int>.IsRegistered))!.GetValue(null);
 
         /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
         internal static bool IsRawUnmanaged(Type type)

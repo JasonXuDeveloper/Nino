@@ -206,18 +206,19 @@ namespace Nino.Core
             if (type == typeof(decimal))
             {
                 align = decimalAlign;
-                return 16;
+                return sizeof(decimal);
             }
 
             if (type == typeof(DateTime) || type == typeof(TimeSpan))
             {
                 align = longAlign;
-                return 8;
+                return sizeof(long);
             }
 
             if (type == typeof(Guid))
             {
-                align = 4;
+                // int, two shorts and eight bytes
+                align = sizeof(int);
                 return 16;
             }
 
@@ -528,7 +529,7 @@ namespace Nino.Core
         {
             NinoUnsafe.Write(ref destination, count);
             if (count != 0)
-                CopyToWire(ref Unsafe.Add(ref destination, 4), ref source, count);
+                CopyToWire(ref Unsafe.Add(ref destination, NinoWire.LengthSize), ref source, count);
         }
 
         /// <summary>Writes <paramref name="value"/> in its wire layout (<see cref="Size"/> bytes).</summary>

@@ -46,13 +46,13 @@ namespace Nino.Core
         {
             int head = UnsafeRead<int>();
             index = 0;
-            if (head == -1)
+            if (head == NinoWire.NewReference)
             {
                 index = BeginReference();
                 return true;
             }
 
-            if (head == 0)
+            if (head == NinoWire.NullReference)
                 NinoRecycler.Discard(ref value);
             else
                 value = GetReference<T>(head);
@@ -170,7 +170,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T? value) where T : unmanaged
         {
-            if (UnsafeRead<byte>() == 0)
+            if (UnsafeRead<byte>() == NinoWire.Null)
             {
                 value = null;
                 return;
@@ -184,10 +184,10 @@ namespace Nino.Core
         public bool TryReadInt32(int expected)
         {
             int pos = _pos;
-            if (_data.Length - pos < 4 ||
+            if (_data.Length - pos < sizeof(int) ||
                 NinoUnsafe.Read<int>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos)) != expected)
                 return false;
-            _pos = pos + 4;
+            _pos = pos + sizeof(int);
             return true;
         }
 
@@ -196,10 +196,10 @@ namespace Nino.Core
         public bool TryReadInt64(long expected)
         {
             int pos = _pos;
-            if (_data.Length - pos < 8 ||
+            if (_data.Length - pos < sizeof(long) ||
                 NinoUnsafe.Read<long>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos)) != expected)
                 return false;
-            _pos = pos + 8;
+            _pos = pos + sizeof(long);
             return true;
         }
 
@@ -213,9 +213,9 @@ namespace Nino.Core
             int length = UnsafeRead<int>();
             if (length < 0)
             {
-                if (length != -1)
+                if (length != NinoWire.NullLength)
                     NinoThrow.InvalidLength(length);
-                return -1;
+                return NinoWire.NullLength;
             }
 
             if ((long)length * minElementSize > Remaining)
@@ -274,7 +274,7 @@ namespace Nino.Core
         {
             if (length == 0)
                 return string.Empty;
-            if (length != -1)
+            if (length != NinoWire.NullLength)
                 NinoThrow.InvalidLength(length);
             return null;
         }

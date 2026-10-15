@@ -207,9 +207,9 @@ namespace Nino.Core
         /// <summary>Writes the count and the elements.</summary>
         public static void Write(ReadOnlySpan<T?> values, ref Writer writer)
         {
-            ref byte dst = ref writer.Reserve(checked(4 + values.Length * Stride));
+            ref byte dst = ref writer.Reserve(checked(NinoWire.LengthSize + values.Length * Stride));
             NinoUnsafe.Write(ref dst, values.Length);
-            dst = ref Unsafe.Add(ref dst, 4);
+            dst = ref Unsafe.Add(ref dst, NinoWire.LengthSize);
             if (values.IsEmpty)
                 return;
             ref T? item = ref MemoryMarshal.GetReference(values);
@@ -230,7 +230,7 @@ namespace Nino.Core
                 if (!element.HasValue)
                     continue;
                 ref byte slot = ref Unsafe.Add(ref dst, i * Stride);
-                slot = 1;
+                slot = NinoWire.NotNull;
                 NinoLayout<T>.Write(ref Unsafe.Add(ref slot, Offset), element.GetValueOrDefault());
             }
         }
@@ -255,7 +255,9 @@ namespace Nino.Core
             for (int i = 0; i < destination.Length; i++)
             {
                 ref byte slot = ref Unsafe.Add(ref src, i * Stride);
-                Unsafe.Add(ref item, i) = slot != 0 ? NinoLayout<T>.Read(ref Unsafe.Add(ref slot, Offset)) : default(T?);
+                Unsafe.Add(ref item, i) = slot != NinoWire.Null
+                    ? NinoLayout<T>.Read(ref Unsafe.Add(ref slot, Offset))
+                    : default(T?);
             }
         }
     }
@@ -320,9 +322,9 @@ namespace Nino.Core
             }
 
             int a = value.GetLength(0), b = value.GetLength(1);
-            ref byte p = ref writer.Reserve(8);
+            ref byte p = ref writer.Reserve(2 * NinoWire.LengthSize);
             NinoUnsafe.Write(ref p, 0, a);
-            NinoUnsafe.Write(ref p, 4, b);
+            NinoUnsafe.Write(ref p, NinoWire.LengthSize, b);
             if (value.Length != 0)
                 MultiDim.Write<T, TFormatter>(ref value[0, 0], value.Length, ref writer);
         }
@@ -362,10 +364,10 @@ namespace Nino.Core
                 return;
             }
 
-            ref byte p = ref writer.Reserve(12);
+            ref byte p = ref writer.Reserve(3 * NinoWire.LengthSize);
             NinoUnsafe.Write(ref p, 0, value.GetLength(0));
-            NinoUnsafe.Write(ref p, 4, value.GetLength(1));
-            NinoUnsafe.Write(ref p, 8, value.GetLength(2));
+            NinoUnsafe.Write(ref p, NinoWire.LengthSize, value.GetLength(1));
+            NinoUnsafe.Write(ref p, 2 * NinoWire.LengthSize, value.GetLength(2));
             if (value.Length != 0)
                 MultiDim.Write<T, TFormatter>(ref value[0, 0, 0], value.Length, ref writer);
         }
@@ -406,11 +408,11 @@ namespace Nino.Core
                 return;
             }
 
-            ref byte p = ref writer.Reserve(16);
+            ref byte p = ref writer.Reserve(4 * NinoWire.LengthSize);
             NinoUnsafe.Write(ref p, 0, value.GetLength(0));
-            NinoUnsafe.Write(ref p, 4, value.GetLength(1));
-            NinoUnsafe.Write(ref p, 8, value.GetLength(2));
-            NinoUnsafe.Write(ref p, 12, value.GetLength(3));
+            NinoUnsafe.Write(ref p, NinoWire.LengthSize, value.GetLength(1));
+            NinoUnsafe.Write(ref p, 2 * NinoWire.LengthSize, value.GetLength(2));
+            NinoUnsafe.Write(ref p, 3 * NinoWire.LengthSize, value.GetLength(3));
             if (value.Length != 0)
                 MultiDim.Write<T, TFormatter>(ref value[0, 0, 0, 0], value.Length, ref writer);
         }
@@ -477,7 +479,7 @@ namespace Nino.Core
         public static int CheckedTotal(int a, int b, int c, int d, ref Reader reader)
         {
             if (b < 0 || c < 0 || d < 0)
-                NinoThrow.InvalidLength(-1);
+                NinoThrow.InvalidLength(Math.Min(b, Math.Min(c, d)));
             long total = (long)a * b * c * d;
             if (total > reader.Remaining)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));

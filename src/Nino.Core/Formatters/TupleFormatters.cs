@@ -28,17 +28,17 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
         }
 
         public void Deserialize(ref Tuple<T1> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -81,18 +81,18 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
         }
 
         public void Deserialize(ref Tuple<T1, T2> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -141,11 +141,11 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -153,7 +153,7 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -208,11 +208,11 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -221,7 +221,7 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3, T4> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -282,11 +282,11 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -296,7 +296,7 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3, T4, T5> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -363,11 +363,11 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -378,7 +378,7 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3, T4, T5, T6> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -451,11 +451,11 @@ namespace Nino.Core
         {
             if (value == null)
             {
-                writer.UnsafeWrite((byte)0);
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
-            writer.UnsafeWrite((byte)1);
+            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -467,7 +467,7 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3, T4, T5, T6, T7> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == 0)
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
             {
                 NinoRecycler.Discard(ref value);
                 return;

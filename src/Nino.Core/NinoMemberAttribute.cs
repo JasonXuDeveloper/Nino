@@ -7,7 +7,7 @@ namespace Nino.Core
     /// <remarks>This requires the type is annotated using <c>[NinoType(false)]</c></remarks>
     /// <see href="https://nino.xgamedev.net/en/doc/types#custom-types"/>
     /// </summary>
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property | AttributeTargets.Parameter)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class NinoMemberAttribute : Attribute
     {
         /// <summary>Position of the member in the serialized data.</summary>

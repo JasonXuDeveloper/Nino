@@ -12,7 +12,7 @@ namespace Nino.Core.Internal
     /// <summary>Mirrors the field layout of <see cref="List{T}"/> (the same on .NET Framework, Mono and IL2CPP).</summary>
     [SuppressMessage("ReSharper", "InconsistentNaming")]
 #pragma warning disable CS0649 // assigned through Unsafe.As
-    internal class ListView<T>
+    internal sealed class ListView<T>
     {
         public T[] _items; // Do not rename (binary serialization)
         public int _size; // Do not rename (binary serialization)

@@ -41,11 +41,12 @@ namespace Nino.Core
     public sealed class NinoPool<T> where T : class, INinoPooled
     {
         private const int ThreadCapacity = 64;
+        private const int DefaultMaxRetained = 256;
 
         private readonly object _lock = new object();
         private T[] _items = new T[ThreadCapacity];
         private int _count;
-        private int _maxRetained = 256;
+        private int _maxRetained = DefaultMaxRetained;
         private int _warmedUp;
         // Bumped by Clear: thread stacks filled before it drop their instances.
         private int _generation;

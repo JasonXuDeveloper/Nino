@@ -51,9 +51,5 @@ namespace Nino.Core
         public static void ReferenceTypeMismatch(Type expected, Type actual) =>
             throw new InvalidOperationException(
                 $"Nino: object reference to a {actual?.FullName} where a {expected.FullName} is expected.");
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public static void InvalidRank(int expected, int actual) =>
-            throw new InvalidOperationException($"Nino: expected an array of rank {expected}, got {actual}.");
     }
 }

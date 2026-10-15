@@ -14,27 +14,18 @@ namespace Nino.Core
     /// </summary>
     internal sealed class NinoReferenceWriteTable
     {
-        // Tables that grew beyond this are dropped instead of cached, so a thread does not keep a huge array.
-        private const int MaxCachedCapacity = 1 << 12;
-
         [ThreadStatic] private static NinoReferenceWriteTable t_cached;
 
         private object[] _keys = new object[16];
         private int[] _values = new int[16];
         private int _count;
 
-        public static NinoReferenceWriteTable Rent()
-        {
-            var table = t_cached;
-            if (table == null)
-                return new NinoReferenceWriteTable();
-            t_cached = null;
-            return table;
-        }
+        public static NinoReferenceWriteTable Rent() =>
+            NinoThreadCache.Take(ref t_cached) ?? new NinoReferenceWriteTable();
 
         public static void Return(NinoReferenceWriteTable table)
         {
-            if (table._keys.Length > MaxCachedCapacity)
+            if (table._keys.Length > NinoThreadCache.MaxRetainedTableCapacity)
                 return;
             if (table._count != 0)
             {
@@ -95,8 +86,6 @@ namespace Nino.Core
     /// <summary>Objects read so far in one deserialization call (index i - 1 holds object i).</summary>
     internal sealed class NinoReferenceReadTable
     {
-        private const int MaxCachedCapacity = 1 << 12;
-
         [ThreadStatic] private static NinoReferenceReadTable t_cached;
 
         private object[] _objects = new object[8];
@@ -105,18 +94,12 @@ namespace Nino.Core
         // Index of the object whose instance has not been recorded yet (0 = none).
         public int Pending;
 
-        public static NinoReferenceReadTable Rent()
-        {
-            var table = t_cached;
-            if (table == null)
-                return new NinoReferenceReadTable();
-            t_cached = null;
-            return table;
-        }
+        public static NinoReferenceReadTable Rent() =>
+            NinoThreadCache.Take(ref t_cached) ?? new NinoReferenceReadTable();
 
         public static void Return(NinoReferenceReadTable table)
         {
-            if (table._objects.Length > MaxCachedCapacity)
+            if (table._objects.Length > NinoThreadCache.MaxRetainedTableCapacity)
                 return;
             Array.Clear(table._objects, 0, table._count);
             table._count = 0;

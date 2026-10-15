@@ -93,7 +93,7 @@ namespace Nino.Core
 
         private struct IdEntry
         {
-            public int Key; // 0 = empty (id 0 is reserved for null)
+            public int Key; // NinoWire.NullTypeId = empty (that id is never registered)
             public NinoSubtypeHandler Handler;
         }
 
@@ -105,7 +105,7 @@ namespace Nino.Core
         /// <summary>Registers a handler. Idempotent for the same type and id.</summary>
         public static void Register(NinoSubtypeHandler handler)
         {
-            if (handler.Id == 0)
+            if (handler.Id == NinoWire.NullTypeId)
                 throw new ArgumentException("Type id 0 is reserved for null.");
             if (!typeof(TBase).IsAssignableFrom(handler.Type))
                 throw new ArgumentException($"{handler.Type} does not derive from {typeof(TBase)}.");
@@ -163,7 +163,7 @@ namespace Nino.Core
             Volatile.Write(ref byType[i].Key, handler.Type);
 
             i = handler.Id & mask;
-            while (byId[i].Key != 0)
+            while (byId[i].Key != NinoWire.NullTypeId)
                 i = (i + 1) & mask;
             byId[i].Handler = handler;
             Volatile.Write(ref byId[i].Key, handler.Id);
@@ -197,7 +197,7 @@ namespace Nino.Core
                 int key = Volatile.Read(ref e.Key);
                 if (key == id)
                     return e.Handler;
-                if (key == 0)
+                if (key == NinoWire.NullTypeId)
                     return null;
                 i = (i + 1) & mask;
             }
@@ -270,7 +270,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize(int id, ref TBase value, ref Reader reader)
         {
-            if (id == 0)
+            if (id == NinoWire.NullTypeId)
             {
                 NinoRecycler.Discard(ref value);
                 return;
