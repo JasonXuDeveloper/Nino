@@ -18,6 +18,7 @@
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
         <RunPostBuildEvent>Always</RunPostBuildEvent>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <BranchName>refs/heads/main</BranchName>
         <NoWarn>$(NoWarn);NU5128</NoWarn>
@@ -30,6 +31,7 @@
     <ItemGroup>
         <Compile Include="..\Version.cs"/>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+        <None Include="..\..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
     </ItemGroup>
 
     <ItemGroup>

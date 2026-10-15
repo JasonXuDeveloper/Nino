@@ -28,6 +28,7 @@
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <BranchName>refs/heads/main</BranchName>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -54,6 +55,7 @@
         <Compile Include="..\Nino.Core\IO\NinoWire.cs" Link="Shared\NinoWire.cs"/>
         <Compile Include="..\Nino.Core\Internal\NinoFormatterBinding.cs" Link="Shared\NinoFormatterBinding.cs"/>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+        <None Include="..\..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
     </ItemGroup>
 
     <ItemGroup>

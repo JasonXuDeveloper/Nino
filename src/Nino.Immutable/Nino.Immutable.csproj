@@ -18,6 +18,7 @@
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
         <BranchName>refs/heads/main</BranchName>
         <!-- Enable embedding repository URL in the PDB -->
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -36,6 +37,7 @@
 
     <ItemGroup>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+        <None Include="..\..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
     </ItemGroup>
 
     <ItemGroup>
