@@ -57,7 +57,11 @@ internal sealed class FormatterResolver
         return args.Count == 0 ? name : $"{name}<{string.Join(", ", args.Select(TypeNames.Global))}>";
     }
 
-    /// <summary>Size of a raw unmanaged type: a constant for primitives and enums, symbolic for structs.</summary>
+    /// <summary>
+    /// Size of a raw unmanaged type: a constant for primitives, enums and the BCL structs whose size and layout
+    /// are the same on every runtime (<c>DateTime</c>, <c>TimeSpan</c>, <c>Guid</c>), symbolic for other structs.
+    /// A constant saves interpreted code (HybridCLR, Mono's interpreter) a <c>SizeOf</c> call per member.
+    /// </summary>
     public static RawSize RawSizeOf(ITypeSymbol type)
     {
         var t = type is INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: { } underlying }
@@ -70,6 +74,9 @@ internal sealed class FormatterResolver
             SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Single => 4,
             SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_Double => 8,
             SpecialType.System_Decimal => 16,
+            SpecialType.System_DateTime => 8,
+            _ when t is INamedTypeSymbol named && TypeNames.HasMetadataName(named, "System.TimeSpan") => 8,
+            _ when t is INamedTypeSymbol named && TypeNames.HasMetadataName(named, "System.Guid") => 16,
             _ => 0,
         };
         return bytes != 0
