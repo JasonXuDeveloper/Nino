@@ -15,11 +15,23 @@ namespace Nino.Core
         private int _pos;
         private NinoReferenceReadTable _refs;
 
+        /// <exception cref="PlatformNotSupportedException">The host is big-endian.</exception>
         public Reader(ReadOnlySpan<byte> data)
         {
+            // A JIT-time constant on CoreCLR, NativeAOT and Mono: the check folds away.
+            if (!BitConverter.IsLittleEndian)
+                NinoThrow.BigEndianHost();
             _data = data;
             _pos = 0;
             _refs = null;
+        }
+
+        /// <summary>A slice of a reader that already passed the endianness check.</summary>
+        private Reader(ReadOnlySpan<byte> data, NinoReferenceReadTable refs)
+        {
+            _data = data;
+            _pos = 0;
+            _refs = refs;
         }
 
         /// <summary>
@@ -230,8 +242,7 @@ namespace Nino.Core
             int length = UnsafeRead<int>();
             if ((uint)length > (uint)Remaining)
                 NinoThrow.InvalidLength(length);
-            var slice = new Reader(_data.Slice(_pos, length));
-            slice._refs = _refs;
+            var slice = new Reader(_data.Slice(_pos, length), _refs);
             _pos += length;
             return slice;
         }

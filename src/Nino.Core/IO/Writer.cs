@@ -20,8 +20,12 @@ namespace Nino.Core
         private int _pos;
         private NinoReferenceWriteTable _refs;
 
+        /// <exception cref="PlatformNotSupportedException">The host is big-endian.</exception>
         public Writer(NinoArrayBufferWriter buffer)
         {
+            // A JIT-time constant on CoreCLR, NativeAOT and Mono: the check folds away.
+            if (!BitConverter.IsLittleEndian)
+                NinoThrow.BigEndianHost();
             _owner = buffer ?? throw new ArgumentNullException(nameof(buffer));
             _buffer = buffer.Buffer;
             _pos = buffer.Index;

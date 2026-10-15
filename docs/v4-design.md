@@ -45,7 +45,7 @@ The test-suite runs against each `Nino.Core` build and checks golden payloads.
 ## Binary format
 
 All multi-byte values are **little-endian** and written unaligned (`Unsafe.WriteUnaligned`). Big-endian
-hosts are not supported.
+hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`.
 
 | Value | Encoding |
 | --- | --- |

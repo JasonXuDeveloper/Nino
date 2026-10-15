@@ -9,6 +9,11 @@ namespace Nino.Core
     public static class NinoThrow
     {
         [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void BigEndianHost() =>
+            throw new PlatformNotSupportedException(
+                "Nino: big-endian hosts are not supported. Nino writes little-endian data, and every platform .NET and Unity run on today (x86, x64, ARM, WebAssembly) is little-endian.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static void EndOfData() =>
             throw new InvalidOperationException("Nino: unexpected end of data.");
 
