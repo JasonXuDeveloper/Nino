@@ -152,7 +152,7 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
-        public void GenericRefDeserializationReusesInstances()
+        public void GenericReuseDeserializationReusesInstances()
         {
             var target = new Box<Box<int>> { Item = new Box<int> { Items = new List<int> { 9, 9, 9 } } };
             var inner = target.Item;

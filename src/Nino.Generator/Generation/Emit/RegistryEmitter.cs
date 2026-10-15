@@ -96,7 +96,7 @@ internal static class RegistryEmitter
         // Formatters first, then creators, then closed generic [NinoType]s, each in their own (sorted) order.
         var statements = usages
             .Select(u => (u.Id, Code: $"{Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();"))
-            .Concat(factories.Select(f => (f.Id, Code: $"{Core}NinoFactory<{f.TypeName}>.TryRegister({f.Creator});")))
+            .Concat(factories.Select(f => (f.Id, Code: $"{Core}NinoActivator<{f.TypeName}>.TryRegister({f.Creator});")))
             .Concat(generics.SelectMany(GenericStatements));
         EmitIdDispatch(w, "internal static", "",
             statements.GroupBy(u => u.Id).OrderBy(g => g.Key)

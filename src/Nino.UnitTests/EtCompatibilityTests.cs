@@ -27,7 +27,7 @@ public static class EtPool
 }
 
 /// <summary>
-/// ET's pooled list. Nino creates it through the [NinoRefDeserialization] factory (from the pool) and hands dropped
+/// ET's pooled list. Nino creates it through the [NinoFactory] factory (from the pool) and hands dropped
 /// instances back through <see cref="INinoPooled"/>; returning one twice throws.
 /// </summary>
 public class ListComponent<T> : List<T>, IDisposable, INinoPooled
@@ -35,7 +35,7 @@ public class ListComponent<T> : List<T>, IDisposable, INinoPooled
     public static int Created;
     public bool Returned;
 
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static ListComponent<T> Create()
     {
         Created++;
@@ -192,7 +192,7 @@ public partial class UnitInfo
 {
     public static int Created;
 
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static UnitInfo Create(bool isFromPool = false)
     {
         Created++;
@@ -219,7 +219,7 @@ public partial class EtMessage
     public List<Entity> Entities;
 }
 
-/// <summary>Slots in which ref deserialization drops pooled ET collections.</summary>
+/// <summary>Slots in which reuse deserialization drops pooled ET collections.</summary>
 [NinoType]
 public partial class EtPooledSlots
 {
@@ -232,7 +232,7 @@ public partial class EtPooledSlots
 
 /// <summary>
 /// Only reached through generic code (<see cref="EtCompatibilityTests.RoundTripAtRuntime{T}"/>), so the generator never
-/// sees these types: the runtime resolver binds them and NinoFactory creates them by reflection.
+/// sees these types: the runtime resolver binds them and NinoActivator creates them by reflection.
 /// </summary>
 public class RuntimeOnlyMap : SortedDictionary<int, int>
 {
@@ -246,7 +246,7 @@ public class RuntimePooledList : List<int>
     public static int Created;
     public bool FromPool;
 
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static RuntimePooledList Rent(bool fromPool = true)
     {
         Created++;
@@ -374,7 +374,7 @@ public class EtCompatibilityTests
         var result = NinoDeserializer.Deserialize<EtMessage>(bytes);
         Assert.IsInstanceOfType(result.Ids, typeof(ListComponent<long>));
         CollectionAssert.AreEqual(new long[] { 1, 2 }, result.Ids);
-        Assert.AreEqual(created + 1, ListComponent<long>.Created, "created through the [NinoRefDeserialization] factory");
+        Assert.AreEqual(created + 1, ListComponent<long>.Created, "created through the [NinoFactory] factory");
 
         // In place: the existing instance is reused, nothing is created.
         NinoDeserializer.Deserialize(bytes, ref result);
@@ -389,7 +389,7 @@ public class EtCompatibilityTests
         Assert.AreEqual(2, syncedBack.Count);
         CollectionAssert.AreEqual(new[] { 2, 3 }, syncedBack[1]);
         Assert.AreEqual(created + 3, ListComponent<int>.Created);
-        Assert.IsTrue(NinoFactory<ListComponent<int>>.IsRegistered);
+        Assert.IsTrue(NinoActivator<ListComponent<int>>.IsRegistered);
     }
 
     [TestMethod]
@@ -405,8 +405,8 @@ public class EtCompatibilityTests
         };
         var bytes = NinoSerializer.Serialize(full);
 
-        // Pooled instances exist from here on (created through NinoFactory), so base-typed slots are walked too.
-        NinoFactory<ListComponent<int>>.Create();
+        // Pooled instances exist from here on (created through NinoActivator), so base-typed slots are walked too.
+        NinoActivator<ListComponent<int>>.Create();
         Assert.IsTrue(NinoRecycler.PoolsInUse);
 
         var single = new ListComponent<int> { 9 };
@@ -465,7 +465,7 @@ public class EtCompatibilityTests
         MultiMap<int, long> top = null;
         NinoDeserializer.Deserialize(NinoSerializer.Serialize(message.ByType), ref top);
         Assert.IsTrue(top.HasPool);
-        Assert.IsTrue(NinoFactory<MultiMap<int, long>>.IsRegistered);
+        Assert.IsTrue(NinoActivator<MultiMap<int, long>>.IsRegistered);
     }
 
     [TestMethod]
@@ -495,7 +495,7 @@ public class EtCompatibilityTests
     [TestMethod]
     public void RuntimeResolvedCollectionsUseNinoFactory()
     {
-        Assert.IsFalse(NinoFactory<RuntimeOnlyMap>.IsRegistered, "the generator never saw it");
+        Assert.IsFalse(NinoActivator<RuntimeOnlyMap>.IsRegistered, "the generator never saw it");
         var map = new RuntimeOnlyMap(10) { [1] = 2 };
         var back = RoundTripAtRuntime(map);
         Assert.AreEqual(3, back.Capacity, "constructor called with its default argument");
@@ -509,6 +509,6 @@ public class EtCompatibilityTests
 
         // [NinoCreated] rejects types Nino cannot create, like the generator: there is no formatter at all.
         Assert.ThrowsException<InvalidOperationException>(() => RoundTripAtRuntime(new RuntimeNoConstructorList(1)));
-        Assert.ThrowsException<InvalidOperationException>(() => NinoFactory<RuntimeAbstractList>.Create());
+        Assert.ThrowsException<InvalidOperationException>(() => NinoActivator<RuntimeAbstractList>.Create());
     }
 }

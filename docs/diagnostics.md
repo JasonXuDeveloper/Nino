@@ -24,7 +24,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO014](#nino014) | Error | Keyed members hash to the same key |
 | [NINO015](#nino015) | Warning | `trackReferences` on a struct 🔧 |
 | [NINO016](#nino016) | Error | `trackReferences` on a type re-created from its constructor |
-| [NINO017](#nino017) | Error | Invalid `[NinoRefDeserialization]` method |
+| [NINO017](#nino017) | Error | Invalid `[NinoFactory]` method |
 | [NINO018](#nino018) | Error | `[NinoPooled]` on a type that cannot be pooled 🔧 |
 | [NINO019](#nino019) | Error | `[NinoPooled]` class does not implement its pool hooks 🔧 |
 | [NINO020](#nino020) | Error | Invalid `[assembly: NinoFormatter]` registration |
@@ -93,7 +93,7 @@ Nino has no formatter for the member type (delegates, `Task`, pointers...). The 
 `[NinoIgnore]` or give it a custom formatter. 🔧 Add `[NinoIgnore]`.
 
 User collections end up here when Nino cannot create or fill them: an abstract collection, one without a public
-constructor callable without arguments (and no public static `[NinoRefDeserialization]` factory), one whose C# 11
+constructor callable without arguments (and no public static `[NinoFactory]` factory), one whose C# 11
 `required` members that constructor does not set, a struct implementing `ICollection<T>`, a non-generic collection
 (`ArrayList`), `ReadOnlyCollection<T>`, or a type implementing `ICollection<T>` for two different `T`.
 
@@ -163,7 +163,7 @@ this also applies to subtypes of a tracked type. Make the members assignable.
 
 ### NINO017
 
-A `[NinoRefDeserialization]` factory must be `public static`, callable without arguments (parameterless, or every
+A `[NinoFactory]` factory must be `public static`, callable without arguments (parameterless, or every
 parameter optional, like ET's `static T Create(bool isFromPool = false)`) and return the containing type.
 
 ## Pooling

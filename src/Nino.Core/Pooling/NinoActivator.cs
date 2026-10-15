@@ -8,8 +8,8 @@ namespace Nino.Core
 {
     /// <summary>
     /// On a type parameter of a formatter (<c>struct F&lt;[NinoCreated] TCollection, ...&gt;</c>): the formatter creates
-    /// instances of the parameter through <see cref="NinoFactory{T}.Create"/>, so the bound type must be a non-abstract
-    /// class with a public static <see cref="NinoRefDeserializationAttribute"/> factory or a public constructor that is
+    /// instances of the parameter through <see cref="NinoActivator{T}.Create"/>, so the bound type must be a non-abstract
+    /// class with a public static <see cref="NinoFactoryAttribute"/> factory or a public constructor that is
     /// callable without arguments (every parameter optional). The generator and the runtime resolver only bind such
     /// types, and the generator registers a creator for each one it binds.
     /// <para>
@@ -29,13 +29,13 @@ namespace Nino.Core
     /// The creator is one static field of the closed type, so <see cref="Create"/> is a field load and a delegate call.
     /// Generated code registers it for every closed collection type the generator binds to a
     /// <see cref="NinoCreatedAttribute"/> parameter, lazily (with the formatters of that type id), as
-    /// <c>() =&gt; T.Factory()</c> for a public static <see cref="NinoRefDeserializationAttribute"/> method callable
+    /// <c>() =&gt; T.Factory()</c> for a public static <see cref="NinoFactoryAttribute"/> method callable
     /// without arguments declared on <typeparamref name="T"/>, else <c>() =&gt; new T()</c>. Types it never saw (built at
     /// runtime, nested elements of runtime-resolved formatters) are resolved by reflection on first use, in the same
     /// order, and cached as a delegate.
     /// </para>
     /// </summary>
-    public static class NinoFactory<T>
+    public static class NinoActivator<T>
     {
         private static Func<T> _create;
 
@@ -62,7 +62,7 @@ namespace Nino.Core
             if (create == null)
                 throw new ArgumentNullException(nameof(create));
             if (Interlocked.CompareExchange(ref _create, create, null) == null)
-                NinoFactory.OnRegistered(typeof(T));
+                NinoActivator.OnRegistered(typeof(T));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -73,12 +73,12 @@ namespace Nino.Core
             var create = Volatile.Read(ref _create);
             if (create != null)
                 return create;
-            TryRegister(NinoFactory.Reflect<T>());
+            TryRegister(NinoActivator.Reflect<T>());
             return _create;
         }
     }
 
-    internal static class NinoFactory
+    internal static class NinoActivator
     {
         /// <summary>
         /// A creator of <typeparamref name="T"/> was set: pooled instances may now be dropped from slots of a base type,
@@ -92,7 +92,7 @@ namespace Nino.Core
 
         /// <summary>
         /// The creator found by reflection, preferring what the generator prefers: a public static
-        /// <see cref="NinoRefDeserializationAttribute"/> method of <typeparamref name="T"/> returning it and callable
+        /// <see cref="NinoFactoryAttribute"/> method of <typeparamref name="T"/> returning it and callable
         /// without arguments, then a public parameterless constructor, then a public constructor whose parameters are
         /// all optional (called with their default values).
         /// </summary>
@@ -132,7 +132,7 @@ namespace Nino.Core
             return () =>
             {
                 NinoThrow.CannotCreate(type, "it needs a public constructor callable without arguments (that sets " +
-                                             "its required members) or a public static [NinoRefDeserialization] factory");
+                                             "its required members) or a public static [NinoFactory] factory");
                 return default;
             };
         }
@@ -192,13 +192,13 @@ namespace Nino.Core
 #endif
         }
 
-        /// <summary>A public static <see cref="NinoRefDeserializationAttribute"/> factory declared on <paramref name="type"/>.</summary>
+        /// <summary>A public static <see cref="NinoFactoryAttribute"/> factory declared on <paramref name="type"/>.</summary>
         internal static MethodInfo FindFactory(Type type)
         {
             foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
             {
                 if (method.ReturnType == type && !method.ContainsGenericParameters && CallableWithoutArguments(method) &&
-                    method.IsDefined(typeof(NinoRefDeserializationAttribute), false))
+                    method.IsDefined(typeof(NinoFactoryAttribute), false))
                     return method;
             }
 

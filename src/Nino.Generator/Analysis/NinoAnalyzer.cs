@@ -31,7 +31,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         NinoDiagnostics.HiddenMember,
         NinoDiagnostics.EmptyStruct,
         NinoDiagnostics.InvalidCustomFormatter,
-        NinoDiagnostics.InvalidRefDeserialization,
+        NinoDiagnostics.InvalidFactory,
         NinoDiagnostics.UnserializableMember,
         NinoDiagnostics.NotPartial,
         NinoDiagnostics.ReadOnlyMember,
@@ -56,8 +56,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             var symbols = TypeFacts.For(start.Compilation, start.Compilation.SyntaxTrees.FirstOrDefault()?.Options).Symbols;
             // Symbol actions run once per type, not once per partial declaration.
             start.RegisterSymbolAction(AnalyzeType, SymbolKind.NamedType);
-            if (symbols.RefDeserialization is { } refAttribute)
-                start.RegisterSymbolAction(c => AnalyzeMethod(c, refAttribute), SymbolKind.Method);
+            if (symbols.Factory is { } factoryAttribute)
+                start.RegisterSymbolAction(c => AnalyzeMethod(c, factoryAttribute), SymbolKind.Method);
             start.RegisterSyntaxNodeAction(AnalyzeAssemblyAttributes, SyntaxKind.AttributeList);
         });
     }
@@ -190,7 +190,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
             errors.Add($"must return {method.ContainingType.ToDisplayString()}");
         if (errors.Count > 0)
-            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.InvalidRefDeserialization,
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.InvalidFactory,
                 method.Locations.FirstOrDefault(), method.Name, string.Join(", ", errors)));
     }
 }

@@ -9,14 +9,14 @@ namespace Nino.Core
     /// <list type="bullet">
     /// <item>on a <c>[NinoType]</c>: generated code calls it instead of the constructor;</item>
     /// <item>on any collection type (a <c>List&lt;T&gt;</c> subclass, an <c>IDictionary&lt;TKey, TValue&gt;</c>...):
-    /// <see cref="NinoFactory{T}"/> uses it, as ET's pooled <c>static ListComponent&lt;T&gt; Create()</c>. It may
+    /// <see cref="NinoActivator{T}"/> uses it, as ET's pooled <c>static ListComponent&lt;T&gt; Create()</c>. It may
     /// return an instance that still holds elements; they are dropped (and recycled) before the data is read.</item>
     /// </list>
     /// The method must be public, static, callable without arguments and return exactly the declaring type (NINO017
     /// otherwise), and must not return <c>null</c>.
     /// </summary>
     [AttributeUsage(AttributeTargets.Method)]
-    public sealed class NinoRefDeserializationAttribute : Attribute
+    public sealed class NinoFactoryAttribute : Attribute
     {
     }
 }

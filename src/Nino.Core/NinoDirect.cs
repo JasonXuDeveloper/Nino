@@ -91,11 +91,6 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeRef<T, TFormatter>(ref T value, ReadOnlySpan<byte> data)
-            where TFormatter : struct, INinoFormatter<T> =>
-            Deserialize<T, TFormatter>(data, ref value);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T, TFormatter>(ref T value, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
@@ -104,11 +99,6 @@ namespace Nino.Core
             else
                 default(TFormatter).Deserialize(ref value, ref reader);
         }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeRef<T, TFormatter>(ref T value, ref Reader reader)
-            where TFormatter : struct, INinoFormatter<T> =>
-            Deserialize<T, TFormatter>(ref value, ref reader);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T Deserialize<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>

@@ -79,7 +79,7 @@ namespace Nino.UnitTests.Corner
         public static int Created;
         public int Hp;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static PCompBase Create()
         {
             Created++;
@@ -93,7 +93,7 @@ namespace Nino.UnitTests.Corner
         public new static int Created;
         public List<int> Tags;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public new static PComp Create()
         {
             Created++;
@@ -109,7 +109,7 @@ namespace Nino.UnitTests.Corner
         public new static int Created;
         public string S;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public new static PCompAlt Create(bool isFromPool = false)
         {
             Created++;
@@ -130,7 +130,7 @@ namespace Nino.UnitTests.Corner
         public PCompBase Poly;
         public Dictionary<int, PComp> ById;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static PUnit Create(bool isFromPool = false)
         {
             Created++;
@@ -187,8 +187,8 @@ namespace Nino.UnitTests.Corner
             var buffs = unit.Buffs;
             var comps = unit.Comps;
             // A first payload fills the graph with factory-created components.
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit
-                { Buffs = new List<int> { 1 }, Comps = new List<PComp> { Comp(1, 1), Comp(2, 2) } }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit
+                { Buffs = new List<int> { 1 }, Comps = new List<PComp> { Comp(1, 1), Comp(2, 2) } }), ref unit);
             Assert.AreSame(buffs, unit.Buffs);
             Assert.AreSame(comps, unit.Comps);
             var c0 = unit.Comps[0];
@@ -198,8 +198,8 @@ namespace Nino.UnitTests.Corner
             Assert.AreEqual(0, UserPool.Returns);
 
             // Then a payload where the nested list is null and the component list shrinks.
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit
-                { Buffs = null, Comps = new List<PComp> { Comp(3, null) } }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit
+                { Buffs = null, Comps = new List<PComp> { Comp(3, null) } }), ref unit);
             Assert.IsNull(unit.Buffs);
             Assert.AreSame(c0, unit.Comps.Single());
             Assert.IsNull(c0.Tags);
@@ -211,7 +211,7 @@ namespace Nino.UnitTests.Corner
             Assert.AreEqual(4, UserPool.Returns);
 
             // Everything null: the component list goes back with its element.
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit()));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit()), ref unit);
             Assert.IsNull(unit.Comps);
             Assert.IsTrue(UserPool.IsInPool(comps));
             Assert.IsTrue(UserPool.IsInPool(c0));
@@ -236,15 +236,15 @@ namespace Nino.UnitTests.Corner
         public void ArraysShrinkAndGrowWithFactoryElements()
         {
             var unit = new PUnit();
-            NinoDeserializer.DeserializeRef(ref unit,
-                NinoSerializer.Serialize(new PUnit { Slots = new[] { Comp(1), Comp(2), Comp(3) } }));
+            NinoDeserializer.Deserialize(
+                NinoSerializer.Serialize(new PUnit { Slots = new[] { Comp(1), Comp(2), Comp(3) } }), ref unit);
             var slots = unit.Slots;
             var a = slots[0];
             var b = slots[1];
             var c = slots[2];
 
             // Shrink: the kept element moves, the dropped ones are returned once each.
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit { Slots = new[] { Comp(7) } }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit { Slots = new[] { Comp(7) } }), ref unit);
             Assert.AreSame(a, unit.Slots[0]);
             Assert.AreEqual(7, a.Hp);
             Assert.IsTrue(UserPool.IsInPool(b) && UserPool.IsInPool(c));
@@ -253,8 +253,8 @@ namespace Nino.UnitTests.Corner
 
             // Grow: the kept element stays, the new ones come from the factory (the pool, here).
             int created = PComp.Created;
-            NinoDeserializer.DeserializeRef(ref unit,
-                NinoSerializer.Serialize(new PUnit { Slots = new[] { Comp(1), null, Comp(3), Comp(4) } }));
+            NinoDeserializer.Deserialize(
+                NinoSerializer.Serialize(new PUnit { Slots = new[] { Comp(1), null, Comp(3), Comp(4) } }), ref unit);
             Assert.AreEqual(created + 2, PComp.Created);
             Assert.AreSame(a, unit.Slots[0]);
             Assert.IsNull(unit.Slots[1]);
@@ -264,7 +264,7 @@ namespace Nino.UnitTests.Corner
 
             // Empty array.
             var before = unit.Slots.Where(s => s != null).ToList();
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit { Slots = new PComp[0] }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit { Slots = new PComp[0] }), ref unit);
             Assert.AreEqual(0, unit.Slots.Length);
             Assert.IsTrue(before.All(UserPool.IsInPool));
         }
@@ -273,13 +273,13 @@ namespace Nino.UnitTests.Corner
         public void PolymorphicMemberReplacedByAnotherSubtypeIsRecycledOnce()
         {
             var unit = new PUnit();
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit { Poly = Comp(1, 1) }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit { Poly = Comp(1, 1) }), ref unit);
             var first = (PComp)unit.Poly;
             var tags = first.Tags;
             int returns = UserPool.Returns;
 
             int alt = PCompAlt.Created;
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit { Poly = new PCompAlt { Hp = 2, S = "s" } }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit { Poly = new PCompAlt { Hp = 2, S = "s" } }), ref unit);
             Assert.AreEqual(alt + 1, PCompAlt.Created);
             Assert.AreEqual("s", ((PCompAlt)unit.Poly).S);
             Assert.IsTrue(UserPool.IsInPool(first));
@@ -287,9 +287,9 @@ namespace Nino.UnitTests.Corner
             Assert.AreEqual(returns + 2, UserPool.Returns);
 
             // Base type, then back to the first subtype, which comes out of the pool.
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit { Poly = new PCompBase { Hp = 3 } }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit { Poly = new PCompBase { Hp = 3 } }), ref unit);
             Assert.AreEqual(typeof(PCompBase), unit.Poly.GetType());
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit { Poly = Comp(4, 4) }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit { Poly = Comp(4, 4) }), ref unit);
             Assert.AreSame(first, unit.Poly);
             Assert.AreEqual(4, first.Hp);
             CollectionAssert.AreEqual(new[] { 4 }, first.Tags);
@@ -299,12 +299,12 @@ namespace Nino.UnitTests.Corner
         public void DictionaryValuesOfRemovedKeysAreRecycledOnce()
         {
             var unit = new PUnit();
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit
-                { ById = new Dictionary<int, PComp> { [1] = Comp(1), [2] = Comp(2), [3] = null } }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit
+                { ById = new Dictionary<int, PComp> { [1] = Comp(1), [2] = Comp(2), [3] = null } }), ref unit);
             var one = unit.ById[1];
             var two = unit.ById[2];
-            NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(new PUnit
-                { ById = new Dictionary<int, PComp> { [1] = Comp(10), [4] = Comp(4) } }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(new PUnit
+                { ById = new Dictionary<int, PComp> { [1] = Comp(10), [4] = Comp(4) } }), ref unit);
             Assert.AreSame(one, unit.ById[1]);
             Assert.AreEqual(10, one.Hp);
             Assert.IsTrue(UserPool.IsInPool(two));
@@ -418,7 +418,7 @@ namespace Nino.UnitTests.Corner
             {
                 var source = RandomUnit(random);
                 var before = Reachable(unit);
-                NinoDeserializer.DeserializeRef(ref unit, NinoSerializer.Serialize(source));
+                NinoDeserializer.Deserialize(NinoSerializer.Serialize(source), ref unit);
                 AssertGraph(source, unit);
 
                 var after = new HashSet<object>(Reachable(unit), RefComparer.Instance);

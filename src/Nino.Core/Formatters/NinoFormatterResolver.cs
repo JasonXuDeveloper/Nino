@@ -277,8 +277,8 @@ namespace Nino.Core
                 if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0 &&
                     !type.IsValueType && (type.IsAbstract || type.GetConstructor(Type.EmptyTypes) == null))
                     return false;
-                // [NinoCreated]: created through NinoFactory<T>, by a factory or constructor callable without arguments.
-                if (parameter.IsDefined(typeof(NinoCreatedAttribute), false) && !NinoFactory.IsCreatable(type))
+                // [NinoCreated]: created through NinoActivator<T>, by a factory or constructor callable without arguments.
+                if (parameter.IsDefined(typeof(NinoCreatedAttribute), false) && !NinoActivator.IsCreatable(type))
                     return false;
                 foreach (var constraint in parameter.GetGenericParameterConstraints())
                 {

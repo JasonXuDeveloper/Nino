@@ -113,7 +113,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 {
                     Expression: MemberAccessExpressionSyntax
                     {
-                        Name.Identifier.ValueText: "Serialize" or "Deserialize" or "DeserializeRef"
+                        Name.Identifier.ValueText: "Serialize" or "Deserialize"
                     } access
                 } && IsNinoReceiver(access.Expression),
                 static (ctx, ct) => TransformUsage(ctx, ct))
@@ -125,7 +125,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // Closed built-in formatters used by members: registered once per assembly here rather than by every
         // type that uses them (the same List<int> formatter is typically used by many types).
         var memberFormatters = CollectAll(models, static m => m.UsedFormatters);
-        // Creators of the collections those formatters create (NinoFactory<T>), registered the same way.
+        // Creators of the collections those formatters create (NinoActivator<T>), registered the same way.
         var memberFactories = CollectAll(models, static m => m.UsedFactories);
         // Closed generic [NinoType]s named anywhere above, registered by type id (they have no registration of
         // their own: a polymorphic read must be able to map their id back to the type).
@@ -165,7 +165,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 {
                     Expression: MemberAccessExpressionSyntax
                     {
-                        Name.Identifier.ValueText: "Serialize" or "Deserialize" or "DeserializeRef"
+                        Name.Identifier.ValueText: "Serialize" or "Deserialize"
                     } access
                 } && IsNinoReceiver(access.Expression),
                 static (ctx, ct) => Interceptors.Transform(ctx, ct))

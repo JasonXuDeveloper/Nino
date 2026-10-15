@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 namespace Nino.Core
 {
     /// <summary>
-    /// Where ref deserialization sends an instance it drops: the handler registered for the declared type
+    /// Where reuse deserialization sends an instance it drops: the handler registered for the declared type
     /// <typeparamref name="T"/> (<see cref="NinoSettings.SetRecycler{T}"/>), else <c>ReturnToPool()</c> for an
     /// <see cref="INinoPooled"/> instance (a <see cref="NinoPooledAttribute"/> type, or a pooled collection implementing
     /// the interface itself), else nowhere (the garbage collector takes it).
@@ -67,7 +67,7 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// The ownership rules of ref deserialization, in one place. A formatter's <c>Deserialize(ref T value, ...)</c>
+    /// The ownership rules of reuse deserialization, in one place. A formatter's <c>Deserialize(ref T value, ...)</c>
     /// owns the instance in <c>value</c> and must end in exactly one of these states for it:
     /// <list type="number">
     /// <item><b>Reused</b>: populated in place and left in the slot. Nothing to recycle.</item>
@@ -90,7 +90,7 @@ namespace Nino.Core
     public static class NinoRecycler
     {
         /// <summary>
-        /// Set once any <see cref="NinoPool{T}"/> exists, or <see cref="NinoFactory{T}"/> creates a type implementing
+        /// Set once any <see cref="NinoPool{T}"/> exists, or <see cref="NinoActivator{T}"/> creates a type implementing
         /// <see cref="INinoPooled"/> (a pooled user collection): from then on a dropped object of a non-sealed declared
         /// type may be a pooled instance, so collections walk the elements they drop. Not a setting: it only lets
         /// processes that pool nothing skip that walk.

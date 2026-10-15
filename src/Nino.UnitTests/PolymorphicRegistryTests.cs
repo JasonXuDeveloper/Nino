@@ -73,12 +73,12 @@ namespace Nino.UnitTests
         {
             RegistryShape target = new RegistryPolygon { Name = "old" };
             var bytes = NinoSerializer.Serialize<RegistryShape>(new RegistryStar { Name = "new", Sharpness = 1 });
-            NinoDeserializer.DeserializeRef(ref target, bytes);
+            NinoDeserializer.Deserialize(bytes, ref target);
             Assert.IsInstanceOfType(target, typeof(RegistryStar));
             Assert.AreEqual("new", ((RegistryStar)target).Name);
 
             var same = (RegistryStar)target;
-            NinoDeserializer.DeserializeRef(ref target, bytes);
+            NinoDeserializer.Deserialize(bytes, ref target);
             Assert.AreSame(same, target);
         }
 

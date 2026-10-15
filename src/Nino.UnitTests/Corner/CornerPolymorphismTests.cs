@@ -237,7 +237,7 @@ namespace Nino.UnitTests.Corner
             Assert.AreEqual(2, back[1].Uid);
             Assert.IsNull(back[2]);
 
-            // Ref deserialization: same class kept, struct replaced by value.
+            // Reuse deserialization: same class kept, struct replaced by value.
             var player = new PlayerEntity();
             var target = new IEntity[] { player, new StructEntity(), new PlayerEntity() };
             Rt.Into(entities, ref target);

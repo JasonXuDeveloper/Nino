@@ -37,7 +37,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 - **Faster than MemoryPack.** Serializing is 2.5–4.3× faster. Deserializing classes and polymorphic types is
   1.16–1.38× faster, and raw struct arrays are on par.
 - **Zero allocation.** Serializing allocates nothing. Deserializing into existing or pooled objects
-  (`[NinoPooled]`, `ref` deserialization) allocates nothing either, and is up to 4.9× faster than MemoryPack's
+  (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either, and is up to 4.9× faster than MemoryPack's
   overwrite mode.
 - **Everything happens at compile time.** A source generator writes each formatter. There is no reflection,
   no IL emit, no registration and no init call, so it works on IL2CPP, NativeAOT and HybridCLR hot updates.

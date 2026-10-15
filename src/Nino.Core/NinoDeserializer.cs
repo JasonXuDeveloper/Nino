@@ -47,10 +47,6 @@ namespace Nino.Core
             reader.ReleaseReferences();
         }
 
-        /// <summary>Same as <see cref="Deserialize{T}(ReadOnlySpan{byte}, ref T)"/>.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeRef<T>(ref T value, ReadOnlySpan<byte> data) => Deserialize(data, ref value);
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static T ReadRaw<T>(ReadOnlySpan<byte> data)
         {
@@ -58,10 +54,6 @@ namespace Nino.Core
                 NinoThrow.EndOfData();
             return NinoUnsafe.Read<T>(ref MemoryMarshal.GetReference(data));
         }
-
-        /// <summary>Same as <see cref="Deserialize{T}(ref T, ref Reader)"/>.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeRef<T>(ref T value, ref Reader reader) => Deserialize(ref value, ref reader);
 
         /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

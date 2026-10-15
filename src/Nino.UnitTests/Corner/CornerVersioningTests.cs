@@ -199,7 +199,7 @@ namespace Nino.UnitTests.Corner
                 Mid = new VerMidV2 { AddedMid = 77 },
             };
             var mid = target.Mid;
-            NinoDeserializer.DeserializeRef(ref target, NinoSerializer.Serialize(OuterV1()));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(OuterV1()), ref target);
             Assert.AreSame(mid, target.Mid);
             Assert.AreEqual(2, target.Mid.M);
             Assert.AreEqual("tail", target.Tail);
@@ -285,7 +285,7 @@ namespace Nino.UnitTests.Corner
             // In place: members missing from the data keep their current value.
             var target = new KeyedVerLeafV2 { NewInBase = 42, D = new List<int> { 1, 2, 3 } };
             var d = target.D;
-            NinoDeserializer.DeserializeRef(ref target, NinoSerializer.Serialize(v1));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(v1), ref target);
             Assert.AreEqual(42, target.NewInBase);
             Assert.AreSame(d, target.D);
             CollectionAssert.AreEqual(v1.D, target.D);

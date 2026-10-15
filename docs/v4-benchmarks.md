@@ -104,7 +104,7 @@ more than either serializer (the two runs gave 0.96× and 0.85× with ±15% erro
 
 ### Deserialize into existing instances (pooling)
 
-Nino can deserialize into an existing object graph (`ref` deserialization) and take new instances from
+Nino can deserialize into an existing object graph (reuse deserialization) and take new instances from
 `[NinoPooled]` pools; MemoryPack overwrites existing instances.
 
 | Case | Nino new | Nino reusing | MemoryPack new | MemoryPack overwrite |
@@ -119,7 +119,7 @@ allocated per call), and server-GC noise is about ±7% here. To see how much is 
 builds the same object graph by hand (`new SimpleClass`, strings copied from spans, the same arrays, list and
 dictionaries filled with the same entries): that floor takes 518–636 ns, and v4 deserializes `SimpleClass` in
 602–662 ns, within 5–15% of it (the difference is mostly decoding the UTF-8 member). Deserializing classes is therefore bound by allocation, not by the serializer: v4 matches it while
-adding reference tracking, ref deserialization with pool recycling, version tolerance and payload validation,
+adding reference tracking, reuse deserialization with pool recycling, version tolerance and payload validation,
 and stays ahead of MemoryPack.
 
 Neither serializer allocates on the serialize paths above (0 B per call), and deserialization allocates only

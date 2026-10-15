@@ -6,14 +6,14 @@ using Nino.Core;
 namespace Nino.UnitTests;
 
 [TestClass]
-public class RefDeserializationAttributeTests
+public class NinoFactoryAttributeTests
 {
     private static int _poolCallCount = 0;
 
     [NinoType]
     public class PooledClass
     {
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static PooledClass GetInstance()
         {
             _poolCallCount++;
@@ -30,7 +30,7 @@ public class RefDeserializationAttributeTests
     [NinoType]
     public class NestedPooledClass
     {
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static NestedPooledClass CreateFromPool()
         {
             return new NestedPooledClass { PoolCreated = true };
@@ -53,7 +53,7 @@ public class RefDeserializationAttributeTests
     [NinoType]
     public class GenericPooledClass<T>
     {
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static GenericPooledClass<T> CreateInstance()
         {
             return new GenericPooledClass<T> { FromPool = true };
@@ -72,7 +72,7 @@ public class RefDeserializationAttributeTests
     {
         private static int _basePoolCallCount = 0;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static BasePooledClass GetFromBasePool()
         {
             _basePoolCallCount++;
@@ -96,7 +96,7 @@ public class RefDeserializationAttributeTests
     {
         private static int _derivedPoolCallCount = 0;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static DerivedPooledClass GetFromDerivedPool()
         {
             _derivedPoolCallCount++;
@@ -165,7 +165,7 @@ public class RefDeserializationAttributeTests
     }
 
     [TestMethod]
-    public void TestDeserializeRef_WithNullValue_CallsFactoryMethod()
+    public void TestReuseDeserialization_WithNullValue_CallsFactoryMethod()
     {
         // Arrange
         var original = new PooledClass
@@ -179,7 +179,7 @@ public class RefDeserializationAttributeTests
         PooledClass result = null;
 
         // Act
-        NinoDeserializer.DeserializeRef(ref result, bytes);
+        NinoDeserializer.Deserialize(bytes, ref result);
 
         // Assert
         Assert.IsNotNull(result);
@@ -190,7 +190,7 @@ public class RefDeserializationAttributeTests
     }
 
     [TestMethod]
-    public void TestDeserializeRef_WithExistingValue_DoesNotCallFactory()
+    public void TestReuseDeserialization_WithExistingValue_DoesNotCallFactory()
     {
         // Arrange
         var original = new PooledClass
@@ -206,7 +206,7 @@ public class RefDeserializationAttributeTests
         PooledClass result = new PooledClass { WasPooled = false };
 
         // Act
-        NinoDeserializer.DeserializeRef(ref result, bytes);
+        NinoDeserializer.Deserialize(bytes, ref result);
 
         // Assert
         Assert.IsNotNull(result);
@@ -297,9 +297,9 @@ public class RefDeserializationAttributeTests
     }
 
     [TestMethod]
-    public void TestGenericTypeWithRefDeserialization()
+    public void TestGenericTypeWithReuseDeserialization()
     {
-        // Test that NinoRefDeserializationAttribute works on generic types
+        // Test that NinoFactoryAttribute works on generic types
         var original = new GenericPooledClass<string>
         {
             Data = "GenericTest",
@@ -317,18 +317,18 @@ public class RefDeserializationAttributeTests
         Assert.AreEqual(42, result.Count);
         Assert.IsTrue(result.FromPool, "Factory method should have been called for generic type");
 
-        // Test DeserializeRef with null
+        // Test reuse deserialization with null
         GenericPooledClass<string> refResult = null;
-        NinoDeserializer.DeserializeRef(ref refResult, bytes);
+        NinoDeserializer.Deserialize(bytes, ref refResult);
 
         Assert.IsNotNull(refResult);
         Assert.AreEqual("GenericTest", refResult.Data);
         Assert.AreEqual(42, refResult.Count);
         Assert.IsTrue(refResult.FromPool, "Factory method should have been called for null ref");
 
-        // Test DeserializeRef with existing instance
+        // Test reuse deserialization with existing instance
         GenericPooledClass<string> existingResult = new GenericPooledClass<string> { FromPool = false };
-        NinoDeserializer.DeserializeRef(ref existingResult, bytes);
+        NinoDeserializer.Deserialize(bytes, ref existingResult);
 
         Assert.IsNotNull(existingResult);
         Assert.AreEqual("GenericTest", existingResult.Data);
@@ -464,7 +464,7 @@ public class RefDeserializationAttributeTests
         Assert.AreEqual("NoPoolTest", result.DerivedText);
         CollectionAssert.AreEqual(new List<double> { 4.5, 5.5 }, result.DerivedDoubleList);
         CollectionAssert.AreEqual(new[] { "P", "Q", "R" }, result.DerivedStringArray);
-        // Note: This derived class doesn't have NinoRefDeserializationAttribute,
+        // Note: This derived class doesn't have NinoFactoryAttribute,
         // so it won't use base class factory either (each type needs its own attribute)
     }
 
@@ -669,9 +669,9 @@ public class RefDeserializationAttributeTests
     }
 
     [TestMethod]
-    public void TestPolymorphic_DeserializeRef_WithNullDerivedValue()
+    public void TestPolymorphic_ReuseDeserialization_WithNullDerivedValue()
     {
-        // Test DeserializeRef with null for derived class
+        // Test reuse deserialization with null for derived class
         var original = new DerivedPooledClass
         {
             BaseValue = 800,
@@ -690,7 +690,7 @@ public class RefDeserializationAttributeTests
         DerivedPooledClass result = null;
 
         // Deserialize with null reference
-        NinoDeserializer.DeserializeRef(ref result, bytes);
+        NinoDeserializer.Deserialize(bytes, ref result);
 
         Assert.IsNotNull(result);
         Assert.AreEqual(800, result.BaseValue);
@@ -706,9 +706,9 @@ public class RefDeserializationAttributeTests
     }
 
     [TestMethod]
-    public void TestPolymorphic_DeserializeRef_WithExistingDerivedValue()
+    public void TestPolymorphic_ReuseDeserialization_WithExistingDerivedValue()
     {
-        // Test DeserializeRef with existing instance for derived class
+        // Test reuse deserialization with existing instance for derived class
         var original = new DerivedPooledClass
         {
             BaseValue = 1000,
@@ -733,7 +733,7 @@ public class RefDeserializationAttributeTests
         };
 
         // Deserialize with existing reference
-        NinoDeserializer.DeserializeRef(ref result, bytes);
+        NinoDeserializer.Deserialize(bytes, ref result);
 
         Assert.IsNotNull(result);
         Assert.AreEqual(1000, result.BaseValue);

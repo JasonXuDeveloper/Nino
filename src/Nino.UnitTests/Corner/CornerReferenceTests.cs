@@ -228,7 +228,7 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
-        public void RefDeserializationWithTrackingAndCycles()
+        public void ReuseDeserializationWithTrackingAndCycles()
         {
             var shared = new RefNode { Id = 5 };
             var source = new RefNode { Id = 1, Other = shared, Children = new List<RefNode> { shared, shared } };
@@ -239,7 +239,7 @@ namespace Nino.UnitTests.Corner
             var existingChildren = new List<RefNode> { new RefNode(), new RefNode(), new RefNode() };
             var target = new RefNode { Other = existingOther, Children = existingChildren };
             var before = target;
-            NinoDeserializer.DeserializeRef(ref target, bytes);
+            NinoDeserializer.Deserialize(bytes, ref target);
 
             Assert.AreSame(before, target);
             Assert.AreSame(target, target.Self);
@@ -250,7 +250,7 @@ namespace Nino.UnitTests.Corner
             Assert.IsTrue(target.Children.All(c => ReferenceEquals(c, target.Other)));
 
             // Deserializing the same data again keeps the graph stable.
-            NinoDeserializer.DeserializeRef(ref target, bytes);
+            NinoDeserializer.Deserialize(bytes, ref target);
             Assert.AreSame(before, target);
             Assert.AreSame(target, target.Self);
             Assert.IsTrue(target.Children.All(c => ReferenceEquals(c, target.Other)));
@@ -268,7 +268,7 @@ namespace Nino.UnitTests.Corner
                 var a = new RefNode();
                 var b = new RefNode();
                 var target = new RefNode { Other = a, Self = b };
-                NinoDeserializer.DeserializeRef(ref target, bytes);
+                NinoDeserializer.Deserialize(bytes, ref target);
                 // Self comes first in member order: the new object is read into b; Other is then a back reference.
                 Assert.AreSame(b, target.Self);
                 Assert.AreSame(b, target.Other);

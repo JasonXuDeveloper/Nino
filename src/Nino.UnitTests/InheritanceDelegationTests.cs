@@ -86,7 +86,7 @@ namespace Nino.UnitTests
 
             // In-place reuse keeps the instance.
             var target = new DelegLevel3();
-            NinoDeserializer.DeserializeRef(ref target, bytes);
+            NinoDeserializer.Deserialize(bytes, ref target);
             Assert.AreEqual("n", target.Name);
             Assert.AreEqual(7, target.E);
         }
@@ -169,7 +169,7 @@ namespace Nino.UnitTests
 
             // In place: a member missing from older data keeps its current value.
             var target = new DelegTolerant3 { C = "kept" };
-            NinoDeserializer.DeserializeRef(ref target, older);
+            NinoDeserializer.Deserialize(older, ref target);
             Assert.AreEqual("six", target.B);
             Assert.AreEqual("kept", target.C);
         }

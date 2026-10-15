@@ -144,7 +144,7 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
-        public void PooledTypesUnderConcurrentRefDeserialization()
+        public void PooledTypesUnderConcurrentReuseDeserialization()
         {
             int returnsBefore = ColdPooled.Returns;
             long expectedReturns = 0;
@@ -161,12 +161,12 @@ namespace Nino.UnitTests.Corner
                 var owner = new ColdPooledOwner();
                 for (int i = 0; i < 300; i++)
                 {
-                    NinoDeserializer.DeserializeRef(ref owner, big);
+                    NinoDeserializer.Deserialize(big, ref owner);
                     Assert.AreEqual(6, owner.Items.Count);
                     Assert.AreEqual(t, owner.Items[5].Values[0]);
                     Assert.AreEqual(6, owner.Items.Select(x => x).Distinct().Count());
                     // Shrinking returns five instances to the pool, which other threads then rent.
-                    NinoDeserializer.DeserializeRef(ref owner, small);
+                    NinoDeserializer.Deserialize(small, ref owner);
                     Assert.AreEqual(100 + t, owner.Items.Single().Id);
                     Interlocked.Add(ref expectedReturns, 5);
                 }

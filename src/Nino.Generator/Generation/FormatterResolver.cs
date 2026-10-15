@@ -11,7 +11,7 @@ namespace Nino.Generator.Generation;
 /// A formatter as C# source. <see cref="Registered"/>: a struct formatter of the closed type that is registered as
 /// its global formatter (so AOT platforms have the instantiation); false for generated, cached and custom ones.
 /// <see cref="Factories"/>: the creators of the types bound to <c>[NinoCreated]</c> parameters of the formatter and of
-/// its element formatters, registered with <c>NinoFactory&lt;T&gt;</c>.
+/// its element formatters, registered with <c>NinoActivator&lt;T&gt;</c>.
 /// </summary>
 internal readonly record struct ResolvedFormatter(string Code, bool Registered,
     EquatableArray<FactoryRegistration> Factories = default);
@@ -268,13 +268,13 @@ internal sealed class FormatterResolver
 
     /// <summary>
     /// Whether <paramref name="parameter"/> is marked <c>[NinoCreated]</c>: the formatter creates its instances through
-    /// <c>NinoFactory&lt;T&gt;</c>.
+    /// <c>NinoActivator&lt;T&gt;</c>.
     /// </summary>
     private bool IsCreated(ITypeParameterSymbol parameter) => NinoSymbols.Has(parameter, _symbols.Created);
 
     /// <summary>
-    /// How generated code creates <paramref name="type"/> for <c>NinoFactory&lt;T&gt;</c>, or null for a type it cannot
-    /// name (open types): <c>T.Factory()</c> for a public static <c>[NinoRefDeserialization]</c> method declared on the
+    /// How generated code creates <paramref name="type"/> for <c>NinoActivator&lt;T&gt;</c>, or null for a type it cannot
+    /// name (open types): <c>T.Factory()</c> for a public static <c>[NinoFactory]</c> method declared on the
     /// type and callable without arguments, else <c>new T()</c>, which fills in optional constructor parameters.
     /// </summary>
     private FactoryRegistration? Factory(ITypeSymbol type)
@@ -305,7 +305,7 @@ internal sealed class FormatterResolver
                 } method &&
                 SymbolEqualityComparer.Default.Equals(method.ReturnType, type) &&
                 ConstructionPlanner.CallableWithoutArguments(method) &&
-                NinoSymbols.Has(method, _symbols.RefDeserialization))
+                NinoSymbols.Has(method, _symbols.Factory))
                 return method;
         }
 
@@ -314,7 +314,7 @@ internal sealed class FormatterResolver
 
     /// <summary>
     /// What <c>[NinoCreated]</c> requires (see <c>NinoCreatedAttribute</c>): a non-abstract class with a public static
-    /// <c>[NinoRefDeserialization]</c> factory or a public constructor callable without arguments.
+    /// <c>[NinoFactory]</c> factory or a public constructor callable without arguments.
     /// </summary>
     private bool IsCreatable(ITypeSymbol type) =>
         type is INamedTypeSymbol { TypeKind: TypeKind.Class, IsAbstract: false, IsStatic: false } named &&

@@ -87,7 +87,7 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
-        public void RefDeserializationReusesDerivedList()
+        public void ReuseDeserializationReusesDerivedList()
         {
             var holder = new SyncListHolder { Ids = new SyncList<long> { 4, 5 } };
             var bytes = NinoSerializer.Serialize(holder);

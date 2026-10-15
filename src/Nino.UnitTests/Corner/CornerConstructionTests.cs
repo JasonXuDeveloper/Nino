@@ -87,7 +87,7 @@ namespace Nino.UnitTests.Corner
         public Dictionary<int, string> Map;
         public EtStyleChild Child;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static EtStyle Create(bool isFromPool = false)
         {
             Created++;
@@ -103,7 +103,7 @@ namespace Nino.UnitTests.Corner
         public static int Created;
         public int X;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static EtStyleChild Create(bool isFromPool = false, int capacity = 4)
         {
             Created++;
@@ -117,7 +117,7 @@ namespace Nino.UnitTests.Corner
         public static int BaseCreated;
         public int A;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static FactoryBase Create() => new FactoryBase { A = -1 };
     }
 
@@ -127,7 +127,7 @@ namespace Nino.UnitTests.Corner
         public static int Created;
         public string B;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static new FactorySubA Create()
         {
             Created++;
@@ -141,7 +141,7 @@ namespace Nino.UnitTests.Corner
         public static int Created;
         public double C;
 
-        [NinoRefDeserialization]
+        [NinoFactory]
         public static new FactorySubB Create()
         {
             Created++;
@@ -413,18 +413,18 @@ namespace C
 
             int created = EtStyleChild.Created;
             var target = new EtStyle { Child = null };
-            NinoDeserializer.DeserializeRef(ref target, bytes);
+            NinoDeserializer.Deserialize(bytes, ref target);
             Assert.AreEqual(created + 1, EtStyleChild.Created);
             Assert.AreEqual(3, target.Child.X);
 
             var child = target.Child;
-            NinoDeserializer.DeserializeRef(ref target, bytes);
+            NinoDeserializer.Deserialize(bytes, ref target);
             Assert.AreEqual(created + 1, EtStyleChild.Created);
             Assert.AreSame(child, target.Child);
         }
 
         [TestMethod]
-        public void RefDeserializationIntoNullAnotherSubtypeAndSameSubtype()
+        public void ReuseDeserializationIntoNullAnotherSubtypeAndSameSubtype()
         {
             var recycled = new List<FactoryBase>();
             NinoSettings.SetRecycler<FactoryBase>(recycled.Add);
@@ -435,7 +435,7 @@ namespace C
                 // Null slot: the subtype's own factory.
                 var owner = new FactoryOwner();
                 int b = FactorySubB.Created;
-                NinoDeserializer.DeserializeRef(ref owner, bytes);
+                NinoDeserializer.Deserialize(bytes, ref owner);
                 Assert.AreEqual(b + 1, FactorySubB.Created);
                 Assert.AreEqual(2.5, ((FactorySubB)owner.Slot).C);
                 Assert.AreEqual(1, owner.Slot.A);
@@ -443,7 +443,7 @@ namespace C
 
                 // Same subtype: reused, no factory call, nothing recycled.
                 var same = owner.Slot;
-                NinoDeserializer.DeserializeRef(ref owner, bytes);
+                NinoDeserializer.Deserialize(bytes, ref owner);
                 Assert.AreSame(same, owner.Slot);
                 Assert.AreEqual(b + 1, FactorySubB.Created);
                 Assert.AreEqual(0, recycled.Count);
@@ -451,7 +451,7 @@ namespace C
                 // Another subtype: the old one recycled once, the new one from its factory.
                 var subA = new FactorySubA { A = 7, B = "a" };
                 owner.Slot = subA;
-                NinoDeserializer.DeserializeRef(ref owner, bytes);
+                NinoDeserializer.Deserialize(bytes, ref owner);
                 Assert.IsInstanceOfType(owner.Slot, typeof(FactorySubB));
                 Assert.AreEqual(b + 2, FactorySubB.Created);
                 CollectionAssert.AreEqual(new FactoryBase[] { subA }, recycled);
@@ -460,22 +460,22 @@ namespace C
                 recycled.Clear();
                 var baseInstance = new FactoryBase { A = 3 };
                 owner.Slot = baseInstance;
-                NinoDeserializer.DeserializeRef(ref owner, bytes);
+                NinoDeserializer.Deserialize(bytes, ref owner);
                 Assert.IsInstanceOfType(owner.Slot, typeof(FactorySubB));
                 CollectionAssert.AreEqual(new[] { baseInstance }, recycled);
 
                 // Subtype instance into a base payload: base factory's instance, fields overwritten.
                 recycled.Clear();
                 var subB = owner.Slot;
-                NinoDeserializer.DeserializeRef(ref owner,
-                    NinoSerializer.Serialize(new FactoryOwner { Slot = new FactoryBase { A = 4 } }));
+                NinoDeserializer.Deserialize(
+                    NinoSerializer.Serialize(new FactoryOwner { Slot = new FactoryBase { A = 4 } }), ref owner);
                 Assert.AreEqual(typeof(FactoryBase), owner.Slot.GetType());
                 Assert.AreEqual(4, owner.Slot.A);
                 CollectionAssert.AreEqual(new[] { subB }, recycled);
 
                 // Factory instances carry stale values: every member is overwritten.
                 FactoryBase top = null;
-                NinoDeserializer.DeserializeRef(ref top, NinoSerializer.Serialize<FactoryBase>(new FactorySubA { A = 0, B = null }));
+                NinoDeserializer.Deserialize(NinoSerializer.Serialize<FactoryBase>(new FactorySubA { A = 0, B = null }), ref top);
                 Assert.IsNull(((FactorySubA)top).B);
                 Assert.AreEqual(0, top.A);
             }

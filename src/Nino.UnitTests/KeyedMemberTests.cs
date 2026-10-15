@@ -118,7 +118,7 @@ public class KeyedMemberTests
     {
         var bytes = NinoSerializer.Serialize(new KeyedV1 { Id = 1, Name = "a" });
         var target = new KeyedV2 { New = 5 };
-        NinoDeserializer.DeserializeRef(ref target, bytes);
+        NinoDeserializer.Deserialize(bytes, ref target);
         Assert.AreEqual(1, target.Id);
         Assert.AreEqual(5, target.New);
     }

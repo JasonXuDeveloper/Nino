@@ -44,7 +44,7 @@ public class FactoryOnlyList : List<int>
     {
     }
 
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static FactoryOnlyList Create()
     {
         Created++;
@@ -57,7 +57,7 @@ public class FactoryAndCtorList : List<int>
 {
     public bool ViaFactory;
 
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static FactoryAndCtorList Create() => new FactoryAndCtorList { ViaFactory = true };
 }
 
@@ -67,21 +67,21 @@ public class ArgumentFactoryList : List<int>
     public bool ViaFactory;
 
 #pragma warning disable NINO017
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static ArgumentFactoryList Create(int capacity) => new ArgumentFactoryList { ViaFactory = true };
 #pragma warning restore NINO017
 }
 
 public class NullFactoryList : List<int>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static NullFactoryList Create() => null;
 }
 
 /// <summary>The factory returns a subtype: the created instance keeps its runtime type.</summary>
 public class BaseFactoryList : List<int>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static BaseFactoryList Create() => new DerivedFactoryList();
 }
 
@@ -92,37 +92,37 @@ public class DerivedFactoryList : BaseFactoryList
 /// <summary>Pooled factories may hand out instances that still hold stale contents.</summary>
 public class DirtyList : List<string>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static DirtyList Create() => new DirtyList { "stale1", "stale2", "stale3", "stale4" };
 }
 
 public class DirtyRawList : List<int>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static DirtyRawList Create() => new DirtyRawList { 7, 7, 7, 7, 7 };
 }
 
 public class DirtySet : HashSet<int>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static DirtySet Create() => new DirtySet { 99 };
 }
 
 public class DirtyDictionary : Dictionary<int, string>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static DirtyDictionary Create() => new DirtyDictionary { [99] = "stale" };
 }
 
 public class DirtySortedDictionary : SortedDictionary<int, string>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static DirtySortedDictionary Create() => new DirtySortedDictionary { [99] = "stale" };
 }
 
 public class DirtyLinkedList : LinkedList<int>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static DirtyLinkedList Create()
     {
         var list = new DirtyLinkedList();
@@ -133,7 +133,7 @@ public class DirtyLinkedList : LinkedList<int>
 
 public class DirtyQueue : Queue<int>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static DirtyQueue Create()
     {
         var queue = new DirtyQueue();
@@ -144,7 +144,7 @@ public class DirtyQueue : Queue<int>
 
 public class DirtyConcurrentBag : ConcurrentBag<int>
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static DirtyConcurrentBag Create() => new DirtyConcurrentBag { 99 };
 }
 
@@ -496,7 +496,7 @@ public class UserCollectionCornerCaseTests
             NinoDeserializer.Deserialize<RuntimeBox<T>>(runtime).Value);
     }
 
-    /// <summary>Ref deserialization through both paths, into holders that hold <paramref name="existing"/>.</summary>
+    /// <summary>Reuse deserialization through both paths, into holders that hold <paramref name="existing"/>.</summary>
     private static void RefBothPaths<THolder, T>(THolder data, Func<THolder, T> get, Func<T, THolder> wrap,
         Func<T> existing, Action<T> check) where THolder : class
     {
@@ -637,7 +637,7 @@ public class UserCollectionCornerCaseTests
         Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new ReadOnlyCollection<int>(new[] { 1 })));
         Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new LegacyList()));
         Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new StructCollection()));
-        Assert.ThrowsException<InvalidOperationException>(() => NinoFactory<InternalCtorList>.Create());
+        Assert.ThrowsException<InvalidOperationException>(() => NinoActivator<InternalCtorList>.Create());
     }
 
     [TestMethod]
@@ -1050,7 +1050,7 @@ public class Holder
         var list = new ConcurrentFirstUse<TMarker> { 1, 2, 3 };
         var box = NinoDeserializer.Deserialize<RuntimeBox<ConcurrentFirstUse<TMarker>>>(
             NinoSerializer.Serialize(new RuntimeBox<ConcurrentFirstUse<TMarker>> { Value = list }));
-        var created = NinoFactory<ConcurrentFirstUse<TMarker>>.Create();
+        var created = NinoActivator<ConcurrentFirstUse<TMarker>>.Create();
         Assert.AreEqual(0, created.Count);
         return box.Value.Sum();
     }
@@ -1066,7 +1066,7 @@ public class Holder
         var e = Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<CaseInsensitiveHolder>(bytes));
         StringAssert.Contains(e.Message, "twice");
         // Into an existing empty dictionary as well. (Merging into a non-empty one does not look for repeated keys:
-        // see "Ref deserialization and pooling" in docs/v4-design.md.)
+        // see "Reuse deserialization and pooling" in docs/v4-design.md.)
         var target = new CaseInsensitiveHolder { Value = new CaseInsensitiveDictionary() };
         Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize(bytes, ref target));
         Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new RuntimeBox<CaseInsensitiveDictionary>

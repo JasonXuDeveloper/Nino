@@ -252,7 +252,7 @@ namespace Nino.Core
                 return;
             }
 
-            value ??= NinoFactory<TDictionary>.Create();
+            value ??= NinoActivator<TDictionary>.Create();
             NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref reader);
         }
     }
@@ -287,7 +287,7 @@ namespace Nino.Core
                 return;
             }
 
-            var dictionary = value ??= NinoFactory<TDictionary>.Create();
+            var dictionary = value ??= NinoActivator<TDictionary>.Create();
             if (dictionary.IsReadOnly)
                 NinoThrow.ReadOnlyCollection(dictionary.GetType());
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).

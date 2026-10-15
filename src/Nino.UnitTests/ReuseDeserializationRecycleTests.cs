@@ -15,7 +15,7 @@ public class PooledHolder
     public List<int> Field;
     public string Name;
 
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static PooledHolder Create()
     {
         Created++;
@@ -42,7 +42,7 @@ public class Owner
 }
 
 [TestClass]
-public class RefDeserializationRecycleTests
+public class ReuseDeserializationRecycleTests
 {
     [TestCleanup]
     public void Cleanup()
@@ -61,7 +61,7 @@ public class RefDeserializationRecycleTests
 
         PooledHolder target = null;
         int before = PooledHolder.Created;
-        NinoDeserializer.DeserializeRef(ref target, bytes);
+        NinoDeserializer.Deserialize(bytes, ref target);
         Assert.IsNotNull(target);
         Assert.AreEqual(before + 1, PooledHolder.Created);
         CollectionAssert.AreEqual(source.Items, target.Items);
@@ -84,7 +84,7 @@ public class RefDeserializationRecycleTests
         var field = target.Field;
         var bytes = NinoSerializer.Serialize(new PooledHolder { Items = null, Field = null, Name = "n" });
 
-        NinoDeserializer.DeserializeRef(ref target, bytes);
+        NinoDeserializer.Deserialize(bytes, ref target);
         Assert.IsNull(target.Items);
         Assert.IsNull(target.Field);
         Assert.AreEqual(2, recycled.Count);
@@ -99,7 +99,7 @@ public class RefDeserializationRecycleTests
         var items = target.Items;
         var bytes = NinoSerializer.Serialize(new PooledHolder { Items = new List<int> { 1, 2 }, Field = new List<int> { 5 } });
 
-        NinoDeserializer.DeserializeRef(ref target, bytes);
+        NinoDeserializer.Deserialize(bytes, ref target);
         Assert.AreSame(items, target.Items);
         CollectionAssert.AreEqual(new List<int> { 1, 2 }, target.Items);
         CollectionAssert.AreEqual(new List<int> { 5 }, target.Field);
@@ -115,7 +115,7 @@ public class RefDeserializationRecycleTests
         var owner = new Owner { Child = old };
         var bytes = NinoSerializer.Serialize(new Owner { Child = new InitOnlyHolder { Id = 2, Name = "new" } });
 
-        NinoDeserializer.DeserializeRef(ref owner, bytes);
+        NinoDeserializer.Deserialize(bytes, ref owner);
         Assert.AreEqual(2, owner.Child.Id);
         Assert.AreEqual("new", owner.Child.Name);
         Assert.AreNotSame(old, owner.Child);
@@ -132,7 +132,7 @@ public class RefDeserializationRecycleTests
         var owner = new Owner { Pooled = pooled };
         var bytes = NinoSerializer.Serialize(new Owner());
 
-        NinoDeserializer.DeserializeRef(ref owner, bytes);
+        NinoDeserializer.Deserialize(bytes, ref owner);
         Assert.IsNull(owner.Pooled);
         CollectionAssert.AreEqual(new[] { pooled }, recycled);
     }
@@ -149,7 +149,7 @@ public class RefDeserializationRecycleTests
         var target = new List<InitOnlyHolder> { a, b, c };
         var bytes = NinoSerializer.Serialize(new List<InitOnlyHolder> { new InitOnlyHolder { Id = 7 } });
 
-        NinoDeserializer.DeserializeRef(ref target, bytes);
+        NinoDeserializer.Deserialize(bytes, ref target);
         Assert.AreEqual(1, target.Count);
         Assert.AreEqual(7, target[0].Id);
         // b and c are dropped by the shrink; a is replaced (init-only type) and recycled by its formatter
@@ -169,14 +169,14 @@ public class RefDeserializationRecycleTests
             // The data is null: the existing instance is dropped once, by the concrete formatter.
             IList<int> list = new List<int> { 1 };
             var oldList = list;
-            NinoDeserializer.DeserializeRef(ref list, NinoSerializer.Serialize<IList<int>>(null));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize<IList<int>>(null), ref list);
             Assert.IsNull(list);
             CollectionAssert.AreEqual(new object[] { oldList }, recycled);
 
             IDictionary<int, int> dictionary = new Dictionary<int, int> { [1] = 2 };
             var oldDictionary = dictionary;
             recycled.Clear();
-            NinoDeserializer.DeserializeRef(ref dictionary, NinoSerializer.Serialize<IDictionary<int, int>>(null));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize<IDictionary<int, int>>(null), ref dictionary);
             Assert.IsNull(dictionary);
             CollectionAssert.AreEqual(new object[] { oldDictionary }, recycled);
 
@@ -184,7 +184,7 @@ public class RefDeserializationRecycleTests
             IList<int> array = new[] { 1, 2 };
             var oldArray = array;
             recycled.Clear();
-            NinoDeserializer.DeserializeRef(ref array, NinoSerializer.Serialize<IList<int>>(new List<int> { 3 }));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize<IList<int>>(new List<int> { 3 }), ref array);
             CollectionAssert.AreEqual(new[] { 3 }, (List<int>)array);
             CollectionAssert.AreEqual(new object[] { oldArray }, recycled);
         }
@@ -201,7 +201,7 @@ public class RefDeserializationRecycleTests
     {
         object value = new GoldenPoint { X = 1 };
         var bytes = NinoSerializer.Serialize<object>(null);
-        NinoDeserializer.DeserializeRef(ref value, bytes);
+        NinoDeserializer.Deserialize(bytes, ref value);
         Assert.IsNull(value);
     }
 

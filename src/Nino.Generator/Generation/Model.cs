@@ -82,8 +82,8 @@ internal sealed record ConstructionModel(
     string Creator,
     // Member names passed as constructor arguments, in order.
     EquatableArray<string> Arguments,
-    // [NinoRefDeserialization] factory method used when the target is null (in-place mode only).
-    string RefFactory);
+    // [NinoFactory] factory method used when the target is null (in-place mode only).
+    string Factory);
 
 internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
@@ -124,7 +124,7 @@ internal sealed record TypeModel(
     ConstructionModel Construction,
     // (type, formatter) pairs registered for AOT platforms and top-level calls.
     EquatableArray<FormatterRegistration> UsedFormatters,
-    // Creators of the collection types the members' formatters create (NinoFactory<T>), registered like them.
+    // Creators of the collection types the members' formatters create (NinoActivator<T>), registered like them.
     EquatableArray<FactoryRegistration> UsedFactories,
     // Closed generic [NinoType]s the type names (member types, base types), registered by type id.
     EquatableArray<ClosedTypeRegistration> UsedGenericTypes,
@@ -165,7 +165,7 @@ internal sealed record TypeModel(
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.
 internal sealed record FormatterRegistration(string TypeName, string Formatter, int Id);
 
-// A NinoFactory<T> creator: Creator is a lambda ("static () => new global::Ns.Bag()"); Id as above.
+// A NinoActivator<T> creator: Creator is a lambda ("static () => new global::Ns.Bag()"); Id as above.
 internal sealed record FactoryRegistration(string TypeName, string Creator, int Id);
 
 // A closed generic [NinoType] (ClosedGenerics). Id: wire id; NameId: hash of the runtime name (by-type lookups), the

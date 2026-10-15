@@ -21,7 +21,7 @@ NINO013 | Nino | Error | Duplicate member index
 NINO014 | Nino | Error | Member key collision
 NINO015 | Nino | Warning | trackReferences on a struct
 NINO016 | Nino | Error | Cannot track references
-NINO017 | Nino | Error | Invalid NinoRefDeserializationAttribute usage
+NINO017 | Nino | Error | Invalid NinoFactoryAttribute usage
 NINO018 | Nino | Error | Type cannot be pooled
 NINO019 | Nino | Error | Pool hooks not implemented
 NINO020 | Nino | Error | Invalid formatter registration

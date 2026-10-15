@@ -90,8 +90,8 @@ internal static class NinoDiagnostics
         "Cannot track references",
         "'{0}' is re-created from constructor arguments or read-only members, so a reference to it cannot be read before it exists; trackReferences needs a type whose members are all assignable");
 
-    public static readonly DiagnosticDescriptor InvalidRefDeserialization = Error("NINO017",
-        "Invalid NinoRefDeserializationAttribute usage", "Method '{0}' with [NinoRefDeserialization] {1}");
+    public static readonly DiagnosticDescriptor InvalidFactory = Error("NINO017",
+        "Invalid NinoFactoryAttribute usage", "Method '{0}' with [NinoFactory] {1}");
 
     // Pooling
 

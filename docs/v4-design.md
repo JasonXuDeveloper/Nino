@@ -17,7 +17,7 @@ API-compatible with v3 or earlier v4 betas.
    copy-on-write; hot paths never write shared memory.
 5. **Identical output on every target**: `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0`
    produce byte-identical payloads. Each target uses its best available primitives.
-6. **Ref deserialization that plays well with object pools**: existing instances are reused when possible,
+6. **Reuse deserialization that plays well with object pools**: existing instances are reused when possible,
    and any instance that is discarded is passed to `NinoRecycler`.
 
 ## Target frameworks
@@ -109,18 +109,18 @@ User collection types work without attributes: a class derived from `List<T>`, `
 `IProducerConsumerCollection<T>` or `ICollection<T>`, is written exactly like the collection it extends (a
 `List<int>` subclass is one block copy, like `List<int>`). A `[NinoType]` collection writes its elements first and
 then its own serialized members, so a collection with extra state (for example a synchronized list) keeps both.
-Ref deserialization reuses the existing collection instance (and so its comparer).
+Reuse deserialization reuses the existing collection instance (and so its comparer).
 
 #### User collections
 
-Nino creates a collection only when the slot is `null`, through `NinoFactory<T>.Create()`:
+Nino creates a collection only when the slot is `null`, through `NinoActivator<T>.Create()`:
 
-* A public static `[NinoRefDeserialization]` method declared on the type, returning it and callable without
+* A public static `[NinoFactory]` method declared on the type, returning it and callable without
   arguments (ET's pooled `static ListComponent<T> Create()`), wins; then a public constructor callable without
   arguments, whose optional parameters take their defaults (ET's `MultiMap(int maxPoolCount = 0)`). A type whose
   C# 11 `required` members that constructor does not set (`[SetsRequiredMembers]`) needs the factory.
 * The generator registers the creator of every closed collection type it binds to a `[NinoCreated]` formatter
-  parameter, as `NinoFactory<T>.TryRegister(static () => new T())` (or `T.Create()`), in the same lazy by-type-id
+  parameter, as `NinoActivator<T>.TryRegister(static () => new T())` (or `T.Create()`), in the same lazy by-type-id
   dispatch as the closed formatters (`NinoGenUsages`): nothing runs at startup, and AOT runtimes call compiled code.
   A plain `List<T>` is created directly (with its capacity) and gets no creator. Types the generator never saw
   (bound at runtime, elements of runtime-bound formatters) are resolved by reflection on first use, in the same
@@ -142,7 +142,7 @@ Nino creates a collection only when the slot is `null`, through `NinoFactory<T>.
   reader's comparer, is a clear `InvalidOperationException` when a dictionary or `HashSet<T>` is filled from empty;
   merging into a non-empty dictionary in place does not look for repeated keys (the last value wins).
 * The declared type decides what is created: a `List<int>` member holding a `ListComponent<int>` is read back as a
-  `List<int>` (ref deserialization keeps the `ListComponent<int>` it holds). Collections are values: the same
+  `List<int>` (reuse deserialization keeps the `ListComponent<int>` it holds). Collections are values: the same
   instance in two members is written twice and read as two instances (`trackReferences` tracks `[NinoType]`
   objects, not collections).
 
@@ -220,7 +220,7 @@ int32 ref: 0 = null | n > 0 = the n-th object already written in this call | -1 
   struct is ignored with a warning.
 * Bodies read through a slice (version tolerant or keyed) hand their table back to the parent reader
   (`Reader.EndSlice`), so references stay shared across slices.
-* Ref deserialization reuses instances for new objects as usual; a back reference replaces the current value
+* Reuse deserialization reuses instances for new objects as usual; a back reference replaces the current value
   without recycling it, since the old value may still be referenced elsewhere in the graph.
 * Cost (net8, an 8-member sealed class): about 28 ns per top-level call for renting the tables, plus 4 bytes
   and one identity lookup per object. A list repeating one object 100 times is written in a fraction of the
@@ -312,8 +312,8 @@ rules, and a test checks that both write the same bytes:
      `UnmanagedListFormatter` and `NullableListFormatter` mark their element parameter. A plain `unmanaged`
      constraint, such as the one a generated formatter of `[NinoType] class Box<T> where T : unmanaged` copies from
      the type, binds any unmanaged type.
-   * `[NinoCreated] TCollection`: the formatter creates instances through `NinoFactory<TCollection>.Create()`, so the
-     bound type must be a non-abstract class with a public static `[NinoRefDeserialization]` factory or a public
+   * `[NinoCreated] TCollection`: the formatter creates instances through `NinoActivator<TCollection>.Create()`, so the
+     bound type must be a non-abstract class with a public static `[NinoFactory]` factory or a public
      constructor callable without arguments (every parameter optional). See "User collections" below. A plain `new()`
      constraint is still honored for third-party formatters that call `new T()`.
 
@@ -436,10 +436,10 @@ Cache-line reasoning assumes 64-byte lines.
   was measured and dropped: on par for short arrays but twice the time of the runtime's `memcpy` on long ones
   (10,000 bools: 79 ns → 155 ns), which streams faster than any load-min-store loop.
 
-### Ref deserialization and pooling
+### Reuse deserialization and pooling
 
 * `null` target: a new instance is created (from the pool for `[NinoPooled]` types, or through a
-  `[NinoRefDeserialization]` factory; collections through `NinoFactory<T>`, see "User collections").
+  `[NinoFactory]` factory; collections through `NinoActivator<T>`, see "User collections").
 * Existing target of the right type: populated in place. Lists and arrays reuse elements by index.
   Dictionaries are merged by key: each value is read into the value its key already maps to, and keys missing
   from the data are removed.
@@ -455,7 +455,7 @@ Cache-line reasoning assumes 64-byte lines.
   fixes the leak where a pooled `List<T>` assigned in a factory was simply overwritten with `null`. Collections walk
   the elements they drop only when that can do something: a handler is registered, the element type implements
   `INinoPooled`, or (for a non-sealed element type) pooled instances exist, which a `NinoPool<T>` or a
-  `NinoFactory<T>` of an `INinoPooled` type signals (`NinoRecycler.PoolsInUse`). Ownership is exclusive: an
+  `NinoActivator<T>` of an `INinoPooled` type signals (`NinoRecycler.PoolsInUse`). Ownership is exclusive: an
   instance aliased by two slots that both drop it is recycled once per slot, so pooled types should guard against
   a double return (as `NinoPool<T>` does).
 
@@ -605,7 +605,7 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 
 Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in formatter structs, `NinoObject`
 (class headers and subtype dispatch), `NinoDirect` (intercepted top-level calls), `NinoPolymorphic`, `NinoRegistry`,
-`NinoFormatterCache`, `NinoFactory`, `NinoRecycler` and `NinoUnsafe`. The members that exist only for generated code
+`NinoFormatterCache`, `NinoActivator`, `NinoRecycler` and `NinoUnsafe`. The members that exist only for generated code
 (`NinoObject`, `NinoDirect`, `NinoRegistry.Add`, `INinoRegistry`, `[NinoGenerated]`, the pool's per-thread stack)
 are hidden from IntelliSense. There is deliberately no forwarding facade in front of them: every call it added is a
 real call under Mono's interpreter and in HybridCLR hot-update code, which do not inline.
@@ -632,7 +632,7 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
 * Nino.Core: `NinoSerializer`/`NinoDeserializer` and `NinoSettings` at the root; `Attributes/` (everything users
   put on types), `IO/` (`Writer`, `Reader`, buffers, wire constants), `Formatters/` (the formatter interface,
   cache, resolver and every built-in formatter), `Polymorphism/` (type ids, registry, subtype dispatch,
-  reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoFactory`) and `Internal/` (unsafe helpers,
+  reference tables), `Pooling/` (`NinoPool`, `NinoRecycler`, `NinoActivator`) and `Internal/` (unsafe helpers,
   layout, thread caches, the shared sources above). Namespaces stay flat (`Nino.Core`) so user code needs one
   `using`.
 * Nino.Generator: `Analysis/` (analyzer, suppressor, diagnostics), `Common/` (equatable collections, names and

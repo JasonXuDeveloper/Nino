@@ -226,7 +226,7 @@ internal sealed class BodyEmitter
         var c = _m.Construction;
         if (_m.Kind != FormatterKind.Struct)
         {
-            string create = (c.RefFactory.Length != 0 ? c.RefFactory : c.Creator) + "()";
+            string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
             if (_m.Pooled)
                 create = T + ".RentFromNinoPool() ?? " + create;
             _w.Line("if (value == null)");

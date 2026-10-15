@@ -19,7 +19,7 @@ public class ReuseItem
     public List<int> Data;
 }
 
-/// <summary>Ref deserialization reuses dictionaries in place, merging by key.</summary>
+/// <summary>Reuse deserialization reuses dictionaries in place, merging by key.</summary>
 [TestClass]
 public class RefReuseTests
 {

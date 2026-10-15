@@ -13,7 +13,7 @@ namespace Nino.UnitTests.Corner
 
         /// <summary>Serializes <paramref name="source"/> and deserializes it into <paramref name="target"/>.</summary>
         public static void Into<T>(T source, ref T target) =>
-            NinoDeserializer.DeserializeRef(ref target, NinoSerializer.Serialize(source));
+            NinoDeserializer.Deserialize(NinoSerializer.Serialize(source), ref target);
     }
 
     // ---- `new` hiding ----
@@ -774,7 +774,7 @@ namespace C
         }
 
         [TestMethod]
-        public void ObjectMemberRefDeserialization()
+        public void ObjectMemberReuseDeserialization()
         {
             var recycled = new List<object>();
             NinoSettings.SetRecycler<object>(recycled.Add);

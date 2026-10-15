@@ -33,7 +33,7 @@ public class RcHolder
 }
 
 /// <summary>
-/// Pins the ownership rules of ref deserialization (see <see cref="NinoRecycler"/>): every instance that is dropped
+/// Pins the ownership rules of reuse deserialization (see <see cref="NinoRecycler"/>): every instance that is dropped
 /// is recycled exactly once, with the declared type of its slot, and nothing that is reused is recycled.
 /// </summary>
 [TestClass]
@@ -99,7 +99,7 @@ public class RecycleOwnershipTests
     private static (Type, object) As<T>(T value) => (typeof(T), value);
 
     private static void Read<T>(ref T target, T data) =>
-        NinoDeserializer.DeserializeRef(ref target, NinoSerializer.Serialize(data));
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(data), ref target);
 
     private static RcItem[] Items(int count) =>
         Enumerable.Range(1, count).Select(i => new RcItem { Id = i }).ToArray();

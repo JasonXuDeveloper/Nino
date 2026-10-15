@@ -33,14 +33,14 @@ internal static class ConstructionPlanner
         var known = facts.Symbols;
         string typeName = TypeNames.Global(type);
 
-        // Static methods returning the type: a [NinoRefDeserialization] factory, or a [NinoConstructor] one.
+        // Static methods returning the type: a [NinoFactory] factory, or a [NinoConstructor] one.
         var factories = type.GetMembers().OfType<IMethodSymbol>().Where(m =>
             m.IsStatic && m.MethodKind == MethodKind.Ordinary &&
             SymbolEqualityComparer.Default.Equals(m.ReturnType, type)).ToList();
-        var refFactory = factories.FirstOrDefault(m => CallableWithoutArguments(m) &&
+        var factory = factories.FirstOrDefault(m => CallableWithoutArguments(m) &&
                                                        m.DeclaredAccessibility == Accessibility.Public &&
-                                                       NinoSymbols.Has(m, known.RefDeserialization));
-        string refFactoryName = refFactory == null ? "" : $"{typeName}.{refFactory.Name}";
+                                                       NinoSymbols.Has(m, known.Factory));
+        string factoryName = factory == null ? "" : $"{typeName}.{factory.Name}";
 
         var constructors = type.InstanceConstructors.Where(facts.Visibility.IsVisible).ToList();
         var marked = type.InstanceConstructors.Concat(factories)
@@ -53,7 +53,7 @@ internal static class ConstructionPlanner
 
         if (marked == null && !members.Any(m => m.ConstructionOnly) &&
             (type.IsValueType || constructors.Any(c => CallableWithoutArguments(c) && SetsRequired(c))))
-            return new ConstructionModel(false, $"new {typeName}", EquatableArray<string>.Empty, refFactoryName);
+            return new ConstructionModel(false, $"new {typeName}", EquatableArray<string>.Empty, factoryName);
 
         string Creator(IMethodSymbol m) => m.MethodKind == MethodKind.Constructor
             ? $"new {typeName}"

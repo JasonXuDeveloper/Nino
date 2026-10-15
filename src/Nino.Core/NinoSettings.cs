@@ -46,7 +46,7 @@ namespace Nino.Core
             NinoPool<T>.Shared.MaxRetained = CheckMaxRetained(maxRetained);
 
         /// <summary>
-        /// Registers the handler that ref deserialization calls with each instance it drops from a slot (member,
+        /// Registers the handler that reuse deserialization calls with each instance it drops from a slot (member,
         /// element, key or value) declared as <typeparamref name="T"/> (see <see cref="NinoRecycler"/> for when that
         /// happens). It replaces returning <see cref="NinoPooledAttribute"/> instances to their pool for that
         /// declared type. Pass null to remove it. Only register a handler for objects that are exclusively owned by

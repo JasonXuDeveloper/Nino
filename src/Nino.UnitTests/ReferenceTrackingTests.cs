@@ -143,12 +143,12 @@ public class ReferenceTrackingTests
     }
 
     [TestMethod]
-    public void DeserializeRefReusesInstances()
+    public void ReuseDeserializationReusesInstances()
     {
         var bytes = NinoSerializer.Serialize(new TrackedNode { Value = 5, Next = new TrackedNode { Value = 6 } });
         var target = new TrackedNode { Next = new TrackedNode() };
         var next = target.Next;
-        NinoDeserializer.DeserializeRef(ref target, bytes);
+        NinoDeserializer.Deserialize(bytes, ref target);
         Assert.AreEqual(5, target.Value);
         Assert.AreSame(next, target.Next);
         Assert.AreEqual(6, next.Value);

@@ -34,7 +34,7 @@ namespace Nino.UnitTests
 
             // Use ref overload to deserialize into existing list
             var reader = new Reader(bytes);
-            NinoDeserializer.DeserializeRef(ref originalList, ref reader);
+            NinoDeserializer.Deserialize(ref originalList, ref reader);
 
             var finalCapacity = originalList.Capacity;
             Console.WriteLine($"Final capacity: {finalCapacity}, Count: {originalList.Count}");
@@ -85,7 +85,7 @@ namespace Nino.UnitTests
 
             var bytes = NinoSerializer.Serialize(smallerList);
             var reader = new Reader(bytes);
-            NinoDeserializer.DeserializeRef(ref originalList, ref reader);
+            NinoDeserializer.Deserialize(ref originalList, ref reader);
 
             // Verify shrink worked correctly
             Assert.AreEqual(3, originalList.Count, "List should shrink from 5 to 3 elements");
@@ -108,7 +108,7 @@ namespace Nino.UnitTests
 
             bytes = NinoSerializer.Serialize(largerList);
             reader = new Reader(bytes);
-            NinoDeserializer.DeserializeRef(ref originalList, ref reader);
+            NinoDeserializer.Deserialize(ref originalList, ref reader);
 
             // Verify grow worked correctly
             Assert.AreEqual(6, originalList.Count, "List should grow from 3 to 6 elements");
@@ -131,7 +131,7 @@ namespace Nino.UnitTests
             
             var refSet = new HashSet<int> { 10, 20 };
             var reader = new Reader(bytes);
-            NinoDeserializer.DeserializeRef(ref refSet, ref reader);
+            NinoDeserializer.Deserialize(ref refSet, ref reader);
             
             // Verify the HashSet was updated correctly using fallback approach
             Assert.AreEqual(5, refSet.Count);

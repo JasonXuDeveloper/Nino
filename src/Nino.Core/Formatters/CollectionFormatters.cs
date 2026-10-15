@@ -35,7 +35,7 @@ namespace Nino.Core
                 return;
             }
 
-            var collection = value ??= NinoFactory<TCollection>.Create();
+            var collection = value ??= NinoActivator<TCollection>.Create();
 
             if (collection.IsReadOnly)
                 NinoThrow.ReadOnlyCollection(collection.GetType());
@@ -106,7 +106,7 @@ namespace Nino.Core
             // InterfaceSetFormatter reads into a plain HashSet<T>, which no generated code registers a creator for.
             var set = value ??= typeof(TSet) == typeof(HashSet<T>)
                 ? (TSet)new HashSet<T>()
-                : NinoFactory<TSet>.Create();
+                : NinoActivator<TSet>.Create();
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             if (set.Count != 0)
             {
@@ -183,7 +183,7 @@ namespace Nino.Core
 
             var queue = value ??= typeof(TQueue) == typeof(Queue<T>)
                 ? (TQueue)new Queue<T>(length)
-                : NinoFactory<TQueue>.Create();
+                : NinoActivator<TQueue>.Create();
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             if (queue.Count != 0)
             {
@@ -257,7 +257,7 @@ namespace Nino.Core
 
             var stack = value ??= typeof(TStack) == typeof(Stack<T>)
                 ? (TStack)new Stack<T>(length)
-                : NinoFactory<TStack>.Create();
+                : NinoActivator<TStack>.Create();
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             if (stack.Count != 0)
             {
@@ -315,7 +315,7 @@ namespace Nino.Core
             }
 
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
-            var collection = value ??= NinoFactory<TCollection>.Create();
+            var collection = value ??= NinoActivator<TCollection>.Create();
             NinoRecycler.DrainAndDiscard(collection);
 
             for (int i = 0; i < length; i++)

@@ -1665,7 +1665,7 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     private static TestClass {|#0:GetInstance|}() => new TestClass();
 
     public int Value;
@@ -1685,7 +1685,7 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public TestClass {|#0:GetInstance|}() => new TestClass();
 
     public int Value;
@@ -1705,7 +1705,7 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static TestClass {|#0:GetInstance|}(int value) => new TestClass();
 
     public int Value;
@@ -1725,7 +1725,7 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static object {|#0:GetInstance|}() => new TestClass();
 
     public int Value;
@@ -1745,7 +1745,7 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     private object {|#0:GetInstance|}(int value) => new TestClass();
 
     public int Value;
@@ -1766,7 +1766,7 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static TestClass GetInstance() => new TestClass();
 
     public int Value;
@@ -1785,7 +1785,7 @@ using Nino.Core;
 [NinoType]
 public class TestClass
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     internal static TestClass {|#0:GetInstance|}() => new TestClass();
 
     public int Value;
@@ -1794,7 +1794,7 @@ public class TestClass
 [NinoType]
 public struct TestStruct
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public static TestStruct GetInstance() => default;
 
     public int Value;
@@ -1802,7 +1802,7 @@ public struct TestStruct
 
 public class NotANinoType
 {
-    [NinoRefDeserialization]
+    [NinoFactory]
     public NotANinoType {|#1:GetInstance|}() => this;
 }
 ";

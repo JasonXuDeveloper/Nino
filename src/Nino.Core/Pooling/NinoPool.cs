@@ -17,7 +17,7 @@ namespace Nino.Core
     /// </list>
     /// Wherever Nino deserializes the type (top level, members, collection elements) it takes a pooled instance if
     /// there is one and deserializes into it, reusing its lists, arrays and nested objects as well; otherwise it
-    /// creates one as usual. Instances that ref deserialization drops (the data holds <c>null</c>, a collection
+    /// creates one as usual. Instances that reuse deserialization drops (the data holds <c>null</c>, a collection
     /// shrinks) are returned to the pool automatically.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class, Inherited = false)]

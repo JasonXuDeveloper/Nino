@@ -21,8 +21,8 @@ namespace Nino.Core
     /// copies the values as raw memory, so the bound type must be one Nino writes as raw bytes (portable unmanaged
     /// types: no <c>Nullable</c>, tuples, <c>nint</c> or <c>DateTimeOffset</c>);</item>
     /// <item><see cref="NinoCreatedAttribute"/> on a parameter (<c>[NinoCreated] TCollection</c>): the formatter
-    /// creates instances through <see cref="NinoFactory{T}.Create"/>, so the bound type must be a non-abstract class
-    /// with a public static <see cref="NinoRefDeserializationAttribute"/> factory or a public constructor callable
+    /// creates instances through <see cref="NinoActivator{T}.Create"/>, so the bound type must be a non-abstract class
+    /// with a public static <see cref="NinoFactoryAttribute"/> factory or a public constructor callable
     /// without arguments. Use it instead of <c>new()</c>, which admits only parameterless constructors and compiles to
     /// <c>Activator.CreateInstance&lt;T&gt;()</c>.</item>
     /// </list>
