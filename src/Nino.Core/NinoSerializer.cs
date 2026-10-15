@@ -37,22 +37,34 @@ namespace Nino.Core
         }
 
         /// <summary>Serializes <paramref name="value"/> into a new byte array.</summary>
+        // The public entry points inline into the caller, where T is usually exact: the formatter and the raw-array
+        // check are then static field loads instead of generic dictionary lookups (T a reference type makes any
+        // method generic over it shared code), and the out-of-line rest receives the formatter as an argument.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T>(T value)
         {
             if (NinoRaw.Is<T>())
-            {
-                var bytes = new byte[Unsafe.SizeOf<T>()];
-                NinoLayout<T>.Write(ref bytes[0], value);
-                return bytes;
-            }
+                return SerializeRaw(value);
 
-            if (value != null && RawArray<T>.Info is { } raw)
+            if (RawArray<T>.Info is { } raw && value != null)
                 return raw.Serialize(Unsafe.As<Array>(value));
 
+            return SerializeToArray(value, NinoFormatterCache<T>.Instance);
+        }
+
+        private static byte[] SerializeRaw<T>(T value)
+        {
+            var bytes = new byte[Unsafe.SizeOf<T>()];
+            NinoLayout<T>.Write(ref bytes[0], value);
+            return bytes;
+        }
+
+        private static byte[] SerializeToArray<T>(T value, NinoFormatter<T> formatter)
+        {
             var buffer = RentScratch();
             try
             {
-                WriteFormatted(value, buffer);
+                WriteFormatted(value, buffer, formatter);
                 return buffer.ToArray();
             }
             finally
@@ -62,10 +74,10 @@ namespace Nino.Core
         }
 
         /// <summary>Writes <paramref name="value"/> with its formatter, then ends the call's reference tracking.</summary>
-        private static void WriteFormatted<T>(T value, NinoArrayBufferWriter buffer)
+        private static void WriteFormatted<T>(T value, NinoArrayBufferWriter buffer, NinoFormatter<T> formatter)
         {
             var writer = new Writer(buffer);
-            NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+            formatter.Serialize(value, ref writer);
             writer.Flush();
             writer.ReleaseReferences();
         }
@@ -129,6 +141,7 @@ namespace Nino.Core
         /// Serializes <paramref name="value"/> into <paramref name="bufferWriter"/>. Writing into a
         /// <see cref="NinoArrayBufferWriter"/> is done in place; other buffer writers receive one copy.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
         {
             if (NinoRaw.Is<T>())
@@ -137,6 +150,17 @@ namespace Nino.Core
                 return;
             }
 
+            if (RawArray<T>.Info == null && bufferWriter is NinoArrayBufferWriter nino)
+            {
+                WriteFormatted(value, nino, NinoFormatterCache<T>.Instance);
+                return;
+            }
+
+            SerializeOther(value, bufferWriter, NinoFormatterCache<T>.Instance);
+        }
+
+        private static void SerializeOther<T>(T value, IBufferWriter<byte> bufferWriter, NinoFormatter<T> formatter)
+        {
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
                 if (value != null && RawArray<T>.Info is { } raw)
@@ -146,14 +170,14 @@ namespace Nino.Core
                     return;
                 }
 
-                WriteFormatted(value, nino);
+                WriteFormatted(value, nino, formatter);
                 return;
             }
 
             var buffer = RentScratch();
             try
             {
-                WriteFormatted(value, buffer);
+                WriteFormatted(value, buffer, formatter);
                 bufferWriter.Write(buffer.WrittenSpan);
             }
             finally
