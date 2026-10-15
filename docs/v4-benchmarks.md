@@ -151,7 +151,9 @@ the result objects.
   second pass, which would reload freshly stored bytes and stall on store forwarding. Stores are aligned to
   the vector width (the block usually follows a 4-byte length, so unaligned stores would split cache lines
   every other store), the loop is unrolled 4×, and the unaligned head and tail vectors overlap the body.
-  The result costs the same as a plain `memcpy`.
+  On `SimpleStruct[100]` (1.6 KB) this costs about 5 ns over a plain `memcpy`. A struct without padding, or one
+  declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`, skips the mask and is a plain block copy;
+  `LayoutKind.Auto` structs are not raw at all and are written field by field.
 * **Store-only padding for single values.** A single padded value is written, then its padding runs are
   zeroed with plain stores, never read back. The first two runs are `static readonly` offsets and lengths, so
   the JIT emits them as one or two constant stores, inlined.
