@@ -58,7 +58,47 @@ every polymorphic base inlined the bodies of all its subtypes. v4 grows linearly
 
 ## Runtime
 
-RUNTIME_TABLES
+`src/Nino.Benchmark` (BenchmarkDotNet 0.15.2, 15 iterations, server GC) on .NET 10.0.13, with v4, v3
+(`main`) and MemoryPack 1.21.4 measured on the same machine in back-to-back runs. Payload sizes are about the
+same for all three (e.g. `SimpleClass`: 1,146 bytes in v4, 1,148 in MemoryPack).
+
+### Serialize (to a reused buffer writer)
+
+| Case | v3 | v4 | MemoryPack | v4 vs v3 | v4 vs MemoryPack |
+|---|---:|---:|---:|---:|---:|
+| `SimpleClass` | 230 ns | 157 ns | 418 ns | **1.47× faster** | **2.67× faster** |
+| `SimpleClass[100]` | 23.5 µs | 17.0 µs | 41.8 µs | **1.39× faster** | **2.46× faster** |
+| Polymorphic class | 26.5 µs | 13.3 µs | 29.6 µs | **2.00× faster** | **2.23× faster** |
+| Polymorphic class array | 235 µs | 115 µs | 390 µs | **2.04× faster** | **3.39× faster** |
+| Polymorphic `Foo[]` | 23.0 µs | 11.8 µs | 32.1 µs | **1.94× faster** | **2.71× faster** |
+| `SimpleStruct` (`int` + `DateTime`) | 3.6 ns | 4.3 ns | 4.8 ns | 0.85× | 1.13× faster |
+| `SimpleStruct[100]` | 32.0 ns | 28.5 ns | 27.3 ns | 1.12× faster | 0.96× (on par) |
+| `Vector4[10000]` | 3.89 µs | 3.86 µs | 3.80 µs | on par | on par |
+
+`SimpleStruct` has 4 bytes of padding. v4 zeroes it, so the output is deterministic; v3 and MemoryPack copy
+whatever the padding contains. With the masked SIMD copy this costs nothing measurable on arrays, and well
+under a nanosecond for a single value.
+
+### Deserialize (new instances)
+
+| Case | v3 | v4 | MemoryPack | v4 vs MemoryPack |
+|---|---:|---:|---:|---:|
+| `SimpleClass` | 708 ns | 790 ns | 1,197 ns | **1.51× faster** |
+| `SimpleClass[100]` | 81.8 µs | 88.2 µs | 103.0 µs | **1.17× faster** |
+| Polymorphic class | 35.3 µs | 32.5 µs | 42.2 µs | **1.30× faster** |
+| Polymorphic class array | 471 µs | 434 µs | 512 µs | **1.18× faster** |
+| Polymorphic `Foo[]` | 28.2 µs | 30.5 µs | 40.3 µs | **1.32× faster** |
+| `SimpleStruct[100]` | 193 ns | 204 ns | 249 ns | **1.22× faster** |
+| `Vector4[10000]` | 122 µs | 122 µs | 121 µs | on par |
+
+Deserialization is dominated by allocating the result objects, which is identical for all three (same bytes
+allocated per call), and server-GC noise is about ±7% here. An interleaved A/B run of v3 and v4 on the
+same data (best of 15) puts them within that noise (`SimpleClass`: 621–666 ns for v3 and 552–665 ns for v4),
+so v4 deserializes as fast as v3 while adding reference tracking, ref deserialization with pool recycling,
+version tolerance and payload validation.
+
+Neither serializer allocates on the serialize paths above (0 B per call), and deserialization allocates only
+the result objects.
 
 ## Runtime optimizations
 
@@ -98,7 +138,20 @@ RUNTIME_TABLES
 
 ## Reproducing
 
-* Build time: `gentime` harness (synthetic workload above) — run the generator with
-  `CSharpGeneratorDriver.RunGeneratorsAndUpdateCompilation`, then `Compilation.Emit`.
-* Runtime: `src/Nino.Benchmark` (BenchmarkDotNet):
-  `dotnet run -c Release --project src/Nino.Benchmark -- --filter '*Nino*' '*MemoryPack*'`.
+Build time and generated code (`tools/GeneratorBenchmark`, not part of `Nino.sln`):
+
+```sh
+dotnet run -c Release --project tools/GeneratorBenchmark -- 30 8          # this repository's generator
+# another version: build its Nino.Generator and Nino.Core, then
+dotnet run -c Release --project tools/GeneratorBenchmark -- 30 8 \
+    --generator <path>/Nino.Generator.dll --core <path>/Nino.Core.dll
+```
+
+Arguments are the number of root classes and the depth of each hierarchy; `--dump <dir>` writes the
+generated files. Each line reports one of three runs; the numbers above are from the third.
+
+Runtime (`src/Nino.Benchmark`, BenchmarkDotNet):
+
+```sh
+dotnet run -c Release --project src/Nino.Benchmark -- --filter '*Nino*' '*MemoryPack*' --iterationCount 15 --warmupCount 5
+```
