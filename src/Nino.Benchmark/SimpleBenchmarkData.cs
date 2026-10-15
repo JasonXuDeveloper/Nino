@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using MemoryPack;
 using MessagePack;
 using Nino.Core;
@@ -56,6 +57,7 @@ public sealed partial class SimpleClass : SimpleClassBase
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
+[StructLayout(LayoutKind.Sequential, Pack = 4)] // int + DateTime with no padding: 12 bytes
 public partial struct SimpleStruct
 {
     [Key(0)] public int Id;
