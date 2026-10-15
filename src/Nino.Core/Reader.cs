@@ -292,6 +292,27 @@ namespace Nino.Core
             ReadUnmanagedRaw(value.AsSpan());
         }
 
+        private static string EmptyOrNull(int length)
+        {
+            if (length == 0)
+                return string.Empty;
+            if (length != -1)
+                NinoThrow.InvalidLength(length);
+            return null;
+        }
+
+        /// <summary>Reads <paramref name="count"/> elements of <paramref name="elementSize"/> bytes (count &gt; 0).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private ref byte ReadBlockOf(int count, int elementSize)
+        {
+            int pos = _pos;
+            ulong size = (ulong)(uint)count * (uint)elementSize;
+            if (size > (uint)(_data.Length - pos))
+                NinoThrow.EndOfData();
+            _pos = pos + (int)size;
+            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos);
+        }
+
         /// <summary>Reads a UTF-16 string written by <see cref="Writer.Write(string)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read(out string value) => value = ReadString();
@@ -303,11 +324,12 @@ namespace Nino.Core
         /// <summary>Reads a UTF-16 string written by <see cref="Writer.Write(string)"/>.</summary>
         public unsafe string ReadString()
         {
-            int length = ReadLength(sizeof(char));
+            int length = UnsafeRead<int>();
             if (length <= 0)
-                return length == 0 ? string.Empty : null;
+                return EmptyOrNull(length);
 
-            ref byte src = ref ReadBlock(length * sizeof(char));
+            // One bounds check: the string is only allocated after it.
+            ref byte src = ref ReadBlockOf(length, sizeof(char));
 #if NETSTANDARD2_0
             fixed (byte* p = &src)
             {
@@ -321,11 +343,11 @@ namespace Nino.Core
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>
         public unsafe string ReadUtf8()
         {
-            int length = ReadLength();
+            int length = UnsafeRead<int>();
             if (length <= 0)
-                return length == 0 ? string.Empty : null;
+                return EmptyOrNull(length);
 
-            ref byte src = ref ReadBlock(length);
+            ref byte src = ref ReadBlockOf(length, 1);
 #if NETSTANDARD2_0
             fixed (byte* p = &src)
             {

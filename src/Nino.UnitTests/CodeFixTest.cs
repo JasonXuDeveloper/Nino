@@ -431,7 +431,7 @@ public class TestClass
 using Nino.Core;
 
 [NinoType(autoCollect: false)]
-public class TestClass
+public partial class TestClass
 {
     [NinoMember(0)]
     private int A { get; set; }
@@ -441,7 +441,7 @@ public class TestClass
 using Nino.Core;
 
 [NinoType(autoCollect: false, containNonPublicMembers: true)]
-public class TestClass
+public partial class TestClass
 {
     [NinoMember(0)]
     private int A { get; set; }
@@ -646,6 +646,107 @@ public class TestClass2
             .WithArguments("Y", "TestClass2");
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic1, diagnostic2, diagnostic3, diagnostic4).RunAsync();
+    }
+
+    #endregion
+
+    #region Generation diagnostics (reported by the analyzer)
+
+    [TestMethod]
+    public async Task NINO011_AddNinoIgnore()
+    {
+        var code = @"
+using System;
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    public Action Callback;
+    public int Value;
+}";
+
+        var fixedCode = @"
+using System;
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoIgnore]
+    public Action Callback;
+    public int Value;
+}";
+
+        var diagnostic = new DiagnosticResult("NINO011", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+            .WithSpan(8, 19, 8, 27)
+            .WithArguments("Callback", "System.Action", "TestClass");
+
+        await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO013_MakeTypeAndContainersPartial()
+    {
+        var code = @"
+using Nino.Core;
+
+public class Outer
+{
+    [NinoType(containNonPublicMembers: true)]
+    public class TestClass
+    {
+        private int _value;
+        public int Value => _value;
+    }
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+public partial class Outer
+{
+    [NinoType(containNonPublicMembers: true)]
+    public partial class TestClass
+    {
+        private int _value;
+        public int Value => _value;
+    }
+}";
+
+        var diagnostic = new DiagnosticResult("NINO013", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+            .WithSpan(7, 18, 7, 27)
+            .WithArguments("Outer.TestClass");
+
+        await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO016_RemoveTrackReferencesFromStruct()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(trackReferences: true)]
+public struct TestStruct
+{
+    public int Value;
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType]
+public struct TestStruct
+{
+    public int Value;
+}";
+
+        var diagnostic = new DiagnosticResult("NINO016", Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+            .WithSpan(5, 15, 5, 25)
+            .WithArguments("TestStruct");
+
+        await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
 
     #endregion

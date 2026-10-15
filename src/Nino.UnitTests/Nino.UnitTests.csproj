@@ -56,6 +56,7 @@
         <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="true"/>
+        <ProjectReference Include="..\Nino.Generator.CodeFixes\Nino.Generator.CodeFixes.csproj" />
         <ProjectReference Include="..\Nino.UnitTests.Subset\Nino.UnitTests.Subset.csproj" />
     </ItemGroup>
 

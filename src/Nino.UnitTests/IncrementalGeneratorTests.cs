@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -106,10 +107,58 @@ public partial class Outer
 }
 }"));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
-        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
         Assert.AreEqual(0, generatorDiagnostics.Length, string.Join("\n", generatorDiagnostics));
         var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
         Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
         StringAssert.Contains(Output(driver, "Outer_Middle_Inner"), "_secret");
+    }
+
+    [TestMethod]
+    public void MovingCodeReusesEveryOutput()
+    {
+        var compilation = Create(
+            ("A.cs", Usings + "[NinoType] public class A { public int X; public System.Action Bad; }\n}"),
+            ("B.cs", Usings + "[NinoType(containNonPublicMembers: true)] public partial class B { private int _y; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+        driver = driver.RunGenerators(compilation);
+
+        // Lines inserted above both types move every location; models carry none, so nothing is re-emitted.
+        compilation = Edit(compilation, "A.cs", "[NinoType]", "\n\n// moved\n[NinoType]");
+        compilation = Edit(compilation, "B.cs", "[NinoType", "\n\n[NinoType");
+        driver = driver.RunGenerators(compilation);
+        var result = driver.GetRunResult().Results[0];
+        Assert.AreEqual(0, result.Diagnostics.Length, "the generator reports nothing; the analyzer does");
+        foreach (var output in result.TrackedOutputSteps.SelectMany(s => s.Value).SelectMany(s => s.Outputs))
+            Assert.AreEqual(IncrementalStepRunReason.Cached, output.Reason);
+        foreach (var output in result.TrackedSteps["NinoType"].SelectMany(s => s.Outputs))
+            Assert.IsTrue(output.Reason is IncrementalStepRunReason.Unchanged or IncrementalStepRunReason.Cached,
+                output.Reason.ToString());
+    }
+
+    [TestMethod]
+    public void SerializedPrivateFieldsAreNotReportedAsUnused()
+    {
+        // .NET 8+: private members are reached through [UnsafeAccessor], which the compiler cannot see.
+        var parse = new CSharpParseOptions(LanguageVersion.Latest).WithPreprocessorSymbols("NET8_0_OR_GREATER");
+        var compilation = Create(("S.cs", Usings + @"
+[NinoType(containNonPublicMembers: true)] public class S { private int _never; private string _assigned = """"; }
+public class Plain { private int _unused; }
+}"));
+        compilation = compilation.RemoveAllSyntaxTrees()
+            .AddSyntaxTrees(compilation.SyntaxTrees.Select(t => t.WithRootAndOptions(t.GetRoot(), parse)));
+        var analyzers = System.Collections.Immutable.ImmutableArray.Create<Microsoft.CodeAnalysis.Diagnostics.DiagnosticAnalyzer>(
+            new Generator.NinoSuppressor());
+        var diagnostics = compilation.WithAnalyzers(analyzers, new Microsoft.CodeAnalysis.Diagnostics.CompilationWithAnalyzersOptions(
+                new Microsoft.CodeAnalysis.Diagnostics.AnalyzerOptions(System.Collections.Immutable.ImmutableArray<AdditionalText>.Empty),
+                null, concurrentAnalysis: true, logAnalyzerExecutionTime: false, reportSuppressedDiagnostics: true))
+            .GetAllDiagnosticsAsync().Result
+            .Where(d => d.Id is "CS0169" or "CS0414")
+            .ToArray();
+        Assert.IsTrue(diagnostics.Where(d => d.GetMessage().Contains("S._")).All(d => d.IsSuppressed),
+            string.Join("\n", diagnostics.Select(d => d.ToString())));
+        Assert.AreEqual(2, diagnostics.Count(d => d.GetMessage().Contains("S._")));
+        Assert.IsFalse(diagnostics.Single(d => d.GetMessage().Contains("Plain._unused")).IsSuppressed);
     }
 }

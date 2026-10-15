@@ -32,30 +32,6 @@ public class AnalyzerTest
         return test;
     }
 
-    private CSharpSourceGeneratorTest<Generator.Generation.NinoGenerator, DefaultVerifier> SetUpSourceGeneratorTest(
-        string code, params DiagnosticResult[] diagnostics)
-    {
-        var test = new CSharpSourceGeneratorTest<Generator.Generation.NinoGenerator, DefaultVerifier>
-        {
-            TestState =
-            {
-                Sources = { code }
-            }
-        };
-
-        if (diagnostics.Length > 0)
-        {
-            test.TestState.ExpectedDiagnostics.AddRange(diagnostics);
-        }
-
-        TestReferences.Apply(test.TestState);
-
-        // Disable verification of generated sources - we only care about diagnostics
-        test.TestBehaviors |= TestBehaviors.SkipGeneratedSourcesCheck;
-
-        return test;
-    }
-
     [TestMethod]
     public async Task TestNino002()
     {
@@ -306,7 +282,7 @@ public class TestClass
 }
 
 [NinoType(false, true)]
-public class TestClass2
+public partial class TestClass2
 {
     [NinoMember(1)]
     private int A;
@@ -326,10 +302,10 @@ public class TestClass2
         var code = @"
 using Nino.Core;
 
-public class TestNested
+public partial class TestNested
 {
     [NinoType(false, true)]
-    public class TestClass
+    public partial class TestClass
     {
         [NinoMember(1)]
         private int A;
@@ -388,7 +364,7 @@ using Nino.Core;
 [NinoType]
 public class TestClassWithDelegate
 {
-    // Delegates are not directly serializable and trigger NINO011 during source generation
+    // Delegates are not directly serializable and are reported as NINO011
     public Action UnsupportedDelegate;
 
     // Valid fields that will be serialized
@@ -399,7 +375,7 @@ public class TestClassWithDelegate
 [NinoType]
 public class TestClassWithTask
 {
-    // Task types trigger NINO011 during source generation
+    // Task types are reported as NINO011
     public Task<int> UnsupportedTask;
 
     // Valid fields
@@ -408,7 +384,7 @@ public class TestClassWithTask
 }
 ";
 
-        await SetUpSourceGeneratorTest(code,
+        await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO011")
                 .WithSpan(10, 19, 10, 38)
                 .WithArguments("UnsupportedDelegate", "System.Action", "TestClassWithDelegate"),

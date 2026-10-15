@@ -11,7 +11,7 @@ namespace Nino.Generator.Generation;
 internal static class ConstructionPlanner
 {
     public static ConstructionModel Plan(INamedTypeSymbol type, List<MemberModel> members,
-        List<DiagnosticInfo> diagnostics, LocationInfo? location)
+        DiagnosticSink? diagnostics)
     {
         string typeName = TypeNames.Global(type);
         var refFactory = type.GetMembers().OfType<IMethodSymbol>().FirstOrDefault(m =>
@@ -59,9 +59,8 @@ internal static class ConstructionPlanner
                 var match = MatchMember(name);
                 if (match == null)
                 {
-                    diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.MissingConstructorMember,
-                        LocationInfo.From(marked.Locations.FirstOrDefault()) ?? location,
-                        name, type.ToDisplayString()));
+                    diagnostics?.Report(NinoDiagnostics.MissingConstructorMember, marked, name,
+                        type.ToDisplayString());
                     return new ConstructionModel(true, "", EquatableArray<string>.Empty, "");
                 }
 
@@ -104,7 +103,7 @@ internal static class ConstructionPlanner
         {
             if (type.IsValueType)
                 return new ConstructionModel(true, $"new {typeName}", EquatableArray<string>.Empty, "");
-            diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.NoUsableConstructor, location, type.ToDisplayString()));
+            diagnostics?.Report(NinoDiagnostics.NoUsableConstructor, type, type.ToDisplayString());
             return new ConstructionModel(true, "", EquatableArray<string>.Empty, "");
         }
 

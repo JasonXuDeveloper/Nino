@@ -1,6 +1,6 @@
+using System;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Text;
 using Nino.Generator.DTOs;
 
 namespace Nino.Generator.Generation;
@@ -63,30 +63,18 @@ public sealed record ConstructionModel(
     // [NinoRefDeserialization] factory method used when the target is null (in-place mode only).
     string RefFactory);
 
-public sealed record LocationInfo(string FilePath, TextSpan Span, LinePositionSpan LineSpan)
+/// <summary>
+/// Receives the diagnostics found while a model is built. The analyzer passes one and reports them; the generator
+/// passes none, so models carry no locations and an edit that only moves code re-emits nothing.
+/// </summary>
+internal sealed class DiagnosticSink
 {
-    public Location ToLocation() => Location.Create(FilePath, Span, LineSpan);
+    private readonly Action<Diagnostic> _report;
 
-    public static LocationInfo? From(Location? location)
-    {
-        if (location == null || location.SourceTree == null)
-            return null;
-        return new LocationInfo(location.SourceTree.FilePath, location.SourceSpan, location.GetLineSpan().Span);
-    }
-}
+    public DiagnosticSink(Action<Diagnostic> report) => _report = report;
 
-/// <summary>A diagnostic to report once the model is output. Descriptors are the shared <see cref="NinoDiagnostics"/>.</summary>
-public sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationInfo? Location,
-    EquatableArray<string> Arguments)
-{
-    public DiagnosticInfo(DiagnosticDescriptor descriptor, LocationInfo? location, params string[] arguments)
-        : this(descriptor, location, new EquatableArray<string>(arguments))
-    {
-    }
-
-    public Diagnostic ToDiagnostic() =>
-        Diagnostic.Create(Descriptor, Location?.ToLocation() ?? Microsoft.CodeAnalysis.Location.None,
-            Arguments.Cast<object>().ToArray());
+    public void Report(DiagnosticDescriptor descriptor, ISymbol at, params object[] args) =>
+        _report(Diagnostic.Create(descriptor, at.Locations.FirstOrDefault(), args));
 }
 
 public sealed record TypeModel(
@@ -127,8 +115,7 @@ public sealed record TypeModel(
     EquatableArray<FormatterRegistration> UsedFormatters,
     // Namespace and containing declarations used to emit the partial accessor class; empty when not needed.
     string AccessorNamespace,
-    EquatableArray<string> AccessorDeclarations,
-    EquatableArray<DiagnosticInfo> Diagnostics)
+    EquatableArray<string> AccessorDeclarations)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 }

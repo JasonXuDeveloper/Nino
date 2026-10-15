@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <TargetFramework>netstandard2.0</TargetFramework>
-        <LangVersion>10</LangVersion>
         <IsPackable>true</IsPackable>
         <Nullable>enable</Nullable>
         <LangVersion>preview</LangVersion>
@@ -10,7 +9,8 @@
         <IsRoslynComponent>true</IsRoslynComponent>
         <RootNamespace>Nino.Generator</RootNamespace>
         <PackageId>Nino.Generator</PackageId>
-        <IncludeBuildOutput>true</IncludeBuildOutput>
+        <!-- An analyzer package: nothing goes to lib/, so consumers never compile against Roslyn. -->
+        <IncludeBuildOutput>false</IncludeBuildOutput>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Version>4.0.0-beta.47</Version>
         <Title>Nino.Generator</Title>
@@ -34,8 +34,6 @@
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <IsPackable>true</IsPackable>
-        <!-- RS1038: CodeFixProvider requires Workspaces which is only available in IDE scenarios -->
-        <NoWarn>RS1038</NoWarn>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
@@ -58,11 +56,18 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" PrivateAssets="all"/>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.3.0" PrivateAssets="all"/>
     </ItemGroup>
 
+    <!-- Built against Roslyn 4.3 (the oldest Unity supports): the versioned folder makes NuGet skip compilers
+         older than that instead of loading an analyzer they cannot run. Code fixes ship next to it. -->
     <ItemGroup>
-        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false"/>
+        <ProjectReference Include="..\Nino.Generator.CodeFixes\Nino.Generator.CodeFixes.csproj"
+                          ReferenceOutputAssembly="false" PrivateAssets="all"/>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.3/cs" Visible="false"/>
+        <None Include="..\Nino.Generator.CodeFixes\bin\$(Configuration)\netstandard2.0\Nino.Generator.CodeFixes.dll"
+              Pack="true" PackagePath="analyzers/dotnet/roslyn4.3/cs" Visible="false"/>
     </ItemGroup>
 
 </Project>

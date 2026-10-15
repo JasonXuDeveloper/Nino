@@ -14,7 +14,9 @@ internal static class ModelBuilder
 {
     private const string Core = "global::Nino.Core.";
 
-    public static TypeModel? Build(INamedTypeSymbol type, Compilation compilation, ParseOptions? parseOptions)
+    /// <param name="diagnostics">Receives problems found on the way (the analyzer's); null when generating.</param>
+    public static TypeModel? Build(INamedTypeSymbol type, Compilation compilation, ParseOptions? parseOptions,
+        DiagnosticSink? diagnostics = null)
     {
         type = type.OriginalDefinition;
         if (!IsEligible(type))
@@ -23,8 +25,6 @@ internal static class ModelBuilder
         if (attr == null)
             return null;
 
-        var diagnostics = new List<DiagnosticInfo>();
-        var location = LocationInfo.From(type.Locations.FirstOrDefault());
         var facts = new TypeFacts(compilation, parseOptions);
         bool weakTolerance = facts.WeakTolerance;
         var resolver = new FormatterResolver(facts);
@@ -86,7 +86,7 @@ internal static class ModelBuilder
             }
 
             // Abstract types do not report member diagnostics: their subtypes do.
-            var memberDiagnostics = kind == FormatterKind.Polymorphic ? new List<DiagnosticInfo>() : diagnostics;
+            var memberDiagnostics = kind == FormatterKind.Polymorphic ? null : diagnostics;
             for (int i = 0; i < symbolsToBuild.Count; i++)
             {
                 var member = BuildMember(type, symbolsToBuild[i], facts, resolver, memberDiagnostics,
@@ -116,7 +116,7 @@ internal static class ModelBuilder
                 int key = TypeNames.ComputeId(member.Name);
                 if (seen.TryGetValue(key, out var other))
                 {
-                    diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.KeyCollision, location, other, member.Name, type.ToDisplayString()));
+                    diagnostics?.Report(NinoDiagnostics.KeyCollision, type, other, member.Name, type.ToDisplayString());
                 }
                 else
                 {
@@ -127,7 +127,7 @@ internal static class ModelBuilder
 
         var construction = kind == FormatterKind.Polymorphic || rawStruct
             ? new ConstructionModel(false, "", EquatableArray<string>.Empty, "")
-            : ConstructionPlanner.Plan(type, members, diagnostics, location);
+            : ConstructionPlanner.Plan(type, members, diagnostics);
 
         string collectionFormatter = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
             ? resolver.ResolveUserCollection(type) ?? ""
@@ -145,7 +145,7 @@ internal static class ModelBuilder
                     (m.Access == MemberAccess.Direct && m.IsProperty))
                     continue;
                 members[i] = m with { Unassignable = true };
-                diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.ReadOnlyMember, location, m.Name, type.ToDisplayString()));
+                diagnostics?.Report(NinoDiagnostics.ReadOnlyMember, type, m.Name, type.ToDisplayString());
             }
         }
 
@@ -155,11 +155,11 @@ internal static class ModelBuilder
         bool trackReferences = tracked && kind != FormatterKind.Struct;
         if (tracked && kind == FormatterKind.Struct)
         {
-            diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.TrackReferencesOnStruct, location, type.ToDisplayString()));
+            diagnostics?.Report(NinoDiagnostics.TrackReferencesOnStruct, type, type.ToDisplayString());
         }
         else if (trackReferences && construction.Recreate)
         {
-            diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.TrackReferencesNeedsAssignableMembers, location, type.ToDisplayString()));
+            diagnostics?.Report(NinoDiagnostics.TrackReferencesNeedsAssignableMembers, type, type.ToDisplayString());
         }
 
         if (typeParameters.Count == 0 && kind != FormatterKind.Polymorphic)
@@ -178,7 +178,7 @@ internal static class ModelBuilder
         {
             if (!IsPartialChain(type))
             {
-                diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.NotPartial, location, type.ToDisplayString()));
+                diagnostics?.Report(NinoDiagnostics.NotPartial, type, type.ToDisplayString());
             }
             else
             {
@@ -215,8 +215,7 @@ internal static class ModelBuilder
             construction,
             new EquatableArray<FormatterRegistration>(used),
             accessorNamespace,
-            new EquatableArray<string>(accessorDeclarations),
-            new EquatableArray<DiagnosticInfo>(diagnostics));
+            new EquatableArray<string>(accessorDeclarations));
     }
 
     /// <summary>Whether a base class or interface asks for reference tracking.</summary>
@@ -285,7 +284,7 @@ internal static class ModelBuilder
     }
 
     private static MemberModel? BuildMember(INamedTypeSymbol type, ISymbol symbol, TypeFacts facts,
-        FormatterResolver resolver, List<DiagnosticInfo> diagnostics, ref bool needsPartialAccessor)
+        FormatterResolver resolver, DiagnosticSink? diagnostics, ref bool needsPartialAccessor)
     {
         var memberType = symbol switch
         {
@@ -314,7 +313,8 @@ internal static class ModelBuilder
 
         if (formatter == null)
         {
-            diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.UnserializableMember, LocationInfo.From(symbol.Locations.FirstOrDefault()), symbol.Name, memberType.ToDisplayString(), type.ToDisplayString()));
+            diagnostics?.Report(NinoDiagnostics.UnserializableMember, symbol, symbol.Name, memberType.ToDisplayString(),
+                type.ToDisplayString());
             return null;
         }
 

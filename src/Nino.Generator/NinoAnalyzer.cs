@@ -7,11 +7,16 @@ using Nino.Generator.Generation;
 
 namespace Nino.Generator;
 
-/// <summary>Checks how the Nino attributes are used. Diagnostics about generation itself come from the generator.</summary>
+/// <summary>
+/// Reports every Nino diagnostic: attribute usage, and what the generator would find while building a type's model
+/// (the same <see cref="ModelBuilder"/>). The generator itself reports nothing, so its models carry no locations.
+/// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class NinoAnalyzer : DiagnosticAnalyzer
 {
     private static readonly ImmutableArray<DiagnosticDescriptor> Supported = ImmutableArray.Create(
+        NinoDiagnostics.MissingConstructorMember,
+        NinoDiagnostics.NoUsableConstructor,
         NinoDiagnostics.InaccessibleType,
         NinoDiagnostics.SubTypeWithoutNinoType,
         NinoDiagnostics.RedundantMember,
@@ -20,7 +25,13 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         NinoDiagnostics.PrivateMember,
         NinoDiagnostics.DuplicateIndex,
         NinoDiagnostics.InvalidCustomFormatter,
-        NinoDiagnostics.InvalidRefDeserialization);
+        NinoDiagnostics.InvalidRefDeserialization,
+        NinoDiagnostics.UnserializableMember,
+        NinoDiagnostics.NotPartial,
+        NinoDiagnostics.ReadOnlyMember,
+        NinoDiagnostics.KeyCollision,
+        NinoDiagnostics.TrackReferencesOnStruct,
+        NinoDiagnostics.TrackReferencesNeedsAssignableMembers);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => Supported;
 
@@ -30,18 +41,39 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(start =>
         {
-            // Nothing to check in compilations that do not reference Nino.
-            if (start.Compilation.GetTypeByMetadataName("Nino.Core.NinoTypeAttribute") == null)
+            // Nothing to check in compilations that do not reference Nino; the attribute types are resolved once.
+            if (KnownTypes.Create(start.Compilation) is not { } known)
                 return;
-            var refDeserialization = start.Compilation.GetTypeByMetadataName("Nino.Core.NinoRefDeserializationAttribute");
             // Symbol actions run once per type, not once per partial declaration.
-            start.RegisterSymbolAction(AnalyzeType, SymbolKind.NamedType);
-            if (refDeserialization != null)
-                start.RegisterSymbolAction(c => AnalyzeMethod(c, refDeserialization), SymbolKind.Method);
+            start.RegisterSymbolAction(c => AnalyzeType(c, known), SymbolKind.NamedType);
+            if (known.RefDeserialization != null)
+                start.RegisterSymbolAction(c => AnalyzeMethod(c, known.RefDeserialization), SymbolKind.Method);
         });
     }
 
-    private static void AnalyzeType(SymbolAnalysisContext context)
+    /// <summary>Nino.Core types the checks compare against, by symbol.</summary>
+    private sealed class KnownTypes
+    {
+        public INamedTypeSymbol Member = null!, Ignore = null!, CustomFormatter = null!, Formatter = null!;
+        public INamedTypeSymbol? RefDeserialization;
+
+        public static KnownTypes? Create(Compilation compilation)
+        {
+            if (compilation.GetTypeByMetadataName("Nino.Core.NinoTypeAttribute") == null ||
+                compilation.GetTypeByMetadataName("Nino.Core.NinoMemberAttribute") is not { } member ||
+                compilation.GetTypeByMetadataName("Nino.Core.NinoIgnoreAttribute") is not { } ignore ||
+                compilation.GetTypeByMetadataName("Nino.Core.NinoCustomFormatterAttribute") is not { } custom ||
+                compilation.GetTypeByMetadataName("Nino.Core.NinoFormatter`1") is not { } formatter)
+                return null;
+            return new KnownTypes
+            {
+                Member = member, Ignore = ignore, CustomFormatter = custom, Formatter = formatter,
+                RefDeserialization = compilation.GetTypeByMetadataName("Nino.Core.NinoRefDeserializationAttribute"),
+            };
+        }
+    }
+
+    private static void AnalyzeType(SymbolAnalysisContext context, KnownTypes known)
     {
         var type = (INamedTypeSymbol)context.Symbol;
         var attr = type.GetNinoTypeAttribute();
@@ -54,6 +86,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         // The generator skips types it cannot name from outside them.
         if (!TypeFacts.IsEligible(type))
             Report(context, NinoDiagnostics.InaccessibleType, type, type.GetDisplayString());
+        else if (type.DeclaringSyntaxReferences.FirstOrDefault() is { } declaration)
+            ModelBuilder.Build(type, context.Compilation, declaration.SyntaxTree.Options,
+                new DiagnosticSink(context.ReportDiagnostic));
 
         var indices = attr.autoCollect ? null : new Dictionary<ushort, ISymbol>();
         HashSet<ushort>? reported = null;
@@ -63,17 +98,18 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             bool ignored = false;
             foreach (var a in member.GetAttributes())
             {
-                switch (a.AttributeClass?.Name)
-                {
-                    case "NinoMemberAttribute": ninoMember = a; break;
-                    case "NinoIgnoreAttribute": ignored = true; break;
-                    case "NinoCustomFormatterAttribute": customFormatter = a; break;
-                }
+                var attributeClass = a.AttributeClass;
+                if (SymbolEqualityComparer.Default.Equals(attributeClass, known.Member))
+                    ninoMember = a;
+                else if (SymbolEqualityComparer.Default.Equals(attributeClass, known.Ignore))
+                    ignored = true;
+                else if (SymbolEqualityComparer.Default.Equals(attributeClass, known.CustomFormatter))
+                    customFormatter = a;
             }
 
             if (customFormatter is { ConstructorArguments: { Length: > 0 } args } &&
                 args[0].Value is INamedTypeSymbol formatter &&
-                MemberType(member) is { } memberType && !IsFormatterOf(formatter, memberType))
+                MemberType(member) is { } memberType && !IsFormatterOf(formatter, memberType, known.Formatter))
                 Report(context, NinoDiagnostics.InvalidCustomFormatter, member, formatter.ToDisplayString(),
                     memberType.ToDisplayString());
 
@@ -158,11 +194,11 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     };
 
     /// <summary>Whether <paramref name="formatter"/> derives from <c>NinoFormatter&lt;memberType&gt;</c>.</summary>
-    private static bool IsFormatterOf(INamedTypeSymbol formatter, ITypeSymbol memberType)
+    private static bool IsFormatterOf(INamedTypeSymbol formatter, ITypeSymbol memberType, INamedTypeSymbol ninoFormatter)
     {
         for (var baseType = formatter.BaseType; baseType != null; baseType = baseType.BaseType)
         {
-            if (baseType is { Name: "NinoFormatter", TypeArguments.Length: 1 })
+            if (SymbolEqualityComparer.Default.Equals(baseType.OriginalDefinition, ninoFormatter))
                 return SymbolEqualityComparer.Default.Equals(baseType.TypeArguments[0], memberType);
         }
 

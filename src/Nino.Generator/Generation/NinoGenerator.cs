@@ -14,6 +14,10 @@ namespace Nino.Generator.Generation;
 /// Each type is turned into an equatable <see cref="TypeModel"/> inside the transform, so editing one type only
 /// re-emits that type's file. The registry depends only on the list of formatter names.
 /// </para>
+/// <para>
+/// Nothing generated is referenced by user code, so every output is an implementation output: the IDE never runs
+/// the emitters while typing, only builds do. Diagnostics come from <see cref="NinoAnalyzer"/>.
+/// </para>
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class NinoGenerator : IIncrementalGenerator
@@ -82,8 +86,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Where(static x => x.Right)
             .Select(static (x, _) => x.Left!);
 
-        context.RegisterSourceOutput(models, static (spc, model) => Emit(spc, model));
-        context.RegisterSourceOutput(inheritedModels, static (spc, model) => Emit(spc, model));
+        context.RegisterImplementationSourceOutput(models, static (spc, model) => Emit(spc, model));
+        context.RegisterImplementationSourceOutput(inheritedModels, static (spc, model) => Emit(spc, model));
 
         var options = context.CompilationProvider.Select(static (c, _) => new GeneratorOptions(
             c.AssemblyName ?? "Assembly",
@@ -94,12 +98,12 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // Formatters for collection types Nino.Core cannot reference (System.Collections.Immutable is not
         // available everywhere, PriorityQueue only exists on .NET 6+) are emitted into the assembly that uses them.
         var helpers = context.CompilationProvider.Select(static (c, _) => (
-            Enabled: c.ReferencedAssemblyNames.Any(static a => a.Name == "Nino.Core"),
             Immutable: c.GetTypeByMetadataName("System.Collections.Immutable.ImmutableArray`1") != null,
             PriorityQueue: c.GetTypeByMetadataName("System.Collections.Generic.PriorityQueue`2") != null));
-        context.RegisterSourceOutput(helpers, static (spc, x) =>
+        context.RegisterImplementationSourceOutput(helpers.Combine(enabled), static (spc, input) =>
         {
-            if (!x.Enabled)
+            var (x, on) = input;
+            if (!on)
                 return;
             if (x.Immutable)
                 spc.AddSource("NinoGen.ImmutableFormatters.g.cs", HelperSources.EmitImmutableFormatters());
@@ -142,13 +146,13 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     .OrderBy(u => u.TypeName, System.StringComparer.Ordinal)
                     .ThenBy(u => u.Formatter, System.StringComparer.Ordinal)));
 
-        context.RegisterSourceOutput(registrations.Combine(enabled), static (spc, x) =>
+        context.RegisterImplementationSourceOutput(registrations.Combine(enabled), static (spc, x) =>
         {
             if (x.Right)
                 spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(x.Left));
         });
 
-        context.RegisterSourceOutput(entries.Combine(options).Combine(enabled), static (spc, x) =>
+        context.RegisterImplementationSourceOutput(entries.Combine(options).Combine(enabled), static (spc, x) =>
         {
             var ((list, opts), on) = x;
             if (!on)
@@ -230,8 +234,6 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     private static void Emit(SourceProductionContext spc, TypeModel model)
     {
-        foreach (var diagnostic in model.Diagnostics)
-            spc.ReportDiagnostic(diagnostic.ToDiagnostic());
         spc.AddSource($"NinoGen.{model.FormatterName}.g.cs", FormatterEmitter.Emit(model));
     }
 }

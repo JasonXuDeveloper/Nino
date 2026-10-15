@@ -8,11 +8,13 @@ public static class NinoDiagnostics
 {
     private const string Category = "Nino";
 
+    private const string HelpLink = "https://github.com/JasonXuDeveloper/Nino/blob/main/docs/diagnostics.md#";
+
     private static DiagnosticDescriptor Error(string id, string title, string format) =>
-        new(id, title, format, Category, DiagnosticSeverity.Error, true);
+        new(id, title, format, Category, DiagnosticSeverity.Error, true, helpLinkUri: HelpLink + id.ToLowerInvariant());
 
     private static DiagnosticDescriptor Warning(string id, string title, string format) =>
-        new(id, title, format, Category, DiagnosticSeverity.Warning, true);
+        new(id, title, format, Category, DiagnosticSeverity.Warning, true, helpLinkUri: HelpLink + id.ToLowerInvariant());
 
     public static readonly DiagnosticDescriptor MissingConstructorMember = Error("NINO001",
         "Missing constructor member", "Missing constructor member {0} for {1}");

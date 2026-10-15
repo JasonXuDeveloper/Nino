@@ -1,15 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
 // Measures the Nino source generator on a synthetic workload: generator time, size of the generated code,
-// time to compile (emit) it, and re-generation after edits.
+// time to compile (emit) it, analyzer time, and re-generation after edits.
 //
 // Usage: GeneratorBenchmark [roots=30] [depth=8] [--generator <Nino.Generator.dll>] [--core <Nino.Core.dll>]
 //                           [--dump <dir>]
@@ -34,7 +36,8 @@ if (positional.Count > 0) roots = int.Parse(positional[0]);
 if (positional.Count > 1) depth = int.Parse(positional[1]);
 
 // N roots, each with a chain of `depth` subclasses, a sealed leaf and a struct.
-var src = new StringBuilder("using System; using System.Collections.Generic; using Nino.Core;\nnamespace Syn {\n");
+var src = new StringBuilder("using System; using System.Collections.Generic;
+using System.Collections.Immutable; using Nino.Core;\nnamespace Syn {\n");
 for (int r = 0; r < roots; r++)
 {
     src.AppendLine($"[NinoType] public partial struct S{r} {{ public int A; public float B; public long C; }}");
@@ -52,9 +55,19 @@ for (int r = 0; r < roots; r++)
 
 src.AppendLine("}");
 
-var generators = generatorPath == null
-    ? new[] { new Nino.Generator.Generation.NinoGenerator().AsSourceGenerator() }
-    : LoadGenerators(generatorPath);
+var types = generatorPath == null ? typeof(Nino.Generator.NinoAnalyzer).Assembly.GetTypes() : LoadTypes(generatorPath);
+var generators = types
+    .Where(t => !t.IsAbstract && typeof(IIncrementalGenerator).IsAssignableFrom(t) &&
+                t.GetCustomAttributes(typeof(GeneratorAttribute), false).Length != 0)
+    .Select(t => ((IIncrementalGenerator)Activator.CreateInstance(t)).AsSourceGenerator())
+    .ToArray();
+var analyzers = types
+    // Suppressors only run on compiler diagnostics, which emit already produces: not measured here.
+    .Where(t => !t.IsAbstract && typeof(DiagnosticAnalyzer).IsAssignableFrom(t) &&
+                !typeof(DiagnosticSuppressor).IsAssignableFrom(t) &&
+                t.GetCustomAttributes(typeof(DiagnosticAnalyzerAttribute), false).Length != 0)
+    .Select(t => (DiagnosticAnalyzer)Activator.CreateInstance(t))
+    .ToImmutableArray();
 corePath ??= typeof(Nino.Core.NinoTypeAttribute).Assembly.Location;
 
 var tpa = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")).Split(Path.PathSeparator);
@@ -99,6 +112,13 @@ for (int iteration = 0; iteration < 3; iteration++)
     long emitMs = sw.ElapsedMilliseconds;
     int errors = emit.Diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error);
 
+    // Analyzers (and suppressors) on the user code, as a build runs them.
+    sw.Restart();
+    var analyzerDiagnostics = analyzers.IsEmpty
+        ? ImmutableArray<Diagnostic>.Empty
+        : output.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().Result;
+    long analyzeMs = sw.ElapsedMilliseconds;
+
     // Edits: add a member to one type, then add a comment.
     var text0 = tree.GetText();
     int at = text0.ToString().IndexOf("public int F3;", StringComparison.Ordinal);
@@ -114,28 +134,22 @@ for (int iteration = 0; iteration < 3; iteration++)
     driver.RunGenerators(edited.ReplaceSyntaxTree(memberEdit, commentEdit));
     long commentMs = sw.ElapsedMilliseconds;
 
-    Console.WriteLine($"run {iteration}: generate {generate} ms, emit {emitMs} ms, {lines} lines, {chars} chars, " +
-                      $"IL {il.Length} bytes, {errors} errors; member edit {memberMs} ms, comment edit {commentMs} ms");
+    Console.WriteLine($"run {iteration}: generate {generate} ms, emit {emitMs} ms, analyze {analyzeMs} ms " +
+                      $"({analyzerDiagnostics.Length} diagnostics), {lines} lines, {chars} chars, IL {il.Length} bytes, " +
+                      $"{errors} errors; member edit {memberMs} ms, comment edit {commentMs} ms");
 }
 
-static ISourceGenerator[] LoadGenerators(string path)
+static Type[] LoadTypes(string path)
 {
     // Its own load context: the assembly has the same name as the generator this tool references. Roslyn
     // itself falls back to the default context, so the generator interfaces are shared.
     var assembly = new System.Runtime.Loader.AssemblyLoadContext("generator").LoadFromAssemblyPath(Path.GetFullPath(path));
-    Type[] types;
     try
     {
-        types = assembly.GetTypes();
+        return assembly.GetTypes();
     }
     catch (System.Reflection.ReflectionTypeLoadException e)
     {
-        types = e.Types.Where(t => t != null).ToArray(); // e.g. code fixes referencing Roslyn workspaces
+        return e.Types.Where(t => t != null).ToArray(); // e.g. code fixes referencing Roslyn workspaces
     }
-
-    return types
-        .Where(t => !t.IsAbstract && typeof(IIncrementalGenerator).IsAssignableFrom(t) &&
-                    t.GetCustomAttributes(typeof(GeneratorAttribute), false).Length != 0)
-        .Select(t => ((IIncrementalGenerator)Activator.CreateInstance(t)).AsSourceGenerator())
-        .ToArray();
 }
