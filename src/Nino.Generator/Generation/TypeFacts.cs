@@ -35,13 +35,16 @@ internal sealed class TypeFacts
 
     private TypeFacts(Compilation compilation, ParseOptions? options)
     {
+        Compilation = compilation;
         Assembly = compilation.Assembly;
         Symbols = new NinoSymbols(compilation);
         _symbols = SymbolsOf(options).ToArray();
         WeakTolerance = _symbols.Contains("WEAK_VERSION_TOLERANCE");
         Net8 = _symbols.Contains("NET8_0_OR_GREATER");
-        Resolver = new FormatterResolver(this);
+        Resolver = new FormatterResolver(this, compilation);
     }
+
+    public Compilation Compilation { get; }
 
     public IAssemblySymbol Assembly { get; }
 

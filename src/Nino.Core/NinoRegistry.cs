@@ -51,6 +51,7 @@ namespace Nino.Core
             {
                 // Its assembly's registration has run: lookups need not look for its attribute.
                 Initialized.Add(registry.GetType().Assembly);
+                NinoFormatterResolver.AddAssembly(registry.GetType().Assembly);
                 var current = _registries;
                 if (Array.IndexOf(current, registry) >= 0)
                     return;
@@ -103,6 +104,7 @@ namespace Nino.Core
                 return;
             }
 
+            NinoFormatterResolver.AddAssembly(assembly);
             foreach (var attribute in attributes)
             {
                 if (attribute.Registry != null)

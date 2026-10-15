@@ -90,6 +90,9 @@ v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier 
 - **No init calls**: generated registries are found lazily, so hot-update assemblies (HybridCLR) just work.
 - **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members at any depth.
 - **User collections**: types derived from `List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>` and friends.
+- **Pluggable formatters**: `[assembly: NinoFormatter(typeof(MyFormatter<,>))]` teaches Nino a new type (yours or a
+  third-party one). Type arguments and element formatters are inferred, generated code calls it directly, and the
+  runtime uses the same registration. Nino's own BCL formatters are declared the same way.
 
 See [docs/v4-design.md](docs/v4-design.md) for the format and architecture, and
 [docs/v4-benchmarks.md](docs/v4-benchmarks.md) for build-time and runtime numbers against v3 and MemoryPack.

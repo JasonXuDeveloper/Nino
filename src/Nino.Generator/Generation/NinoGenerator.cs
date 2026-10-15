@@ -93,9 +93,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
         // Formatters for collection types Nino.Core cannot reference (System.Collections.Immutable is not
         // available everywhere, PriorityQueue only exists on .NET 6+) are emitted into the assembly that uses them.
-        var helpers = context.CompilationProvider.Select(static (c, _) => (
-            Immutable: c.GetTypeByMetadataName("System.Collections.Immutable.ImmutableArray`1") != null,
-            PriorityQueue: c.GetTypeByMetadataName("System.Collections.Generic.PriorityQueue`2") != null));
+        var helpers = context.CompilationProvider.Select(static (c, _) => HelperSources.Needed(c));
         context.RegisterImplementationSourceOutput(helpers.Combine(enabled), static (spc, input) =>
         {
             var (x, on) = input;
@@ -225,9 +223,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
             return null;
         var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
         var formatter = facts.Resolver.Resolve(type, false);
-        if (formatter == null || !ModelBuilder.IsBuiltInFormatter(formatter) || facts.IsRawUnmanaged(type))
+        if (formatter is not { Registered: true } || facts.IsRawUnmanaged(type))
             return null;
-        return new FormatterRegistration(TypeNames.Global(type), formatter, facts.TypeId(type));
+        return new FormatterRegistration(TypeNames.Global(type), formatter.Value.Code, facts.TypeId(type));
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch

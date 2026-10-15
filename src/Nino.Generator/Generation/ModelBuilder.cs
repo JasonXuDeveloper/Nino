@@ -111,7 +111,7 @@ internal static class ModelBuilder
             : ConstructionPlanner.Plan(type, members, facts, diagnostics);
 
         string collectionFormatter = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
-            ? facts.Resolver.ResolveUserCollection(type) ?? ""
+            ? facts.Resolver.ResolveCollection(type) ?? ""
             : "";
 
         if (construction.Recreate)
@@ -144,8 +144,7 @@ internal static class ModelBuilder
         {
             foreach (var m in members)
             {
-                // Only built-in formatters: a member's custom formatter must not become the global one.
-                if (IsBuiltInFormatter(m.Formatter) && m.RawSize.Length == 0)
+                if (m.TypeId != 0)
                     used.Add(new FormatterRegistration(m.TypeName, m.Formatter, m.TypeId));
             }
         }
@@ -259,6 +258,7 @@ internal static class ModelBuilder
         var known = facts.Symbols;
 
         string? formatter;
+        bool registered = false;
         var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
         if (custom is { ConstructorArguments: { Length: > 0 } args } && args[0].Value is INamedTypeSymbol customType)
         {
@@ -270,7 +270,9 @@ internal static class ModelBuilder
         }
         else
         {
-            formatter = facts.Resolver.Resolve(memberType, NinoSymbols.Has(symbol, known.Utf8));
+            var resolved = facts.Resolver.Resolve(memberType, NinoSymbols.Has(symbol, known.Utf8));
+            formatter = resolved?.Code;
+            registered = resolved?.Registered == true;
         }
 
         if (formatter == null)
@@ -302,20 +304,9 @@ internal static class ModelBuilder
             ? FormatterResolver.RawSize(memberType)
             : "";
 
-        int typeId = IsBuiltInFormatter(formatter) && rawSize.Length == 0 ? facts.TypeId(memberType) : 0;
+        // Only registered formatters: a member's custom formatter must not become the global one.
+        int typeId = registered && rawSize.Length == 0 ? facts.TypeId(memberType) : 0;
         return new MemberModel(symbol.Name, Global(memberType), formatter, rawSize, symbol is IPropertySymbol, access,
             Global(declaring), declaring.IsValueType, TypeFacts.IsConstructionOnly(symbol), false, typeId);
     }
-
-    /// <summary>
-    /// Whether <paramref name="formatter"/> is a built-in one (Nino.Core's, or a helper emitted by the generator),
-    /// which is registered for its closed type; generated, cached and custom formatters are not.
-    /// </summary>
-    public static bool IsBuiltInFormatter(string formatter) =>
-        (Starts(formatter, Core) && !Starts(formatter, Core + "CachedFormatter<") &&
-         !Starts(formatter, Core + "CustomFormatter<")) ||
-        Starts(formatter, "global::NinoGen.NinoImmutable") ||
-        Starts(formatter, "global::NinoGen.NinoPriorityQueueFormatter<");
-
-    private static bool Starts(string s, string prefix) => s.StartsWith(prefix, System.StringComparison.Ordinal);
 }

@@ -30,6 +30,30 @@ namespace Nino.Core
             bool allowInheritance = true, bool versionTolerant = false, bool keyed = false,
             bool trackReferences = false)
         {
+            AutoCollect = autoCollect;
+            ContainNonPublicMembers = containNonPublicMembers;
+            AllowInheritance = allowInheritance;
+            VersionTolerant = versionTolerant;
+            Keyed = keyed;
+            TrackReferences = trackReferences;
         }
+
+        /// <summary>Every public field and property is serialized (otherwise only <c>[NinoMember]</c>s).</summary>
+        public bool AutoCollect { get; }
+
+        /// <summary>With <see cref="AutoCollect"/>, non-public members are serialized too.</summary>
+        public bool ContainNonPublicMembers { get; }
+
+        /// <summary>Subtypes are serializable through this type.</summary>
+        public bool AllowInheritance { get; }
+
+        /// <summary>The body is prefixed with its byte length.</summary>
+        public bool VersionTolerant { get; }
+
+        /// <summary>Members are written with their key and length.</summary>
+        public bool Keyed { get; }
+
+        /// <summary>Shared references and cycles round-trip.</summary>
+        public bool TrackReferences { get; }
     }
 }

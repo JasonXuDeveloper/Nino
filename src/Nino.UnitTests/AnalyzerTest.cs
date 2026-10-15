@@ -1881,4 +1881,65 @@ public sealed partial class TestClass
     }
 
     #endregion
+
+    #region Formatter registrations (NINO020)
+
+    [TestMethod]
+    public async Task NINO020_InvalidFormatterRegistration()
+    {
+        var code = @"
+using System.Collections.Generic;
+using Nino.Core;
+
+[assembly: {|#0:NinoFormatter(typeof(ClassFormatter))|}]
+[assembly: {|#1:NinoFormatter(typeof(BoxFormatter<int, UnmanagedFormatter<int>>))|}]
+[assembly: {|#2:NinoFormatter(typeof(Uninferable<,>))|}]
+[assembly: {|#3:NinoFormatter(typeof(BoxFormatter<,>), typeof(List<>))|}]
+[assembly: {|#4:NinoFormatter(typeof(NotAFormatter))|}]
+[assembly: NinoFormatter(typeof(BoxFormatter<,>))]
+[assembly: NinoFormatter(typeof(AnyListFormatter<,,>), typeof(IList<>))]
+
+public sealed class Box<T> { public T Value; }
+
+public class ClassFormatter : NinoFormatter<int>
+{
+    public override void Serialize(int value, ref Writer writer) { }
+    public override void Deserialize(ref int value, ref Reader reader) { }
+}
+
+public struct NotAFormatter { }
+
+public struct BoxFormatter<T, TF> : INinoFormatter<Box<T>> where TF : struct, INinoFormatter<T>
+{
+    public void Serialize(Box<T> value, ref Writer writer) { }
+    public void Deserialize(ref Box<T> value, ref Reader reader) { }
+}
+
+public struct Uninferable<T, TExtra> : INinoFormatter<Box<T>>
+{
+    public void Serialize(Box<T> value, ref Writer writer) { }
+    public void Deserialize(ref Box<T> value, ref Reader reader) { }
+}
+
+public struct AnyListFormatter<TList, T, TF> : INinoFormatter<TList>
+    where TList : class, IEnumerable<T> where TF : struct, INinoFormatter<T>
+{
+    public void Serialize(TList value, ref Writer writer) { }
+    public void Deserialize(ref TList value, ref Reader reader) { }
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO020").WithLocation(0).WithArguments("ClassFormatter", "it is not a struct"),
+            Verify.Diagnostic("NINO020").WithLocation(1).WithArguments(
+                "BoxFormatter<int, Nino.Core.UnmanagedFormatter<int>>", "pass the open generic definition (typeof(F<,>))"),
+            Verify.Diagnostic("NINO020").WithLocation(2).WithArguments("Uninferable<,>",
+                "its type parameter 'TExtra' cannot be inferred from the formatted type"),
+            Verify.Diagnostic("NINO020").WithLocation(3).WithArguments("BoxFormatter<,>",
+                "targets only apply to a formatter of a bare type parameter (INinoFormatter<T>)"),
+            Verify.Diagnostic("NINO020").WithLocation(4).WithArguments("NotAFormatter",
+                "it does not implement INinoFormatter<T>")).RunAsync();
+    }
+
+    #endregion
 }

@@ -27,6 +27,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO017](#nino017) | Error | Invalid `[NinoRefDeserialization]` method |
 | [NINO018](#nino018) | Error | `[NinoPooled]` on a type that cannot be pooled 🔧 |
 | [NINO019](#nino019) | Error | `[NinoPooled]` class does not implement its pool hooks 🔧 |
+| [NINO020](#nino020) | Error | Invalid `[assembly: NinoFormatter]` registration |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -145,3 +146,13 @@ A `[NinoPooled]` class must implement the two partial methods the generator decl
 `private static partial IEnumerable<T> OnNinoPoolWarmup()`, called once before Nino first deserializes the type (the instances it returns go straight into the pool), and
 `private partial void OnNinoPoolReturn()`, called by `ReturnToPool()` to release what must not outlive the instance's use.
 Empty bodies are fine. 🔧 Implement pool hooks (adds empty bodies for the missing ones).
+
+## Formatter registrations
+
+### NINO020
+
+An `[assembly: NinoFormatter(typeof(F))]` registration Nino cannot use, so it is ignored. `F` must be a struct
+(not nested in a generic type) implementing `INinoFormatter<P>` exactly once, passed as an open generic definition
+(`typeof(F<,>)`). Every type parameter of `F` must be inferable: it occurs in `P`, in a type constraint of an
+inferable parameter (`where TList : List<T>`), or is constrained to `INinoFormatter<E>` for an inferable `E`.
+`targets` only apply when `P` is a bare type parameter.

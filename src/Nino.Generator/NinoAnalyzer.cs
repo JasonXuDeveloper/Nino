@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Nino.Generator.Generation;
 
@@ -33,7 +35,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         NinoDiagnostics.TrackReferencesOnStruct,
         NinoDiagnostics.TrackReferencesNeedsAssignableMembers,
         NinoDiagnostics.InvalidPooledType,
-        NinoDiagnostics.PoolHooksNotImplemented);
+        NinoDiagnostics.PoolHooksNotImplemented,
+        NinoDiagnostics.InvalidFormatterRegistration);
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => Supported;
 
@@ -50,7 +53,32 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             start.RegisterSymbolAction(AnalyzeType, SymbolKind.NamedType);
             if (start.Compilation.GetTypeByMetadataName("Nino.Core.NinoRefDeserializationAttribute") is { } refAttribute)
                 start.RegisterSymbolAction(c => AnalyzeMethod(c, refAttribute), SymbolKind.Method);
+            start.RegisterSyntaxNodeAction(AnalyzeAssemblyAttributes, SyntaxKind.AttributeList);
         });
+    }
+
+    // [assembly: NinoFormatter(...)] registrations: one that FormatterRules cannot use is otherwise silently ignored.
+    private static void AnalyzeAssemblyAttributes(SyntaxNodeAnalysisContext context)
+    {
+        var list = (AttributeListSyntax)context.Node;
+        if (list.Target?.Identifier.IsKind(SyntaxKind.AssemblyKeyword) != true)
+            return;
+        var symbols = TypeFacts.For(context.Compilation, list.SyntaxTree.Options).Symbols;
+        if (symbols.FormatterAttribute == null)
+            return;
+        foreach (var attribute in context.Compilation.Assembly.GetAttributes())
+        {
+            if (attribute.ApplicationSyntaxReference is not { } syntax || syntax.SyntaxTree != list.SyntaxTree ||
+                !list.Span.Contains(syntax.Span) ||
+                !SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, symbols.FormatterAttribute))
+                continue;
+            FormatterRules.Read(attribute, symbols, out var error);
+            if (error == null)
+                continue;
+            var formatter = attribute.ConstructorArguments[0].Value as ITypeSymbol;
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.InvalidFormatterRegistration,
+                Location.Create(syntax.SyntaxTree, syntax.Span), formatter?.ToDisplayString(), error));
+        }
     }
 
     private static void AnalyzeType(SymbolAnalysisContext context)

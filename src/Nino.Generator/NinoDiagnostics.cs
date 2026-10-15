@@ -89,4 +89,7 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor PoolHooksNotImplemented = Error("NINO019", "Pool hooks not implemented",
         "[NinoPooled] '{0}' must implement {1}");
+
+    public static readonly DiagnosticDescriptor InvalidFormatterRegistration = Error("NINO020",
+        "Invalid formatter registration", "[assembly: NinoFormatter(typeof({0}))] is ignored: {1}");
 }

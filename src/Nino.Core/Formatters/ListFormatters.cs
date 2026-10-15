@@ -111,61 +111,6 @@ namespace Nino.Core
         }
     }
 
-    /// <summary>
-    /// Collection interfaces (<c>IEnumerable&lt;T&gt;</c>, <c>IList&lt;T&gt;</c>, <c>ICollection&lt;T&gt;</c>,
-    /// <c>IReadOnlyList&lt;T&gt;</c>, <c>IReadOnlyCollection&lt;T&gt;</c>, <c>ISet&lt;T&gt;</c>, ...):
-    /// count (-1 = null), then the elements. Read into <typeparamref name="TConcrete"/>.
-    /// </summary>
-    public struct InterfaceCollectionFormatter<TInterface, TConcrete, T, TFormatter> : INinoFormatter<TInterface>
-        where TInterface : class, IEnumerable<T>
-        where TConcrete : class, TInterface, ICollection<T>, new()
-        where TFormatter : struct, INinoFormatter<T>
-    {
-        public void Serialize(TInterface value, ref Writer writer)
-        {
-            if (value == null)
-            {
-                writer.WriteNullLength();
-                return;
-            }
-
-            if (value is List<T> list)
-            {
-                default(ListFormatter<List<T>, T, TFormatter>).Serialize(list, ref writer);
-                return;
-            }
-
-            if (value is T[] array)
-            {
-                default(ArrayFormatter<T, TFormatter>).Serialize(array, ref writer);
-                return;
-            }
-
-            NinoCollections.WriteEnumerable<T, TFormatter>(value, ref writer);
-        }
-
-        public void Deserialize(ref TInterface value, ref Reader reader)
-        {
-            var old = value;
-            if (typeof(TConcrete) == typeof(List<T>))
-            {
-                var list = old as List<T>;
-                default(ListFormatter<List<T>, T, TFormatter>).Deserialize(ref list, ref reader);
-                value = (TInterface)(object)list;
-            }
-            else
-            {
-                var collection = old as TConcrete;
-                default(CollectionFormatter<TConcrete, T, TFormatter>).Deserialize(ref collection, ref reader);
-                value = collection;
-            }
-
-            // A TConcrete was handed to the formatter, which reused or recycled it; another collection is dropped.
-            if (old != null && !(old is TConcrete))
-                NinoRecycler<TInterface>.Recycle(old);
-        }
-    }
-
     /// <summary>Shared helpers for collection formatters.</summary>
     internal static partial class NinoCollections
     {

@@ -199,7 +199,35 @@ deserialization.
   assemblies, and for types resolved at runtime. It costs one virtual call.
 * **Custom formatters**: `[NinoCustomFormatter(typeof(F))]`, where `F` is either a class deriving from
   `NinoFormatter<T>` (singleton, virtual call) or a struct implementing `INinoFormatter<T>` (inlined).
-  Formatters for third-party types can be registered globally with `NinoFormatterCache<T>.Register`.
+
+### Formatter registrations
+
+Which formatter a type gets is not a table in the generator. Apart from what is built in (strings, `object`,
+raw unmanaged values, `[NinoType]`s), every formatter is declared on its assembly:
+
+```csharp
+[assembly: NinoFormatter(typeof(QueueFormatter<,>))]                       // INinoFormatter<Queue<T>>
+[assembly: NinoFormatter(typeof(ListFormatter<,,>), Priority = 40)]        // INinoFormatter<TList>, TList : List<T>, new()
+[assembly: NinoFormatter(typeof(InterfaceListFormatter<,,>), typeof(IList<>), typeof(IEnumerable<>))]
+```
+
+Nino.Core declares its BCL formatters this way (`BuiltInFormatters.cs`), the generator declares the helpers it
+emits (PriorityQueue, immutable collections), and any library or application can declare formatters for its own
+or third-party types. The generator (`FormatterRules`, `FormatterResolver`) and the runtime
+(`NinoFormatterResolver`, for type parameters of generic `[NinoType]`s) apply the same registrations with the same
+rules, and a test checks that both write the same bytes:
+
+1. A formatter implements `INinoFormatter<P>` once; `P` is written in its type parameters. Matching `P` against
+   the type binds the parameters that occur in it.
+2. A type constraint of a bound parameter (`where TList : List<T>`) is matched against the bound type, its base
+   types or its interfaces, binding the parameters it mentions (`T`).
+3. A parameter constrained to `INinoFormatter<E>` becomes the formatter resolved for `E`, so element formatters
+   compose and inline.
+4. Every constraint is checked; `unmanaged` means "written as raw memory".
+
+Lookup order: registrations of the type's own definition (and of arrays, by rank) in `Priority` order, then raw
+unmanaged values, then `[NinoType]`s, then registrations of a bare type parameter (`INinoFormatter<TCollection>`),
+which match by their constraints (or the `targets` they list). NINO020 reports a registration that cannot be used.
 
 ### Formatter cache and registration
 
@@ -328,7 +356,8 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   than once per subtype, and a member type such as `List<int>` is resolved once per compilation. `TypeFacts` also
   resolves the Nino.Core attribute types once (`NinoSymbols`), so attributes are compared by symbol everywhere.
 * `TypeFacts` answers questions about symbols, `MemberCollector` and `ConstructionPlanner` pick members and
-  constructors, `FormatterResolver` names formatters, `ModelBuilder` assembles the `TypeModel`, and the emitters
+  constructors, `FormatterResolver` names formatters (from the `[assembly: NinoFormatter]` registrations,
+  `FormatterRules`), `ModelBuilder` assembles the `TypeModel`, and the emitters
   (`Generation/Emit`) only read models: none of them reports diagnostics except through a `DiagnosticSink`.
 * Each type is emitted into its own file. Editing a member of `Foo` re-emits only `Foo.g.cs`.
 * The registry stage consumes only formatter names, so it only re-runs when types are added, removed or

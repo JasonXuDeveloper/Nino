@@ -1,27 +1,46 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Nino.Generator.Generation.Emit;
 
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// Chooses the formatter type (as C# source) for a member type. Mirrors
-/// <c>Nino.Core.NinoFormatterResolver</c>, so generated code and runtime-resolved formatters write the same bytes.
+/// A formatter as C# source. <see cref="Registered"/>: a struct formatter of the closed type that is registered as
+/// its global formatter (so AOT platforms have the instantiation); false for generated, cached and custom ones.
+/// </summary>
+internal readonly record struct ResolvedFormatter(string Code, bool Registered);
+
+/// <summary>
+/// Chooses the formatter (as C# source) for a member type. Built in: strings, <c>object</c>, raw unmanaged values,
+/// <c>[NinoType]</c>s. Everything else comes from the <c>[assembly: NinoFormatter]</c> registrations
+/// (<see cref="FormatterRules"/>): Nino.Core declares its BCL formatters that way, and so can any library. The
+/// runtime resolver (<c>Nino.Core.NinoFormatterResolver</c>) applies the same rules, so generated code and
+/// runtime-resolved formatters write the same bytes.
 /// One instance per <see cref="TypeFacts"/> (per compilation): results are memoized, since the same member types
 /// (<c>string</c>, <c>List&lt;int&gt;</c>...) recur across all types. Names ignore nullable annotations, and so does
 /// the memo.
 /// </summary>
 internal sealed class FormatterResolver
 {
-    private const string Core = "global::Nino.Core.";
+    private const string Core = TypeNames.Core;
     private readonly TypeFacts _facts;
-    private readonly ConcurrentDictionary<ITypeSymbol, string?> _plain = new(SymbolEqualityComparer.Default);
-    private readonly ConcurrentDictionary<ITypeSymbol, string?> _utf8 = new(SymbolEqualityComparer.Default);
+    private readonly FormatterRules _rules;
+    private readonly IReadOnlyList<HelperSources.Helper> _helpers;
+    private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _plain = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _utf8 = new(SymbolEqualityComparer.Default);
 
-    public FormatterResolver(TypeFacts facts) => _facts = facts;
+    [System.ThreadStatic] private static HashSet<ITypeSymbol>? t_resolving;
+
+    public FormatterResolver(TypeFacts facts, Compilation compilation)
+    {
+        _facts = facts;
+        _rules = new FormatterRules(compilation, facts.Symbols);
+        _helpers = HelperSources.Available(compilation);
+    }
 
     public static string Cached(ITypeSymbol type) => $"{Core}CachedFormatter<{TypeNames.Global(type)}>";
-
 
     public static string GeneratedFormatter(INamedTypeSymbol type)
     {
@@ -29,7 +48,6 @@ internal sealed class FormatterResolver
         var args = TypeNames.AllTypeArguments(type);
         return args.Count == 0 ? name : $"{name}<{string.Join(", ", args.Select(TypeNames.Global))}>";
     }
-
 
     /// <summary>Size expression of a raw unmanaged type.</summary>
     public static string RawSize(ITypeSymbol type)
@@ -64,237 +82,196 @@ internal sealed class FormatterResolver
 
     /// <summary>
     /// Returns the formatter for <paramref name="type"/>, or null if Nino cannot serialize it at all.
-    /// Types it does not know are resolved at runtime through <c>CachedFormatter&lt;T&gt;</c>.
+    /// Type parameters (and <c>[NinoType]</c>s generated elsewhere) are resolved at runtime through
+    /// <c>CachedFormatter&lt;T&gt;</c>.
     /// </summary>
-    public string? Resolve(ITypeSymbol type, bool utf8)
+    public ResolvedFormatter? Resolve(ITypeSymbol type, bool utf8)
     {
+        type = type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         var memo = utf8 ? _utf8 : _plain;
         if (memo.TryGetValue(type, out var formatter))
             return formatter;
+        // A collection of itself (class Tree : List<Tree>) reaches its own type again: resolve that at runtime.
+        var resolving = t_resolving ??= new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
+        if (!resolving.Add(type))
+            return new ResolvedFormatter(Cached(type), false);
         try
         {
             formatter = ResolveCore(type, utf8);
         }
-        catch (UnsupportedTypeException)
+        finally
         {
-            formatter = null;
+            resolving.Remove(type);
         }
 
         memo[type] = formatter;
         return formatter;
     }
 
-    private sealed class UnsupportedTypeException : System.Exception
-    {
-    }
+    /// <summary>
+    /// The collection formatter of a <c>[NinoType]</c> class that is also a collection (derived from
+    /// <c>List&lt;T&gt;</c>, implementing <c>ICollection&lt;T&gt;</c>...), used for its elements; null if none.
+    /// </summary>
+    public string? ResolveCollection(INamedTypeSymbol type) => FirstMatch(_rules.Open, type, false);
 
-    private string? ResolveCore(ITypeSymbol type, bool utf8)
+    private ResolvedFormatter? ResolveCore(ITypeSymbol type, bool utf8)
     {
-        type = type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         switch (type)
         {
             case ITypeParameterSymbol:
-                return Cached(type);
-            case IPointerTypeSymbol:
-            case IFunctionPointerTypeSymbol:
-                return null;
+                return new ResolvedFormatter(Cached(type), false);
             case IArrayTypeSymbol array:
-                return ResolveArray(array, utf8);
+                return Registered(FirstMatch(_rules.ForArray(array.IsSZArray ? 1 : -array.Rank), type, utf8));
             case INamedTypeSymbol named:
                 return ResolveNamed(named, utf8);
             default:
-                return null;
+                return null; // pointers
         }
     }
 
-    // An element type Nino cannot serialize makes the whole member unserializable.
-    private string Element(ITypeSymbol type, bool utf8) => ResolveCore(type, utf8) ?? throw new UnsupportedTypeException();
-
-    private string? ResolveArray(IArrayTypeSymbol array, bool utf8)
-    {
-        var element = array.ElementType.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
-        var e = TypeNames.Global(element);
-        if (array.IsSZArray)
-        {
-            if (_facts.IsRawUnmanaged(element))
-                return $"{Core}UnmanagedArrayFormatter<{e}>";
-            if (element is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable &&
-                _facts.IsRawUnmanaged(nullable.TypeArguments[0]))
-                return $"{Core}NullableArrayFormatter<{TypeNames.Global(nullable.TypeArguments[0])}>";
-            return $"{Core}ArrayFormatter<{e}, {Element(element, utf8)}>";
-        }
-
-        return array.Rank switch
-        {
-            2 => $"{Core}Array2DFormatter<{e}, {Element(element, utf8)}>",
-            3 => $"{Core}Array3DFormatter<{e}, {Element(element, utf8)}>",
-            4 => $"{Core}Array4DFormatter<{e}, {Element(element, utf8)}>",
-            _ => null,
-        };
-    }
-
-    private string? ResolveNamed(INamedTypeSymbol type, bool utf8)
+    private ResolvedFormatter? ResolveNamed(INamedTypeSymbol type, bool utf8)
     {
         if (type.IsRefLikeType || type.TypeKind == TypeKind.Delegate)
             return null;
-
         switch (type.SpecialType)
         {
             case SpecialType.System_String:
-                return utf8 ? $"{Core}Utf8StringFormatter" : $"{Core}StringFormatter";
+                return new ResolvedFormatter(utf8 ? $"{Core}Utf8StringFormatter" : $"{Core}StringFormatter", true);
             case SpecialType.System_Object:
-                return $"{Core}PolymorphicFormatter<object>";
-            case SpecialType.System_IntPtr:
-                return $"{Core}IntPtrFormatter";
-            case SpecialType.System_UIntPtr:
-                return $"{Core}UIntPtrFormatter";
+                return new ResolvedFormatter($"{Core}PolymorphicFormatter<object>", true);
         }
-
-        if (TypeNames.MetadataName(type.OriginalDefinition) == "System.DateTimeOffset")
-            return $"{Core}DateTimeOffsetFormatter";
-
-        var t = TypeNames.Global(type);
-        if (_facts.IsRawUnmanaged(type))
-            return $"{Core}UnmanagedFormatter<{t}>";
 
         if (type.IsTupleType && type.TupleUnderlyingType is { } underlying)
             type = underlying;
 
-        var args = type.TypeArguments.Select(a => a.WithNullableAnnotation(NullableAnnotation.NotAnnotated))
-            .ToArray();
-        var a = args.Select(TypeNames.Global).ToArray();
-
-        if (type.IsGenericType)
+        // Registrations of this very definition first (a library can override how a raw struct is written).
+        var definition = type.OriginalDefinition;
+        if (FirstMatch(_rules.ForDefinition(definition), type, utf8) is { } registered)
+            return new ResolvedFormatter(registered, true);
+        foreach (var helper in _helpers)
         {
-            var definition = TypeNames.MetadataName(type.OriginalDefinition);
-            switch (definition)
-            {
-                case "System.Nullable`1":
-                    return $"{Core}NullableFormatter<{a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Generic.List`1":
-                    return List(t, args[0], utf8);
-                case "System.Collections.Generic.Dictionary`2":
-                    return $"{Core}DictionaryFormatter<{a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
-                case "System.Collections.Generic.HashSet`1":
-                    return $"{Core}HashSetFormatter<{t}, {a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Generic.Queue`1":
-                    return $"{Core}QueueFormatter<{a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Generic.Stack`1":
-                    return $"{Core}StackFormatter<{a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Generic.KeyValuePair`2":
-                    return $"{Core}KeyValuePairFormatter<{a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
-                case "System.ArraySegment`1":
-                    return $"{Core}ArraySegmentFormatter<{a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Generic.PriorityQueue`2":
-                    return $"global::NinoGen.NinoPriorityQueueFormatter<{a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
-                case "System.Collections.Generic.SortedSet`1":
-                case "System.Collections.Generic.LinkedList`1":
-                    return $"{Core}CollectionFormatter<{t}, {a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Concurrent.ConcurrentQueue`1":
-                case "System.Collections.Concurrent.ConcurrentStack`1":
-                case "System.Collections.Concurrent.ConcurrentBag`1":
-                    return $"{Core}ProducerConsumerFormatter<{t}, {a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Concurrent.ConcurrentDictionary`2":
-                case "System.Collections.Generic.SortedDictionary`2":
-                case "System.Collections.Generic.SortedList`2":
-                    return $"{Core}DictionaryLikeFormatter<{t}, {a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
-                case "System.Collections.Generic.IEnumerable`1":
-                case "System.Collections.Generic.ICollection`1":
-                case "System.Collections.Generic.IList`1":
-                case "System.Collections.Generic.IReadOnlyCollection`1":
-                case "System.Collections.Generic.IReadOnlyList`1":
-                    return $"{Core}InterfaceCollectionFormatter<{t}, global::System.Collections.Generic.List<{a[0]}>, {a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Generic.ISet`1":
-                case "System.Collections.Generic.IReadOnlySet`1":
-                    return $"{Core}InterfaceCollectionFormatter<{t}, global::System.Collections.Generic.HashSet<{a[0]}>, {a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Generic.IDictionary`2":
-                case "System.Collections.Generic.IReadOnlyDictionary`2":
-                case "System.Collections.ObjectModel.ReadOnlyDictionary`2":
-                    return $"{Core}InterfaceDictionaryFormatter<{t}, {a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
-                case "System.Collections.Immutable.ImmutableArray`1":
-                    return $"global::NinoGen.NinoImmutableArrayFormatter<{a[0]}, {Element(args[0], utf8)}>";
-                case "System.Collections.Immutable.ImmutableList`1":
-                    return $"global::NinoGen.NinoImmutableListFormatter<{a[0]}, {Element(args[0], utf8)}>";
-            }
-
-            if (definition.StartsWith("System.ValueTuple`", System.StringComparison.Ordinal) || definition.StartsWith("System.Tuple`", System.StringComparison.Ordinal))
-            {
-                if (args.Length > 7)
-                    return null;
-                var formatter = definition.StartsWith("System.ValueTuple`", System.StringComparison.Ordinal) ? "ValueTupleFormatter" : "TupleFormatter";
-                return $"{Core}{formatter}<{string.Join(", ", a)}, {string.Join(", ", args.Select(x => Element(x, utf8)))}>";
-            }
+            if (SymbolEqualityComparer.Default.Equals(helper.Target, definition))
+                return Registered(helper.Bind(type, a => Element(a, utf8)));
         }
 
-        // Checked after the built-in generics: walking the base types and interfaces of BCL instantiations
-        // (List<T>, Dictionary<K, V>...) is the most expensive part of a model build.
-        if (type.IsNinoType())
-            return _facts.IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type);
+        if (_facts.IsRawUnmanaged(type))
+            return new ResolvedFormatter($"{Core}UnmanagedFormatter<{TypeNames.Global(type)}>", true);
 
-        return ResolveUserCollection(type, t, utf8);
+        // Checked before the open registrations: walking the base types and interfaces of a type is the most
+        // expensive part of a model build.
+        if (type.IsNinoType())
+            return new ResolvedFormatter(_facts.IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type), false);
+
+        return Registered(FirstMatch(_rules.Open, type, utf8));
     }
 
-    /// <summary>
-    /// The collection formatter for a user collection: a class derived from <c>List&lt;T&gt;</c>,
-    /// <c>HashSet&lt;T&gt;</c> or <c>Dictionary&lt;TKey, TValue&gt;</c>, or implementing the collection interfaces,
-    /// with a public parameterless constructor. Also used for the elements of <c>[NinoType]</c> collections.
-    /// </summary>
-    public string? ResolveUserCollection(INamedTypeSymbol type) => ResolveUserCollection(type, TypeNames.Global(type), false);
+    private static ResolvedFormatter? Registered(string? code) =>
+        code == null ? null : new ResolvedFormatter(code, true);
 
-    private string? ResolveUserCollection(INamedTypeSymbol type, string t, bool utf8)
+    private string? Element(ITypeSymbol type, bool utf8) =>
+        Resolve(type, utf8)?.Code;
+
+    private string? FirstMatch(IReadOnlyList<FormatterRule> rules, ITypeSymbol type, bool utf8)
     {
-        // User collections derived from List<T>, HashSet<T> or Dictionary<TKey, TValue>, or implementing the
-        // collection interfaces, with a public parameterless constructor.
-        if (type.TypeKind == TypeKind.Class && !type.IsAbstract &&
-            type.InstanceConstructors.Any(c => c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public))
+        foreach (var rule in rules)
         {
-            for (var b = type.BaseType; b != null; b = b.BaseType)
-            {
-                if (!b.IsGenericType)
-                    continue;
-                var ba = b.TypeArguments;
-                switch (TypeNames.MetadataName(b.OriginalDefinition))
-                {
-                    case "System.Collections.Generic.List`1":
-                        return List(t, ba[0], utf8);
-                    case "System.Collections.Generic.HashSet`1":
-                        return $"{Core}HashSetFormatter<{t}, {TypeNames.Global(ba[0])}, {Element(ba[0], utf8)}>";
-                    case "System.Collections.Generic.Dictionary`2":
-                        return $"{Core}DictionaryFormatter<{t}, {TypeNames.Global(ba[0])}, {TypeNames.Global(ba[1])}, {Element(ba[0], utf8)}, {Element(ba[1], utf8)}>";
-                }
-            }
-
-            var dictionary = type.AllInterfaces.FirstOrDefault(i =>
-                TypeNames.MetadataName(i.OriginalDefinition) == "System.Collections.Generic.IDictionary`2");
-            if (dictionary != null)
-            {
-                var da = dictionary.TypeArguments;
-                return $"{Core}DictionaryLikeFormatter<{t}, {TypeNames.Global(da[0])}, {TypeNames.Global(da[1])}, {Element(da[0], utf8)}, {Element(da[1], utf8)}>";
-            }
-
-            var producer = type.AllInterfaces.FirstOrDefault(i =>
-                TypeNames.MetadataName(i.OriginalDefinition) == "System.Collections.Concurrent.IProducerConsumerCollection`1");
-            if (producer != null)
-                return $"{Core}ProducerConsumerFormatter<{t}, {TypeNames.Global(producer.TypeArguments[0])}, {Element(producer.TypeArguments[0], utf8)}>";
-
-            var collection = type.AllInterfaces.FirstOrDefault(i =>
-                TypeNames.MetadataName(i.OriginalDefinition) == "System.Collections.Generic.ICollection`1");
-            if (collection != null)
-                return $"{Core}CollectionFormatter<{t}, {TypeNames.Global(collection.TypeArguments[0])}, {Element(collection.TypeArguments[0], utf8)}>";
+            if (Bind(rule, type, utf8) is { } code)
+                return code;
         }
 
         return null;
     }
 
-    private string List(string listType, ITypeSymbol element, bool utf8)
+    /// <summary>
+    /// Binds the formatter's type parameters for <paramref name="target"/> (see <c>NinoFormatterAttribute</c>):
+    /// match the pattern, infer from type constraints, resolve element formatters, then check every constraint.
+    /// </summary>
+    private string? Bind(FormatterRule rule, ITypeSymbol target, bool utf8)
     {
-        element = element.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
-        var e = TypeNames.Global(element);
-        if (_facts.IsRawUnmanaged(element))
-            return $"{Core}UnmanagedListFormatter<{listType}, {e}>";
-        if (element is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable &&
-            _facts.IsRawUnmanaged(nullable.TypeArguments[0]))
-            return $"{Core}NullableListFormatter<{listType}, {TypeNames.Global(nullable.TypeArguments[0])}>";
-        return $"{Core}ListFormatter<{listType}, {e}, {Element(element, utf8)}>";
+        var parameters = rule.Formatter.TypeParameters;
+        var types = new ITypeSymbol?[parameters.Length];
+        var formatters = new string?[parameters.Length];
+        if (!TypeUnifier.Unify(rule.Pattern, target, types))
+            return null;
+
+        bool progress = true;
+        while (progress)
+        {
+            progress = false;
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                if (types[i] is { } bound)
+                {
+                    foreach (var constraint in parameters[i].ConstraintTypes)
+                    {
+                        if (TypeUnifier.IsBound(constraint, types))
+                            continue;
+                        if (!TypeUnifier.UnifyWithSupertype(constraint, bound, types))
+                            return null;
+                        progress = true;
+                    }
+                }
+                else if (formatters[i] == null &&
+                         FormatterRules.FormatterElement(parameters[i], _facts.Symbols) is { } element &&
+                         TypeUnifier.IsBound(element, types))
+                {
+                    var elementType = TypeUnifier.Substitute(element, types, _facts.Compilation);
+                    if (elementType == null || Element(elementType, utf8) is not { } code)
+                        return null;
+                    formatters[i] = code;
+                    progress = true;
+                }
+            }
+        }
+
+        if (parameters.Length == 0)
+            return rule.Prefix;
+        var args = new string[parameters.Length];
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (types[i] is { } bound)
+            {
+                if (!Satisfies(parameters[i], bound, types))
+                    return null;
+                args[i] = TypeNames.Global(bound);
+            }
+            else
+            {
+                args[i] = formatters[i]!; // every parameter is inferable (FormatterRules.Read), so it is bound
+                if (args[i] == null)
+                    return null;
+            }
+        }
+
+        return $"{rule.Prefix}<{string.Join(", ", args)}>";
     }
+
+    private bool Satisfies(ITypeParameterSymbol parameter, ITypeSymbol type, ITypeSymbol?[] types)
+    {
+        if (parameter.HasReferenceTypeConstraint && !type.IsReferenceType)
+            return false;
+        if (parameter.HasValueTypeConstraint &&
+            (!type.IsValueType || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T))
+            return false;
+        // `unmanaged` means "copied as raw memory", which is stricter than C#'s unmanaged.
+        if (parameter.HasUnmanagedTypeConstraint && !_facts.IsRawUnmanaged(type))
+            return false;
+        if (parameter.HasConstructorConstraint && !HasPublicDefaultConstructor(type))
+            return false;
+        foreach (var constraint in parameter.ConstraintTypes)
+        {
+            if (!TypeUnifier.UnifyWithSupertype(constraint, type, types))
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool HasPublicDefaultConstructor(ITypeSymbol type) => type switch
+    {
+        { IsValueType: true } => true,
+        INamedTypeSymbol { TypeKind: TypeKind.Class, IsAbstract: false } named => named.InstanceConstructors.Any(c =>
+            c.Parameters.Length == 0 && c.DeclaredAccessibility == Accessibility.Public),
+        _ => false,
+    };
 }
