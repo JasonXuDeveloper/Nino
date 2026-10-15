@@ -61,6 +61,20 @@ namespace Nino.UnitTests.Corner
         public RefGeneric<T> Next;
     }
 
+    [NinoType]
+    public interface IRefPeer
+    {
+    }
+
+    // Tracked, reached through declared types that are not tracked (object, an interface).
+    [NinoType(trackReferences: true)]
+    public class RefPeerNode : IRefPeer
+    {
+        public int Id;
+        public object Payload;
+        public IRefPeer Peer;
+    }
+
     [TestClass]
     public class CornerReferenceTests
     {
@@ -138,7 +152,6 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
-        [Ignore("BUG: an object-typed slot writes a tracked instance without its reference header, so it is duplicated")]
         public void TrackedInstanceInAnObjectSlotStaysShared()
         {
             var dog = new RefDog { Name = "d" };
@@ -147,6 +160,60 @@ namespace Nino.UnitTests.Corner
 
             var list = Rt.RoundTrip(new List<object> { dog, dog });
             Assert.AreSame(list[0], list[1]);
+        }
+
+        [TestMethod]
+        public void CyclesThroughObjectAndInterfaceSlots()
+        {
+            var a = new RefPeerNode { Id = 1 };
+            var b = new RefPeerNode { Id = 2, Peer = a, Payload = a };
+            a.Payload = a;
+            a.Peer = b;
+
+            // The same graph from every declared type: the root's own header differs, the identities do not.
+            foreach (var back in new[]
+                     {
+                         Rt.RoundTrip(a), (RefPeerNode)Rt.RoundTrip<object>(a), (RefPeerNode)Rt.RoundTrip<IRefPeer>(a),
+                     })
+            {
+                Assert.AreEqual(1, back.Id);
+                Assert.AreSame(back, back.Payload);
+                var peer = (RefPeerNode)back.Peer;
+                Assert.AreEqual(2, peer.Id);
+                Assert.AreSame(back, peer.Peer);
+                Assert.AreSame(back, peer.Payload);
+            }
+
+            // A back reference through an object slot is the type id and the index.
+            var once = NinoSerializer.Serialize(new List<object> { b });
+            var twice = NinoSerializer.Serialize(new List<object> { b, b });
+            Assert.AreEqual(once.Length + 8, twice.Length);
+
+            // Tracked and untracked declared types share one table.
+            var dog = new RefDog { Name = "d" };
+            var zoo = Rt.RoundTrip(new RefZoo { Boxed = dog, A = dog, All = new List<RefAnimal> { dog } });
+            Assert.AreSame(zoo.Boxed, zoo.A);
+            Assert.AreSame(zoo.A, zoo.All[0]);
+
+            // A tracked generic type in an object slot.
+            var g = new RefGeneric<int> { Value = 3 };
+            g.Next = g;
+            var objects = Rt.RoundTrip(new List<object> { g, g });
+            Assert.AreSame(objects[0], objects[1]);
+            Assert.AreSame(objects[0], ((RefGeneric<int>)objects[0]).Next);
+        }
+
+        [TestMethod]
+        public void BackReferenceOfAnotherTypeInAnObjectSlotIsRejected()
+        {
+            var dog = new RefDog { Name = "d" };
+            var bytes = NinoSerializer.Serialize(new List<object> { dog, dog });
+            // The second element is a back reference: RefDog's type id and index 1. Claim another tracked type.
+            int second = bytes.Length - 8;
+            Assert.AreEqual(NinoTypeId.Of(typeof(RefDog)), System.BitConverter.ToInt32(bytes, second));
+            Assert.AreEqual(1, System.BitConverter.ToInt32(bytes, second + 4));
+            System.BitConverter.GetBytes(NinoTypeId.Of(typeof(RefPeerNode))).CopyTo(bytes, second);
+            Assert.ThrowsException<System.InvalidOperationException>(() => NinoDeserializer.Deserialize<List<object>>(bytes));
         }
 
         [TestMethod]

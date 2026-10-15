@@ -22,14 +22,28 @@ namespace Nino.Core
             Id = id;
         }
 
-        /// <summary>Writes the type id and the body of <paramref name="value"/> (an instance of exactly <see cref="Type"/>).</summary>
+        /// <summary>
+        /// Writes the type id and the body of <paramref name="value"/> (an instance of exactly <see cref="Type"/>).
+        /// For a type marked <c>trackReferences</c>, its reference header comes between the two, since the declared
+        /// type (<c>object</c>, or a base class or interface that is not tracked) wrote none.
+        /// </summary>
         public abstract void Serialize(object value, ref Writer writer);
 
         /// <summary>
-        /// Reads the body (the type id has been consumed) into <paramref name="value"/>, which is null or an
-        /// instance of exactly <see cref="Type"/> to reuse.
+        /// Reads what <see cref="Serialize"/> wrote after the type id (which has been consumed) into
+        /// <paramref name="value"/>, which is null or an instance of exactly <see cref="Type"/> to reuse.
         /// </summary>
         public abstract void Deserialize(ref object value, ref Reader reader);
+
+        /// <summary>
+        /// Writes the type id and the body without a reference header: called through a tracked declared type,
+        /// whose formatter wrote the header before the type id.
+        /// </summary>
+        internal virtual void SerializeReferenced(object value, ref Writer writer) => Serialize(value, ref writer);
+
+        /// <summary>Reads what <see cref="SerializeReferenced"/> wrote after the type id.</summary>
+        internal virtual void DeserializeReferenced(ref object value, ref Reader reader) =>
+            Deserialize(ref value, ref reader);
     }
 
     internal sealed class SubtypeHandler<TSub, TFormatter> : NinoSubtypeHandler
@@ -58,6 +72,57 @@ namespace Nino.Core
             typeof(TSub).IsValueType ? (TSub)value : Unsafe.As<object, TSub>(ref value);
     }
 
+    /// <summary>
+    /// Handler of a class marked <c>trackReferences</c> (or deriving from one). Through a declared type that writes
+    /// no reference header (<c>object</c>, a base class or interface that is not tracked) it writes
+    /// <c>type id | reference header | body</c>, so the instance keeps its identity whatever slot holds it; a back
+    /// reference is the type id and the index. Through a tracked declared type the header comes first
+    /// (<c>reference header | type id | body</c>, <see cref="SerializeReferenced"/>). Untracked types keep
+    /// <see cref="SubtypeHandler{TSub,TFormatter}"/>, so their dispatch does not test for tracking.
+    /// </summary>
+    internal sealed class TrackedSubtypeHandler<TSub, TFormatter> : NinoSubtypeHandler
+        where TSub : class
+        where TFormatter : struct, INinoBodyFormatter<TSub>
+    {
+        public TrackedSubtypeHandler(int id) : base(typeof(TSub), id)
+        {
+        }
+
+        public override void Serialize(object value, ref Writer writer)
+        {
+            writer.UnsafeWrite(Id);
+            if (writer.WriteReference(value))
+                default(TFormatter).WriteBody(Unsafe.As<TSub>(value), ref writer);
+        }
+
+        public override void Deserialize(ref object value, ref Reader reader)
+        {
+            var sub = Unsafe.As<TSub>(value);
+            // A back reference must be a TSub (ReadReference checks it); the old instance is not recycled, since
+            // it may be referenced elsewhere in the graph.
+            if (reader.ReadReference(ref sub, out int index))
+            {
+                default(TFormatter).ReadBody(ref sub, ref reader);
+                reader.EndReference(index, sub);
+            }
+
+            value = sub;
+        }
+
+        internal override void SerializeReferenced(object value, ref Writer writer)
+        {
+            writer.UnsafeWrite(Id);
+            default(TFormatter).WriteBody(Unsafe.As<TSub>(value), ref writer);
+        }
+
+        internal override void DeserializeReferenced(ref object value, ref Reader reader)
+        {
+            var sub = Unsafe.As<TSub>(value);
+            default(TFormatter).ReadBody(ref sub, ref reader);
+            value = sub;
+        }
+    }
+
     /// <summary>Registration of the types that can be written polymorphically.</summary>
     public static class NinoPolymorphic
     {
@@ -69,6 +134,100 @@ namespace Nino.Core
         {
             NinoPolymorphic<object>.Register(new SubtypeHandler<TSub, TFormatter>(id));
         }
+
+        /// <summary>
+        /// Registers a class marked <c>trackReferences</c> (or deriving from one): written through a declared type
+        /// that is not tracked, its reference header follows the type id.
+        /// </summary>
+        public static void RegisterTracked<TSub, TFormatter>(int id)
+            where TSub : class
+            where TFormatter : struct, INinoBodyFormatter<TSub>
+        {
+            NinoPolymorphic<object>.Register(new TrackedSubtypeHandler<TSub, TFormatter>(id));
+        }
+
+        /// <summary>Registers <typeparamref name="T"/> for polymorphic use; see <see cref="Register(Type)"/>.</summary>
+        public static bool Register<T>() => Register(typeof(T));
+
+        /// <summary>
+        /// Registers a <c>[NinoType]</c>, typically a closed generic such as <c>Box&lt;int&gt;</c>, so that it can be
+        /// written through a base type and read back from its type id.
+        /// <para>
+        /// Generated code registers the closed generic <c>[NinoType]</c>s its compilation names (member types, base
+        /// types, type arguments of <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls, and the closed types of
+        /// arguments of those), and writing an instance registers its type. Call this at startup for an
+        /// instantiation that a process reads but never names nor writes (for example one only created by another
+        /// assembly or through reflection). Generic types are closed with <c>MakeGenericType</c>.
+        /// </para>
+        /// Returns false when the type cannot be written polymorphically (abstract, open, or not a <c>[NinoType]</c>).
+        /// </summary>
+        public static bool Register(Type type)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            if (type.IsAbstract || type.IsInterface || type.ContainsGenericParameters)
+                return false;
+            if (NinoPolymorphic<object>.FindRegistered(type) != null)
+                return true;
+
+            // Non-generic [NinoType]s, and the closed generics the generator saw, are registered by generated code.
+            NinoRegistry.RegisterType(type);
+            if (NinoPolymorphic<object>.FindRegistered(type) != null)
+                return true;
+            if (!type.IsGenericType || !NinoFormatterResolver.IsNinoType(type))
+                return false;
+
+            // The formatter definition of a generic [NinoType] is an [assembly: NinoFormatter] registration.
+            var formatter = NinoFormatterResolver.GetFormatterType(type);
+            if (formatter == null || !typeof(INinoBodyFormatter<>).MakeGenericType(type).IsAssignableFrom(formatter))
+                return false;
+            var handler = !type.IsValueType && IsTracked(type)
+                ? typeof(TrackedSubtypeHandler<,>)
+                : typeof(SubtypeHandler<,>);
+            NinoPolymorphic<object>.Register((NinoSubtypeHandler)Activator.CreateInstance(
+                handler.MakeGenericType(type, formatter), NinoTypeId.Of(type)));
+            return true;
+        }
+
+        /// <summary>
+        /// Registers the closed generic <c>[NinoType]</c> with type id <paramref name="id"/> among the types whose
+        /// formatter this process has resolved; false if there is none. The last resort of a read by type id.
+        /// </summary>
+        internal static bool RegisterResolvedGeneric(int id)
+        {
+            foreach (var type in NinoFormatterCache.RegisteredTypes)
+            {
+                if (type.IsGenericType && !type.IsAbstract && !type.IsInterface &&
+                    NinoTypeId.Of(type) == id && NinoFormatterResolver.IsNinoType(type))
+                    return Register(type);
+            }
+
+            return false;
+        }
+
+        /// <summary>Whether the type, a base class or an interface is marked <c>trackReferences</c> (as in the generator).</summary>
+        private static bool IsTracked(Type type)
+        {
+            for (var t = type; t != null; t = t.BaseType)
+            {
+                if (TrackReferences(t))
+                    return true;
+            }
+
+            foreach (var i in type.GetInterfaces())
+            {
+                if (TrackReferences(i))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool TrackReferences(Type type) =>
+            System.Attribute.GetCustomAttribute(type, typeof(NinoTypeAttribute), false) is NinoTypeAttribute
+            {
+                TrackReferences: true
+            };
     }
 
     /// <summary>
@@ -222,10 +381,14 @@ namespace Nino.Core
                 return Adopt(NinoPolymorphic<object>.Find(type));
 
             // Registration is lazy (and the subtype's assembly may not have run its registry's static constructor
-            // yet where there is no module initializer support).
-            NinoRegistry.RegisterType(type);
+            // yet where there is no module initializer support). A closed generic [NinoType] the generator did not
+            // see is registered from its formatter definition.
+            NinoPolymorphic.Register(type);
             return FindByType(Volatile.Read(ref _byType), type);
         }
+
+        /// <summary>Returns the handler registered for <paramref name="type"/>, or null, without registering anything.</summary>
+        internal static NinoSubtypeHandler FindRegistered(Type type) => FindByType(Volatile.Read(ref _byType), type);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static NinoSubtypeHandler FindSlow(int id)
@@ -240,6 +403,12 @@ namespace Nino.Core
                 return handler;
             NinoRegistry.EnsureAllInitialized();
             NinoRegistry.RegisterId(id);
+            handler = FindById(Volatile.Read(ref _byId), id);
+            if (handler != null)
+                return handler;
+            // A closed generic [NinoType] that no generated registry names, but whose formatter this process has
+            // resolved (it was read or written as itself, or as a member or element).
+            NinoPolymorphic.RegisterResolvedGeneric(id);
             return FindById(Volatile.Read(ref _byId), id);
         }
 
@@ -252,15 +421,29 @@ namespace Nino.Core
             return handler;
         }
 
-        /// <summary>Writes a non-null value of a registered subtype: type id, then body.</summary>
+        /// <summary>
+        /// Writes a non-null value of a registered subtype: type id, then body (with the reference header of a tracked
+        /// type between them).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Serialize(TBase value, ref Writer writer)
+        public static void Serialize(TBase value, ref Writer writer) => FindForWrite(value).Serialize(value, ref writer);
+
+        /// <summary>
+        /// Writes a non-null value whose reference header has been written (by the formatter of a tracked
+        /// <typeparamref name="TBase"/>): type id, then body.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeReferenced(TBase value, ref Writer writer) =>
+            FindForWrite(value).SerializeReferenced(value, ref writer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static NinoSubtypeHandler FindForWrite(TBase value)
         {
             var type = value.GetType();
             var handler = Find(type);
             if (handler == null)
                 NinoThrow.UnregisteredType(typeof(TBase), type);
-            handler.Serialize(value, ref writer);
+            return handler;
         }
 
         /// <summary>
@@ -276,6 +459,35 @@ namespace Nino.Core
                 return;
             }
 
+            var handler = FindForRead(id, ref value);
+            object result = value;
+            handler.Deserialize(ref result, ref reader);
+            // The handler's type derives from TBase (checked when it was registered here), and so does a back reference.
+            value = Unsafe.As<TBase>(result);
+        }
+
+        /// <summary>
+        /// Reads what <see cref="SerializeReferenced"/> wrote after the reference header, given the type id (already
+        /// consumed).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializeReferenced(int id, ref TBase value, ref Reader reader)
+        {
+            if (id == NinoWire.NullTypeId)
+            {
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            var handler = FindForRead(id, ref value);
+            object result = value;
+            handler.DeserializeReferenced(ref result, ref reader);
+            value = Unsafe.As<TBase>(result);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static NinoSubtypeHandler FindForRead(int id, ref TBase value)
+        {
             var handler = Find(id);
             if (handler == null)
                 NinoThrow.UnknownTypeId(typeof(TBase), id);
@@ -283,10 +495,7 @@ namespace Nino.Core
             // The handler owns an instance of its exact type (it reuses it, or recycles it when it has to re-create
             // the type); an instance of another type is recycled here.
             NinoRecycler.ReuseExact(ref value, handler.Type);
-            object result = value;
-            handler.Deserialize(ref result, ref reader);
-            // The handler's type derives from TBase (checked when it was registered here).
-            value = Unsafe.As<TBase>(result);
+            return handler;
         }
     }
 }

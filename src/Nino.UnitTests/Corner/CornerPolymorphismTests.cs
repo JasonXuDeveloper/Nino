@@ -166,6 +166,13 @@ namespace Nino.UnitTests.Corner
         public NonGenericBase Generic;
         public RenamedItem Renamed;
     }
+
+    // Names GenericSub<DateTimeKind> as a member type and nowhere else: the generated registry maps its id.
+    [NinoType]
+    public class ClosedGenericHolder
+    {
+        public List<GenericSub<DateTimeKind>> Held;
+    }
 }
 
 namespace Nino.UnitTests.Corner.Elsewhere
@@ -299,7 +306,6 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
-        [Ignore("BUG: a generic [NinoType] subtype (closed at use) is never registered polymorphically: not writable through its base")]
         public void GenericSubtypeOfGenericBaseThroughTheBase()
         {
             // Naming the closed type in a Nino call first does not help.
@@ -311,7 +317,6 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
-        [Ignore("BUG: a generic [NinoType] subtype (closed at use) is never registered polymorphically: not writable through its base")]
         public void ClosedGenericSubtypeReadThroughNonGenericBase()
         {
             // Read by type id only: the closed generic type must be resolvable without being named by the reader.
@@ -322,6 +327,38 @@ namespace Nino.UnitTests.Corner
 
             var container = Rt.RoundTrip(new PolyContainer { Generic = new GenericSub<List<string>> { Payload = new List<string> { "a" } } });
             CollectionAssert.AreEqual(new[] { "a" }, ((GenericSub<List<string>>)container.Generic).Payload);
+        }
+
+        [TestMethod]
+        public void ClosedGenericNamedByAMemberIsReadableFromItsIdAlone()
+        {
+            // Nothing has written or resolved GenericSub<DateTimeKind>: the id is mapped by the generated registry.
+            int id = NinoTypeId.Of(typeof(GenericSub<DateTimeKind>));
+            Assert.IsFalse(NinoFormatterCache<GenericSub<DateTimeKind>>.IsRegistered);
+            Assert.AreEqual(typeof(GenericSub<DateTimeKind>), NinoPolymorphic<NonGenericBase>.Find(id)?.Type);
+
+            // Bytes as another process writes them: type id, then the body (Id, then Payload).
+            var bytes = NinoSerializer.Serialize(new GenericSub<DateTimeKind> { Id = 9, Payload = DateTimeKind.Utc });
+            var back = (GenericSub<DateTimeKind>)NinoDeserializer.Deserialize<NonGenericBase>(bytes);
+            Assert.AreEqual(9, back.Id);
+            Assert.AreEqual(DateTimeKind.Utc, back.Payload);
+        }
+
+        [TestMethod]
+        public void ClosedGenericNeverNamedIsRegisteredAtRuntime()
+        {
+            // An instantiation no code names: unknown until registered (or written).
+            var type = typeof(GenericSub<>).MakeGenericType(typeof(ConsoleColor));
+            int id = NinoTypeId.Of(type);
+            Assert.IsNull(NinoPolymorphic<NonGenericBase>.Find(id));
+            Assert.IsTrue(NinoPolymorphic.Register(type));
+            Assert.AreEqual(type, NinoPolymorphic<NonGenericBase>.Find(id)?.Type);
+            Assert.IsTrue(NinoPolymorphic.Register<GenericSub<ConsoleColor>>(), "idempotent");
+
+            // Not polymorphic: abstract, open, or not a [NinoType].
+            Assert.IsFalse(NinoPolymorphic.Register(typeof(AbstractShape)));
+            Assert.IsFalse(NinoPolymorphic.Register(typeof(GenericSub<>)));
+            Assert.IsFalse(NinoPolymorphic.Register(typeof(List<int>)));
         }
 
         [TestMethod]

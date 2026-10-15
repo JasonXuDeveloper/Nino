@@ -125,10 +125,14 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var memberFormatters = CollectAll(models, static m => m.UsedFormatters);
         // Creators of the collections those formatters create (NinoFactory<T>), registered the same way.
         var memberFactories = CollectAll(models, static m => m.UsedFactories);
+        // Closed generic [NinoType]s named anywhere above, registered by type id (they have no registration of
+        // their own: a polymorphic read must be able to map their id back to the type).
+        var memberGenerics = CollectAll(models, static m => m.UsedGenericTypes);
 
         var registrations = usages.Combine(memberFormatters)
             .Select(static (x, _) => new EquatableArray<FormatterRegistration>(
-                x.Left.Select(static u => u.Formatter).Concat(x.Right.SelectMany(static a => a))
+                x.Left.Where(static u => u.Formatter != null).Select(static u => u.Formatter!)
+                    .Concat(x.Right.SelectMany(static a => a))
                     .Distinct()
                     .OrderBy(u => u.TypeName, StringComparer.Ordinal)
                     .ThenBy(u => u.Formatter, StringComparer.Ordinal)));
@@ -138,11 +142,19 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     .Distinct()
                     .OrderBy(f => f.TypeName, StringComparer.Ordinal)));
 
-        context.RegisterImplementationSourceOutput(registrations.Combine(factories).Combine(enabled), static (spc, x) =>
-        {
-            if (x.Right)
-                spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(x.Left.Left, x.Left.Right));
-        });
+        var generics = usages.Combine(memberGenerics)
+            .Select(static (x, _) => new EquatableArray<ClosedTypeRegistration>(
+                x.Left.SelectMany(static u => u.GenericTypes).Concat(x.Right.SelectMany(static a => a))
+                    .Distinct()
+                    .OrderBy(g => g.TypeName, StringComparer.Ordinal)));
+
+        context.RegisterImplementationSourceOutput(registrations.Combine(factories).Combine(generics).Combine(enabled),
+            static (spc, x) =>
+            {
+                var (((formatters, creators), closed), on) = x;
+                if (on)
+                    spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(formatters, creators, closed));
+            });
 
         context.RegisterImplementationSourceOutput(entries.Combine(options).Combine(enabled), static (spc, x) =>
         {
@@ -228,12 +240,18 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var type = method.TypeArguments[0];
         if (ContainsTypeParameter(type))
             return null;
+        var generics = new List<ClosedTypeRegistration>();
+        ClosedGenerics.Collect(type, facts, generics);
         var formatter = facts.Resolver.Resolve(type, false);
-        if (formatter is not { Registered: true } || facts.Raw.IsRawUnmanaged(type))
+        bool registered = formatter is { Registered: true } && !facts.Raw.IsRawUnmanaged(type);
+        if (!registered && generics.Count == 0)
             return null;
         return new UsageRegistration(
-            new FormatterRegistration(TypeNames.Global(type), formatter.Value.Code, facts.TypeId(type)),
-            formatter.Value.Factories);
+            registered
+                ? new FormatterRegistration(TypeNames.Global(type), formatter!.Value.Code, facts.TypeId(type))
+                : null,
+            registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
+            new EquatableArray<ClosedTypeRegistration>(generics.Distinct()));
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch

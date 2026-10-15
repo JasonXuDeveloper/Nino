@@ -48,6 +48,43 @@ namespace Nino.Core
             default(TFormatter).ReadBody(ref value, ref reader);
         }
 
+        /// <summary>
+        /// Non-sealed class marked <c>trackReferences</c>, after its reference header said a new object follows:
+        /// <c>int32</c> type id, then the body. Subtypes skip the reference header they write through a declared type
+        /// that is not tracked.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeReferenced<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            if (value.GetType() != typeof(T))
+            {
+                NinoPolymorphic<T>.SerializeReferenced(value, ref writer);
+                return;
+            }
+
+            writer.UnsafeWrite(default(TFormatter).TypeId);
+            default(TFormatter).WriteBody(value, ref writer);
+        }
+
+        /// <summary>Reads what <see cref="SerializeReferenced{T,TFormatter}"/> wrote.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializeReferenced<T, TFormatter>(ref T value, ref Reader reader)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            int id = reader.UnsafeRead<int>();
+            if (id != default(TFormatter).TypeId)
+            {
+                NinoPolymorphic<T>.DeserializeReferenced(id, ref value, ref reader);
+                return;
+            }
+
+            NinoRecycler.ReuseExact(ref value, typeof(T));
+            default(TFormatter).ReadBody(ref value, ref reader);
+        }
+
         /// <summary>Sealed class: 1-byte null flag, then the body.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SerializeSealed<T, TFormatter>(T value, ref Writer writer)

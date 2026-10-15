@@ -186,6 +186,13 @@ int32 ref: 0 = null | n > 0 = the n-th object already written in this call | -1 
 
 * For a sealed class the new-object encoding is the body alone (the header already says it is not null); for
   other classes it is the type id and the body, so polymorphism works as usual.
+* The header belongs to the object, not to the slot: a tracked object held by a slot whose declared type is not
+  tracked (`object`, or a base class or interface without `trackReferences`) is written as
+  `int32 type id | int32 ref | body if new`, since the reader learns that the object is tracked from the type id.
+  A back reference there is the type id and the index (8 bytes); the index must name an object of that type. Both
+  forms share one table, so an object keeps its identity across slots of any declared type, and cycles through
+  `object` or interface members resolve. The dispatch handler of a tracked type is a separate class
+  (`TrackedSubtypeHandler`), so untracked types pay nothing for this.
 * The writer keeps an identity map (object to index) and the reader an index to object list. Both are rented
   from a per-thread cache on the first tracked object and returned when the top-level call ends, so calls
   without tracked objects touch nothing and tracked calls do not allocate in steady state. Both are per call,
@@ -309,7 +316,8 @@ every loaded assembly). A formatter-only library may not be loaded yet when only
 `NinoFormatterCache<T>.Instance` is a static generic field, so lookup is free after the first use. It is
 populated by:
 
-1. Generated registration code, on demand. Each assembly carries `[assembly: NinoGenerated(typeof(Registry))]`.
+1. Generated registration code, on demand (including the closed generic `[NinoType]`s the compilation names, see
+   "Polymorphism"). Each assembly carries `[assembly: NinoGenerated(typeof(Registry))]`.
    Nothing has to call it: the first lookup that meets a type of that assembly (or, for polymorphic reads, an
    unknown type id, which scans the loaded assemblies once per newly loaded assembly) runs the registry's
    static constructor. `[ModuleInitializer]` (.NET 5+) and `RuntimeInitializeOnLoadMethod` /
@@ -324,7 +332,8 @@ populated by:
    number of types (1100 types: 309 ms → 67 ms process time on .NET 8, against 43 ms for an empty app).
 2. Lazy resolution on first access: built-in generic types (`List<T>`, `Dictionary<,>`, arrays, tuples,
    and so on) and generic `[NinoType]`s are constructed with `MakeGenericType` from the `[assembly: NinoFormatter]`
-   registrations (see above); there is no second registration mechanism for generic `[NinoType]`s.
+   registrations (see above). The generated registrations of closed generic `[NinoType]`s (item 1) only name
+   the same closed formatters ahead of time, for AOT runtimes and reads by type id.
 
 Registration is idempotent and thread safe: writers take a lock and publish with `Volatile.Write`, and
 readers never lock.
@@ -343,6 +352,22 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
   handler.
 * **Deserialize**: read the type id and look it up in a second open-addressing table keyed by id. Unknown
   ids trigger lazy initialization of not-yet-loaded generated registries before failing.
+* **Generic `[NinoType]`s** have one formatter definition and no registration of their own, so each closed type
+  (`Box<int>`) is registered by id like a non-generic type, from three sources:
+  1. The generator registers every closed generic `[NinoType]` its compilation names: member types (including
+     element and type arguments, `List<Box<int>>`), base types (`class IntBox : Box<int>`), type arguments of
+     `NinoSerializer`/`NinoDeserializer` calls, and recursively the members and bases of those closed types (four
+     levels deep). They are cases of the same lazy by-id dispatch (`NinoGenUsages`), under the closed type's id
+     (`[NinoFormerName]` types also under the name id): `NinoFormatterCache<Box<int>>.TryRegister<Box_1Formatter<int>>()`
+     and `NinoPolymorphic.Register<Box<int>, Box_1Formatter<int>>(id)`, so AOT runtimes have the instantiation and a
+     reader can map the id back to the type without having seen it. Closed types of a generic `[NinoType]` from
+     another assembly (whose formatter is internal to it) are registered with `NinoPolymorphic.Register(typeof(..))`.
+  2. Writing an instance registers its runtime type: a lookup by type that misses closes the formatter definition
+     (`MakeGenericType`) and registers it. A read by an unknown id, as a last resort, also checks the closed generic
+     `[NinoType]`s whose formatter this process has resolved.
+  3. `NinoPolymorphic.Register(Type)` / `Register<T>()`, for an instantiation a process reads but never names nor
+     writes (created only from type parameters or by reflection, for example in another assembly). Such a type is
+     otherwise an unknown id; this is the one case that needs a call at startup.
 * Registries are immutable snapshots replaced copy-on-write, so concurrent readers never see a torn
   entry. (The v3 inline caches could pair one type's id with another type's delegate under contention.)
 

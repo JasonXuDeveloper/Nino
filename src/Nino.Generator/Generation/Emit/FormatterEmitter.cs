@@ -45,8 +45,13 @@ internal static class FormatterEmitter
         // MethodImpl attributes on them only cost compile time.
         if (m.Kind == FormatterKind.Polymorphic)
         {
-            EmitEntryPoints(w, m, $"default({Core}PolymorphicFormatter<{t}>).Serialize(value, ref writer)",
-                $"default({Core}PolymorphicFormatter<{t}>).Deserialize(ref value, ref reader)");
+            // Behind a reference header, subtypes are dispatched without one of their own.
+            if (m.TrackReferences)
+                EmitEntryPoints(w, m, $"{Core}NinoPolymorphic<{t}>.SerializeReferenced(value, ref writer)",
+                    $"{Core}NinoPolymorphic<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
+            else
+                EmitEntryPoints(w, m, $"default({Core}PolymorphicFormatter<{t}>).Serialize(value, ref writer)",
+                    $"default({Core}PolymorphicFormatter<{t}>).Deserialize(ref value, ref reader)");
             w.Line();
             if (m.EmitMembers)
             {
@@ -75,6 +80,10 @@ internal static class FormatterEmitter
             case FormatterKind.SealedClass:
                 EmitEntryPoints(w, m, $"{Core}NinoObject.SerializeSealed<{t}, {self}>(value, ref writer)",
                     $"{Core}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader)");
+                break;
+            case FormatterKind.Class when m.TrackReferences:
+                EmitEntryPoints(w, m, $"{Core}NinoObject.SerializeReferenced<{t}, {self}>(value, ref writer)",
+                    $"{Core}NinoObject.DeserializeReferenced<{t}, {self}>(ref value, ref reader)");
                 break;
             default:
                 EmitEntryPoints(w, m, $"{Core}NinoObject.Serialize<{t}, {self}>(value, ref writer)",
@@ -152,7 +161,7 @@ internal static class FormatterEmitter
         {
             w.Line($"{Core}NinoFormatterCache<{m.TypeName}>.TryRegister<{m.FormatterName}>();");
             if (m.Kind != FormatterKind.Polymorphic)
-                w.Line($"{Core}NinoPolymorphic.Register<{m.TypeName}, {m.FormatterName}>(Id);");
+                w.Line($"{Core}NinoPolymorphic.{(m.TrackReferences ? "RegisterTracked" : "Register")}<{m.TypeName}, {m.FormatterName}>(Id);");
         });
     }
 }

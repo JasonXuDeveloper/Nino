@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -79,6 +80,9 @@ namespace Nino.Core
 
         /// <summary>Same as <see cref="NinoFormatterCache{T}.IsRegistered"/>.</summary>
         public static bool IsRegistered(Type type) => Registered.ContainsKey(type);
+
+        /// <summary>Every type with a formatter so far (a snapshot), for the cold path of polymorphic reads.</summary>
+        public static ICollection<Type> RegisteredTypes => Registered.Keys;
     }
 
     /// <summary>

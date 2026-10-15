@@ -121,6 +121,19 @@ internal static class ModelBuilder
             }
         }
 
+        // Closed generic [NinoType]s named by the members and base types, for the registry (not needed by the analyzer).
+        var genericTypes = new List<ClosedTypeRegistration>();
+        if (diagnostics == null)
+        {
+            foreach (var symbol in memberSymbols)
+            {
+                if (MemberCollector.MemberType(symbol) is { } memberType)
+                    ClosedGenerics.Collect(memberType, facts, genericTypes);
+            }
+
+            ClosedGenerics.CollectBases(type, facts, genericTypes);
+        }
+
         if (attr.Keyed && diagnostics != null)
         {
             var seen = new Dictionary<int, string>();
@@ -162,7 +175,7 @@ internal static class ModelBuilder
 
         // Tracking is inherited: a tracked base's reference header is resolved by the subtype's body as soon as
         // the instance exists, so every subtype of a tracked type must record itself.
-        bool tracked = attr.TrackReferences || InheritsTracking(type);
+        bool tracked = IsTracked(type);
         bool trackReferences = tracked && kind != FormatterKind.Struct;
         if (tracked && kind == FormatterKind.Struct)
             diagnostics?.Report(NinoDiagnostics.TrackReferencesOnStruct, type, type.ToDisplayString());
@@ -232,10 +245,16 @@ internal static class ModelBuilder
                 ? EquatableArray<FactoryRegistration>.Empty
                 : new EquatableArray<FactoryRegistration>(factories.Distinct()
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
+            new EquatableArray<ClosedTypeRegistration>(genericTypes.Distinct()
+                .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
             pooled,
             partialNamespace,
             new EquatableArray<string>(partialDeclarations));
     }
+
+    /// <summary>Whether the type, a base class or an interface asks for reference tracking.</summary>
+    internal static bool IsTracked(INamedTypeSymbol type) =>
+        type.GetNinoTypeOptions() is { TrackReferences: true } || InheritsTracking(type);
 
     /// <summary>Whether a base class or interface asks for reference tracking.</summary>
     private static bool InheritsTracking(INamedTypeSymbol type)
