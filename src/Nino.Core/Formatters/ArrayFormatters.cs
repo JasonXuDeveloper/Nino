@@ -330,14 +330,14 @@ namespace Nino.Core
 
         public void Deserialize(ref T[,] value, ref Reader reader)
         {
-            int a = reader.ReadLength();
+            int a = MultiDim.ReadLength(ref reader);
             if (a < 0)
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
-            int b = reader.ReadLength();
+            int b = reader.UnsafeRead<int>();
             int total = MultiDim.CheckedTotal(a, b, 1, 1, ref reader);
             var array = value;
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b)
@@ -372,15 +372,15 @@ namespace Nino.Core
 
         public void Deserialize(ref T[,,] value, ref Reader reader)
         {
-            int a = reader.ReadLength();
+            int a = MultiDim.ReadLength(ref reader);
             if (a < 0)
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
-            int b = reader.ReadLength();
-            int c = reader.ReadLength();
+            int b = reader.UnsafeRead<int>();
+            int c = reader.UnsafeRead<int>();
             int total = MultiDim.CheckedTotal(a, b, c, 1, ref reader);
             var array = value;
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b || array.GetLength(2) != c)
@@ -416,16 +416,16 @@ namespace Nino.Core
 
         public void Deserialize(ref T[,,,] value, ref Reader reader)
         {
-            int a = reader.ReadLength();
+            int a = MultiDim.ReadLength(ref reader);
             if (a < 0)
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
-            int b = reader.ReadLength();
-            int c = reader.ReadLength();
-            int d = reader.ReadLength();
+            int b = reader.UnsafeRead<int>();
+            int c = reader.UnsafeRead<int>();
+            int d = reader.UnsafeRead<int>();
             int total = MultiDim.CheckedTotal(a, b, c, d, ref reader);
             var array = value;
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b || array.GetLength(2) != c ||
@@ -472,10 +472,26 @@ namespace Nino.Core
             NinoElements.Read<T, TFormatter>(ref first, count, ref reader);
         }
 
+        /// <summary>
+        /// The first length (-1 for null). Not checked against the remaining bytes: another dimension may be 0, so
+        /// a single length says nothing about the payload; <see cref="CheckedTotal"/> checks the product.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ReadLength(ref Reader reader) => reader.ReadLength(minElementSize: 0);
+
+        /// <summary>Longest dimension the runtime can allocate, also when the array is empty.</summary>
+        private const int MaxLength = 0x7FFFFFC7;
+
+        /// <summary>
+        /// The element count of the other lengths read raw: rejects negative lengths, lengths no array can have and
+        /// more elements than bytes left (every element takes at least one byte).
+        /// </summary>
         public static int CheckedTotal(int a, int b, int c, int d, ref Reader reader)
         {
             if (b < 0 || c < 0 || d < 0)
                 NinoThrow.InvalidLength(Math.Min(b, Math.Min(c, d)));
+            if (a > MaxLength || b > MaxLength || c > MaxLength || d > MaxLength)
+                NinoThrow.InvalidLength(Math.Max(Math.Max(a, b), Math.Max(c, d)));
             long total = (long)a * b * c * d;
             if (total > reader.Remaining)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));

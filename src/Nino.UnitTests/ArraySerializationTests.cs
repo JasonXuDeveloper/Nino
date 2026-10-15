@@ -24,6 +24,39 @@ public class ArraySerializationTests
     }
 
     [TestMethod]
+    public void MultiDimensionalArraysWithAZeroLength()
+    {
+        // A zero length makes the array empty whatever the other lengths: none of them is bounded by the payload.
+        var int2D = NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new int[0, 5]));
+        Assert.AreEqual(0, int2D.GetLength(0));
+        Assert.AreEqual(5, int2D.GetLength(1));
+        int2D = NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new int[9, 0]));
+        Assert.AreEqual(9, int2D.GetLength(0));
+        Assert.AreEqual(0, int2D.GetLength(1));
+        var string3D = NinoDeserializer.Deserialize<string[,,]>(NinoSerializer.Serialize(new string[2, 0, 7]));
+        CollectionAssert.AreEqual(new[] { 2, 0, 7 },
+            new[] { string3D.GetLength(0), string3D.GetLength(1), string3D.GetLength(2) });
+        var long4D = NinoDeserializer.Deserialize<long[,,,]>(NinoSerializer.Serialize(new long[3, 4, 5, 0]));
+        CollectionAssert.AreEqual(new[] { 3, 4, 5, 0 },
+            new[] { long4D.GetLength(0), long4D.GetLength(1), long4D.GetLength(2), long4D.GetLength(3) });
+        var nested = NinoDeserializer.Deserialize<List<int[,]>>(NinoSerializer.Serialize(new List<int[,]>
+            { new int[0, 3], null, new int[,] { { 1 } } }));
+        Assert.AreEqual(3, nested[0].GetLength(1));
+        Assert.IsNull(nested[1]);
+        Assert.AreEqual(1, nested[2][0, 0]);
+
+        // The element count is still checked against the payload, and negative lengths are rejected.
+        Assert.ThrowsException<InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new[] { 1000, 1000 })[4..]));
+        Assert.ThrowsException<InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new[] { 2, -1 })[4..]));
+        Assert.ThrowsException<InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<int[,,]>(NinoSerializer.Serialize(new[] { -2, 0, 0 })[4..]));
+        Assert.ThrowsException<InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new[] { int.MaxValue, 0 })[4..]));
+    }
+
+    [TestMethod]
     public void TestMultiDimensionalArrays()
     {
         // Test 1: 2D array of primitive type (int)

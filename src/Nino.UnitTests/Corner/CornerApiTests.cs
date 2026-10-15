@@ -241,7 +241,8 @@ namespace Nino.UnitTests.Corner
                 ExpectFailure<Dictionary<int, int>>(data, "Dictionary " + length);
                 ExpectFailure<RawPadded[]>(data, "raw array " + length);
                 ExpectFailure<HashSet<long>>(data, "HashSet " + length);
-                ExpectFailure<int[,]>(data, "int[,] " + length);
+                // Both lengths: a zero length makes any other length valid (an empty array).
+                ExpectFailure<int[,]>(BitConverter.GetBytes(length).Concat(data).ToArray(), "int[,] " + length);
             }
         }
 
