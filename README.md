@@ -86,7 +86,8 @@ v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier 
 - **One format everywhere**: `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` produce identical bytes.
 - **Pooled deserialization**: mark a class `[NinoPooled]` and Nino deserializes into instances
   you hand back with `ReturnToPool()`, reusing their lists, arrays and dictionaries. Dropped
-  instances (payload is `null`, list shrinks, type changes) go back to their pool or to `NinoRecycler<T>`.
+  instances (payload is `null`, list shrinks, type changes) go back to their pool or to a handler registered with
+  `NinoSettings.SetRecycler<T>`.
 - **No init calls**: generated registries are found lazily, so hot-update assemblies (HybridCLR) just work.
 - **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members at any depth.
 - **User collections**: types derived from `List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>` and friends.

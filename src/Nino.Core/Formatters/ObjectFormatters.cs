@@ -43,16 +43,8 @@ namespace Nino.Core
                 return;
             }
 
-            if (value != null && value.GetType() != typeof(T))
-            {
-                // An instance of a subtype is being replaced by an instance of exactly T.
-                var old = value;
-                value = null;
-                default(TFormatter).ReadBody(ref value, ref reader);
-                NinoRecycler<T>.Recycle(old);
-                return;
-            }
-
+            // ReadBody takes null or exactly T: an instance of a subtype is recycled here.
+            NinoRecycler.ReuseExact(ref value, typeof(T));
             default(TFormatter).ReadBody(ref value, ref reader);
         }
 

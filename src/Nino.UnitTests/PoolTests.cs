@@ -197,14 +197,23 @@ public class PoolTests
         int max = NinoPool<PooledChild>.Shared.MaxRetained;
         try
         {
-            NinoPool<PooledChild>.Shared.MaxRetained = 0;
+            NinoSettings.SetPoolMaxRetained<PooledChild>(0);
             for (int i = 0; i < 500; i++)
                 new PooledChild().ReturnToPool();
             Assert.AreEqual(0, NinoPool<PooledChild>.Shared.Count);
         }
         finally
         {
-            NinoPool<PooledChild>.Shared.MaxRetained = max;
+            NinoSettings.SetPoolMaxRetained<PooledChild>(max);
         }
+    }
+
+    [TestMethod]
+    public void SettingsRejectNegativePoolSizes()
+    {
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => NinoSettings.DefaultPoolMaxRetained = -1);
+        Assert.ThrowsException<ArgumentOutOfRangeException>(() => NinoSettings.SetPoolMaxRetained<PooledChild>(-1));
+        Assert.AreEqual(256, NinoSettings.DefaultPoolMaxRetained);
+        Assert.AreEqual(256, NinoPool<PooledChild>.Shared.MaxRetained);
     }
 }

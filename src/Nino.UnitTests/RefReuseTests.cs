@@ -61,7 +61,7 @@ public class RefReuseTests
     public void RemovedDictionaryValuesAreRecycled()
     {
         var recycled = new List<ReuseItem>();
-        NinoRecycler<ReuseItem>.Register(recycled.Add);
+        NinoSettings.SetRecycler<ReuseItem>(recycled.Add);
         try
         {
             var dropped = new ReuseItem();
@@ -72,7 +72,7 @@ public class RefReuseTests
         }
         finally
         {
-            NinoRecycler<ReuseItem>.Unregister();
+            NinoSettings.SetRecycler<ReuseItem>(null);
         }
     }
 

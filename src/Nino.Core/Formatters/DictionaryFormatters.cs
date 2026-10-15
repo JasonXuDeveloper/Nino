@@ -57,7 +57,7 @@ namespace Nino.Core
         /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/> pairs.</summary>
         public static void Reset(Dictionary<TKey, TValue> dictionary, int length)
         {
-            NinoRecycler.RecycleItems<TKey, TValue>(dictionary);
+            NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
             dictionary.Clear();
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
             dictionary.EnsureCapacity(length);
@@ -127,11 +127,8 @@ namespace Nino.Core
             }
 
             foreach (var pair in stale)
-            {
                 dictionary.Remove(pair.Key);
-                NinoRecycler<TKey>.Recycle(pair.Key);
-                NinoRecycler<TValue>.Recycle(pair.Value);
-            }
+            NinoRecycler.DiscardPairs<TKey, TValue>(stale);
         }
 
         /// <summary>Reads <paramref name="length"/> pairs into <paramref name="dictionary"/>.</summary>
@@ -266,7 +263,7 @@ namespace Nino.Core
             }
             else
             {
-                NinoRecycler.RecycleItems<TKey, TValue>(dictionary);
+                NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
                 dictionary.Clear();
             }
 
@@ -311,24 +308,16 @@ namespace Nino.Core
 
         public void Deserialize(ref TInterface value, ref Reader reader)
         {
-            var old = value;
-            if (typeof(TInterface) == typeof(ReadOnlyDictionary<TKey, TValue>))
-            {
-                Dictionary<TKey, TValue> inner = null;
-                default(DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>).Deserialize(ref inner, ref reader);
-                value = inner == null ? null : (TInterface)(object)new ReadOnlyDictionary<TKey, TValue>(inner);
-            }
+            // A Dictionary is handed to its formatter (which reuses or drops it); anything else is recycled here. A
+            // ReadOnlyDictionary is never a Dictionary, so it is always recycled and re-created around a new one.
+            var dictionary = NinoRecycler.Reuse<TInterface, Dictionary<TKey, TValue>>(ref value);
+            default(DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>).Deserialize(ref dictionary, ref reader);
+            if (dictionary == null)
+                value = null;
+            else if (typeof(TInterface) == typeof(ReadOnlyDictionary<TKey, TValue>))
+                value = (TInterface)(object)new ReadOnlyDictionary<TKey, TValue>(dictionary);
             else
-            {
-                var dictionary = old as Dictionary<TKey, TValue>;
-                default(DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>)
-                    .Deserialize(ref dictionary, ref reader);
                 value = (TInterface)(object)dictionary;
-            }
-
-            // A Dictionary was handed to the formatter, which reused or recycled it; anything else is dropped.
-            if (old != null && !(old is Dictionary<TKey, TValue>))
-                NinoRecycler<TInterface>.Recycle(old);
         }
     }
 

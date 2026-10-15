@@ -63,22 +63,21 @@ namespace Nino.Core
                 : uninitialized
                     ? NinoUnsafe.AllocateUninitializedArray<T>(length)
                     : new T[length];
-            if (old != null)
+            if (old == null || old.Length == 0)
             {
-                int keep = Math.Min(old.Length, length);
-                if (!uninitialized)
-                    Array.Copy(old, result, keep);
-                if (old.Length > length)
-                    NinoRecycler.RecycleRange(old.AsSpan(length));
-                if (old.Length != 0)
-                {
-                    if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
-                        Array.Clear(old, 0, old.Length);
-                    NinoRecycler<T[]>.Recycle(old);
-                }
+                // Nothing to move or drop (the shared empty array is never recycled).
+                array = result;
+                return result;
             }
 
-            array = result;
+            // The elements that fit move to the new array (which now owns them; an uninitialized one is about to be
+            // overwritten, so they are dropped too), the rest are dropped, and the emptied old array is replaced.
+            int keep = uninitialized ? 0 : Math.Min(old.Length, length);
+            Array.Copy(old, result, keep);
+            NinoRecycler.DiscardAll(old.AsSpan(keep));
+            if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
+                Array.Clear(old, 0, old.Length);
+            NinoRecycler.Replace(ref array, result);
             return result;
         }
     }
@@ -343,9 +342,8 @@ namespace Nino.Core
             var array = value;
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b)
             {
-                NinoRecycler<T[,]>.Recycle(value);
                 array = new T[a, b];
-                value = array;
+                NinoRecycler.Replace(ref value, array);
             }
 
             if (total != 0)
@@ -387,9 +385,8 @@ namespace Nino.Core
             var array = value;
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b || array.GetLength(2) != c)
             {
-                NinoRecycler<T[,,]>.Recycle(value);
                 array = new T[a, b, c];
-                value = array;
+                NinoRecycler.Replace(ref value, array);
             }
 
             if (total != 0)
@@ -434,9 +431,8 @@ namespace Nino.Core
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b || array.GetLength(2) != c ||
                 array.GetLength(3) != d)
             {
-                NinoRecycler<T[,,,]>.Recycle(value);
                 array = new T[a, b, c, d];
-                value = array;
+                NinoRecycler.Replace(ref value, array);
             }
 
             if (total != 0)

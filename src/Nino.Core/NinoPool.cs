@@ -41,33 +41,32 @@ namespace Nino.Core
     public sealed class NinoPool<T> where T : class, INinoPooled
     {
         private const int ThreadCapacity = 64;
-        private const int DefaultMaxRetained = 256;
 
         private readonly object _lock = new object();
         private T[] _items = new T[ThreadCapacity];
         private int _count;
-        private int _maxRetained = DefaultMaxRetained;
+        private int _maxRetained = NinoSettings.DefaultPoolMaxRetained;
         private int _warmedUp;
         // Bumped by Clear: thread stacks filled before it drop their instances.
         private int _generation;
 
         private NinoPool()
         {
+            // From now on a dropped object may be a pooled instance (see NinoRecycler<T>.IsRegistered).
+            NinoRecycler.PoolsInUse = true;
         }
 
         /// <summary>The pool of <typeparamref name="T"/>.</summary>
         public static NinoPool<T> Shared { get; } = new NinoPool<T>();
 
-        /// <summary>Most instances kept by the shared stack; more are left to the garbage collector. Default 256.</summary>
+        /// <summary>
+        /// Most instances kept by the shared stack; more are left to the garbage collector. Set through
+        /// <see cref="NinoSettings.SetPoolMaxRetained{T}"/> (or <see cref="NinoSettings.DefaultPoolMaxRetained"/>).
+        /// </summary>
         public int MaxRetained
         {
-            get => _maxRetained;
-            set
-            {
-                if (value < 0)
-                    throw new ArgumentOutOfRangeException(nameof(value));
-                _maxRetained = value;
-            }
+            get => Volatile.Read(ref _maxRetained);
+            internal set => Volatile.Write(ref _maxRetained, value);
         }
 
         /// <summary>Instances in the shared stack (not counting those the threads keep).</summary>
@@ -159,7 +158,6 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void AddSlow(T value, ref PerThread stack)
         {
-            NinoRecycler.PoolsInUse = true;
             var s = Current(ref stack);
             if (s.Count == ThreadCapacity)
             {
@@ -167,7 +165,7 @@ namespace Nino.Core
                 const int half = ThreadCapacity / 2;
                 lock (_lock)
                 {
-                    int n = Math.Min(half, Math.Max(0, _maxRetained - _count));
+                    int n = Math.Min(half, Math.Max(0, MaxRetained - _count));
                     if (_count + n > _items.Length)
                         Array.Resize(ref _items, Math.Max(_items.Length * 2, _count + n));
                     Array.Copy(s.Items, 0, _items, _count, n);

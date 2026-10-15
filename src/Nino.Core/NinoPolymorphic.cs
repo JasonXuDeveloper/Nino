@@ -280,16 +280,13 @@ namespace Nino.Core
             if (handler == null)
                 NinoThrow.UnknownTypeId(typeof(TBase), id);
 
-            TBase old = value;
-            bool reuse = old != null && old.GetType() == handler.Type;
-            object result = reuse ? old : null;
+            // The handler owns an instance of its exact type (it reuses it, or recycles it when it has to re-create
+            // the type); an instance of another type is recycled here.
+            NinoRecycler.ReuseExact(ref value, handler.Type);
+            object result = value;
             handler.Deserialize(ref result, ref reader);
             // The handler's type derives from TBase (checked when it was registered here).
             value = Unsafe.As<TBase>(result);
-            // ReadBody recycles an instance it was given and had to re-create; an instance of another type was
-            // never passed in, so it is recycled here.
-            if (old != null && !reuse)
-                NinoRecycler<TBase>.Recycle(old);
         }
     }
 }

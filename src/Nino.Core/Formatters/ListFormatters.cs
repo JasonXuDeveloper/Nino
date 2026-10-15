@@ -41,9 +41,7 @@ namespace Nino.Core
             if (list == null)
                 value = list = ListAccess.Create<TList, T>(length);
             else if (list.Count > length)
-            {
-                NinoRecycler.RecycleRange(ListAccess.AsSpan<T>(list).Slice(length));
-            }
+                NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length)); // the dropped tail
 
             NinoElements.Read<T, TFormatter>(ListAccess.SetCount<T>(list, length), ref reader);
         }

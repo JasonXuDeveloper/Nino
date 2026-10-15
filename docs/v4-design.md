@@ -194,6 +194,9 @@ deserialization.
   `UnmanagedArrayFormatter<T>`, `ListFormatter<T, TF>`, `DictionaryFormatter<TKey, TValue, TFK, TFV>`,
   and so on. Element formatters are type parameters, so the JIT/AOT compiler inlines element
   (de)serialization into the collection loop.
+  The tuple formatters (`ValueTupleFormatter<T1..Tn, TF1..TFn>`, `TupleFormatter<...>`, arity 1 to 7) are
+  written by a template, `tools/CodeGen` (`dotnet run --project tools/CodeGen`), into
+  `Formatters/TupleFormatters.g.cs`; a unit test compiles the template and fails when the file is out of date.
 * **Generated formatters** are structs in `<Assembly>.NinoGen`, one per `[NinoType]`. Members call
   their formatter as `default(TFormatter).Serialize(...)`, which is a direct, inlinable call.
 * **`CachedFormatter<T>`** is a struct that forwards to `NinoFormatterCache<T>.Instance` (a
@@ -299,9 +302,26 @@ Cache-line reasoning assumes 64-byte lines.
 * Types whose members cannot be assigned after construction (constructor parameters, `init`-only, or
   `readonly` members) are re-created, and the old instance is recycled.
 * Whenever an existing non-null instance is dropped (payload is `null`, list shrinks, array reallocates,
-  dictionary key removed, polymorphic type changes), it is passed to `NinoRecycler<TDeclared>.Recycle`: a
-  registered handler, else `ReturnToPool()` for `[NinoPooled]` instances, else `NinoRecycler.Fallback`. That
-  fixes the leak where a pooled `List<T>` assigned in a factory was simply overwritten with `null`.
+  dictionary key removed, polymorphic type changes), it is passed, exactly once, to
+  `NinoRecycler<TDeclared>.Recycle`: the handler registered with `NinoSettings.SetRecycler<TDeclared>`, else
+  `ReturnToPool()` for `[NinoPooled]` instances, else nothing (the garbage collector takes it). That fixes the
+  leak where a pooled `List<T>` assigned in a factory was simply overwritten with `null`.
+
+Who recycles what is decided in one place, the primitives of `NinoRecycler`; formatters never call `Recycle`
+on a slot themselves. A formatter's `Deserialize(ref value)` owns the instance in `value` and leaves it in exactly
+one state:
+
+| State | Primitive | Used by |
+| --- | --- | --- |
+| reused in place | none | every formatter, when the instance fits |
+| handed on | `Reuse<TDeclared, TConcrete>(ref value)`: returns the instance if it is a `TConcrete` (that formatter now owns it), else recycles it as `TDeclared` and clears the slot | interface collections (read into `List<T>`, `HashSet<T>`, `Dictionary<,>`), `NinoObject` and polymorphic reads (by exact runtime type) |
+| replaced | `Replace(ref value, replacement)`: stores the new instance, then recycles the old one | tuples, reallocated arrays; generated code for re-created (constructor / `init`) types does the same |
+| discarded | `Discard(ref value)`: the data holds `null` | every reference formatter, `T?` |
+
+Elements a collection drops (the tail of a shrinking list or array, the contents of a set, queue, stack or
+dictionary that is cleared and refilled, dictionary entries whose key is gone) are each recycled once with the
+element type (`DiscardAll`, `DiscardPairs`, `DrainAndDiscard`). An instance dropped as a whole takes its elements
+with it: they are not recycled separately. `RecycleOwnershipTests` pins these counts for every formatter family.
 
 `[NinoPooled]` on a sealed, in-place `[NinoType]` class makes the generator add `ReturnToPool()` and two
 partial methods the class must implement (the compiler and NINO019 report them; a code fix adds both):
@@ -311,7 +331,7 @@ type, whose instances go straight into the pool, and `private partial void OnNin
 one from the pool and deserializes into it in place, reusing its arrays, lists, dictionaries and nested
 objects.
 
-`NinoPool<T>.Shared` holds a locked shared stack (`MaxRetained`, default 256). Each thread also keeps a stack
+`NinoPool<T>.Shared` holds a locked shared stack (`MaxRetained`, default 256, set through `NinoSettings`). Each thread also keeps a stack
 of up to 64 instances in a `[ThreadStatic]` field of the pooled type itself: a thread-static of a generic
 class is reached through shared generic code with a run-time lookup for reference types, one in the user's
 type is a direct thread-local access. A full thread stack moves half of itself to the shared stack and an
@@ -319,6 +339,23 @@ empty one takes half a stack back, one lock per batch. `Clear()` bumps a generat
 Returning an instance twice throws (a per-instance flag, reset when rented); one that is never returned is
 simply collected. Measured in [v4-benchmarks.md](v4-benchmarks.md): a string-free graph deserializes 3x faster
 than a fresh one with no allocation, and a list of 100 pooled elements twice as fast.
+
+### Settings
+
+Process-wide settings are set through one static class, `NinoSettings`, and must be **set before first use**: they
+are plain fields read without synchronization, so they belong in startup code that runs before the first
+serialization call on any thread.
+
+| Setting | Meaning |
+| --- | --- |
+| `SetRecycler<T>(Action<T>)` | handler for instances dropped from slots declared as `T` (null removes it) |
+| `DefaultPoolMaxRetained` | shared-stack size of pools created from now on (default 256) |
+| `SetPoolMaxRetained<T>(int)` | shared-stack size of `T`'s pool |
+
+A value read on a hot path stays next to the code that reads it, so the JIT sees a static field of the closed
+generic type rather than a lookup: the recycler handler is stored in `NinoRecycler<T>` and a pool's size in
+`NinoPool<T>`, and `NinoSettings` is the only code that writes them. Registrations (formatters, polymorphic types)
+are made by generated code and are not settings.
 
 ## Source generator
 

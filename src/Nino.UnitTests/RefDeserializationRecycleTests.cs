@@ -47,9 +47,9 @@ public class RefDeserializationRecycleTests
     [TestCleanup]
     public void Cleanup()
     {
-        NinoRecycler<List<int>>.Unregister();
-        NinoRecycler<InitOnlyHolder>.Unregister();
-        NinoRecycler<PooledHolder>.Unregister();
+        NinoSettings.SetRecycler<List<int>>(null);
+        NinoSettings.SetRecycler<InitOnlyHolder>(null);
+        NinoSettings.SetRecycler<PooledHolder>(null);
         PooledHolder.ListPool.Clear();
     }
 
@@ -72,7 +72,7 @@ public class RefDeserializationRecycleTests
     public void PooledListsAreRecycledWhenDataIsNull()
     {
         var recycled = new List<List<int>>();
-        NinoRecycler<List<int>>.Register(list =>
+        NinoSettings.SetRecycler<List<int>>(list =>
         {
             list.Clear();
             recycled.Add(list);
@@ -109,7 +109,7 @@ public class RefDeserializationRecycleTests
     public void InitOnlyTypesAreRecreatedAndOldInstanceRecycled()
     {
         var recycled = new List<InitOnlyHolder>();
-        NinoRecycler<InitOnlyHolder>.Register(recycled.Add);
+        NinoSettings.SetRecycler<InitOnlyHolder>(recycled.Add);
 
         var old = new InitOnlyHolder { Id = 1, Name = "old" };
         var owner = new Owner { Child = old };
@@ -126,7 +126,7 @@ public class RefDeserializationRecycleTests
     public void NestedObjectsAreRecycledWhenDataIsNull()
     {
         var recycled = new List<PooledHolder>();
-        NinoRecycler<PooledHolder>.Register(recycled.Add);
+        NinoSettings.SetRecycler<PooledHolder>(recycled.Add);
 
         var pooled = PooledHolder.Create();
         var owner = new Owner { Pooled = pooled };
@@ -141,7 +141,7 @@ public class RefDeserializationRecycleTests
     public void ShrinkingListRecyclesDroppedElements()
     {
         var recycled = new List<InitOnlyHolder>();
-        NinoRecycler<InitOnlyHolder>.Register(recycled.Add);
+        NinoSettings.SetRecycler<InitOnlyHolder>(recycled.Add);
 
         var a = new InitOnlyHolder { Id = 1 };
         var b = new InitOnlyHolder { Id = 2 };
@@ -160,10 +160,10 @@ public class RefDeserializationRecycleTests
     public void InterfaceCollectionsRecycleDroppedInstancesOnce()
     {
         var recycled = new List<object>();
-        NinoRecycler<List<int>>.Register(recycled.Add);
-        NinoRecycler<IList<int>>.Register(recycled.Add);
-        NinoRecycler<Dictionary<int, int>>.Register(recycled.Add);
-        NinoRecycler<IDictionary<int, int>>.Register(recycled.Add);
+        NinoSettings.SetRecycler<List<int>>(recycled.Add);
+        NinoSettings.SetRecycler<IList<int>>(recycled.Add);
+        NinoSettings.SetRecycler<Dictionary<int, int>>(recycled.Add);
+        NinoSettings.SetRecycler<IDictionary<int, int>>(recycled.Add);
         try
         {
             // The data is null: the existing instance is dropped once, by the concrete formatter.
@@ -190,9 +190,9 @@ public class RefDeserializationRecycleTests
         }
         finally
         {
-            NinoRecycler<IList<int>>.Unregister();
-            NinoRecycler<Dictionary<int, int>>.Unregister();
-            NinoRecycler<IDictionary<int, int>>.Unregister();
+            NinoSettings.SetRecycler<IList<int>>(null);
+            NinoSettings.SetRecycler<Dictionary<int, int>>(null);
+            NinoSettings.SetRecycler<IDictionary<int, int>>(null);
         }
     }
 

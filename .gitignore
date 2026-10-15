@@ -5,6 +5,8 @@
 Nino_Unity/.vsconfig
 /src/**/bin
 /src/**/obj
+/tools/**/bin
+/tools/**/obj
 /src/.vs
 src/Nino.sln.DotSettings.user
 src/Nino.Shared/Nino.Shared.csproj.user

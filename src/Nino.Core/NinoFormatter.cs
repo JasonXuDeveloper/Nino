@@ -17,7 +17,8 @@ namespace Nino.Core
 
         /// <summary>
         /// Reads a value into <paramref name="value"/>. When <paramref name="value"/> already holds an instance,
-        /// formatters reuse it where possible and pass instances they drop to <see cref="NinoRecycler{T}"/>.
+        /// formatters reuse it where possible; what they drop follows the ownership rules of <see cref="NinoRecycler"/>
+        /// (each dropped instance is recycled exactly once).
         /// </summary>
         void Deserialize(ref T value, ref Reader reader);
     }

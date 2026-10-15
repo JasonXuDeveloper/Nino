@@ -16,13 +16,10 @@ namespace Nino.Core
 
         public void Deserialize(ref TInterface value, ref Reader reader)
         {
-            var old = value;
-            var list = old as List<T>;
+            // A List<T> is handed to its formatter (which reuses or drops it); another collection is recycled here.
+            var list = NinoRecycler.Reuse<TInterface, List<T>>(ref value);
             default(ListFormatter<List<T>, T, TFormatter>).Deserialize(ref list, ref reader);
             value = (TInterface)(object)list;
-            // A List<T> was handed to the formatter, which reused or recycled it; another collection is dropped.
-            if (old != null && !(old is List<T>))
-                NinoRecycler<TInterface>.Recycle(old);
         }
     }
 
@@ -39,13 +36,10 @@ namespace Nino.Core
 
         public void Deserialize(ref TInterface value, ref Reader reader)
         {
-            var old = value;
-            var set = old as HashSet<T>;
+            // A HashSet<T> is handed to its formatter (which reuses or drops it); another collection is recycled here.
+            var set = NinoRecycler.Reuse<TInterface, HashSet<T>>(ref value);
             default(CollectionFormatter<HashSet<T>, T, TFormatter>).Deserialize(ref set, ref reader);
             value = (TInterface)(object)set;
-            // A HashSet<T> was handed to the formatter, which reused or recycled it; another collection is dropped.
-            if (old != null && !(old is HashSet<T>))
-                NinoRecycler<TInterface>.Recycle(old);
         }
     }
 

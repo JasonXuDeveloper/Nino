@@ -60,4 +60,9 @@
         <ProjectReference Include="..\Nino.UnitTests.Subset\Nino.UnitTests.Subset.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- The code generator's templates, to check that their checked-in output is current. -->
+        <Compile Include="..\..\tools\CodeGen\TupleFormattersTemplate.cs" Link="CodeGen\TupleFormattersTemplate.cs"/>
+    </ItemGroup>
+
 </Project>

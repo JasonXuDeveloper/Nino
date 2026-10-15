@@ -86,7 +86,7 @@ v4 是一次大版本重写，**二进制格式与 v3 及之前的 v4 beta 不�
 - **全平台同一格式**：`netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 输出完全相同的字节。
 - **池化反序列化**：给类加上 `[NinoPooled]`，Nino 会反序列化到你用 `ReturnToPool()` 归还的实例里，
   复用其中的列表、数组和字典。被丢弃的实例（数据为 `null`、列表变短、类型变化）会回到对象池或交给
-  `NinoRecycler<T>`。
+  `NinoSettings.SetRecycler<T>` 注册的处理函数。
 - **无需手动初始化**：生成的注册表按需懒加载，HybridCLR 等热更程序集无需调用任何 Init。
 - **可插拔的 formatter**：`[assembly: NinoFormatter(typeof(MyFormatter<,>))]` 即可让 Nino 支持新类型（自己的或第三方的）。类型参数和元素 formatter 自动推导，生成代码直接调用，运行时也使用同一份声明。Nino 自带的 BCL formatter 也是这样声明的。
 - **可选的版本兼容**：`[NinoType(versionTolerant: true)]` 允许在任意层级追加成员。
