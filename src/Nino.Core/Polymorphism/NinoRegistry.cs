@@ -41,6 +41,8 @@ namespace Nino.Core
     public static class NinoRegistry
     {
         private static readonly object Lock = new object();
+
+        /// <summary>Assemblies whose registration has completed (not merely started).</summary>
         private static readonly HashSet<Assembly> Initialized = new HashSet<Assembly>();
         private static int _scannedAssemblyCount;
         private static INinoRegistry[] _registries = Array.Empty<INinoRegistry>();
@@ -51,8 +53,7 @@ namespace Nino.Core
         {
             lock (Lock)
             {
-                // Its assembly's registration has run: lookups need not look for its attribute.
-                Initialized.Add(registry.GetType().Assembly);
+                // Not marked initialized: its static constructor is still running (EnsureInitialized waits for it).
                 NinoFormatterResolver.AddAssembly(registry.GetType().Assembly);
                 var current = _registries;
                 if (Array.IndexOf(current, registry) >= 0)
@@ -84,7 +85,10 @@ namespace Nino.Core
                 RegisterId(NinoTypeId.Compute(NinoTypeId.GetName(type)));
         }
 
-        /// <summary>Runs the generated registration of <paramref name="assembly"/> once.</summary>
+        /// <summary>
+        /// Runs the generated registration of <paramref name="assembly"/> once, and returns when it has completed,
+        /// also when another thread is running it.
+        /// </summary>
         public static void EnsureInitialized(Assembly assembly)
         {
             // The core library and Nino.Core never contain generated code.
@@ -92,10 +96,14 @@ namespace Nino.Core
                 return;
             lock (Lock)
             {
-                if (!Initialized.Add(assembly))
+                if (Initialized.Contains(assembly))
                     return;
             }
 
+            // Threads that get here at the same time all run the steps below, which are idempotent: the assembly is
+            // only published as initialized once its registries' static constructors have finished, so no thread
+            // returns while another is still registering. RunClassConstructor waits for a static constructor running
+            // on another thread (and returns at once on the thread running it, where registries reference each other).
             NinoGeneratedAttribute[] attributes;
             try
             {
@@ -103,6 +111,8 @@ namespace Nino.Core
             }
             catch
             {
+                lock (Lock)
+                    Initialized.Add(assembly);
                 return;
             }
 
@@ -112,24 +122,26 @@ namespace Nino.Core
                 if (attribute.Registry != null)
                     RuntimeHelpers.RunClassConstructor(attribute.Registry.TypeHandle);
             }
+
+            lock (Lock)
+                Initialized.Add(assembly);
         }
 
         /// <summary>Runs the generated registration of every loaded assembly.</summary>
         public static void EnsureAllInitialized()
         {
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            lock (Lock)
-            {
-                if (assemblies.Length == _scannedAssemblyCount)
-                    return;
-                _scannedAssemblyCount = assemblies.Length;
-            }
+            if (Volatile.Read(ref _scannedAssemblyCount) == assemblies.Length)
+                return;
 
+            // Every caller scans until one has finished: one that returned early could miss a registry still running.
             foreach (var assembly in assemblies)
             {
                 if (!assembly.IsDynamic)
                     EnsureInitialized(assembly);
             }
+
+            Volatile.Write(ref _scannedAssemblyCount, assemblies.Length);
         }
 
         internal static void EnsureInitializedFor(Type type)
