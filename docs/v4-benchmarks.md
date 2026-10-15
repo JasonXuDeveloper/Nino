@@ -211,5 +211,6 @@ Runtime (`src/Nino.Benchmark`, BenchmarkDotNet):
 dotnet run -c Release --project src/Nino.Benchmark -- --filter '*' --launchCount 1 --warmupCount 5 --iterationCount 15
 ```
 
-The v3 numbers come from a copy of `SimpleTest.cs` and `SimpleBenchmarkData.cs` that references the `Nino`
-3.3.13 package from nuget.org instead of this repository, run with the same arguments.
+The v3 numbers come from [`benchmarks/v3`](../benchmarks/v3), the same `SimpleTest` built against the `Nino` 3.3.13
+package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3, the full v4 suite,
+v3 again) and prints v4 against both v3 runs.

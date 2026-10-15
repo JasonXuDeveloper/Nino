@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Mirrors src/Nino.Benchmark/Nino.Benchmark.csproj, but takes Nino from nuget.org (3.3.13). -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Optimize>true</Optimize>
+        <!-- Same assembly/project name as v4 so BDN artifacts and report file names line up. -->
+        <AssemblyName>Nino.Benchmark</AssemblyName>
+        <RootNamespace>Nino.Benchmark</RootNamespace>
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Nino" Version="3.3.13" />
+        <PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
+        <PackageReference Include="MemoryPack" Version="1.21.4" />
+        <PackageReference Include="MessagePack" Version="3.1.7" />
+        <PackageReference Include="MessagePackAnalyzer" Version="3.1.7">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="BenchmarkDotNet.Attributes"/>
+    </ItemGroup>
+</Project>
