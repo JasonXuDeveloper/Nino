@@ -418,6 +418,11 @@ Cache-line reasoning assumes 64-byte lines.
   startup, so no padding is needed to protect the read-only tables from false sharing.
 * Consecutive unmanaged members are reserved and written as one block, and unmanaged arrays, lists and raw
   structs are single block copies, so the writer streams through the buffer line by line.
+* `NinoPool<T>` reads its generation on every take and add, next to the shared stack's count. Moving it onto a
+  padded line of its own was measured (4 threads churning 100 instances each: 23 ns per operation either way,
+  4-5 ns single threaded) and dropped: the cost there is the lock the batches take, not the shared line.
+* Raw-key/raw-value dictionaries, unmanaged arrays and `T?[]` read and write with one bounds check for the whole
+  collection; masked copies (padding cleared) use vectors with aligned stores (see `NinoMask`).
 
 ### Ref deserialization and pooling
 
