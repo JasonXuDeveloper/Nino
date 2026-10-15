@@ -18,7 +18,7 @@ namespace Nino.Core
         private static NinoFormatter<T> _instance;
 
         /// <summary>The formatter for <typeparamref name="T"/>; resolved on first access.</summary>
-        public static NinoFormatter<T> Instance
+        internal static NinoFormatter<T> Instance
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => _instance ?? Resolve();
@@ -27,17 +27,14 @@ namespace Nino.Core
         /// <summary>Whether a formatter has been registered or resolved.</summary>
         public static bool IsRegistered => Volatile.Read(ref _instance) != null;
 
-        /// <summary>Registers (or replaces) the formatter for <typeparamref name="T"/>.</summary>
-        public static void Register(NinoFormatter<T> formatter)
-        {
-            Volatile.Write(ref _instance, formatter ?? throw new ArgumentNullException(nameof(formatter)));
-            NinoFormatterCache.MarkRegistered(typeof(T));
-        }
-
-        /// <summary>Registers (or replaces) the formatter for <typeparamref name="T"/>.</summary>
+        /// <summary>
+        /// Registers (or replaces) the formatter for <typeparamref name="T"/>, used by the top-level APIs and by
+        /// <see cref="CachedFormatter{T}"/>. Register before first use.
+        /// </summary>
         public static void Register<TFormatter>() where TFormatter : struct, INinoFormatter<T>
         {
-            Register(new StructFormatter<T, TFormatter>());
+            Volatile.Write(ref _instance, new StructFormatter<T, TFormatter>());
+            NinoFormatterCache.MarkRegistered(typeof(T));
         }
 
         /// <summary>Registers the formatter unless one is already registered. Used by generated code.</summary>

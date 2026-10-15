@@ -34,8 +34,26 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void NoFormatter(Type type) =>
             throw new InvalidOperationException(
-                $"Nino: no formatter for {type.FullName}. Mark it with [NinoType] or register a formatter with " +
-                "NinoFormatterCache<T>.Register.");
+                $"Nino: no formatter for {type.FullName}. Mark it with [NinoType], declare a struct formatter with " +
+                "[assembly: NinoFormatter] or register one with NinoFormatterCache<T>.Register<TFormatter>().");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void FactoryReturnedNull(Type type) =>
+            throw new InvalidOperationException($"Nino: the factory of {type.FullName} returned null.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void CannotCreate(Type type, string reason) =>
+            throw new InvalidOperationException($"Nino: cannot create an instance of {type.FullName}: {reason}.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ReadOnlyCollection(Type type) =>
+            throw new InvalidOperationException(
+                $"Nino: {type.FullName} is read-only (IsReadOnly is true), so it cannot be deserialized into.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void DuplicateKey(Type type) =>
+            throw new InvalidOperationException(
+                $"Nino: the data holds the same key (or set element) twice for {type.FullName}, under its comparer.");
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void InvalidReference(int index) =>

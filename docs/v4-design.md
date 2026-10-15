@@ -87,12 +87,47 @@ member by member.
 
 ### Collections
 
-User collection types work without attributes: a class derived from `List<T>`, `HashSet<T>` or
-`Dictionary<TKey, TValue>`, or implementing `IDictionary<TKey, TValue>`, `IProducerConsumerCollection<T>` or
-`ICollection<T>`, with a public parameterless constructor, is written like the collection it extends. A
-`[NinoType]` collection writes its elements first and then its own serialized members, so a collection
-with extra state (for example a synchronized list) keeps both. Ref deserialization reuses the existing
-collection instance.
+User collection types work without attributes: a class derived from `List<T>`, `HashSet<T>`, `Queue<T>`,
+`Stack<T>` or `Dictionary<TKey, TValue>`, or implementing `IDictionary<TKey, TValue>`,
+`IProducerConsumerCollection<T>` or `ICollection<T>`, is written exactly like the collection it extends (a
+`List<int>` subclass is one block copy, like `List<int>`). A `[NinoType]` collection writes its elements first and
+then its own serialized members, so a collection with extra state (for example a synchronized list) keeps both.
+Ref deserialization reuses the existing collection instance (and so its comparer).
+
+#### User collections
+
+Nino creates a collection only when the slot is `null`, through `NinoFactory<T>.Create()`:
+
+* A public static `[NinoRefDeserialization]` method declared on the type, returning it and callable without
+  arguments (ET's pooled `static ListComponent<T> Create()`), wins; then a public constructor callable without
+  arguments, whose optional parameters take their defaults (ET's `MultiMap(int maxPoolCount = 0)`). A type whose
+  C# 11 `required` members that constructor does not set (`[SetsRequiredMembers]`) needs the factory.
+* The generator registers the creator of every closed collection type it binds to a `[NinoCreated]` formatter
+  parameter, as `NinoFactory<T>.TryRegister(static () => new T())` (or `T.Create()`), in the same lazy by-type-id
+  dispatch as the closed formatters (`NinoGenUsages`): nothing runs at startup, and AOT runtimes call compiled code.
+  A plain `List<T>` is created directly (with its capacity) and gets no creator. Types the generator never saw
+  (bound at runtime, elements of runtime-bound formatters) are resolved by reflection on first use, in the same
+  order, and cached as a delegate: `Activator.CreateInstance<T>` for a parameterless constructor (what `new T()`
+  compiled to before), a delegate over the factory, or `Invoke` with the default arguments.
+* A factory may hand out a pooled instance that is not empty: it is treated like an existing instance (stale
+  elements are dropped and recycled), so the result holds exactly the data. A factory returning `null` is a clear
+  `InvalidOperationException`.
+* Nino uses the public collection API: `Add`/`Clear` of an `ICollection<T>` (so `Collection<T>` hooks such as
+  `InsertItem` run), the indexer of an `IDictionary<TKey, TValue>`, `Enqueue`, `Push`, `TryAdd`. `List<T>`,
+  `HashSet<T>` and `Dictionary<TKey, TValue>` subclasses are filled through the base type, so members hidden with
+  `new` (ET's `SyncList`) are not called.
+* What is not supported is reported, never guessed: a collection Nino cannot create (abstract, constructor with
+  required arguments, non-public constructor, required members not set), a struct collection, a non-generic
+  collection (`ArrayList`), `ReadOnlyCollection<T>`, and a type implementing `ICollection<T>` for two different
+  `T` (ambiguous in both resolvers, whatever the interface order) have no formatter: the member is skipped with
+  NINO007, and the runtime resolver finds no formatter either. A collection whose `IsReadOnly` is true is a clear
+  `InvalidOperationException` when deserialized into. The same key (or set element) twice in the data, under the
+  reader's comparer, is a clear `InvalidOperationException` when a dictionary or `HashSet<T>` is filled from empty;
+  merging into a non-empty dictionary in place does not look for repeated keys (the last value wins).
+* The declared type decides what is created: a `List<int>` member holding a `ListComponent<int>` is read back as a
+  `List<int>` (ref deserialization keeps the `ListComponent<int>` it holds). Collections are values: the same
+  instance in two members is written twice and read as two instances (`trackReferences` tracks `[NinoType]`
+  objects, not collections).
 
 ### Version tolerance
 
@@ -199,11 +234,13 @@ deserialization.
   `Formatters/TupleFormatters.g.cs`; a unit test compiles the template and fails when the file is out of date.
 * **Generated formatters** are structs in `<Assembly>.NinoGen`, one per `[NinoType]`. Members call
   their formatter as `default(TFormatter).Serialize(...)`, which is a direct, inlinable call.
-* **`CachedFormatter<T>`** is a struct that forwards to `NinoFormatterCache<T>.Instance` (a
-  `NinoFormatter<T>` class). It is used for type parameters of generic `[NinoType]`s, for types from other
-  assemblies, and for types resolved at runtime. It costs one virtual call.
-* **Custom formatters**: `[NinoCustomFormatter(typeof(F))]`, where `F` is either a class deriving from
-  `NinoFormatter<T>` (singleton, virtual call) or a struct implementing `INinoFormatter<T>` (inlined).
+* **`CachedFormatter<T>`** is a struct that forwards to the formatter `NinoFormatterCache<T>` holds (an internal
+  `NinoFormatter<T>` class wrapping the struct formatter). It is used for type parameters of generic `[NinoType]`s,
+  for types from other assemblies, and for types resolved at runtime. It costs one virtual call.
+* **Custom formatters**: `[NinoCustomFormatter(typeof(F))]`, where `F` is a struct implementing `INinoFormatter<T>`
+  for exactly the member type (NINO008 otherwise), called as `default(F)` and inlined. Every formatter a user
+  writes is a struct: `NinoFormatter<T>` is only the runtime dispatch carrier and is internal, and
+  `NinoFormatterCache<T>.Register<TFormatter>()` takes a struct formatter type.
 
 ### Formatter registrations
 
@@ -212,7 +249,7 @@ raw unmanaged values, `[NinoType]`s), every formatter is declared on its assembl
 
 ```csharp
 [assembly: NinoFormatter(typeof(QueueFormatter<,>))]                       // INinoFormatter<Queue<T>>
-[assembly: NinoFormatter(typeof(ListFormatter<,,>), Priority = 40)]        // INinoFormatter<TList>, TList : List<T>, new()
+[assembly: NinoFormatter(typeof(ListFormatter<,,>), Priority = 40)]        // INinoFormatter<TList>, [NinoCreated] TList : List<T>
 [assembly: NinoFormatter(typeof(InterfaceListFormatter<,,>), typeof(IList<>), typeof(IEnumerable<>))]
 ```
 
@@ -230,7 +267,19 @@ rules, and a test checks that both write the same bytes:
    types or its interfaces, binding the parameters it mentions (`T`).
 3. A parameter constrained to `INinoFormatter<E>` becomes the formatter resolved for `E`, so element formatters
    compose and inline.
-4. Every constraint is checked; `unmanaged` means "written as raw memory".
+4. Every constraint is checked with its C# meaning (`unmanaged` is C#'s unmanaged).
+5. Two markers on type parameters state what the formatter does with the bound type, and both resolvers check them
+   identically:
+   * `[NinoRaw] T` (with `where T : unmanaged`): values are copied as raw memory, so `T` must be a type Nino writes as
+     its raw bytes (stricter than C#'s unmanaged: no `Nullable`, tuples, `nint`, `DateTimeOffset`, or `[NinoType]`
+     structs that are not raw). `UnmanagedFormatter`, `UnmanagedArrayFormatter`, `NullableArrayFormatter`,
+     `UnmanagedListFormatter` and `NullableListFormatter` mark their element parameter. A plain `unmanaged`
+     constraint, such as the one a generated formatter of `[NinoType] class Box<T> where T : unmanaged` copies from
+     the type, binds any unmanaged type.
+   * `[NinoCreated] TCollection`: the formatter creates instances through `NinoFactory<TCollection>.Create()`, so the
+     bound type must be a non-abstract class with a public static `[NinoRefDeserialization]` factory or a public
+     constructor callable without arguments (every parameter optional). See "User collections" below. A plain `new()`
+     constraint is still honored for third-party formatters that call `new T()`.
 
 Lookup order: registrations of the type's own definition (and of arrays, by rank) in `Priority` order, then raw
 unmanaged values, then `[NinoType]`s, then registrations of a bare type parameter (`INinoFormatter<TCollection>`),
@@ -304,7 +353,7 @@ Cache-line reasoning assumes 64-byte lines.
 ### Ref deserialization and pooling
 
 * `null` target: a new instance is created (from the pool for `[NinoPooled]` types, or through a
-  `[NinoRefDeserialization]` factory).
+  `[NinoRefDeserialization]` factory; collections through `NinoFactory<T>`, see "User collections").
 * Existing target of the right type: populated in place. Lists and arrays reuse elements by index.
   Dictionaries are merged by key: each value is read into the value its key already maps to, and keys missing
   from the data are removed.
@@ -313,8 +362,14 @@ Cache-line reasoning assumes 64-byte lines.
 * Whenever an existing non-null instance is dropped (payload is `null`, list shrinks, array reallocates,
   dictionary key removed, polymorphic type changes), it is passed, exactly once, to
   `NinoRecycler<TDeclared>.Recycle`: the handler registered with `NinoSettings.SetRecycler<TDeclared>`, else
-  `ReturnToPool()` for `[NinoPooled]` instances, else nothing (the garbage collector takes it). That fixes the
-  leak where a pooled `List<T>` assigned in a factory was simply overwritten with `null`.
+  `ReturnToPool()` for `INinoPooled` instances (`[NinoPooled]` types, and pooled user collections that implement
+  the interface themselves, such as ET's `ListComponent<T>`), else nothing (the garbage collector takes it). That
+  fixes the leak where a pooled `List<T>` assigned in a factory was simply overwritten with `null`. Collections walk
+  the elements they drop only when that can do something: a handler is registered, the element type implements
+  `INinoPooled`, or (for a non-sealed element type) pooled instances exist, which a `NinoPool<T>` or a
+  `NinoFactory<T>` of an `INinoPooled` type signals (`NinoRecycler.PoolsInUse`). Ownership is exclusive: an
+  instance aliased by two slots that both drop it is recycled once per slot, so pooled types should guard against
+  a double return (as `NinoPool<T>` does).
 
 Who recycles what is decided in one place, the primitives of `NinoRecycler`; formatters never call `Recycle`
 on a slot themselves. A formatter's `Deserialize(ref value)` owns the instance in `value` and leaves it in exactly

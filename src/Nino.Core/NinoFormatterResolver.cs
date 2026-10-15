@@ -283,11 +283,16 @@ namespace Nino.Core
                 if ((attributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != 0 &&
                     (!type.IsValueType || Nullable.GetUnderlyingType(type) != null))
                     return false;
-                // `unmanaged` means "copied as raw memory", which is stricter than C#'s unmanaged.
-                if (IsUnmanagedConstrained(parameter) && !IsRawUnmanaged(type))
+                // `unmanaged` is C#'s; [NinoRaw] means "copied as raw memory", which is stricter.
+                if (IsUnmanagedConstrained(parameter) && (!type.IsValueType || !NinoUnsafe.IsUnmanaged(type)))
+                    return false;
+                if (parameter.IsDefined(typeof(NinoRawAttribute), false) && !IsRawUnmanaged(type))
                     return false;
                 if ((attributes & GenericParameterAttributes.DefaultConstructorConstraint) != 0 &&
                     !type.IsValueType && (type.IsAbstract || type.GetConstructor(Type.EmptyTypes) == null))
+                    return false;
+                // [NinoCreated]: created through NinoFactory<T>, by a factory or constructor callable without arguments.
+                if (parameter.IsDefined(typeof(NinoCreatedAttribute), false) && !NinoFactory.IsCreatable(type))
                     return false;
                 foreach (var constraint in parameter.GetGenericParameterConstraints())
                 {
@@ -416,13 +421,25 @@ namespace Nino.Core
                 var definition = pattern.GetGenericTypeDefinition();
                 if (pattern.IsInterface)
                 {
+                    // Implemented for two different arguments (ICollection<int> and ICollection<string>): ambiguous,
+                    // so neither matches, as in the generator.
+                    Type[] found = null;
                     foreach (var i in actual.GetInterfaces())
                     {
-                        if (i.IsGenericType && i.GetGenericTypeDefinition() == definition && Unify(pattern, i, args))
-                            return true;
+                        if (!i.IsGenericType || i.GetGenericTypeDefinition() != definition)
+                            continue;
+                        var trial = (Type[])args.Clone();
+                        if (!Unify(pattern, i, trial))
+                            continue;
+                        if (found != null && !SameBindings(found, trial))
+                            return false;
+                        found = trial;
                     }
 
-                    return false;
+                    if (found == null)
+                        return false;
+                    found.CopyTo(args, 0);
+                    return true;
                 }
 
                 for (var b = actual.BaseType; b != null; b = b.BaseType)
@@ -432,6 +449,17 @@ namespace Nino.Core
                 }
 
                 return false;
+            }
+
+            private static bool SameBindings(Type[] a, Type[] b)
+            {
+                for (int i = 0; i < a.Length; i++)
+                {
+                    if (a[i] != b[i])
+                        return false;
+                }
+
+                return true;
             }
 
             public static bool IsBound(Type type, Type[] args)

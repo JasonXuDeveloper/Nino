@@ -123,18 +123,25 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // Closed built-in formatters used by members: registered once per assembly here rather than by every
         // type that uses them (the same List<int> formatter is typically used by many types).
         var memberFormatters = CollectAll(models, static m => m.UsedFormatters);
+        // Creators of the collections those formatters create (NinoFactory<T>), registered the same way.
+        var memberFactories = CollectAll(models, static m => m.UsedFactories);
 
         var registrations = usages.Combine(memberFormatters)
             .Select(static (x, _) => new EquatableArray<FormatterRegistration>(
-                x.Left.Concat(x.Right.SelectMany(static a => a))
+                x.Left.Select(static u => u.Formatter).Concat(x.Right.SelectMany(static a => a))
                     .Distinct()
                     .OrderBy(u => u.TypeName, StringComparer.Ordinal)
                     .ThenBy(u => u.Formatter, StringComparer.Ordinal)));
+        var factories = usages.Combine(memberFactories)
+            .Select(static (x, _) => new EquatableArray<FactoryRegistration>(
+                x.Left.SelectMany(static u => u.Factories).Concat(x.Right.SelectMany(static a => a))
+                    .Distinct()
+                    .OrderBy(f => f.TypeName, StringComparer.Ordinal)));
 
-        context.RegisterImplementationSourceOutput(registrations.Combine(enabled), static (spc, x) =>
+        context.RegisterImplementationSourceOutput(registrations.Combine(factories).Combine(enabled), static (spc, x) =>
         {
             if (x.Right)
-                spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(x.Left));
+                spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(x.Left.Left, x.Left.Right));
         });
 
         context.RegisterImplementationSourceOutput(entries.Combine(options).Combine(enabled), static (spc, x) =>
@@ -209,7 +216,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             () => ModelBuilder.Build(symbol, TypeFacts.For(compilation, options)));
     }
 
-    private static FormatterRegistration? TransformUsage(GeneratorSyntaxContext ctx, CancellationToken ct)
+    private static UsageRegistration? TransformUsage(GeneratorSyntaxContext ctx, CancellationToken ct)
     {
         if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol { IsGenericMethod: true } method)
             return null;
@@ -224,7 +231,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var formatter = facts.Resolver.Resolve(type, false);
         if (formatter is not { Registered: true } || facts.Raw.IsRawUnmanaged(type))
             return null;
-        return new FormatterRegistration(TypeNames.Global(type), formatter.Value.Code, facts.TypeId(type));
+        return new UsageRegistration(
+            new FormatterRegistration(TypeNames.Global(type), formatter.Value.Code, facts.TypeId(type)),
+            formatter.Value.Factories);
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch

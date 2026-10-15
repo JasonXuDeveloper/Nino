@@ -3,21 +3,20 @@ using System;
 namespace Nino.Core
 {
     /// <summary>
-    /// Attribute for specifying custom formatters by type.
-    /// The formatter will be instantiated as a singleton for optimal performance.
+    /// Serializes the member with <see cref="FormatterType"/> instead of the formatter Nino would choose:
+    /// <code>[NinoCustomFormatter(typeof(ZigZagFormatter))] public long Delta;</code>
+    /// The formatter is a <c>struct</c> implementing <see cref="INinoFormatter{T}"/> where <c>T</c> is exactly the
+    /// member type (NINO008 otherwise). Generated code calls it as <c>default(F).Serialize(...)</c>, so it is inlined
+    /// like the built-in formatters; it has no instance, so state it needs lives in static fields.
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false, Inherited = false)]
     public sealed class NinoCustomFormatterAttribute : Attribute
     {
-        /// <summary>
-        /// The formatter type that implements NinoFormatter{T}.
-        /// </summary>
+        /// <summary>The struct implementing <see cref="INinoFormatter{T}"/> for the member type.</summary>
         public Type FormatterType { get; }
-        
-        /// <summary>
-        /// Initializes a new instance of the custom formatter attribute.
-        /// </summary>
-        /// <param name="formatterType">The formatter type that inherits from NinoFormatter{T}</param>
+
+        /// <summary>Uses <paramref name="formatterType"/> for the member.</summary>
+        /// <param name="formatterType">A struct implementing <see cref="INinoFormatter{T}"/> for the member type.</param>
         public NinoCustomFormatterAttribute(Type formatterType)
         {
             FormatterType = formatterType;

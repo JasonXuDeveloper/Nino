@@ -9,8 +9,8 @@ namespace Nino.Generator.Generation;
 /// </summary>
 internal sealed class NinoSymbols
 {
-    public readonly INamedTypeSymbol? NinoType, Member, Ignore, CustomFormatter, Formatter, Utf8, FormerName,
-        ExplicitOrder, Constructor, RefDeserialization, Pooled, StructLayout, IFormatter, FormatterAttribute,
+    public readonly INamedTypeSymbol? NinoType, Member, Ignore, CustomFormatter, Utf8, FormerName,
+        ExplicitOrder, Constructor, RefDeserialization, Created, Raw, Pooled, StructLayout, IFormatter, FormatterAttribute,
         Serializer, Deserializer;
 
     public NinoSymbols(Compilation compilation)
@@ -20,7 +20,6 @@ internal sealed class NinoSymbols
         Member = Core("NinoMemberAttribute");
         Ignore = Core("NinoIgnoreAttribute");
         CustomFormatter = Core("NinoCustomFormatterAttribute");
-        Formatter = Core("NinoFormatter`1");
         IFormatter = Core("INinoFormatter`1");
         FormatterAttribute = Core("NinoFormatterAttribute");
         Utf8 = Core("NinoUtf8Attribute");
@@ -28,6 +27,8 @@ internal sealed class NinoSymbols
         ExplicitOrder = Core("NinoExplicitOrderAttribute");
         Constructor = Core("NinoConstructorAttribute");
         RefDeserialization = Core("NinoRefDeserializationAttribute");
+        Created = Core("NinoCreatedAttribute");
+        Raw = Core("NinoRawAttribute");
         Pooled = Core("NinoPooledAttribute");
         Serializer = Core(NinoNames.Serializer);
         Deserializer = Core(NinoNames.Deserializer);
@@ -36,44 +37,20 @@ internal sealed class NinoSymbols
 
     /// <summary>
     /// Whether <paramref name="formatter"/> can be the <c>[NinoCustomFormatter]</c> of a <paramref name="memberType"/>
-    /// member: a struct implementing <c>INinoFormatter&lt;T&gt;</c> (called directly, like built-in formatters), or a
-    /// concrete class deriving from <c>NinoFormatter&lt;T&gt;</c> with a public parameterless constructor (one shared
-    /// instance). <c>T</c> is exactly the member type. The analyzer reports NINO008 for anything else and the
-    /// generator skips the member.
+    /// member: a struct implementing <c>INinoFormatter&lt;T&gt;</c> where <c>T</c> is exactly the member type, called
+    /// directly like the built-in formatters. The analyzer reports NINO008 for anything else and the generator skips
+    /// the member.
     /// </summary>
     public bool IsCustomFormatterOf(INamedTypeSymbol formatter, ITypeSymbol memberType)
     {
-        if (formatter.IsUnboundGenericType || formatter.TypeKind == TypeKind.Error)
+        if (IFormatter == null || !formatter.IsValueType || formatter.IsRefLikeType ||
+            formatter.IsUnboundGenericType || formatter.TypeKind == TypeKind.Error)
             return false;
-        if (formatter.IsValueType)
+        foreach (var i in formatter.AllInterfaces)
         {
-            if (IFormatter == null || formatter.IsRefLikeType)
-                return false;
-            foreach (var i in formatter.AllInterfaces)
-            {
-                if (SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, IFormatter) &&
-                    SymbolEqualityComparer.Default.Equals(i.TypeArguments[0], memberType))
-                    return true;
-            }
-
-            return false;
-        }
-
-        if (Formatter == null || formatter.IsAbstract || formatter.IsStatic)
-            return false;
-        bool constructible = false;
-        foreach (var ctor in formatter.InstanceConstructors)
-        {
-            if (ctor.Parameters.Length == 0 && ctor.DeclaredAccessibility == Accessibility.Public)
-                constructible = true;
-        }
-
-        if (!constructible)
-            return false;
-        for (var baseType = formatter.BaseType; baseType != null; baseType = baseType.BaseType)
-        {
-            if (SymbolEqualityComparer.Default.Equals(baseType.OriginalDefinition, Formatter))
-                return SymbolEqualityComparer.Default.Equals(baseType.TypeArguments[0], memberType);
+            if (SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, IFormatter) &&
+                SymbolEqualityComparer.Default.Equals(i.TypeArguments[0], memberType))
+                return true;
         }
 
         return false;

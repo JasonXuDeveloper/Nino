@@ -7,8 +7,9 @@ namespace Nino.Core
 {
     /// <summary>
     /// Where ref deserialization sends an instance it drops: the handler registered for the declared type
-    /// <typeparamref name="T"/> (<see cref="NinoSettings.SetRecycler{T}"/>), else <c>ReturnToPool()</c> for a
-    /// <see cref="NinoPooledAttribute"/> instance, else nowhere (the garbage collector takes it).
+    /// <typeparamref name="T"/> (<see cref="NinoSettings.SetRecycler{T}"/>), else <c>ReturnToPool()</c> for an
+    /// <see cref="INinoPooled"/> instance (a <see cref="NinoPooledAttribute"/> type, or a pooled collection implementing
+    /// the interface itself), else nowhere (the garbage collector takes it).
     /// <para>
     /// Formatters do not call <see cref="Recycle"/> to decide ownership themselves: they go through the primitives
     /// of <see cref="NinoRecycler"/>, which state the ownership rule once.
@@ -25,18 +26,21 @@ namespace Nino.Core
         /// <summary>Set through <see cref="NinoSettings.SetRecycler{T}"/>.</summary>
         internal static Action<T> Handler;
 
-        // Whether a T can be a [NinoPooled] instance: sealed types (string...) that are not pooled never are.
-        private static readonly bool MayBePooled = !typeof(T).IsValueType &&
-                                                   (typeof(INinoPooled).IsAssignableFrom(typeof(T)) || !typeof(T).IsSealed);
+        // Whether every T is pooled (a [NinoPooled] type, a user collection implementing INinoPooled).
+        private static readonly bool IsPooled = !typeof(T).IsValueType && typeof(INinoPooled).IsAssignableFrom(typeof(T));
+
+        // Whether a T can be a pooled instance: sealed types (string...) that are not pooled never are.
+        private static readonly bool MayBePooled = IsPooled || (!typeof(T).IsValueType && !typeof(T).IsSealed);
 
         /// <summary>
-        /// Whether <see cref="Recycle"/> may do anything for <typeparamref name="T"/>: a handler is registered, or the
-        /// value may be a pooled instance and a pool exists. Collections skip walking dropped elements otherwise.
+        /// Whether <see cref="Recycle"/> may do anything for <typeparamref name="T"/>: a handler is registered,
+        /// <typeparamref name="T"/> implements <see cref="INinoPooled"/>, or the value may be a pooled instance and
+        /// pooled instances exist. Collections skip walking dropped elements otherwise.
         /// </summary>
         public static bool IsRegistered
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => Handler != null || (MayBePooled && NinoRecycler.PoolsInUse);
+            get => Handler != null || IsPooled || (MayBePooled && NinoRecycler.PoolsInUse);
         }
 
         /// <summary>
@@ -86,8 +90,9 @@ namespace Nino.Core
     public static class NinoRecycler
     {
         /// <summary>
-        /// Set once any <see cref="NinoPool{T}"/> exists: from then on a dropped object of a non-sealed declared type
-        /// may be a pooled instance, so collections walk the elements they drop. Not a setting: it only lets
+        /// Set once any <see cref="NinoPool{T}"/> exists, or <see cref="NinoFactory{T}"/> creates a type implementing
+        /// <see cref="INinoPooled"/> (a pooled user collection): from then on a dropped object of a non-sealed declared
+        /// type may be a pooled instance, so collections walk the elements they drop. Not a setting: it only lets
         /// processes that pool nothing skip that walk.
         /// </summary>
         internal static bool PoolsInUse;

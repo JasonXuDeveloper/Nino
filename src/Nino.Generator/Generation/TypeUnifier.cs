@@ -31,13 +31,25 @@ internal static class TypeUnifier
         var definition = named.OriginalDefinition;
         if (named.TypeKind == TypeKind.Interface)
         {
+            // A type implementing the interface for two different arguments (ICollection<int> and
+            // ICollection<string>) is ambiguous: it matches neither, whatever order the interfaces are listed in.
+            ITypeSymbol?[]? found = null;
             foreach (var i in actual.AllInterfaces)
             {
-                if (SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, definition) && Unify(pattern, i, types))
-                    return true;
+                if (!SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, definition))
+                    continue;
+                var trial = (ITypeSymbol?[])types.Clone();
+                if (!Unify(pattern, i, trial))
+                    continue;
+                if (found != null && !SameBindings(found, trial))
+                    return false;
+                found = trial;
             }
 
-            return false;
+            if (found == null)
+                return false;
+            found.CopyTo(types, 0);
+            return true;
         }
 
         for (var b = actual.BaseType; b != null; b = b.BaseType)
@@ -47,6 +59,17 @@ internal static class TypeUnifier
         }
 
         return false;
+    }
+
+    private static bool SameBindings(ITypeSymbol?[] a, ITypeSymbol?[] b)
+    {
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (!SymbolEqualityComparer.Default.Equals(a[i], b[i]))
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>Whether every formatter type parameter in <paramref name="type"/> is bound.</summary>

@@ -113,7 +113,7 @@ namespace Nino.Core
     }
 
     /// <summary>Unmanaged <c>T[]</c>: length (-1 = null), then one block copy.</summary>
-    public struct UnmanagedArrayFormatter<T> : INinoFormatter<T[]>, INinoRawArrayFormatter where T : unmanaged
+    public struct UnmanagedArrayFormatter<[NinoRaw] T> : INinoFormatter<T[]>, INinoRawArrayFormatter where T : unmanaged
     {
         // Elements with a non-canonical layout take the formatter path, which converts them.
         int INinoRawArrayFormatter.ElementSize => NinoLayout<T>.IsCanonical ? Unsafe.SizeOf<T>() : 0;
@@ -147,7 +147,7 @@ namespace Nino.Core
     /// <see cref="NullableFormatter{T,TFormatter}"/> (length, then a has-value byte and the value per element),
     /// written into one reservation and read without per-element calls.
     /// </summary>
-    public struct NullableArrayFormatter<T> : INinoFormatter<T?[]> where T : unmanaged
+    public struct NullableArrayFormatter<[NinoRaw] T> : INinoFormatter<T?[]> where T : unmanaged
     {
         public void Serialize(T?[] value, ref Writer writer)
         {

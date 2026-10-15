@@ -86,12 +86,16 @@ The type is not constructed by the generated formatter: deserializing it throws 
 Nino has no formatter for the member type (delegates, `Task`, pointers...). The member is skipped. Mark it
 `[NinoIgnore]` or give it a custom formatter. 🔧 Add `[NinoIgnore]`.
 
+User collections end up here when Nino cannot create or fill them: an abstract collection, one without a public
+constructor callable without arguments (and no public static `[NinoRefDeserialization]` factory), one whose C# 11
+`required` members that constructor does not set, a struct implementing `ICollection<T>`, a non-generic collection
+(`ArrayList`), `ReadOnlyCollection<T>`, or a type implementing `ICollection<T>` for two different `T`.
+
 ### NINO008
 
-`[NinoCustomFormatter(typeof(F))]` requires `F` to be either a struct implementing `INinoFormatter<T>` (called directly,
-like the built-in formatters) or a non-abstract class deriving from `NinoFormatter<T>` with a public parameterless
-constructor (one shared instance), where `T` is exactly the member
-type.
+`[NinoCustomFormatter(typeof(F))]` requires `F` to be a struct implementing `INinoFormatter<T>`, where `T` is exactly the
+member type. Generated code calls it as `default(F)`, inlined like the built-in formatters, so it has no instance:
+keep any state it needs in static fields.
 
 ### NINO009
 

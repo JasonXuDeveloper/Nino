@@ -46,6 +46,8 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(NullableListFormatter<,>), Priority = 50)]
 [assembly: NinoFormatter(typeof(ListFormatter<,,>), Priority = 40)]
 [assembly: NinoFormatter(typeof(HashSetFormatter<,,>), Priority = 30)]
+[assembly: NinoFormatter(typeof(QueueFormatter<,,>), Priority = 25)]
+[assembly: NinoFormatter(typeof(StackFormatter<,,>), Priority = 25)]
 [assembly: NinoFormatter(typeof(DictionaryFormatter<,,,,>), Priority = 20)]
 [assembly: NinoFormatter(typeof(DictionaryLikeFormatter<,,,,>), Priority = 10)]
 [assembly: NinoFormatter(typeof(ProducerConsumerFormatter<,,>), Priority = 5)]

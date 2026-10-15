@@ -109,6 +109,8 @@ internal sealed record TypeModel(
     ConstructionModel Construction,
     // (type, formatter) pairs registered for AOT platforms and top-level calls.
     EquatableArray<FormatterRegistration> UsedFormatters,
+    // Creators of the collection types the members' formatters create (NinoFactory<T>), registered like them.
+    EquatableArray<FactoryRegistration> UsedFactories,
     // [NinoPooled]: instances are taken from NinoPool<T> before being created, and the partial adds the pool hooks.
     bool Pooled,
     // Namespace and containing declarations of the generated partial (accessor class, pool hooks); empty when
@@ -124,6 +126,12 @@ internal sealed record TypeModel(
 
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.
 internal sealed record FormatterRegistration(string TypeName, string Formatter, int Id);
+
+// A NinoFactory<T> creator: Creator is a lambda ("static () => new global::Ns.Bag()"); Id as above.
+internal sealed record FactoryRegistration(string TypeName, string Creator, int Id);
+
+// A top-level NinoSerializer/NinoDeserializer call: the formatter of its type and the creators that formatter needs.
+internal sealed record UsageRegistration(FormatterRegistration Formatter, EquatableArray<FactoryRegistration> Factories);
 
 // A generated formatter, as the registry lists it. Arity: its number of type parameters (0 if not generic).
 internal sealed record RegistryEntry(string FormatterName, int Arity, int TypeId, int NameId);

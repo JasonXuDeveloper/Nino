@@ -7,12 +7,12 @@ using System.Runtime.CompilerServices;
 namespace Nino.Core
 {
     /// <summary>
-    /// Any <c>ICollection&lt;T&gt;</c> with a parameterless constructor (<c>SortedSet&lt;T&gt;</c>,
+    /// Any <c>ICollection&lt;T&gt;</c> Nino can create (<c>SortedSet&lt;T&gt;</c>,
     /// <c>LinkedList&lt;T&gt;</c>, <c>ObservableCollection&lt;T&gt;</c>, user collections...): count (-1 = null),
     /// then the elements in enumeration order. An existing collection is cleared and refilled.
     /// </summary>
-    public struct CollectionFormatter<TCollection, T, TFormatter> : INinoFormatter<TCollection>
-        where TCollection : class, ICollection<T>, new()
+    public struct CollectionFormatter<[NinoCreated] TCollection, T, TFormatter> : INinoFormatter<TCollection>
+        where TCollection : class, ICollection<T>
         where TFormatter : struct, INinoFormatter<T>
     {
         public void Serialize(TCollection value, ref Writer writer)
@@ -38,10 +38,17 @@ namespace Nino.Core
             var collection = value;
             if (collection == null)
             {
-                collection = new TCollection();
+                // InterfaceSetFormatter reads into a plain HashSet<T>, which no generated code registers a creator for.
+                collection = typeof(TCollection) == typeof(HashSet<T>)
+                    ? (TCollection)(object)new HashSet<T>()
+                    : NinoFactory<TCollection>.Create();
                 value = collection;
             }
-            else
+
+            if (collection.IsReadOnly)
+                NinoThrow.ReadOnlyCollection(collection.GetType());
+            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
+            if (collection.Count != 0)
             {
                 NinoRecycler.DiscardAll(collection);
                 collection.Clear();
@@ -57,8 +64,8 @@ namespace Nino.Core
     }
 
     /// <summary><c>HashSet&lt;T&gt;</c> (or a type derived from it): count (-1 = null), then the elements.</summary>
-    public struct HashSetFormatter<TSet, T, TFormatter> : INinoFormatter<TSet>
-        where TSet : HashSet<T>, new()
+    public struct HashSetFormatter<[NinoCreated] TSet, T, TFormatter> : INinoFormatter<TSet>
+        where TSet : HashSet<T>
         where TFormatter : struct, INinoFormatter<T>
     {
         public void Serialize(TSet value, ref Writer writer)
@@ -104,13 +111,9 @@ namespace Nino.Core
                 return;
             }
 
-            var set = value;
-            if (set == null)
-            {
-                set = new TSet();
-                value = set;
-            }
-            else
+            var set = value ??= NinoFactory<TSet>.Create();
+            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
+            if (set.Count != 0)
             {
                 NinoRecycler.DiscardAll(set);
                 set.Clear();
@@ -124,7 +127,11 @@ namespace Nino.Core
                 int size = Unsafe.SizeOf<T>();
                 ref byte src = ref reader.ReadBlock(length * size);
                 for (int i = 0, offset = 0; i < length; i++, offset += size)
-                    set.Add(NinoUnsafe.Read<T>(ref src, offset));
+                {
+                    if (!set.Add(NinoUnsafe.Read<T>(ref src, offset)))
+                        NinoThrow.DuplicateKey(set.GetType());
+                }
+
                 return;
             }
 
@@ -132,7 +139,8 @@ namespace Nino.Core
             {
                 T item = default;
                 default(TFormatter).Deserialize(ref item, ref reader);
-                set.Add(item);
+                if (!set.Add(item))
+                    NinoThrow.DuplicateKey(set.GetType());
             }
         }
     }
@@ -141,7 +149,22 @@ namespace Nino.Core
     public struct QueueFormatter<T, TFormatter> : INinoFormatter<Queue<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
-        public void Serialize(Queue<T> value, ref Writer writer)
+        public void Serialize(Queue<T> value, ref Writer writer) =>
+            default(QueueFormatter<Queue<T>, T, TFormatter>).Serialize(value, ref writer);
+
+        public void Deserialize(ref Queue<T> value, ref Reader reader) =>
+            default(QueueFormatter<Queue<T>, T, TFormatter>).Deserialize(ref value, ref reader);
+    }
+
+    /// <summary>
+    /// A type derived from <c>Queue&lt;T&gt;</c> (and <c>Queue&lt;T&gt;</c> itself): count (-1 = null), then the
+    /// elements from head to tail. An existing queue is cleared and refilled.
+    /// </summary>
+    public struct QueueFormatter<[NinoCreated] TQueue, T, TFormatter> : INinoFormatter<TQueue>
+        where TQueue : Queue<T>
+        where TFormatter : struct, INinoFormatter<T>
+    {
+        public void Serialize(TQueue value, ref Writer writer)
         {
             if (value == null)
             {
@@ -154,7 +177,7 @@ namespace Nino.Core
                 default(TFormatter).Serialize(item, ref writer);
         }
 
-        public void Deserialize(ref Queue<T> value, ref Reader reader)
+        public void Deserialize(ref TQueue value, ref Reader reader)
         {
             int length = reader.ReadLength();
             if (length < 0)
@@ -163,13 +186,11 @@ namespace Nino.Core
                 return;
             }
 
-            var queue = value;
-            if (queue == null)
-            {
-                queue = new Queue<T>(length);
-                value = queue;
-            }
-            else
+            var queue = value ??= typeof(TQueue) == typeof(Queue<T>)
+                ? (TQueue)new Queue<T>(length)
+                : NinoFactory<TQueue>.Create();
+            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
+            if (queue.Count != 0)
             {
                 NinoRecycler.DiscardAll(queue);
                 queue.Clear();
@@ -188,7 +209,22 @@ namespace Nino.Core
     public struct StackFormatter<T, TFormatter> : INinoFormatter<Stack<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
-        public void Serialize(Stack<T> value, ref Writer writer)
+        public void Serialize(Stack<T> value, ref Writer writer) =>
+            default(StackFormatter<Stack<T>, T, TFormatter>).Serialize(value, ref writer);
+
+        public void Deserialize(ref Stack<T> value, ref Reader reader) =>
+            default(StackFormatter<Stack<T>, T, TFormatter>).Deserialize(ref value, ref reader);
+    }
+
+    /// <summary>
+    /// A type derived from <c>Stack&lt;T&gt;</c> (and <c>Stack&lt;T&gt;</c> itself): count (-1 = null), then the
+    /// elements from bottom to top, so reading is a sequence of pushes. An existing stack is cleared and refilled.
+    /// </summary>
+    public struct StackFormatter<[NinoCreated] TStack, T, TFormatter> : INinoFormatter<TStack>
+        where TStack : Stack<T>
+        where TFormatter : struct, INinoFormatter<T>
+    {
+        public void Serialize(TStack value, ref Writer writer)
         {
             if (value == null)
             {
@@ -215,7 +251,7 @@ namespace Nino.Core
             }
         }
 
-        public void Deserialize(ref Stack<T> value, ref Reader reader)
+        public void Deserialize(ref TStack value, ref Reader reader)
         {
             int length = reader.ReadLength();
             if (length < 0)
@@ -224,13 +260,11 @@ namespace Nino.Core
                 return;
             }
 
-            var stack = value;
-            if (stack == null)
-            {
-                stack = new Stack<T>(length);
-                value = stack;
-            }
-            else
+            var stack = value ??= typeof(TStack) == typeof(Stack<T>)
+                ? (TStack)new Stack<T>(length)
+                : NinoFactory<TStack>.Create();
+            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
+            if (stack.Count != 0)
             {
                 NinoRecycler.DiscardAll(stack);
                 stack.Clear();
@@ -250,8 +284,8 @@ namespace Nino.Core
     /// <c>IProducerConsumerCollection&lt;T&gt;</c>s: count (-1 = null), then the elements in the order they have to
     /// be added back (stacks bottom to top).
     /// </summary>
-    public struct ProducerConsumerFormatter<TCollection, T, TFormatter> : INinoFormatter<TCollection>
-        where TCollection : class, IProducerConsumerCollection<T>, new()
+    public struct ProducerConsumerFormatter<[NinoCreated] TCollection, T, TFormatter> : INinoFormatter<TCollection>
+        where TCollection : class, IProducerConsumerCollection<T>
         where TFormatter : struct, INinoFormatter<T>
     {
         public void Serialize(TCollection value, ref Writer writer)
@@ -285,16 +319,9 @@ namespace Nino.Core
                 return;
             }
 
-            var collection = value;
-            if (collection == null)
-            {
-                collection = new TCollection();
-                value = collection;
-            }
-            else
-            {
-                NinoRecycler.DrainAndDiscard(collection);
-            }
+            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
+            var collection = value ??= NinoFactory<TCollection>.Create();
+            NinoRecycler.DrainAndDiscard(collection);
 
             for (int i = 0; i < length; i++)
             {

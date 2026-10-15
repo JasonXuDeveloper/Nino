@@ -41,6 +41,7 @@ internal static class ModelBuilder
 
         var members = new List<MemberModel>();
         var memberSymbols = new List<ISymbol>();
+        var factories = new List<FactoryRegistration>();
         bool needsPartialAccessor = false;
 
         bool tolerant = attr.VersionTolerant || facts.WeakTolerance;
@@ -74,7 +75,8 @@ internal static class ModelBuilder
             var memberDiagnostics = kind == FormatterKind.Polymorphic ? null : diagnostics;
             for (int i = 0; i < symbols.Count; i++)
             {
-                var member = BuildMember(type, symbols[i], facts, memberDiagnostics, ref needsPartialAccessor);
+                var member = BuildMember(type, symbols[i], facts, memberDiagnostics, ref needsPartialAccessor,
+                    factories);
                 if (member == null)
                     continue;
                 members.Add(member);
@@ -109,9 +111,12 @@ internal static class ModelBuilder
             ? new ConstructionModel(false, "", EquatableArray<string>.Empty, "")
             : ConstructionPlanner.Plan(type, members, facts, diagnostics);
 
-        string collectionFormatter = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
-            ? facts.Resolver.ResolveCollection(type) ?? ""
-            : "";
+        var collection = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
+            ? facts.Resolver.ResolveCollection(type)
+            : null;
+        string collectionFormatter = collection?.Code ?? "";
+        if (collection is { } c)
+            factories.AddRange(c.Factories);
 
         if (construction.Recreate)
         {
@@ -194,6 +199,11 @@ internal static class ModelBuilder
             new EquatableArray<MemberModel>(members),
             construction,
             new EquatableArray<FormatterRegistration>(used),
+            // Generic types name no closed collection types; their formatters resolve creators at runtime.
+            generic || kind == FormatterKind.Polymorphic
+                ? EquatableArray<FactoryRegistration>.Empty
+                : new EquatableArray<FactoryRegistration>(factories.Distinct()
+                    .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
             pooled,
             partialNamespace,
             new EquatableArray<string>(partialDeclarations));
@@ -248,7 +258,7 @@ internal static class ModelBuilder
     }
 
     private static MemberModel? BuildMember(INamedTypeSymbol type, ISymbol symbol, TypeFacts facts,
-        DiagnosticSink? diagnostics, ref bool needsPartialAccessor)
+        DiagnosticSink? diagnostics, ref bool needsPartialAccessor, List<FactoryRegistration> factories)
     {
         var memberType = MemberCollector.MemberType(symbol)?.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         if (memberType == null)
@@ -262,15 +272,15 @@ internal static class ModelBuilder
         {
             if (!known.IsCustomFormatterOf(customType, memberType))
                 return null; // NINO008, reported by the analyzer
-            formatter = customType.IsValueType
-                ? Global(customType)
-                : $"{Core}CustomFormatter<{Global(memberType)}, {Global(customType)}>";
+            formatter = Global(customType);
         }
         else
         {
             var resolved = facts.Resolver.Resolve(memberType, NinoSymbols.Has(symbol, known.Utf8));
             formatter = resolved?.Code;
             registered = resolved?.Registered == true;
+            if (resolved is { } r)
+                factories.AddRange(r.Factories);
         }
 
         if (formatter == null)

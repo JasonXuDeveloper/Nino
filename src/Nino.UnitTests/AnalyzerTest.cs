@@ -881,16 +881,16 @@ public class Derived : AbstractBase
         var code = @"
 using Nino.Core;
 
-public class StringFormatter : NinoFormatter<string>
+public struct StringFormatter : INinoFormatter<string>
 {
-    public override void Serialize(string value, ref Writer writer) { }
-    public override void Deserialize(ref string value, ref Reader reader) { }
+    public void Serialize(string value, ref Writer writer) { }
+    public void Deserialize(ref string value, ref Reader reader) { }
 }
 
-public class IntFormatter : NinoFormatter<int>
+public struct IntFormatter : INinoFormatter<int>
 {
-    public override void Serialize(int value, ref Writer writer) { }
-    public override void Deserialize(ref int value, ref Reader reader) { }
+    public void Serialize(int value, ref Writer writer) { }
+    public void Deserialize(ref int value, ref Reader reader) { }
 }
 
 public class NotAFormatter
@@ -917,49 +917,41 @@ public class TestClass
     }
 
     [TestMethod]
-    public async Task NINO008_PropertiesDerivedAndStructFormatters()
+    public async Task NINO008_CustomFormattersAreStructsOfTheMemberType()
     {
         var code = @"
 using Nino.Core;
 
-public class IntFormatter : NinoFormatter<int>
-{
-    public override void Serialize(int value, ref Writer writer) { }
-    public override void Deserialize(ref int value, ref Reader reader) { }
-}
-
-public class DerivedIntFormatter : IntFormatter
-{
-}
-
-public class NullableIntFormatter : NinoFormatter<int?>
-{
-    public override void Serialize(int? value, ref Writer writer) { }
-    public override void Deserialize(ref int? value, ref Reader reader) { }
-}
-
-public struct StructIntFormatter : INinoFormatter<int>
+public struct IntFormatter : INinoFormatter<int>
 {
     public void Serialize(int value, ref Writer writer) { }
     public void Deserialize(ref int value, ref Reader reader) { }
 }
 
-public abstract class AbstractIntFormatter : NinoFormatter<int>
+public struct NullableIntFormatter : INinoFormatter<int?>
 {
+    public void Serialize(int? value, ref Writer writer) { }
+    public void Deserialize(ref int? value, ref Reader reader) { }
 }
 
-public class NoDefaultCtorFormatter : NinoFormatter<int>
+// A class implementing the interface is not accepted: custom formatters are inlined structs.
+public sealed class ClassIntFormatter : INinoFormatter<int>
 {
-    public NoDefaultCtorFormatter(int scale) { }
-    public override void Serialize(int value, ref Writer writer) { }
-    public override void Deserialize(ref int value, ref Reader reader) { }
+    public void Serialize(int value, ref Writer writer) { }
+    public void Deserialize(ref int value, ref Reader reader) { }
+}
+
+public struct GenericFormatter<T> : INinoFormatter<T>
+{
+    public void Serialize(T value, ref Writer writer) { }
+    public void Deserialize(ref T value, ref Reader reader) { }
 }
 
 [NinoType]
 public class TestClass
 {
-    [NinoCustomFormatter(typeof(DerivedIntFormatter))]
-    public int Derived { get; set; }
+    [NinoCustomFormatter(typeof(IntFormatter))]
+    public int Property { get; set; }
 
     [NinoCustomFormatter(typeof(NullableIntFormatter))]
     public int {|#0:Nullable|} { get; set; }
@@ -967,27 +959,26 @@ public class TestClass
     [NinoCustomFormatterAttribute(typeof(IntFormatter))]
     public int? {|#1:NullableMember|};
 
-    [NinoCustomFormatter(typeof(StructIntFormatter))]
-    public int Struct;
+    [NinoCustomFormatter(typeof(IntFormatter))]
+    public long {|#2:WrongType|};
 
-    [NinoCustomFormatter(typeof(StructIntFormatter))]
-    public long {|#2:StructWrongType|};
+    [NinoCustomFormatter(typeof(ClassIntFormatter))]
+    public int {|#3:Class|};
 
-    [NinoCustomFormatter(typeof(AbstractIntFormatter))]
-    public int {|#3:Abstract|};
+    [NinoCustomFormatter(typeof(GenericFormatter<int>))]
+    public int Generic;
 
-    [NinoCustomFormatter(typeof(NoDefaultCtorFormatter))]
-    public int {|#4:NoDefaultCtor|};
+    [NinoCustomFormatter(typeof(GenericFormatter<>))]
+    public int {|#4:Open|};
 }
 ";
 
-        // Exactly the member type; a struct INinoFormatter<T> is called directly, a class needs to be constructible.
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("NullableIntFormatter", "int"),
             Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("IntFormatter", "int?"),
-            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("StructIntFormatter", "long"),
-            Verify.Diagnostic("NINO008").WithLocation(3).WithArguments("AbstractIntFormatter", "int"),
-            Verify.Diagnostic("NINO008").WithLocation(4).WithArguments("NoDefaultCtorFormatter", "int")).RunAsync();
+            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("IntFormatter", "long"),
+            Verify.Diagnostic("NINO008").WithLocation(3).WithArguments("ClassIntFormatter", "int"),
+            Verify.Diagnostic("NINO008").WithLocation(4).WithArguments("GenericFormatter<>", "int")).RunAsync();
     }
 
     [TestMethod]
@@ -1963,10 +1954,10 @@ using Nino.Core;
 
 public sealed class Box<T> { public T Value; }
 
-public class ClassFormatter : NinoFormatter<int>
+public class ClassFormatter : INinoFormatter<int>
 {
-    public override void Serialize(int value, ref Writer writer) { }
-    public override void Deserialize(ref int value, ref Reader reader) { }
+    public void Serialize(int value, ref Writer writer) { }
+    public void Deserialize(ref int value, ref Reader reader) { }
 }
 
 public struct NotAFormatter { }

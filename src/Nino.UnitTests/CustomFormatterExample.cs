@@ -1,8 +1,7 @@
 using Nino.Core;
 
 namespace Nino.UnitTests;
-// Example showing the new high-performance singleton-based custom formatter system
-// This eliminates runtime lookups, provides compile-time type safety, and uses cached singletons
+// Custom formatters are structs implementing INinoFormatter<T>: generated code calls them as default(F), inlined.
 
 /// <summary>
 /// Custom type that needs special serialization
@@ -13,14 +12,10 @@ public struct SpecialValue
     public string Label { get; set; }
 }
 
-/// <summary>
-/// High-performance custom formatter for SpecialValue.
-/// Inherits from NinoFormatter{T} and provides strongly-typed methods.
-/// Singleton instance is automatically provided by the base class - no manual declaration needed!
-/// </summary>
-public class SpecialValueFormatter : NinoFormatter<SpecialValue>
+/// <summary>Custom formatter for SpecialValue: the value, the label length, then the label as UTF-8.</summary>
+public struct SpecialValueFormatter : INinoFormatter<SpecialValue>
 {
-    public override void Serialize(SpecialValue value, ref Writer writer)
+    public void Serialize(SpecialValue value, ref Writer writer)
     {
         // Custom logic: serialize as value + label length + label
         writer.Write(value.Value);
@@ -31,7 +26,7 @@ public class SpecialValueFormatter : NinoFormatter<SpecialValue>
         }
     }
 
-    public override void Deserialize(ref SpecialValue value, ref Reader reader)
+    public void Deserialize(ref SpecialValue value, ref Reader reader)
     {
         reader.Read(out int intValue);
         reader.Read(out int labelLength);
@@ -46,13 +41,10 @@ public class SpecialValueFormatter : NinoFormatter<SpecialValue>
     }
 }
 
-/// <summary>
-/// High-performance custom formatter for compact integer encoding.
-/// Singleton is automatically managed by NinoFormatterInstance - no manual work required!
-/// </summary>
-public class CompactIntFormatter : NinoFormatter<int>
+/// <summary>Custom formatter for compact integer encoding (a varint).</summary>
+public struct CompactIntFormatter : INinoFormatter<int>
 {
-    public override void Serialize(int value, ref Writer writer)
+    public void Serialize(int value, ref Writer writer)
     {
         // Simple variable-length integer encoding
         while (value >= 0x80)
@@ -64,7 +56,7 @@ public class CompactIntFormatter : NinoFormatter<int>
         writer.Write((byte)value);
     }
 
-    public override void Deserialize(ref int value, ref Reader reader)
+    public void Deserialize(ref int value, ref Reader reader)
     {
         value = 0;
         int shift = 0;
@@ -113,22 +105,17 @@ public struct ZigZagLongFormatter : INinoFormatter<long>
     }
 }
 
-/// <summary>
-/// Example type using the new singleton-based custom formatters
-/// </summary>
+/// <summary>Example type using custom formatters.</summary>
 [NinoType]
 public class ExampleWithCustomFormatters
 {
     public int NormalField;
 
-    // This field uses the new singleton-based formatter - maximum performance!
-    // Cached singleton instance + direct method calls = zero overhead
     [NinoCustomFormatter(typeof(SpecialValueFormatter))]
     public SpecialValue CustomField;
 
     public string NormalString;
 
-    // Another custom field with singleton formatter
     [NinoCustomFormatter(typeof(CompactIntFormatter))]
     public int CompactInt;
 }

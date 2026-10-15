@@ -24,11 +24,12 @@ namespace Nino.Core.Internal
     internal static class ListAccess
     {
         /// <summary>
-        /// A new, empty <typeparamref name="TList"/>; a plain <see cref="List{T}"/> gets <paramref name="capacity"/>.
+        /// A new, empty <typeparamref name="TList"/> (through <see cref="NinoFactory{T}"/>); a plain
+        /// <see cref="List{T}"/> gets <paramref name="capacity"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static TList Create<TList, T>(int capacity) where TList : List<T>, new() =>
-            typeof(TList) == typeof(List<T>) ? (TList)new List<T>(capacity) : new TList();
+        public static TList Create<TList, T>(int capacity) where TList : List<T> =>
+            typeof(TList) == typeof(List<T>) ? (TList)new List<T>(capacity) : NinoFactory<TList>.Create();
 
         /// <summary>The list's elements as a span. Do not add or remove items while using it.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

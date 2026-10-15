@@ -43,10 +43,12 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// Base class for class-based formatters, used where the formatter has to be resolved at runtime
-    /// (<see cref="NinoFormatterCache{T}"/>) and for custom formatters that need state.
+    /// The formatter of <typeparamref name="T"/> held by <see cref="NinoFormatterCache{T}"/>, for code that only finds
+    /// it at runtime (top-level calls, <see cref="CachedFormatter{T}"/>): a <see cref="StructFormatter{T,TFormatter}"/>
+    /// around a struct formatter, called virtually. Every formatter users write is a struct
+    /// <see cref="INinoFormatter{T}"/>; this class is only the dispatch carrier and is not part of the API.
     /// </summary>
-    public abstract class NinoFormatter<T> : INinoFormatter<T>
+    internal abstract class NinoFormatter<T> : INinoFormatter<T>
     {
         public abstract void Serialize(T value, ref Writer writer);
 
@@ -98,7 +100,7 @@ namespace Nino.Core
     }
 
     /// <summary>Wraps a struct formatter as a <see cref="NinoFormatter{T}"/>.</summary>
-    public sealed class StructFormatter<T, TFormatter> : NinoFormatter<T>
+    internal sealed class StructFormatter<T, TFormatter> : NinoFormatter<T>
         where TFormatter : struct, INinoFormatter<T>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -126,20 +128,5 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T value, ref Reader reader) =>
             NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
-    }
-
-    /// <summary>
-    /// Adapts a custom class formatter (<c>[NinoCustomFormatter(typeof(F))]</c> where <c>F : NinoFormatter&lt;T&gt;</c>)
-    /// to the struct formatter pattern. <typeparamref name="TCustom"/> is instantiated once.
-    /// </summary>
-    public struct CustomFormatter<T, TCustom> : INinoFormatter<T> where TCustom : NinoFormatter<T>, new()
-    {
-        private static readonly TCustom Instance = new TCustom();
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(T value, ref Writer writer) => Instance.Serialize(value, ref writer);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T value, ref Reader reader) => Instance.Deserialize(ref value, ref reader);
     }
 }

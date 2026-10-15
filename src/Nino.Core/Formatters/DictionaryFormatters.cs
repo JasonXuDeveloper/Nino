@@ -118,7 +118,11 @@ namespace Nino.Core
         {
             var read = new HashSet<TKey>(dictionary.Comparer);
             for (int i = 0; i < count; i++)
-                read.Add(keys[i]);
+            {
+                if (!read.Add(keys[i]))
+                    NinoThrow.DuplicateKey(dictionary.GetType());
+            }
+
             var stale = new List<KeyValuePair<TKey, TValue>>(dictionary.Count - read.Count);
             foreach (var pair in dictionary)
             {
@@ -134,13 +138,20 @@ namespace Nino.Core
         /// <summary>Reads <paramref name="length"/> pairs into <paramref name="dictionary"/>.</summary>
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
+            // The count grows by one per pair; a key the data repeats (under the dictionary's comparer) does not.
+            int expected = dictionary.Count;
             if (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is)
             {
                 int keySize = Unsafe.SizeOf<TKey>();
                 int pairSize = keySize + Unsafe.SizeOf<TValue>();
                 ref byte src = ref reader.ReadBlock(length * pairSize);
                 for (int i = 0, offset = 0; i < length; i++, offset += pairSize)
+                {
                     dictionary[NinoUnsafe.Read<TKey>(ref src, offset)] = NinoUnsafe.Read<TValue>(ref src, offset + keySize);
+                    if (dictionary.Count == expected++)
+                        NinoThrow.DuplicateKey(dictionary.GetType());
+                }
+
                 return;
             }
 
@@ -151,6 +162,8 @@ namespace Nino.Core
                 default(TKeyFormatter).Deserialize(ref key, ref reader);
                 default(TValueFormatter).Deserialize(ref item, ref reader);
                 dictionary[key] = item;
+                if (dictionary.Count == expected++)
+                    NinoThrow.DuplicateKey(dictionary.GetType());
             }
         }
     }
@@ -197,9 +210,9 @@ namespace Nino.Core
     /// A type derived from <c>Dictionary&lt;TKey, TValue&gt;</c>: count (-1 = null), then key/value pairs. An existing
     /// dictionary is refilled in place (merged by key), keeping its comparer.
     /// </summary>
-    public struct DictionaryFormatter<TDictionary, TKey, TValue, TKeyFormatter, TValueFormatter>
+    public struct DictionaryFormatter<[NinoCreated] TDictionary, TKey, TValue, TKeyFormatter, TValueFormatter>
         : INinoFormatter<TDictionary>
-        where TDictionary : Dictionary<TKey, TValue>, new()
+        where TDictionary : Dictionary<TKey, TValue>
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
@@ -220,18 +233,18 @@ namespace Nino.Core
                 return;
             }
 
-            value ??= new TDictionary();
+            value ??= NinoFactory<TDictionary>.Create();
             NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref reader);
         }
     }
 
     /// <summary>
-    /// Any <c>IDictionary&lt;TKey, TValue&gt;</c> with a parameterless constructor (<c>SortedDictionary</c>,
+    /// Any <c>IDictionary&lt;TKey, TValue&gt;</c> Nino can create (<c>SortedDictionary</c>,
     /// <c>SortedList</c>, <c>ConcurrentDictionary</c>, user dictionaries...): count (-1 = null), then key/value pairs.
     /// </summary>
-    public struct DictionaryLikeFormatter<TDictionary, TKey, TValue, TKeyFormatter, TValueFormatter>
+    public struct DictionaryLikeFormatter<[NinoCreated] TDictionary, TKey, TValue, TKeyFormatter, TValueFormatter>
         : INinoFormatter<TDictionary>
-        where TDictionary : class, IDictionary<TKey, TValue>, new()
+        where TDictionary : class, IDictionary<TKey, TValue>
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
@@ -255,13 +268,11 @@ namespace Nino.Core
                 return;
             }
 
-            var dictionary = value;
-            if (dictionary == null)
-            {
-                dictionary = new TDictionary();
-                value = dictionary;
-            }
-            else
+            var dictionary = value ??= NinoFactory<TDictionary>.Create();
+            if (dictionary.IsReadOnly)
+                NinoThrow.ReadOnlyCollection(dictionary.GetType());
+            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
+            if (dictionary.Count != 0)
             {
                 NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
                 dictionary.Clear();
@@ -274,6 +285,8 @@ namespace Nino.Core
                 default(TKeyFormatter).Deserialize(ref key, ref reader);
                 default(TValueFormatter).Deserialize(ref item, ref reader);
                 dictionary[key] = item;
+                if (dictionary.Count != i + 1)
+                    NinoThrow.DuplicateKey(dictionary.GetType());
             }
         }
     }

@@ -85,17 +85,20 @@ internal static class RegistryEmitter
         return w.ToString();
     }
 
-    public static string EmitUsages(IEnumerable<FormatterRegistration> usages)
+    public static string EmitUsages(IEnumerable<FormatterRegistration> usages, IEnumerable<FactoryRegistration> factories)
     {
         var w = new CodeWriter();
         w.Raw(FormatterEmitter.Header);
         w.Open($"namespace {GenNamespace}");
         w.Open($"internal static class {UsagesClass}");
         w.Line("/// <summary>Registers the closed built-in formatters whose type has id <paramref name=\"id\"/>.</summary>");
+        // Formatters first, then creators, each in their own (sorted) order.
+        var statements = usages
+            .Select(u => (u.Id, Code: $"{Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();"))
+            .Concat(factories.Select(f => (f.Id, Code: $"{Core}NinoFactory<{f.TypeName}>.TryRegister({f.Creator});")));
         EmitIdDispatch(w, "internal static", "",
-            usages.GroupBy(u => u.Id).OrderBy(g => g.Key)
-                .Select(g => new KeyValuePair<int, List<string>>(g.Key,
-                    g.Select(u => $"{Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();").ToList()))
+            statements.GroupBy(u => u.Id).OrderBy(g => g.Key)
+                .Select(g => new KeyValuePair<int, List<string>>(g.Key, g.Select(u => u.Code).ToList()))
                 .ToList());
         w.Close();
         w.Close();

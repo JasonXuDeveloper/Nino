@@ -9,8 +9,8 @@ namespace Nino.Core
     /// <c>List&lt;T&gt;</c> (or a type derived from it): count (-1 = null), then the elements.
     /// An existing list is reused, and its elements are reused by index.
     /// </summary>
-    public struct ListFormatter<TList, T, TFormatter> : INinoFormatter<TList>
-        where TList : List<T>, new()
+    public struct ListFormatter<[NinoCreated] TList, T, TFormatter> : INinoFormatter<TList>
+        where TList : List<T>
         where TFormatter : struct, INinoFormatter<T>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -40,16 +40,17 @@ namespace Nino.Core
             var list = value;
             if (list == null)
                 value = list = ListAccess.Create<TList, T>(length);
-            else if (list.Count > length)
-                NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length)); // the dropped tail
+            // The dropped tail (a factory may hand out a pooled list that is not empty: treated the same way).
+            if (list.Count > length)
+                NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length));
 
             NinoElements.Read<T, TFormatter>(ListAccess.SetCount<T>(list, length), ref reader);
         }
     }
 
     /// <summary>Unmanaged <c>List&lt;T&gt;</c>: count (-1 = null), then one block copy.</summary>
-    public struct UnmanagedListFormatter<TList, T> : INinoFormatter<TList>
-        where TList : List<T>, new()
+    public struct UnmanagedListFormatter<[NinoCreated] TList, [NinoRaw] T> : INinoFormatter<TList>
+        where TList : List<T>
         where T : unmanaged
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -80,8 +81,8 @@ namespace Nino.Core
     }
 
     /// <summary><c>List&lt;T?&gt;</c> of raw <typeparamref name="T"/>: same bytes as the per-element encoding.</summary>
-    public struct NullableListFormatter<TList, T> : INinoFormatter<TList>
-        where TList : List<T?>, new()
+    public struct NullableListFormatter<[NinoCreated] TList, [NinoRaw] T> : INinoFormatter<TList>
+        where TList : List<T?>
         where T : unmanaged
     {
         public void Serialize(TList value, ref Writer writer)

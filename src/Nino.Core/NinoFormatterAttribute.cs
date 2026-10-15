@@ -16,8 +16,15 @@ namespace Nino.Core
     /// against the bound type, its base types or its interfaces;</item>
     /// <item>a parameter constrained to <c>INinoFormatter&lt;E&gt;</c> is bound to the formatter Nino resolves for
     /// <c>E</c>, so element formatters compose (and inline: they are structs);</item>
-    /// <item><c>unmanaged</c> means Nino copies the values as raw memory (portable unmanaged types: no
-    /// <c>Nullable</c>, tuples, <c>nint</c> or <c>DateTimeOffset</c>).</item>
+    /// <item>constraints keep their C# meaning (<c>class</c>, <c>struct</c>, <c>unmanaged</c>, <c>new()</c>);</item>
+    /// <item><see cref="NinoRawAttribute"/> on a parameter (<c>[NinoRaw] T</c>, with <c>where T : unmanaged</c>): Nino
+    /// copies the values as raw memory, so the bound type must be one Nino writes as raw bytes (portable unmanaged
+    /// types: no <c>Nullable</c>, tuples, <c>nint</c> or <c>DateTimeOffset</c>);</item>
+    /// <item><see cref="NinoCreatedAttribute"/> on a parameter (<c>[NinoCreated] TCollection</c>): the formatter
+    /// creates instances through <see cref="NinoFactory{T}.Create"/>, so the bound type must be a non-abstract class
+    /// with a public static <see cref="NinoRefDeserializationAttribute"/> factory or a public constructor callable
+    /// without arguments. Use it instead of <c>new()</c>, which admits only parameterless constructors and compiles to
+    /// <c>Activator.CreateInstance&lt;T&gt;()</c>.</item>
     /// </list>
     /// </para>
     /// <para>
