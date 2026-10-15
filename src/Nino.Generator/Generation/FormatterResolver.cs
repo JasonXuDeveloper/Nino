@@ -162,7 +162,7 @@ internal sealed class FormatterResolver
                 case "System.Collections.Generic.List`1":
                     return List(t, args[0], utf8);
                 case "System.Collections.Generic.Dictionary`2":
-                    return $"{Core}DictionaryFormatter<{t}, {a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
+                    return $"{Core}DictionaryFormatter<{a[0]}, {a[1]}, {Element(args[0], utf8)}, {Element(args[1], utf8)}>";
                 case "System.Collections.Generic.HashSet`1":
                     return $"{Core}HashSetFormatter<{t}, {a[0]}, {Element(args[0], utf8)}>";
                 case "System.Collections.Generic.Queue`1":

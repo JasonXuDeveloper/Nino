@@ -5,23 +5,16 @@ using System.Runtime.CompilerServices;
 namespace Nino.Core
 {
     /// <summary>
-    /// <c>Dictionary&lt;TKey, TValue&gt;</c> (or a type derived from it): count (-1 = null), then key/value pairs.
-    /// An existing dictionary is cleared and refilled, keeping its comparer.
+    /// Pair loops of <c>Dictionary&lt;TKey, TValue&gt;</c>, generic over the key and value types only: with value-type
+    /// keys and values this is fully specialized code, whereas a dictionary type parameter (a reference type)
+    /// would make every call shared generic code with run-time lookups.
     /// </summary>
-    public struct DictionaryFormatter<TDictionary, TKey, TValue, TKeyFormatter, TValueFormatter>
-        : INinoFormatter<TDictionary>
-        where TDictionary : Dictionary<TKey, TValue>, new()
+    internal static class NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
-        public void Serialize(TDictionary value, ref Writer writer)
+        public static void Write(Dictionary<TKey, TValue> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
-                return;
-            }
-
             if (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is)
             {
                 // Raw keys and values: one reservation for the whole dictionary, no per-element bounds checks.
@@ -54,34 +47,27 @@ namespace Nino.Core
             }
         }
 
-        public void Deserialize(ref TDictionary value, ref Reader reader)
+        /// <summary>Reads the pair count, validated against the remaining bytes (-1 for null).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int ReadLength(ref Reader reader) =>
+            reader.ReadLength(RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is
+                ? Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()
+                : 1);
+
+        /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/> pairs.</summary>
+        public static void Reset(Dictionary<TKey, TValue> dictionary, int length)
         {
-            bool raw = RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is;
-            int length = reader.ReadLength(raw ? Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>() : 1);
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
-                return;
-            }
-
-            var dictionary = value;
-            if (dictionary == null)
-            {
-                dictionary = typeof(TDictionary) == typeof(Dictionary<TKey, TValue>)
-                    ? (TDictionary)new Dictionary<TKey, TValue>(length)
-                    : new TDictionary();
-                value = dictionary;
-            }
-            else
-            {
-                NinoCollections.RecycleItems<TKey, TValue>(dictionary);
-                dictionary.Clear();
-            }
-
+            NinoCollections.RecycleItems<TKey, TValue>(dictionary);
+            dictionary.Clear();
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
             dictionary.EnsureCapacity(length);
 #endif
-            if (raw)
+        }
+
+        /// <summary>Reads <paramref name="length"/> pairs into <paramref name="dictionary"/>.</summary>
+        public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
+        {
+            if (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is)
             {
                 int keySize = Unsafe.SizeOf<TKey>();
                 int pairSize = keySize + Unsafe.SizeOf<TValue>();
@@ -99,6 +85,74 @@ namespace Nino.Core
                 default(TValueFormatter).Deserialize(ref item, ref reader);
                 dictionary[key] = item;
             }
+        }
+    }
+
+    /// <summary>
+    /// <c>Dictionary&lt;TKey, TValue&gt;</c>: count (-1 = null), then key/value pairs. An existing dictionary is
+    /// cleared and refilled, keeping its comparer.
+    /// </summary>
+    public struct DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>
+        : INinoFormatter<Dictionary<TKey, TValue>>
+        where TKeyFormatter : struct, INinoFormatter<TKey>
+        where TValueFormatter : struct, INinoFormatter<TValue>
+    {
+        public void Serialize(Dictionary<TKey, TValue> value, ref Writer writer)
+        {
+            if (value == null)
+                writer.WriteNullLength();
+            else
+                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Write(value, ref writer);
+        }
+
+        public void Deserialize(ref Dictionary<TKey, TValue> value, ref Reader reader)
+        {
+            int length = NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.ReadLength(ref reader);
+            if (length < 0)
+            {
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            if (value == null)
+                value = new Dictionary<TKey, TValue>(length);
+            else
+                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Reset(value, length);
+            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(value, length, ref reader);
+        }
+    }
+
+    /// <summary>
+    /// A type derived from <c>Dictionary&lt;TKey, TValue&gt;</c>: count (-1 = null), then key/value pairs. An existing
+    /// dictionary is cleared and refilled, keeping its comparer.
+    /// </summary>
+    public struct DictionaryFormatter<TDictionary, TKey, TValue, TKeyFormatter, TValueFormatter>
+        : INinoFormatter<TDictionary>
+        where TDictionary : Dictionary<TKey, TValue>, new()
+        where TKeyFormatter : struct, INinoFormatter<TKey>
+        where TValueFormatter : struct, INinoFormatter<TValue>
+    {
+        public void Serialize(TDictionary value, ref Writer writer)
+        {
+            if (value == null)
+                writer.WriteNullLength();
+            else
+                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Write(value, ref writer);
+        }
+
+        public void Deserialize(ref TDictionary value, ref Reader reader)
+        {
+            int length = NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.ReadLength(ref reader);
+            if (length < 0)
+            {
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            if (value == null)
+                value = new TDictionary();
+            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Reset(value, length);
+            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(value, length, ref reader);
         }
     }
 

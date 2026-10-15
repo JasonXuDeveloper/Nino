@@ -71,13 +71,14 @@ same for all three (e.g. `SimpleClass`: 1,146 bytes in v4, 1,148 in MemoryPack).
 | Polymorphic class | 26.5 µs | 13.3 µs | 29.6 µs | **2.00× faster** | **2.23× faster** |
 | Polymorphic class array | 235 µs | 115 µs | 390 µs | **2.04× faster** | **3.39× faster** |
 | Polymorphic `Foo[]` | 23.0 µs | 11.8 µs | 32.1 µs | **1.94× faster** | **2.71× faster** |
-| `SimpleStruct` (`int` + `DateTime`) | 3.6 ns | 4.3 ns | 4.8 ns | 0.85× | 1.13× faster |
+| `SimpleStruct` (`int` + `DateTime`) | 3.6 ns | 2.0 ns | 5.0 ns | **1.8× faster** | **2.5× faster** |
 | `SimpleStruct[100]` | 32.0 ns | 28.5 ns | 27.3 ns | 1.12× faster | 0.96× (on par) |
 | `Vector4[10000]` | 3.89 µs | 3.86 µs | 3.80 µs | on par | on par |
 
 `SimpleStruct` has 4 bytes of padding. v4 zeroes it, so the output is deterministic; v3 and MemoryPack copy
-whatever the padding contains. With the masked SIMD copy this costs nothing measurable on arrays, and well
-under a nanosecond for a single value.
+whatever the padding contains. With the masked SIMD copy this costs nothing measurable on arrays, and a
+single value's padding is cleared by one or two inlined constant stores. (`SimpleStruct` was re-measured after
+that change; the other rows are from the run above.)
 
 ### Deserialize (new instances)
 
@@ -92,10 +93,13 @@ under a nanosecond for a single value.
 | `Vector4[10000]` | 122 µs | 122 µs | 121 µs | on par |
 
 Deserialization is dominated by allocating the result objects, which is identical for all three (same bytes
-allocated per call), and server-GC noise is about ±7% here. An interleaved A/B run of v3 and v4 on the
-same data (best of 15) puts them within that noise (`SimpleClass`: 621–666 ns for v3 and 552–665 ns for v4),
-so v4 deserializes as fast as v3 while adding reference tracking, ref deserialization with pool recycling,
-version tolerance and payload validation.
+allocated per call), and server-GC noise is about ±7% here. To see how much is left, the A/B harness also
+builds the same object graph by hand (`new SimpleClass`, strings copied from spans, the same arrays, list and
+dictionaries filled with the same entries): that floor takes 518–636 ns, and v4 deserializes `SimpleClass` in
+602–662 ns, within 5–15% of it (the difference is mostly decoding the UTF-8 member). v3 sits at the same
+place. Deserializing classes is therefore bound by allocation, not by the serializer: v4 matches v3 while
+adding reference tracking, ref deserialization with pool recycling, version tolerance and payload validation,
+and stays 1.2–1.5× ahead of MemoryPack.
 
 Neither serializer allocates on the serialize paths above (0 B per call), and deserialization allocates only
 the result objects.
@@ -120,7 +124,12 @@ the result objects.
   every other store), the loop is unrolled 4×, and the unaligned head and tail vectors overlap the body.
   The result costs the same as a plain `memcpy`.
 * **Store-only padding for single values.** A single padded value is written, then its padding runs are
-  zeroed with plain stores, never read back.
+  zeroed with plain stores, never read back. The first two runs are `static readonly` offsets and lengths, so
+  the JIT emits them as one or two constant stores, inlined.
+* **Collection loops specialized on element types.** Pair loops of `Dictionary<TKey, TValue>` live in a helper
+  generic over the key and value types only (the dictionary type itself would be a reference-type parameter,
+  making the whole loop shared generic code); exact `Dictionary<,>` members get a formatter without the
+  dictionary type parameter, which also shortens generated code.
 * **Specialized code behind shared generics.** `Serialize<T>` of an array is shared code (arrays are
   reference types), where each static access is a dictionary lookup. The raw array path looks up one object
   and lets the array formatter, compiled for the element type, do the write.

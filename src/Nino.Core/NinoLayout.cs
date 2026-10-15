@@ -277,6 +277,9 @@ namespace Nino.Core
         private readonly int _vectorPeriod;
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
 
+        /// <summary>(offset, length) of each run of cleared bytes in one element.</summary>
+        public int[] Gaps => _gaps;
+
         /// <summary>Returns a mask, or null when <paramref name="mask"/> keeps every byte.</summary>
         public static NinoMask? Create(byte[] mask) =>
             Array.IndexOf(mask, (byte)0) < 0 ? null : new NinoMask(mask);
@@ -421,7 +424,8 @@ namespace Nino.Core
             }
         }
 
-        private static void Zero(ref byte destination, int length)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void Zero(ref byte destination, int length)
         {
             switch (length)
             {
@@ -487,9 +491,26 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ClearPadding(ref byte destination, int count = 1)
         {
-            if (HasPadding)
-                Mask!.Clear(ref destination, count);
+            if (!HasPadding)
+                return;
+            // A single value with at most two padding runs (the usual case): constant stores, inlined.
+            if (count == 1 && GapCount <= 2)
+            {
+                NinoMask.Zero(ref Unsafe.Add(ref destination, Gap0Offset), Gap0Length);
+                if (GapCount == 2)
+                    NinoMask.Zero(ref Unsafe.Add(ref destination, Gap1Offset), Gap1Length);
+                return;
+            }
+
+            Mask!.Clear(ref destination, count);
         }
+
+        // The first two padding runs, as JIT-time constants for single values.
+        private static readonly int GapCount = Mask == null ? 0 : Mask.Gaps.Length / 2;
+        private static readonly int Gap0Offset = GapCount > 0 ? Mask!.Gaps[0] : 0;
+        private static readonly int Gap0Length = GapCount > 0 ? Mask!.Gaps[1] : 0;
+        private static readonly int Gap1Offset = GapCount > 1 ? Mask!.Gaps[2] : 0;
+        private static readonly int Gap1Length = GapCount > 1 ? Mask!.Gaps[3] : 0;
 
         /// <summary>
         /// Copies <paramref name="count"/> canonical values to the wire, padding cleared in the same pass (masking

@@ -315,7 +315,7 @@ namespace Nino.Core
             if (definition == typeof(List<>))
                 return ListFormatter(type, args[0]);
             if (definition == typeof(Dictionary<,>))
-                return typeof(DictionaryFormatter<,,,,>).MakeGenericType(type, args[0], args[1],
+                return typeof(DictionaryFormatter<,,,>).MakeGenericType(args[0], args[1],
                     ElementFormatter(args[0]), ElementFormatter(args[1]));
             if (definition == typeof(HashSet<>))
                 return typeof(HashSetFormatter<,,>).MakeGenericType(type, args[0], ElementFormatter(args[0]));
