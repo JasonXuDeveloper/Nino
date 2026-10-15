@@ -412,17 +412,28 @@ Cache-line reasoning assumes 64-byte lines.
   global "default buffer" guarded by `Interlocked` (v3 bounced that line between all serializing threads).
 * Formatter lookup is a static generic field (`NinoFormatterCache<T>.Instance`), written once at
   registration and only read afterwards.
-* Polymorphic tables use 16-byte entries with the key inline (four per line) and stay at most half full,
-  so a lookup normally reads one line plus the handler it dispatches to.
+* Polymorphic tables use 16-byte entries with the key inline next to the handler (four per line) and stay at
+  most half full, so a lookup normally reads one line, which also holds the handler it dispatches to. Packing the
+  keys in an array of their own (16 ids per line) and comparing them four at a time (`Vector128`) was measured
+  and dropped: a hit then reads a second line for the handler, and at this load factor the vector setup costs
+  more than the one or two scalar compares a probe takes (`object[]` of 1,000 polymorphic items: 40 µs → 45 µs).
 * Mutable registration state (`_count`, locks) is only touched during registration, which happens at
   startup, so no padding is needed to protect the read-only tables from false sharing.
 * Consecutive unmanaged members are reserved and written as one block, and unmanaged arrays, lists and raw
   structs are single block copies, so the writer streams through the buffer line by line.
-* `NinoPool<T>` reads its generation on every take and add, next to the shared stack's count. Moving it onto a
-  padded line of its own was measured (4 threads churning 100 instances each: 23 ns per operation either way,
-  4-5 ns single threaded) and dropped: the cost there is the lock the batches take, not the shared line.
+* `NinoPool<T>` reads its generation (and warmup flag) on every take and add. They sit on a 64-byte line of their
+  own (`NinoPoolLine`, a non-generic explicit-layout base class, since generic classes cannot have one: 56 bytes
+  of padding before and after), away from the shared stack's count and lock, which batch transfers write, and
+  from neighbouring objects. Measured with 4 threads churning 100 instances each, the cost there is the lock
+  itself; the padding is kept so the fast path never shares a line with a writer.
+* No static field is written on a hot path: formatter instances, the `Replaced` flag, `NinoRecycler.PoolsInUse`
+  are written once; scratch buffers and reference tables are thread-static.
 * Raw-key/raw-value dictionaries, unmanaged arrays and `T?[]` read and write with one bounds check for the whole
   collection; masked copies (padding cleared) use vectors with aligned stores (see `NinoMask`).
+* `bool` arrays and lists are block copies, like every raw array: bytes other than 0 or 1 (corrupt or foreign
+  data) are not normalized. A fused copy-and-normalize pass (vector unsigned minimum with 1, 512/256-bit, unrolled)
+  was measured and dropped: on par for short arrays but twice the time of the runtime's `memcpy` on long ones
+  (10,000 bools: 79 ns → 155 ns), which streams faster than any load-min-store loop.
 
 ### Ref deserialization and pooling
 
@@ -582,6 +593,19 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * C# 11+ projects get a file-local `InterceptsLocationAttribute` and interceptor class; older language versions
   get internal ones.
 * Calls in generic code (`T` a type parameter) are left alone: the interceptor would be shared code too.
+
+### Sources shared with the runtime
+
+Rules that must agree between compile time and run time live once, in Nino.Core, and are compiled into the
+generator as well (linked files, `NINO_GENERATOR` switches their namespace):
+
+* `Internal/NinoHash.cs`: the FNV-1a hash of type ids and keyed member ids.
+* `NinoWire.cs`: the wire constants generated code writes (null type id, length and key sizes...).
+* `Internal/NinoLayoutCore.cs`: the struct layout algorithm (leaves, alignment caps, `Pack`, `Size`, explicit
+  offsets). The runtime runs it over `System.Type` to get the wire layout and this runtime's memory layout; the
+  generator runs it over `ITypeSymbol` under the 64-bit and 32-bit models to decide whether a struct's memory is
+  the same everywhere (and so can be written inline as raw bytes). Each side supplies a small view of its type
+  system (`INinoLayoutView<TType>`).
 
 ### Analyzer, suppressor and code fixes
 

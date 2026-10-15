@@ -9,11 +9,11 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal sealed class RawBlock
 {
-    /// <summary>Size of a keyed member's key (an int32), which its length follows.</summary>
-    private const int KeySize = 4;
+    /// <summary>Size of a keyed member's key, which its length follows.</summary>
+    private const int KeySize = NinoWire.KeySize;
 
-    /// <summary>Size of a keyed member's header: key and length, both int32.</summary>
-    private const int HeaderSize = KeySize + 4;
+    /// <summary>Size of a keyed member's header: key and length.</summary>
+    private const int HeaderSize = KeySize + NinoWire.LengthSize;
 
     private readonly List<string> _symbolic = new();
     private int _constant;

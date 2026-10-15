@@ -173,7 +173,7 @@ internal static class FormatterEmitter
         w.Line($"public void Serialize({t} value, ref {Core}Writer writer)");
         w.Indented(() => w.Line(ownId
             ? $"{{ if (!{Core}NinoObject.TryWriteOwn<{t}, {self}>(value, ref writer)) {write}; }}"
-            : $"{{ if (value == null) writer.UnsafeWrite(0); else {write}; }}"));
+            : $"{{ if (value == null) writer.UnsafeWrite({NinoWire.NullTypeId}); else {write}; }}"));
         w.Line();
         w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader)");
         w.Indented(() => w.Line(ownId

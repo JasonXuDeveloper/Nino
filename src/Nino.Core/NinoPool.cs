@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Nino.Core
@@ -38,7 +39,7 @@ namespace Nino.Core
     /// returns what it deserializes never takes a lock; a full thread stack moves half of itself to the shared
     /// stack and an empty one takes half a stack back, one lock per batch.
     /// </summary>
-    public sealed class NinoPool<T> where T : class, INinoPooled
+    public sealed class NinoPool<T> : NinoPoolLine where T : class, INinoPooled
     {
         private const int ThreadCapacity = 64;
 
@@ -46,9 +47,6 @@ namespace Nino.Core
         private T[] _items = new T[ThreadCapacity];
         private int _count;
         private int _maxRetained = NinoSettings.DefaultPoolMaxRetained;
-        private int _warmedUp;
-        // Bumped by Clear: thread stacks filled before it drop their instances.
-        private int _generation;
 
         private NinoPool()
         {
@@ -86,7 +84,7 @@ namespace Nino.Core
             {
                 Array.Clear(_items, 0, _count);
                 _count = 0;
-                Volatile.Write(ref _generation, _generation + 1);
+                Volatile.Write(ref Generation, Generation + 1);
             }
         }
 
@@ -102,7 +100,7 @@ namespace Nino.Core
         /// <summary>For generated code: true for the first caller only, which then runs the warmup.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         public bool BeginWarmup() =>
-            Volatile.Read(ref _warmedUp) == 0 && Interlocked.Exchange(ref _warmedUp, 1) == 0;
+            Volatile.Read(ref WarmedUp) == 0 && Interlocked.Exchange(ref WarmedUp, 1) == 0;
 
         /// <summary>For generated code: a pooled instance, or null when the pool is empty.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
@@ -110,7 +108,7 @@ namespace Nino.Core
         public T TryTake(ref PerThread stack)
         {
             var s = stack;
-            if (s != null && s.Count != 0 && s.Generation == _generation)
+            if (s != null && s.Count != 0 && s.Generation == Generation)
             {
                 int count = --s.Count;
                 var value = s.Items[count];
@@ -127,7 +125,7 @@ namespace Nino.Core
         public void Add(T value, ref PerThread stack)
         {
             var s = stack;
-            if (s != null && s.Count != ThreadCapacity && s.Generation == _generation)
+            if (s != null && s.Count != ThreadCapacity && s.Generation == Generation)
                 s.Items[s.Count++] = value;
             else
                 AddSlow(value, ref stack);
@@ -184,7 +182,7 @@ namespace Nino.Core
         private PerThread Current(ref PerThread stack)
         {
             var s = stack ??= new PerThread();
-            int generation = Volatile.Read(ref _generation);
+            int generation = Volatile.Read(ref Generation);
             if (s.Generation != generation)
             {
                 Array.Clear(s.Items, 0, s.Count);
@@ -200,5 +198,26 @@ namespace Nino.Core
         public static void ThrowReturnedTwice() =>
             throw new InvalidOperationException(
                 $"Nino: this {typeof(T).Name} is already in its pool; an instance can be returned once per use.");
+    }
+
+    /// <summary>
+    /// For <see cref="NinoPool{T}"/>: the fields every take and add reads, on a 64-byte cache line of their own (56
+    /// bytes of padding before them, the object header included, and 56 after), away from the shared stack's count
+    /// and the lock that batch transfers write, and from neighbouring objects. A non-generic base class, because
+    /// generic classes cannot have an explicit layout.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    [StructLayout(LayoutKind.Explicit)]
+    public abstract class NinoPoolLine
+    {
+        // Bumped by Clear: thread stacks filled before it drop their instances.
+        [FieldOffset(56)] internal int Generation;
+        [FieldOffset(60)] internal int WarmedUp;
+        [FieldOffset(120)] private int _end;
+
+        private protected NinoPoolLine()
+        {
+            _end = 0;
+        }
     }
 }

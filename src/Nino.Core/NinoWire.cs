@@ -1,4 +1,10 @@
+// Linked into Nino.Generator (as Nino.Generator.Generation.NinoWire), so the constants generated code relies on cannot
+// drift from the runtime's.
+#if NINO_GENERATOR
+namespace Nino.Generator.Generation
+#else
 namespace Nino.Core
+#endif
 {
     /// <summary>
     /// Constants of the Nino wire format. Every multi-byte value is little-endian and unaligned; there is no
@@ -9,16 +15,20 @@ namespace Nino.Core
     /// <item>Sealed classes, <c>Tuple</c>s and nullable values: a presence byte (<see cref="Null"/> or
     /// <see cref="NotNull"/>), then the value if present.</item>
     /// <item>Non-sealed classes, interfaces and <c>object</c>: an <c>int32</c> type id (<see cref="NullTypeId"/>
-    /// for null, see <see cref="NinoTypeId"/>), then the body.</item>
+    /// for null, see <c>NinoTypeId</c>), then the body.</item>
     /// <item>Types marked <c>trackReferences</c>: an <c>int32</c> reference header in front of the above
     /// (<see cref="NullReference"/>, <see cref="NewReference"/>, or the 1-based index of an object already
     /// written).</item>
+    /// <item>Keyed members: an <c>int32</c> key (<see cref="KeySize"/>), an <c>int32</c> length, then the value.</item>
     /// </list>
     /// </summary>
     internal static class NinoWire
     {
         /// <summary>Size of a length (or count) prefix: an <c>int32</c>.</summary>
         public const int LengthSize = sizeof(int);
+
+        /// <summary>Size of a keyed member's key: an <c>int32</c>.</summary>
+        public const int KeySize = sizeof(int);
 
         /// <summary>Length written for a null string, array or collection.</summary>
         public const int NullLength = -1;

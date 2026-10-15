@@ -6,6 +6,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -40,13 +41,6 @@ namespace Nino.Core
         private static readonly int DecimalAlign = Unsafe.SizeOf<DecimalProbe>() - 16;
 
         private static readonly ConcurrentDictionary<Type, Info> Cache = new ConcurrentDictionary<Type, Info>();
-
-        /// <summary>A primitive (or opaque leaf such as <c>decimal</c>) field.</summary>
-        private struct Leaf
-        {
-            public int Offset;
-            public int Size;
-        }
 
         internal sealed class Info
         {
@@ -86,10 +80,12 @@ namespace Nino.Core
         /// <summary>Layout info as a runtime with the given alignments would see it (exposed for tests).</summary>
         internal static Info Compute(Type type, int runtimeSize, int longAlign, int decimalAlign)
         {
-            var wire = new List<Leaf>();
-            var memory = new List<Leaf>();
-            if (!Measure(type, 8, 8, 0, wire, out int wireSize, out int wireAlign) ||
-                !Measure(type, longAlign, decimalAlign, 0, memory, out int memorySize, out _) ||
+            var wire = new List<NinoLayoutCore.Leaf>();
+            var memory = new List<NinoLayoutCore.Leaf>();
+            if (!NinoLayoutCore.Measure<Type, RuntimeView>(default, type, 8, 8, IntPtr.Size, 0, wire,
+                    out int wireSize, out int wireAlign) ||
+                !NinoLayoutCore.Measure<Type, RuntimeView>(default, type, longAlign, decimalAlign, IntPtr.Size, 0,
+                    memory, out int memorySize, out _) ||
                 (runtimeSize >= 0 && memorySize != runtimeSize) || wire.Count != memory.Count)
                 return new Info { Size = runtimeSize };
 
@@ -146,118 +142,56 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>
-        /// Lays out <paramref name="type"/> at <paramref name="baseOffset"/> with the given alignments of 8-byte
-        /// primitives and of <c>decimal</c>, collecting its leaves in field order.
-        /// </summary>
-        private static bool Measure(Type type, int longAlign, int decimalAlign, int baseOffset, List<Leaf> leaves,
-            out int size, out int align)
+        /// <summary>The runtime's view of a type for <see cref="NinoLayoutCore"/>.</summary>
+        private struct RuntimeView : INinoLayoutView<Type>
         {
-            if (type.IsEnum)
-                type = Enum.GetUnderlyingType(type);
-            size = LeafSize(type, longAlign, decimalAlign, out align);
-            if (size > 0)
+            public NinoLeaf Leaf(Type type)
             {
-                leaves.Add(new Leaf { Offset = baseOffset, Size = size });
-                return true;
-            }
-
-            if (!type.IsValueType || type.IsPrimitive || type.IsPointer)
-                return false;
-            var layout = type.StructLayoutAttribute;
-            var kind = layout?.Value ?? LayoutKind.Sequential;
-            int pack = layout != null && layout.Pack > 0 ? layout.Pack : int.MaxValue;
-            var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (kind == LayoutKind.Auto && fields.Length > 1)
-                return false;
-
-            int end = 0;
-            align = 1;
-            foreach (var field in fields)
-            {
-                int start = leaves.Count;
-                if (!Measure(field.FieldType, longAlign, decimalAlign, 0, leaves, out int fieldSize,
-                        out int fieldAlign))
-                    return false;
-                fieldAlign = Math.Min(fieldAlign, pack);
-                int offset = kind == LayoutKind.Explicit
-                    ? (int)Marshal.OffsetOf(type, field.Name)
-                    : (end + fieldAlign - 1) / fieldAlign * fieldAlign;
-                for (int i = start; i < leaves.Count; i++)
-                {
-                    var leaf = leaves[i];
-                    leaf.Offset += baseOffset + offset;
-                    leaves[i] = leaf;
-                }
-
-                end = Math.Max(end, offset + fieldSize);
-                align = Math.Max(align, fieldAlign);
-            }
-
-            size = (end + align - 1) / align * align;
-            if (layout != null && layout.Size > size)
-                size = layout.Size;
-            return size > 0;
-        }
-
-        private static int LeafSize(Type type, int longAlign, int decimalAlign, out int align)
-        {
-            int size;
-            if (type == typeof(decimal))
-            {
-                align = decimalAlign;
-                return sizeof(decimal);
-            }
-
-            if (type == typeof(DateTime) || type == typeof(TimeSpan))
-            {
-                align = longAlign;
-                return sizeof(long);
-            }
-
-            if (type == typeof(Guid))
-            {
-                // int, two shorts and eight bytes
-                align = sizeof(int);
-                return 16;
-            }
-
-            if (type.IsPointer || type == typeof(IntPtr) || type == typeof(UIntPtr))
-            {
-                size = IntPtr.Size;
-            }
-            else
-            {
+                if (type.IsEnum)
+                    type = Enum.GetUnderlyingType(type);
+                if (type == typeof(decimal))
+                    return NinoLeaf.Decimal;
+                if (type == typeof(DateTime) || type == typeof(TimeSpan))
+                    return NinoLeaf.Size8;
+                if (type == typeof(Guid))
+                    return NinoLeaf.Guid;
+                if (type.IsPointer || type == typeof(IntPtr) || type == typeof(UIntPtr))
+                    return NinoLeaf.Pointer;
                 switch (Type.GetTypeCode(type))
                 {
                     case TypeCode.Boolean:
                     case TypeCode.Byte:
                     case TypeCode.SByte:
-                        size = 1;
-                        break;
+                        return NinoLeaf.Size1;
                     case TypeCode.Char:
                     case TypeCode.Int16:
                     case TypeCode.UInt16:
-                        size = 2;
-                        break;
+                        return NinoLeaf.Size2;
                     case TypeCode.Int32:
                     case TypeCode.UInt32:
                     case TypeCode.Single:
-                        size = 4;
-                        break;
+                        return NinoLeaf.Size4;
                     case TypeCode.Int64:
                     case TypeCode.UInt64:
                     case TypeCode.Double:
-                        align = longAlign;
-                        return 8;
-                    default:
-                        align = 0;
-                        return 0;
+                        return NinoLeaf.Size8;
                 }
+
+                return type.IsValueType && !type.IsPrimitive ? NinoLeaf.None : NinoLeaf.Unsupported;
             }
 
-            align = size;
-            return size;
+            public bool Struct(Type type, List<KeyValuePair<Type, int>> fields, out LayoutKind kind, out int pack,
+                out int minSize)
+            {
+                var layout = type.StructLayoutAttribute;
+                kind = layout?.Value ?? LayoutKind.Sequential;
+                pack = layout != null && layout.Pack > 0 ? layout.Pack : 0;
+                minSize = layout?.Size ?? 0;
+                foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                    fields.Add(new KeyValuePair<Type, int>(field.FieldType,
+                        kind == LayoutKind.Explicit ? (int)Marshal.OffsetOf(type, field.Name) : -1));
+                return true;
+            }
         }
     }
 
