@@ -6,6 +6,7 @@
         <Nullable>enable</Nullable>
         <LangVersion>preview</LangVersion>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
         <IsRoslynComponent>true</IsRoslynComponent>
         <RootNamespace>Nino.Generator</RootNamespace>
         <PackageId>Nino.Generator</PackageId>
@@ -25,15 +26,12 @@
         <NoPackageAnalysis>true</NoPackageAnalysis>
         <DevelopmentDependency>true</DevelopmentDependency>
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-        <IsRoslynComponent>true</IsRoslynComponent>
         <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <BranchName>refs/heads/main</BranchName>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
-        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <IsPackable>true</IsPackable>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 

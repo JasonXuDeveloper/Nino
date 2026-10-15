@@ -25,9 +25,9 @@ internal static class ModelBuilder
         if (attr == null)
             return null;
 
-        var facts = new TypeFacts(compilation, parseOptions);
+        var facts = TypeFacts.For(compilation, parseOptions);
         bool weakTolerance = facts.WeakTolerance;
-        var resolver = new FormatterResolver(facts);
+        var resolver = facts.Resolver;
         bool rawStruct = facts.IsRawStruct(type);
 
         var kind = type.TypeKind == TypeKind.Interface || type.IsAbstract
@@ -237,10 +237,12 @@ internal static class ModelBuilder
     }
 
     public static bool IsBuiltInFormatter(string formatter) =>
-        (formatter.StartsWith(Core) && !formatter.StartsWith(Core + "CachedFormatter<") &&
-         !formatter.StartsWith(Core + "CustomFormatter<")) ||
-        formatter.StartsWith("global::NinoGen.NinoImmutable") ||
-        formatter.StartsWith("global::NinoGen.NinoPriorityQueueFormatter<");
+        (Starts(formatter, Core) && !Starts(formatter, Core + "CachedFormatter<") &&
+         !Starts(formatter, Core + "CustomFormatter<")) ||
+        Starts(formatter, "global::NinoGen.NinoImmutable") ||
+        Starts(formatter, "global::NinoGen.NinoPriorityQueueFormatter<");
+
+    private static bool Starts(string s, string prefix) => s.StartsWith(prefix, StringComparison.Ordinal);
 
     private static string OpenName(INamedTypeSymbol type)
     {
@@ -359,7 +361,7 @@ internal static class ModelBuilder
             : "";
 
         int typeId = IsBuiltInFormatter(formatter) && rawSize.Length == 0
-            ? TypeNames.ComputeId(TypeNames.RuntimeName(memberType))
+            ? facts.TypeId(memberType)
             : 0;
         return new MemberModel(symbol.Name, TypeNames.Global(memberType), formatter, rawSize, isProperty, access,
             TypeNames.Global(declaring), declaring.IsValueType, constructionOnly, false, typeId);

@@ -36,8 +36,7 @@ if (positional.Count > 0) roots = int.Parse(positional[0]);
 if (positional.Count > 1) depth = int.Parse(positional[1]);
 
 // N roots, each with a chain of `depth` subclasses, a sealed leaf and a struct.
-var src = new StringBuilder("using System; using System.Collections.Generic;
-using System.Collections.Immutable; using Nino.Core;\nnamespace Syn {\n");
+var src = new StringBuilder("using System; using System.Collections.Generic; using Nino.Core;\nnamespace Syn {\n");
 for (int r = 0; r < roots; r++)
 {
     src.AppendLine($"[NinoType] public partial struct S{r} {{ public int A; public float B; public long C; }}");
@@ -86,7 +85,7 @@ if (dump != null)
 }
 
 Console.WriteLine($"types: {roots * (depth + 3)} ({roots} roots x depth {depth})");
-for (int iteration = 0; iteration < 3; iteration++)
+for (int iteration = 0; iteration < 5; iteration++)
 {
     GeneratorDriver driver = CSharpGeneratorDriver.Create(generators, parseOptions: parseOptions);
     var sw = Stopwatch.StartNew();
@@ -112,12 +111,19 @@ for (int iteration = 0; iteration < 3; iteration++)
     long emitMs = sw.ElapsedMilliseconds;
     int errors = emit.Diagnostics.Count(d => d.Severity == DiagnosticSeverity.Error);
 
-    // Analyzers (and suppressors) on the user code, as a build runs them.
-    sw.Restart();
-    var analyzerDiagnostics = analyzers.IsEmpty
-        ? ImmutableArray<Diagnostic>.Empty
-        : output.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync().Result;
-    long analyzeMs = sw.ElapsedMilliseconds;
+    // Analyzers on the compilation a build sees. Their own execution time is reported by Roslyn; the rest of
+    // the wall time is binding that the build shares with emit.
+    var analyzerDiagnostics = ImmutableArray<Diagnostic>.Empty;
+    double analyzeMs = 0;
+    if (!analyzers.IsEmpty)
+    {
+        var withAnalyzers = output.WithAnalyzers(analyzers, new CompilationWithAnalyzersOptions(
+            new AnalyzerOptions(ImmutableArray<AdditionalText>.Empty), null, concurrentAnalysis: false,
+            logAnalyzerExecutionTime: true, reportSuppressedDiagnostics: false));
+        analyzerDiagnostics = withAnalyzers.GetAnalyzerDiagnosticsAsync().Result;
+        foreach (var analyzer in analyzers)
+            analyzeMs += withAnalyzers.GetAnalyzerTelemetryInfoAsync(analyzer, default).Result.ExecutionTime.TotalMilliseconds;
+    }
 
     // Edits: add a member to one type, then add a comment.
     var text0 = tree.GetText();
@@ -134,7 +140,7 @@ for (int iteration = 0; iteration < 3; iteration++)
     driver.RunGenerators(edited.ReplaceSyntaxTree(memberEdit, commentEdit));
     long commentMs = sw.ElapsedMilliseconds;
 
-    Console.WriteLine($"run {iteration}: generate {generate} ms, emit {emitMs} ms, analyze {analyzeMs} ms " +
+    Console.WriteLine($"run {iteration}: generate {generate} ms, emit {emitMs} ms, analyzers {analyzeMs:F0} ms " +
                       $"({analyzerDiagnostics.Length} diagnostics), {lines} lines, {chars} chars, IL {il.Length} bytes, " +
                       $"{errors} errors; member edit {memberMs} ms, comment edit {commentMs} ms");
 }

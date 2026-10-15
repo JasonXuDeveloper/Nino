@@ -181,7 +181,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             foreach (var attribute in list.Attributes)
             {
                 var name = attribute.Name.ToString();
-                if (name.EndsWith("NinoType") || name.EndsWith("NinoTypeAttribute"))
+                if (name.EndsWith("NinoType", System.StringComparison.Ordinal) || name.EndsWith("NinoTypeAttribute", System.StringComparison.Ordinal))
                     return true;
             }
         }
@@ -210,12 +210,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var type = method.TypeArguments[0];
         if (ContainsTypeParameter(type))
             return null;
-        var facts = new TypeFacts(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
-        var formatter = new FormatterResolver(facts).Resolve(type, false);
+        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
+        var formatter = facts.Resolver.Resolve(type, false);
         if (formatter == null || !ModelBuilder.IsBuiltInFormatter(formatter) || facts.IsRawUnmanaged(type))
             return null;
-        return new FormatterRegistration(TypeNames.Global(type), formatter,
-            TypeNames.ComputeId(TypeNames.RuntimeName(type)));
+        return new FormatterRegistration(TypeNames.Global(type), formatter, facts.TypeId(type));
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch

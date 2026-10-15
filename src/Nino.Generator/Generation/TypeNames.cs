@@ -153,8 +153,10 @@ internal static class TypeNames
     };
 
     /// <summary>All type arguments of a named type, outermost containing type first.</summary>
-    public static List<ITypeSymbol> AllTypeArguments(INamedTypeSymbol type)
+    public static IReadOnlyList<ITypeSymbol> AllTypeArguments(INamedTypeSymbol type)
     {
+        if (type.ContainingType == null)
+            return type.TypeArguments;
         var result = new List<ITypeSymbol>();
         if (type.ContainingType != null)
             result.AddRange(AllTypeArguments(type.ContainingType));

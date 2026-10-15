@@ -51,6 +51,12 @@ every polymorphic base inlined the bodies of all its subtypes. v4 grows linearly
   compilations while none of the syntax trees they depend on changed.
 * **No whole-compilation scans.** Types that inherit `[NinoType]` are found from syntax first; only
   candidates are bound.
+* **Nothing runs in the IDE that the IDE does not need.** All generated sources are implementation outputs,
+  which IDEs skip while you type. Diagnostics come from the analyzer instead of the generator, so models carry no
+  source locations and moving code around re-emits nothing.
+* **Work shared across types.** Each type's serialized members, raw layout, resolved member formatters and type
+  ids are memoized once per compilation and shared by the generator and the analyzer, instead of being
+  recomputed for every type that reaches them.
 * **Less to compile per member.** Long formatter types are aliased once per file; consecutive unmanaged
   members are written as one reserved block; built-in formatters used by many types are registered once
   per assembly; trivial forwarders carry no `MethodImpl` attributes; generated names are built by hand
@@ -157,7 +163,7 @@ dotnet run -c Release --project tools/GeneratorBenchmark -- 30 8 \
 ```
 
 Arguments are the number of root classes and the depth of each hierarchy; `--dump <dir>` writes the
-generated files. Each line reports one of three runs; the numbers above are from the third.
+generated files. Each line reports one of five runs.
 
 Runtime (`src/Nino.Benchmark`, BenchmarkDotNet):
 

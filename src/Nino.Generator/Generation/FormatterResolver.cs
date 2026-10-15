@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
@@ -6,11 +7,16 @@ namespace Nino.Generator.Generation;
 /// <summary>
 /// Chooses the formatter type (as C# source) for a member type. Mirrors
 /// <c>Nino.Core.NinoFormatterResolver</c>, so generated code and runtime-resolved formatters write the same bytes.
+/// One instance per <see cref="TypeFacts"/> (per compilation): results are memoized, since the same member types
+/// (<c>string</c>, <c>List&lt;int&gt;</c>...) recur across all types. Names ignore nullable annotations, and so does
+/// the memo.
 /// </summary>
 internal sealed class FormatterResolver
 {
     private const string Core = "global::Nino.Core.";
     private readonly TypeFacts _facts;
+    private readonly ConcurrentDictionary<ITypeSymbol, string?> _plain = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ITypeSymbol, string?> _utf8 = new(SymbolEqualityComparer.Default);
 
     public FormatterResolver(TypeFacts facts) => _facts = facts;
 
@@ -62,14 +68,20 @@ internal sealed class FormatterResolver
     /// </summary>
     public string? Resolve(ITypeSymbol type, bool utf8)
     {
+        var memo = utf8 ? _utf8 : _plain;
+        if (memo.TryGetValue(type, out var formatter))
+            return formatter;
         try
         {
-            return ResolveCore(type, utf8);
+            formatter = ResolveCore(type, utf8);
         }
         catch (UnsupportedTypeException)
         {
-            return null;
+            formatter = null;
         }
+
+        memo[type] = formatter;
+        return formatter;
     }
 
     private sealed class UnsupportedTypeException : System.Exception
@@ -205,11 +217,11 @@ internal sealed class FormatterResolver
                     return $"global::NinoGen.NinoImmutableListFormatter<{a[0]}, {Element(args[0], utf8)}>";
             }
 
-            if (definition.StartsWith("System.ValueTuple`") || definition.StartsWith("System.Tuple`"))
+            if (definition.StartsWith("System.ValueTuple`", System.StringComparison.Ordinal) || definition.StartsWith("System.Tuple`", System.StringComparison.Ordinal))
             {
                 if (args.Length > 7)
                     return null;
-                var formatter = definition.StartsWith("System.ValueTuple`") ? "ValueTupleFormatter" : "TupleFormatter";
+                var formatter = definition.StartsWith("System.ValueTuple`", System.StringComparison.Ordinal) ? "ValueTupleFormatter" : "TupleFormatter";
                 return $"{Core}{formatter}<{string.Join(", ", a)}, {string.Join(", ", args.Select(x => Element(x, utf8)))}>";
             }
         }

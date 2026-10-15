@@ -25,7 +25,12 @@ API-compatible with v3 or earlier v4 betas.
 | Package | Targets |
 | --- | --- |
 | `Nino.Core` | `netstandard2.0`, `netstandard2.1`, `net8.0`, `net10.0` |
-| `Nino.Generator` | `netstandard2.0` (Roslyn 4.3+) |
+| `Nino.Generator` | `netstandard2.0` (Roslyn 4.3+): generator, analyzer, suppressor |
+| `Nino.Generator.CodeFixes` | `netstandard2.0` (Roslyn 4.3+ Workspaces): code fixes, IDE only |
+
+Both ship in the `Nino.Generator` package under `analyzers/dotnet/roslyn4.3/cs`. Roslyn 4.3 is the oldest
+compiler Unity supports, which rules out newer compiler features (interceptors need Roslyn 4.11+);
+everything below uses only 4.3 APIs.
 
 Generated code is compiled in the user's project, which may be Unity (C# 9). Generated code therefore only
 uses C# 9 features: no static abstract interface members, no ref fields, no raw string literals, no
@@ -289,6 +294,14 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   an edit are rebuilt. Each type's direct dependencies are looked up once per compilation and shared by all
   models that reach it, so collecting them does not measurably slow a full build. With 1,100 NinoTypes in 1,200 files, an edit went from about 350 ms to about
   100 ms, close to the 60-100 ms a no-op generator with the same attribute lookup costs.
+* The generator reports no diagnostics; the analyzer does (below). Models therefore hold no locations, and
+  an edit that only moves code (a line inserted above a type) leaves every model equal and re-emits nothing.
+* Every output is registered with `RegisterImplementationSourceOutput`: user code never references generated
+  code, so the IDE skips the emitters while typing and only builds run them.
+* Facts shared between types (each type's serialized members, raw layout, whether its formatter can be
+  delegated to, resolved formatters, type ids) are memoized per `Compilation` in `TypeFacts` and shared by every
+  transform and analyzer action on it, so a deep hierarchy collects each level's members once rather than once
+  per subtype, and a member type such as `List<int>` is resolved once per compilation.
 * Each type is emitted into its own file. Editing a member of `Foo` re-emits only `Foo.g.cs`.
 * The registry stage consumes only formatter names, so it only re-runs when types are added, removed or
   renamed.
@@ -297,6 +310,22 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   AOT runtimes never need `MakeGenericType` for them.
 * The v3 generator combined everything with `CompilationProvider`, scanned every generic type syntax in
   the project and every `using` directive in every file, and re-emitted all types on every keystroke.
+
+### Analyzer, suppressor and code fixes
+
+* `NinoAnalyzer` reports every diagnostic ([docs/diagnostics.md](diagnostics.md)): attribute misuse, and
+  whatever building a type's model finds, through the same `ModelBuilder` the generator uses with a
+  `DiagnosticSink`. It skips generated code, does nothing in compilations without Nino.Core, resolves the
+  Nino.Core attribute types once per compilation and compares by symbol, and runs one symbol action per type
+  (not one per partial declaration). Diagnostics appear as you type and can be configured in `.editorconfig`.
+* `NinoSuppressor` hides "never used / never assigned / make readonly" warnings (CS0169, CS0414, CS0649,
+  IDE0044, IDE0051, IDE0052) on private members Nino serializes: on .NET 8+ they are reached through
+  `[UnsafeAccessor]`, which the compiler cannot see.
+* Code fixes live in their own assembly, since they need `Microsoft.CodeAnalysis.Workspaces`, which the
+  command-line compiler and Unity do not load. The provider maps each diagnostic id to its fixes, edits through
+  `DocumentEditor`, leaves formatting to the code action cleanup and supports Fix All.
+* Descriptors are static and shared (`NinoDiagnostics`), with help links and release tracking
+  (`AnalyzerReleases.*.md`). Analyzer projects enforce ordinal string comparisons (CA1309/CA1310).
 
 ### Generated code per type
 

@@ -1,29 +1,51 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// Facts about types that several parts of a model build ask for (serialized members, raw layout, delegation),
-/// memoized for one transform: a struct or base class is typically reached by many members and subtypes.
-/// Symbols belong to one compilation, so an instance must never outlive its transform.
+/// Facts about types that model builds ask for (serialized members, raw layout, delegation), memoized for one
+/// compilation and shared by every transform and analyzer action on it: a struct or base class is reached by many
+/// members and subtypes, so a deep hierarchy collects each level's members once instead of once per subtype.
+/// Symbols belong to their compilation, which is what an instance lives as long as.
 /// </summary>
 internal sealed class TypeFacts
 {
-    private readonly Dictionary<ISymbol, bool> _rawStructs = new(SymbolEqualityComparer.Default);
-    private readonly Dictionary<ISymbol, bool> _delegatable = new(SymbolEqualityComparer.Default);
-    private readonly Dictionary<ISymbol, IReadOnlyList<ISymbol>> _members = new(SymbolEqualityComparer.Default);
+    private static readonly ConditionalWeakTable<Compilation, TypeFacts> Shared = new();
 
-    public TypeFacts(Compilation compilation, ParseOptions? options)
+    private readonly ConcurrentDictionary<ISymbol, bool> _rawStructs = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ISymbol, bool> _delegatable = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ISymbol, IReadOnlyList<ISymbol>> _members = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ITypeSymbol, int> _typeIds = new(SymbolEqualityComparer.Default);
+    private readonly string[] _symbols;
+
+    /// <summary>The facts of <paramref name="compilation"/> (whose files share <paramref name="options"/>).</summary>
+    public static TypeFacts For(Compilation compilation, ParseOptions? options)
+    {
+        var facts = Shared.GetValue(compilation, c => new TypeFacts(c, options));
+        // A project's files share their parse options; anything else gets facts of its own.
+        return facts._symbols.SequenceEqual(Symbols(options)) ? facts : new TypeFacts(compilation, options);
+    }
+
+    private static string[] Symbols(ParseOptions? options) =>
+        options?.PreprocessorSymbolNames.ToArray() ?? System.Array.Empty<string>();
+
+    private TypeFacts(Compilation compilation, ParseOptions? options)
     {
         Assembly = compilation.Assembly;
-        var symbols = options?.PreprocessorSymbolNames.ToArray() ?? System.Array.Empty<string>();
-        WeakTolerance = symbols.Contains(NinoTypeHelper.WeakVersionToleranceSymbol);
-        Net8 = symbols.Contains("NET8_0_OR_GREATER");
+        _symbols = Symbols(options);
+        WeakTolerance = _symbols.Contains(NinoTypeHelper.WeakVersionToleranceSymbol);
+        Net8 = _symbols.Contains("NET8_0_OR_GREATER");
+        Resolver = new FormatterResolver(this);
     }
 
     public IAssemblySymbol Assembly { get; }
+
+    /// <summary>Formatter resolution for this compilation (memoized).</summary>
+    public FormatterResolver Resolver { get; }
 
     /// <summary>The assembly defines WEAK_VERSION_TOLERANCE: all of its own types are version tolerant.</summary>
     public bool WeakTolerance { get; }
@@ -65,12 +87,16 @@ internal sealed class TypeFacts
                IsEligible(definition) && definition.IsNinoType();
     }
 
+    /// <summary>Runtime type id (hash of the runtime name): many members share a type such as <c>List&lt;int&gt;</c>.</summary>
+    public int TypeId(ITypeSymbol type) =>
+        _typeIds.GetOrAdd(type, static t => TypeNames.ComputeId(TypeNames.RuntimeName(t)));
+
     /// <summary>Serialized members of <paramref name="type"/> (whose effective attribute is <paramref name="attr"/>), in order.</summary>
     public IReadOnlyList<ISymbol> Members(INamedTypeSymbol type, NinoTypeAttribute attr)
     {
         if (!_members.TryGetValue(type, out var result))
             _members[type] = result = MemberCollector.Collect(type, attr);
-        return result;
+        return result; // races compute the same list
     }
 
     /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
@@ -90,7 +116,7 @@ internal sealed class TypeFacts
             if (definition.SpecialType == SpecialType.System_Nullable_T)
                 return false;
             var name = TypeNames.MetadataName(definition);
-            if (name == "System.Collections.Generic.KeyValuePair`2" || name.StartsWith("System.ValueTuple`") ||
+            if (name == "System.Collections.Generic.KeyValuePair`2" || name.StartsWith("System.ValueTuple`", System.StringComparison.Ordinal) ||
                 name == "System.DateTimeOffset")
                 return false;
         }
@@ -159,7 +185,7 @@ internal sealed class TypeFacts
     {
         if (!type.IsValueType || type.TypeKind != TypeKind.Struct)
             return false;
-                if (_rawStructs.TryGetValue(type, out bool known))
+        if (_rawStructs.TryGetValue(type, out bool known))
             return known;
         bool raw = ComputeIsRawStruct(type);
         _rawStructs[type] = raw;

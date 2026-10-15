@@ -11,6 +11,7 @@
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
         <IsRoslynComponent>true</IsRoslynComponent>
         <RootNamespace>Nino.Generator</RootNamespace>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
