@@ -271,7 +271,10 @@ namespace Nino.Core
     {
         private readonly byte[] _mask;
         private readonly ulong[] _words; // the mask repeated over lcm(length, 8) bytes
-        private readonly Vector<byte>[]? _vectors; // the mask repeated over lcm(length, vector width) bytes
+        // The mask repeated over lcm(length, vector width) bytes plus one vector more, so the mask of any offset
+        // is a single unaligned load.
+        private readonly byte[]? _vectorMask;
+        private readonly int _vectorPeriod;
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
 
         /// <summary>Returns a mask, or null when <paramref name="mask"/> keeps every byte.</summary>
@@ -302,9 +305,10 @@ namespace Nino.Core
             {
                 int width = Vector<byte>.Count;
                 var bytes = Repeat(mask, width);
-                _vectors = new Vector<byte>[bytes.Length / width];
-                for (int i = 0; i < _vectors.Length; i++)
-                    _vectors[i] = new Vector<byte>(bytes, i * width);
+                _vectorPeriod = bytes.Length;
+                _vectorMask = new byte[bytes.Length + width];
+                for (int i = 0; i < _vectorMask.Length; i++)
+                    _vectorMask[i] = bytes[i % bytes.Length];
             }
         }
 
@@ -323,31 +327,13 @@ namespace Nino.Core
         public void Copy(ref byte destination, ref byte source, int count)
         {
             int total = checked(count * _mask.Length);
-            int i = 0;
-            if (_vectors != null)
+            if (_vectorMask != null && total >= Vector<byte>.Count)
             {
-                int width = Vector<byte>.Count;
-                ref Vector<byte> v = ref _vectors[0];
-                if (_vectors.Length == 1)
-                {
-                    var m = v; // sizes dividing the vector width: one mask register
-                    for (; i + width <= total; i += width)
-                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
-                            Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) & m);
-                }
-
-                int vectorPeriod = _vectors.Length * width;
-                for (; i + vectorPeriod <= total; i += vectorPeriod)
-                {
-                    ref byte d = ref Unsafe.Add(ref destination, i);
-                    ref byte s = ref Unsafe.Add(ref source, i);
-                    for (int j = 0; j < _vectors.Length; j++)
-                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, j * width),
-                            Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, j * width)) & Unsafe.Add(ref v, j));
-                }
+                CopyVectors(ref destination, ref source, total);
+                return;
             }
 
-            // i is a multiple of the vector period, hence of the word period: the masks line up.
+            int i = 0;
             int period = _words.Length * 8;
             ref ulong word = ref _words[0];
             for (; i + period <= total; i += period)
@@ -361,6 +347,63 @@ namespace Nino.Core
 
             for (; i < total; i++)
                 Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & _mask[i % _mask.Length]);
+        }
+
+        /// <summary>
+        /// Vector copy with aligned stores: the destination usually follows a 4-byte length, and unaligned vector
+        /// stores straddle cache lines every other store. The first and last vectors are unaligned and overlap
+        /// the aligned body; the mask of each vector is loaded at its offset.
+        /// </summary>
+        private unsafe void CopyVectors(ref byte destination, ref byte source, int total)
+        {
+            int width = Vector<byte>.Count;
+            int period = _vectorPeriod;
+            ref byte mask = ref _vectorMask![0];
+            Unsafe.WriteUnaligned(ref destination,
+                Unsafe.ReadUnaligned<Vector<byte>>(ref source) & Unsafe.ReadUnaligned<Vector<byte>>(ref mask));
+
+            int i = width - (int)((nuint)Unsafe.AsPointer(ref destination) & (nuint)(width - 1));
+            int end = total - width;
+            int m = i; // i % period (i <= width <= period)
+            if (period == width)
+            {
+                var v = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, m));
+                for (; i <= end - 3 * width; i += 4 * width)
+                {
+                    ref byte d = ref Unsafe.Add(ref destination, i);
+                    ref byte s = ref Unsafe.Add(ref source, i);
+                    var a = Unsafe.ReadUnaligned<Vector<byte>>(ref s) & v;
+                    var b = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, width)) & v;
+                    var c = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, 2 * width)) & v;
+                    var e = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, 3 * width)) & v;
+                    Unsafe.WriteUnaligned(ref d, a);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, width), b);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, 2 * width), c);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, 3 * width), e);
+                }
+
+                for (; i <= end; i += width)
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
+                        Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) & v);
+            }
+            else
+            {
+                if (m >= period)
+                    m -= period;
+                for (; i <= end; i += width)
+                {
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
+                        Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) &
+                        Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, m)));
+                    m += width;
+                    if (m >= period)
+                        m -= period;
+                }
+            }
+
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, end),
+                Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, end)) &
+                Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, end % period)));
         }
 
         /// <summary>

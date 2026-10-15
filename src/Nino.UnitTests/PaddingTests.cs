@@ -195,3 +195,47 @@ namespace Nino.UnitTests
         }
     }
 }
+
+namespace Nino.UnitTests
+{
+    [TestClass]
+    public class MaskTests
+    {
+        [TestMethod]
+        public void MaskedCopyMatchesTheMaskAtEveryLengthAndAlignment()
+        {
+            var random = new System.Random(7);
+            foreach (int size in new[] { 2, 3, 12, 16, 24, 40, 64, 72 })
+            {
+                var pattern = new byte[size];
+                for (int i = 0; i < size; i++)
+                    pattern[i] = (byte)(i % 3 == 1 ? 0 : 0xFF);
+                var mask = NinoMask.Create(pattern);
+                Assert.IsNotNull(mask);
+                foreach (int count in new[] { 0, 1, 2, 3, 5, 8, 13, 33, 100 })
+                {
+                    for (int offset = 0; offset < 8; offset++)
+                    {
+                        var src = new byte[count * size];
+                        random.NextBytes(src);
+                        var dst = new byte[offset + src.Length + 8];
+                        random.NextBytes(dst);
+                        var expected = (byte[])dst.Clone();
+                        for (int i = 0; i < src.Length; i++)
+                            expected[offset + i] = (byte)(src[i] & pattern[i % size]);
+                        if (src.Length != 0)
+                            mask.Copy(ref dst[offset], ref src[0], count);
+                        CollectionAssert.AreEqual(expected, dst, $"size {size}, count {count}, offset {offset}");
+
+                        // In place: only the padding changes.
+                        var inPlace = (byte[])src.Clone();
+                        if (inPlace.Length != 0)
+                            mask.Clear(ref inPlace[0], count);
+                        for (int i = 0; i < src.Length; i++)
+                            Assert.AreEqual((byte)(src[i] & pattern[i % size]), inPlace[i]);
+                    }
+                }
+            }
+        }
+    }
+}
