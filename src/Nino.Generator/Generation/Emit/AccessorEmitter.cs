@@ -101,7 +101,7 @@ internal static class AccessorEmitter
         w.Line();
         w.Line($"private static readonly {pool} s_ninoPool = {pool}.Shared;");
         w.Line("[global::System.ThreadStatic]");
-        w.Line($"private static {pool}.ThreadStack t_ninoPool;");
+        w.Line($"private static {pool}.PerThread t_ninoPool;");
         w.Line($"[{Core}NinoIgnore]");
         w.Line("private int _ninoPooled; // 1 while in the pool");
         w.Line();

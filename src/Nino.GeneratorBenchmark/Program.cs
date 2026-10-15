@@ -13,7 +13,7 @@ using Microsoft.CodeAnalysis.Text;
 // Measures the Nino source generator on a synthetic workload: generator time, size of the generated code,
 // time to compile (emit) it, analyzer time, and re-generation after edits.
 //
-// Usage: GeneratorBenchmark [roots=30] [depth=8] [--generator <Nino.Generator.dll>] [--core <Nino.Core.dll>]
+// Usage: Nino.GeneratorBenchmark [roots=30] [depth=8] [--generator <Nino.Generator.dll>] [--core <Nino.Core.dll>]
 //                           [--dump <dir>]
 // Without --generator/--core it uses the generator and runtime of this repository. To measure another
 // version (e.g. v3), build its Nino.Generator and Nino.Core and pass their paths.

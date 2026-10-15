@@ -92,7 +92,7 @@ namespace Nino.Core
 
         /// <summary>For generated code: one thread's instances.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
-        public sealed class ThreadStack
+        public sealed class PerThread
         {
             internal readonly T[] Items = new T[ThreadCapacity];
             internal int Count;
@@ -107,7 +107,7 @@ namespace Nino.Core
         /// <summary>For generated code: a pooled instance, or null when the pool is empty.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T TryTake(ref ThreadStack stack)
+        public T TryTake(ref PerThread stack)
         {
             var s = stack;
             if (s != null && s.Count != 0 && s.Generation == _generation)
@@ -124,7 +124,7 @@ namespace Nino.Core
         /// <summary>For generated code: adds an instance that <c>ReturnToPool</c> has checked.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Add(T value, ref ThreadStack stack)
+        public void Add(T value, ref PerThread stack)
         {
             var s = stack;
             if (s != null && s.Count != ThreadCapacity && s.Generation == _generation)
@@ -134,7 +134,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private T TakeShared(ref ThreadStack stack)
+        private T TakeShared(ref PerThread stack)
         {
             if (Volatile.Read(ref _count) == 0)
                 return null;
@@ -156,7 +156,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void AddSlow(T value, ref ThreadStack stack)
+        private void AddSlow(T value, ref PerThread stack)
         {
             NinoRecycler.PoolsInUse = true;
             var s = Current(ref stack);
@@ -182,9 +182,9 @@ namespace Nino.Core
         }
 
         /// <summary>The calling thread's stack, created or emptied after a <see cref="Clear"/> as needed.</summary>
-        private ThreadStack Current(ref ThreadStack stack)
+        private PerThread Current(ref PerThread stack)
         {
-            var s = stack ??= new ThreadStack();
+            var s = stack ??= new PerThread();
             int generation = Volatile.Read(ref _generation);
             if (s.Generation != generation)
             {

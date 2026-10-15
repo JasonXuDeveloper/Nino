@@ -153,12 +153,12 @@ the result objects.
 
 ## Reproducing
 
-Build time and generated code (`tools/GeneratorBenchmark`, not part of `Nino.sln`):
+Build time and generated code (`src/Nino.GeneratorBenchmark`):
 
 ```sh
-dotnet run -c Release --project tools/GeneratorBenchmark -- 30 8          # this repository's generator
+dotnet run -c Release --project src/Nino.GeneratorBenchmark -- 30 8          # this repository's generator
 # another version: build its Nino.Generator and Nino.Core, then
-dotnet run -c Release --project tools/GeneratorBenchmark -- 30 8 \
+dotnet run -c Release --project src/Nino.GeneratorBenchmark -- 30 8 \
     --generator <path>/Nino.Generator.dll --core <path>/Nino.Core.dll
 ```
 
