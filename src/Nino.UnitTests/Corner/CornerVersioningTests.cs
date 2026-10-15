@@ -248,7 +248,6 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
-        [Ignore("BUG: version tolerance has one length per object, so a member appended to a base class shifts the subtype's members")]
         public void MemberAppendedToABaseClass()
         {
             var v2 = Convert<VerSealedLeafV1, VerSealedLeafV2>(new VerSealedLeafV1 { A = 1, B = "b" });

@@ -90,7 +90,7 @@ v4 是一次大版本重写，**二进制格式与 v3 及之前的 v4 beta 不�
   `NinoSettings.SetRecycler<T>` 注册的处理函数。
 - **无需手动初始化**：生成的注册表按需懒加载，HybridCLR 等热更程序集无需调用任何 Init。
 - **可插拔的 formatter**：`[assembly: NinoFormatter(typeof(MyFormatter<,>))]` 即可让 Nino 支持新类型（自己的或第三方的）。类型参数和元素 formatter 自动推导，生成代码直接调用，运行时也使用同一份声明。Nino 自带的 BCL formatter 也是这样声明的。
-- **可选的版本兼容**：`[NinoType(versionTolerant: true)]` 允许在任意层级追加成员。
+- **可选的版本兼容**：`[NinoType(versionTolerant: true)]` 允许在类型本身或任意基类追加成员，嵌套深度不限。
 - **自定义集合**：支持派生自 `List<T>`、`HashSet<T>`、`Dictionary<TKey, TValue>` 等的类型。
 
 格式与架构详见 [docs/v4-design.md](docs/v4-design.md)。

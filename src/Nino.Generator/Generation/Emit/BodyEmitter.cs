@@ -10,7 +10,8 @@ namespace Nino.Generator.Generation.Emit;
 /// derived types reuse. Three member layouts share the code below:
 /// <list type="bullet">
 /// <item>positional: members back to back, consecutive raw members as one block;</item>
-/// <item>version tolerant: positional inside a length-prefixed slice, checking for its end before each member;</item>
+/// <item>version tolerant: positional, each level (the type and each [NinoType] base) in its own length-prefixed
+/// slice, checking for the slice's end before each member;</item>
 /// <item>keyed: (key, length, value) per member inside a slice, read in order with a fallback dispatch loop.</item>
 /// </list>
 /// </summary>
@@ -30,11 +31,25 @@ internal sealed class BodyEmitter
 
     private string T => _m.TypeName;
 
-    /// <summary>Whether the body is prefixed with its length (version tolerant or keyed).</summary>
-    private bool Sliced => _m.VersionTolerant || _m.Keyed;
+    /// <summary>Whether each level is prefixed with its length (version tolerant, positional).</summary>
+    private bool Leveled => _m.Levels.Length != 0;
 
-    private IEnumerable<MemberModel> OwnMembers =>
-        _m.BaseFormatter.Length == 0 ? _m.Members : _m.Members.Skip(_m.BaseMemberCount);
+    private bool Delegates => _m.BaseFormatter.Length != 0;
+
+    private IEnumerable<MemberModel> OwnMembers => Delegates ? _m.Members.Skip(_m.BaseMemberCount) : _m.Members;
+
+    /// <summary>The members of each level from <paramref name="first"/> on.</summary>
+    private IEnumerable<List<MemberModel>> LevelsFrom(int first)
+    {
+        int start = 0;
+        for (int i = 0; i < _m.Levels.Length; i++)
+        {
+            int count = _m.Levels[i];
+            if (i >= first)
+                yield return _m.Members.Skip(start).Take(count).ToList();
+            start += count;
+        }
+    }
 
     private string Formatter(MemberModel member) => _names.Use(member.Formatter);
 
@@ -52,7 +67,7 @@ internal sealed class BodyEmitter
 
     public void EmitWriteBody()
     {
-        if (_m.EmitMembers && !Sliced && _m.CollectionFormatter.Length == 0)
+        if (_m.EmitMembers && !_m.Keyed && _m.CollectionFormatter.Length == 0)
         {
             _w.Line($"public void WriteBody({T} value, ref {Core}Writer writer) => WriteMembers(value, ref writer);");
             _w.Line();
@@ -62,7 +77,7 @@ internal sealed class BodyEmitter
 
         _w.Block($"public void WriteBody({T} value, ref {Core}Writer writer)", () =>
         {
-            if (Sliced)
+            if (_m.Keyed)
                 _w.Line("int __length = writer.ReserveInt32();");
             if (_m.CollectionFormatter.Length != 0)
                 _w.Line($"default({_m.CollectionFormatter}).Serialize(value, ref writer);");
@@ -70,7 +85,7 @@ internal sealed class BodyEmitter
                 _w.Line("WriteMembers(value, ref writer);");
             else
                 EmitMemberWrites();
-            if (Sliced)
+            if (_m.Keyed)
                 _w.Line("writer.PatchLength(__length);");
         });
 
@@ -88,22 +103,9 @@ internal sealed class BodyEmitter
         _w.Line(_names.Inline);
         _w.Block($"internal static void WriteMembers({T} value, ref {Core}Writer writer)", EmitMemberWrites);
         _w.Line();
-        if (_m.VersionTolerant)
-        {
-            _w.Line("/// <summary>Reads the members into an existing instance; false when the body ended early.</summary>");
-            _w.Line(_names.Inline);
-            _w.Block($"internal static bool ReadMembers({T} value, ref {Core}Reader reader)", () =>
-            {
-                EmitMemberReads("reader", inPlace: true, onEnd: "return false;");
-                _w.Line("return true;");
-            });
-            return;
-        }
-
-        // Positional bodies never end early: no result to report.
         _w.Line(_names.Inline);
         _w.Block($"internal static void ReadMembers({T} value, ref {Core}Reader reader)",
-            () => EmitMemberReads("reader", inPlace: true, onEnd: ""));
+            () => EmitMemberReads("reader", inPlace: true));
     }
 
     // ----- writes --------------------------------------------------------------------------------------------
@@ -111,7 +113,7 @@ internal sealed class BodyEmitter
     private void EmitMemberWrites()
     {
         _blocks = 0;
-        if (_m.BaseFormatter.Length != 0)
+        if (Delegates)
             _w.Line($"{_m.BaseFormatter}.WriteMembers(value, ref writer);");
         if (_m.Keyed)
         {
@@ -119,7 +121,25 @@ internal sealed class BodyEmitter
             return;
         }
 
-        foreach (var group in RawBlock.Groups(OwnMembers))
+        if (!Leveled)
+        {
+            EmitPositionalWrites(OwnMembers);
+            return;
+        }
+
+        int n = 0;
+        foreach (var level in LevelsFrom(Delegates ? _m.BaseLevelCount : 0))
+        {
+            string l = "__l" + n++;
+            _w.Line($"int {l} = writer.ReserveInt32();");
+            EmitPositionalWrites(level);
+            _w.Line($"writer.PatchLength({l});");
+        }
+    }
+
+    private void EmitPositionalWrites(IEnumerable<MemberModel> members)
+    {
+        foreach (var group in RawBlock.Groups(members))
         {
             var first = group[0];
             if (first.Raw == null)
@@ -188,7 +208,7 @@ internal sealed class BodyEmitter
     {
         _w.Open($"public void ReadBody(ref {T} value, ref {Core}Reader reader)");
         string r = "reader";
-        if (Sliced)
+        if (_m.Keyed)
         {
             _w.Line("var __reader = reader.ReadSlice();");
             r = "__reader";
@@ -219,28 +239,12 @@ internal sealed class BodyEmitter
             _w.Line($"default({_m.CollectionFormatter}).Deserialize(ref value, ref {r});");
 
         if (_m.EmitMembers)
-        {
             _w.Line($"ReadMembers(value, ref {r});");
-        }
         else
-        {
-            EmitMemberReads(r, inPlace: true, onEnd: EndJump);
-            EmitEndLabel();
-        }
+            EmitMemberReads(r, inPlace: true);
 
-        if (Sliced)
+        if (_m.Keyed)
             _w.Line("reader.EndSlice(in __reader);");
-    }
-
-    /// <summary>Where a tolerant body that ended early jumps to: just before the slice is closed.</summary>
-    private const string EndJump = "goto __end;";
-
-    /// <summary>The target of <see cref="EndJump"/>, which only tolerant positional bodies emit.</summary>
-    private void EmitEndLabel()
-    {
-        // Always followed by reader.EndSlice: tolerant bodies are sliced.
-        if (_m.VersionTolerant && !_m.Keyed)
-            _w.Line("__end:");
     }
 
     /// <summary>Reads every member into locals, then constructs the instance from them.</summary>
@@ -249,9 +253,8 @@ internal sealed class BodyEmitter
         var c = _m.Construction;
         foreach (var member in _m.Members)
             _w.Line($"{member.TypeName} {Local(member)} = default;");
-        EmitMemberReads(r, inPlace: false, onEnd: EndJump);
-        EmitEndLabel();
-        if (Sliced)
+        EmitMemberReads(r, inPlace: false);
+        if (_m.Keyed)
             _w.Line("reader.EndSlice(in __reader);");
 
         if (c.Creator.Length == 0)
@@ -291,17 +294,14 @@ internal sealed class BodyEmitter
             _w.Line($"{Core}NinoRecycler.Replace(ref value, __new);");
     }
 
-    private void EmitMemberReads(string r, bool inPlace, string onEnd)
+    private void EmitMemberReads(string r, bool inPlace)
     {
         _blocks = 0;
         // Base members through the base formatter (in place only: recreated types read everything into locals).
+        bool delegates = inPlace && Delegates;
         var members = inPlace ? OwnMembers : _m.Members;
-        if (inPlace && _m.BaseFormatter.Length != 0)
-        {
-            _w.Line(_m.VersionTolerant
-                ? $"if (!{_m.BaseFormatter}.ReadMembers(value, ref {r})) {onEnd}"
-                : $"{_m.BaseFormatter}.ReadMembers(value, ref {r});");
-        }
+        if (delegates)
+            _w.Line($"{_m.BaseFormatter}.ReadMembers(value, ref {r});");
 
         if (_m.Keyed)
         {
@@ -309,15 +309,11 @@ internal sealed class BodyEmitter
             return;
         }
 
-        if (_m.VersionTolerant)
+        if (Leveled)
         {
-            // Tolerant bodies may end early (data written by an older version): check before every member.
-            foreach (var member in members)
-            {
-                _w.Line($"if ({r}.Eof) {onEnd}");
-                EmitMemberRead(member, r, inPlace);
-            }
-
+            int n = 0;
+            foreach (var level in LevelsFrom(delegates ? _m.BaseLevelCount : 0))
+                EmitLevelRead(level, r, inPlace, n++);
             return;
         }
 
@@ -338,6 +334,32 @@ internal sealed class BodyEmitter
                     $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})"));
             }
         }
+    }
+
+    /// <summary>
+    /// Reads one level's slice. Data written by an older version may end early (missing members keep their current
+    /// or default value), and data written by a newer one has trailing members, which the slice skips.
+    /// </summary>
+    private void EmitLevelRead(List<MemberModel> members, string r, bool inPlace, int n)
+    {
+        if (members.Count == 0)
+        {
+            _w.Line($"{r}.ReadSlice();");
+            return;
+        }
+
+        string s = "__s" + n, end = "__end" + n;
+        _w.Open();
+        _w.Line($"var {s} = {r}.ReadSlice();");
+        foreach (var member in members)
+        {
+            _w.Line($"if ({s}.Eof) goto {end};");
+            EmitMemberRead(member, s, inPlace);
+        }
+
+        _w.Line($"{end}:");
+        _w.Line($"{r}.EndSlice(in {s});");
+        _w.Close();
     }
 
     /// <summary>Reads one member: raw members directly, others through their formatter.</summary>

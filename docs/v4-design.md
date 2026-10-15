@@ -132,15 +132,27 @@ Nino creates a collection only when the slot is `null`, through `NinoFactory<T>.
 ### Version tolerance
 
 A type marked `[NinoType(versionTolerant: true)]` (or every type when the project defines
-`WEAK_VERSION_TOLERANCE`) prefixes its body with an `int32` byte length:
+`WEAK_VERSION_TOLERANCE`) writes each level of its hierarchy (each `[NinoType]` class from the root down to the
+type itself) behind its own `int32` byte length:
 
 ```
-header | int32 bodyLength | members...
+header | { int32 levelLength | level members... } per level, root first
 ```
 
-On read, the body is sliced. Members that are missing from the slice (old data) are set to their default,
-and trailing bytes (new data read by old code) are skipped. Each nested tolerant object delimits itself, so
-fields can be appended to any type at any depth, not just to the root.
+On read, each level is sliced. Members missing from a slice (old data) keep their current value when reading in
+place, or their default, and trailing bytes (new data read by old code) are skipped. So members can be appended to
+any level, a base class as well as the type itself, and each nested tolerant object delimits itself, so this holds
+at any depth.
+
+* A type without `[NinoType]` base classes has one level: its body is a single length and its members.
+* A level without members still writes its length (4 bytes), so its first member can be added later. Members of a
+  `[NinoType]` interface lead the level of the first class implementing it, so marker interfaces cost nothing;
+  members appended to an interface are not tolerated (append them to a class).
+* Not tolerated: inserting, removing or reordering members within a level, and adding or removing a `[NinoType]`
+  class in the hierarchy. Use keyed members for those.
+* Positional types without version tolerance are unaffected: no lengths at all.
+* A derived type that delegates to its base's `WriteMembers`/`ReadMembers` gets the base's level slices from them,
+  then writes its own; there is no outer length.
 
 ### Keyed members
 

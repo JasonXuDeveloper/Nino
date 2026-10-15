@@ -12,13 +12,13 @@ namespace Nino.Generator.Generation;
 internal sealed class MemberCache
 {
     private readonly NinoSymbols _symbols;
-    private readonly ConcurrentDictionary<ISymbol, IReadOnlyList<ISymbol>> _members = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ISymbol, MemberList> _members = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, IReadOnlyList<MemberFinding>> _findings = new(SymbolEqualityComparer.Default);
 
     public MemberCache(NinoSymbols symbols) => _symbols = symbols;
 
     /// <summary>Serialized members of <paramref name="type"/> (whose effective attribute is <paramref name="attr"/>), in order.</summary>
-    public IReadOnlyList<ISymbol> Of(INamedTypeSymbol type, NinoTypeOptions attr)
+    public MemberList Of(INamedTypeSymbol type, NinoTypeOptions attr)
     {
         // No GetOrAdd overload passes attr without allocating a closure on every hit.
         return _members.TryGetValue(type, out var result)

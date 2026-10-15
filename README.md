@@ -90,7 +90,7 @@ v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier 
   instances (payload is `null`, list shrinks, type changes) go back to their pool or to a handler registered with
   `NinoSettings.SetRecycler<T>`.
 - **No init calls**: generated registries are found lazily, so hot-update assemblies (HybridCLR) just work.
-- **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members at any depth.
+- **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members to the type or any of its base classes, at any nesting depth.
 - **User collections**: types derived from `List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>` and friends.
 - **Pluggable formatters**: `[assembly: NinoFormatter(typeof(MyFormatter<,>))]` teaches Nino a new type (yours or a
   third-party one). Type arguments and element formatters are inferred, generated code calls it directly, and the

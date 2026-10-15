@@ -105,6 +105,11 @@ internal sealed record TypeModel(
     // Formatter whose WriteMembers/ReadMembers cover the first BaseMemberCount members, or "".
     string BaseFormatter,
     int BaseMemberCount,
+    // How many of Levels the base formatter covers.
+    int BaseLevelCount,
+    // Version-tolerant positional bodies: the member count of each level, root first, each written behind its own
+    // length so members can be appended to any level. Empty for other bodies.
+    EquatableArray<int> Levels,
     EquatableArray<MemberModel> Members,
     ConstructionModel Construction,
     // (type, formatter) pairs registered for AOT platforms and top-level calls.

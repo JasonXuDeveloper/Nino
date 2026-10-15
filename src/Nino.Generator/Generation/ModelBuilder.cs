@@ -50,6 +50,9 @@ internal static class ModelBuilder
         bool emitMembers = facts.IsDelegatable(type);
         string baseFormatter = "";
         int baseMemberCount = 0;
+        int baseLevelCount = 0;
+        // Version-tolerant positional bodies delimit each level (see MemberList): its member count, root first.
+        var levels = new List<int>();
 
         if ((kind != FormatterKind.Polymorphic || emitMembers) && !rawStruct)
         {
@@ -67,6 +70,7 @@ internal static class ModelBuilder
                     baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbols[i])).All(x => x))
                 {
                     basePrefix = baseSymbols.Count;
+                    baseLevelCount = baseSymbols.LevelEnds.Count;
                     baseFormatter = FormatterResolver.GeneratedFormatter(baseType);
                 }
             }
@@ -85,13 +89,35 @@ internal static class ModelBuilder
                     baseMemberCount++;
             }
 
+            if (tolerant && !attr.Keyed)
+            {
+                int start = 0, built = 0;
+                foreach (int end in symbols.LevelEnds)
+                {
+                    int count = 0;
+                    for (; start < end; start++)
+                    {
+                        if (built < memberSymbols.Count &&
+                            SymbolEqualityComparer.Default.Equals(memberSymbols[built], symbols[start]))
+                        {
+                            built++;
+                            count++;
+                        }
+                    }
+
+                    levels.Add(count);
+                }
+            }
+
             // Raw members on both sides of the boundary would be written as one block inline; delegating would
             // split it into two reservations (measurably slower for small types), so keep such members inline.
-            if (baseMemberCount > 0 && baseMemberCount < members.Count &&
+            // Tolerant bodies never merge across levels: each level is its own length-prefixed block.
+            if (!tolerant && baseMemberCount > 0 && baseMemberCount < members.Count &&
                 members[baseMemberCount - 1].Raw != null && members[baseMemberCount].Raw != null)
             {
                 baseFormatter = "";
                 baseMemberCount = 0;
+                baseLevelCount = 0;
             }
         }
 
@@ -196,6 +222,8 @@ internal static class ModelBuilder
             emitMembers,
             baseFormatter,
             baseMemberCount,
+            baseLevelCount,
+            new EquatableArray<int>(levels),
             new EquatableArray<MemberModel>(members),
             construction,
             new EquatableArray<FormatterRegistration>(used),

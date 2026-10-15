@@ -45,13 +45,24 @@ internal readonly record struct MemberFinding(
 /// annotations of the members it declares, in the same pass and by the same rules. Use <see cref="MemberCache"/>,
 /// which memoizes both per compilation.
 /// </summary>
+/// <summary>
+/// The serialized members of a type, root level first. A level is the type itself or one of its [NinoType] base
+/// classes, led by the members of the [NinoType] interfaces it implements first; <see cref="LevelEnds"/> holds, per
+/// level, the index just past its last member (levels without members included), which version-tolerant bodies use
+/// to delimit each level.
+/// </summary>
+internal sealed class MemberList : List<ISymbol>
+{
+    public List<int> LevelEnds { get; } = new();
+}
+
 internal static class MemberCollector
 {
     /// <param name="findings">
     /// Receives the findings about the members <paramref name="type"/> declares (base types have their own); null
     /// when only the members are needed, which skips the checks only diagnostics need.
     /// </param>
-    public static List<ISymbol> Collect(INamedTypeSymbol type, NinoTypeOptions attr, NinoSymbols known,
+    public static MemberList Collect(INamedTypeSymbol type, NinoTypeOptions attr, NinoSymbols known,
         List<MemberFinding>? findings = null)
     {
         bool autoCollect = attr.AutoCollect;
@@ -95,7 +106,7 @@ internal static class MemberCollector
         HashSet<int>? duplicated = null;
 
         var inserted = new HashSet<string>();
-        var result = new List<ISymbol>();
+        var result = new MemberList();
         foreach (var level in levels)
         {
             // Findings cover every member the type declares, serialized or not.
@@ -164,6 +175,10 @@ internal static class MemberCollector
                 // Interface members are serialized through the implementing type's member of the same name.
                 result.Add(level.TypeKind == TypeKind.Interface ? FindImplementation(type, c.Symbol) : c.Symbol);
             }
+
+            // Interfaces are not levels of their own: their members open the level of the class implementing them.
+            if (level.TypeKind != TypeKind.Interface)
+                result.LevelEnds.Add(result.Count);
         }
 
         return result;
