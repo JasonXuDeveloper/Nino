@@ -49,8 +49,8 @@ namespace Nino.Core
                 return bytes;
             }
 
-            if (RawArray<T>.ElementSize != 0 && value != null)
-                return SerializeRawArray(value, RawArray<T>.ElementSize);
+            if (value != null && RawArray<T>.Info is { } raw)
+                return raw.Serialize(Unsafe.As<Array>(value));
 
             var buffer = RentScratch();
             try
@@ -67,49 +67,59 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>Element size when <typeparamref name="T"/> is an array of raw elements, else 0.</summary>
+        /// <summary>
+        /// Set when <typeparamref name="T"/> is an array of raw elements. Arrays are reference types, so this code
+        /// is shared between instantiations and every static access is a generic dictionary lookup: everything
+        /// the fast path needs is behind one.
+        /// </summary>
         private static class RawArray<T>
         {
-            public static readonly int ElementSize = Compute();
+            public static readonly RawArrayWriter Info = Create();
 
-            public static readonly INinoRawArrayFormatter Padded = ElementSize == 0 ? null : NinoFormatterCache<T>.Instance.RawArrayPadding;
-
-            private static int Compute()
+            private static RawArrayWriter Create()
             {
                 if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1)
-                    return 0;
+                    return null;
                 try
                 {
-                    return NinoFormatterCache<T>.Instance.RawArrayElementSize;
+                    var formatter = NinoFormatterCache<T>.Instance.RawArray;
+                    return formatter == null ? null : new RawArrayWriter(formatter.ElementSize, formatter);
                 }
                 catch (Exception)
                 {
                     // No formatter: the regular path reports it.
-                    return 0;
+                    return null;
                 }
             }
         }
 
-        /// <summary>An array of raw elements: the result is allocated at its exact size and filled with one copy.</summary>
-        private static byte[] SerializeRawArray<T>(T value, int elementSize)
+        /// <summary>
+        /// Writes an array of raw elements: its length, then one block copy, in code specialized for the element
+        /// type (the array formatter's), so only the lookup of this object is shared code.
+        /// </summary>
+        private sealed class RawArrayWriter
         {
-            // Any single-dimension array has the same layout as byte[] up to the elements.
-            var array = Unsafe.As<byte[]>(value);
-            int length = array.Length;
-            int size = checked(length * elementSize);
-            var bytes = NinoUnsafe.AllocateUninitializedArray<byte>(4 + size);
-            ref byte dst = ref NinoUnsafe.GetArrayDataReference(bytes);
-            NinoUnsafe.Write(ref dst, length);
-            if (size != 0)
+            private readonly int _elementSize;
+            private readonly INinoRawArrayFormatter _formatter;
+
+            public RawArrayWriter(int elementSize, INinoRawArrayFormatter formatter)
             {
-                ref byte src = ref NinoUnsafe.GetArrayDataReference(array);
-                if (RawArray<T>.Padded is { } padded)
-                    padded.CopyToWire(ref Unsafe.Add(ref dst, 4), ref src, length);
-                else
-                    Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref dst, 4), ref src, (uint)size);
+                _elementSize = elementSize;
+                _formatter = formatter;
             }
 
-            return bytes;
+            /// <summary>Length plus element bytes.</summary>
+            public int Size(Array array) => checked(4 + array.Length * _elementSize);
+
+            /// <summary>The result is allocated at its exact size and filled with one copy.</summary>
+            public byte[] Serialize(Array array)
+            {
+                var bytes = NinoUnsafe.AllocateUninitializedArray<byte>(Size(array));
+                _formatter.Write(ref NinoUnsafe.GetArrayDataReference(bytes), array);
+                return bytes;
+            }
+
+            public void Write(ref byte destination, Array array) => _formatter.Write(ref destination, array);
         }
 
         /// <summary>
@@ -126,6 +136,13 @@ namespace Nino.Core
 
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
+                if (value != null && RawArray<T>.Info is { } raw)
+                {
+                    var array = Unsafe.As<Array>(value);
+                    raw.Write(ref nino.Reserve(raw.Size(array)), array);
+                    return;
+                }
+
                 var writer = new Writer(nino);
                 NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
                 writer.Flush();
@@ -167,16 +184,9 @@ namespace Nino.Core
             int size = Unsafe.SizeOf<T>();
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
-                int index = nino.Index;
-                if (size > nino.Buffer.Length - index)
-                {
-                    nino.Grow(size);
-                }
-
-                ref byte dst = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(nino.Buffer), index);
+                ref byte dst = ref nino.Reserve(size);
                 NinoUnsafe.Write(ref dst, value);
                 NinoLayout<T>.ClearPadding(ref dst);
-                nino.Index = index + size;
                 return;
             }
 

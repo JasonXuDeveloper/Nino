@@ -71,6 +71,17 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Clear() => Index = 0;
 
+        /// <summary>Reserves <paramref name="size"/> bytes and returns a reference to the first one.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte Reserve(int size)
+        {
+            int index = Index;
+            if ((uint)size > (uint)(Buffer.Length - index))
+                Grow(size);
+            Index = index + size;
+            return ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(Buffer), index);
+        }
+
         public void Advance(int count)
         {
             if (count < 0 || Index > Buffer.Length - count)

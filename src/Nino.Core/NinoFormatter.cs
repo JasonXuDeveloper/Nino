@@ -54,21 +54,18 @@ namespace Nino.Core
         /// <summary>Whether the formatter writes exactly the in-memory bytes of <typeparamref name="T"/>.</summary>
         internal virtual bool IsRaw => false;
 
-        internal virtual INinoRawArrayFormatter RawArrayPadding => null;
-
-        /// <summary>Element size when <typeparamref name="T"/> is an array written as one raw block, else 0.</summary>
-        internal virtual int RawArrayElementSize => 0;
+        /// <summary>Set when <typeparamref name="T"/> is an array written as its length and one raw block.</summary>
+        internal virtual INinoRawArrayFormatter RawArray => null;
     }
 
     /// <summary>Formatters of arrays whose elements are written as one raw block.</summary>
     internal interface INinoRawArrayFormatter
     {
+        /// <summary>Wire size of one element; 0 when elements are not written as one block on this runtime.</summary>
         int ElementSize { get; }
 
-        /// <summary>The formatter itself when elements have padding to clear after the copy, else null.</summary>
-        INinoRawArrayFormatter Padded { get; }
-
-        void CopyToWire(ref byte destination, ref byte source, int count);
+        /// <summary>Writes the length and the elements of <paramref name="array"/> (a <c>T[]</c>, not null).</summary>
+        void Write(ref byte destination, System.Array array);
     }
 
     /// <summary>
@@ -112,11 +109,8 @@ namespace Nino.Core
 
         internal override bool IsRaw => RawFormatter<TFormatter>.Is;
 
-        internal override int RawArrayElementSize =>
-            default(TFormatter) is INinoRawArrayFormatter raw ? raw.ElementSize : 0;
-
-        internal override INinoRawArrayFormatter RawArrayPadding =>
-            default(TFormatter) is INinoRawArrayFormatter raw ? raw.Padded : null;
+        internal override INinoRawArrayFormatter RawArray =>
+            default(TFormatter) is INinoRawArrayFormatter raw && raw.ElementSize != 0 ? raw : null;
     }
 
     /// <summary>

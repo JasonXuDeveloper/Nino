@@ -114,10 +114,14 @@ namespace Nino.Core
         // Elements with a non-canonical layout take the formatter path, which converts them.
         int INinoRawArrayFormatter.ElementSize => NinoLayout<T>.IsCanonical ? Unsafe.SizeOf<T>() : 0;
 
-        INinoRawArrayFormatter INinoRawArrayFormatter.Padded => NinoLayout<T>.HasPadding ? this : null;
-
-        void INinoRawArrayFormatter.CopyToWire(ref byte destination, ref byte source, int count) =>
-            NinoLayout<T>.CopyToWire(ref destination, ref source, count);
+        void INinoRawArrayFormatter.Write(ref byte destination, Array array)
+        {
+            var values = Unsafe.As<T[]>(array);
+            NinoUnsafe.Write(ref destination, values.Length);
+            if (values.Length != 0)
+                NinoLayout<T>.CopyToWire(ref Unsafe.Add(ref destination, 4),
+                    ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), values.Length);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T[] value, ref Writer writer) => writer.Write(value);
@@ -191,9 +195,9 @@ namespace Nino.Core
                                            NullableLayout<T>.ValueOffset == Offset &&
                                            Unsafe.SizeOf<T?>() == Stride;
 
-        private static readonly NinoMask? Mask = BuildMask();
+        private static readonly NinoMask Mask = BuildMask();
 
-        private static NinoMask? BuildMask()
+        private static NinoMask BuildMask()
         {
             var mask = new byte[Stride];
             mask[0] = 0xFF;
