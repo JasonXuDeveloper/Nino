@@ -91,11 +91,11 @@ jobs:
           dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoGeneratorBuild=4.8
           dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoGeneratorBuild=4.8
 
-      # Top-level calls are intercepted by default (Roslyn 4.8+); the regular entry points must agree.
+      # Top-level calls are intercepted on Roslyn 4.8+; the regular entry points (Unity, older compilers) must agree.
       - name: Run unit tests without interceptors
         run: |
-          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoInterceptors=false
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoInterceptors=false
+          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoRegularCalls=true
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoRegularCalls=true
 
       - name: Cache Unity Library
         uses: actions/cache@v4

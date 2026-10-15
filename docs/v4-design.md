@@ -591,11 +591,11 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   of the method name); older compilers keep the 4.3 build. Which build a project gets depends on its compiler, not
   its target framework: a netstandard library built with a current SDK is intercepted too (interceptors are a
   compile-time feature).
-* Opt-in: interceptors need their namespace listed in `InterceptorsNamespaces` (Roslyn 4.12+) or
-  `InterceptorsPreviewNamespaces` (Roslyn 4.8-4.11). The package's `build/Nino.Generator.props` (and
-  `buildTransitive`) appends `NinoGen` to both unless `NinoInterceptors` is `false`;
-  the generator emits nothing when the namespace is not listed, so a project that sets the property without
-  appending simply keeps the regular calls.
+* Always on: interceptors need their namespace listed in `InterceptorsNamespaces` (Roslyn 4.12+) or
+  `InterceptorsPreviewNamespaces` (Roslyn 4.8-4.11), and the package's `build/Nino.Generator.props` (and
+  `buildTransitive`) appends `NinoGen` to both. The generator emits nothing when the namespace is not listed
+  (a project that overwrites the property instead of appending to it), and the regular calls write the same
+  bytes.
 * C# 11+ projects get a file-local `InterceptsLocationAttribute` and interceptor class; older language versions
   get internal ones.
 * Calls in generic code (`T` a type parameter) are left alone: the interceptor would be shared code too.

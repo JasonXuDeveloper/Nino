@@ -13,7 +13,7 @@ dotnet test Nino.UnitTests
 # and with interceptors off (the regular entry points must agree with the intercepted ones).
 dotnet test Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.0
 dotnet test Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
-dotnet test Nino.UnitTests -f net8.0 -p:NinoInterceptors=false
+dotnet test Nino.UnitTests -f net8.0 -p:NinoRegularCalls=true
 dotnet test Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8   # the .NET 8 SDK generator build
 ```
 

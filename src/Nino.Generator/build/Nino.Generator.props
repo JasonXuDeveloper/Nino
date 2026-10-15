@@ -1,9 +1,9 @@
 <Project>
     <!-- Lets the generator intercept top-level NinoSerializer/NinoDeserializer calls (compilers that load its
-         Roslyn 4.8 or 4.12 build: .NET 8 SDK and later), so they call the formatter directly. Set NinoInterceptors
-         to false to keep the regular calls. A project that sets either property itself must append to it.
-         Roslyn 4.8-4.11 read InterceptorsPreviewNamespaces; later compilers read both. -->
-    <PropertyGroup Condition="'$(NinoInterceptors)' != 'false'">
+         Roslyn 4.8 or 4.12 build: .NET 8 SDK and later), so they call the formatter directly. Always on; a project
+         that sets either property itself must append to it. Roslyn 4.8-4.11 read InterceptorsPreviewNamespaces;
+         later compilers read both. -->
+    <PropertyGroup>
         <InterceptorsNamespaces>$(InterceptorsNamespaces);NinoGen</InterceptorsNamespaces>
         <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);NinoGen</InterceptorsPreviewNamespaces>
     </PropertyGroup>
