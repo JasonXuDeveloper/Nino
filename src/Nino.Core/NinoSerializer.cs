@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Core
 {
@@ -44,8 +45,7 @@ namespace Nino.Core
             if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
             {
                 var bytes = new byte[Unsafe.SizeOf<T>()];
-                NinoUnsafe.Write(ref bytes[0], value);
-                NinoLayout<T>.ClearPadding(ref bytes[0]);
+                NinoLayout<T>.Write(ref bytes[0], value);
                 return bytes;
             }
 
@@ -55,16 +55,22 @@ namespace Nino.Core
             var buffer = RentScratch();
             try
             {
-                var writer = new Writer(buffer);
-                NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
-                writer.Flush();
-                writer.ReleaseReferences();
+                WriteFormatted(value, buffer);
                 return buffer.ToArray();
             }
             finally
             {
                 ReturnScratch(buffer);
             }
+        }
+
+        /// <summary>Writes <paramref name="value"/> with its formatter, then ends the call's reference tracking.</summary>
+        private static void WriteFormatted<T>(T value, NinoArrayBufferWriter buffer)
+        {
+            var writer = new Writer(buffer);
+            NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+            writer.Flush();
+            writer.ReleaseReferences();
         }
 
         /// <summary>
@@ -143,20 +149,14 @@ namespace Nino.Core
                     return;
                 }
 
-                var writer = new Writer(nino);
-                NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
-                writer.Flush();
-                writer.ReleaseReferences();
+                WriteFormatted(value, nino);
                 return;
             }
 
             var buffer = RentScratch();
             try
             {
-                var writer = new Writer(buffer);
-                NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
-                writer.Flush();
-                writer.ReleaseReferences();
+                WriteFormatted(value, buffer);
                 bufferWriter.Write(buffer.WrittenSpan);
             }
             finally
@@ -184,18 +184,14 @@ namespace Nino.Core
             int size = Unsafe.SizeOf<T>();
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
-                ref byte dst = ref nino.Reserve(size);
-                NinoUnsafe.Write(ref dst, value);
-                NinoLayout<T>.ClearPadding(ref dst);
+                NinoLayout<T>.Write(ref nino.Reserve(size), value);
                 return;
             }
 
             var span = bufferWriter.GetSpan(size);
             if (span.Length < size)
                 NinoThrow.EndOfData();
-            ref byte first = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(span);
-            NinoUnsafe.Write(ref first, value);
-            NinoLayout<T>.ClearPadding(ref first);
+            NinoLayout<T>.Write(ref MemoryMarshal.GetReference(span), value);
             bufferWriter.Advance(size);
         }
 
@@ -277,21 +273,12 @@ namespace Nino.Core
         {
             if (data.Length < Unsafe.SizeOf<T>())
                 NinoThrow.EndOfData();
-            return NinoUnsafe.Read<T>(ref System.Runtime.InteropServices.MemoryMarshal.GetReference(data));
+            return NinoUnsafe.Read<T>(ref MemoryMarshal.GetReference(data));
         }
 
-        /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
+        /// <summary>Same as <see cref="Deserialize{T}(ref T, ref Reader)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeRef<T>(ref T value, ref Reader reader)
-        {
-            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
-            {
-                value = reader.UnsafeRead<T>();
-                return;
-            }
-
-            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
-        }
+        public static void DeserializeRef<T>(ref T value, ref Reader reader) => Deserialize(ref value, ref reader);
 
         /// <summary>Deserializes into <paramref name="value"/> with an existing reader.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -321,12 +308,8 @@ namespace Nino.Core
         /// <summary>Deserializes a value of <paramref name="type"/> and returns it boxed.</summary>
         public static object Deserialize(ReadOnlySpan<byte> data, Type type)
         {
-            if (type == null)
-                throw new ArgumentNullException(nameof(type));
-            var reader = new Reader(data);
             object value = null;
-            BoxedFormatter.Get(type).Deserialize(ref value, ref reader);
-            reader.ReleaseReferences();
+            Deserialize(data, type, ref value);
             return value;
         }
 

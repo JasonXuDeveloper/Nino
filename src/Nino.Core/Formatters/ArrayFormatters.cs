@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace Nino.Core
 {
     /// <summary>Shared element loops for array-like formatters.</summary>
-    public static class NinoElements
+    internal static class NinoElements
     {
         /// <summary>Writes <paramref name="count"/> elements starting at <paramref name="first"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -44,10 +44,18 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Replaces <paramref name="array"/> with an array of <paramref name="length"/> elements, moving over the
-        /// elements that fit and recycling the rest (and the old array).
+        /// Returns <paramref name="array"/> when it has <paramref name="length"/> elements; otherwise replaces it with
+        /// an array of that length, moving over the elements that fit (unless <paramref name="uninitialized"/>: the
+        /// caller overwrites every element) and recycling the rest (and the old array).
         /// </summary>
-        public static T[] Resize<T>(ref T[] array, int length, bool uninitialized = false)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T[] EnsureLength<T>(ref T[] array, int length, bool uninitialized = false)
+        {
+            var current = array;
+            return current != null && current.Length == length ? current : Resize(ref array, length, uninitialized);
+        }
+
+        private static T[] Resize<T>(ref T[] array, int length, bool uninitialized)
         {
             var old = array;
             var result = length == 0
@@ -101,10 +109,7 @@ namespace Nino.Core
                 return;
             }
 
-            var array = value;
-            if (array == null || array.Length != length)
-                array = NinoElements.Resize(ref value, length);
-            NinoElements.Read<T, TFormatter>(array, ref reader);
+            NinoElements.Read<T, TFormatter>(NinoElements.EnsureLength(ref value, length), ref reader);
         }
     }
 
@@ -117,10 +122,8 @@ namespace Nino.Core
         void INinoRawArrayFormatter.Write(ref byte destination, Array array)
         {
             var values = Unsafe.As<T[]>(array);
-            NinoUnsafe.Write(ref destination, values.Length);
-            if (values.Length != 0)
-                NinoLayout<T>.CopyToWire(ref Unsafe.Add(ref destination, 4),
-                    ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), values.Length);
+            NinoLayout<T>.WriteLengthPrefixed(ref destination,
+                ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), values.Length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -136,10 +139,7 @@ namespace Nino.Core
                 return;
             }
 
-            var array = value;
-            if (array == null || array.Length != length)
-                array = NinoElements.Resize(ref value, length, uninitialized: true);
-            reader.ReadUnmanagedRaw(array.AsSpan());
+            reader.ReadUnmanagedRaw(NinoElements.EnsureLength(ref value, length, uninitialized: true).AsSpan());
         }
     }
 
@@ -170,10 +170,7 @@ namespace Nino.Core
                 return;
             }
 
-            var array = value;
-            if (array == null || array.Length != length)
-                array = NinoElements.Resize(ref value, length, uninitialized: true);
-            NinoNullables<T>.Read(array, ref reader);
+            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, uninitialized: true), ref reader);
         }
     }
 
@@ -344,7 +341,7 @@ namespace Nino.Core
             var array = value;
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b)
             {
-                MultiDim.Recycle(value);
+                NinoRecycler<T[,]>.Recycle(value);
                 array = new T[a, b];
                 value = array;
             }
@@ -388,7 +385,7 @@ namespace Nino.Core
             var array = value;
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b || array.GetLength(2) != c)
             {
-                MultiDim.Recycle(value);
+                NinoRecycler<T[,,]>.Recycle(value);
                 array = new T[a, b, c];
                 value = array;
             }
@@ -435,7 +432,7 @@ namespace Nino.Core
             if (array == null || array.GetLength(0) != a || array.GetLength(1) != b || array.GetLength(2) != c ||
                 array.GetLength(3) != d)
             {
-                MultiDim.Recycle(value);
+                NinoRecycler<T[,,,]>.Recycle(value);
                 array = new T[a, b, c, d];
                 value = array;
             }
@@ -485,12 +482,6 @@ namespace Nino.Core
             if (total > reader.Remaining)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));
             return (int)total;
-        }
-
-        public static void Recycle<TArray>(TArray array) where TArray : class
-        {
-            if (array != null)
-                NinoRecycler<TArray>.Recycle(array);
         }
     }
 }

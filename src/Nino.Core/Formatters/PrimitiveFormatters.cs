@@ -96,8 +96,7 @@ namespace Nino.Core
                 // Flag and value in one reservation.
                 ref byte dst = ref writer.Reserve(1 + Unsafe.SizeOf<T>());
                 dst = 1;
-                NinoUnsafe.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
-                NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref dst, 1));
+                NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
                 return;
             }
 

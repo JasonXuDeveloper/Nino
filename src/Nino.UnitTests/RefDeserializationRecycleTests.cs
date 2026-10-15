@@ -157,6 +157,46 @@ public class RefDeserializationRecycleTests
     }
 
     [TestMethod]
+    public void InterfaceCollectionsRecycleDroppedInstancesOnce()
+    {
+        var recycled = new List<object>();
+        NinoRecycler<List<int>>.Register(recycled.Add);
+        NinoRecycler<IList<int>>.Register(recycled.Add);
+        NinoRecycler<Dictionary<int, int>>.Register(recycled.Add);
+        NinoRecycler<IDictionary<int, int>>.Register(recycled.Add);
+        try
+        {
+            // The data is null: the existing instance is dropped once, by the concrete formatter.
+            IList<int> list = new List<int> { 1 };
+            var oldList = list;
+            NinoDeserializer.DeserializeRef(ref list, NinoSerializer.Serialize<IList<int>>(null));
+            Assert.IsNull(list);
+            CollectionAssert.AreEqual(new object[] { oldList }, recycled);
+
+            IDictionary<int, int> dictionary = new Dictionary<int, int> { [1] = 2 };
+            var oldDictionary = dictionary;
+            recycled.Clear();
+            NinoDeserializer.DeserializeRef(ref dictionary, NinoSerializer.Serialize<IDictionary<int, int>>(null));
+            Assert.IsNull(dictionary);
+            CollectionAssert.AreEqual(new object[] { oldDictionary }, recycled);
+
+            // An instance of another collection type cannot be reused: it is dropped once, as the interface.
+            IList<int> array = new[] { 1, 2 };
+            var oldArray = array;
+            recycled.Clear();
+            NinoDeserializer.DeserializeRef(ref array, NinoSerializer.Serialize<IList<int>>(new List<int> { 3 }));
+            CollectionAssert.AreEqual(new[] { 3 }, (List<int>)array);
+            CollectionAssert.AreEqual(new object[] { oldArray }, recycled);
+        }
+        finally
+        {
+            NinoRecycler<IList<int>>.Unregister();
+            NinoRecycler<Dictionary<int, int>>.Unregister();
+            NinoRecycler<IDictionary<int, int>>.Unregister();
+        }
+    }
+
+    [TestMethod]
     public void BoxedNullRoundTrips()
     {
         object value = new GoldenPoint { X = 1 };

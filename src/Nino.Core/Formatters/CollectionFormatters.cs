@@ -43,7 +43,7 @@ namespace Nino.Core
             }
             else
             {
-                NinoCollections.RecycleItems(collection);
+                NinoRecycler.RecycleItems(collection);
                 collection.Clear();
             }
 
@@ -112,7 +112,7 @@ namespace Nino.Core
             }
             else
             {
-                NinoCollections.RecycleItems(set);
+                NinoRecycler.RecycleItems(set);
                 set.Clear();
             }
 
@@ -171,7 +171,7 @@ namespace Nino.Core
             }
             else
             {
-                NinoCollections.RecycleItems(queue);
+                NinoRecycler.RecycleItems(queue);
                 queue.Clear();
             }
 
@@ -232,7 +232,7 @@ namespace Nino.Core
             }
             else
             {
-                NinoCollections.RecycleItems(stack);
+                NinoRecycler.RecycleItems(stack);
                 stack.Clear();
             }
 
@@ -305,6 +305,4 @@ namespace Nino.Core
             }
         }
     }
-
-
 }

@@ -67,10 +67,6 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ResetWrittenCount() => Index = 0;
 
-        /// <summary>Resets the written count without clearing or releasing the buffer.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Clear() => Index = 0;
-
         /// <summary>Reserves <paramref name="size"/> bytes and returns a reference to the first one.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref byte Reserve(int size)

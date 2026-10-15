@@ -39,10 +39,7 @@ namespace Nino.Core
 
             var list = value;
             if (list == null)
-            {
-                list = typeof(TList) == typeof(List<T>) ? (TList)new List<T>(length) : new TList();
-                value = list;
-            }
+                value = list = ListAccess.Create<TList, T>(length);
             else if (list.Count > length)
             {
                 NinoRecycler.RecycleRange(ListAccess.AsSpan<T>(list).Slice(length));
@@ -79,13 +76,7 @@ namespace Nino.Core
                 return;
             }
 
-            var list = value;
-            if (list == null)
-            {
-                list = typeof(TList) == typeof(List<T>) ? (TList)new List<T>(length) : new TList();
-                value = list;
-            }
-
+            var list = value ??= ListAccess.Create<TList, T>(length);
             reader.ReadUnmanagedRaw(ListAccess.SetCount<T>(list, length, overwritten: true));
         }
     }
@@ -115,13 +106,7 @@ namespace Nino.Core
                 return;
             }
 
-            var list = value;
-            if (list == null)
-            {
-                list = typeof(TList) == typeof(List<T?>) ? (TList)new List<T?>(length) : new TList();
-                value = list;
-            }
-
+            var list = value ??= ListAccess.Create<TList, T?>(length);
             NinoNullables<T>.Read(ListAccess.SetCount<T?>(list, length, overwritten: true), ref reader);
         }
     }
@@ -161,28 +146,28 @@ namespace Nino.Core
 
         public void Deserialize(ref TInterface value, ref Reader reader)
         {
+            var old = value;
             if (typeof(TConcrete) == typeof(List<T>))
             {
-                var list = value as List<T>;
-                var old = value;
+                var list = old as List<T>;
                 default(ListFormatter<List<T>, T, TFormatter>).Deserialize(ref list, ref reader);
                 value = (TInterface)(object)list;
-                if (old != null && !ReferenceEquals(old, list))
-                    NinoRecycler<TInterface>.Recycle(old);
-                return;
+            }
+            else
+            {
+                var collection = old as TConcrete;
+                default(CollectionFormatter<TConcrete, T, TFormatter>).Deserialize(ref collection, ref reader);
+                value = collection;
             }
 
-            var collection = value as TConcrete;
-            var previous = value;
-            default(CollectionFormatter<TConcrete, T, TFormatter>).Deserialize(ref collection, ref reader);
-            value = collection;
-            if (previous != null && !ReferenceEquals(previous, collection))
-                NinoRecycler<TInterface>.Recycle(previous);
+            // A TConcrete was handed to the formatter, which reused or recycled it; another collection is dropped.
+            if (old != null && !(old is TConcrete))
+                NinoRecycler<TInterface>.Recycle(old);
         }
     }
 
     /// <summary>Shared helpers for collection formatters.</summary>
-    public static partial class NinoCollections
+    internal static partial class NinoCollections
     {
         /// <summary>Writes the count of <paramref name="values"/> (patched afterwards if unknown), then the elements.</summary>
         public static void WriteEnumerable<T, TFormatter>(IEnumerable<T> values, ref Writer writer)
@@ -207,16 +192,6 @@ namespace Nino.Core
             if (count >= 0 && count != written)
                 NinoThrow.InvalidData("collection was modified during serialization");
             writer.PatchInt32(countPos, written);
-        }
-
-        /// <summary>Recycles the items of a collection that is about to be cleared, if a handler exists.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void RecycleItems<T>(IEnumerable<T> items)
-        {
-            if (!NinoRecycler<T>.IsRegistered)
-                return;
-            foreach (var item in items)
-                NinoRecycler<T>.Recycle(item);
         }
     }
 }

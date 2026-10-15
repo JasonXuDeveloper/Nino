@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Core
@@ -80,7 +81,7 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// Non-generic helpers used by generated code to discard or replace values during ref deserialization.
+    /// The fallback handler, and helpers used by formatters to discard values during ref deserialization.
     /// </summary>
     public static class NinoRecycler
     {
@@ -108,29 +109,44 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Assigns <paramref name="newValue"/> to <paramref name="slot"/>, recycling the previous instance if it
-        /// is being replaced by a different one.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Replace<T>(ref T slot, T newValue) where T : class
-        {
-            var old = slot;
-            slot = newValue;
-            if (old != null && !ReferenceEquals(old, newValue))
-                NinoRecycler<T>.Recycle(old);
-        }
-
-        /// <summary>
         /// Recycles every element of <paramref name="values"/> if a handler for <typeparamref name="T"/> exists.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void RecycleRange<T>(Span<T> values)
+        internal static void RecycleRange<T>(Span<T> values)
         {
             if (!NinoRecycler<T>.IsRegistered)
                 return;
 
             foreach (var item in values)
                 NinoRecycler<T>.Recycle(item);
+        }
+
+        /// <summary>Recycles the items of a collection that is about to be cleared, if a handler exists.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void RecycleItems<T>(IEnumerable<T> items)
+        {
+            if (!NinoRecycler<T>.IsRegistered)
+                return;
+
+            foreach (var item in items)
+                NinoRecycler<T>.Recycle(item);
+        }
+
+        /// <summary>Recycles the keys and values of a dictionary that is about to be cleared, if handlers exist.</summary>
+        internal static void RecycleItems<TKey, TValue>(IEnumerable<KeyValuePair<TKey, TValue>> pairs)
+        {
+            bool keys = NinoRecycler<TKey>.IsRegistered;
+            bool values = NinoRecycler<TValue>.IsRegistered;
+            if (!keys && !values)
+                return;
+
+            foreach (var pair in pairs)
+            {
+                if (keys)
+                    NinoRecycler<TKey>.Recycle(pair.Key);
+                if (values)
+                    NinoRecycler<TValue>.Recycle(pair.Value);
+            }
         }
     }
 }

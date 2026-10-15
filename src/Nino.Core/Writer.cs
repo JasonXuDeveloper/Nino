@@ -202,11 +202,8 @@ namespace Nino.Core
             }
 
             var bytes = MemoryMarshal.AsBytes(values);
-            ref byte dst = ref Reserve(4 + bytes.Length);
-            NinoUnsafe.Write(ref dst, values.Length);
-            if (bytes.Length != 0)
-                NinoLayout<T>.CopyToWire(ref Unsafe.Add(ref dst, 4), ref MemoryMarshal.GetReference(bytes),
-                    values.Length);
+            NinoLayout<T>.WriteLengthPrefixed(ref Reserve(4 + bytes.Length), ref MemoryMarshal.GetReference(bytes),
+                values.Length);
         }
 
         /// <summary>Writes a length-prefixed unmanaged array (-1 for null).</summary>

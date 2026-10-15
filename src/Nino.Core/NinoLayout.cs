@@ -74,7 +74,7 @@ namespace Nino.Core
         {
             try
             {
-                return Compute(type, runtimeSize);
+                return Compute(type, runtimeSize, LongAlign, DecimalAlign);
             }
             catch
             {
@@ -82,9 +82,6 @@ namespace Nino.Core
                 return new Info { Size = runtimeSize };
             }
         }
-
-        private static Info Compute(Type type, int runtimeSize) =>
-            Compute(type, runtimeSize, LongAlign, DecimalAlign);
 
         /// <summary>Layout info as a runtime with the given alignments would see it (exposed for tests).</summary>
         internal static Info Compute(Type type, int runtimeSize, int longAlign, int decimalAlign)
@@ -523,6 +520,15 @@ namespace Nino.Core
                 Mask!.Copy(ref destination, ref source, count);
             else
                 Unsafe.CopyBlockUnaligned(ref destination, ref source, (uint)checked(count * Unsafe.SizeOf<T>()));
+        }
+
+        /// <summary>Writes <paramref name="count"/> as an <c>int32</c>, then <see cref="CopyToWire"/>s the values.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteLengthPrefixed(ref byte destination, ref byte source, int count)
+        {
+            NinoUnsafe.Write(ref destination, count);
+            if (count != 0)
+                CopyToWire(ref Unsafe.Add(ref destination, 4), ref source, count);
         }
 
         /// <summary>Writes <paramref name="value"/> in its wire layout (<see cref="Size"/> bytes).</summary>

@@ -21,8 +21,15 @@ namespace Nino.Core.Internal
 #endif
 
     /// <summary>Direct access to the backing array of a <see cref="List{T}"/>.</summary>
-    public static class ListAccess
+    internal static class ListAccess
     {
+        /// <summary>
+        /// A new, empty <typeparamref name="TList"/>; a plain <see cref="List{T}"/> gets <paramref name="capacity"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static TList Create<TList, T>(int capacity) where TList : List<T>, new() =>
+            typeof(TList) == typeof(List<T>) ? (TList)new List<T>(capacity) : new TList();
+
         /// <summary>The list's elements as a span. Do not add or remove items while using it.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Span<T> AsSpan<T>(List<T> list)

@@ -179,15 +179,6 @@ namespace Nino.Core
             value = ReadValue<T>();
         }
 
-        /// <summary>Reads 4 bytes without consuming them.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int PeekInt32()
-        {
-            if (_data.Length - _pos < 4)
-                NinoThrow.EndOfData();
-            return NinoUnsafe.Read<int>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), _pos));
-        }
-
         /// <summary>Consumes 4 bytes if they equal <paramref name="expected"/>; otherwise consumes nothing.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryReadInt32(int expected)
@@ -275,21 +266,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T[] value) where T : unmanaged
         {
-            int length = ReadLength(NinoLayout<T>.Size);
-            if (length < 0)
-            {
-                value = null;
-                return;
-            }
-
-            if (length == 0)
-            {
-                value = Array.Empty<T>();
-                return;
-            }
-
-            value = NinoUnsafe.AllocateUninitializedArray<T>(length);
-            ReadUnmanagedRaw(value.AsSpan());
+            value = null;
+            default(UnmanagedArrayFormatter<T>).Deserialize(ref value, ref this);
         }
 
         private static string EmptyOrNull(int length)

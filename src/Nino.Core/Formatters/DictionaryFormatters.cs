@@ -57,7 +57,7 @@ namespace Nino.Core
         /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/> pairs.</summary>
         public static void Reset(Dictionary<TKey, TValue> dictionary, int length)
         {
-            NinoCollections.RecycleItems<TKey, TValue>(dictionary);
+            NinoRecycler.RecycleItems<TKey, TValue>(dictionary);
             dictionary.Clear();
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
             dictionary.EnsureCapacity(length);
@@ -266,7 +266,7 @@ namespace Nino.Core
             }
             else
             {
-                NinoCollections.RecycleItems<TKey, TValue>(dictionary);
+                NinoRecycler.RecycleItems<TKey, TValue>(dictionary);
                 dictionary.Clear();
             }
 
@@ -302,8 +302,7 @@ namespace Nino.Core
 
             if (value is Dictionary<TKey, TValue> dictionary)
             {
-                default(DictionaryFormatter<Dictionary<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter>)
-                    .Serialize(dictionary, ref writer);
+                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Write(dictionary, ref writer);
                 return;
             }
 
@@ -316,19 +315,19 @@ namespace Nino.Core
             if (typeof(TInterface) == typeof(ReadOnlyDictionary<TKey, TValue>))
             {
                 Dictionary<TKey, TValue> inner = null;
-                default(DictionaryFormatter<Dictionary<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter>)
-                    .Deserialize(ref inner, ref reader);
+                default(DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>).Deserialize(ref inner, ref reader);
                 value = inner == null ? null : (TInterface)(object)new ReadOnlyDictionary<TKey, TValue>(inner);
             }
             else
             {
-                var dictionary = value as Dictionary<TKey, TValue>;
-                default(DictionaryFormatter<Dictionary<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter>)
+                var dictionary = old as Dictionary<TKey, TValue>;
+                default(DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>)
                     .Deserialize(ref dictionary, ref reader);
                 value = (TInterface)(object)dictionary;
             }
 
-            if (old != null && !ReferenceEquals(old, value))
+            // A Dictionary was handed to the formatter, which reused or recycled it; anything else is dropped.
+            if (old != null && !(old is Dictionary<TKey, TValue>))
                 NinoRecycler<TInterface>.Recycle(old);
         }
     }
@@ -357,7 +356,7 @@ namespace Nino.Core
         }
     }
 
-    public static partial class NinoCollections
+    internal static partial class NinoCollections
     {
         /// <summary>Writes the count of <paramref name="pairs"/>, then each key and value.</summary>
         public static void WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
@@ -375,23 +374,6 @@ namespace Nino.Core
             }
 
             writer.PatchInt32(countPos, written);
-        }
-
-        /// <summary>Recycles the keys and values of a dictionary that is about to be cleared.</summary>
-        public static void RecycleItems<TKey, TValue>(IEnumerable<KeyValuePair<TKey, TValue>> pairs)
-        {
-            bool keys = NinoRecycler<TKey>.IsRegistered && !typeof(TKey).IsValueType;
-            bool values = NinoRecycler<TValue>.IsRegistered && !typeof(TValue).IsValueType;
-            if (!keys && !values)
-                return;
-
-            foreach (var pair in pairs)
-            {
-                if (keys)
-                    NinoRecycler<TKey>.Recycle(pair.Key);
-                if (values)
-                    NinoRecycler<TValue>.Recycle(pair.Value);
-            }
         }
     }
 }

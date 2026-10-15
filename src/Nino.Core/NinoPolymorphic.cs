@@ -83,7 +83,7 @@ namespace Nino.Core
     /// reader that sees the key also sees the handler. Growing publishes a new array with one reference write.
     /// </para>
     /// </summary>
-    public static class NinoPolymorphic<TBase>
+    public static class NinoPolymorphic<TBase> where TBase : class
     {
         private struct TypeEntry
         {
@@ -285,7 +285,7 @@ namespace Nino.Core
             object result = reuse ? old : null;
             handler.Deserialize(ref result, ref reader);
             // The handler's type derives from TBase (checked when it was registered here).
-            value = typeof(TBase).IsValueType ? (TBase)result : Unsafe.As<object, TBase>(ref result);
+            value = Unsafe.As<TBase>(result);
             // ReadBody recycles an instance it was given and had to re-create; an instance of another type was
             // never passed in, so it is recycled here.
             if (old != null && !reuse)
