@@ -19,6 +19,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     private static readonly ImmutableArray<DiagnosticDescriptor> Supported = ImmutableArray.Create(
         NinoDiagnostics.MissingConstructorMember,
         NinoDiagnostics.NoUsableConstructor,
+        NinoDiagnostics.InaccessibleConstructor,
         NinoDiagnostics.InaccessibleType,
         NinoDiagnostics.SubTypeWithoutNinoType,
         NinoDiagnostics.RedundantMember,
@@ -95,15 +96,16 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
 
         // The Nino attribute types and the members collected are shared with the generator's model builds.
         var facts = TypeFacts.For(context.Compilation, type.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree.Options);
-        var known = facts.Symbols;
+        // Collecting the findings also caches the members, so the model build below reuses them.
+        var findings = facts.Members.FindingsOf(type, attr);
 
         // The generator skips types it cannot name from outside them.
-        if (!TypeFacts.IsEligible(type))
+        if (!Visibility.IsEligible(type))
             sink.Report(NinoDiagnostics.InaccessibleType, type, type.ToDisplayString());
         else
             ModelBuilder.Build(type, facts, sink);
 
-        if (NinoSymbols.Has(type, known.Pooled))
+        if (NinoSymbols.Has(type, facts.Symbols.Pooled))
         {
             var missing = PoolHooks.Missing(type, context.CancellationToken).ToList();
             if (missing.Count > 0)
@@ -111,57 +113,37 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                     string.Join(" and ", missing.Select(name => name + "()")));
         }
 
-        var indices = attr.AutoCollect ? null : new Dictionary<ushort, ISymbol>();
-        HashSet<ushort>? reported = null;
-        foreach (var member in type.GetMembers())
+        foreach (var finding in findings)
+            Report(sink, type, finding);
+    }
+
+    /// <summary>Reports what <see cref="MemberCollector"/> found about a member <paramref name="type"/> declares.</summary>
+    private static void Report(DiagnosticSink sink, INamedTypeSymbol type, MemberFinding finding)
+    {
+        var member = finding.Member;
+        switch (finding.Kind)
         {
-            AttributeData? ninoMember = null, customFormatter = null;
-            bool ignored = false;
-            foreach (var a in member.GetAttributes())
-            {
-                var attributeClass = a.AttributeClass;
-                if (attributeClass == null)
-                    continue;
-                if (SymbolEqualityComparer.Default.Equals(attributeClass, known.Member))
-                    ninoMember = a;
-                else if (SymbolEqualityComparer.Default.Equals(attributeClass, known.Ignore))
-                    ignored = true;
-                else if (SymbolEqualityComparer.Default.Equals(attributeClass, known.CustomFormatter))
-                    customFormatter = a;
-            }
-
-            if (customFormatter is { ConstructorArguments: { Length: > 0 } args } &&
-                args[0].Value is INamedTypeSymbol formatter && TypeFacts.MemberType(member) is { } memberType &&
-                !known.IsCustomFormatterOf(formatter, memberType))
-                sink.Report(NinoDiagnostics.InvalidCustomFormatter, member, formatter.ToDisplayString(),
-                    memberType.ToDisplayString());
-
-            bool annotated = ninoMember != null;
-            // Non-public members are only collected with containNonPublicMembers: [NinoMember] cannot opt one in.
-            bool dropped = annotated && member.DeclaredAccessibility != Accessibility.Public &&
-                           !attr.ContainNonPublicMembers;
-            if (dropped)
+            case MemberFindingKind.InvalidCustomFormatter:
+                sink.Report(NinoDiagnostics.InvalidCustomFormatter, member, finding.Formatter!.ToDisplayString(),
+                    MemberCollector.MemberType(member)!.ToDisplayString());
+                break;
+            case MemberFindingKind.NonPublicMember:
                 sink.Report(NinoDiagnostics.PrivateMember, member, member.Name, type.Name);
-            if (attr.AutoCollect)
-            {
-                if (annotated && !dropped)
-                    sink.Report(NinoDiagnostics.RedundantMember, member, member.Name, type.Name);
-                continue;
-            }
-
-            if (annotated && ignored)
-                sink.Report(NinoDiagnostics.AmbiguousMember, member, member.Name, type.Name);
-            else if (ignored)
+                break;
+            case MemberFindingKind.RedundantMember:
+                sink.Report(NinoDiagnostics.RedundantMember, member, member.Name, type.Name);
+                break;
+            case MemberFindingKind.RedundantIgnore:
                 sink.Report(NinoDiagnostics.RedundantIgnore, member, member.Name, type.Name);
-
-            if (ninoMember is { ConstructorArguments: { Length: > 0 } indexArgs } && indexArgs[0].Value is ushort index)
-            {
-                if (!indices!.TryGetValue(index, out var existing))
-                    indices[index] = member;
-                else if ((reported ??= new HashSet<ushort>()).Add(index))
-                    sink.Report(NinoDiagnostics.DuplicateIndex, member, type.Name, member.Name,
-                        existing.ContainingType.Name, existing.Name);
-            }
+                break;
+            case MemberFindingKind.AmbiguousMember:
+                sink.Report(NinoDiagnostics.AmbiguousMember, member, member.Name, type.Name);
+                break;
+            case MemberFindingKind.DuplicateIndex:
+                var other = finding.Other!;
+                sink.Report(NinoDiagnostics.DuplicateIndex, member, type.Name, member.Name, other.ContainingType.Name,
+                    other.Name);
+                break;
         }
     }
 

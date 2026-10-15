@@ -15,14 +15,14 @@ internal static class ModelBuilder
     public static TypeModel? Build(INamedTypeSymbol type, TypeFacts facts, DiagnosticSink? diagnostics = null)
     {
         type = type.OriginalDefinition;
-        if (!TypeFacts.IsEligible(type))
+        if (!Visibility.IsEligible(type))
             return null;
         var attr = type.GetNinoTypeOptions();
         if (attr == null)
             return null;
 
         var known = facts.Symbols;
-        bool rawStruct = facts.IsRawStruct(type);
+        bool rawStruct = facts.Raw.IsRawStruct(type);
 
         var kind = type.TypeKind == TypeKind.Interface || type.IsAbstract
             ? FormatterKind.Polymorphic
@@ -52,7 +52,7 @@ internal static class ModelBuilder
 
         if ((kind != FormatterKind.Polymorphic || emitMembers) && !rawStruct)
         {
-            var symbols = facts.Members(type, attr);
+            var symbols = facts.Members.Of(type, attr);
 
             // Reuse the base formatter's member code when the base's members are exactly our first members, in
             // the same order: the bytes are identical, and each member is compiled once instead of once per subtype.
@@ -61,7 +61,7 @@ internal static class ModelBuilder
                 facts.IsDelegatable(baseType) &&
                 (baseType.GetNinoTypeOptions() is { } baseAttr && (baseAttr.VersionTolerant || facts.WeakTolerance) == tolerant))
             {
-                var baseSymbols = facts.Members(baseType, baseAttr);
+                var baseSymbols = facts.Members.Of(baseType, baseAttr);
                 if (baseSymbols.Count <= symbols.Count &&
                     baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbols[i])).All(x => x))
                 {
@@ -251,7 +251,7 @@ internal static class ModelBuilder
     private static MemberModel? BuildMember(INamedTypeSymbol type, ISymbol symbol, TypeFacts facts,
         DiagnosticSink? diagnostics, ref bool needsPartialAccessor)
     {
-        var memberType = TypeFacts.MemberType(symbol)?.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+        var memberType = MemberCollector.MemberType(symbol)?.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         if (memberType == null)
             return null;
         var known = facts.Symbols;
@@ -283,7 +283,7 @@ internal static class ModelBuilder
 
         var declaring = symbol.ContainingType;
         MemberAccess access;
-        if (facts.IsDirectlyAccessible(symbol))
+        if (facts.Visibility.IsDirectlyAccessible(symbol))
         {
             access = MemberAccess.Direct;
         }
@@ -299,7 +299,7 @@ internal static class ModelBuilder
 
         // Members join unmanaged blocks when their layout is the same on every runtime; others (rare struct
         // shapes such as { int; long }) go through their formatter, which converts them where needed.
-        var raw = custom == null && facts.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType)
+        var raw = custom == null && facts.Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType)
             ? FormatterResolver.RawSizeOf(memberType)
             : null;
 
@@ -307,6 +307,6 @@ internal static class ModelBuilder
         int typeId = registered && raw == null ? facts.TypeId(memberType) : 0;
         return new MemberModel(symbol.Name, ComputeId(symbol.Name), Global(memberType), formatter, raw,
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
-            TypeFacts.IsConstructionOnly(symbol), false, typeId);
+            Visibility.IsConstructionOnly(symbol), false, typeId);
     }
 }

@@ -28,6 +28,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO018](#nino018) | Error | `[NinoPooled]` on a type that cannot be pooled 🔧 |
 | [NINO019](#nino019) | Error | `[NinoPooled]` class does not implement its pool hooks 🔧 |
 | [NINO020](#nino020) | Error | Invalid `[assembly: NinoFormatter]` registration |
+| [NINO021](#nino021) | Error | `[NinoConstructor]` is not accessible to generated code |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -71,6 +72,12 @@ The type is re-created through a constructor, and this read-only member (its own
 parameters: its serialized value is read and dropped. Reported on the member, once per type that
 re-creates it. Add it to the constructor, make it settable, or `[NinoIgnore]` it.
 🔧 Add `[NinoIgnore]`.
+
+### NINO021
+
+The constructor or factory method marked `[NinoConstructor]` is called by generated code outside the type, so it
+must be `public` or `internal` (`protected internal` also works); a `private` or `protected` one cannot be called.
+The type is not constructed by the generated formatter: deserializing it throws `NotSupportedException`.
 
 ## Members
 

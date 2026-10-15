@@ -126,6 +126,26 @@ public partial class Outer
     }
 
     [TestMethod]
+    public void InaccessibleNinoConstructorStillCompiles()
+    {
+        // NINO021: the generator must not call the private constructor; the formatter compiles and throws instead.
+        var compilation = Create(("Ctor.cs", Usings + @"
+[NinoType]
+public class Hidden
+{
+    public int A;
+    public Hidden() { }
+    [NinoConstructor] private Hidden(int a) { A = a; }
+}
+}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+        StringAssert.Contains(Output(driver, "Hidden"), "NotSupportedException");
+    }
+
+    [TestMethod]
     public void MovingCodeReusesEveryOutput()
     {
         var compilation = Create(

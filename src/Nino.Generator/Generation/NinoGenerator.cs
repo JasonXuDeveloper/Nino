@@ -234,7 +234,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         if (ContainsTypeParameter(type))
             return null;
         var formatter = facts.Resolver.Resolve(type, false);
-        if (formatter is not { Registered: true } || facts.IsRawUnmanaged(type))
+        if (formatter is not { Registered: true } || facts.Raw.IsRawUnmanaged(type))
             return null;
         return new FormatterRegistration(TypeNames.Global(type), formatter.Value.Code, facts.TypeId(type));
     }

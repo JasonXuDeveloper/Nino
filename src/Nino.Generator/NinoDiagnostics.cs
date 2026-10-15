@@ -4,7 +4,8 @@ namespace Nino.Generator;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006), its members (007-013), features (014-017), pooling (018-019).
+/// the type (001-003), how it is constructed (004-006, 021), its members (007-013), features (014-017), pooling
+/// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
 {
@@ -38,6 +39,10 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor MissingConstructorMember = Error("NINO005",
         "Constructor parameter matches no member", "Missing constructor member {0} for {1}");
+
+    public static readonly DiagnosticDescriptor InaccessibleConstructor = Error("NINO021",
+        "NinoConstructor is not accessible",
+        "[NinoConstructor] '{0}' of '{1}' cannot be called by generated code; it must be public or internal");
 
     public static readonly DiagnosticDescriptor ReadOnlyMember = Warning("NINO006", "Member cannot be deserialized",
         "Member '{0}' of '{1}' is read-only and is not a constructor parameter; its serialized value is ignored when deserializing");

@@ -25,3 +25,4 @@ NINO017 | Nino | Error | Invalid NinoRefDeserializationAttribute usage
 NINO018 | Nino | Error | Type cannot be pooled
 NINO019 | Nino | Error | Pool hooks not implemented
 NINO020 | Nino | Error | Invalid formatter registration
+NINO021 | Nino | Error | NinoConstructor is not accessible

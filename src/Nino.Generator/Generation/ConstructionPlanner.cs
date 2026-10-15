@@ -26,7 +26,7 @@ internal static class ConstructionPlanner
                                                        NinoSymbols.Has(m, known.RefDeserialization));
         string refFactoryName = refFactory == null ? "" : $"{typeName}.{refFactory.Name}";
 
-        var constructors = type.InstanceConstructors.Where(facts.IsVisible).ToList();
+        var constructors = type.InstanceConstructors.Where(facts.Visibility.IsVisible).ToList();
         var marked = type.InstanceConstructors.Concat(factories)
             .FirstOrDefault(m => NinoSymbols.Has(m, known.Constructor));
 
@@ -60,6 +60,14 @@ internal static class ConstructionPlanner
 
         if (marked != null)
         {
+            // Generated code calls it from outside the type: a private or protected one would not compile.
+            if (!facts.Visibility.IsVisible(marked))
+            {
+                diagnostics?.Report(NinoDiagnostics.InaccessibleConstructor, marked, marked.ToDisplayString(),
+                    type.ToDisplayString());
+                return Unconstructible;
+            }
+
             var attr = NinoSymbols.Get(marked, known.Constructor)!;
             var names = attr.ConstructorArguments is { Length: > 0 } a && a[0].Kind == TypedConstantKind.Array &&
                         a[0].Values.Length > 0

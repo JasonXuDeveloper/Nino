@@ -25,7 +25,10 @@ internal readonly record struct ResolvedFormatter(string Code, bool Registered);
 internal sealed class FormatterResolver
 {
     private const string Core = TypeNames.Core;
-    private readonly TypeFacts _facts;
+    private readonly Compilation _compilation;
+    private readonly NinoSymbols _symbols;
+    private readonly RawRules _raw;
+    private readonly Visibility _visibility;
     private readonly FormatterRules _rules;
     private readonly IReadOnlyList<HelperSources.Helper> _helpers;
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _plain = new(SymbolEqualityComparer.Default);
@@ -33,10 +36,13 @@ internal sealed class FormatterResolver
 
     [System.ThreadStatic] private static HashSet<ITypeSymbol>? t_resolving;
 
-    public FormatterResolver(TypeFacts facts, Compilation compilation)
+    public FormatterResolver(Compilation compilation, NinoSymbols symbols, RawRules raw, Visibility visibility)
     {
-        _facts = facts;
-        _rules = new FormatterRules(compilation, facts.Symbols);
+        _compilation = compilation;
+        _symbols = symbols;
+        _raw = raw;
+        _visibility = visibility;
+        _rules = new FormatterRules(compilation, symbols);
         _helpers = HelperSources.Available(compilation);
     }
 
@@ -143,13 +149,13 @@ internal sealed class FormatterResolver
                 return Registered(helper.Bind(type, a => Element(a, utf8)));
         }
 
-        if (_facts.IsRawUnmanaged(type))
+        if (_raw.IsRawUnmanaged(type))
             return new ResolvedFormatter($"{Core}UnmanagedFormatter<{TypeNames.Global(type)}>", true);
 
         // Checked before the open registrations: walking the base types and interfaces of a type is the most
         // expensive part of a model build.
         if (type.IsNinoType())
-            return new ResolvedFormatter(_facts.IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type), false);
+            return new ResolvedFormatter(_visibility.IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type), false);
 
         return Registered(FirstMatch(_rules.Open, type, utf8));
     }
@@ -201,10 +207,10 @@ internal sealed class FormatterResolver
                     }
                 }
                 else if (formatters[i] == null &&
-                         FormatterRules.FormatterElement(parameters[i], _facts.Symbols) is { } element &&
+                         FormatterRules.FormatterElement(parameters[i], _symbols) is { } element &&
                          TypeUnifier.IsBound(element, types))
                 {
-                    var elementType = TypeUnifier.Substitute(element, types, _facts.Compilation);
+                    var elementType = TypeUnifier.Substitute(element, types, _compilation);
                     if (elementType == null || Element(elementType, utf8) is not { } code)
                         return null;
                     formatters[i] = code;
@@ -243,7 +249,7 @@ internal sealed class FormatterResolver
             (!type.IsValueType || type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T))
             return false;
         // `unmanaged` means "copied as raw memory", which is stricter than C#'s unmanaged.
-        if (parameter.HasUnmanagedTypeConstraint && !_facts.IsRawUnmanaged(type))
+        if (parameter.HasUnmanagedTypeConstraint && !_raw.IsRawUnmanaged(type))
             return false;
         if (parameter.HasConstructorConstraint && !HasPublicDefaultConstructor(type))
             return false;

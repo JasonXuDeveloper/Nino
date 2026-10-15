@@ -38,7 +38,7 @@ public sealed class NinoSuppressor : DiagnosticSuppressor
             var node = tree.GetRoot(context.CancellationToken).FindNode(diagnostic.Location.SourceSpan);
             var member = context.GetSemanticModel(tree).GetDeclaredSymbol(node, context.CancellationToken);
             if (member is not (IFieldSymbol or IPropertySymbol) || member.ContainingType?.GetNinoTypeOptions() is not { } attr ||
-                !TypeFacts.For(context.Compilation, tree.Options).Members(member.ContainingType, attr)
+                !TypeFacts.For(context.Compilation, tree.Options).Members.Of(member.ContainingType, attr)
                     .Contains(member, SymbolEqualityComparer.Default))
                 continue;
             var descriptor = Supported.First(s => s.SuppressedDiagnosticId == diagnostic.Id);

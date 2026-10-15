@@ -608,6 +608,68 @@ public struct RawStruct
     }
 
     [TestMethod]
+    public async Task NINO021_InaccessibleConstructor()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class PrivateConstructor
+{
+    public int A;
+
+    public PrivateConstructor() { }
+
+    [NinoConstructor]
+    private {|#0:PrivateConstructor|}(int a)
+    {
+        A = a;
+    }
+}
+
+[NinoType]
+public class ProtectedFactory
+{
+    public int A;
+
+    [NinoConstructor]
+    protected static ProtectedFactory {|#1:Create|}(int a) => new ProtectedFactory { A = a };
+}
+
+[NinoType]
+public class InternalConstructor
+{
+    public int A;
+
+    [NinoConstructor]
+    internal InternalConstructor(int a)
+    {
+        A = a;
+    }
+}
+
+[NinoType]
+public class ProtectedInternalConstructor
+{
+    public int A;
+
+    [NinoConstructor]
+    protected internal ProtectedInternalConstructor(int a)
+    {
+        A = a;
+    }
+}
+";
+
+        // Checked before the parameters: an inaccessible constructor is not matched against members at all.
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO021").WithLocation(0)
+                .WithArguments("PrivateConstructor.PrivateConstructor(int)", "PrivateConstructor"),
+            Verify.Diagnostic("NINO021").WithLocation(1)
+                .WithArguments("ProtectedFactory.Create(int)", "ProtectedFactory")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO006_ReadOnlyMember()
     {
         var code = @"

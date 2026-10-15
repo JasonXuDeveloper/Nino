@@ -361,10 +361,13 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   transform, analyzer and suppressor action on it, so a deep hierarchy collects each level's members once rather
   than once per subtype, and a member type such as `List<int>` is resolved once per compilation. `TypeFacts` also
   resolves the Nino.Core attribute types once (`NinoSymbols`), so attributes are compared by symbol everywhere.
-* `TypeFacts` answers questions about symbols, `MemberCollector` and `ConstructionPlanner` pick members and
-  constructors, `FormatterResolver` names formatters (from the `[assembly: NinoFormatter]` registrations,
-  `FormatterRules`), `ModelBuilder` assembles the `TypeModel`, and the emitters
-  (`Generation/Emit`) only read models: none of them reports diagnostics except through a `DiagnosticSink`.
+* `TypeFacts` is the per-compilation entry point and holds focused parts: `NinoSymbols`, `Visibility` (what
+  generated code can name and assign), `MemberCache` (each type's members, collected by `MemberCollector`),
+  `RawRules` (which values are written as raw bytes) and `FormatterResolver`. `MemberCollector` finds a type's
+  members and, for the analyzer, what is wrong with their annotations (NINO008-NINO013) in the same pass, so the
+  rules are written once; model builds skip those checks. `ConstructionPlanner` picks constructors,
+  `FormatterResolver` names formatters (from the `[assembly: NinoFormatter]` registrations, `FormatterRules`),
+  `ModelBuilder` assembles the `TypeModel`, and the emitters (`Generation/Emit`) only read models: none of them reports diagnostics except through a `DiagnosticSink`.
 * Each type is emitted into its own file. Editing a member of `Foo` re-emits only `Foo.g.cs`.
 * The registry stage consumes only formatter names, so it only re-runs when types are added, removed or
   renamed.
