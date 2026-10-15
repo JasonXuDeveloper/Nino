@@ -28,14 +28,17 @@ v4 and v3 times are the median of the last three of five runs; 4.0 beta times ar
 
 ### 1,100 types (N = 100)
 
-| | 4.0 beta | v4 | v4 vs 4.0 beta |
-|---|---:|---:|---:|
-| Generated source | 236 MB (4,553,540 lines) | 3.9 MB (72,429 lines) | **61× smaller** |
-| Compiling the generated code (emit) | 314 s | 2.2 s | **145× faster** |
-| Running the generator | 30.8 s | 0.68 s | **45× faster** |
-| Re-generating after editing a member | 7.8 s | 0.57 s | **14× faster** |
-| Re-generating after editing a comment | 16.7 s | 0.45 s | **38× faster** |
-| IL of the generated code | 16.3 MB | 1.3 MB | **12× smaller** |
+| | v3 (3.3.13) | 4.0 beta | v4 | v4 vs v3 |
+|---|---:|---:|---:|---:|
+| Generated source | 62.0 MB (1,204,143 lines) | 236 MB (4,553,540 lines) | 3.9 MB (72,429 lines) | **16× smaller** |
+| Compiling the generated code (emit) | 636 s | 314 s | 2.2 s | **289× faster** |
+| Running the generator | 5.5 s | 30.8 s | 0.68 s | **8.1× faster** |
+| Re-generating after editing a member | 4.1 s | 7.8 s | 0.57 s | **7.2× faster** |
+| Re-generating after editing a comment | 4.1 s | 16.7 s | 0.45 s | **9.0× faster** |
+| IL of the generated code | 7.3 MB | 16.3 MB | 1.3 MB | **5.6× smaller** |
+
+v3 at N = 100 is the median of three runs (each emit took over ten minutes). v3's compile time grows much faster
+than the number of types: 3.3× the types took 11× the compile time.
 
 The 4.0 beta's cost grows faster than the number of types (3.3× the types took 8.8× the compile time), because
 every polymorphic base inlined the bodies of all its subtypes. v4 grows linearly: about 3.5 KB of source and

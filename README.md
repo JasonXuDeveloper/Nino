@@ -22,9 +22,9 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 
 </div>
 
-| **4.3×** | **4.9×** | **0 GC** | **44×** |
+| **4.3×** | **4.9×** | **0 GC** | **289×** |
 |:---:|:---:|:---:|:---:|
-| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>or deserializing into pooled objects | faster to compile than v3<br>(16× less generated code) |
+| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>or deserializing into pooled objects | faster to compile than v3<br>(1,100 types: 636 s → 2.2 s) |
 
 <p align="center">
   <img src="docs/assets/benchmark.svg" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
@@ -160,7 +160,7 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 |---|---|
 | Serialize | **up to 1.73× faster** (class 1.73×, class array 1.29×, struct 1.35×) |
 | Deserialize | **1.19–1.22× faster** on classes, on par on raw arrays |
-| Compiling the generated code (330 types) | **44× faster** (56 s → 1.3 s) |
+| Compiling the generated code | **44× faster** at 330 types (56 s → 1.3 s), **289× faster** at 1,100 types (636 s → 2.2 s) |
 | Running the generator | **7.9× faster**; after an edit, only that type is re-generated |
 | Generated code | **16× smaller** source, **6× smaller** IL |
 
