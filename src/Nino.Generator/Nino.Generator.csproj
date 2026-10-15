@@ -69,12 +69,19 @@
     <ItemGroup>
         <ProjectReference Include="..\Nino.Generator.CodeFixes\Nino.Generator.CodeFixes.csproj"
                           ReferenceOutputAssembly="false" PrivateAssets="all"/>
-        <!-- The same sources built against Roslyn 4.12, with interceptors; NuGet loads it on compilers that can. -->
+        <!-- The same sources built against Roslyn 4.8 and 4.12, with interceptors; NuGet loads the newest build the
+             compiler can run. -->
+        <ProjectReference Include="..\Nino.Generator.Roslyn4.8\Nino.Generator.Roslyn4.8.csproj"
+                          ReferenceOutputAssembly="false" PrivateAssets="all"/>
         <ProjectReference Include="..\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
                           ReferenceOutputAssembly="false" PrivateAssets="all"/>
     </ItemGroup>
     <ItemGroup>
         <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.3/cs" Visible="false"/>
+        <None Include="..\Nino.Generator.Roslyn4.8\bin\$(Configuration)\netstandard2.0\Nino.Generator.dll"
+              Pack="true" PackagePath="analyzers/dotnet/roslyn4.8/cs" Visible="false"/>
+        <None Include="..\Nino.Generator.CodeFixes\bin\$(Configuration)\netstandard2.0\Nino.Generator.CodeFixes.dll"
+              Pack="true" PackagePath="analyzers/dotnet/roslyn4.8/cs" Visible="false"/>
         <None Include="..\Nino.Generator.Roslyn4.12\bin\$(Configuration)\netstandard2.0\Nino.Generator.dll"
               Pack="true" PackagePath="analyzers/dotnet/roslyn4.12/cs" Visible="false"/>
         <None Include="..\Nino.Generator.CodeFixes\bin\$(Configuration)\netstandard2.0\Nino.Generator.CodeFixes.dll"

@@ -20,6 +20,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.Immutable", "Nino.Immu
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.Generator.Roslyn4.12", "Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj", "{9F4209DD-FD2B-4ACE-BD3B-4E37AD7C264C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.Generator.Roslyn4.8", "Nino.Generator.Roslyn4.8\Nino.Generator.Roslyn4.8.csproj", "{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -150,6 +152,18 @@ Global
 		{9F4209DD-FD2B-4ACE-BD3B-4E37AD7C264C}.Release|x64.Build.0 = Release|Any CPU
 		{9F4209DD-FD2B-4ACE-BD3B-4E37AD7C264C}.Release|x86.ActiveCfg = Release|Any CPU
 		{9F4209DD-FD2B-4ACE-BD3B-4E37AD7C264C}.Release|x86.Build.0 = Release|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Debug|x64.Build.0 = Debug|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Debug|x86.Build.0 = Debug|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Release|x64.ActiveCfg = Release|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Release|x64.Build.0 = Release|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Release|x86.ActiveCfg = Release|Any CPU
+		{B8FE39DC-B3C6-45F4-B81B-D45425C51A2D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

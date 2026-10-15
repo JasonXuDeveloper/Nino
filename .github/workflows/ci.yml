@@ -85,7 +85,13 @@ jobs:
           dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1
           dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1
 
-      # Top-level calls are intercepted by default (Roslyn 4.12+); the regular entry points must agree.
+      # The Roslyn 4.8 build (.NET 8 SDK) intercepts with the preview attribute form.
+      - name: Run unit tests with the Roslyn 4.8 generator
+        run: |
+          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoGeneratorBuild=4.8
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoGeneratorBuild=4.8
+
+      # Top-level calls are intercepted by default (Roslyn 4.8+); the regular entry points must agree.
       - name: Run unit tests without interceptors
         run: |
           dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoInterceptors=false

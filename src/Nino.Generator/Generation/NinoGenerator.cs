@@ -158,7 +158,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(formatters, creators, closed));
             });
 
-#if ROSLYN4_12
+#if ROSLYN4_8
         // Top-level calls with a known type argument call the resolved formatter directly (where enabled).
         var intercepted = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is InvocationExpressionSyntax

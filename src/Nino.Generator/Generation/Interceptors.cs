@@ -1,4 +1,4 @@
-#if ROSLYN4_12
+#if ROSLYN4_8
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,8 +21,10 @@ internal sealed record InterceptedCall(string Signature, string Call, string Att
 /// <summary>
 /// Interceptors for the generic <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls whose type argument is known
 /// at the call site: they call the resolved formatter directly (<c>Nino.Core.NinoDirect</c>) instead of through
-/// the formatter cache, a virtual call. Emitted only by the Roslyn 4.12 build of the generator, and only where
-/// the project enables interceptors in the <c>NinoGen</c> namespace (the package's build props do).
+/// the formatter cache, a virtual call. Emitted only by the Roslyn 4.8 and 4.12 builds of the generator, and only
+/// where the project enables interceptors in the <c>NinoGen</c> namespace (the package's build props do). Roslyn
+/// 4.12+ locates a call by an opaque version and data; Roslyn 4.8-4.11 only know the preview form, the file path
+/// and the 1-based line and column of the method name.
 /// </summary>
 internal static class Interceptors
 {
@@ -64,8 +66,19 @@ internal static class Interceptors
         if (facts.Resolver.Resolve(type, false) is not { } formatter ||
             formatter.Code.StartsWith(TypeNames.Core + "CachedFormatter<", StringComparison.Ordinal))
             return null;
+#if ROSLYN4_12
         if (ctx.SemanticModel.GetInterceptableLocation(invocation, ct) is not { } location)
             return null;
+        string attribute = $"[global::System.Runtime.CompilerServices.InterceptsLocation({location.Version}, \"{location.Data}\")]";
+#else
+        var access = (MemberAccessExpressionSyntax)invocation.Expression;
+        var position = access.Name.Identifier.GetLocation().GetLineSpan().StartLinePosition;
+        string path = invocation.SyntaxTree.FilePath;
+        if (path.Length == 0)
+            return null;
+        string attribute = "[global::System.Runtime.CompilerServices.InterceptsLocation(@\"" + path.Replace("\"", "\"\"") +
+                           $"\", {position.Line + 1}, {position.Character + 1})]";
+#endif
 
         var name = TypeNames.Global(type);
         var signature = new StringBuilder();
@@ -97,8 +110,7 @@ internal static class Interceptors
 
         signature.Append(')');
         return new InterceptedCall(signature.ToString(),
-            $"{TypeNames.Core}NinoDirect.{method.Name}<{name}, {formatter.Code}>({arguments})",
-            $"[global::System.Runtime.CompilerServices.InterceptsLocation({location.Version}, \"{location.Data}\")]");
+            $"{TypeNames.Core}NinoDirect.{method.Name}<{name}, {formatter.Code}>({arguments})", attribute);
     }
 
     /// <summary>Whether generated code in this assembly can name the type (no private or protected parts).</summary>
@@ -127,7 +139,11 @@ internal static class Interceptors
         w.AppendLine("    [global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]");
         w.AppendLine($"    {scope} sealed class InterceptsLocationAttribute : global::System.Attribute");
         w.AppendLine("    {");
+#if ROSLYN4_12
         w.AppendLine("        public InterceptsLocationAttribute(int version, string data) { }");
+#else
+        w.AppendLine("        public InterceptsLocationAttribute(string filePath, int line, int character) { }");
+#endif
         w.AppendLine("    }");
         w.AppendLine("}");
         w.AppendLine();

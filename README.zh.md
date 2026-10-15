@@ -72,7 +72,7 @@
 - **隐私控制**：`[NinoType(true)]`包含私有/受保护成员
 - **选择性序列化**：`[NinoIgnore]`排除特定字段
 - **字符串优化**：`[NinoUtf8]`高效UTF-8字符串处理
-- **拦截器（新版 SDK）**：使用 .NET 9+ SDK 时，类型已知的 `NinoSerializer`/`NinoDeserializer` 调用会在编译期改为直接调用生成的格式化器（无虚调用）。自动启用，可用 `<NinoInterceptors>false</NinoInterceptors>` 关闭；Unity 和旧编译器仍走常规调用
+- **拦截器（新版 SDK）**：使用 .NET 8+ SDK 时，类型已知的 `NinoSerializer`/`NinoDeserializer` 调用会在编译期改为直接调用生成的格式化器（无虚调用）。自动启用，可用 `<NinoInterceptors>false</NinoInterceptors>` 关闭；Unity 和旧编译器仍走常规调用
 
 ---
 

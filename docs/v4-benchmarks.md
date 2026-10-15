@@ -165,7 +165,7 @@ the result objects.
   contend for a cache line.
 * **Polymorphism by id.** Subtypes are identified by a 4-byte FNV-1a hash of their name, looked up in the
   table above; subtypes register lazily, in buckets, so startup does not touch unused types.
-* **Top-level calls without lookups.** On Roslyn 4.12+ (.NET 9 SDK and later) the generator intercepts
+* **Top-level calls without lookups.** On Roslyn 4.8+ (.NET 8 SDK and later) the generator intercepts
   `NinoSerializer`/`NinoDeserializer` calls whose type it knows and calls the formatter directly, so a call
   costs what calling the formatter by hand costs (e.g. deserializing an open class 15.5 → 11.6 ns). Other
   calls are inlined into the caller with the formatter passed in, so shared generic code over reference types

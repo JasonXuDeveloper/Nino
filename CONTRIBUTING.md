@@ -14,6 +14,7 @@ dotnet test Nino.UnitTests
 dotnet test Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.0
 dotnet test Nino.UnitTests -f net8.0 -p:NinoCoreTfm=netstandard2.1
 dotnet test Nino.UnitTests -f net8.0 -p:NinoInterceptors=false
+dotnet test Nino.UnitTests -f net8.0 -p:NinoGeneratorBuild=4.8   # the .NET 8 SDK generator build
 ```
 
 CI runs the same, plus the Unity tests (`src/Nino.Unity`, Unity 2022.3).

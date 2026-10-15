@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The generator built against Roslyn 4.8 (.NET 8 SDK): the same sources as Nino.Generator, plus interceptors
+         for the top-level NinoSerializer/NinoDeserializer calls in their preview form ([InterceptsLocation(path,
+         line, column)], ROSLYN4_8). Packed by Nino.Generator into analyzers/dotnet/roslyn4.8/cs, which NuGet picks
+         on Roslyn 4.8-4.11; newer compilers load the Roslyn 4.12 build, older ones (and Unity) the Roslyn 4.3 one. -->
+    <PropertyGroup>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <IsPackable>false</IsPackable>
+        <Nullable>enable</Nullable>
+        <LangVersion>preview</LangVersion>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <AssemblyName>Nino.Generator</AssemblyName>
+        <RootNamespace>Nino.Generator</RootNamespace>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <DefineConstants>$(DefineConstants);NINO_GENERATOR;ROSLYN4_8</DefineConstants>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="..\Nino.Generator\**\*.cs" Exclude="..\Nino.Generator\bin\**;..\Nino.Generator\obj\**"
+                 Link="%(RecursiveDir)%(Filename)%(Extension)"/>
+        <Compile Include="..\Version.cs"/>
+        <Compile Include="..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
+        <Compile Include="..\Nino.Core\Internal\NinoLayoutCore.cs" Link="Shared\NinoLayoutCore.cs"/>
+        <Compile Include="..\Nino.Core\IO\NinoWire.cs" Link="Shared\NinoWire.cs"/>
+        <Compile Include="..\Nino.Core\Internal\NinoFormatterBinding.cs" Link="Shared\NinoFormatterBinding.cs"/>
+        <AdditionalFiles Include="..\Nino.Generator\AnalyzerReleases.Shipped.md"/>
+        <AdditionalFiles Include="..\Nino.Generator\AnalyzerReleases.Unshipped.md"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all"/>
+    </ItemGroup>
+
+</Project>

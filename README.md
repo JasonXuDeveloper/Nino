@@ -101,7 +101,7 @@ v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier 
   instances (payload is `null`, list shrinks, type changes) go back to their pool or to a handler registered with
   `NinoSettings.SetRecycler<T>`.
 - **No init calls**: generated registries are found lazily, so hot-update assemblies (HybridCLR) just work.
-- **Interceptors on modern SDKs**: with the .NET 9+ SDK, `NinoSerializer`/`NinoDeserializer` calls with a known
+- **Interceptors on modern SDKs**: with the .NET 8+ SDK, `NinoSerializer`/`NinoDeserializer` calls with a known
   type are redirected at compile time to the generated formatter (no virtual call). Automatic; set
   `<NinoInterceptors>false</NinoInterceptors>` to turn it off. Unity and older compilers use the regular calls.
 - **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members to the type or any of its base classes, at any nesting depth.

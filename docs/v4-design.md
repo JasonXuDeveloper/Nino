@@ -573,7 +573,7 @@ from `NinoFormatterCache<T>` in the caller, where `T` is usually exact: a refere
 the method shared generic code, with a generic dictionary lookup for the formatter (serializing a small sealed
 class: 22 ns → 10 ns). What remains is one virtual call through the cached formatter.
 
-On compilers that load the generator's Roslyn 4.12 build, the generator also intercepts each such call whose type
+On compilers that load the generator's Roslyn 4.8 or 4.12 build (.NET 8 SDK and later), the generator also intercepts each such call whose type
 argument is known at the call site and whose formatter it resolves (not raw values or arrays of raw elements,
 which the regular calls already copy directly, and not types it can only reach through `CachedFormatter<T>`):
 `NinoGen.Interceptors.g.cs` redirects it to `Nino.Core.NinoDirect`, which calls the formatter struct directly.
@@ -582,12 +582,18 @@ The bytes are the same. A formatter registered at run time with `NinoFormatterCa
 Measured on .NET 8 (small types, ns per call, regular → intercepted): deserializing a non-sealed class
 15.5 → 11.6, a sealed class 29.5 → 24, a struct with a string 16.7 → 15.0.
 
-* Packaging: the same sources are compiled twice, by `Nino.Generator` (Roslyn 4.3, `analyzers/dotnet/roslyn4.3/cs`,
-  also what Unity uses) and `Nino.Generator.Roslyn4.12` (links those sources, defines `ROSLYN4_12`,
-  `analyzers/dotnet/roslyn4.12/cs`). NuGet picks the newest build the compiler can load, so .NET 9+ SDKs get
-  interceptors and older compilers keep the 4.3 build.
-* Opt-in: interceptors need their namespace listed in `InterceptorsNamespaces`. The package's
-  `build/Nino.Generator.props` (and `buildTransitive`) appends `NinoGen` unless `NinoInterceptors` is `false`;
+* Packaging: the same sources are compiled three times, by `Nino.Generator` (Roslyn 4.3,
+  `analyzers/dotnet/roslyn4.3/cs`, also what Unity uses), `Nino.Generator.Roslyn4.8` (defines `ROSLYN4_8`,
+  `analyzers/dotnet/roslyn4.8/cs`) and `Nino.Generator.Roslyn4.12` (defines `ROSLYN4_8` and `ROSLYN4_12`,
+  `analyzers/dotnet/roslyn4.12/cs`). NuGet picks the newest build the compiler can load: Roslyn 4.12+ (.NET 9 SDK
+  and later) locates calls with the stable `[InterceptsLocation(version, data)]`; Roslyn 4.8-4.11 (.NET 8 SDK) only
+  know the preview form, `[InterceptsLocation(filePath, line, column)]` (path of the syntax tree, 1-based position
+  of the method name); older compilers keep the 4.3 build. Which build a project gets depends on its compiler, not
+  its target framework: a netstandard library built with a current SDK is intercepted too (interceptors are a
+  compile-time feature).
+* Opt-in: interceptors need their namespace listed in `InterceptorsNamespaces` (Roslyn 4.12+) or
+  `InterceptorsPreviewNamespaces` (Roslyn 4.8-4.11). The package's `build/Nino.Generator.props` (and
+  `buildTransitive`) appends `NinoGen` to both unless `NinoInterceptors` is `false`;
   the generator emits nothing when the namespace is not listed, so a project that sets the property without
   appending simply keeps the regular calls.
 * C# 11+ projects get a file-local `InterceptsLocationAttribute` and interceptor class; older language versions
