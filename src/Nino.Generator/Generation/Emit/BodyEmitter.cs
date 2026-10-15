@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using static Nino.Generator.Generation.Emit.MemberCode;
+using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -42,10 +43,10 @@ internal sealed class BodyEmitter
     public void EmitRawStruct()
     {
         _w.Line("// Unmanaged and every field serialized: the struct is written as its raw memory.");
-        _w.Line(FormatterNames.Inline);
+        _w.Line(_names.Inline);
         _w.Line($"public void WriteBody({T} value, ref {Core}Writer writer) => writer.WriteValue(value);");
         _w.Line();
-        _w.Line(FormatterNames.Inline);
+        _w.Line(_names.Inline);
         _w.Line($"public void ReadBody(ref {T} value, ref {Core}Reader reader) => value = reader.ReadValue<{T}>();");
     }
 
@@ -84,13 +85,13 @@ internal sealed class BodyEmitter
     public void EmitMembersMethods()
     {
         // Inlined so the writer/reader state stays in registers across levels, as if the members were written inline.
-        _w.Line(FormatterNames.Inline);
+        _w.Line(_names.Inline);
         _w.Block($"internal static void WriteMembers({T} value, ref {Core}Writer writer)", EmitMemberWrites);
         _w.Line();
         if (_m.VersionTolerant)
         {
             _w.Line("/// <summary>Reads the members into an existing instance; false when the body ended early.</summary>");
-            _w.Line(FormatterNames.Inline);
+            _w.Line(_names.Inline);
             _w.Block($"internal static bool ReadMembers({T} value, ref {Core}Reader reader)", () =>
             {
                 EmitMemberReads("reader", inPlace: true, onEnd: "return false;");
@@ -100,7 +101,7 @@ internal sealed class BodyEmitter
         }
 
         // Positional bodies never end early: no result to report.
-        _w.Line(FormatterNames.Inline);
+        _w.Line(_names.Inline);
         _w.Block($"internal static void ReadMembers({T} value, ref {Core}Reader reader)",
             () => EmitMemberReads("reader", inPlace: true, onEnd: ""));
     }
@@ -265,7 +266,7 @@ internal sealed class BodyEmitter
             _w.Line($"value = {call}");
             _w.Open();
             foreach (var member in initializers)
-                _w.Line($"{Id(member.Name)} = {Local(member)},");
+                _w.Line($"{Identifier(member.Name)} = {Local(member)},");
             _w.Close(";");
         }
 
@@ -368,7 +369,7 @@ internal sealed class BodyEmitter
 
     // ----- keyed ---------------------------------------------------------------------------------------------
 
-    private static int Key(MemberModel member) => TypeNames.ComputeId(member.Name);
+    private static int Key(MemberModel member) => ComputeId(member.Name);
 
     /// <summary>(key, length) as the int64 a reader sees, for raw members of constant size; else null.</summary>
     private static string? KeyHeader(MemberModel member)

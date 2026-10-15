@@ -27,22 +27,26 @@ internal sealed class TypeFacts
     {
         var facts = Shared.GetValue(compilation, c => new TypeFacts(c, options));
         // A project's files share their parse options; anything else gets facts of its own.
-        return facts._symbols.SequenceEqual(Symbols(options)) ? facts : new TypeFacts(compilation, options);
+        return SymbolsOf(options).SequenceEqual(facts._symbols) ? facts : new TypeFacts(compilation, options);
     }
 
-    private static string[] Symbols(ParseOptions? options) =>
-        options?.PreprocessorSymbolNames.ToArray() ?? System.Array.Empty<string>();
+    private static IEnumerable<string> SymbolsOf(ParseOptions? options) =>
+        options?.PreprocessorSymbolNames ?? System.Array.Empty<string>();
 
     private TypeFacts(Compilation compilation, ParseOptions? options)
     {
         Assembly = compilation.Assembly;
-        _symbols = Symbols(options);
-        WeakTolerance = _symbols.Contains(NinoTypeHelper.WeakVersionToleranceSymbol);
+        Symbols = new NinoSymbols(compilation);
+        _symbols = SymbolsOf(options).ToArray();
+        WeakTolerance = _symbols.Contains("WEAK_VERSION_TOLERANCE");
         Net8 = _symbols.Contains("NET8_0_OR_GREATER");
         Resolver = new FormatterResolver(this);
     }
 
     public IAssemblySymbol Assembly { get; }
+
+    /// <summary>The Nino attribute types of this compilation.</summary>
+    public NinoSymbols Symbols { get; }
 
     /// <summary>Formatter resolution for this compilation (memoized).</summary>
     public FormatterResolver Resolver { get; }
@@ -73,19 +77,45 @@ internal sealed class TypeFacts
         return true;
     }
 
-    public static bool HasAttribute(ISymbol symbol, string name) =>
-        symbol.GetAttributes().Any(a => a.AttributeClass?.Name == name);
+    /// <summary>
+    /// Whether generated code in this assembly can name <paramref name="symbol"/> (a member, accessor or
+    /// constructor): public, or internal to this assembly. Null (no accessor) counts as visible.
+    /// </summary>
+    public bool IsVisible(ISymbol? symbol) => symbol == null || symbol.DeclaredAccessibility switch
+    {
+        Accessibility.Public => true,
+        Accessibility.Internal or Accessibility.ProtectedOrInternal =>
+            SymbolEqualityComparer.Default.Equals(symbol.ContainingAssembly, Assembly),
+        _ => false,
+    };
 
-    public static AttributeData? GetAttribute(ISymbol symbol, string name) =>
-        symbol.GetAttributes().FirstOrDefault(a => a.AttributeClass?.Name == name);
+    /// <summary>Whether generated code can read and assign the member directly (<c>value.Member</c>).</summary>
+    public bool IsDirectlyAccessible(ISymbol member) =>
+        IsVisible(member) && (member is not IPropertySymbol property ||
+                              (IsVisible(property.GetMethod) && IsVisible(property.SetMethod)));
+
+    /// <summary>Whether the member can only be assigned while constructing (readonly field, init-only or no setter).</summary>
+    public static bool IsConstructionOnly(ISymbol member) => member switch
+    {
+        IFieldSymbol field => field.IsReadOnly,
+        IPropertySymbol property => property.SetMethod == null || property.SetMethod.IsInitOnly,
+        _ => false,
+    };
+
+    /// <summary>The type of a field or property; null for other members.</summary>
+    public static ITypeSymbol? MemberType(ISymbol member) => member switch
+    {
+        IFieldSymbol field => field.Type,
+        IPropertySymbol property => property.Type,
+        _ => null,
+    };
 
     /// <summary>Whether this compilation generates a formatter for <paramref name="type"/>.</summary>
-    public bool IsGeneratedHere(INamedTypeSymbol type)
-    {
-        var definition = type.OriginalDefinition;
-        return SymbolEqualityComparer.Default.Equals(definition.ContainingAssembly, Assembly) &&
-               IsEligible(definition) && definition.IsNinoType();
-    }
+    public bool IsGeneratedHere(INamedTypeSymbol type) => IsOwnEligible(type) && type.OriginalDefinition.IsNinoType();
+
+    // A type of this assembly that generated code can name.
+    private bool IsOwnEligible(INamedTypeSymbol type) =>
+        SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, Assembly) && IsEligible(type.OriginalDefinition);
 
     /// <summary>Runtime type id (hash of the runtime name): many members share a type such as <c>List&lt;int&gt;</c>.</summary>
     public int TypeId(ITypeSymbol type) =>
@@ -95,7 +125,7 @@ internal sealed class TypeFacts
     public IReadOnlyList<ISymbol> Members(INamedTypeSymbol type, NinoTypeOptions attr)
     {
         if (!_members.TryGetValue(type, out var result))
-            _members[type] = result = MemberCollector.Collect(type, attr);
+            _members[type] = result = MemberCollector.Collect(type, attr, Symbols);
         return result; // races compute the same list
     }
 
@@ -126,8 +156,8 @@ internal sealed class TypeFacts
 
     /// <summary>
     /// Whether a class's formatter emits static <c>WriteMembers</c>/<c>ReadMembers</c> that subtypes can call: a
-    /// non-sealed <c>[NinoType]</c> class generated in this assembly whose members are all directly readable and
-    /// assignable.
+    /// non-sealed, non-keyed <c>[NinoType]</c> class generated in this assembly whose members are all directly
+    /// readable and assignable.
     /// Computed from symbols only, so a subtype's transform reaches the same answer as the base's own.
     /// </summary>
     public bool IsDelegatable(INamedTypeSymbol type)
@@ -144,33 +174,16 @@ internal sealed class TypeFacts
 
     private bool ComputeIsDelegatable(INamedTypeSymbol type)
     {
-        if (!SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, Assembly) ||
-            !IsEligible(type.OriginalDefinition))
+        if (!IsOwnEligible(type))
             return false;
         var attr = type.GetNinoTypeOptions();
         if (attr == null || attr.Keyed)
             return false;
 
-        bool Visible(ISymbol? s) => s == null || s.DeclaredAccessibility == Accessibility.Public ||
-                                    (s.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedOrInternal &&
-                                     SymbolEqualityComparer.Default.Equals(s.ContainingAssembly, Assembly));
-
         foreach (var member in Members(type, attr))
         {
-            switch (member)
-            {
-                case IFieldSymbol field:
-                    if (field.IsReadOnly || !Visible(field))
-                        return false;
-                    break;
-                case IPropertySymbol property:
-                    if (property.GetMethod == null || property.SetMethod == null || property.SetMethod.IsInitOnly ||
-                        !Visible(property) || !Visible(property.GetMethod) || !Visible(property.SetMethod))
-                        return false;
-                    break;
-                default:
-                    return false;
-            }
+            if (IsConstructionOnly(member) || !IsDirectlyAccessible(member))
+                return false;
         }
 
         return true;
@@ -194,7 +207,7 @@ internal sealed class TypeFacts
 
     private bool ComputeIsRawStruct(INamedTypeSymbol type)
     {
-        if (!type.IsValueType || !type.IsUnmanagedType || type.TypeKind != TypeKind.Struct)
+        if (!type.IsUnmanagedType)
             return false;
         // WEAK_VERSION_TOLERANCE only applies to the types of the assembly that defines it.
         if (IsWeak(type))
@@ -202,7 +215,7 @@ internal sealed class TypeFacts
         var attr = type.GetNinoTypeOptions();
         if (attr == null || attr.VersionTolerant || attr.Keyed)
             return false;
-        var layout = GetAttribute(type, "StructLayoutAttribute");
+        var layout = NinoSymbols.Get(type, Symbols.StructLayout);
         if (layout != null && layout.ConstructorArguments.Length > 0 &&
             layout.ConstructorArguments[0].Value is int kind && kind != 0 /* Sequential */)
             return false;
@@ -216,7 +229,7 @@ internal sealed class TypeFacts
             var member = field.AssociatedSymbol ?? field;
             if (!members.Contains(member.OriginalDefinition))
                 return false;
-            if (HasAttribute(member, "NinoCustomFormatterAttribute"))
+            if (NinoSymbols.Has(member, Symbols.CustomFormatter))
                 return false;
             // Every field must itself be raw: Nullable, tuples, nint or DateTimeOffset have their own formats.
             if (!IsRawUnmanaged(field.Type))

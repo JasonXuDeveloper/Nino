@@ -37,18 +37,12 @@ public sealed class NinoSuppressor : DiagnosticSuppressor
                 continue;
             var node = tree.GetRoot(context.CancellationToken).FindNode(diagnostic.Location.SourceSpan);
             var member = context.GetSemanticModel(tree).GetDeclaredSymbol(node, context.CancellationToken);
-            if (member is not (IFieldSymbol or IPropertySymbol) || !IsSerialized(member))
+            if (member is not (IFieldSymbol or IPropertySymbol) || member.ContainingType?.GetNinoTypeOptions() is not { } attr ||
+                !TypeFacts.For(context.Compilation, tree.Options).Members(member.ContainingType, attr)
+                    .Contains(member, SymbolEqualityComparer.Default))
                 continue;
             var descriptor = Supported.First(s => s.SuppressedDiagnosticId == diagnostic.Id);
             context.ReportSuppression(Suppression.Create(descriptor, diagnostic));
         }
-    }
-
-    private static bool IsSerialized(ISymbol member)
-    {
-        var type = member.ContainingType;
-        if (type?.GetNinoTypeOptions() is not { } attr)
-            return false;
-        return MemberCollector.Collect(type, attr).Contains(member, SymbolEqualityComparer.Default);
     }
 }

@@ -41,25 +41,25 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
 
     private static readonly Dictionary<string, Fix[]> Fixes = new()
     {
-        ["NINO001"] = new[]
+        [NinoDiagnostics.InaccessibleType.Id] = new[]
         {
             // A static class stays unserializable whatever its accessibility.
             new Fix("Make type public", "MakePublic", MakeAccessible,
                 n => !Type(n).Modifiers.Any(m => m.IsKind(SyntaxKind.StaticKeyword))),
         },
-        ["NINO002"] = new[] { new Fix("Make type partial", "MakePartial", MakePartial) },
-        ["NINO003"] = new[] { new Fix("Add [NinoType]", "AddNinoType", (e, n) => AddAttribute(e, Type(n), NinoType)) },
-        ["NINO006"] = new[] { AddIgnoreFix() },
-        ["NINO007"] = new[] { AddIgnoreFix() },
-        ["NINO009"] = new[]
+        [NinoDiagnostics.NotPartial.Id] = new[] { new Fix("Make type partial", "MakePartial", MakePartial) },
+        [NinoDiagnostics.SubTypeWithoutNinoType.Id] = new[] { new Fix("Add [NinoType]", "AddNinoType", (e, n) => AddAttribute(e, Type(n), NinoType)) },
+        [NinoDiagnostics.ReadOnlyMember.Id] = new[] { AddIgnoreFix() },
+        [NinoDiagnostics.UnserializableMember.Id] = new[] { AddIgnoreFix() },
+        [NinoDiagnostics.PrivateMember.Id] = new[]
         {
             RemoveAttributeFix(NinoMember),
             new Fix("Update type to allow non-public members", "AllowNonPublic",
                 (e, n) => SetTypeArgument(e, n, "containNonPublicMembers", 1, true)),
         },
-        ["NINO010"] = new[] { RemoveAttributeFix(NinoMember) },
-        ["NINO011"] = new[] { RemoveAttributeFix(NinoIgnore) },
-        ["NINO012"] = new[]
+        [NinoDiagnostics.RedundantMember.Id] = new[] { RemoveAttributeFix(NinoMember) },
+        [NinoDiagnostics.RedundantIgnore.Id] = new[] { RemoveAttributeFix(NinoIgnore) },
+        [NinoDiagnostics.AmbiguousMember.Id] = new[]
         {
             RemoveAttributeFix(NinoMember), RemoveAttributeFix(NinoIgnore),
             new Fix("Remove both attributes", "RemoveBoth", (e, n) =>
@@ -68,13 +68,13 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 RemoveAttribute(e, n, NinoIgnore);
             }),
         },
-        ["NINO013"] = new[] { new Fix("Use the next free index", "NextIndex", UseNextFreeIndex) },
-        ["NINO015"] = new[]
+        [NinoDiagnostics.DuplicateIndex.Id] = new[] { new Fix("Use the next free index", "NextIndex", UseNextFreeIndex) },
+        [NinoDiagnostics.TrackReferencesOnStruct.Id] = new[]
         {
             new Fix("Remove trackReferences", "RemoveTrackReferences",
                 (e, n) => SetTypeArgument(e, n, "trackReferences", 5, false)),
         },
-        ["NINO018"] = new[]
+        [NinoDiagnostics.InvalidPooledType.Id] = new[]
         {
             new Fix("Make class sealed", "MakeSealed",
                 (e, n) => e.SetModifiers(Type(n), e.Generator.GetModifiers(Type(n)).WithIsSealed(true)),
@@ -82,7 +82,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                      !Type(n).Modifiers.Any(m => m.IsKind(SyntaxKind.AbstractKeyword) || m.IsKind(SyntaxKind.StaticKeyword) ||
                                                  m.IsKind(SyntaxKind.SealedKeyword))),
         },
-        ["NINO019"] = new[] { new Fix("Implement pool hooks", "ImplementPoolHooks", ImplementPoolHooks) },
+        [NinoDiagnostics.PoolHooksNotImplemented.Id] = new[] { new Fix("Implement pool hooks", "ImplementPoolHooks", ImplementPoolHooks) },
     };
 
     public override ImmutableArray<string> FixableDiagnosticIds { get; } = Fixes.Keys.ToImmutableArray();
@@ -136,7 +136,11 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     /// </summary>
     private static bool IsAttribute(SemanticModel model, AttributeSyntax attribute, string name) =>
         model.GetSymbolInfo(attribute).Symbol is IMethodSymbol { ContainingType: { } type } &&
-        type.Name == name + "Attribute" && type.ContainingNamespace.ToDisplayString() == "Nino.Core";
+        SymbolEqualityComparer.Default.Equals(type, AttributeType(model, name));
+
+    /// <summary>Nino.Core's <c>[name]</c> attribute type in the document's compilation.</summary>
+    private static INamedTypeSymbol? AttributeType(SemanticModel model, string name) =>
+        model.Compilation.GetTypeByMetadataName("Nino.Core." + name + "Attribute");
 
     private static AttributeSyntax? FindAttribute(DocumentEditor editor, MemberDeclarationSyntax member, string name) =>
         member.AttributeLists.SelectMany(l => l.Attributes)
@@ -185,18 +189,13 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         var type = Type(node);
         if (editor.SemanticModel.GetDeclaredSymbol(type) is not { } symbol)
             return;
-        foreach (var (name, declaration) in new[]
-                 {
-                     ("OnNinoPoolWarmup",
-                         $"private static partial System.Collections.Generic.IEnumerable<{type.Identifier.ValueText}{TypeArguments(type)}> OnNinoPoolWarmup()\n{{\n    return System.Array.Empty<{type.Identifier.ValueText}{TypeArguments(type)}>();\n}}\n"),
-                     ("OnNinoPoolReturn", "private partial void OnNinoPoolReturn()\n{\n}\n"),
-                 })
+        string self = type.Identifier.ValueText + TypeArguments(type);
+        foreach (var name in PoolHooks.Missing(symbol, CancellationToken.None))
         {
-            bool implemented = symbol.GetMembers(name).OfType<IMethodSymbol>().Any(m =>
-                (m.PartialImplementationPart ?? m).DeclaringSyntaxReferences.Any(r =>
-                    r.GetSyntax() is MethodDeclarationSyntax { Body: not null } or
-                        MethodDeclarationSyntax { ExpressionBody: not null }));
-            if (!implemented && SyntaxFactory.ParseMemberDeclaration(declaration) is { } member)
+            string declaration = name == PoolHooks.Warmup
+                ? $"private static partial System.Collections.Generic.IEnumerable<{self}> {name}()\n{{\n    return System.Array.Empty<{self}>();\n}}\n"
+                : $"private partial void {name}()\n{{\n}}\n";
+            if (SyntaxFactory.ParseMemberDeclaration(declaration) is { } member)
                 editor.AddMember(type, member.WithAdditionalAnnotations(Formatter.Annotation, Simplifier.Annotation));
         }
     }
@@ -278,13 +277,15 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 is not { } symbol)
             return;
 
+        var ninoMember = AttributeType(editor.SemanticModel, NinoMember);
         var used = new HashSet<ushort>();
         var reported = new HashSet<ushort>();
         int rank = -1, seenDuplicates = 0;
         foreach (var m in type.GetMembers())
         {
             var index = m.GetAttributes()
-                .Where(a => a.AttributeClass is { Name: "NinoMemberAttribute" } && a.ConstructorArguments.Length > 0)
+                .Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, ninoMember) &&
+                            a.ConstructorArguments.Length > 0)
                 .Select(a => a.ConstructorArguments[0].Value as ushort?)
                 .FirstOrDefault();
             if (index is not { } i)

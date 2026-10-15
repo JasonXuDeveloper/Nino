@@ -1,16 +1,10 @@
-using Microsoft.CodeAnalysis.CSharp;
+using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;
 
 /// <summary>Expressions and statements that read or assign a member, whatever its accessibility.</summary>
 internal static class MemberCode
 {
-    public const string Core = "global::Nino.Core.";
-
-    /// <summary>Escapes C# keywords used as identifiers.</summary>
-    public static string Id(string name) =>
-        SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None ? "@" + name : name;
-
     /// <summary>Local variable that holds a member while a re-created instance is read.</summary>
     public static string Local(MemberModel member) => "__v_" + member.Name;
 
@@ -25,7 +19,7 @@ internal static class MemberCode
     /// <summary>Expression reading the member of <paramref name="v"/>.</summary>
     public static string Get(TypeModel m, MemberModel member, string v) => member.Access switch
     {
-        MemberAccess.Direct => $"{v}.{Id(member.Name)}",
+        MemberAccess.Direct => $"{v}.{Identifier(member.Name)}",
         MemberAccess.UnsafeAccessor => member.IsProperty
             ? $"__G_{member.Name}({Instance(member, v)})"
             : $"__F_{member.Name}({Instance(member, v)})",
@@ -41,7 +35,7 @@ internal static class MemberCode
             return null;
         return member.Access switch
         {
-            MemberAccess.Direct => $"{v}.{Id(member.Name)}",
+            MemberAccess.Direct => $"{v}.{Identifier(member.Name)}",
             MemberAccess.UnsafeAccessor => $"__F_{member.Name}({Instance(member, v)})",
             _ => $"{Accessor(m)}.F_{member.Name}({Instance(member, v)})",
         };
@@ -54,7 +48,7 @@ internal static class MemberCode
             return $"{Ref(m, member, v)} = {expr};";
         return member.Access switch
         {
-            MemberAccess.Direct => $"{v}.{Id(member.Name)} = {expr};",
+            MemberAccess.Direct => $"{v}.{Identifier(member.Name)} = {expr};",
             MemberAccess.UnsafeAccessor => $"__S_{member.Name}({Instance(member, v)}, {expr});",
             _ => $"{Accessor(m)}.S_{member.Name}({Instance(member, v)}, {expr});",
         };
@@ -75,6 +69,7 @@ internal static class MemberCode
         _ => null,
     };
 
+    /// <summary>The write statement that replaces the formatter call for strings, or null.</summary>
     public static string? DirectWrite(MemberModel member, string value) => member.Formatter switch
     {
         Core + "StringFormatter" => $"writer.Write({value});",
@@ -82,7 +77,6 @@ internal static class MemberCode
         _ => null,
     };
 
-    public static string EscapeXml(string s) => s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-
+    /// <summary>The contents of a C# string literal for <paramref name="s"/>.</summary>
     public static string EscapeString(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 }

@@ -324,8 +324,12 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
   code, so the IDE skips the emitters while typing and only builds run them.
 * Facts shared between types (each type's serialized members, raw layout, whether its formatter can be
   delegated to, resolved formatters, type ids) are memoized per `Compilation` in `TypeFacts` and shared by every
-  transform and analyzer action on it, so a deep hierarchy collects each level's members once rather than once
-  per subtype, and a member type such as `List<int>` is resolved once per compilation.
+  transform, analyzer and suppressor action on it, so a deep hierarchy collects each level's members once rather
+  than once per subtype, and a member type such as `List<int>` is resolved once per compilation. `TypeFacts` also
+  resolves the Nino.Core attribute types once (`NinoSymbols`), so attributes are compared by symbol everywhere.
+* `TypeFacts` answers questions about symbols, `MemberCollector` and `ConstructionPlanner` pick members and
+  constructors, `FormatterResolver` names formatters, `ModelBuilder` assembles the `TypeModel`, and the emitters
+  (`Generation/Emit`) only read models: none of them reports diagnostics except through a `DiagnosticSink`.
 * Each type is emitted into its own file. Editing a member of `Foo` re-emits only `Foo.g.cs`.
 * The registry stage consumes only formatter names, so it only re-runs when types are added, removed or
   renamed.
@@ -339,15 +343,16 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
 
 * `NinoAnalyzer` reports every diagnostic ([docs/diagnostics.md](diagnostics.md)): attribute misuse, and
   whatever building a type's model finds, through the same `ModelBuilder` the generator uses with a
-  `DiagnosticSink`. It skips generated code, does nothing in compilations without Nino.Core, resolves the
-  Nino.Core attribute types once per compilation and compares by symbol, and runs one symbol action per type
-  (not one per partial declaration). Diagnostics appear as you type and can be configured in `.editorconfig`.
+  `DiagnosticSink`. It skips generated code, does nothing in compilations without Nino.Core, compares
+  attributes by symbol (the `TypeFacts` of the compilation, shared with model builds), and runs one symbol action
+  per type (not one per partial declaration). Diagnostics appear as you type and can be configured in `.editorconfig`.
 * `NinoSuppressor` hides "never used / never assigned / make readonly" warnings (CS0169, CS0414, CS0649,
   IDE0044, IDE0051, IDE0052) on private members Nino serializes: on .NET 8+ they are reached through
   `[UnsafeAccessor]`, which the compiler cannot see.
 * Code fixes live in their own assembly, since they need `Microsoft.CodeAnalysis.Workspaces`, which the
   command-line compiler and Unity do not load. The provider maps each diagnostic id to its fixes, edits through
-  `DocumentEditor`, leaves formatting to the code action cleanup and supports Fix All.
+  `DocumentEditor`, leaves formatting to the code action cleanup and supports Fix All. It compiles in the
+  analyzer's `NinoDiagnostics.cs` and `PoolHooks.cs`, so ids and pool hook names have one definition.
 * Descriptors are static and shared (`NinoDiagnostics`), with help links and release tracking
   (`AnalyzerReleases.*.md`). Analyzer projects enforce ordinal string comparisons (CA1309/CA1310).
 

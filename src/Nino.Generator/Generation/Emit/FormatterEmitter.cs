@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Text;
 using static Nino.Generator.Generation.Emit.MemberCode;
+using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -19,7 +20,7 @@ internal static class FormatterEmitter
         var sb = new StringBuilder(body.Length + 1024);
         sb.Append(Header);
         sb.Append("namespace NinoGen\n{\n");
-        names.WriteAliases(sb, body.Contains(FormatterNames.Inline));
+        names.WriteAliases(sb);
         sb.Append(body);
         sb.Append("}\n");
         if (m.PartialDeclarations.Length > 0)
@@ -30,7 +31,7 @@ internal static class FormatterEmitter
     private static void EmitFormatter(CodeWriter w, TypeModel m, FormatterNames names)
     {
         string t = m.TypeName;
-        string self = m.FormatterName + m.TypeParameters;
+        string self = m.FormatterName + m.TypeParameterList;
         string iface = m.Kind == FormatterKind.Polymorphic
             ? $"{Core}INinoFormatter<{t}>"
             : $"{Core}INinoBodyFormatter<{t}>";

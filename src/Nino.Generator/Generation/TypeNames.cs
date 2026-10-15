@@ -5,10 +5,14 @@ using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Generation;
 
+/// <summary>Names of types as generated code and the runtime spell them, and the ids hashed from them.</summary>
 internal static class TypeNames
 {
     // Built by hand: SymbolDisplay is by far the most expensive part of a model build (it pools and trims display
     // part arrays per call), and every transform re-runs on each edit.
+
+    /// <summary>Prefix of every Nino.Core type in generated code.</summary>
+    public const string Core = "global::Nino.Core.";
 
     /// <summary>Fully qualified C# name, e.g. <c>global::Ns.Outer.Box&lt;int&gt;</c>.</summary>
     public static string Global(ITypeSymbol type)
@@ -30,18 +34,39 @@ internal static class TypeNames
     /// <summary>Metadata name, e.g. <c>System.Collections.Generic.List`1</c>; nested types joined by <c>+</c>.</summary>
     public static string MetadataName(INamedTypeSymbol definition)
     {
-        var ns = definition.ContainingNamespace;
-        var nsName = Namespace(ns);
-        var prefix = nsName.Length == 0 ? "" : nsName + ".";
-        return definition.ContainingType != null
-            ? MetadataName(definition.ContainingType) + "+" + definition.MetadataName
-            : prefix + definition.MetadataName;
+        if (definition.ContainingType != null)
+            return MetadataName(definition.ContainingType) + "+" + definition.MetadataName;
+        var ns = Namespace(definition.ContainingNamespace);
+        return ns.Length == 0 ? definition.MetadataName : ns + "." + definition.MetadataName;
     }
 
-    private static string Escape(string name) =>
+    /// <summary>
+    /// Open generic name for <c>typeof</c>, e.g. <c>global::Ns.Outer&lt;&gt;.Box&lt;,&gt;</c>.
+    /// </summary>
+    public static string OpenName(INamedTypeSymbol type)
+    {
+        string own = Identifier(type.Name) + (type.Arity > 0 ? "<" + new string(',', type.Arity - 1) + ">" : "");
+        if (type.ContainingType != null)
+            return OpenName(type.ContainingType) + "." + own;
+        var sb = new StringBuilder("global::");
+        AppendNamespace(sb, type.ContainingNamespace);
+        return sb.Append(own).ToString();
+    }
+
+    /// <summary>The identifier as C# source: keywords are escaped with <c>@</c>.</summary>
+    public static string Identifier(string name) =>
         Microsoft.CodeAnalysis.CSharp.SyntaxFacts.GetKeywordKind(name) != Microsoft.CodeAnalysis.CSharp.SyntaxKind.None
             ? "@" + name
             : name;
+
+    /// <summary>Appends <c>Ns.Sub.</c> (escaped, with a trailing dot); nothing for the global namespace.</summary>
+    private static void AppendNamespace(StringBuilder sb, INamespaceSymbol? ns)
+    {
+        if (ns == null || ns.IsGlobalNamespace)
+            return;
+        AppendNamespace(sb, ns.ContainingNamespace);
+        sb.Append(Identifier(ns.Name)).Append('.');
+    }
 
     private static void AppendGlobal(StringBuilder sb, ITypeSymbol type)
     {
@@ -73,7 +98,7 @@ internal static class TypeNames
                 sb.Append('*');
                 return;
             case ITypeParameterSymbol parameter:
-                sb.Append(Escape(parameter.Name));
+                sb.Append(Identifier(parameter.Name));
                 return;
             case INamedTypeSymbol named when named.TypeKind != TypeKind.Error:
             {
@@ -106,18 +131,10 @@ internal static class TypeNames
         else
         {
             sb.Append("global::");
-            var ns = Namespace(named.ContainingNamespace);
-            if (ns.Length != 0)
-            {
-                foreach (var part in ns.Split('.'))
-                {
-                    sb.Append(Escape(part));
-                    sb.Append('.');
-                }
-            }
+            AppendNamespace(sb, named.ContainingNamespace);
         }
 
-        sb.Append(Escape(named.Name));
+        sb.Append(Identifier(named.Name));
         if (named.TypeArguments.Length == 0)
             return;
         sb.Append('<');
@@ -157,9 +174,7 @@ internal static class TypeNames
     {
         if (type.ContainingType == null)
             return type.TypeArguments;
-        var result = new List<ITypeSymbol>();
-        if (type.ContainingType != null)
-            result.AddRange(AllTypeArguments(type.ContainingType));
+        var result = new List<ITypeSymbol>(AllTypeArguments(type.ContainingType));
         result.AddRange(type.TypeArguments);
         return result;
     }

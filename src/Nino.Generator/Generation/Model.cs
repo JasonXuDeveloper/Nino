@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using Microsoft.CodeAnalysis;
 using Nino.Generator.DTOs;
 
 namespace Nino.Generator.Generation;
@@ -63,27 +60,13 @@ internal sealed record ConstructionModel(
     // [NinoRefDeserialization] factory method used when the target is null (in-place mode only).
     string RefFactory);
 
-/// <summary>
-/// Receives the diagnostics found while a model is built. The analyzer passes one and reports them; the generator
-/// passes none, so models carry no locations and an edit that only moves code re-emits nothing.
-/// </summary>
-internal sealed class DiagnosticSink
-{
-    private readonly Action<Diagnostic> _report;
-
-    public DiagnosticSink(Action<Diagnostic> report) => _report = report;
-
-    public void Report(DiagnosticDescriptor descriptor, ISymbol at, params object[] args) =>
-        _report(Diagnostic.Create(descriptor, at.Locations.FirstOrDefault(), args));
-}
-
 internal sealed record TypeModel(
     // Fully qualified type, e.g. "global::Ns.Outer.Box<T>".
     string TypeName,
     // Formatter type name without type parameters, e.g. "Ns_Outer_Box_1Formatter".
     string FormatterName,
-    // "<T1, T2>" or "".
-    string TypeParameters,
+    // Type parameter names, outermost containing type first; empty for non-generic types.
+    EquatableArray<string> TypeParameters,
     // " where T : struct" ... or "".
     string Constraints,
     // "global::Ns.Outer.Box<,>" for generic types, otherwise "".
@@ -121,10 +104,16 @@ internal sealed record TypeModel(
     EquatableArray<string> PartialDeclarations)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
+
+    /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
+    public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
 }
 
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.
 internal sealed record FormatterRegistration(string TypeName, string Formatter, int Id);
+
+// A generated formatter, as the registry lists it. OpenTypeName and Arity are set for generic types only.
+internal sealed record RegistryEntry(string FormatterName, string OpenTypeName, int Arity, int TypeId, int NameId);
 
 internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,
     bool HasUnityEditor);

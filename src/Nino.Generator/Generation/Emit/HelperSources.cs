@@ -6,7 +6,7 @@ namespace Nino.Generator.Generation.Emit;
 /// </summary>
 internal static class HelperSources
 {
-    private const string Core = MemberCode.Core;
+    private const string Core = TypeNames.Core;
 
     public static string EmitPriorityQueueFormatter()
     {

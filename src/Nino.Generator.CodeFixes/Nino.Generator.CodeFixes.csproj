@@ -20,6 +20,11 @@
 
     <ItemGroup>
         <Compile Include="..\Version.cs"/>
+        <!-- Shared with the analyzer: the diagnostics being fixed, and the pool hooks NINO019 asks for. -->
+        <Compile Include="..\Nino.Generator\NinoDiagnostics.cs" Link="Shared\NinoDiagnostics.cs"/>
+        <Compile Include="..\Nino.Generator\PoolHooks.cs" Link="Shared\PoolHooks.cs"/>
+        <AdditionalFiles Include="..\Nino.Generator\AnalyzerReleases.Shipped.md" Link="Shared\AnalyzerReleases.Shipped.md"/>
+        <AdditionalFiles Include="..\Nino.Generator\AnalyzerReleases.Unshipped.md" Link="Shared\AnalyzerReleases.Unshipped.md"/>
     </ItemGroup>
 
     <ItemGroup>

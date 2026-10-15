@@ -22,5 +22,5 @@ NINO014 | Nino | Error | Member key collision
 NINO015 | Nino | Warning | trackReferences on a struct
 NINO016 | Nino | Error | Cannot track references
 NINO017 | Nino | Error | Invalid NinoRefDeserializationAttribute usage
-NINO018 | Nino | Error | InvalidPooledType
-NINO019 | Nino | Error | PoolHooksNotImplemented
+NINO018 | Nino | Error | Type cannot be pooled
+NINO019 | Nino | Error | Pool hooks not implemented

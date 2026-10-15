@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Nino.Generator.Generation;
 
@@ -44,59 +43,44 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(start =>
         {
-            // Nothing to check in compilations that do not reference Nino; the attribute types are resolved once.
-            if (KnownTypes.Create(start.Compilation) is not { } known)
+            // Nothing to check in compilations that do not reference Nino.
+            if (start.Compilation.GetTypeByMetadataName("Nino.Core.NinoTypeAttribute") == null)
                 return;
             // Symbol actions run once per type, not once per partial declaration.
-            start.RegisterSymbolAction(c => AnalyzeType(c, known), SymbolKind.NamedType);
-            if (known.RefDeserialization != null)
-                start.RegisterSymbolAction(c => AnalyzeMethod(c, known.RefDeserialization), SymbolKind.Method);
+            start.RegisterSymbolAction(AnalyzeType, SymbolKind.NamedType);
+            if (start.Compilation.GetTypeByMetadataName("Nino.Core.NinoRefDeserializationAttribute") is { } refAttribute)
+                start.RegisterSymbolAction(c => AnalyzeMethod(c, refAttribute), SymbolKind.Method);
         });
     }
 
-    /// <summary>Nino.Core types the checks compare against, by symbol.</summary>
-    private sealed class KnownTypes
-    {
-        public INamedTypeSymbol Member = null!, Ignore = null!, CustomFormatter = null!, Formatter = null!;
-        public INamedTypeSymbol? RefDeserialization, Pooled;
-
-        public static KnownTypes? Create(Compilation compilation)
-        {
-            if (compilation.GetTypeByMetadataName("Nino.Core.NinoTypeAttribute") == null ||
-                compilation.GetTypeByMetadataName("Nino.Core.NinoMemberAttribute") is not { } member ||
-                compilation.GetTypeByMetadataName("Nino.Core.NinoIgnoreAttribute") is not { } ignore ||
-                compilation.GetTypeByMetadataName("Nino.Core.NinoCustomFormatterAttribute") is not { } custom ||
-                compilation.GetTypeByMetadataName("Nino.Core.NinoFormatter`1") is not { } formatter)
-                return null;
-            return new KnownTypes
-            {
-                Member = member, Ignore = ignore, CustomFormatter = custom, Formatter = formatter,
-                RefDeserialization = compilation.GetTypeByMetadataName("Nino.Core.NinoRefDeserializationAttribute"),
-                Pooled = compilation.GetTypeByMetadataName("Nino.Core.NinoPooledAttribute"),
-            };
-        }
-    }
-
-    private static void AnalyzeType(SymbolAnalysisContext context, KnownTypes known)
+    private static void AnalyzeType(SymbolAnalysisContext context)
     {
         var type = (INamedTypeSymbol)context.Symbol;
+        var sink = new DiagnosticSink(context.ReportDiagnostic);
         var attr = type.GetNinoTypeOptions();
         if (attr == null)
         {
-            ReportMissingNinoType(context, type);
+            ReportMissingNinoType(sink, type);
             return;
         }
 
+        // The Nino attribute types and the members collected are shared with the generator's model builds.
+        var facts = TypeFacts.For(context.Compilation, type.DeclaringSyntaxReferences.FirstOrDefault()?.SyntaxTree.Options);
+        var known = facts.Symbols;
+
         // The generator skips types it cannot name from outside them.
         if (!TypeFacts.IsEligible(type))
-            Report(context, NinoDiagnostics.InaccessibleType, type, type.GetDisplayString());
-        else if (type.DeclaringSyntaxReferences.FirstOrDefault() is { } declaration)
-            ModelBuilder.Build(type, context.Compilation, declaration.SyntaxTree.Options,
-                new DiagnosticSink(context.ReportDiagnostic));
+            sink.Report(NinoDiagnostics.InaccessibleType, type, type.ToDisplayString());
+        else
+            ModelBuilder.Build(type, facts, sink);
 
-        if (known.Pooled != null && type.GetAttributes().Any(a =>
-                SymbolEqualityComparer.Default.Equals(a.AttributeClass, known.Pooled)))
-            ReportMissingPoolHooks(context, type);
+        if (NinoSymbols.Has(type, known.Pooled))
+        {
+            var missing = PoolHooks.Missing(type, context.CancellationToken).ToList();
+            if (missing.Count > 0)
+                sink.Report(NinoDiagnostics.PoolHooksNotImplemented, type, type.ToDisplayString(),
+                    string.Join(" and ", missing.Select(name => name + "()")));
+        }
 
         var indices = attr.AutoCollect ? null : new Dictionary<ushort, ISymbol>();
         HashSet<ushort>? reported = null;
@@ -107,6 +91,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             foreach (var a in member.GetAttributes())
             {
                 var attributeClass = a.AttributeClass;
+                if (attributeClass == null)
+                    continue;
                 if (SymbolEqualityComparer.Default.Equals(attributeClass, known.Member))
                     ninoMember = a;
                 else if (SymbolEqualityComparer.Default.Equals(attributeClass, known.Ignore))
@@ -116,9 +102,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             }
 
             if (customFormatter is { ConstructorArguments: { Length: > 0 } args } &&
-                args[0].Value is INamedTypeSymbol formatter &&
-                MemberType(member) is { } memberType && !IsFormatterOf(formatter, memberType, known.Formatter))
-                Report(context, NinoDiagnostics.InvalidCustomFormatter, member, formatter.ToDisplayString(),
+                args[0].Value is INamedTypeSymbol formatter && known.Formatter != null &&
+                TypeFacts.MemberType(member) is { } memberType && !IsFormatterOf(formatter, memberType, known.Formatter))
+                sink.Report(NinoDiagnostics.InvalidCustomFormatter, member, formatter.ToDisplayString(),
                     memberType.ToDisplayString());
 
             bool annotated = ninoMember != null;
@@ -126,32 +112,32 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             bool dropped = annotated && member.DeclaredAccessibility != Accessibility.Public &&
                            !attr.ContainNonPublicMembers;
             if (dropped)
-                Report(context, NinoDiagnostics.PrivateMember, member, member.Name, type.Name);
+                sink.Report(NinoDiagnostics.PrivateMember, member, member.Name, type.Name);
             if (attr.AutoCollect)
             {
                 if (annotated && !dropped)
-                    Report(context, NinoDiagnostics.RedundantMember, member, member.Name, type.Name);
+                    sink.Report(NinoDiagnostics.RedundantMember, member, member.Name, type.Name);
                 continue;
             }
 
             if (annotated && ignored)
-                Report(context, NinoDiagnostics.AmbiguousMember, member, member.Name, type.Name);
+                sink.Report(NinoDiagnostics.AmbiguousMember, member, member.Name, type.Name);
             else if (ignored)
-                Report(context, NinoDiagnostics.RedundantIgnore, member, member.Name, type.Name);
+                sink.Report(NinoDiagnostics.RedundantIgnore, member, member.Name, type.Name);
 
             if (ninoMember is { ConstructorArguments: { Length: > 0 } indexArgs } && indexArgs[0].Value is ushort index)
             {
                 if (!indices!.TryGetValue(index, out var existing))
                     indices[index] = member;
                 else if ((reported ??= new HashSet<ushort>()).Add(index))
-                    Report(context, NinoDiagnostics.DuplicateIndex, member, type.Name, member.Name,
+                    sink.Report(NinoDiagnostics.DuplicateIndex, member, type.Name, member.Name,
                         existing.ContainingType.Name, existing.Name);
             }
         }
     }
 
     /// <summary>A type deriving from a NinoType that does not pass its attribute on must declare its own.</summary>
-    private static void ReportMissingNinoType(SymbolAnalysisContext context, INamedTypeSymbol type)
+    private static void ReportMissingNinoType(DiagnosticSink sink, INamedTypeSymbol type)
     {
         if (type.TypeKind is not (TypeKind.Class or TypeKind.Struct or TypeKind.Interface))
             return;
@@ -159,7 +145,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         {
             if (baseType.IsNinoType())
             {
-                Report(context, NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, baseType.Name);
+                sink.Report(NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, baseType.Name);
                 return;
             }
         }
@@ -168,34 +154,16 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         {
             if (interfaceType.IsNinoType())
             {
-                Report(context, NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, interfaceType.Name);
+                sink.Report(NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, interfaceType.Name);
                 return;
             }
         }
     }
 
-    /// <summary>The partial methods a <c>[NinoPooled]</c> class implements (the generator declares them).</summary>
-    internal static readonly string[] PoolHooks = { "OnNinoPoolWarmup", "OnNinoPoolReturn" };
-
-    /// <summary>Names of the pool hooks <paramref name="type"/> has no body for.</summary>
-    internal static IEnumerable<string> MissingPoolHooks(INamedTypeSymbol type, System.Threading.CancellationToken cancellationToken) =>
-        PoolHooks.Where(name => !type.GetMembers(name).OfType<IMethodSymbol>().Any(m =>
-            (m.PartialImplementationPart ?? m).DeclaringSyntaxReferences.Any(r =>
-                r.GetSyntax(cancellationToken) is MethodDeclarationSyntax { Body: not null } or
-                    MethodDeclarationSyntax { ExpressionBody: not null })));
-
-    private static void ReportMissingPoolHooks(SymbolAnalysisContext context, INamedTypeSymbol type)
-    {
-        var missing = MissingPoolHooks(type, context.CancellationToken).ToList();
-        if (missing.Count > 0)
-            Report(context, NinoDiagnostics.PoolHooksNotImplemented, type, type.ToDisplayString(),
-                string.Join(" and ", missing.Select(name => name + "()")));
-    }
-
     private static void AnalyzeMethod(SymbolAnalysisContext context, INamedTypeSymbol attribute)
     {
         var method = (IMethodSymbol)context.Symbol;
-        if (!method.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attribute)))
+        if (!NinoSymbols.Has(method, attribute))
             return;
 
         var errors = new List<string>();
@@ -208,19 +176,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
             errors.Add($"must return {method.ContainingType.ToDisplayString()}");
         if (errors.Count > 0)
-            Report(context, NinoDiagnostics.InvalidRefDeserialization, method, method.Name, string.Join(", ", errors));
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.InvalidRefDeserialization,
+                method.Locations.FirstOrDefault(), method.Name, string.Join(", ", errors)));
     }
-
-    private static void Report(SymbolAnalysisContext context, DiagnosticDescriptor descriptor, ISymbol symbol,
-        params object[] args) =>
-        context.ReportDiagnostic(Diagnostic.Create(descriptor, symbol.Locations.FirstOrDefault(), args));
-
-    private static ITypeSymbol? MemberType(ISymbol member) => member switch
-    {
-        IFieldSymbol field => field.Type,
-        IPropertySymbol property => property.Type,
-        _ => null
-    };
 
     /// <summary>Whether <paramref name="formatter"/> derives from <c>NinoFormatter&lt;memberType&gt;</c>.</summary>
     private static bool IsFormatterOf(INamedTypeSymbol formatter, ITypeSymbol memberType, INamedTypeSymbol ninoFormatter)

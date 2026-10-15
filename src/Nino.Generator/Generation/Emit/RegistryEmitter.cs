@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using static Nino.Generator.Generation.Emit.MemberCode;
+using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -142,5 +143,3 @@ internal static class RegistryEmitter
         });
     }
 }
-
-internal sealed record RegistryEntry(string FormatterName, string OpenTypeName, int Arity, int TypeId, int NameId);

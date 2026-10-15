@@ -1,9 +1,11 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Nino.Generator.DTOs;
 using Nino.Generator.Generation.Emit;
 
 namespace Nino.Generator.Generation;
@@ -56,7 +58,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var inherited = candidates.Combine(context.CompilationProvider)
             .SelectMany(static (x, ct) =>
             {
-                var result = new System.Collections.Generic.List<TypeModel?>();
+                var result = new List<TypeModel?>();
                 foreach (var (syntax, model) in InheritedCandidates.Resolve(x.Left, x.Right, ct))
                 {
                     if (model.GetDeclaredSymbol(syntax, ct) is not INamedTypeSymbol symbol)
@@ -77,17 +79,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
             })
             .WithTrackingName("InheritedNinoType");
 
-        var models = marked.Where(static m => m != null)
-            .Combine(enabled)
-            .Where(static x => x.Right)
-            .Select(static (x, _) => x.Left!);
-        var inheritedModels = inherited.Where(static m => m != null)
-            .Combine(enabled)
-            .Where(static x => x.Right)
-            .Select(static (x, _) => x.Left!);
-
-        context.RegisterImplementationSourceOutput(models, static (spc, model) => Emit(spc, model));
-        context.RegisterImplementationSourceOutput(inheritedModels, static (spc, model) => Emit(spc, model));
+        // Both streams produce the same models; Roslyn 4.3 cannot concatenate value providers, so every output
+        // below is registered for (or collected from) each of them.
+        var models = new[] { Gate(marked, enabled), Gate(inherited, enabled) };
+        foreach (var stream in models)
+            context.RegisterImplementationSourceOutput(stream, static (spc, model) => Emit(spc, model));
 
         var options = context.CompilationProvider.Select(static (c, _) => new GeneratorOptions(
             c.AssemblyName ?? "Assembly",
@@ -111,10 +107,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 spc.AddSource("NinoGen.PriorityQueueFormatter.g.cs", HelperSources.EmitPriorityQueueFormatter());
         });
 
-        var entries = models.Select(static (m, _) => ToEntry(m)).Collect()
-            .Combine(inheritedModels.Select(static (m, _) => ToEntry(m)).Collect())
-            .Select(static (x, _) => new DTOs.EquatableArray<RegistryEntry>(
-                x.Left.Concat(x.Right).Distinct().OrderBy(e => e.FormatterName, System.StringComparer.Ordinal)));
+        var entries = CollectAll(models, static m => ToEntry(m))
+            .Select(static (x, _) => new EquatableArray<RegistryEntry>(
+                x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)));
 
         // Built-in generic types used directly with the top-level APIs (e.g. NinoSerializer.Serialize(list)):
         // register closed formatters so AOT platforms have them and generator-only formatters are found.
@@ -136,15 +131,14 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
         // Closed built-in formatters used by members: registered once per assembly here rather than by every
         // type that uses them (the same List<int> formatter is typically used by many types).
-        var memberFormatters = models.Select(static (m, _) => m.UsedFormatters).Collect()
-            .Combine(inheritedModels.Select(static (m, _) => m.UsedFormatters).Collect());
+        var memberFormatters = CollectAll(models, static m => m.UsedFormatters);
 
         var registrations = usages.Combine(memberFormatters)
-            .Select(static (x, _) => new DTOs.EquatableArray<FormatterRegistration>(
-                x.Left.Concat(x.Right.Left.SelectMany(static a => a)).Concat(x.Right.Right.SelectMany(static a => a))
+            .Select(static (x, _) => new EquatableArray<FormatterRegistration>(
+                x.Left.Concat(x.Right.SelectMany(static a => a))
                     .Distinct()
-                    .OrderBy(u => u.TypeName, System.StringComparer.Ordinal)
-                    .ThenBy(u => u.Formatter, System.StringComparer.Ordinal)));
+                    .OrderBy(u => u.TypeName, StringComparer.Ordinal)
+                    .ThenBy(u => u.Formatter, StringComparer.Ordinal)));
 
         context.RegisterImplementationSourceOutput(registrations.Combine(enabled), static (spc, x) =>
         {
@@ -161,14 +155,31 @@ public sealed class NinoGenerator : IIncrementalGenerator
         });
     }
 
+    /// <summary>The models of a stream, in compilations that reference Nino.Core.</summary>
+    private static IncrementalValuesProvider<TypeModel> Gate(IncrementalValuesProvider<TypeModel?> models,
+        IncrementalValueProvider<bool> enabled) =>
+        models.Where(static m => m != null)
+            .Combine(enabled)
+            .Where(static x => x.Right)
+            .Select(static (x, _) => x.Left!);
+
+    /// <summary><paramref name="select"/> of every model of every stream, collected.</summary>
+    private static IncrementalValueProvider<ImmutableArray<T>> CollectAll<T>(
+        IncrementalValuesProvider<TypeModel>[] streams, Func<TypeModel, T> select)
+    {
+        var all = streams[0].Select((m, _) => select(m)).Collect();
+        for (int i = 1; i < streams.Length; i++)
+            all = all.Combine(streams[i].Select((m, _) => select(m)).Collect())
+                .Select(static (x, _) => x.Left.AddRange(x.Right));
+        return all;
+    }
+
     private static bool IsNinoReceiver(ExpressionSyntax receiver)
     {
         var name = receiver switch
         {
-            IdentifierNameSyntax id => id.Identifier.ValueText,
             MemberAccessExpressionSyntax m => m.Name.Identifier.ValueText,
-            QualifiedNameSyntax q => q.Right.Identifier.ValueText,
-            AliasQualifiedNameSyntax a => a.Name.Identifier.ValueText,
+            TypeSyntax t => InheritedCandidates.SimpleName(t),
             _ => null,
         };
         return name is "NinoSerializer" or "NinoDeserializer";
@@ -180,8 +191,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
         {
             foreach (var attribute in list.Attributes)
             {
-                var name = attribute.Name.ToString();
-                if (name.EndsWith("NinoType", System.StringComparison.Ordinal) || name.EndsWith("NinoTypeAttribute", System.StringComparison.Ordinal))
+                if (InheritedCandidates.SimpleName(attribute.Name) is { } name &&
+                    (name.EndsWith("NinoType", StringComparison.Ordinal) ||
+                     name.EndsWith("NinoTypeAttribute", StringComparison.Ordinal)))
                     return true;
             }
         }
@@ -196,7 +208,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
         ct.ThrowIfCancellationRequested();
         var compilation = semanticModel.Compilation;
         var options = semanticModel.SyntaxTree.Options;
-        return ModelCache.GetOrBuild(symbol, compilation, options, () => ModelBuilder.Build(symbol, compilation, options));
+        return ModelCache.GetOrBuild(symbol, compilation, options,
+            () => ModelBuilder.Build(symbol, TypeFacts.For(compilation, options)));
     }
 
     private static FormatterRegistration? TransformUsage(GeneratorSyntaxContext ctx, CancellationToken ct)
@@ -225,11 +238,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
         _ => false,
     };
 
-    private static RegistryEntry ToEntry(TypeModel model)
-    {
-        int arity = model.IsGeneric ? model.TypeParameters.Count(c => c == ',') + 1 : 0;
-        return new RegistryEntry(model.FormatterName, model.OpenTypeName, arity, model.TypeId, model.NameId);
-    }
+    private static RegistryEntry ToEntry(TypeModel model) =>
+        new(model.FormatterName, model.OpenTypeName, model.TypeParameters.Length, model.TypeId, model.NameId);
 
     private static void Emit(SourceProductionContext spc, TypeModel model)
     {

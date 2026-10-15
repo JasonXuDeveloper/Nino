@@ -3,27 +3,21 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using static Nino.Generator.Generation.TypeFacts;
 
 namespace Nino.Generator.Generation;
 
-/// <summary>Finds the serialized members of a <c>[NinoType]</c>, in wire order.</summary>
+/// <summary>
+/// Finds the serialized members of a <c>[NinoType]</c>, in wire order. Use <see cref="TypeFacts.Members"/>, which
+/// memoizes the result per compilation.
+/// </summary>
 internal static class MemberCollector
 {
-    private sealed class Candidate
-    {
-        public ISymbol Symbol = null!;
-        public string Name = null!;
-        public int Index;
-    }
-
-    public static List<ISymbol> Collect(INamedTypeSymbol type, NinoTypeOptions attr)
+    public static List<ISymbol> Collect(INamedTypeSymbol type, NinoTypeOptions attr, NinoSymbols known)
     {
         bool autoCollect = attr.AutoCollect;
         bool containNonPublic = attr.ContainNonPublicMembers;
 
-        var explicitOrder = GetAttribute(type, "NinoExplicitOrderAttribute");
+        var explicitOrder = NinoSymbols.Get(type, known.ExplicitOrder);
         var order = new Dictionary<string, int>();
         if (explicitOrder != null && explicitOrder.ConstructorArguments.Length > 0)
         {
@@ -60,16 +54,14 @@ internal static class MemberCollector
         var result = new List<ISymbol>();
         foreach (var level in levels)
         {
-            var positional = PositionalParameters(level);
-            var candidates = new List<Candidate>();
+            var candidates = new List<(ISymbol Symbol, int Index)>();
             int declarationIndex = 0;
             foreach (var member in level.GetMembers())
             {
-                if (!IsCandidate(member, containNonPublic, positional))
+                if (!IsCandidate(member, containNonPublic))
                     continue;
 
-                var attrs = member.GetAttributes();
-                if (autoCollect && attrs.Any(a => a.AttributeClass?.Name == "NinoIgnoreAttribute"))
+                if (autoCollect && NinoSymbols.Has(member, known.Ignore))
                     continue;
 
                 // Private members of a base type cannot be reached from the derived type (protected can).
@@ -84,24 +76,24 @@ internal static class MemberCollector
                 }
                 else
                 {
-                    var ninoMember = attrs.FirstOrDefault(a => a.AttributeClass?.Name == "NinoMemberAttribute");
+                    var ninoMember = NinoSymbols.Get(member, known.Member);
                     if (ninoMember == null || ninoMember.ConstructorArguments.Length == 0 ||
                         ninoMember.ConstructorArguments[0].Value == null)
                         continue;
                     index = Convert.ToInt32(ninoMember.ConstructorArguments[0].Value, CultureInfo.InvariantCulture);
                 }
 
-                candidates.Add(new Candidate { Symbol = member, Name = member.Name, Index = index });
+                candidates.Add((member, index));
             }
 
             var sorted = candidates
-                .OrderBy(c => order.Count > 0 && order.TryGetValue(c.Name, out var o) ? o : int.MaxValue)
+                .OrderBy(c => order.Count > 0 && order.TryGetValue(c.Symbol.Name, out var o) ? o : int.MaxValue)
                 .ThenBy(c => c.Index)
-                .ThenBy(c => c.Name, StringComparer.Ordinal);
+                .ThenBy(c => c.Symbol.Name, StringComparer.Ordinal);
 
             foreach (var c in sorted)
             {
-                if (!inserted.Add(c.Name))
+                if (!inserted.Add(c.Symbol.Name))
                     continue;
                 // Interface members are serialized through the implementing type's member of the same name.
                 result.Add(level.TypeKind == TypeKind.Interface ? FindImplementation(type, c.Symbol) : c.Symbol);
@@ -123,41 +115,18 @@ internal static class MemberCollector
         return member;
     }
 
-    private static HashSet<string> PositionalParameters(INamedTypeSymbol type)
+    private static bool IsCandidate(ISymbol member, bool containNonPublic)
     {
-        var result = new HashSet<string>();
-        if (!type.IsRecord)
-            return result;
-        foreach (var reference in type.DeclaringSyntaxReferences)
-        {
-            if (reference.GetSyntax() is RecordDeclarationSyntax { ParameterList: { } list })
-            {
-                foreach (var p in list.Parameters)
-                    result.Add(p.Identifier.ValueText);
-            }
-        }
-
-        return result;
-    }
-
-    private static bool IsCandidate(ISymbol member, bool containNonPublic, HashSet<string> positional)
-    {
-        if (member.IsStatic)
+        if (member.IsStatic || !(containNonPublic || member.DeclaredAccessibility == Accessibility.Public))
             return false;
-        bool isPublic = member.DeclaredAccessibility == Accessibility.Public;
-        switch (member)
+        return member switch
         {
-            case IFieldSymbol field:
-                return !field.IsImplicitlyDeclared && !field.IsConst && !field.IsFixedSizeBuffer &&
-                       (containNonPublic || isPublic);
-            case IPropertySymbol property:
-                if (property.IsIndexer || property.GetMethod == null || property.SetMethod == null)
-                    return false;
-                if (property.IsImplicitlyDeclared && !positional.Contains(property.Name))
-                    return false;
-                return containNonPublic || isPublic;
-            default:
-                return false;
-        }
+            // Implicit fields are backing fields: their properties are the members.
+            IFieldSymbol field => !field.IsImplicitlyDeclared && !field.IsConst && !field.IsFixedSizeBuffer,
+            // The only implicit properties with a setter are a record's positional ones (EqualityContract has none).
+            IPropertySymbol property => !property.IsIndexer && property.GetMethod != null &&
+                                        property.SetMethod != null,
+            _ => false,
+        };
     }
 }

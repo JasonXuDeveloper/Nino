@@ -1,43 +1,13 @@
-using System;
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Nino.Generator;
 
+/// <summary>
+/// Which <c>[NinoType]</c> applies to a type. Context-free (no compilation needed), since it also runs over the
+/// types of referenced assemblies.
+/// </summary>
 internal static class NinoTypeHelper
 {
-    public const string WeakVersionToleranceSymbol = "WEAK_VERSION_TOLERANCE";
-
-    public static ImmutableArray<AttributeData> GetAttributesCache<T>(this T symbol) where T : ISymbol
-    {
-        return symbol.GetAttributes();
-    }
-
-    public static string GetDisplayString(this ITypeSymbol typeSymbol)
-    {
-        return typeSymbol.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString();
-    }
-
-    /// <summary>Whether the symbol and all of its containing types are public.</summary>
-    public static bool IsAccessible(this ISymbol symbol)
-    {
-        for (var s = symbol; s != null; s = s.ContainingType)
-        {
-            if (s.DeclaredAccessibility != Accessibility.Public &&
-                s.DeclaredAccessibility != Accessibility.NotApplicable)
-                return false;
-        }
-
-        return true;
-    }
-
-    public static ITypeSymbol? GetTypeSymbol(this TypeDeclarationSyntax syntax, SyntaxNodeAnalysisContext context)
-    {
-        return context.SemanticModel.GetDeclaredSymbol(syntax) as ITypeSymbol;
-    }
-
     public static bool IsNinoType(this ITypeSymbol typeSymbol)
     {
         return GetNinoTypeOptions(typeSymbol) != null;
@@ -106,23 +76,6 @@ internal static class NinoTypeHelper
     /// <summary>Whether <paramref name="ns"/> is <c>Nino.Core</c> (without allocating its display string).</summary>
     public static bool IsNinoCoreNamespace(INamespaceSymbol? ns) =>
         ns is { Name: "Core", ContainingNamespace: { Name: "Nino", ContainingNamespace.IsGlobalNamespace: true } };
-
-    public static T GetConstructorArgumentByName<T>(AttributeData? attributeData, string parameterName,
-        T defaultValue = default!)
-    {
-        if (attributeData?.AttributeConstructor == null)
-            return defaultValue;
-
-        var parameters = attributeData.AttributeConstructor.Parameters;
-        var arguments = attributeData.ConstructorArguments;
-        for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
-        {
-            if (parameters[i].Name == parameterName)
-                return arguments[i].Value is T typed ? typed : defaultValue;
-        }
-
-        return defaultValue;
-    }
 }
 
 /// <summary>The arguments of a <c>[NinoType]</c> attribute (by parameter name, so any argument order works).</summary>
@@ -135,13 +88,28 @@ internal sealed class NinoTypeOptions
     public bool Keyed { get; private set; }
     public bool TrackReferences { get; private set; }
 
-    public static NinoTypeOptions From(AttributeData attribute) => new()
+    public static NinoTypeOptions From(AttributeData attribute)
     {
-        AutoCollect = NinoTypeHelper.GetConstructorArgumentByName(attribute, "autoCollect", true),
-        ContainNonPublicMembers = NinoTypeHelper.GetConstructorArgumentByName(attribute, "containNonPublicMembers", false),
-        AllowInheritance = NinoTypeHelper.GetConstructorArgumentByName(attribute, "allowInheritance", true),
-        VersionTolerant = NinoTypeHelper.GetConstructorArgumentByName(attribute, "versionTolerant", false),
-        Keyed = NinoTypeHelper.GetConstructorArgumentByName(attribute, "keyed", false),
-        TrackReferences = NinoTypeHelper.GetConstructorArgumentByName(attribute, "trackReferences", false),
-    };
+        var options = new NinoTypeOptions();
+        if (attribute.AttributeConstructor is not { } constructor)
+            return options;
+        var parameters = constructor.Parameters;
+        var arguments = attribute.ConstructorArguments;
+        for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
+        {
+            if (arguments[i].Value is not bool value)
+                continue;
+            switch (parameters[i].Name)
+            {
+                case "autoCollect": options.AutoCollect = value; break;
+                case "containNonPublicMembers": options.ContainNonPublicMembers = value; break;
+                case "allowInheritance": options.AllowInheritance = value; break;
+                case "versionTolerant": options.VersionTolerant = value; break;
+                case "keyed": options.Keyed = value; break;
+                case "trackReferences": options.TrackReferences = value; break;
+            }
+        }
+
+        return options;
+    }
 }

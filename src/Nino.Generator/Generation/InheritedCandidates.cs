@@ -42,7 +42,8 @@ internal static class InheritedCandidates
             syntax.SyntaxTree.FilePath, syntax.Identifier.SpanStart);
     }
 
-    private static string? SimpleName(TypeSyntax type) => type switch
+    /// <summary>The rightmost identifier of a (qualified) name, e.g. <c>Base</c> for <c>Ns.Base&lt;T&gt;</c>.</summary>
+    public static string? SimpleName(TypeSyntax type) => type switch
     {
         SimpleNameSyntax s => s.Identifier.ValueText,
         QualifiedNameSyntax q => q.Right.Identifier.ValueText,

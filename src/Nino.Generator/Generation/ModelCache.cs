@@ -50,7 +50,7 @@ internal static class ModelCache
     {
         var state = GetState(compilation);
         string symbols = options == null ? "" : string.Join(";", options.PreprocessorSymbolNames);
-        var key = (state.AssemblyName, type.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+        var key = (state.AssemblyName, TypeNames.Global(type.OriginalDefinition));
 
         lock (Lock)
         {

@@ -1,5 +1,6 @@
 using System.Linq;
 using static Nino.Generator.Generation.Emit.MemberCode;
+using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;
 
@@ -70,7 +71,7 @@ internal static class AccessorEmitter
         foreach (var member in m.Members.Where(x => x.Access == MemberAccess.Partial))
         {
             string o = (member.DeclaringTypeIsValueType ? "ref " : "") + m.TypeName + " o";
-            string name = Id(member.Name);
+            string name = Identifier(member.Name);
             w.Line(inline);
             w.Line($"internal static {member.TypeName} G_{member.Name}({o}) => o.{name};");
             if (member.ConstructionOnly)
@@ -94,10 +95,10 @@ internal static class AccessorEmitter
         string pool = $"{Core}NinoPool<{t}>";
         const string exchange = "global::System.Threading.Interlocked.Exchange(ref";
         w.Line("/// <summary>Instances to pool before Nino first deserializes this type; runs once.</summary>");
-        w.Line($"private static partial global::System.Collections.Generic.IEnumerable<{t}> OnNinoPoolWarmup();");
+        w.Line($"private static partial global::System.Collections.Generic.IEnumerable<{t}> {PoolHooks.Warmup}();");
         w.Line();
         w.Line("/// <summary>Releases what must not outlive this use of the instance; called by <see cref=\"ReturnToPool\"/>.</summary>");
-        w.Line("private partial void OnNinoPoolReturn();");
+        w.Line($"private partial void {PoolHooks.Return}();");
         w.Line();
         w.Line($"private static readonly {pool} s_ninoPool = {pool}.Shared;");
         w.Line("[global::System.ThreadStatic]");
@@ -113,7 +114,7 @@ internal static class AccessorEmitter
         {
             w.Line($"if ({exchange} _ninoPooled, 1) != 0)");
             w.Indented(() => w.Line($"{pool}.ThrowReturnedTwice();"));
-            w.Line("OnNinoPoolReturn();");
+            w.Line($"{PoolHooks.Return}();");
             w.Line("s_ninoPool.Add(this, ref t_ninoPool);");
         });
         w.Line();
@@ -122,7 +123,7 @@ internal static class AccessorEmitter
         {
             w.Line("if (s_ninoPool.BeginWarmup())");
             w.Open();
-            w.Line("foreach (var item in OnNinoPoolWarmup() ?? global::System.Linq.Enumerable.Empty<" + t + ">())");
+            w.Line($"foreach (var item in {PoolHooks.Warmup}() ?? global::System.Linq.Enumerable.Empty<{t}>())");
             w.Open();
             w.Line($"if (item != null && {exchange} item._ninoPooled, 1) == 0)");
             w.Indented(() => w.Line("s_ninoPool.Add(item, ref t_ninoPool);"));
