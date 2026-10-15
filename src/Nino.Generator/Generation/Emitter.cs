@@ -345,6 +345,14 @@ internal static class Emitter
 
     private static void EmitWriteBody(StringBuilder sb, TypeModel m)
     {
+        if (m.EmitMembers && !Sliced(m) && m.CollectionFormatter.Length == 0)
+        {
+            sb.AppendLine($"        public void WriteBody({m.TypeName} value, ref {Core}Writer writer) => WriteMembers(value, ref writer);");
+            sb.AppendLine();
+            EmitMembersMethods(sb, m);
+            return;
+        }
+
         sb.AppendLine($"        public void WriteBody({m.TypeName} value, ref {Core}Writer writer)");
         sb.AppendLine("        {");
         if (Sliced(m))
@@ -376,12 +384,23 @@ internal static class Emitter
         EmitMemberWrites(sb, m);
         sb.AppendLine("        }");
         sb.AppendLine();
-        sb.AppendLine("        /// <summary>Reads the members into an existing instance; false when a tolerant body ended early.</summary>");
+        if (m.VersionTolerant)
+        {
+            sb.AppendLine("        /// <summary>Reads the members into an existing instance; false when the body ended early.</summary>");
+            sb.AppendLine($"        {Inline}");
+            sb.AppendLine($"        internal static bool ReadMembers({m.TypeName} value, ref {Core}Reader reader)");
+            sb.AppendLine("        {");
+            EmitMemberReads(sb, m, "reader", inPlace: true, onEnd: "return false;");
+            sb.AppendLine("            return true;");
+            sb.AppendLine("        }");
+            return;
+        }
+
+        // Positional bodies never end early: no result to report.
         sb.AppendLine($"        {Inline}");
-        sb.AppendLine($"        internal static bool ReadMembers({m.TypeName} value, ref {Core}Reader reader)");
+        sb.AppendLine($"        internal static void ReadMembers({m.TypeName} value, ref {Core}Reader reader)");
         sb.AppendLine("        {");
-        EmitMemberReads(sb, m, "reader", inPlace: true, onEnd: "return false;");
-        sb.AppendLine("            return true;");
+        EmitMemberReads(sb, m, "reader", inPlace: true, onEnd: "");
         sb.AppendLine("        }");
     }
 
