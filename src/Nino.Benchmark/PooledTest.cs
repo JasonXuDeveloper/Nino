@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Jobs;
 using MemoryPack;
 using Nino.Core;
 
@@ -43,6 +44,8 @@ public sealed partial class PooledSimpleClass
 
 [HideColumns("StdDev", "RatioSD", "Error")]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
+[ShortRunJob(RuntimeMoniker.Net10_0)]
+[GcServer(true)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
 public class PooledTest
