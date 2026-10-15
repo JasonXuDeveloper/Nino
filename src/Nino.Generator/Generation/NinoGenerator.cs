@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Nino.Generator.DTOs;
 using Nino.Generator.Generation.Emit;
@@ -156,6 +157,34 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(formatters, creators, closed));
             });
 
+#if ROSLYN4_12
+        // Top-level calls with a known type argument call the resolved formatter directly (where enabled).
+        var intercepted = context.SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) => node is InvocationExpressionSyntax
+                {
+                    Expression: MemberAccessExpressionSyntax
+                    {
+                        Name.Identifier.ValueText: "Serialize" or "Deserialize" or "DeserializeRef"
+                    } access
+                } && IsNinoReceiver(access.Expression),
+                static (ctx, ct) => Interceptors.Transform(ctx, ct))
+            .WithTrackingName("Intercepted")
+            .Where(static c => c != null)
+            .Select(static (c, _) => c!)
+            .Collect()
+            .Select(static (x, _) => new EquatableArray<InterceptedCall>(x.Distinct()
+                .OrderBy(c => c.Signature, StringComparer.Ordinal).ThenBy(c => c.Call, StringComparer.Ordinal)
+                .ThenBy(c => c.Attribute, StringComparer.Ordinal)));
+        var fileLocal = context.ParseOptionsProvider.Select(static (o, _) =>
+            o is CSharpParseOptions { LanguageVersion: >= LanguageVersion.CSharp11 });
+        context.RegisterImplementationSourceOutput(intercepted.Combine(fileLocal).Combine(enabled), static (spc, x) =>
+        {
+            var ((calls, local), on) = x;
+            if (on && calls.Length != 0)
+                spc.AddSource("NinoGen.Interceptors.g.cs", Interceptors.Emit(calls, local));
+        });
+
+#endif
         // Bases dispatch the subtypes of this assembly through generated code; any other subtype through the registry.
         var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName, m.TypeId,
                 m.IsDispatchRoot, m.IsDispatchTarget, m.NinoBaseClasses, m.NinoInterfaces))

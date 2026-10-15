@@ -15,7 +15,7 @@ namespace Nino.Core
         private const int MaxRetainedScratch = 1024 * 1024;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static NinoArrayBufferWriter RentScratch()
+        internal static NinoArrayBufferWriter RentScratch()
         {
             var buffer = NinoThreadCache.Take(ref _scratch);
             if (buffer == null)
@@ -25,7 +25,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void ReturnScratch(NinoArrayBufferWriter buffer)
+        internal static void ReturnScratch(NinoArrayBufferWriter buffer)
         {
             if (buffer.Capacity > MaxRetainedScratch)
             {

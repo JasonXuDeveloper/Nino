@@ -10,11 +10,13 @@ internal sealed class Visibility
     public Visibility(IAssemblySymbol assembly) => _assembly = assembly;
 
     /// <summary>Whether a formatter can be generated for the type (it must be visible to generated code).</summary>
-    public static bool IsEligible(INamedTypeSymbol type)
+    public static bool IsEligible(INamedTypeSymbol type) =>
+        !type.IsStatic && !type.IsRefLikeType &&
+        type.TypeKind is TypeKind.Class or TypeKind.Struct or TypeKind.Interface && IsAccessibleChain(type);
+
+    /// <summary>Whether the type and its containing types are all public or internal.</summary>
+    public static bool IsAccessibleChain(INamedTypeSymbol type)
     {
-        if (type.IsStatic || type.IsRefLikeType || type.TypeKind is not (TypeKind.Class or TypeKind.Struct
-                or TypeKind.Interface))
-            return false;
         for (ISymbol? s = type; s is INamedTypeSymbol t; s = t.ContainingType)
         {
             if (t.DeclaredAccessibility is not (Accessibility.Public or Accessibility.Internal

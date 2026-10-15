@@ -18,6 +18,12 @@ namespace Nino.Core
     {
         private static NinoFormatter<T> _instance;
 
+        /// <summary>
+        /// Set by <see cref="Register{TFormatter}"/>: the formatter was chosen at run time, so calls the generator
+        /// intercepted with the formatter it resolved (<see cref="NinoDirect"/>) go through this cache instead.
+        /// </summary>
+        internal static bool Replaced;
+
         /// <summary>The formatter for <typeparamref name="T"/>; resolved on first access.</summary>
         internal static NinoFormatter<T> Instance
         {
@@ -35,6 +41,7 @@ namespace Nino.Core
         public static void Register<TFormatter>() where TFormatter : struct, INinoFormatter<T>
         {
             Volatile.Write(ref _instance, new StructFormatter<T, TFormatter>());
+            Volatile.Write(ref Replaced, true);
             NinoFormatterCache.MarkRegistered(typeof(T));
         }
 

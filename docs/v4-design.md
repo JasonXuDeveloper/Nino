@@ -555,6 +555,34 @@ CompilationProvider.Select(GeneratorOptions)  ───────────�
 * The v3 generator combined everything with `CompilationProvider`, scanned every generic type syntax in
   the project and every `using` directive in every file, and re-emitted all types on every keystroke.
 
+### Top-level calls and interceptors
+
+The public `NinoSerializer` / `NinoDeserializer` generic methods are `AggressiveInlining` and take the formatter
+from `NinoFormatterCache<T>` in the caller, where `T` is usually exact: a reference-type `T` would otherwise make
+the method shared generic code, with a generic dictionary lookup for the formatter (serializing a small sealed
+class: 22 ns → 10 ns). What remains is one virtual call through the cached formatter.
+
+On compilers that load the generator's Roslyn 4.12 build, the generator also intercepts each such call whose type
+argument is known at the call site and whose formatter it resolves (not raw values or arrays of raw elements,
+which the regular calls already copy directly, and not types it can only reach through `CachedFormatter<T>`):
+`NinoGen.Interceptors.g.cs` redirects it to `Nino.Core.NinoDirect`, which calls the formatter struct directly.
+The bytes are the same. A formatter registered at run time with `NinoFormatterCache<T>.Register` still wins
+(`NinoDirect` checks a flag it sets), so intercepted and regular calls never disagree.
+Measured on .NET 8 (small types, ns per call, regular → intercepted): deserializing a non-sealed class
+15.5 → 11.6, a sealed class 29.5 → 24, a struct with a string 16.7 → 15.0.
+
+* Packaging: the same sources are compiled twice, by `Nino.Generator` (Roslyn 4.3, `analyzers/dotnet/roslyn4.3/cs`,
+  also what Unity uses) and `Nino.Generator.Roslyn4.12` (links those sources, defines `ROSLYN4_12`,
+  `analyzers/dotnet/roslyn4.12/cs`). NuGet picks the newest build the compiler can load, so .NET 9+ SDKs get
+  interceptors and older compilers keep the 4.3 build.
+* Opt-in: interceptors need their namespace listed in `InterceptorsNamespaces`. The package's
+  `build/Nino.Generator.props` (and `buildTransitive`) appends `NinoGen` unless `NinoInterceptors` is `false`;
+  the generator emits nothing when the namespace is not listed, so a project that sets the property without
+  appending simply keeps the regular calls.
+* C# 11+ projects get a file-local `InterceptsLocationAttribute` and interceptor class; older language versions
+  get internal ones.
+* Calls in generic code (`T` a type parameter) are left alone: the interceptor would be shared code too.
+
 ### Analyzer, suppressor and code fixes
 
 * `NinoAnalyzer` reports every diagnostic ([docs/diagnostics.md](diagnostics.md)): attribute misuse, and

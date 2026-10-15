@@ -25,12 +25,12 @@
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
                           SetTargetFramework="TargetFramework=$(NinoCoreTfm)"/>
-        <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
-                          OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false"/>
+        <ProjectReference Include="..\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
     <ItemGroup>
         <Using Include="BenchmarkDotNet.Attributes"/>
     </ItemGroup>
+    <Import Project="..\Nino.Generator\build\Nino.Generator.props"/>
 </Project>

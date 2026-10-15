@@ -339,7 +339,7 @@ internal static class ModelBuilder
         return true;
     }
 
-    private static MemberModel? BuildMember(INamedTypeSymbol type, IReadOnlyList<ISymbol> symbols, int index,
+    private static MemberModel? BuildMember(INamedTypeSymbol type, MemberList symbols, int index,
         TypeFacts facts, DiagnosticSink? diagnostics, ref bool needsPartialAccessor,
         List<FactoryRegistration> factories)
     {
@@ -420,7 +420,7 @@ internal static class ModelBuilder
     }
 
     /// <summary>How many more derived members of the same name are serialized after <c>symbols[index]</c>.</summary>
-    private static int DerivedSameNamed(IReadOnlyList<ISymbol> symbols, int index)
+    private static int DerivedSameNamed(MemberList symbols, int index)
     {
         var symbol = symbols[index];
         int count = 0;
