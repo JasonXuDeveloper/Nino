@@ -15,14 +15,14 @@ reads the data lays the type out the same way. CoreCLR, Mono (Unity editor, Unit
 - Old Mono (Unity 2019.4 and earlier): `T value; bool has_value;`, value first.
 
 Copying a `T?` as raw memory (what MemoryPack does) therefore produces different bytes on old Unity
-versions. Nino never puts the in-memory `Nullable<T>` on the wire:
+versions. Nino defines the bytes instead:
 
 - A single `T?` is a has-value byte followed by the value when present.
-- A `T?` array or list with unmanaged `T` uses a fixed stride: a has-value byte plus the raw value, which
-  is zero for null elements. The fixed stride lets the count be validated up front and keeps the read loop
-  branch-free.
-- To fill memory, `NullableLayout<T>` probes the running runtime's field offsets once (it builds
-  `default(T)` as a `T?` and finds the flag byte) instead of assuming one order.
+- A `T?` array or list with unmanaged `T` uses the canonical (64-bit corefx) `Nullable<T>` layout: a
+  has-value byte, zero padding up to `T`'s alignment, then `T` (zero when null). On runtimes whose
+  `Nullable<T>` matches, the block is copied as is (padding cleared). Elsewhere it is converted element
+  by element: `NullableLayout<T>` probes the runtime's field offsets once (it builds `default(T)` as a
+  `T?` and finds the flag byte) instead of assuming an order.
 
 ### `ValueTuple` uses `LayoutKind.Auto`
 
@@ -33,13 +33,17 @@ never as raw memory.
 
 ### BCL structs
 
-Before treating a BCL struct as raw, verify its layout on every runtime. These match CoreCLR in the Mono
-sources:
+Before treating a BCL struct as raw, verify its layout on every runtime:
 
-- `DateTime`: one `ulong`. On net8, structs that contain a `DateTime` keep the sequential layout.
-- `decimal`: explicit offsets flags/hi/lo/mid at 0/4/8/12.
-- `Guid`.
-- `DateTimeOffset`: `_dateTime`, then `_offsetMinutes`.
+- `DateTime`, `TimeSpan`: one 8-byte field.
+- `Guid`: `int, short, short, 8 bytes`, the same everywhere.
+- `decimal`: 16 bytes with the same byte order everywhere, but CoreCLR declares
+  `int _flags; uint _hi32; ulong _lo64` (alignment 8) while Mono/IL2CPP declare four ints (alignment 4).
+  So `struct { int a; decimal d; }` puts `d` at 8 on CoreCLR and at 4 on Unity.
+- `DateTimeOffset`: `DateTime` plus a `short`, so 6 bytes of padding and a different size on x86. Nino writes
+  it as UTC ticks plus offset minutes (10 bytes), never raw.
+- `Nullable<T>`, `ValueTuple`, `KeyValuePair`: never raw (see above). A raw `[NinoType]` struct requires all
+  of its fields to be raw, so a struct holding one of these is written member by member.
 
 ### Alignment on 32-bit platforms
 
@@ -51,23 +55,34 @@ The raw layout of a struct depends on the alignment the platform gives each fiel
 | armv7, wasm32 (IL2CPP/WebGL), Windows x86 MSVC (IL2CPP) | 8 | 4 |
 | x86 CoreCLR / Mono managed layout | 4 | 4 |
 
-So `struct { int a; long b; }` is 16 bytes on x64 and 12 bytes on x86 .NET/Mono. `nint`, `IntPtr` and
-pointers change size on every 32-bit target. Raw copies of such types are only portable between platforms
-with the same layout. MemoryPack has the same limitation.
+So `struct { int a; long b; }` is 16 bytes on x64 and 12 bytes on x86 .NET/Mono. MemoryPack copies such
+structs as they are, so its data is not portable between these platforms.
 
-Open item: define the wire layout as the 64-bit natural layout. Raw-copy only when the runtime layout
-matches, which is a JIT-folded check, and convert field by field otherwise.
+Nino's wire layout for raw types is the **canonical** layout: the one 64-bit CoreCLR uses (primitives aligned
+to their size, `decimal` aligned to 8). `NinoLayout` measures the runtime once with two probe structs
+(`{byte; long}` and `{byte; decimal}`) and derives each type's memory layout from its fields:
 
-### Padding bytes are not deterministic
+- Where it equals the canonical layout (every 64-bit runtime except for structs with a misaligned
+  `decimal` on Mono/IL2CPP, and most 32-bit ones), values are copied as raw memory. The check is a
+  `static readonly` flag the JIT folds away.
+- Elsewhere, values are converted field by field and the bulk raw paths are skipped.
+- `nint`/`nuint` are always written as 8 bytes.
 
-A raw copy includes padding. Padding usually stays zero (arrays are zeroed on allocation, and Nino writes
-zero padding when it reads), but code that builds structs in uninitialized memory (`SkipLocalsInit`,
-`stackalloc`, `Unsafe`) can leave garbage there. The data still reads back correctly, but two equal values
-may serialize to different bytes. Hashing or diffing serialized output is affected.
+The generator only puts struct members into unmanaged blocks when their layout is the same under every
+model, so generated code never depends on the runtime's layout.
+
+### Padding bytes
+
+A raw copy includes padding. Padding usually stays zero, but code that builds structs in uninitialized
+memory (`SkipLocalsInit`, `stackalloc`, `GC.AllocateUninitializedArray`, native memory) can leave stale
+data there. Copied as is, two equal values could serialize to different bytes, and stale memory would leak
+into the output. Nino clears padding on write. Blocks use a masked copy (SIMD when accelerated) rather
+than a copy followed by masking, which would reload freshly stored bytes and stall on store forwarding.
+Types without padding pay nothing: the check is a JIT-time constant.
 
 ### Reordering fields of a raw struct changes the format
 
-A `[NinoType]` struct that qualifies for raw copying is written in memory order, padding included.
+A `[NinoType]` struct that qualifies for raw copying is written in its canonical memory order.
 Reordering its fields or changing its `StructLayout` breaks existing data. Mark it `versionTolerant` (or
 ignore a field) to opt out of raw copying.
 

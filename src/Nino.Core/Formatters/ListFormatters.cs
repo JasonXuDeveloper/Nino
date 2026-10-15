@@ -103,12 +103,12 @@ namespace Nino.Core
                 return;
             }
 
-            NinoNullables.Write<T>(ListAccess.AsSpan<T?>(value), ref writer);
+            NinoNullables<T>.Write(ListAccess.AsSpan<T?>(value), ref writer);
         }
 
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            int length = NinoNullables.ReadCount<T>(ref reader);
+            int length = NinoNullables<T>.ReadCount(ref reader);
             if (length < 0)
             {
                 NinoRecycler.Discard(ref value);
@@ -122,7 +122,7 @@ namespace Nino.Core
                 value = list;
             }
 
-            NinoNullables.Read<T>(ListAccess.SetCount<T?>(list, length, overwritten: true), ref reader);
+            NinoNullables<T>.Read(ListAccess.SetCount<T?>(list, length, overwritten: true), ref reader);
         }
     }
 

@@ -74,8 +74,8 @@ After the header comes the **body**: the members in declaration order (or `[Nino
 A `[NinoType]` struct is written as its **raw memory** (one copy, and arrays/lists of it as one block) when it
 is unmanaged, not version tolerant, uses the default sequential layout, has no custom member formatters, and
 every instance field (including auto-property backing fields) is serialized. Nested `[NinoType]` struct fields
-must qualify as well. The bytes are the in-memory layout, **padding included**, so reordering fields changes
-the format; mark the struct `versionTolerant` (or ignore a field) to opt out. Otherwise structs are written
+must qualify as well. The bytes are the canonical (64-bit CoreCLR) layout with padding zeroed, converted on
+runtimes that lay the type out differently (see `docs/pitfalls.md`), so reordering fields changes the format; mark the struct `versionTolerant` (or ignore a field) to opt out. Otherwise structs are written
 member by member.
 
 ### Collections

@@ -72,7 +72,7 @@ namespace Nino.Core
         {
             public static readonly int ElementSize = Compute();
 
-            public static readonly INinoRawArrayFormatter? Padded = ElementSize == 0 ? null : NinoFormatterCache<T>.Instance.RawArrayPadding;
+            public static readonly INinoRawArrayFormatter Padded = ElementSize == 0 ? null : NinoFormatterCache<T>.Instance.RawArrayPadding;
 
             private static int Compute()
             {

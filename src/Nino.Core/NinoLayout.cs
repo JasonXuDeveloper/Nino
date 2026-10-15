@@ -1,3 +1,4 @@
+#nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -55,6 +56,9 @@ namespace Nino.Core
             /// <summary>Canonical (wire) size; 0 when unknown.</summary>
             public int Size;
 
+            /// <summary>Canonical alignment; 0 when unknown.</summary>
+            public int Align;
+
             /// <summary>Canonical byte mask: 0xFF for field bytes, 0 for padding. Null without padding.</summary>
             public byte[]? Mask;
 
@@ -87,12 +91,12 @@ namespace Nino.Core
         {
             var wire = new List<Leaf>();
             var memory = new List<Leaf>();
-            if (!Measure(type, 8, 8, 0, wire, out int wireSize, out _) ||
+            if (!Measure(type, 8, 8, 0, wire, out int wireSize, out int wireAlign) ||
                 !Measure(type, longAlign, decimalAlign, 0, memory, out int memorySize, out _) ||
                 (runtimeSize >= 0 && memorySize != runtimeSize) || wire.Count != memory.Count)
                 return new Info { Size = runtimeSize };
 
-            var info = new Info { Size = wireSize, Canonical = wireSize == memorySize };
+            var info = new Info { Size = wireSize, Align = wireAlign, Canonical = wireSize == memorySize };
             for (int i = 0; i < wire.Count && info.Canonical; i++)
                 info.Canonical = wire[i].Offset == memory[i].Offset;
 
@@ -260,29 +264,115 @@ namespace Nino.Core
     }
 
     /// <summary>
+    /// A byte mask (0xFF keeps a byte, 0 clears it) applied while copying values to the wire, in one pass:
+    /// SIMD when hardware accelerated, 8-byte words otherwise.
+    /// </summary>
+    internal sealed class NinoMask
+    {
+        private readonly byte[] _mask;
+        private readonly ulong[] _words; // the mask repeated over lcm(length, 8) bytes
+        private readonly Vector<byte>[]? _vectors; // the mask repeated over lcm(length, vector width) bytes
+
+        /// <summary>Returns a mask, or null when <paramref name="mask"/> keeps every byte.</summary>
+        public static NinoMask? Create(byte[] mask) =>
+            Array.IndexOf(mask, (byte)0) < 0 ? null : new NinoMask(mask);
+
+        private NinoMask(byte[] mask)
+        {
+            _mask = mask;
+            var words = Repeat(mask, 8);
+            _words = new ulong[words.Length / 8];
+            for (int i = 0; i < _words.Length; i++)
+                _words[i] = Unsafe.ReadUnaligned<ulong>(ref words[i * 8]);
+            if (Vector.IsHardwareAccelerated)
+            {
+                int width = Vector<byte>.Count;
+                var bytes = Repeat(mask, width);
+                _vectors = new Vector<byte>[bytes.Length / width];
+                for (int i = 0; i < _vectors.Length; i++)
+                    _vectors[i] = new Vector<byte>(bytes, i * width);
+            }
+        }
+
+        private static byte[] Repeat(byte[] mask, int multiple)
+        {
+            int period = mask.Length;
+            while (period % multiple != 0)
+                period += mask.Length;
+            var bytes = new byte[period];
+            for (int i = 0; i < period; i++)
+                bytes[i] = mask[i % mask.Length];
+            return bytes;
+        }
+
+        /// <summary>Copies <paramref name="count"/> masked elements (the mask's length each).</summary>
+        public void Copy(ref byte destination, ref byte source, int count)
+        {
+            int total = checked(count * _mask.Length);
+            int i = 0;
+            if (_vectors != null)
+            {
+                int width = Vector<byte>.Count;
+                ref Vector<byte> v = ref _vectors[0];
+                if (_vectors.Length == 1)
+                {
+                    var m = v; // sizes dividing the vector width: one mask register
+                    for (; i + width <= total; i += width)
+                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
+                            Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) & m);
+                }
+
+                int vectorPeriod = _vectors.Length * width;
+                for (; i + vectorPeriod <= total; i += vectorPeriod)
+                {
+                    ref byte d = ref Unsafe.Add(ref destination, i);
+                    ref byte s = ref Unsafe.Add(ref source, i);
+                    for (int j = 0; j < _vectors.Length; j++)
+                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, j * width),
+                            Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, j * width)) & Unsafe.Add(ref v, j));
+                }
+            }
+
+            // i is a multiple of the vector period, hence of the word period: the masks line up.
+            int period = _words.Length * 8;
+            ref ulong word = ref _words[0];
+            for (; i + period <= total; i += period)
+            {
+                ref byte d = ref Unsafe.Add(ref destination, i);
+                ref byte s = ref Unsafe.Add(ref source, i);
+                for (int j = 0; j < _words.Length; j++)
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, j * 8),
+                        Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref s, j * 8)) & Unsafe.Add(ref word, j));
+            }
+
+            for (; i < total; i++)
+                Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & _mask[i % _mask.Length]);
+        }
+
+        /// <summary>Applies the mask in place.</summary>
+        public void Clear(ref byte destination, int count) => Copy(ref destination, ref destination, count);
+    }
+
+    /// <summary>
     /// Canonical layout of <typeparamref name="T"/> (see <see cref="NinoLayout"/>). The flags are JIT-time constants:
     /// on runtimes where the layout is canonical and the type has no padding, raw writes cost nothing extra.
     /// </summary>
     internal static class NinoLayout<T>
     {
-        private static readonly NinoLayout.Info Info = NinoUnsafe.IsReferenceOrContainsReferences<T>()
+        internal static readonly NinoLayout.Info Info = NinoUnsafe.IsReferenceOrContainsReferences<T>()
             ? new NinoLayout.Info { Size = 0 }
             : NinoLayout.Get(typeof(T), Unsafe.SizeOf<T>());
 
         /// <summary>Whether values can be copied as raw memory on this runtime.</summary>
         public static readonly bool IsCanonical = Info.Canonical;
 
+        private static readonly NinoMask? Mask = Info.Mask == null ? null : NinoMask.Create(Info.Mask);
+
         /// <summary>Whether the canonical layout has padding bytes (cleared on write).</summary>
-        public static readonly bool HasPadding = Info.Mask != null;
+        public static readonly bool HasPadding = Mask != null;
 
         /// <summary>Size of a value on the wire.</summary>
         public static readonly int WireSize = Info.Size;
-
-        // The mask repeated over lcm(size, 8) bytes, as 8-byte words.
-        private static readonly ulong[]? Words = BuildWords(Info.Mask);
-
-        // The mask repeated over lcm(size, vector size) bytes, when SIMD is hardware accelerated.
-        private static readonly Vector<byte>[]? Vectors = BuildVectors(Info.Mask);
 
         /// <summary>Wire size, as a JIT-time constant on runtimes with the canonical layout.</summary>
         public static int Size
@@ -296,7 +386,7 @@ namespace Nino.Core
         public static void ClearPadding(ref byte destination, int count = 1)
         {
             if (HasPadding)
-                ClearSlow(ref destination, count);
+                Mask!.Clear(ref destination, count);
         }
 
         /// <summary>
@@ -307,7 +397,7 @@ namespace Nino.Core
         public static void CopyToWire(ref byte destination, ref byte source, int count)
         {
             if (HasPadding)
-                CopyMasked(ref destination, ref source, count);
+                Mask!.Copy(ref destination, ref source, count);
             else
                 Unsafe.CopyBlockUnaligned(ref destination, ref source, (uint)checked(count * Unsafe.SizeOf<T>()));
         }
@@ -336,108 +426,6 @@ namespace Nino.Core
             T value = default!;
             NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref value), ref source, false);
             return value;
-        }
-
-        private static void CopyMasked(ref byte destination, ref byte source, int count)
-        {
-            var mask = Info.Mask!;
-            int total = checked(count * mask.Length);
-            int i = 0;
-            if (Vectors != null)
-            {
-                var vectors = Vectors;
-                int width = Vector<byte>.Count;
-                int vectorPeriod = vectors.Length * width;
-                ref Vector<byte> v = ref vectors[0];
-                if (vectors.Length == 1)
-                {
-                    // The common case (sizes dividing the vector width): one mask register.
-                    var m = v;
-                    for (; i + width <= total; i += width)
-                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
-                            Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) & m);
-                }
-
-                for (; i + vectorPeriod <= total; i += vectorPeriod)
-                {
-                    ref byte d = ref Unsafe.Add(ref destination, i);
-                    ref byte s = ref Unsafe.Add(ref source, i);
-                    for (int j = 0; j < vectors.Length; j++)
-                        Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, j * width),
-                            Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, j * width)) & Unsafe.Add(ref v, j));
-                }
-            }
-
-            var words = Words!;
-            int period = words.Length * 8;
-            ref ulong word = ref words[0];
-            for (; i + period <= total; i += period)
-            {
-                ref byte d = ref Unsafe.Add(ref destination, i);
-                ref byte s = ref Unsafe.Add(ref source, i);
-                for (int j = 0; j < words.Length; j++)
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, j * 8),
-                        Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref s, j * 8)) & Unsafe.Add(ref word, j));
-            }
-
-            for (; i < total; i++)
-                Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & mask[i % mask.Length]);
-        }
-
-        private static void ClearSlow(ref byte destination, int count)
-        {
-            var mask = Info.Mask!;
-            var words = Words!;
-            int total = checked(count * mask.Length);
-            int period = words.Length * 8;
-            ref ulong word = ref words[0];
-            int i = 0;
-            // Whole periods: the mask words line up with the data.
-            for (; i + period <= total; i += period)
-            {
-                ref byte b = ref Unsafe.Add(ref destination, i);
-                for (int j = 0; j < words.Length; j++)
-                {
-                    ref byte p = ref Unsafe.Add(ref b, j * 8);
-                    Unsafe.WriteUnaligned(ref p, Unsafe.ReadUnaligned<ulong>(ref p) & Unsafe.Add(ref word, j));
-                }
-            }
-
-            for (; i < total; i++)
-                Unsafe.Add(ref destination, i) &= mask[i % mask.Length];
-        }
-
-        private static Vector<byte>[]? BuildVectors(byte[]? mask)
-        {
-            if (mask == null || !Vector.IsHardwareAccelerated)
-                return null;
-            int width = Vector<byte>.Count;
-            int period = mask.Length;
-            while (period % width != 0)
-                period += mask.Length;
-            var bytes = new byte[period];
-            for (int i = 0; i < period; i++)
-                bytes[i] = mask[i % mask.Length];
-            var vectors = new Vector<byte>[period / width];
-            for (int i = 0; i < vectors.Length; i++)
-                vectors[i] = new Vector<byte>(bytes, i * width);
-            return vectors;
-        }
-
-        private static ulong[]? BuildWords(byte[]? mask)
-        {
-            if (mask == null)
-                return null;
-            int period = mask.Length;
-            while (period % 8 != 0)
-                period += mask.Length;
-            var bytes = new byte[period];
-            for (int i = 0; i < period; i++)
-                bytes[i] = mask[i % mask.Length];
-            var words = new ulong[period / 8];
-            for (int i = 0; i < words.Length; i++)
-                words[i] = Unsafe.ReadUnaligned<ulong>(ref bytes[i * 8]);
-            return words;
         }
     }
 }

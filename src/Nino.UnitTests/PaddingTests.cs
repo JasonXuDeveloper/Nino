@@ -149,6 +149,28 @@ namespace Nino.UnitTests
         }
 
         [TestMethod]
+        public void NullableSequencesUseTheCanonicalLayout()
+        {
+            var values = new int?[] { 1, null, 3 };
+            // Garbage in the padding of the in-memory Nullable<int> must not reach the output.
+            for (int i = 0; i < values.Length; i++)
+                for (int b = 1; b < 4; b++)
+                    Unsafe.Add(ref Unsafe.As<int?, byte>(ref values[i]), b) = 0xAB;
+            var bytes = NinoSerializer.Serialize(values);
+            CollectionAssert.DoesNotContain(bytes, (byte)0xAB);
+            CollectionAssert.AreEqual(new int?[] { 1, null, 3 }, NinoDeserializer.Deserialize<int?[]>(bytes));
+
+            var longs = new List<long?> { long.MinValue, null };
+            Assert.AreEqual(4 + 2 * 16, NinoSerializer.Serialize(longs).Length);
+            CollectionAssert.AreEqual(longs, NinoDeserializer.Deserialize<List<long?>>(NinoSerializer.Serialize(longs)));
+            var decimals = new decimal?[] { 1.5m, null, -7m };
+            Assert.AreEqual(4 + 3 * 24, NinoSerializer.Serialize(decimals).Length);
+            CollectionAssert.AreEqual(decimals, NinoDeserializer.Deserialize<decimal?[]>(NinoSerializer.Serialize(decimals)));
+            var bytesOnly = new byte?[] { 1, null };
+            CollectionAssert.AreEqual(new byte[] { 2, 0, 0, 0, 1, 1, 0, 0 }, NinoSerializer.Serialize(bytesOnly));
+        }
+
+        [TestMethod]
         public void PointerSizedValuesUseEightBytes()
         {
             var bytes = NinoSerializer.Serialize(new System.IntPtr(-5));

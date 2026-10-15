@@ -114,7 +114,7 @@ namespace Nino.Core
         // Elements with a non-canonical layout take the formatter path, which converts them.
         int INinoRawArrayFormatter.ElementSize => NinoLayout<T>.IsCanonical ? Unsafe.SizeOf<T>() : 0;
 
-        INinoRawArrayFormatter? INinoRawArrayFormatter.Padded => NinoLayout<T>.HasPadding ? this : null;
+        INinoRawArrayFormatter INinoRawArrayFormatter.Padded => NinoLayout<T>.HasPadding ? this : null;
 
         void INinoRawArrayFormatter.CopyToWire(ref byte destination, ref byte source, int count) =>
             NinoLayout<T>.CopyToWire(ref destination, ref source, count);
@@ -154,12 +154,12 @@ namespace Nino.Core
                 return;
             }
 
-            NinoNullables.Write<T>(value, ref writer);
+            NinoNullables<T>.Write(value, ref writer);
         }
 
         public void Deserialize(ref T?[] value, ref Reader reader)
         {
-            int length = NinoNullables.ReadCount<T>(ref reader);
+            int length = NinoNullables<T>.ReadCount(ref reader);
             if (length < 0)
             {
                 NinoRecycler.Discard(ref value);
@@ -169,73 +169,104 @@ namespace Nino.Core
             var array = value;
             if (array == null || array.Length != length)
                 array = NinoElements.Resize(ref value, length, uninitialized: true);
-            NinoNullables.Read<T>(array, ref reader);
+            NinoNullables<T>.Read(array, ref reader);
         }
     }
 
     /// <summary>
-    /// <c>T?</c> sequences with unmanaged <c>T</c>: a fixed stride of one has-value byte plus the raw
-    /// value (zeroed when null). The fixed stride lets the count be validated up front and keeps the
-    /// read loop branch-free; the in-memory <c>Nullable&lt;T&gt;</c> layout never reaches the wire.
+    /// <c>T?</c> sequences with unmanaged <c>T</c>, in the canonical (64-bit corefx) <c>Nullable&lt;T&gt;</c> layout:
+    /// a has-value byte, zero padding up to T's alignment, then T in its canonical layout (zero when null).
+    /// Where the runtime lays <c>T?</c> out the same way the elements are copied as one block (padding cleared);
+    /// elsewhere (old Mono puts the value first, x86 aligns 8-byte values to 4) they are converted one by one.
     /// </summary>
-    internal static class NinoNullables
+    internal static class NinoNullables<T> where T : unmanaged
     {
-        /// <summary>Writes the count and the elements.</summary>
-        public static void Write<T>(ReadOnlySpan<T?> values, ref Writer writer) where T : unmanaged
+        private static readonly int Offset = NinoLayout<T>.Info.Align > 0 ? NinoLayout<T>.Info.Align : 1;
+
+        /// <summary>Wire size of one element.</summary>
+        public static readonly int Stride = Offset + NinoLayout<T>.WireSize;
+
+        /// <summary>Whether <c>T?</c> memory equals its wire layout on this runtime.</summary>
+        private static readonly bool Raw = NinoLayout<T>.IsCanonical && NullableLayout<T>.HasValueOffset == 0 &&
+                                           NullableLayout<T>.ValueOffset == Offset &&
+                                           Unsafe.SizeOf<T?>() == Stride;
+
+        private static readonly NinoMask? Mask = BuildMask();
+
+        private static NinoMask? BuildMask()
         {
-            int stride = 1 + Unsafe.SizeOf<T>();
-            ref byte dst = ref writer.Reserve(checked(4 + values.Length * stride));
+            var mask = new byte[Stride];
+            mask[0] = 0xFF;
+            var value = NinoLayout<T>.Info.Mask;
+            for (int i = 0; i < NinoLayout<T>.WireSize; i++)
+                mask[Offset + i] = value == null ? (byte)0xFF : value[i];
+            return NinoMask.Create(mask);
+        }
+
+        /// <summary>Writes the count and the elements.</summary>
+        public static void Write(ReadOnlySpan<T?> values, ref Writer writer)
+        {
+            ref byte dst = ref writer.Reserve(checked(4 + values.Length * Stride));
             NinoUnsafe.Write(ref dst, values.Length);
             dst = ref Unsafe.Add(ref dst, 4);
-            ref byte item = ref Unsafe.As<T?, byte>(ref MemoryMarshal.GetReference(values));
-            int size = Unsafe.SizeOf<T?>();
-            int hasValue = NullableLayout<T>.HasValueOffset;
-            int value = NullableLayout<T>.ValueOffset;
+            if (values.IsEmpty)
+                return;
+            ref T? item = ref MemoryMarshal.GetReference(values);
+            if (Raw)
+            {
+                ref byte src = ref Unsafe.As<T?, byte>(ref item);
+                if (Mask != null)
+                    Mask.Copy(ref dst, ref src, values.Length);
+                else
+                    Unsafe.CopyBlockUnaligned(ref dst, ref src, (uint)(values.Length * Stride));
+                return;
+            }
+
+            Unsafe.InitBlockUnaligned(ref dst, 0, (uint)(values.Length * Stride));
             for (int i = 0; i < values.Length; i++)
             {
-                // A null T? is always default(T?) (C# cannot build one with a value), so the value
-                // field is copied as is: zero for null elements.
-                ref byte src = ref Unsafe.Add(ref item, i * size);
-                ref byte slot = ref Unsafe.Add(ref dst, i * stride);
-                slot = Unsafe.Add(ref src, hasValue) != 0 ? (byte)1 : (byte)0;
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref slot, 1),
-                    Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref src, value)));
+                ref T? element = ref Unsafe.Add(ref item, i);
+                if (!element.HasValue)
+                    continue;
+                ref byte slot = ref Unsafe.Add(ref dst, i * Stride);
+                slot = 1;
+                NinoLayout<T>.Write(ref Unsafe.Add(ref slot, Offset), element.GetValueOrDefault());
             }
         }
 
         /// <summary>Reads the element count, validated against the remaining bytes (-1 for null).</summary>
-        public static int ReadCount<T>(ref Reader reader) where T : unmanaged =>
-            reader.ReadLength(1 + Unsafe.SizeOf<T>());
+        public static int ReadCount(ref Reader reader) => reader.ReadLength(Stride);
 
         /// <summary>Reads <c>destination.Length</c> elements (the count has been read).</summary>
-        public static void Read<T>(Span<T?> destination, ref Reader reader) where T : unmanaged
+        public static void Read(Span<T?> destination, ref Reader reader)
         {
-            int stride = 1 + Unsafe.SizeOf<T>();
-            ref byte src = ref reader.ReadBlock(checked(destination.Length * stride));
-            ref byte item = ref Unsafe.As<T?, byte>(ref MemoryMarshal.GetReference(destination));
-            int size = Unsafe.SizeOf<T?>();
-            int hasValue = NullableLayout<T>.HasValueOffset;
-            int value = NullableLayout<T>.ValueOffset;
+            ref byte src = ref reader.ReadBlock(checked(destination.Length * Stride));
+            if (destination.IsEmpty)
+                return;
+            ref T? item = ref MemoryMarshal.GetReference(destination);
+            if (Raw)
+            {
+                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T?, byte>(ref item), ref src,
+                    (uint)(destination.Length * Stride));
+                return;
+            }
+
             for (int i = 0; i < destination.Length; i++)
             {
-                // Both fields are stored unconditionally (a null element carries a zero value);
-                // the flag is normalized so corrupt input cannot forge a bool.
-                ref byte slot = ref Unsafe.Add(ref src, i * stride);
-                ref byte dst = ref Unsafe.Add(ref item, i * size);
-                Unsafe.Add(ref dst, hasValue) = slot != 0 ? (byte)1 : (byte)0;
-                Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, value),
-                    Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref slot, 1)));
+                ref byte slot = ref Unsafe.Add(ref src, i * Stride);
+                Unsafe.Add(ref item, i) = slot != 0 ? NinoLayout<T>.Read(ref Unsafe.Add(ref slot, Offset)) : default(T?);
             }
         }
     }
 
     /// <summary>
-    /// Field offsets of <c>Nullable&lt;T&gt;</c> in memory on the running runtime. Old Mono stores the
-    /// value first while corefx stores the flag first, so the layout is probed rather than assumed.
+    /// Field offsets of <c>Nullable&lt;T&gt;</c> in memory on the running runtime. Old Mono stores the value first
+    /// while corefx stores the flag first, so the layout is probed rather than assumed.
     /// </summary>
     internal static class NullableLayout<T> where T : unmanaged
     {
         public static readonly int HasValueOffset = ProbeHasValue();
+
         public static readonly int ValueOffset =
             HasValueOffset == 0 ? Unsafe.SizeOf<T?>() - Unsafe.SizeOf<T>() : 0;
 
