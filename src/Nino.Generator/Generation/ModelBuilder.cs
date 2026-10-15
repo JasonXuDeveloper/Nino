@@ -441,9 +441,6 @@ internal static class ModelBuilder
         return true;
     }
 
-    /// <summary>The access helper names used for a member's partial accessor.</summary>
-    public static string AccessorClass(TypeModel model) => "__NinoAccess_" + model.FormatterName;
-
     /// <summary>
     /// Serialized members of <paramref name="type"/> (whose effective attribute is <paramref name="attr"/>), in
     /// order. Memoized per transform: a type's own list and its base's are needed several times.

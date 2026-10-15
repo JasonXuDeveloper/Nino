@@ -4,6 +4,7 @@ using System.Threading;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Nino.Generator.Generation.Emit;
 
 namespace Nino.Generator.Generation;
 
@@ -101,9 +102,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
             if (!x.Enabled)
                 return;
             if (x.Immutable)
-                spc.AddSource("NinoGen.ImmutableFormatters.g.cs", Emitter.EmitImmutableFormatters());
+                spc.AddSource("NinoGen.ImmutableFormatters.g.cs", HelperSources.EmitImmutableFormatters());
             if (x.PriorityQueue)
-                spc.AddSource("NinoGen.PriorityQueueFormatter.g.cs", Emitter.EmitPriorityQueueFormatter());
+                spc.AddSource("NinoGen.PriorityQueueFormatter.g.cs", HelperSources.EmitPriorityQueueFormatter());
         });
 
         var entries = models.Select(static (m, _) => ToEntry(m)).Collect()
@@ -144,7 +145,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(registrations.Combine(enabled), static (spc, x) =>
         {
             if (x.Right)
-                spc.AddSource("NinoGen.Usages.g.cs", Emitter.EmitUsages(x.Left));
+                spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(x.Left));
         });
 
         context.RegisterSourceOutput(entries.Combine(options).Combine(enabled), static (spc, x) =>
@@ -152,7 +153,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             var ((list, opts), on) = x;
             if (!on)
                 return;
-            spc.AddSource("NinoGen.Registry.g.cs", Emitter.EmitRegistry(opts, list));
+            spc.AddSource("NinoGen.Registry.g.cs", RegistryEmitter.EmitRegistry(opts, list));
         });
     }
 
@@ -235,6 +236,6 @@ public sealed class NinoGenerator : IIncrementalGenerator
     {
         foreach (var diagnostic in model.Diagnostics)
             spc.ReportDiagnostic(diagnostic.ToDiagnostic());
-        spc.AddSource($"NinoGen.{model.FormatterName}.g.cs", Emitter.EmitType(model));
+        spc.AddSource($"NinoGen.{model.FormatterName}.g.cs", FormatterEmitter.Emit(model));
     }
 }
