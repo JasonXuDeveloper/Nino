@@ -122,6 +122,11 @@ internal static class ModelBuilder
             }
         }
 
+        // A positional struct without members is written as nothing at all: a collection of it could not be read back,
+        // since its count is checked against the bytes left (every element takes at least one byte).
+        if (kind == FormatterKind.Struct && !rawStruct && !tolerant && !attr.Keyed && members.Count == 0)
+            diagnostics?.Report(NinoDiagnostics.EmptyStruct, type, type.ToDisplayString());
+
         // Closed generic [NinoType]s named by the members and base types, for the registry (not needed by the analyzer).
         var genericTypes = new List<ClosedTypeRegistration>();
         if (diagnostics == null)

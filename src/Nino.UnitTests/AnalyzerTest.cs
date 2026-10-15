@@ -848,7 +848,7 @@ public class TestClass
 
     #endregion
 
-    #region Members (NINO007-NINO013, NINO022)
+    #region Members (NINO007-NINO013, NINO022-NINO023)
 
     [TestMethod]
     public async Task NINO007_UnserializableMember()
@@ -1409,6 +1409,59 @@ public class PublicDerived : PublicBase
         // reached through a cast.
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO022").WithLocation(0).WithArguments("Value", "Base", "Derived")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO023_EmptyStruct()
+    {
+        var code = @"
+using System;
+using Nino.Core;
+
+[NinoType]
+public struct {|#0:AllIgnored|}
+{
+    [NinoIgnore] public int A;
+}
+
+[NinoType]
+public struct {|#1:AllSkipped|}
+{
+    public Action {|#2:Callback|};
+}
+
+// No fields: written as its raw memory (1 byte).
+[NinoType]
+public struct NoFields
+{
+}
+
+// Each instance writes its length.
+[NinoType(versionTolerant: true)]
+public struct Tolerant
+{
+    [NinoIgnore] public int A;
+}
+
+[NinoType(keyed: true)]
+public struct Keyed
+{
+    [NinoIgnore] public int A;
+}
+
+// Classes have a header.
+[NinoType]
+public sealed class EmptyClass
+{
+    [NinoIgnore] public int A;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO023").WithLocation(0).WithArguments("AllIgnored"),
+            Verify.Diagnostic("NINO007").WithLocation(2)
+                .WithArguments("Callback", "System.Action", "AllSkipped"),
+            Verify.Diagnostic("NINO023").WithLocation(1).WithArguments("AllSkipped")).RunAsync();
     }
 
     #endregion

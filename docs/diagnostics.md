@@ -30,6 +30,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO020](#nino020) | Error | Invalid `[assembly: NinoFormatter]` registration |
 | [NINO021](#nino021) | Error | `[NinoConstructor]` is not accessible to generated code |
 | [NINO022](#nino022) | Warning | A member hidden with `new` cannot be reached by generated code |
+| [NINO023](#nino023) | Error | A struct serializes no member |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -132,6 +133,15 @@ A non-public base member is hidden by a member of the same name (`new`) declared
 serialized, but generated code can only reach the hidden one through `[UnsafeAccessor]` (.NET 8+, non-generic
 types): the partial accessor class inside the type would name the hiding member, and cannot reach a `protected`
 base member through a cast. The hidden member is skipped. Rename one of the members, or make it public.
+
+### NINO023
+
+A positional `[NinoType]` struct has no header, so one without serialized members (every member `[NinoIgnore]`d
+or skipped) is written as zero bytes. On its own it round-trips, but a list, array or dictionary of it cannot be
+read back: collection counts are checked against the bytes left, so that hostile data cannot trigger huge
+allocations, and every element must take at least one byte. Serialize a member, or mark the struct
+`versionTolerant` or `keyed` (each instance then writes its 4-byte length). A struct without any instance field is
+written as its raw memory (1 byte) and is not reported.
 
 ## Features
 

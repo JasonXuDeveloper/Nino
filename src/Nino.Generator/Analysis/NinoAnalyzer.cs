@@ -29,6 +29,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         NinoDiagnostics.PrivateMember,
         NinoDiagnostics.DuplicateIndex,
         NinoDiagnostics.HiddenMember,
+        NinoDiagnostics.EmptyStruct,
         NinoDiagnostics.InvalidCustomFormatter,
         NinoDiagnostics.InvalidRefDeserialization,
         NinoDiagnostics.UnserializableMember,

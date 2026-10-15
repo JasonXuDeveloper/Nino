@@ -27,3 +27,4 @@ NINO019 | Nino | Error | Pool hooks not implemented
 NINO020 | Nino | Error | Invalid formatter registration
 NINO021 | Nino | Error | NinoConstructor is not accessible
 NINO022 | Nino | Warning | Hidden member cannot be serialized
+NINO023 | Nino | Error | Struct serializes no member
