@@ -1,8 +1,7 @@
 # Nino v4 benchmarks
 
 Why v4: what it costs to build a project that uses Nino, and how fast serialization runs, compared with
-v3 (3.3.13, the last v3 release), with the 4.0 beta that preceded this rewrite (4.0.0-beta.47, the `main` branch
-before v4) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.21.4.
+v3 (3.3.13, the last v3 release) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.21.4.
 
 All numbers were measured on one machine (Intel Xeon 2.80 GHz, 4 cores, AVX-512, Ubuntu 24.04, .NET SDK
 10.0.402). Absolute times vary between machines; the ratios are what to look at.
@@ -13,37 +12,32 @@ Workload: a synthetic assembly of `N` abstract root classes, each with a chain o
 leaf and a struct (`N × 11` types). Members are primitives, strings, `List<T>`, `Dictionary<int, string>`,
 references to other `[NinoType]`s and private fields. The harness (Roslyn 4.3 in-process) runs the generator
 on the compilation, then emits the whole assembly; it also measures re-running the generator after an edit.
-v4 and v3 times are the median of the last three of five runs; 4.0 beta times are the third of three runs.
+v4 and v3 times are the median of the last three of five runs (v3 at N = 100: of three runs).
 
 ### 330 types (N = 30)
 
-| | v3 (3.3.13) | 4.0 beta | v4 | v4 vs v3 |
-|---|---:|---:|---:|---:|
-| Generated source | 18.7 MB (363,233 lines) | 70.6 MB (1,366,440 lines) | 1.15 MB (21,679 lines) | **16× smaller** |
-| Compiling the generated code (emit) | 56.0 s | 35.9 s | 1.27 s | **44× faster** |
-| Running the generator | 1.11 s | 4.2 s | 0.14 s | **7.9× faster** |
-| Re-generating after editing a member | 1.31 s | 3.7 s | 0.19 s | **6.9× faster** |
-| Re-generating after editing a comment | 1.11 s | 5.2 s | 0.19 s | **5.8× faster** |
-| IL of the generated code | 2.2 MB | 4.9 MB | 0.37 MB | **6.0× smaller** |
+| | v3 (3.3.13) | v4 | v4 vs v3 |
+|---|---:|---:|---:|
+| Generated source | 18.7 MB (363,233 lines) | 1.15 MB (21,679 lines) | **16× smaller** |
+| Compiling the generated code (emit) | 56.0 s | 1.27 s | **44× faster** |
+| Running the generator | 1.11 s | 0.14 s | **7.9× faster** |
+| Re-generating after editing a member | 1.31 s | 0.19 s | **6.9× faster** |
+| Re-generating after editing a comment | 1.11 s | 0.19 s | **5.8× faster** |
+| IL of the generated code | 2.2 MB | 0.37 MB | **6.0× smaller** |
 
 ### 1,100 types (N = 100)
 
-| | v3 (3.3.13) | 4.0 beta | v4 | v4 vs v3 |
-|---|---:|---:|---:|---:|
-| Generated source | 62.0 MB (1,204,143 lines) | 236 MB (4,553,540 lines) | 3.9 MB (72,429 lines) | **16× smaller** |
-| Compiling the generated code (emit) | 636 s | 314 s | 2.2 s | **289× faster** |
-| Running the generator | 5.5 s | 30.8 s | 0.68 s | **8.1× faster** |
-| Re-generating after editing a member | 4.1 s | 7.8 s | 0.57 s | **7.2× faster** |
-| Re-generating after editing a comment | 4.1 s | 16.7 s | 0.45 s | **9.0× faster** |
-| IL of the generated code | 7.3 MB | 16.3 MB | 1.3 MB | **5.6× smaller** |
+| | v3 (3.3.13) | v4 | v4 vs v3 |
+|---|---:|---:|---:|
+| Generated source | 62.0 MB (1,204,143 lines) | 3.9 MB (72,429 lines) | **16× smaller** |
+| Compiling the generated code (emit) | 636 s | 2.2 s | **289× faster** |
+| Running the generator | 5.5 s | 0.68 s | **8.1× faster** |
+| Re-generating after editing a member | 4.1 s | 0.57 s | **7.2× faster** |
+| Re-generating after editing a comment | 4.1 s | 0.45 s | **9.0× faster** |
+| IL of the generated code | 7.3 MB | 1.3 MB | **5.6× smaller** |
 
-v3 at N = 100 is the median of three runs (each emit took over ten minutes). v3's compile time grows much faster
-than the number of types: 3.3× the types took 11× the compile time.
-
-The 4.0 beta's cost grows faster than the number of types (3.3× the types took 8.8× the compile time), because
-every polymorphic base inlined the bodies of all its subtypes. v4 grows linearly: about 3.5 KB of source and
-2 ms of compile time per type (the generated subtype dispatch added since the first measurement costs a few
-hundred bytes per type and saves a registry lookup per polymorphic read).
+v3's compile time grows much faster than the number of types (3.3× the types took 11× the compile time); v4
+grows linearly, at about 3.5 KB of source and 2 ms of compile time per type.
 
 ### Why v4 builds faster
 
@@ -124,8 +118,7 @@ Deserialization is dominated by allocating the result objects, which is identica
 allocated per call), and server-GC noise is about ±7% here. To see how much is left, the A/B harness also
 builds the same object graph by hand (`new SimpleClass`, strings copied from spans, the same arrays, list and
 dictionaries filled with the same entries): that floor takes 518–636 ns, and v4 deserializes `SimpleClass` in
-602–662 ns, within 5–15% of it (the difference is mostly decoding the UTF-8 member). the 4.0 beta sits at the same
-place. Deserializing classes is therefore bound by allocation, not by the serializer: v4 matches it while
+602–662 ns, within 5–15% of it (the difference is mostly decoding the UTF-8 member). Deserializing classes is therefore bound by allocation, not by the serializer: v4 matches it while
 adding reference tracking, ref deserialization with pool recycling, version tolerance and payload validation,
 and stays ahead of MemoryPack.
 
