@@ -102,10 +102,10 @@ public class TopLevelFastPathTests
     {
         var values = new int?[] { 1, null, -3 };
         var bytes = NinoSerializer.Serialize(values);
-        Assert.AreEqual(4 + 5 + 1 + 5, bytes.Length);
+        Assert.AreEqual(4 + 3 * 5, bytes.Length);
         CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<int?[]>(bytes));
-        // The per-element encoding: count, then a has-value byte and the value when present.
-        CollectionAssert.AreEqual(new byte[] { 3, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0xFD, 0xFF, 0xFF, 0xFF }, bytes);
+        // The per-element encoding: count, then a has-value byte and the value (zero when null).
+        CollectionAssert.AreEqual(new byte[] { 3, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0xFD, 0xFF, 0xFF, 0xFF }, bytes);
         CollectionAssert.AreEqual(NinoSerializer.Serialize(new List<int?>(values)), bytes);
         var holder = NinoDeserializer.Deserialize<NullableHolder>(NinoSerializer.Serialize(
             new NullableHolder { Array = values, List = new List<int?>(values), Dates = new List<System.DateTime?> { null } }));

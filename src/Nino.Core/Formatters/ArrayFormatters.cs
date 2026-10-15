@@ -153,7 +153,7 @@ namespace Nino.Core
 
         public void Deserialize(ref T?[] value, ref Reader reader)
         {
-            int length = reader.ReadLength();
+            int length = NinoNullables.ReadCount<T>(ref reader);
             if (length < 0)
             {
                 NinoRecycler.Discard(ref value);
@@ -167,66 +167,80 @@ namespace Nino.Core
         }
     }
 
-    /// <summary>Element loops for sequences of raw nullables (a has-value byte, then the value if present).</summary>
+    /// <summary>
+    /// <c>T?</c> sequences with unmanaged <c>T</c>: a fixed stride of one has-value byte plus the raw
+    /// value (zeroed when null). The fixed stride lets the count be validated up front and keeps the
+    /// read loop branch-free; the in-memory <c>Nullable&lt;T&gt;</c> layout never reaches the wire.
+    /// </summary>
     internal static class NinoNullables
     {
-        /// <summary>Writes the count and the elements into one reservation, trimmed afterwards.</summary>
+        /// <summary>Writes the count and the elements.</summary>
         public static void Write<T>(ReadOnlySpan<T?> values, ref Writer writer) where T : unmanaged
         {
-            int size = Unsafe.SizeOf<T>();
-            int max = checked(4 + values.Length * (1 + size));
-            ref byte dst = ref writer.Reserve(max);
+            int stride = 1 + Unsafe.SizeOf<T>();
+            ref byte dst = ref writer.Reserve(checked(4 + values.Length * stride));
             NinoUnsafe.Write(ref dst, values.Length);
-            int offset = 4;
-            ref T? item = ref MemoryMarshal.GetReference(values);
-            for (int i = 0; i < values.Length; i++, item = ref Unsafe.Add(ref item, 1))
+            dst = ref Unsafe.Add(ref dst, 4);
+            ref byte item = ref Unsafe.As<T?, byte>(ref MemoryMarshal.GetReference(values));
+            int size = Unsafe.SizeOf<T?>();
+            int hasValue = NullableLayout<T>.HasValueOffset;
+            int value = NullableLayout<T>.ValueOffset;
+            for (int i = 0; i < values.Length; i++)
             {
-                if (item.HasValue)
-                {
-                    Unsafe.Add(ref dst, offset) = 1;
-                    NinoUnsafe.Write(ref Unsafe.Add(ref dst, offset + 1), item.GetValueOrDefault());
-                    offset += 1 + size;
-                }
-                else
-                {
-                    Unsafe.Add(ref dst, offset) = 0;
-                    offset++;
-                }
+                // A null T? is always default(T?) (C# cannot build one with a value), so the value
+                // field is copied as is: zero for null elements.
+                ref byte src = ref Unsafe.Add(ref item, i * size);
+                ref byte slot = ref Unsafe.Add(ref dst, i * stride);
+                slot = Unsafe.Add(ref src, hasValue) != 0 ? (byte)1 : (byte)0;
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref slot, 1),
+                    Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref src, value)));
             }
-
-            writer.Unreserve(max - offset);
         }
+
+        /// <summary>Reads the element count, validated against the remaining bytes (-1 for null).</summary>
+        public static int ReadCount<T>(ref Reader reader) where T : unmanaged =>
+            reader.ReadLength(1 + Unsafe.SizeOf<T>());
 
         /// <summary>Reads <c>destination.Length</c> elements (the count has been read).</summary>
         public static void Read<T>(Span<T?> destination, ref Reader reader) where T : unmanaged
         {
-            int size = Unsafe.SizeOf<T>();
-            var src = reader.RemainingSpan;
-            ref byte first = ref MemoryMarshal.GetReference(src);
-            ref T? item = ref MemoryMarshal.GetReference(destination);
-            int offset = 0;
-            for (int i = 0; i < destination.Length; i++, item = ref Unsafe.Add(ref item, 1))
+            int stride = 1 + Unsafe.SizeOf<T>();
+            ref byte src = ref reader.ReadBlock(checked(destination.Length * stride));
+            ref byte item = ref Unsafe.As<T?, byte>(ref MemoryMarshal.GetReference(destination));
+            int size = Unsafe.SizeOf<T?>();
+            int hasValue = NullableLayout<T>.HasValueOffset;
+            int value = NullableLayout<T>.ValueOffset;
+            for (int i = 0; i < destination.Length; i++)
             {
-                // One check covers a full element; only the last bytes of the data take the careful path.
-                if (size >= src.Length - offset)
-                {
-                    if (offset >= src.Length || (Unsafe.Add(ref first, offset) != 0 && size >= src.Length - offset))
-                        NinoThrow.EndOfData();
-                }
-
-                if (Unsafe.Add(ref first, offset) == 0)
-                {
-                    item = null;
-                    offset++;
-                }
-                else
-                {
-                    item = NinoUnsafe.Read<T>(ref Unsafe.Add(ref first, offset + 1));
-                    offset += 1 + size;
-                }
+                // Both fields are stored unconditionally (a null element carries a zero value);
+                // the flag is normalized so corrupt input cannot forge a bool.
+                ref byte slot = ref Unsafe.Add(ref src, i * stride);
+                ref byte dst = ref Unsafe.Add(ref item, i * size);
+                Unsafe.Add(ref dst, hasValue) = slot != 0 ? (byte)1 : (byte)0;
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref dst, value),
+                    Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref slot, 1)));
             }
+        }
+    }
 
-            reader.Advance(offset);
+    /// <summary>
+    /// Field offsets of <c>Nullable&lt;T&gt;</c> in memory on the running runtime. Old Mono stores the
+    /// value first while corefx stores the flag first, so the layout is probed rather than assumed.
+    /// </summary>
+    internal static class NullableLayout<T> where T : unmanaged
+    {
+        public static readonly int HasValueOffset = ProbeHasValue();
+        public static readonly int ValueOffset =
+            HasValueOffset == 0 ? Unsafe.SizeOf<T?>() - Unsafe.SizeOf<T>() : 0;
+
+        private static int ProbeHasValue()
+        {
+            T? probe = default(T); // has value, zero value and padding
+            ref byte b = ref Unsafe.As<T?, byte>(ref probe);
+            for (int i = 0; i < Unsafe.SizeOf<T?>(); i++)
+                if (Unsafe.Add(ref b, i) != 0)
+                    return i;
+            return 0;
         }
     }
 

@@ -108,7 +108,7 @@ namespace Nino.Core
 
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            int length = reader.ReadLength();
+            int length = NinoNullables.ReadCount<T>(ref reader);
             if (length < 0)
             {
                 NinoRecycler.Discard(ref value);
