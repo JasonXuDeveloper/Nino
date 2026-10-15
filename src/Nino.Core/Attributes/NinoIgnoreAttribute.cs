@@ -4,8 +4,9 @@ namespace Nino.Core
 {
     /// <summary>
     /// Mark a field or property to be ignored when serializing or deserializing
-    /// <remarks>This requires the type is annotated using <c>[NinoType(false)]</c></remarks>
-    /// <see href="https://nino.xgamedev.net/en/doc/types#custom-types"/>
+    /// <remarks>Only has an effect when the type collects its members automatically (<c>[NinoType]</c>, the
+    /// default); with <c>[NinoType(false)]</c> unmarked members are already skipped.</remarks>
+    /// <see href="https://nino.xgamedev.net/en/docs/v4/defining-types#ignoring-a-member"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class NinoIgnoreAttribute : Attribute

@@ -49,7 +49,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
   cycles. All are opt-in per type, so types that don't use them pay nothing.
 - **One format everywhere.** `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` write identical bytes,
   so a Unity client and a .NET server talk to each other directly.
-- **Mistakes caught while you type.** 22 analyzer diagnostics (NINO001–NINO022), many with a one-click fix.
+- **Mistakes caught while you type.** 23 analyzer diagnostics (NINO001–NINO023), many with a one-click fix.
 
 ## Built for
 

@@ -28,9 +28,11 @@ API-compatible with v3 or earlier v4 betas.
 | `Nino.Generator` | `netstandard2.0` (Roslyn 4.3+): generator, analyzer, suppressor |
 | `Nino.Generator.CodeFixes` | `netstandard2.0` (Roslyn 4.3+ Workspaces): code fixes, IDE only |
 
-Both ship in the `Nino.Generator` package under `analyzers/dotnet/roslyn4.3/cs`. Roslyn 4.3 is the oldest
-compiler Unity supports, which rules out newer compiler features (interceptors need Roslyn 4.11+);
-everything below uses only 4.3 APIs.
+Both ship in the `Nino.Generator` package, built three times from the same sources: against Roslyn 4.3
+(`analyzers/dotnet/roslyn4.3/cs`), 4.8 and 4.12 (`roslyn4.8`, `roslyn4.12`). NuGet loads the newest build the
+compiler can run. Roslyn 4.3 is the oldest compiler Unity supports, so the 4.3 build, which is also what Unity
+uses, sticks to 4.3 APIs. The 4.8 and 4.12 builds add only call interceptors (see
+[Top-level calls and interceptors](#top-level-calls-and-interceptors)); everything else is shared.
 
 Generated code is compiled in the user's project, which may be Unity (C# 9). Generated code therefore only
 uses C# 9 features: no static abstract interface members, no ref fields, no raw string literals, no
@@ -190,7 +192,7 @@ header | int32 bodyLength | { int32 key, int32 length, value }*
   is self-describing. Polymorphism works as usual: the type id comes before the body.
 * Cost: 8 bytes per member. On an 8-member class (net8, no tiering) serialize takes about 1.3x and
   deserialize about 1.2x the positional time, while staying faster than MemoryPack's positional mode.
-* A member-name hash collision within one type is a compile-time error (NINO015), so it cannot corrupt data.
+* A member-name hash collision within one type is a compile-time error (NINO014), so it cannot corrupt data.
 
 ### Reference tracking
 

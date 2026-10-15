@@ -4,7 +4,7 @@ namespace Nino.Core
 {
     /// <summary>
     /// Marks a type to be serialized by Nino. The source generator emits its formatter.
-    /// <see href="https://nino.xgamedev.net/en/doc/types#custom-types"/>
+    /// <see href="https://nino.xgamedev.net/en/docs/v4/defining-types"/>
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface, Inherited = false)]
     public sealed class NinoTypeAttribute : Attribute
