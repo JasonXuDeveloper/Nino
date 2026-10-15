@@ -108,7 +108,7 @@ jobs:
         run: |
           cd Nino.Benchmark
           echo "Running benchmarks for ${{ env.tag_name }}..."
-          dotnet run -c Release --no-build
+          dotnet run -c Release --no-build -- --filter '*'
           
           # Verify benchmark results exist (check for any github markdown file)
           MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)
@@ -197,6 +197,19 @@ jobs:
           gh release edit "$TAG_NAME" --notes-file updated_notes.md
           echo "✅ Release notes updated with benchmark results"
       
+      # The docs site reads the "Performance Report" section of the latest v4 release at build time: rebuild it.
+      - name: Rebuild the docs site
+        if: steps.check_benchmark.outputs.skip != 'true'
+        env:
+          DOCS_DEPLOY_HOOK: ${{ secrets.DOCS_DEPLOY_HOOK }}
+        run: |
+          if [[ -z "$DOCS_DEPLOY_HOOK" ]]; then
+            echo "DOCS_DEPLOY_HOOK is not set: skipping the docs rebuild"
+            exit 0
+          fi
+          curl -fsS -X POST "$DOCS_DEPLOY_HOOK" > /dev/null
+          echo "✅ Docs rebuild started"
+
       - name: Benchmark summary
         if: steps.check_benchmark.outputs.skip != 'true'
         run: |

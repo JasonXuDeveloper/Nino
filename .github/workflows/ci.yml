@@ -187,7 +187,7 @@ jobs:
         run: |
           cd Nino.Benchmark
           echo "Running benchmarks for PR #${{ github.event.pull_request.number }}..."
-          dotnet run -c Release --no-build
+          dotnet run -c Release --no-build -- --filter '*'
 
           # Verify benchmark results exist (check for any github markdown file)
           MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)
