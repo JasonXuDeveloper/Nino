@@ -16,7 +16,6 @@ on:
 permissions:
   contents: write      # Create releases and push commits
   actions: write       # Upload artifacts (needed by called CI workflow)
-  packages: write      # Publish to GitHub Packages (if needed)
   pull-requests: read  # Read PR info for context
   checks: write        # Write test results (needed by called CI workflow)
 
@@ -402,10 +401,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '8.0.x' }}
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
             8.0.x
-            6.0.x
-            2.1.x
       
       - name: Restore dependencies
         run: dotnet restore
@@ -416,7 +414,8 @@ jobs:
       - name: Copy Release DLLs to Unity
         run: |
           cp ./Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
-          cp ./Nino/bin/Release/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
+          cp ./Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
       
       - name: Commit Unity DLL updates
         run: |
@@ -992,6 +991,11 @@ jobs:
     environment: 
       name: nuget-production
       url: https://www.nuget.org/packages/Nino
+    # NuGet trusted publishing: the job exchanges its GitHub OIDC token for a short-lived API key (no stored secret).
+    # The nuget.org policy pins this repository and release.yml.
+    permissions:
+      contents: read
+      id-token: write
     
     steps:
       - name: Download NuGet packages
@@ -1004,12 +1008,20 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '8.0.x' }}
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
             8.0.x
-            6.0.x
-            2.1.x
       
+      - name: Log in to NuGet (trusted publishing)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          # nuget.org profile name of the policy owner (not an email address).
+          user: ${{ vars.NUGET_USER || 'JasonXuDeveloper' }}
+
       - name: Publish to NuGet
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         run: |
           set -euo pipefail
           echo "Publishing packages to NuGet..."
@@ -1025,7 +1037,7 @@ jobs:
               echo "Attempt $attempt/$max_attempts: Publishing $package"
               
               if dotnet nuget push "$package" \
-                --api-key ${{ secrets.MYTOKEN }} \
+                --api-key "$NUGET_API_KEY" \
                 --source https://api.nuget.org/v3/index.json \
                 --skip-duplicate \
                 --no-symbols \

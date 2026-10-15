@@ -66,8 +66,9 @@ jobs:
 
       - name: Copy DLLs for Unity tests
         run: |
-          cp ./Nino/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
-          cp ./Nino/bin/Debug/netstandard2.1/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          cp ./Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
+          cp ./Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
 
       - name: Run unit tests
         run: dotnet test --no-build --verbosity normal --configuration Debug --collect:"XPlat Code Coverage" --results-directory ./TestResults
@@ -83,6 +84,12 @@ jobs:
         run: |
           dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1
           dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1
+
+      # Top-level calls are intercepted by default (Roslyn 4.12+); the regular entry points must agree.
+      - name: Run unit tests without interceptors
+        run: |
+          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoInterceptors=false
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoInterceptors=false
 
       - name: Cache Unity Library
         uses: actions/cache@v4
