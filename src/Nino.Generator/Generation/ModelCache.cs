@@ -31,7 +31,7 @@ internal static class ModelCache
     /// </summary>
     private sealed class ProjectState
     {
-        public string AssemblyName = "";
+        public string ProjectKey = "";
         public MetadataReference[] References = null!;
         public string[] Paths = null!;
 
@@ -43,7 +43,7 @@ internal static class ModelCache
 
         public bool SameAs(ProjectState other)
         {
-            if (AssemblyName != other.AssemblyName || References.Length != other.References.Length ||
+            if (ProjectKey != other.ProjectKey || References.Length != other.References.Length ||
                 Paths.Length != other.Paths.Length)
                 return false;
             for (int i = 0; i < References.Length; i++)
@@ -147,17 +147,22 @@ internal static class ModelCache
             paths.Sort(System.StringComparer.Ordinal);
             var state = new ProjectState
             {
-                AssemblyName = compilation.AssemblyName ?? "",
+                // With the preprocessor symbols: the target frameworks of a multi-targeted project are separate
+                // compilations of one assembly, which the IDE keeps alternating between.
+                ProjectKey = (compilation.AssemblyName ?? "") + "|" +
+                               (compilation.SyntaxTrees.FirstOrDefault()?.Options is { } options
+                                   ? SymbolKeys.GetValue(options, static o => string.Join(";", o.PreprocessorSymbolNames))
+                                   : ""),
                 References = compilation.References.ToArray(),
                 Paths = paths.ToArray(),
             };
 
             // Reuse the previous state object while nothing project-wide changed, so its entries stay valid;
             // otherwise the new state starts empty and every model of this project is rebuilt once.
-            if (LatestState.TryGetValue(state.AssemblyName, out var latest) && latest.SameAs(state))
+            if (LatestState.TryGetValue(state.ProjectKey, out var latest) && latest.SameAs(state))
                 state = latest;
             else
-                LatestState[state.AssemblyName] = state;
+                LatestState[state.ProjectKey] = state;
 
             States.Add(compilation, state);
             return state;

@@ -20,6 +20,9 @@ internal static class AccessorEmitter
             {
                 w.Line($"[{attr}({kind}.Method, Name = \"get_{member.SourceName}\")]");
                 w.Line($"private static extern {member.TypeName} __G_{member.Name}({self});");
+                // No setter for a member that is read and dropped (get-only, no matching constructor parameter).
+                if (member.Unassignable)
+                    continue;
                 w.Line($"[{attr}({kind}.Method, Name = \"set_{member.SourceName}\")]");
                 w.Line($"private static extern void __S_{member.Name}({self}, {member.TypeName} value);");
             }
