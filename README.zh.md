@@ -139,10 +139,11 @@ public class Node { public string Name; public List<Node> Links; }
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
 | Unity | 2022.3+，`netstandard2.0` 和 `2.1`，HybridCLR | `netstandard2.1` |
 
-MemoryPack 内置支持的类型更多（`BigInteger`、`Uri`、全部不可变集合、`AnimationCurve` 等 Unity 类），支持多段
-`ReadOnlySequence<byte>` 输入、TypeScript 生成和 ASP.NET Core 格式化器；它的 Union 标签是 1 字节，Nino 的类型 ID 是 4 字节。
-流、异步读写、回调和压缩只需在 Nino 的 `IBufferWriter<byte>` 和 `ReadOnlySpan<byte>` API 外包几行代码，
-[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有示例。
+MemoryPack 内置支持的类型更多（`BigInteger`、`Uri`、全部不可变集合、`AnimationCurve` 等 Unity 类），还有 TypeScript 生成和
+ASP.NET Core 格式化器。流、异步读写、多段 `ReadOnlySequence<byte>` 输入、回调和压缩，只需在 Nino 的 `IBufferWriter<byte>`
+和 `ReadOnlySpan<byte>` API 外包几行代码，[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有示例。
+MemoryPack 的 Union 标签是 1 字节，Nino 的类型 ID 是 4 字节，这是有意的取舍：类型 ID 由类型本身算出，子类不用打标签，
+可以定义在任何程序集里（插件、HybridCLR 热更程序集），也不会因为增删子类而重新编号；MemoryPack 的每个 Union 都要手动列出或注册子类。
 
 ## v4
 
