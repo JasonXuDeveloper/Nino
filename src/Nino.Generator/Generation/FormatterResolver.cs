@@ -142,7 +142,7 @@ internal sealed class FormatterResolver
             case SpecialType.System_String:
                 return new ResolvedFormatter(utf8 ? $"{Core}Utf8StringFormatter" : $"{Core}StringFormatter", true);
             case SpecialType.System_Object:
-                return new ResolvedFormatter($"{Core}PolymorphicFormatter<object>", true);
+                return new ResolvedFormatter($"{Core}ObjectFormatter", true);
         }
 
         if (type.IsTupleType && type.TupleUnderlyingType is { } underlying)

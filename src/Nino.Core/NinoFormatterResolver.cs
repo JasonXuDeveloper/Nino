@@ -121,7 +121,7 @@ namespace Nino.Core
             if (type == typeof(string))
                 return typeof(StringFormatter);
             if (type == typeof(object))
-                return typeof(PolymorphicFormatter<object>);
+                return typeof(ObjectFormatter);
             if (type.IsPointer || type.IsByRef || typeof(Delegate).IsAssignableFrom(type))
                 return null;
 

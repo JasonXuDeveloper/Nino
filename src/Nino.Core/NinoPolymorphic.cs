@@ -315,7 +315,7 @@ namespace Nino.Core
         private static void Insert(TypeEntry[] byType, IdEntry[] byId, NinoSubtypeHandler handler)
         {
             int mask = byType.Length - 1;
-            int i = RuntimeHelpers.GetHashCode(handler.Type) & mask;
+            int i = TypeHash(handler.Type) & mask;
             while (byType[i].Key != null)
                 i = (i + 1) & mask;
             byType[i].Handler = handler;
@@ -328,11 +328,23 @@ namespace Nino.Core
             Volatile.Write(ref byId[i].Key, handler.Id);
         }
 
+        /// <summary>
+        /// Hash of a runtime type: its type handle (the method table, vtable or class pointer, which every runtime
+        /// keeps unique per type), a couple of loads rather than a call into the runtime for the object hash.
+        /// Mixed so the low bits (aligned pointers) spread.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int TypeHash(Type type)
+        {
+            ulong h = (ulong)type.TypeHandle.Value.ToInt64();
+            return (int)((h * 0x9E3779B97F4A7C15UL) >> 32);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static NinoSubtypeHandler FindByType(TypeEntry[] table, Type type)
         {
             int mask = table.Length - 1;
-            int i = RuntimeHelpers.GetHashCode(type) & mask;
+            int i = TypeHash(type) & mask;
             while (true)
             {
                 ref var e = ref table[i];

@@ -128,13 +128,14 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// Writes an <see cref="object"/> (or any other declared type whose values are <c>[NinoType]</c>s) as type id
-    /// plus body, dispatching through <see cref="NinoPolymorphic{TBase}"/>.
+    /// Writes an <see cref="object"/> whose values are <c>[NinoType]</c>s as type id plus body, dispatching through
+    /// <see cref="NinoPolymorphic{TBase}"/>. Not generic: a formatter generic over a reference type runs as shared
+    /// code, which reaches the registry through the generic dictionary on every value (about 1.5x slower).
     /// </summary>
-    public struct PolymorphicFormatter<T> : INinoFormatter<T> where T : class
+    public struct ObjectFormatter : INinoFormatter<object>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(T value, ref Writer writer)
+        public void Serialize(object value, ref Writer writer)
         {
             if (value == null)
             {
@@ -142,13 +143,13 @@ namespace Nino.Core
                 return;
             }
 
-            NinoPolymorphic<T>.Serialize(value, ref writer);
+            NinoPolymorphic<object>.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T value, ref Reader reader)
+        public void Deserialize(ref object value, ref Reader reader)
         {
-            NinoPolymorphic<T>.Deserialize(reader.UnsafeRead<int>(), ref value, ref reader);
+            NinoPolymorphic<object>.Deserialize(reader.UnsafeRead<int>(), ref value, ref reader);
         }
     }
 }
