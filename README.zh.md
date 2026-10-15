@@ -24,7 +24,7 @@
 
 | **4.3×** | **4.9×** | **0 GC** | **44×** |
 |:---:|:---:|:---:|:---:|
-| 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化与复用池化对象时<br>零 GC 分配 | 编译比 v3 快<br>（生成代码小 16 倍） |
+| 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化、复用池化对象反序列化<br>零 GC 分配 | 编译比 v3 快<br>（生成代码小 16 倍） |
 
 <p align="center">
   <img src="docs/assets/benchmark.svg" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">

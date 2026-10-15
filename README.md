@@ -24,7 +24,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 
 | **4.3×** | **4.9×** | **0 GC** | **44×** |
 |:---:|:---:|:---:|:---:|
-| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>or reusing pooled objects | faster to compile than v3<br>(16× less generated code) |
+| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>or deserializing into pooled objects | faster to compile than v3<br>(16× less generated code) |
 
 <p align="center">
   <img src="docs/assets/benchmark.svg" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
