@@ -8,7 +8,6 @@
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <PackageId>Nino.Serialization</PackageId>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Version>4.0.0-beta.47</Version>
         <Title>Nino.Serialization</Title>
         <Authors>JasonXuDeveloper</Authors>
         <Description>High performance and low size binary serialization solution, especially for Unity.</Description>

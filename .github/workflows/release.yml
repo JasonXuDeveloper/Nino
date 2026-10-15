@@ -1,1273 +1,181 @@
 name: Release
 
-# IMPORTANT: This workflow ensures the release tag points to the Unity DLL commit
-# for proper UPM (Unity Package Manager) functionality. The workflow:
-# 1. Updates version files and commits to main
-# 2. Builds and copies Unity DLLs, commits to main  
-# 3. Moves the release tag to the Unity DLL commit (CRITICAL for UPM)
-# This ensures UPM gets the correct DLLs when fetching the tagged release.
+# Run manually: Actions -> Release -> Run workflow (on main), enter the version (e.g. 4.0.0 or 4.1.0-beta.1).
+#   tag:     bump the version (src/Directory.Build.props, src/Version.cs, the Unity package.json), build, test,
+#            copy the Unity DLLs, commit "Bump to vX.Y.Z", tag vX.Y.Z (and the OpenUPM tag of a pre-release), push.
+#   publish: from the tag, pack and push to NuGet (Trusted Publishing: a short-lived key from this workflow's OIDC
+#            token, no stored secret), create the GitHub release with GitHub's generated notes, then start the
+#            benchmark report. If it fails, fix the cause and use "Re-run failed jobs": the tag stays, NuGet skips a
+#            version it already has, the release is created once.
+# Trusted Publishing policy on nuget.org: owner JasonXuDeveloper, repository Nino, workflow release.yml.
+#
+# Unity reads the package from the tag, so the tag must point at the commit that carries the DLLs: both are made
+# by the same job. OpenUPM does not order semantic pre-releases, so a pre-release also gets a vX.Y.Z-preview.N tag
+# (alpha.N -> preview.N, beta.N -> preview.(100+N), rc.N -> preview.(200+N)), matching the package.json version.
 
 on:
-  push:
-    tags:
-      - 'v*'  # Trigger on version tags like v1.2.3, v1.2.3-beta.1, etc.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the v (e.g. 4.0.0 or 4.1.0-beta.1)"
+        required: true
+        type: string
 
-# Security: Minimal required permissions
 permissions:
-  contents: write      # Create releases and push commits
-  actions: write       # Upload artifacts (needed by called CI workflow)
-  pull-requests: read  # Read PR info for context
-  checks: write        # Write test results (needed by called CI workflow)
+  contents: write
 
-# Prevent concurrent releases
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
+env:
+  VERSION: ${{ inputs.version }}
+  UNITY_PACKAGE: src/Nino.Unity/Packages/com.jasonxudeveloper.nino
+
 jobs:
-  validate-tag:
-    name: Validate Release Tag
+  tag:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 30
     outputs:
-      version: ${{ steps.parse.outputs.version }}
-      is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
-      release_type: ${{ steps.parse.outputs.release_type }}
-      full_version: ${{ steps.parse.outputs.full_version }}
-      unity_version: ${{ steps.parse.outputs.unity_version }}
-      should_skip: ${{ steps.parse.outputs.should_skip }}
-    
+      unity_version: ${{ steps.version.outputs.unity_version }}
     steps:
-      - name: Parse version from tag
-        id: parse
-        run: |
-          set -euo pipefail  # Exit on error, undefined vars, pipe failures
-          
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "Processing tag: $TAG_NAME"
-
-          # Skip OpenUPM-only preview/pre/exp tags to prevent re-trigger loops
-          if [[ $TAG_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(preview|pre|exp)\.[0-9]+$ ]]; then
-            echo "Skipping OpenUPM-only tag: $TAG_NAME"
-            echo "should_skip=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          echo "should_skip=false" >> $GITHUB_OUTPUT
-
-          # Security: Validate tag name doesn't contain dangerous characters
-          if [[ $TAG_NAME =~ [\$\`\;\|\&] ]]; then
-            echo "❌ Security: Tag contains dangerous characters: $TAG_NAME"
-            exit 1
-          fi
-          
-          # Validate semantic version format (v1.2.3, v1.2.3-beta.1, v1.2.3-alpha.1, etc.)
-          if [[ $TAG_NAME =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
-            VERSION="${BASH_REMATCH[1]}"
-            PRERELEASE_LABEL="${BASH_REMATCH[3]}"
-            PRERELEASE_NUM="${BASH_REMATCH[4]}"
-            
-            # Additional validation: Version components should be reasonable
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-            if [[ $MAJOR -gt 999 || $MINOR -gt 999 || $PATCH -gt 999 ]]; then
-              echo "❌ Version components too large: $VERSION"
-              exit 1
-            fi
-            
-            if [[ -n "$PRERELEASE_LABEL" ]]; then
-              # Validate prerelease label
-              if [[ ! $PRERELEASE_LABEL =~ ^(alpha|beta|rc)$ ]]; then
-                echo "❌ Invalid prerelease label: $PRERELEASE_LABEL"
-                echo "Allowed: alpha, beta, rc"
-                exit 1
-              fi
-              IS_PRERELEASE=true
-              RELEASE_TYPE="$PRERELEASE_LABEL"
-              FULL_VERSION="$VERSION-$PRERELEASE_LABEL.$PRERELEASE_NUM"
-            else
-              IS_PRERELEASE=false
-              RELEASE_TYPE="stable"
-              FULL_VERSION="$VERSION"
-            fi
-            
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
-            echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
-            echo "full_version=$FULL_VERSION" >> $GITHUB_OUTPUT
-
-            # Calculate Unity/OpenUPM-compatible version using offset system
-            # alpha: 0-99, beta: 100-199, rc: 200-299
-            if [[ "$IS_PRERELEASE" == "true" ]]; then
-              case "$RELEASE_TYPE" in
-                "alpha") PREVIEW_NUM=$((PRERELEASE_NUM)) ;;
-                "beta")  PREVIEW_NUM=$((100 + PRERELEASE_NUM)) ;;
-                "rc")    PREVIEW_NUM=$((200 + PRERELEASE_NUM)) ;;
-              esac
-              UNITY_VERSION="$VERSION-preview.$PREVIEW_NUM"
-            else
-              UNITY_VERSION="$VERSION"
-            fi
-            echo "unity_version=$UNITY_VERSION" >> $GITHUB_OUTPUT
-
-            echo "✅ Valid version tag: $FULL_VERSION (prerelease: $IS_PRERELEASE, unity: $UNITY_VERSION)"
-          else
-            echo "❌ Invalid tag format: $TAG_NAME"
-            echo "Expected format: v1.2.3 or v1.2.3-beta.1"
-            exit 1
-          fi
-
-  verify-ci-status:
-    name: Verify CI Status
-    runs-on: ubuntu-latest
-    needs: [validate-tag]
-    if: needs.validate-tag.outputs.should_skip != 'true'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
-      - name: Check CI status for commit
+
+      - name: Validate version
+        id: version
         run: |
-          set -euo pipefail
-          
-          # Get the commit SHA that the tag points to
-          COMMIT_SHA=$(git rev-list -n 1 ${{ github.ref }})
-          echo "Checking CI status for commit: $COMMIT_SHA"
-          
-          # Wait for CI to complete with timeout
-          max_wait_minutes=30
-          wait_interval=30
-          elapsed=0
-          last_status=""
-          
-          while [ $elapsed -lt $((max_wait_minutes * 60)) ]; do
-            # Get CI runs for this commit (most recent first)
-            CI_RUNS=$(gh run list \
-              --workflow="CI - Build and Test" \
-              --limit=100 \
-              --json="headSha,conclusion,status,event" \
-              --jq="[.[] | select(.headSha == \"$COMMIT_SHA\")] | sort_by(.createdAt) | reverse")
-            
-            if [[ "$CI_RUNS" == "[]" || -z "$CI_RUNS" ]]; then
-              echo "⚠️ No CI run found for commit $COMMIT_SHA"
-              echo "This might be expected for the first commit or if CI was added later"
-              echo "Proceeding with release but consider running CI manually"
-              break
-            fi
-            
-            # Get the most relevant CI run (prefer push events over pull_request)
-            CI_INFO=$(echo "$CI_RUNS" | jq -r '
-              (.[] | select(.event == "push")) // 
-              (.[] | select(.event == "pull_request")) // 
-              .[0]')
-            
-            if [[ "$CI_INFO" == "null" || -z "$CI_INFO" ]]; then
-              echo "❌ Could not parse CI run information"
-              exit 1
-            fi
-            
-            CI_STATUS=$(echo "$CI_INFO" | jq -r '.status // "unknown"')
-            CI_CONCLUSION=$(echo "$CI_INFO" | jq -r '.conclusion // "none"')
-            CI_EVENT=$(echo "$CI_INFO" | jq -r '.event // "unknown"')
-            
-            # Only log status changes to reduce noise
-            current_status="$CI_STATUS:$CI_CONCLUSION"
-            if [[ "$current_status" != "$last_status" ]]; then
-              echo "CI Status: $CI_STATUS, Conclusion: $CI_CONCLUSION, Event: $CI_EVENT"
-              last_status="$current_status"
-            fi
-            
-            case "$CI_STATUS" in
-              "completed")
-                case "$CI_CONCLUSION" in
-                  "success")
-                    echo "✅ CI passed for commit $COMMIT_SHA"
-                    exit 0
-                    ;;
-                  "failure"|"cancelled"|"timed_out")
-                    echo "❌ CI failed with conclusion: $CI_CONCLUSION for commit $COMMIT_SHA"
-                    echo "Cannot release a commit with failed CI"
-                    exit 1
-                    ;;
-                  "skipped")
-                    echo "⚠️ CI was skipped for commit $COMMIT_SHA"
-                    echo "This may be intentional, proceeding with release"
-                    exit 0
-                    ;;
-                  *)
-                    echo "❌ CI completed with unexpected conclusion: $CI_CONCLUSION for commit $COMMIT_SHA"
-                    echo "Only 'success' or 'skipped' conclusions allow release"
-                    exit 1
-                    ;;
-                esac
-                ;;
-              "in_progress"|"queued"|"pending"|"waiting")
-                if [[ "$current_status" != "$last_status" ]]; then
-                  echo "⏳ CI is running (status: $CI_STATUS). Will check again in ${wait_interval}s..."
-                fi
-                sleep $wait_interval
-                elapsed=$((elapsed + wait_interval))
-                ;;
-              *)
-                echo "❌ Unexpected CI status: $CI_STATUS for commit $COMMIT_SHA"
-                exit 1
-                ;;
-            esac
-          done
-          
-          # Check if we timed out
-          if [ $elapsed -ge $((max_wait_minutes * 60)) ]; then
-            echo "⏰ Timeout: CI did not complete within $max_wait_minutes minutes"
-            echo "Last known status: $CI_STATUS, conclusion: $CI_CONCLUSION"
-            echo "Please wait for CI to complete and try the release again"
-            exit 1
+          if [[ ! "$VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-(alpha|beta|rc)\.([0-9]+))?$ ]]; then
+            echo "::error::'$VERSION' is not x.y.z or x.y.z-(alpha|beta|rc).n"; exit 1
           fi
+          BASE="${BASH_REMATCH[1]}"; LABEL="${BASH_REMATCH[3]}"; NUM="${BASH_REMATCH[4]}"
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists (to retry publishing, re-run the failed job of its run)"; exit 1
+          fi
+          if [[ -z "$LABEL" ]]; then
+            UNITY_VERSION="$BASE"
+          else
+            if (( NUM > 99 )); then echo "::error::pre-release number must be at most 99"; exit 1; fi
+            case "$LABEL" in alpha) OFFSET=0 ;; beta) OFFSET=100 ;; rc) OFFSET=200 ;; esac
+            UNITY_VERSION="$BASE-preview.$((OFFSET + NUM))"
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "unity_version=$UNITY_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Bump version
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  update-versions:
-    name: Update Version Files
-    runs-on: ubuntu-latest
-    needs: [validate-tag, verify-ci-status]
-    if: needs.validate-tag.outputs.should_skip != 'true'
-    outputs:
-      commit_sha: ${{ steps.commit.outputs.commit_sha }}
-    
-    steps:
-      - name: Checkout code at tagged commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          persist-credentials: true
-      
-      - name: Setup git for pushing to main
+          BASE: ${{ steps.version.outputs.base }}
+          UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
         run: |
-          # Get the tag commit and ensure we can push to main
-          TAG_COMMIT=$(git rev-parse HEAD)
-          echo "Working on tagged commit: $TAG_COMMIT"
-          
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Create a branch from this commit to push changes
-          git checkout -b temp-release-branch
-          echo "✅ Ready to make version updates from tagged commit"
-      
-      - name: Update version files
-        run: |
-          VERSION="${{ needs.validate-tag.outputs.version }}"
-          FULL_VERSION="${{ needs.validate-tag.outputs.full_version }}"
-          IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
-          
-          echo "Updating files to version: $VERSION (full: $FULL_VERSION, prerelease: $IS_PRERELEASE)"
-          
-          # Update Version.cs (always use base version for assemblies)
-          sed -i "s/AssemblyVersion(\"[^\"]*\")/AssemblyVersion(\"$VERSION\")/" src/Version.cs
-          sed -i "s/AssemblyFileVersion(\"[^\"]*\")/AssemblyFileVersion(\"$VERSION\")/" src/Version.cs
-          
-          # Update .csproj files (use full version with pre-release suffix for NuGet)
-          for proj in src/Nino/Nino.csproj src/Nino.Core/Nino.Core.csproj src/Nino.Generator/Nino.Generator.csproj src/Nino.Immutable/Nino.Immutable.csproj; do
-            if [[ "$IS_PRERELEASE" == "true" ]]; then
-              sed -i "s/<Version>[^<]*<\/Version>/<Version>$FULL_VERSION<\/Version>/" "$proj"
-              echo "Updated $proj to pre-release version: $FULL_VERSION"
-            else
-              sed -i "s/<Version>[^<]*<\/Version>/<Version>$VERSION<\/Version>/" "$proj"
-              echo "Updated $proj to stable version: $VERSION"
-            fi
-          done
-          
-          # Unity UPM handling: Unity doesn't support semantic pre-release format well
-          # For pre-releases, we use an offset system to ensure proper version ordering
-          if [[ "$IS_PRERELEASE" == "true" ]]; then
-            RELEASE_TYPE="${{ needs.validate-tag.outputs.release_type }}"
-            
-            # Extract pre-release number from the full version (e.g., alpha.1, beta.2, rc.3)
-            PRERELEASE_NUM=1
-            if [[ "$FULL_VERSION" =~ -[a-zA-Z]+\.([0-9]+)$ ]]; then
-              PRERELEASE_NUM="${BASH_REMATCH[1]}"
-            fi
-            
-            # Calculate preview number with offsets:
-            # alpha: 0-99 (offset 0)
-            # beta: 100-199 (offset 100)
-            # rc: 200-299 (offset 200)
-            case "$RELEASE_TYPE" in
-              "alpha")
-                PREVIEW_NUM=$((PRERELEASE_NUM))
-                echo "Alpha release: using preview number $PREVIEW_NUM (0-99 range)"
-                ;;
-              "beta")
-                PREVIEW_NUM=$((100 + PRERELEASE_NUM))
-                echo "Beta release: using preview number $PREVIEW_NUM (100-199 range)"
-                ;;
-              "rc")
-                PREVIEW_NUM=$((200 + PRERELEASE_NUM))
-                echo "RC release: using preview number $PREVIEW_NUM (200-299 range)"
-                ;;
-              *)
-                echo "Unknown release type: $RELEASE_TYPE, defaulting to preview number 1"
-                PREVIEW_NUM=1
-                ;;
-            esac
-            
-            # Ensure we don't exceed the range (max 99 versions per type)
-            if [[ $PRERELEASE_NUM -gt 99 ]]; then
-              echo "Warning: Pre-release number $PRERELEASE_NUM exceeds 99, capping at 99"
-              case "$RELEASE_TYPE" in
-                "alpha") PREVIEW_NUM=99 ;;
-                "beta") PREVIEW_NUM=199 ;;
-                "rc") PREVIEW_NUM=299 ;;
-              esac
-            fi
-            
-            UNITY_VERSION="$VERSION-preview.$PREVIEW_NUM"
-            
-            sed -i "s/\"version\": \"[^\"]*\",/\"version\": \"$UNITY_VERSION\",/" src/Nino.Unity/Packages/com.jasonxudeveloper.nino/package.json
-            echo "Updated Unity package.json to preview version: $UNITY_VERSION"
-          else
-            sed -i "s/\"version\": \"[^\"]*\",/\"version\": \"$VERSION\",/" src/Nino.Unity/Packages/com.jasonxudeveloper.nino/package.json
-            echo "Updated Unity package.json to stable version: $VERSION"
-          fi
-          
-          echo "✅ All version files updated"
-      
-      - name: Commit version updates
-        id: commit
-        run: |
-          VERSION="${{ needs.validate-tag.outputs.version }}"
-          
-          # Check if there are changes
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git add .
-            git commit -m "Bump version to v$VERSION"
-            
-            # Push the changes to main branch
-            max_attempts=3
-            attempt=1
-            delay=5
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: Pushing version bump commit to main..."
-              
-              if git push origin temp-release-branch:main; then
-                echo "✅ Successfully pushed version bump to main"
-                break
-              fi
-              
-              if [ $attempt -lt $max_attempts ]; then
-                echo "⚠️ Push failed, retrying in ${delay}s..."
-                sleep $delay
-                delay=$((delay * 2))
-              else
-                echo "❌ Failed to push after $max_attempts attempts"
-                exit 1
-              fi
-              
-              attempt=$((attempt + 1))
-            done
-            
-            COMMIT_SHA=$(git rev-parse HEAD)
-            echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
-            echo "✅ Version files updated and committed"
-          else
-            echo "No version changes detected"
-            COMMIT_SHA=$(git rev-parse HEAD)
-            echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
-          fi
+          sed -i "s|<Version>[^<]*</Version>|<Version>$VERSION</Version>|" src/Directory.Build.props
+          sed -i "s|Version(\"[^\"]*\")|Version(\"$BASE\")|g" src/Version.cs
+          sed -i "s|\"version\": \"[^\"]*\"|\"version\": \"$UNITY_VERSION\"|" "$UNITY_PACKAGE/package.json"
+          grep -q "<Version>$VERSION</Version>" src/Directory.Build.props
+          grep -q "AssemblyVersion(\"$BASE\")" src/Version.cs
+          grep -q "\"version\": \"$UNITY_VERSION\"" "$UNITY_PACKAGE/package.json"
 
-  build-release:
-    name: Build Release Artifacts
-    runs-on: ubuntu-latest
-    needs: [validate-tag, verify-ci-status, update-versions]
-    if: needs.validate-tag.outputs.should_skip != 'true'
-
-    defaults:
-      run:
-        working-directory: ./src
-    
-    steps:
-      - name: Checkout updated code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.update-versions.outputs.commit_sha }}
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          persist-credentials: true
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
             8.0.x
-      
-      - name: Restore dependencies
-        run: dotnet restore
-      
-      - name: Build Release
-        run: dotnet build --configuration Release --no-restore
-      
-      - name: Copy Release DLLs to Unity
+
+      - name: Build and test the bumped version
+        working-directory: src
         run: |
-          cp ./Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          dotnet build --configuration Release
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build --configuration Release
+
+      - name: Copy the Unity DLLs
+        run: |
+          cp src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll "$UNITY_PACKAGE/Runtime/Nino.Core.dll"
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
-          cp ./Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
-      
-      - name: Commit Unity DLL updates
-        run: |
-          VERSION="${{ needs.validate-tag.outputs.version }}"
-          FULL_VERSION="${{ needs.validate-tag.outputs.full_version }}"
-          IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          if [[ -n "$(git status --porcelain)" ]]; then
-            git add ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/*.dll
-            
-            # Always commit Unity DLL updates to main branch regardless of release type
-            CURRENT_COMMIT=$(git rev-parse HEAD)
-            echo "Current commit: $CURRENT_COMMIT"
-            
-            # Create a temporary branch from current commit
-            git checkout -b temp-unity-dll-update
-            
-            # Use appropriate commit message based on release type
-            if [[ "$IS_PRERELEASE" == "true" ]]; then
-              git commit -m "Update Unity Package DLLs to $FULL_VERSION (pre-release)"
-              echo "📦 Committing Unity DLLs for pre-release $FULL_VERSION to main branch"
-            else
-              git commit -m "Update Unity Package DLLs to v$VERSION"
-              echo "📦 Committing Unity DLLs for stable release v$VERSION to main branch"
-            fi
-            
-            # Push Unity DLL updates to main branch with retry logic
-            max_attempts=3
-            attempt=1
-            delay=5
-            push_success=false
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: Pushing Unity DLL updates to main..."
-              
-              if git push origin temp-unity-dll-update:main; then
-                echo "✅ Unity DLLs updated on main branch"
-                push_success=true
-                break
-              fi
-              
-              if [ $attempt -lt $max_attempts ]; then
-                echo "⚠️ Push failed, retrying in ${delay}s..."
-                sleep $delay
-                delay=$((delay * 2))
-              else
-                echo "❌ Failed to push Unity DLLs after $max_attempts attempts"
-              fi
-              
-              attempt=$((attempt + 1))
-            done
-            
-            # Move the tag to point to the Unity DLL commit (CRITICAL for UPM)
-            if [ "$push_success" = true ]; then
-              echo "🏷️ Moving tag $TAG_NAME to Unity DLL commit for UPM compatibility"
-              
-              # Fetch the latest main to get the Unity DLL commit
-              git fetch origin main
-              UNITY_DLL_COMMIT=$(git rev-parse origin/main)
-              echo "Unity DLL commit SHA: $UNITY_DLL_COMMIT"
-              
-              # Delete and recreate the tag at the Unity DLL commit
-              git tag -d "$TAG_NAME"
-              git tag -a "$TAG_NAME" -m "Release $TAG_NAME" "$UNITY_DLL_COMMIT"
-              
-              # Push the updated tag
-              tag_push_attempts=3
-              tag_attempt=1
-              tag_delay=5
-              
-              while [ $tag_attempt -le $tag_push_attempts ]; do
-                echo "Attempt $tag_attempt/$tag_push_attempts: Moving tag $TAG_NAME to Unity DLL commit..."
-                
-                if git push origin "$TAG_NAME" --force; then
-                  echo "✅ Successfully moved tag $TAG_NAME to Unity DLL commit $UNITY_DLL_COMMIT"
-                  echo "🎯 Tag now points to commit with Unity DLLs for UPM compatibility"
-                  break
-                fi
-                
-                if [ $tag_attempt -lt $tag_push_attempts ]; then
-                  echo "⚠️ Tag push failed, retrying in ${tag_delay}s..."
-                  sleep $tag_delay
-                  tag_delay=$((tag_delay * 2))
-                else
-                  echo "❌ Failed to move tag after $tag_push_attempts attempts"
-                  echo "⚠️ Tag still points to version commit, not Unity DLL commit"
-                fi
-                
-                tag_attempt=$((tag_attempt + 1))
-              done
+          cp src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.dll"
 
-              # Create OpenUPM-compatible preview tag for pre-releases
-              if [[ "$IS_PRERELEASE" == "true" ]]; then
-                UNITY_VERSION="${{ needs.validate-tag.outputs.unity_version }}"
-                UNITY_TAG="v$UNITY_VERSION"
-
-                # Remove existing preview tag if present (from a previous failed run)
-                git push origin --delete "$UNITY_TAG" 2>/dev/null || true
-                git tag -d "$UNITY_TAG" 2>/dev/null || true
-
-                git tag -a "$UNITY_TAG" -m "Release $UNITY_TAG (Unity/OpenUPM)" "$UNITY_DLL_COMMIT"
-
-                # Push with retry (non-blocking: failure does NOT fail the release)
-                preview_attempts=3; preview_attempt=1; preview_delay=5
-                while [ $preview_attempt -le $preview_attempts ]; do
-                  if git push origin "$UNITY_TAG"; then
-                    echo "✅ Created OpenUPM tag $UNITY_TAG pointing to $UNITY_DLL_COMMIT"
-                    break
-                  fi
-                  if [ $preview_attempt -lt $preview_attempts ]; then
-                    sleep $preview_delay; preview_delay=$((preview_delay * 2))
-                  else
-                    echo "⚠️ Failed to push OpenUPM tag. Manual fix:"
-                    echo "  git tag -a $UNITY_TAG -m 'Release $UNITY_TAG' $UNITY_DLL_COMMIT && git push origin $UNITY_TAG"
-                  fi
-                  preview_attempt=$((preview_attempt + 1))
-                done
-              fi
-            fi
-
-            # Always clean up the temporary branch (whether push succeeded or failed)
-            echo "🧹 Cleaning up temporary branch..."
-            if git push origin --delete temp-unity-dll-update 2>/dev/null; then
-              echo "✅ Temporary branch deleted successfully"
-            else
-              echo "ℹ️ Temporary branch cleanup skipped (may not exist on remote)"
-            fi
-            
-            # Exit with error if push ultimately failed
-            if [ "$push_success" = false ]; then
-              echo "❌ Unity DLL push failed after cleanup"
-              exit 1
-            fi
-          else
-            echo "No Unity DLL changes detected"
-          fi
-      
-      - name: Create NuGet packages
-        run: |
-          dotnet pack Nino.Core/Nino.Core.csproj -c Release --no-build
-          dotnet pack Nino.Immutable/Nino.Immutable.csproj -c Release --no-build
-          dotnet pack Nino.Generator/Nino.Generator.csproj -c Release --no-build  
-          dotnet pack Nino/Nino.csproj -c Release --no-build
-      
-      - name: Upload NuGet packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: nuget-packages
-          path: |
-            src/Nino.Core/bin/Release/*.nupkg
-            src/Nino.Immutable/bin/Release/*.nupkg
-            src/Nino.Generator/bin/Release/*.nupkg
-            src/Nino/bin/Release/*.nupkg
-          retention-days: 30
-
-  create-release:
-    name: Create GitHub Release
-    runs-on: ubuntu-latest
-    needs: [validate-tag, build-release, update-versions]
-    if: needs.validate-tag.outputs.should_skip != 'true'
-    outputs:
-      release_url: ${{ steps.create_release.outputs.html_url }}
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.update-versions.outputs.commit_sha }}
-          fetch-depth: 0
-      
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          set -euo pipefail
-          
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          CURRENT_TYPE="${{ needs.validate-tag.outputs.release_type }}"
-          CURRENT_IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
-          
-          # Smart previous tag selection based on release type transitions
-          echo "🔍 Determining appropriate comparison tag for $TAG_NAME (type: $CURRENT_TYPE)"
-          
-          # Parse current version components
-          if [[ $TAG_NAME =~ ^v([0-9]+\.[0-9]+\.[0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
-            CURRENT_VERSION="${BASH_REMATCH[1]}"
-            CURRENT_PRERELEASE_LABEL="${BASH_REMATCH[3]}"
-            CURRENT_PRERELEASE_NUM="${BASH_REMATCH[4]}"
-          else
-            echo "❌ Could not parse current tag format"
-            exit 1
-          fi
-          
-          # Get all successful releases (not just tags) to find the right comparison point
-          echo "🔍 Fetching successful releases from GitHub API..."
-          ALL_RELEASES=$(gh release list --limit 100 --json tagName,isPrerelease,isDraft --jq '[.[] | select(.isDraft == false)] | sort_by(.tagName) | reverse | .[].tagName')
-          
-          # Also get all tags for fallback
-          ALL_TAGS=$(git tag -l "v*" --sort=-version:refname)
-          
-          # Function to find last successful release of a given type
-          find_last_successful_release() {
-            local pattern="$1"
-            local exclude_current="$2"
-            
-            for tag in $ALL_RELEASES; do
-              if [[ "$exclude_current" == "true" && "$tag" == "$TAG_NAME" ]]; then
-                continue
-              fi
-              if [[ $tag =~ $pattern ]]; then
-                echo "$tag"
-                return 0
-              fi
-            done
-            
-            # Fallback to tags if no release found
-            echo "$ALL_TAGS" | grep -E "$pattern" | head -n1
-          }
-          
-          # Find appropriate comparison tag based on transition logic
-          PREVIOUS_TAG=""
-          
-          if [[ "$CURRENT_IS_PRERELEASE" == "true" ]]; then
-            # Current is pre-release (alpha/beta/rc)
-            case "$CURRENT_TYPE" in
-              "alpha")
-                # alpha.X: Compare to last successful alpha release or last stable release
-                LAST_ALPHA=$(find_last_successful_release "^v$CURRENT_VERSION-alpha\." true)
-                LAST_STABLE=$(find_last_successful_release "^v[0-9]+\.[0-9]+\.[0-9]+$" false)
-                
-                if [[ -n "$LAST_ALPHA" ]]; then
-                  PREVIOUS_TAG="$LAST_ALPHA"
-                  echo "📝 Rolling alpha release - comparing to last successful alpha: $PREVIOUS_TAG"
-                else
-                  PREVIOUS_TAG="$LAST_STABLE"
-                  echo "📝 First alpha for version - comparing to last successful stable: $PREVIOUS_TAG"
-                fi
-                ;;
-              "beta")
-                # beta.X: Compare to last successful beta release or last stable release
-                LAST_BETA=$(find_last_successful_release "^v$CURRENT_VERSION-beta\." true)
-                LAST_STABLE=$(find_last_successful_release "^v[0-9]+\.[0-9]+\.[0-9]+$" false)
-                
-                if [[ -n "$LAST_BETA" ]]; then
-                  PREVIOUS_TAG="$LAST_BETA"
-                  echo "📝 Rolling beta release - comparing to last successful beta: $PREVIOUS_TAG"
-                else
-                  PREVIOUS_TAG="$LAST_STABLE"
-                  echo "📝 First beta for version - comparing to last successful stable: $PREVIOUS_TAG"
-                fi
-                ;;
-              "rc")
-                # rc.X: Compare to last successful RC release or last stable release
-                LAST_RC=$(find_last_successful_release "^v$CURRENT_VERSION-rc\." true)
-                LAST_STABLE=$(find_last_successful_release "^v[0-9]+\.[0-9]+\.[0-9]+$" false)
-                
-                if [[ -n "$LAST_RC" ]]; then
-                  PREVIOUS_TAG="$LAST_RC"
-                  echo "📝 Rolling RC release - comparing to last successful RC: $PREVIOUS_TAG"
-                else
-                  PREVIOUS_TAG="$LAST_STABLE"
-                  echo "📝 First RC for version - comparing to last successful stable: $PREVIOUS_TAG"
-                fi
-                ;;
-            esac
-          else
-            # Current is stable release - compare to last successful stable release
-            LAST_STABLE=$(find_last_successful_release "^v[0-9]+\.[0-9]+\.[0-9]+$" true)
-            
-            if [[ -n "$LAST_STABLE" ]]; then
-              PREVIOUS_TAG="$LAST_STABLE"
-              echo "📝 Stable release - comparing to last successful stable: $PREVIOUS_TAG"
-            else
-              # Fallback to any previous tag
-              PREVIOUS_TAG=$(git describe --tags --abbrev=0 $TAG_NAME^ 2>/dev/null || echo "")
-              echo "📝 First stable release - comparing to: $PREVIOUS_TAG"
-            fi
-          fi
-          
-          if [[ -n "$PREVIOUS_TAG" ]]; then
-            echo "✅ Generating release notes from $PREVIOUS_TAG to $TAG_NAME"
-            
-            # Create comprehensive release notes
-            echo "## What's Changed" > release_notes.md
-            echo "" >> release_notes.md
-            
-            # Create temporary files for grouping commits
-            temp_commits=$(mktemp)
-            temp_feat=$(mktemp)
-            temp_fix=$(mktemp)
-            temp_perf=$(mktemp)
-            temp_docs=$(mktemp)
-            temp_refactor=$(mktemp)
-            temp_test=$(mktemp)
-            temp_chore=$(mktemp)
-            temp_style=$(mktemp)
-            temp_other=$(mktemp)
-            
-            git log $PREVIOUS_TAG..$TAG_NAME --pretty=format:"%H|%s|%an|%ae" --reverse > "$temp_commits"
-
-            # Build a cache of author→GitHub username mappings using the commit API
-            declare -A USERNAME_CACHE
-            while IFS='|' read -r commit_hash _msg cache_author cache_email; do
-              cache_key="${cache_author}|${cache_email}"
-              # Skip if already cached
-              if [[ -n "${USERNAME_CACHE[$cache_key]+x}" ]]; then
-                continue
-              fi
-              # Skip bots
-              if [[ "$cache_author" == "github-actions[bot]" ]]; then
-                USERNAME_CACHE["$cache_key"]="__bot__"
-                continue
-              fi
-              # Claude AI (Anthropic) → claude[bot], not the unrelated human user
-              if [[ "$cache_email" == "noreply@anthropic.com" ]]; then
-                USERNAME_CACHE["$cache_key"]="claude[bot]"
-                continue
-              fi
-              # Noreply emails: extract username directly (no API call needed)
-              if [[ "$cache_email" =~ ^([0-9]+\+)?([^@]+)@users\.noreply\.github\.com$ ]]; then
-                USERNAME_CACHE["$cache_key"]="${BASH_REMATCH[2]}"
-                continue
-              fi
-              # All other emails: resolve via commit API
-              resolved=$(gh api "repos/${{ github.repository }}/commits/${commit_hash}" --jq '.author.login // empty' 2>/dev/null || echo "")
-              if [[ -n "$resolved" ]]; then
-                USERNAME_CACHE["$cache_key"]="$resolved"
-              else
-                USERNAME_CACHE["$cache_key"]="__unknown__"
-              fi
-            done < "$temp_commits"
-
-            # Process commits and group by type and scope
-            while IFS='|' read -r commit_hash commit_msg author author_email; do
-              # Skip version bump commits
-              if [[ $commit_msg =~ ^(Bump|Update\ Unity\ Package\ DLLs|release\ v) ]]; then
-                continue
-              fi
-              
-              # Get short commit hash for display
-              SHORT_HASH="${commit_hash:0:7}"
-              
-              # Parse different commit message formats
-              if [[ $commit_msg =~ ^Merge\ pull\ request\ #([0-9]+)\ from\ (.+)$ ]]; then
-                # PR merge: "Merge pull request #123 from branch"
-                PR_NUM="${BASH_REMATCH[1]}"
-                PR_TITLE=$(git log --format=%B -n 1 "$commit_hash" | sed -n '3p' | sed 's/^[[:space:]]*//')
-                if [[ -n "$PR_TITLE" && "$PR_TITLE" != "$commit_msg" ]]; then
-                  echo "other|$PR_TITLE (#$PR_NUM) [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
-                else
-                  echo "other|Merged PR #$PR_NUM [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
-                fi
-              elif [[ $commit_msg =~ ^(.+)\ \(#([0-9]+)\)$ ]]; then
-                # Squashed PR: "Feature title (#123)"
-                TITLE="${BASH_REMATCH[1]}"
-                PR_NUM="${BASH_REMATCH[2]}"
-                echo "other|$TITLE (#$PR_NUM) [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
-              elif [[ $commit_msg =~ ^(feat|fix|perf|docs|style|refactor|test|chore)(\(.+\))?:(.+)$ ]]; then
-                # Conventional commit format
-                TYPE="${BASH_REMATCH[1]}"
-                SCOPE="${BASH_REMATCH[2]}"
-                DESC="${BASH_REMATCH[3]}"
-
-                # Helper function to add entry to appropriate temp file
-                add_to_temp_file() {
-                  local scope_val="$1"
-                  local type_val="$2"
-                  local desc_val="$3"
-                  local hash_val="$4"
-                  local author_val="$5"
-                  local email_val="$6"
-
-                  local target_file=""
-                  case "$type_val" in
-                    "feat") target_file="$temp_feat" ;;
-                    "fix") target_file="$temp_fix" ;;
-                    "perf") target_file="$temp_perf" ;;
-                    "docs") target_file="$temp_docs" ;;
-                    "refactor") target_file="$temp_refactor" ;;
-                    "test") target_file="$temp_test" ;;
-                    "chore") target_file="$temp_chore" ;;
-                    "style") target_file="$temp_style" ;;
-                  esac
-
-                  if [[ -n "$target_file" ]]; then
-                    echo "${scope_val}|${desc_val} [$hash_val]|$author_val|$email_val" >> "$target_file"
-                  fi
-                }
-
-                # Split scopes by comma and add entry for each
-                if [[ -n "$SCOPE" ]]; then
-                  # Remove parentheses and split by comma
-                  SCOPE_CLEAN=$(echo "$SCOPE" | sed 's/[()]//g')
-
-                  # Check if scope contains comma
-                  if [[ "$SCOPE_CLEAN" == *","* ]]; then
-                    # Multiple scopes - add entry for each
-                    IFS=',' read -ra SCOPE_ARRAY <<< "$SCOPE_CLEAN"
-                    for single_scope in "${SCOPE_ARRAY[@]}"; do
-                      # Trim whitespace
-                      single_scope=$(echo "$single_scope" | xargs)
-                      add_to_temp_file "($single_scope)" "$TYPE" "$DESC" "$SHORT_HASH" "$author" "$author_email"
-                    done
-                  else
-                    # Single scope
-                    add_to_temp_file "($SCOPE_CLEAN)" "$TYPE" "$DESC" "$SHORT_HASH" "$author" "$author_email"
-                  fi
-                else
-                  # No scope
-                  add_to_temp_file "()" "$TYPE" "$DESC" "$SHORT_HASH" "$author" "$author_email"
-                fi
-              else
-                # Direct commit
-                echo "other|$commit_msg [$SHORT_HASH]|$author|$author_email" >> "$temp_other"
-              fi
-            done < "$temp_commits"
-            
-            # Function to add grouped section with scope sub-headers
-            add_section() {
-              local title="$1"
-              local file="$2"
-              local emoji="$3"
-              
-              if [[ -s "$file" ]]; then
-                echo "" >> release_notes.md
-                echo "### $emoji $title" >> release_notes.md
-                echo "" >> release_notes.md
-                
-                # Sort by scope, then group by scope with sub-headers
-                current_scope=""
-                while IFS='|' read -r scope_key entry author author_email; do
-                  # Clean scope for display (remove parentheses)
-                  display_scope=""
-                  if [[ "$scope_key" != "()" && -n "$scope_key" ]]; then
-                    display_scope=$(echo "$scope_key" | sed 's/[()]//g')
-                  fi
-                  
-                  # Add scope sub-header if scope changed
-                  if [[ "$scope_key" != "$current_scope" ]]; then
-                    if [[ -n "$display_scope" ]]; then
-                      echo "" >> release_notes.md
-                      echo "#### 📦 \`$display_scope\`" >> release_notes.md
-                      echo "" >> release_notes.md
-                    elif [[ "$scope_key" == "()" ]]; then
-                      echo "" >> release_notes.md
-                      echo "#### 🔧 General" >> release_notes.md
-                      echo "" >> release_notes.md
-                    fi
-                    current_scope="$scope_key"
-                  fi
-                  
-                  # Create GitHub user link from cache
-                  author_link=""
-                  cache_key="${author}|${author_email}"
-                  cached_username="${USERNAME_CACHE[$cache_key]:-}"
-                  if [[ "$cached_username" == "__bot__" || -z "$cached_username" ]]; then
-                    author_link=""
-                  elif [[ "$cached_username" == "__unknown__" ]]; then
-                    author_link=" by $author"
-                  else
-                    author_link=" by @$cached_username"
-                  fi
-                  
-                  echo "- $entry$author_link" >> release_notes.md
-                done < <(sort -t'|' -k1,1 "$file")
-              fi
-            }
-            
-            # Add sections in priority order
-            add_section "Features" "$temp_feat" "✨"
-            add_section "Bug Fixes" "$temp_fix" "🐛"
-            add_section "Performance" "$temp_perf" "⚡"
-            add_section "Improvements" "$temp_refactor" "🔧"
-            add_section "Documentation" "$temp_docs" "📚"
-            add_section "Testing" "$temp_test" "🧪"
-            add_section "Code Style" "$temp_style" "🎨"
-            add_section "Maintenance" "$temp_chore" "🏗️"
-            add_section "Other Changes" "$temp_other" "🔀"
-
-            # Count contributions per resolved username (before temp file cleanup)
-            declare -A CONTRIBUTION_COUNT
-            declare -A UNKNOWN_DISPLAY  # maps "__unknown__:displayname" -> displayname
-            while IFS='|' read -r _hash _msg count_author count_email; do
-              cache_key="${count_author}|${count_email}"
-              resolved="${USERNAME_CACHE[$cache_key]:-}"
-              if [[ -z "$resolved" || "$resolved" == "__bot__" ]]; then
-                continue
-              fi
-              if [[ "$resolved" == "__unknown__" ]]; then
-                contrib_key="__unknown__:${count_author}"
-                UNKNOWN_DISPLAY["$contrib_key"]="$count_author"
-              else
-                contrib_key="$resolved"
-              fi
-              CONTRIBUTION_COUNT["$contrib_key"]=$(( ${CONTRIBUTION_COUNT["$contrib_key"]:-0} + 1 ))
-            done < "$temp_commits"
-
-            # Cleanup temp files
-            rm -f "$temp_commits" "$temp_feat" "$temp_fix" "$temp_perf" "$temp_docs" "$temp_refactor" "$temp_test" "$temp_chore" "$temp_style" "$temp_other"
-
-            # Add contributors sorted by contribution count (descending)
-            echo "" >> release_notes.md
-            echo "### 👥 Contributors" >> release_notes.md
-
-            for contrib_key in "${!CONTRIBUTION_COUNT[@]}"; do
-              echo "${CONTRIBUTION_COUNT[$contrib_key]}|${contrib_key}"
-            done | sort -t'|' -k1,1 -rn | while IFS='|' read -r _count contrib_key; do
-              if [[ "$contrib_key" == __unknown__:* ]]; then
-                echo "- ${UNKNOWN_DISPLAY[$contrib_key]}" >> release_notes.md
-              else
-                echo "- @$contrib_key" >> release_notes.md
-              fi
-            done
-            
-            echo "" >> release_notes.md
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG..$TAG_NAME" >> release_notes.md
-            
-            # Add installation instructions
-            echo "" >> release_notes.md
-            if [[ "${{ needs.validate-tag.outputs.is_prerelease }}" == "true" ]]; then
-              echo "⚠️ **Pre-release** - Use with caution in production" >> release_notes.md
-              echo "" >> release_notes.md
-              echo "### Installation" >> release_notes.md
-              echo "**NuGet:**" >> release_notes.md
-              echo '```' >> release_notes.md
-              echo "dotnet add package Nino --version ${{ needs.validate-tag.outputs.full_version }}" >> release_notes.md
-              echo '```' >> release_notes.md
-              echo "**Unity:** Preview version available via UPM" >> release_notes.md
-            else
-              echo "### Installation" >> release_notes.md
-              echo "**NuGet:**" >> release_notes.md
-              echo '```' >> release_notes.md
-              echo "dotnet add package Nino" >> release_notes.md
-              echo '```' >> release_notes.md
-              echo "**Unity:** Stable version available via UPM" >> release_notes.md
-            fi
-            
-          else
-            echo "No previous tag found, creating initial release notes"
-            echo "## Release $TAG_NAME" > release_notes.md
-            echo "" >> release_notes.md
-            echo "Initial release or no previous tags found." >> release_notes.md
-          fi
-          
-          # Read release notes into output
-          {
-            echo 'RELEASE_NOTES<<EOF'
-            cat release_notes.md
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
+      - name: Commit and tag
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
-          draft: false
-          prerelease: ${{ needs.validate-tag.outputs.is_prerelease }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/Directory.Build.props src/Version.cs "$UNITY_PACKAGE/package.json" "$UNITY_PACKAGE/Runtime/"*.dll
+          if ! git diff --cached --quiet; then
+            git commit -m "Bump to v$VERSION"
+          fi
+          git tag -a "v$VERSION" -m "v$VERSION"
+          TAGS=("v$VERSION")
+          if [[ "$UNITY_VERSION" != "$VERSION" ]]; then
+            git tag -a "v$UNITY_VERSION" -m "v$VERSION (Unity/OpenUPM)"
+            TAGS+=("v$UNITY_VERSION")
+          fi
+          git push origin HEAD:main "${TAGS[@]}"
 
-  publish-nuget:
-    name: Publish to NuGet
+  publish:
     runs-on: ubuntu-latest
-    needs: [validate-tag, create-release]
-    if: needs.validate-tag.outputs.should_skip != 'true'
-    environment: 
+    needs: tag
+    timeout-minutes: 30
+    environment:
       name: nuget-production
       url: https://www.nuget.org/packages/Nino
-    # NuGet trusted publishing: the job exchanges its GitHub OIDC token for a short-lived API key (no stored secret).
-    # The nuget.org policy pins this repository and release.yml.
     permissions:
-      contents: read
-      id-token: write
-    
+      contents: write # the GitHub release
+      actions: write  # start the benchmark report
+      id-token: write # the OIDC token NuGet exchanges for a temporary API key
     steps:
-      - name: Download NuGet packages
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          name: nuget-packages
-          path: ./packages
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+          ref: v${{ inputs.version }}
+
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
-            ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
             8.0.x
-      
-      - name: Log in to NuGet (trusted publishing)
-        id: nuget-login
+
+      - name: Pack
+        working-directory: src
+        run: |
+          dotnet build --configuration Release
+          for proj in Nino.Core Nino.Generator Nino.Immutable Nino; do
+            dotnet pack "$proj/$proj.csproj" --no-build --configuration Release --output ../artifacts
+          done
+          ls ../artifacts
+          for id in Nino.Serialization Nino.Generator Nino.Immutable Nino; do
+            test -f "../artifacts/$id.$VERSION.nupkg"
+          done
+
+      - name: NuGet login (Trusted Publishing)
+        id: nuget
         uses: NuGet/login@v1
         with:
-          # nuget.org profile name of the policy owner (not an email address).
-          user: ${{ vars.NUGET_USER || 'JasonXuDeveloper' }}
+          user: JasonXuDeveloper # the nuget.org account that owns the policy
 
-      - name: Publish to NuGet
+      - name: Push to NuGet
         env:
-          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget.outputs.NUGET_API_KEY }}
         run: |
-          set -euo pipefail
-          echo "Publishing packages to NuGet..."
-          
-          # Function to retry NuGet push with exponential backoff
-          retry_push() {
-            local package="$1"
-            local max_attempts=3
-            local attempt=1
-            local delay=5
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "Attempt $attempt/$max_attempts: Publishing $package"
-              
-              if dotnet nuget push "$package" \
-                --api-key "$NUGET_API_KEY" \
-                --source https://api.nuget.org/v3/index.json \
-                --skip-duplicate \
-                --no-symbols \
-                --timeout 300; then
-                echo "✅ Successfully published: $package"
-                return 0
-              fi
-              
-              if [ $attempt -lt $max_attempts ]; then
-                echo "⚠️ Push failed, retrying in ${delay}s..."
-                sleep $delay
-                delay=$((delay * 2))  # Exponential backoff
-              fi
-              
-              attempt=$((attempt + 1))
-            done
-            
-            echo "❌ Failed to publish after $max_attempts attempts: $package"
-            return 1
-          }
-          
-          # Publish each package with retry logic
-          failed_packages=()
-          for package in $(find ./packages -name "*.nupkg" | sort); do
-            if ! retry_push "$package"; then
-              failed_packages+=("$package")
-            fi
+          for id in Nino.Serialization Nino.Generator Nino.Immutable Nino; do
+            dotnet nuget push "artifacts/$id.$VERSION.nupkg" --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
           done
-          
-          if [ ${#failed_packages[@]} -gt 0 ]; then
-            echo "❌ Failed to publish packages:"
-            printf '%s\n' "${failed_packages[@]}"
-            exit 1
-          fi
-          
-          echo "✅ All packages published to NuGet successfully"
 
-  trigger-benchmark:
-    name: Trigger Benchmark
-    runs-on: ubuntu-latest
-    needs: [validate-tag, create-release]
-    if: success() && needs.validate-tag.outputs.should_skip != 'true'
-    
-    steps:
-      - name: Trigger benchmark workflow
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'report.yml',
-              ref: 'main',
-              inputs: {
-                tag_name: '${{ github.ref_name }}'
-              }
-            });
-            console.log('✅ Benchmark workflow triggered');
-
-  notify-completion:
-    name: Notify Release Completion
-    runs-on: ubuntu-latest
-    needs: [validate-tag, create-release, publish-nuget, trigger-benchmark, cleanup-release-branches]
-    if: always() && needs.validate-tag.outputs.should_skip != 'true'
-    
-    steps:
-      - name: Release Summary
-        run: |
-          echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: ${{ needs.validate-tag.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Type**: ${{ needs.validate-tag.outputs.release_type }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Prerelease**: ${{ needs.validate-tag.outputs.is_prerelease }}" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ needs.validate-tag.outputs.is_prerelease }}" == "true" ]]; then
-            echo "- **OpenUPM Tag**: v${{ needs.validate-tag.outputs.unity_version }}" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "- **Release URL**: ${{ needs.create-release.outputs.release_url }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [[ "${{ needs.publish-nuget.result }}" == "success" ]]; then
-            echo "✅ **NuGet**: Published successfully" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **NuGet**: Publication failed" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [[ "${{ needs.trigger-benchmark.result }}" == "success" ]]; then
-            echo "✅ **Benchmark**: Triggered successfully" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ **Benchmark**: Failed to trigger" >> $GITHUB_STEP_SUMMARY
-          fi
-
-  cleanup-release-branches:
-    name: Cleanup Old Release Branches
-    runs-on: ubuntu-latest
-    needs: [validate-tag, create-release]
-    if: success() && needs.validate-tag.outputs.should_skip != 'true'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Cleanup old pre-release branches
-        run: |
-          set -euo pipefail
-          
-          CURRENT_VERSION="${{ needs.validate-tag.outputs.version }}"
-          CURRENT_IS_PRERELEASE="${{ needs.validate-tag.outputs.is_prerelease }}"
-          CURRENT_FULL_VERSION="${{ needs.validate-tag.outputs.full_version }}"
-          
-          echo "🧹 Cleaning up old pre-release branches..."
-          echo "Current version: $CURRENT_VERSION"
-          echo "Current is prerelease: $CURRENT_IS_PRERELEASE"
-          
-          # Get all remote branches matching release/* pattern
-          RELEASE_BRANCHES=$(git ls-remote --heads origin | grep -E "refs/heads/release/v?[0-9]+\.[0-9]+\.[0-9]+" | awk '{print $2}' | sed 's|refs/heads/||' || true)
-          
-          if [[ -z "$RELEASE_BRANCHES" ]]; then
-            echo "ℹ️ No release branches found to clean up"
-            exit 0
-          fi
-          
-          echo "Found release branches:"
-          echo "$RELEASE_BRANCHES"
-          echo ""
-          
-          deleted_count=0
-          skipped_count=0
-          
-          # Process each release branch
-          while IFS= read -r branch; do
-            if [[ -z "$branch" ]]; then
-              continue
-            fi
-            
-            echo "Processing branch: $branch"
-            
-            # Extract version from branch name (handle both release/v1.2.3-alpha.1 and release/1.2.3-alpha.1)
-            if [[ $branch =~ release/v?([0-9]+\.[0-9]+\.[0-9]+)(-([a-zA-Z]+)\.([0-9]+))?$ ]]; then
-              BRANCH_BASE_VERSION="${BASH_REMATCH[1]}"
-              BRANCH_PRERELEASE_LABEL="${BASH_REMATCH[3]}"
-              BRANCH_PRERELEASE_NUM="${BASH_REMATCH[4]}"
-              
-              # Reconstruct full version for comparison
-              if [[ -n "$BRANCH_PRERELEASE_LABEL" ]]; then
-                BRANCH_FULL_VERSION="$BRANCH_BASE_VERSION-$BRANCH_PRERELEASE_LABEL.$BRANCH_PRERELEASE_NUM"
-              else
-                BRANCH_FULL_VERSION="$BRANCH_BASE_VERSION"
-              fi
-              
-              echo "  Branch version: $BRANCH_FULL_VERSION"
-              
-              # Skip if this is the current release branch
-              if [[ "$BRANCH_FULL_VERSION" == "$CURRENT_FULL_VERSION" ]]; then
-                echo "  ⏭️ Skipping current release branch"
-                skipped_count=$((skipped_count + 1))
-                continue
-              fi
-              
-              # Delete old pre-release branches in these cases:
-              # 1. Any pre-release branch from previous versions
-              # 2. When releasing stable, delete all pre-release branches for this version
-              # 3. When releasing a different pre-release type (alpha->beta, beta->rc, etc.)
-              
-              should_delete=false
-              delete_reason=""
-              
-              if [[ -n "$BRANCH_PRERELEASE_LABEL" ]]; then
-                # This is a pre-release branch
-                if [[ "$BRANCH_BASE_VERSION" != "$CURRENT_VERSION" ]]; then
-                  # Different version - always delete old pre-release branches
-                  should_delete=true
-                  delete_reason="old version ($BRANCH_BASE_VERSION != $CURRENT_VERSION)"
-                elif [[ "$CURRENT_IS_PRERELEASE" == "false" ]]; then
-                  # Current is stable, delete all pre-release branches for this version
-                  should_delete=true
-                  delete_reason="stable release, cleaning up pre-release branches"
-                elif [[ "$CURRENT_IS_PRERELEASE" == "true" ]]; then
-                  # Both are pre-releases of same version - check if different type or older
-                  CURRENT_TYPE="${{ needs.validate-tag.outputs.release_type }}"
-                  if [[ "$BRANCH_PRERELEASE_LABEL" != "$CURRENT_TYPE" ]]; then
-                    # Different pre-release type (e.g., alpha vs beta)
-                    should_delete=true
-                    delete_reason="different pre-release type ($BRANCH_PRERELEASE_LABEL != $CURRENT_TYPE)"
-                  else
-                    # Same type, check if older
-                    CURRENT_PRERELEASE_NUM=$(echo "$CURRENT_FULL_VERSION" | grep -o '\.[0-9]*$' | sed 's/\.//')
-                    if [[ "$BRANCH_PRERELEASE_NUM" < "$CURRENT_PRERELEASE_NUM" ]]; then
-                      should_delete=true
-                      delete_reason="older pre-release number ($BRANCH_PRERELEASE_NUM < $CURRENT_PRERELEASE_NUM)"
-                    fi
-                  fi
-                fi
-              else
-                # This is a stable release branch (shouldn't normally exist, but handle it)
-                echo "  ℹ️ Found stable release branch (unusual): $branch"
-                skipped_count=$((skipped_count + 1))
-                continue
-              fi
-              
-              if [[ "$should_delete" == "true" ]]; then
-                echo "  🗑️ Deleting branch: $delete_reason"
-                if git push origin --delete "$branch" 2>/dev/null; then
-                  echo "  ✅ Successfully deleted branch: $branch"
-                  deleted_count=$((deleted_count + 1))
-                else
-                  echo "  ⚠️ Failed to delete branch: $branch (may have been already deleted)"
-                fi
-              else
-                echo "  ⏭️ Keeping branch: $branch"
-                skipped_count=$((skipped_count + 1))
-              fi
-            else
-              echo "  ⚠️ Could not parse version from branch name: $branch"
-              skipped_count=$((skipped_count + 1))
-            fi
-            
-            echo ""
-          done <<< "$RELEASE_BRANCHES"
-          
-          echo "🧹 Cleanup summary:"
-          echo "  - Deleted: $deleted_count branches"
-          echo "  - Skipped: $skipped_count branches"
-          
-          if [[ $deleted_count -gt 0 ]]; then
-            echo "✅ Successfully cleaned up $deleted_count old release branches"
-          else
-            echo "ℹ️ No branches needed cleanup"
-          fi
+      - name: Create GitHub release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          UNITY_VERSION: ${{ needs.tag.outputs.unity_version }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then echo "release v$VERSION exists"; exit 0; fi
+          PRERELEASE=""
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE="--prerelease"; fi
+          # --notes goes first; the generated notes (pull requests since the previous tag) are appended.
+          gh release create "v$VERSION" artifacts/*."$VERSION".nupkg --verify-tag --title "v$VERSION" $PRERELEASE \
+            --notes "Install: \`dotnet add package Nino --version $VERSION\` (Unity package: \`$UNITY_VERSION\`)" \
+            --generate-notes
+
+      # A release created with the workflow token does not trigger other workflows: start the report explicitly.
+      - name: Start the benchmark report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run report.yml --ref main -f tag_name="v$VERSION"
