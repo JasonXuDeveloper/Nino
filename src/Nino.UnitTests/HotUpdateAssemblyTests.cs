@@ -43,14 +43,15 @@ namespace Hot
     /// Registers the generated registry from the static constructor of another one, which first sleeps: concurrent
     /// lookups then find the assembly while its registration is still running.
     /// </param>
-    private static Assembly CompileWithoutInitializers(bool slowRegistry = false)
+    private static Assembly CompileWithoutInitializers(bool slowRegistry = false, string source = Source)
     {
         var parse = new CSharpParseOptions(LanguageVersion.Latest);
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
         refs.Add(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location));
+        refs.Add(MetadataReference.CreateFromFile(typeof(HotUpdateAssemblyTests).Assembly.Location));
         string name = "Hot" + Guid.NewGuid().ToString("N");
-        var sources = new[] { Source };
+        var sources = new[] { source };
         if (slowRegistry)
         {
             // Its own namespace: type ids are names, and the other test loads the same types.
@@ -138,4 +139,36 @@ namespace HotSlow
             Assert.AreEqual(2f, circle.GetField("R")!.GetValue(read.Result));
         }
     }
+
+    private const string SubtypeSource = @"
+using Nino.Core;
+namespace HotSub
+{
+    public sealed class Freeze : Nino.UnitTests.HotEffect { public int Turns; }
+    public static class Api
+    {
+        public static Nino.UnitTests.HotEffect Create() => new Freeze { Duration = 1.5f, Turns = 2 };
+    }
+}";
+
+    [TestMethod]
+    public void LoadedSubtypeOfAnAotBaseIsReadByAotCode()
+    {
+        var api = CompileWithoutInitializers(source: SubtypeSource).GetType("HotSub.Api")!;
+        var freeze = (HotEffect)api.GetMethod("Create")!.Invoke(null, null)!;
+
+        // Written and read by code of this (AOT) assembly, which only knows the base class.
+        var effects = new System.Collections.Generic.List<HotEffect> { new HotDamage { Duration = 1, Amount = 40 }, freeze };
+        var copy = NinoDeserializer.Deserialize<System.Collections.Generic.List<HotEffect>>(NinoSerializer.Serialize(effects));
+
+        Assert.AreEqual(40, ((HotDamage)copy[0]).Amount);
+        Assert.AreEqual("HotSub.Freeze", copy[1].GetType().FullName);
+        Assert.AreEqual(1.5f, copy[1].Duration);
+        Assert.AreEqual(2, copy[1].GetType().GetField("Turns")!.GetValue(copy[1]));
+    }
 }
+
+[NinoType]
+public abstract class HotEffect { public float Duration; }
+
+public sealed class HotDamage : HotEffect { public int Amount; }
