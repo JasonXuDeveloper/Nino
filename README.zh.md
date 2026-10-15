@@ -1,206 +1,168 @@
 <div align="center">
 
+<img src="docs/assets/logo.png" width="112" alt="Nino logo">
+
 # Nino
 
-**终极高性能C#二进制序列化库**
+**C# 最快的二进制序列化库。**<br>
+源生成、零分配、线程安全，适用于 Unity、Godot 和 .NET 服务端。
 
-[![构建状态](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/.github/workflows/ci.yml?branch=main&style=flat-square)](https://github.com/JasonXuDeveloper/Nino/actions)
-[![许可证](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square)](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE)
+[![Build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/ci.yml?branch=main&style=flat-square)](https://github.com/JasonXuDeveloper/Nino/actions)
 [![NuGet](https://img.shields.io/nuget/v/Nino?label=NuGet&style=flat-square&logo=nuget)](https://www.nuget.org/packages/Nino)
 [![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?label=OpenUPM&style=flat-square&logo=unity&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
+[![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square)](LICENSE)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
-[🌐 **官方网站**](https://nino.xgamedev.net/zh/) • [📚 **文档**](https://nino.xgamedev.net/zh/doc/start) • [🚀 **性能测试**](https://nino.xgamedev.net/zh/perf/micro) • [🇺🇸 **English**](README.md)
-
-*快速、灵活、简单易用的C#二进制序列化* • **QQ群：[1054653934](https://qm.qq.com/q/cvalwQWRvU)**
+[**文档**](https://nino.xgamedev.net/zh/docs/v4/start) ·
+[**v4 新特性**](https://nino.xgamedev.net/zh/docs/v4/whats-new) ·
+[**性能**](https://nino.xgamedev.net/zh/docs/v4/perf) ·
+[**对比 MemoryPack**](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack) ·
+[**English**](README.md)
 
 </div>
 
----
+| **4.3×** | **4.9×** | **0 B** | **44×** |
+|:---:|:---:|:---:|:---:|
+| 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化、反序列化到池化对象<br>时的内存分配 | 编译比 v3 快<br>（生成代码小 16 倍） |
 
-## ✨ 为什么选择 Nino？
+<p align="center">
+  <img src="docs/assets/benchmark.svg" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
+</p>
 
-<table>
-<tr>
-<td width="25%" align="center">
-  <h3>🔧 无缝集成</h3>
-  <p>利用C# Source Generator技术实现编译时自动代码生成，零手动配置。</p>
-</td>
-<td width="25%" align="center">
-  <h3>⚡ 极致性能</h3>
-  <p>专为高吞吐量、低延迟场景设计，拥有极低的GC压力和内存分配。</p>
-</td>
-<td width="25%" align="center">
-  <h3>🎮 Unity兼容</h3>
-  <p>与Unity项目无缝协作，支持Vector3、Quaternion等Unity原生数据类型。</p>
-</td>
-<td width="25%" align="center">
-  <h3>🛠️ 高级特性</h3>
-  <p>处理复杂场景：多态、版本控制、自定义构造函数和私有成员序列化。</p>
-</td>
-</tr>
-</table>
+<sub>BenchmarkDotNet 0.15.2，.NET 10，Intel Xeon 2.80 GHz，同一台机器、同样大小的数据（`SimpleClass`：Nino 1,146 字节，MemoryPack 1,148 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](docs/v4-benchmarks.md)。</sub>
 
----
+## 为什么选 Nino
 
-## 🎯 核心功能
+- **比 MemoryPack 更快。** 序列化快 2.5–4.3 倍；类和多态类型的反序列化快 1.16–1.38 倍；原始结构体数组持平。
+- **零分配。** 序列化不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、`ref` 反序列化）同样不分配，
+  比 MemoryPack 的覆盖写入最多快 4.9 倍。
+- **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
+  因此 IL2CPP、NativeAOT 和 HybridCLR 热更都能直接用。使用 .NET 8 及以上 SDK 时，调用会被拦截到确切的格式化器，没有虚调用。
+- **编译快。** 生成器是真正增量的：每个类型一个文件，只重新生成你改动的类型。相比 v3，生成代码小 16 倍，编译快 44 倍。
+- **线程安全。** 任意多个线程同时序列化、反序列化，热路径上没有锁。
+- **数据可以演进。** 版本兼容、keyed 成员、引用追踪（共享引用和循环引用），都按类型按需开启，不用的类型零开销。
+- **处处同一格式。** `netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 写出的字节完全一致，Unity 客户端和 .NET 服务端可以直接互通。
+- **写代码时就发现错误。** 22 条分析器诊断（NINO001–NINO022），多数带一键修复。
 
-### 🚀 **性能与可靠性**
-- **高速序列化**：在C#二进制序列化库中始终名列前茅
-- **低内存占用**：极低的GC压力和内存分配
-- **引用反序列化**：直接反序列化到现有对象中，消除分配开销
-- **线程安全操作**：完全支持并发序列化/反序列化，无需外部锁定
-- **数据完整性**：内置类型检查确保数据一致性
+## 适用场景
 
-### 🧩 **全面的类型支持**
-- **基础类型**：完全支持所有C#基础类型（`int`、`float`、`DateTime`等）
-- **现代C#特性**：`records`、`record structs`、`structs`、`classes`和泛型
-- **集合类型**：任何`IEnumerable<T>`，包括`List<T>`、`Dictionary<TKey,TValue>`、`HashSet<T>`、`ConcurrentDictionary<TKey,TValue>`，以及 .NET 6+ 上的`PriorityQueue<TElement,TPriority>`
-- **不可变集合**：安装 `Nino.Immutable` 包即可支持`ImmutableArray<T>`、`ImmutableList<T>`
-- **高级泛型**：复杂嵌套类型如`Dictionary<string, List<CustomType[]>>`
-- **值类型**：`ValueTuple`、`Tuple`、`KeyValuePair<TKey,TValue>`、`Nullable<T>`
-
-### 🎮 **Unity与跨平台**
-- **Unity原生类型**：`Vector3`、`Quaternion`、`Matrix4x4`和其他Unity特定数据类型
-- **跨程序集支持**：在不同.NET程序集和项目间序列化类型
-- **平台无关**：在不同.NET实现间无缝工作
-
-### ⚙️ **高级控制**
-- **多态支持**：接口和抽象类序列化，保留类型信息
-- **自定义构造函数**：`[NinoConstructor]`用于不可变类型和工厂模式
-- **版本控制与迁移**：`[NinoMember]`排序和`[NinoFormerName]`向后兼容
-- **隐私控制**：`[NinoType(true)]`包含私有/受保护成员
-- **选择性序列化**：`[NinoIgnore]`排除特定字段
-- **字符串优化**：`[NinoUtf8]`高效UTF-8字符串处理
-- **拦截器（新版 SDK）**：使用 .NET 8+ SDK 时，类型已知的 `NinoSerializer`/`NinoDeserializer` 调用会在编译期改为直接调用生成的格式化器（无虚调用）。始终启用，无需配置；Unity 和旧编译器走常规调用，写出的字节完全相同
-
----
-
-## 🆕 v4 新特性
-
-v4 是一次大版本重写，**二进制格式与 v3 及之前的 v4 beta 不兼容。**
-
-**v4 数据一览**（[详细数据](docs/v4-benchmarks.md)）：
-
-| | v4 |
+| | |
 |---|---|
-| 序列化 vs MemoryPack | **快 2.5–4.3 倍**（类 2.97×，多态数组 4.33×，结构体 2.5×） |
-| 反序列化 vs MemoryPack | 类和多态类型**快 1.16–1.38 倍**，原始数组持平 |
-| 复用实例（`[NinoPooled]`、`ref` 反序列化） | **0 B 分配**，最高比 MemoryPack 覆盖写入**快 4.9 倍** |
-| 序列化 vs v3（3.3.13） | **最高快 1.73 倍**（类 1.73×，类数组 1.29×，结构体 1.35×） |
-| 反序列化 vs v3 | 类**快 1.19–1.22 倍**，原始数组持平 |
-| 编译耗时 vs v3（330 个类型） | 编译生成代码**快 44 倍**（56 秒 → 1.3 秒），生成器**快 7.9 倍** |
-| 生成代码 vs v3 | 源码**小 16 倍**，IL **小 6 倍** |
-| 在 IDE 里修改一个类型 | 只重新生成该类型：**0.2 秒**，v3 需要 1.1–1.3 秒 |
+| 🎮 **Unity** | Unity 2022.3+，Mono 和 IL2CPP，HybridCLR 热更程序集。`Vector3`、`Quaternion`、`Color32` 等非托管结构体按原始内存直接拷贝。通过 OpenUPM 安装。 |
+| 👾 **Godot 4（.NET）** | Godot 的 .NET 项目直接引用 NuGet 包。Godot 的数学结构体（`Vector3`、`Transform3D` 等）是非托管类型，按原始内存直接拷贝。 |
+| 🌐 **游戏服务端与网络层** | 直接序列化进 `IBufferWriter<byte>`（`PipeWriter`、池化缓冲区），从 `ReadOnlySpan<byte>` 反序列化，复用池化的消息对象。多态消息无需手写标签。 |
+| 💾 **存档与持久化** | 版本兼容和 keyed 成员让你在版本之间增加、调整顺序、删除字段；引用追踪保留共享引用和循环引用的对象图。 |
+| ⚙️ **服务、缓存与进程间通信** | 紧凑的二进制数据、每次调用零分配，可在 ASP.NET Core、后台任务和 Actor 中安全并发使用。 |
 
-- **真正的增量源生成器**：每个 `[NinoType]` 一个文件，可比较的模型，不再扫描整个编译。修改一个类型只会重新生成该类型，
-  生成代码量只有 v3 的一小部分。
-- **更快的运行时**：基于结构体组合的格式化器，可被 JIT/AOT 内联；非托管 `[NinoType]` 结构体及其数组/列表直接内存拷贝；
-  除结果对象外零分配。
-- **线程安全、缓存友好**：无锁、写时复制的注册表；热路径上没有共享可变状态。
-- **全平台同一格式**：`netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 输出完全相同的字节。
-- **池化反序列化**：给类加上 `[NinoPooled]`，Nino 会反序列化到你用 `ReturnToPool()` 归还的实例里，
-  复用其中的列表、数组和字典。被丢弃的实例（数据为 `null`、列表变短、类型变化）会回到对象池或交给
-  `NinoSettings.SetRecycler<T>` 注册的处理函数。
-- **无需手动初始化**：生成的注册表按需懒加载，HybridCLR 等热更程序集无需调用任何 Init。
-- **可插拔的 formatter**：`[assembly: NinoFormatter(typeof(MyFormatter<,>))]` 即可让 Nino 支持新类型（自己的或第三方的）。类型参数和元素 formatter 自动推导，生成代码直接调用，运行时也使用同一份声明。Nino 自带的 BCL formatter 也是这样声明的。
-- **可选的版本兼容**：`[NinoType(versionTolerant: true)]` 允许在类型本身或任意基类追加成员，嵌套深度不限。
-- **自定义集合**：支持派生自 `List<T>`、`HashSet<T>`、`Dictionary<TKey, TValue>` 等的类型。
-- **按键成员与引用追踪**：`[NinoType(keyed: true)]` 按成员名哈希写入，成员可以重排、删除；
-  `[NinoType(trackReferences: true)]` 保留共享引用和循环引用。
-- **分析器与代码修复**：写代码时即报告用法错误（NINO001–NINO022），不少可一键修复。
+## 安装
 
-格式与架构详见 [docs/v4-design.md](docs/v4-design.md)，编译耗时与运行时性能（对比 v3 和 MemoryPack）详见
-[docs/v4-benchmarks.md](docs/v4-benchmarks.md)。
-
----
-
-## 📖 快速开始
-
-### 安装
-
-**标准.NET项目：**
 ```bash
-dotnet add package Nino
-# 可选：支持 ImmutableArray<T> / ImmutableList<T>
-dotnet add package Nino.Immutable
+dotnet add package Nino                # .NET、Godot
+dotnet add package Nino.Immutable      # 可选：ImmutableArray<T> / ImmutableList<T>
+openupm add com.jasonxudeveloper.nino  # Unity
 ```
 
-**Unity项目（通过OpenUPM）：**
-```bash
-openupm add com.jasonxudeveloper.nino
-```
-
-### 基本用法
+## 快速开始
 
 ```csharp
+using Nino.Core;
+
 [NinoType]
-public class GameData
-{
-    public int Score;
-    public string PlayerName;
-    public DateTime LastPlayed;
-}
-
-// 序列化
-var data = new GameData { Score = 1000, PlayerName = "Player1", LastPlayed = DateTime.Now };
-byte[] bytes = NinoSerializer.Serialize(data);
-
-// 反序列化
-var restored = NinoDeserializer.Deserialize<GameData>(bytes);
-```
-
-### 池化反序列化
-
-```csharp
-[NinoType, NinoPooled]
-public sealed partial class Packet
+public class Player
 {
     public int Id;
-    public List<int> Values;
-
-    // 必须实现（analyzer 提供一键补全）。预热返回的实例直接放进池子。
-    private static partial IEnumerable<Packet> OnNinoPoolWarmup() => Enumerable.Range(0, 16).Select(_ => new Packet());
-    private partial void OnNinoPoolReturn() { /* 清理 Nino 不会反序列化的状态 */ }
+    public string Name;
+    public List<Item> Inventory;
 }
 
-var packet = NinoDeserializer.Deserialize<Packet>(bytes); // 池里有实例就复用（连同它的 List）
-// ... 使用 ...
-packet.ReturnToPool();                                      // 重复归还会抛异常
+byte[] bytes = NinoSerializer.Serialize(player);
+Player copy = NinoDeserializer.Deserialize<Player>(bytes);
 ```
 
-**[📚 完整文档 →](https://nino.xgamedev.net/zh/start)**
+### 多态，无需标签
 
----
+```csharp
+[NinoType] public abstract class Message { public int Seq; }
+[NinoType] public sealed class Move : Message { public Vector3 To; }
+[NinoType] public sealed class Chat : Message { public string Text; }
 
-## 📊 性能表现
+Message msg = NinoDeserializer.Deserialize<Message>(bytes); // 得到 Move 或 Chat
+```
 
-Nino在各种场景下都能提供卓越的性能表现。查看详细的基准测试和与其他流行序列化库的对比。
+### 零分配网络层
 
-**[🚀 查看基准测试 →](https://nino.xgamedev.net/zh/perf/micro)**
+```csharp
+// 直接写进 socket 管道，不产生中间 byte[]。
+NinoSerializer.Serialize(msg, pipeWriter);
 
----
+// 复用池化实例（连同它们的列表），而不是每次新建。
+[NinoType, NinoPooled]
+public sealed partial class Snapshot
+{
+    public int Tick;
+    public List<EntityState> Entities;
 
-## 🤝 社区与支持
+    private static partial IEnumerable<Snapshot> OnNinoPoolWarmup() => Enumerable.Range(0, 16).Select(_ => new Snapshot());
+    private partial void OnNinoPoolReturn() { }
+}
+
+var snapshot = NinoDeserializer.Deserialize<Snapshot>(span); // 从池中取出
+// ... 使用 ...
+snapshot.ReturnToPool();
+```
+
+### 会变化的数据
+
+```csharp
+[NinoType(keyed: true)]            // 按成员名匹配：可以增加、调整顺序、删除成员
+public class SaveGame { public int Level; public string Hero; }
+
+[NinoType(trackReferences: true)]  // 共享引用和循环引用在往返后保持不变
+public class Node { public string Name; public List<Node> Links; }
+```
+
+**[阅读文档 →](https://nino.xgamedev.net/zh/docs/v4/start)**，包括高性能序列化、网络层、存档和 Unity 的
+[高级用法](https://nino.xgamedev.net/zh/docs/v4/advanced)。
+
+## Nino 与 MemoryPack
+
+| | Nino v4 | MemoryPack 1.21.4 |
+|---|---|---|
+| 序列化 | **快 2.5–4.3 倍** | |
+| 反序列化类和多态类型 | **快 1.16–1.38 倍** | |
+| 反序列化原始结构体数组 | 持平 | 持平 |
+| 反序列化到已有对象 | **0 B，最多快 4.9 倍**（池化） | 覆盖写入，有分配 |
+| 多态 | 自动类型 ID | 需要维护 `[MemoryPackUnion]` 标签 |
+| keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
+| Unity | 2022.3+，`netstandard2.0` 和 `2.1`，HybridCLR | `netstandard2.1` |
+
+MemoryPack 仍有 Nino 没有的功能：更多内置类型（`BigInteger`、`Uri`、全部不可变集合、`AnimationCurve` 等 Unity 类）、
+`Stream` 和异步 API、多段 `ReadOnlySequence<byte>` 输入、序列化回调、内置 Brotli 压缩、TypeScript 生成和 ASP.NET Core
+格式化器。它的 Union 标签是 1 字节，而 Nino 写 4 字节类型 ID。多数都有替代做法，详见
+[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)。
+
+## v4
+
+v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
+
+| v4 对比 v3（3.3.13） | |
+|---|---|
+| 序列化 | **最高快 1.73 倍**（类 1.73×，类数组 1.29×，结构体 1.35×） |
+| 反序列化 | 类**快 1.19–1.22 倍**，原始数组持平 |
+| 编译生成代码（330 个类型） | **快 44 倍**（56 秒 → 1.3 秒） |
+| 运行生成器 | **快 7.9 倍**；改动后只重新生成该类型 |
+| 生成代码 | 源码**小 16 倍**，IL **小 6 倍** |
+
+v4 新增：拦截器、keyed 成员、引用追踪、`[NinoPooled]` 对象池、可插拔格式化器（`[assembly: NinoFormatter(...)]`）、
+自定义集合类型、分析器与代码修复，以及所有目标框架字节一致。详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)
+和[迁移指南](https://nino.xgamedev.net/zh/docs/v4/migration)；内部设计见 [docs/v4-design.md](docs/v4-design.md)。
+
+## 参与贡献
+
+欢迎提交 Issue 和 Pull Request。构建、测试矩阵和发布流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 <div align="center">
 
-[![GitHub Issues](https://img.shields.io/github/issues/JasonXuDeveloper/Nino?style=flat-square)](https://github.com/JasonXuDeveloper/Nino/issues)
-[![GitHub Stars](https://img.shields.io/github/stars/JasonXuDeveloper/Nino?style=flat-square)](https://github.com/JasonXuDeveloper/Nino/stargazers)
-[![GitHub Forks](https://img.shields.io/github/forks/JasonXuDeveloper/Nino?style=flat-square)](https://github.com/JasonXuDeveloper/Nino/network)
-
-**[🐛 报告问题](https://github.com/JasonXuDeveloper/Nino/issues)** • **[💡 功能建议](https://github.com/JasonXuDeveloper/Nino/issues)** • **[🔀 参与贡献](https://github.com/JasonXuDeveloper/Nino/pulls)**
-
-**QQ群：[1054653934](https://qm.qq.com/q/cvalwQWRvU)**
-
-</div>
-
----
-
-<div align="center">
-
-**Made with ❤️ by [JasonXuDeveloper](https://github.com/JasonXuDeveloper)**
-
-*基于 [MIT 许可证](LICENSE)*
+[MIT License](LICENSE) · 作者 [JasonXuDeveloper](https://github.com/JasonXuDeveloper)
 
 </div>
