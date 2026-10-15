@@ -12,33 +12,34 @@ Workload: a synthetic assembly of `N` abstract root classes, each with a chain o
 leaf and a struct (`N × 11` types). Members are primitives, strings, `List<T>`, `Dictionary<int, string>`,
 references to other `[NinoType]`s and private fields. The harness (Roslyn 4.3 in-process) runs the generator
 on the compilation, then emits the whole assembly; it also measures re-running the generator after an edit.
-Times are the third of three runs.
+v4 times are the median of the last three of five runs; v3 times are the third of three runs.
 
 ### 330 types (N = 30)
 
 | | v3 (`main`) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
-| Generated source | 70.6 MB (1,366,440 lines) | 0.98 MB (20,259 lines) | **72× smaller** |
-| Compiling the generated code (emit) | 35.9 s | 0.89 s | **40× faster** |
-| Running the generator | 4.2 s | 0.32 s | **13× faster** |
-| Re-generating after editing a member | 3.7 s | 0.20 s | **18× faster** |
-| Re-generating after editing a comment | 5.2 s | 0.16 s | **32× faster** |
-| IL of the generated code | 4.9 MB | 0.32 MB | **15× smaller** |
+| Generated source | 70.6 MB (1,366,440 lines) | 1.15 MB (21,679 lines) | **61× smaller** |
+| Compiling the generated code (emit) | 35.9 s | 1.27 s | **28× faster** |
+| Running the generator | 4.2 s | 0.14 s | **30× faster** |
+| Re-generating after editing a member | 3.7 s | 0.19 s | **20× faster** |
+| Re-generating after editing a comment | 5.2 s | 0.19 s | **28× faster** |
+| IL of the generated code | 4.9 MB | 0.37 MB | **13× smaller** |
 
 ### 1,100 types (N = 100)
 
 | | v3 (`main`) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
-| Generated source | 236 MB (4,553,540 lines) | 3.3 MB (67,369 lines) | **72× smaller** |
-| Compiling the generated code (emit) | 314 s | 1.8 s | **179× faster** |
-| Running the generator | 30.8 s | 0.51 s | **60× faster** |
-| Re-generating after editing a member | 7.8 s | 0.59 s | **13× faster** |
-| Re-generating after editing a comment | 16.7 s | 0.42 s | **40× faster** |
-| IL of the generated code | 16.3 MB | 1.2 MB | **14× smaller** |
+| Generated source | 236 MB (4,553,540 lines) | 3.9 MB (72,429 lines) | **61× smaller** |
+| Compiling the generated code (emit) | 314 s | 2.2 s | **145× faster** |
+| Running the generator | 30.8 s | 0.68 s | **45× faster** |
+| Re-generating after editing a member | 7.8 s | 0.57 s | **14× faster** |
+| Re-generating after editing a comment | 16.7 s | 0.45 s | **38× faster** |
+| IL of the generated code | 16.3 MB | 1.3 MB | **12× smaller** |
 
 v3's cost grows faster than the number of types (3.3× the types took 8.8× the compile time), because
-every polymorphic base inlined the bodies of all its subtypes. v4 grows linearly: about 3 KB of source and
-1.6 ms of compile time per type.
+every polymorphic base inlined the bodies of all its subtypes. v4 grows linearly: about 3.5 KB of source and
+2 ms of compile time per type (the generated subtype dispatch added since the first measurement costs a few
+hundred bytes per type and saves a registry lookup per polymorphic read).
 
 ### Why v4 builds faster
 
@@ -64,39 +65,55 @@ every polymorphic base inlined the bodies of all its subtypes. v4 grows linearly
 
 ## Runtime
 
-`src/Nino.Benchmark` (BenchmarkDotNet 0.15.2, 15 iterations, server GC) on .NET 10.0.13, with v4, v3
-(`main`) and MemoryPack 1.21.4 measured on the same machine in back-to-back runs. Payload sizes are about the
-same for all three (e.g. `SimpleClass`: 1,146 bytes in v4, 1,148 in MemoryPack).
+`src/Nino.Benchmark` (BenchmarkDotNet 0.15.2, server GC) on .NET 10.0.13, v4 and MemoryPack 1.21.4 in the
+same run (15 iterations; the rows marked * were re-run with 20 iterations, as the first run was disturbed).
+The v4 vs v3 column comes from an earlier back-to-back run of v4 and `main` on the same machine. Payload sizes
+are about the same (e.g. `SimpleClass`: 1,146 bytes in v4, 1,148 in MemoryPack).
 
 ### Serialize (to a reused buffer writer)
 
-| Case | v3 | v4 | MemoryPack | v4 vs v3 | v4 vs MemoryPack |
-|---|---:|---:|---:|---:|---:|
-| `SimpleClass` | 230 ns | 157 ns | 418 ns | **1.47× faster** | **2.67× faster** |
-| `SimpleClass[100]` | 23.5 µs | 17.0 µs | 41.8 µs | **1.39× faster** | **2.46× faster** |
-| Polymorphic class | 26.5 µs | 13.3 µs | 29.6 µs | **2.00× faster** | **2.23× faster** |
-| Polymorphic class array | 235 µs | 115 µs | 390 µs | **2.04× faster** | **3.39× faster** |
-| Polymorphic `Foo[]` | 23.0 µs | 11.8 µs | 32.1 µs | **1.94× faster** | **2.71× faster** |
-| `SimpleStruct` (`int` + `DateTime`) | 3.6 ns | 2.0 ns | 5.0 ns | **1.8× faster** | **2.5× faster** |
-| `SimpleStruct[100]` | 32.0 ns | 28.5 ns | 27.3 ns | 1.12× faster | 0.96× (on par) |
-| `Vector4[10000]` | 3.89 µs | 3.86 µs | 3.80 µs | on par | on par |
+| Case | v4 | MemoryPack | v4 vs MemoryPack | v4 vs v3 |
+|---|---:|---:|---:|---:|
+| `SimpleClass` | 151 ns | 450 ns | **2.97× faster** | 1.47× faster |
+| `SimpleClass[100]` | 17.0 µs | 48.7 µs | **2.86× faster** | 1.39× faster |
+| Polymorphic class | 11.5 µs | 31.5 µs | **2.72× faster** | 2.00× faster |
+| Polymorphic class array | 89.6 µs | 388 µs | **4.33× faster** | 2.04× faster |
+| Polymorphic `Foo[]` | 9.9 µs | 31.4 µs | **3.15× faster** | 1.94× faster |
+| `SimpleStruct` (`int` + `DateTime`) | 2.3 ns | 5.8 ns | **2.50× faster** | 1.8× faster |
+| `SimpleStruct[100]` * | 28.6 ns | 30.6 ns | 1.07× faster | 1.12× faster |
+| `Vector4[10000]` * | 4.06 µs | 4.10 µs | on par | on par |
 
 `SimpleStruct` has 4 bytes of padding. v4 zeroes it, so the output is deterministic; v3 and MemoryPack copy
 whatever the padding contains. With the masked SIMD copy this costs nothing measurable on arrays, and a
-single value's padding is cleared by one or two inlined constant stores. (`SimpleStruct` was re-measured after
-that change; the other rows are from the run above.)
+single value's padding is cleared by one or two inlined constant stores.
 
 ### Deserialize (new instances)
 
-| Case | v3 | v4 | MemoryPack | v4 vs MemoryPack |
+| Case | v4 | MemoryPack | v4 vs MemoryPack |
+|---|---:|---:|---:|
+| `SimpleClass` | 964 ns | 1,129 ns | **1.17× faster** |
+| `SimpleClass[100]` | 106 µs | 134 µs | **1.26× faster** |
+| Polymorphic class * | 36.3 µs | 44.8 µs | **1.23× faster** |
+| Polymorphic class array | 406 µs | 562 µs | **1.38× faster** |
+| Polymorphic `Foo[]` | 37.0 µs | 43.1 µs | **1.16× faster** |
+| `SimpleStruct[100]` * | 295 ns | 295 ns | on par |
+| `Vector4[10000]` * | 173 µs | 147 µs | 0.85× |
+
+`Vector4[10000]` allocates a 160 KB array on the large object heap per call, so it measures gen-2 collections
+more than either serializer (the two runs gave 0.96× and 0.85× with ±15% error); the copy itself is one
+`memcpy` in both.
+
+### Deserialize into existing instances (pooling)
+
+Nino can deserialize into an existing object graph (`ref` deserialization) and take new instances from
+`[NinoPooled]` pools; MemoryPack overwrites existing instances.
+
+| Case | Nino new | Nino reusing | MemoryPack new | MemoryPack overwrite |
 |---|---:|---:|---:|---:|
-| `SimpleClass` | 708 ns | 790 ns | 1,197 ns | **1.51× faster** |
-| `SimpleClass[100]` | 81.8 µs | 88.2 µs | 103.0 µs | **1.17× faster** |
-| Polymorphic class | 35.3 µs | 32.5 µs | 42.2 µs | **1.30× faster** |
-| Polymorphic class array | 471 µs | 434 µs | 512 µs | **1.18× faster** |
-| Polymorphic `Foo[]` | 28.2 µs | 30.5 µs | 40.3 µs | **1.32× faster** |
-| `SimpleStruct[100]` | 193 ns | 204 ns | 249 ns | **1.22× faster** |
-| `Vector4[10000]` | 122 µs | 122 µs | 121 µs | on par |
+| Pooled node | 873 ns | **280 ns** (0 B) | 952 ns | 727 ns (1,024 B) |
+| Pooled leaves, in place | 5.23 µs | **1.18 µs** (0 B) | 5.38 µs | 5.80 µs (12,800 B) |
+| Pooled leaves, pooled elements | 5.23 µs | 3.82 µs (856 B) | 5.38 µs | 5.80 µs (12,800 B) |
+| Pooled class | 780 ns | 623 ns (1,080 B) | 1,044 ns | 857 ns (1,080 B) |
 
 Deserialization is dominated by allocating the result objects, which is identical for all three (same bytes
 allocated per call), and server-GC noise is about ±7% here. To see how much is left, the A/B harness also
@@ -105,7 +122,7 @@ dictionaries filled with the same entries): that floor takes 518–636 ns, and v
 602–662 ns, within 5–15% of it (the difference is mostly decoding the UTF-8 member). v3 sits at the same
 place. Deserializing classes is therefore bound by allocation, not by the serializer: v4 matches v3 while
 adding reference tracking, ref deserialization with pool recycling, version tolerance and payload validation,
-and stays 1.2–1.5× ahead of MemoryPack.
+and stays ahead of MemoryPack.
 
 Neither serializer allocates on the serialize paths above (0 B per call), and deserialization allocates only
 the result objects.
@@ -148,6 +165,16 @@ the result objects.
   contend for a cache line.
 * **Polymorphism by id.** Subtypes are identified by a 4-byte FNV-1a hash of their name, looked up in the
   table above; subtypes register lazily, in buckets, so startup does not touch unused types.
+* **Top-level calls without lookups.** On Roslyn 4.12+ (.NET 9 SDK and later) the generator intercepts
+  `NinoSerializer`/`NinoDeserializer` calls whose type it knows and calls the formatter directly, so a call
+  costs what calling the formatter by hand costs (e.g. deserializing an open class 15.5 → 11.6 ns). Other
+  calls are inlined into the caller with the formatter passed in, so shared generic code over reference types
+  does not look it up twice.
+* **Subtype dispatch in generated code.** A polymorphic base reads its subtypes' ids in a generated `switch`
+  and calls their formatters directly; the registry is only the fallback for subtypes of other assemblies.
+* **Pools without contention.** `NinoPool<T>` keeps a per-thread stack and a shared overflow; its hot fields
+  sit on their own 64-byte cache line (an explicit-layout base class), so threads renting different types
+  never share a line.
 * **UTF-16 strings by default** (one block copy); `[NinoUtf8]` members use the vectorized UTF-8 transcoder
   of the runtime.
 

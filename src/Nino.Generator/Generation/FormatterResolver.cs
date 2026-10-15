@@ -238,8 +238,9 @@ internal sealed class FormatterResolver
 
         public IEnumerable<ITypeSymbol> Constraints(int index) => _parameters[index].ConstraintTypes;
 
-        public ITypeSymbol? FormatterElement(int index) =>
-            FormatterRules.FormatterElement(_parameters[index], _resolver._symbols);
+        // Null when the parameter is no element formatter (the shared interface is nullable-oblivious).
+        public ITypeSymbol FormatterElement(int index) =>
+            FormatterRules.FormatterElement(_parameters[index], _resolver._symbols)!;
 
         public bool ResolveElement(ITypeSymbol element, out string formatter)
         {

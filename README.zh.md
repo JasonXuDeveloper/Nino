@@ -80,6 +80,17 @@
 
 v4 是一次大版本重写，**二进制格式与 v3 及之前的 v4 beta 不兼容。**
 
+**v4 数据一览**（[详细数据](docs/v4-benchmarks.md)）：
+
+| | v4 |
+|---|---|
+| 序列化 vs MemoryPack | **快 2.5–4.3 倍**（类 2.97×，多态数组 4.33×，结构体 2.5×） |
+| 反序列化 vs MemoryPack | 类和多态类型**快 1.16–1.38 倍**，原始数组持平 |
+| 复用实例（`[NinoPooled]`、`ref` 反序列化） | **0 B 分配**，最高比 MemoryPack 覆盖写入**快 4.9 倍** |
+| 生成代码 vs v3 | 源码**小 61 倍**，IL **小 12 倍** |
+| 编译耗时 vs v3（1,100 个类型） | 编译**快 145 倍**（314 秒 → 2.2 秒），生成器**快 45 倍** |
+| 在 IDE 里修改一个类型 | 只重新生成该类型：**0.2–0.6 秒**，v3 需要 4–17 秒 |
+
 - **真正的增量源生成器**：每个 `[NinoType]` 一个文件，可比较的模型，不再扫描整个编译。修改一个类型只会重新生成该类型，
   生成代码量只有 v3 的一小部分。
 - **更快的运行时**：基于结构体组合的格式化器，可被 JIT/AOT 内联；非托管 `[NinoType]` 结构体及其数组/列表直接内存拷贝；
@@ -93,8 +104,12 @@ v4 是一次大版本重写，**二进制格式与 v3 及之前的 v4 beta 不�
 - **可插拔的 formatter**：`[assembly: NinoFormatter(typeof(MyFormatter<,>))]` 即可让 Nino 支持新类型（自己的或第三方的）。类型参数和元素 formatter 自动推导，生成代码直接调用，运行时也使用同一份声明。Nino 自带的 BCL formatter 也是这样声明的。
 - **可选的版本兼容**：`[NinoType(versionTolerant: true)]` 允许在类型本身或任意基类追加成员，嵌套深度不限。
 - **自定义集合**：支持派生自 `List<T>`、`HashSet<T>`、`Dictionary<TKey, TValue>` 等的类型。
+- **按键成员与引用追踪**：`[NinoType(keyed: true)]` 按成员名哈希写入，成员可以重排、删除；
+  `[NinoType(trackReferences: true)]` 保留共享引用和循环引用。
+- **分析器与代码修复**：写代码时即报告用法错误（NINO001–NINO022），不少可一键修复。
 
-格式与架构详见 [docs/v4-design.md](docs/v4-design.md)。
+格式与架构详见 [docs/v4-design.md](docs/v4-design.md)，编译耗时与运行时性能（对比 v3 和 MemoryPack）详见
+[docs/v4-benchmarks.md](docs/v4-benchmarks.md)。
 
 ---
 

@@ -79,6 +79,17 @@
 
 v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier v4 betas.**
 
+**v4 in numbers** ([details](docs/v4-benchmarks.md)):
+
+| | v4 |
+|---|---|
+| Serialize vs MemoryPack | **2.5–4.3× faster** (class 2.97×, polymorphic array 4.33×, struct 2.5×) |
+| Deserialize vs MemoryPack | **1.16–1.38× faster** on classes and polymorphic types, on par on raw arrays |
+| Reusing instances (`[NinoPooled]`, `ref` deserialization) | **0 B allocated**, up to **4.9× faster** than MemoryPack's overwrite |
+| Generated code vs v3 | **61× smaller** source, **12× smaller** IL |
+| Build time vs v3 (1,100 types) | compile **145× faster** (314 s → 2.2 s), generator **45× faster** |
+| Editing a type in the IDE | re-generates that type only: **0.2–0.6 s** instead of 4–17 s |
+
 - **Truly incremental source generator**: one file per `[NinoType]`, equatable models, no whole-compilation
   scans. Editing a type re-generates only that type, and generated code is a fraction of v3's.
 - **Faster runtime**: struct-composed formatters the JIT/AOT compiler inlines, raw memory copies for
@@ -95,6 +106,9 @@ v4 is a major rewrite. **Its binary format is not compatible with v3 or earlier 
   `<NinoInterceptors>false</NinoInterceptors>` to turn it off. Unity and older compilers use the regular calls.
 - **Opt-in version tolerance**: `[NinoType(versionTolerant: true)]` lets you append members to the type or any of its base classes, at any nesting depth.
 - **User collections**: types derived from `List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>` and friends.
+- **Keyed members and reference tracking**: `[NinoType(keyed: true)]` writes members by name hash, so they can
+  be reordered and removed; `[NinoType(trackReferences: true)]` keeps shared references and cycles.
+- **Analyzers and code fixes**: mistakes are reported while you type (NINO001–NINO022), many with a one-click fix.
 - **Pluggable formatters**: `[assembly: NinoFormatter(typeof(MyFormatter<,>))]` teaches Nino a new type (yours or a
   third-party one). Type arguments and element formatters are inferred, generated code calls it directly, and the
   runtime uses the same registration. Nino's own BCL formatters are declared the same way.
