@@ -94,21 +94,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
             c.AssemblyName ?? "Assembly",
             c.GetTypeByMetadataName("System.Runtime.CompilerServices.ModuleInitializerAttribute") != null,
             c.GetTypeByMetadataName("UnityEngine.RuntimeInitializeOnLoadMethodAttribute") != null,
-            c.GetTypeByMetadataName("UnityEditor.InitializeOnLoadMethodAttribute") != null));
-
-        // Formatters for collection types Nino.Core cannot reference (System.Collections.Immutable is not
-        // available everywhere, PriorityQueue only exists on .NET 6+) are emitted into the assembly that uses them.
-        var helpers = context.CompilationProvider.Select(static (c, _) => HelperSources.Needed(c));
-        context.RegisterImplementationSourceOutput(helpers.Combine(enabled), static (spc, input) =>
-        {
-            var (x, on) = input;
-            if (!on)
-                return;
-            if (x.Immutable)
-                spc.AddSource("NinoGen.ImmutableFormatters.g.cs", HelperSources.EmitImmutableFormatters());
-            if (x.PriorityQueue)
-                spc.AddSource("NinoGen.PriorityQueueFormatter.g.cs", HelperSources.EmitPriorityQueueFormatter());
-        });
+            c.GetTypeByMetadataName("UnityEditor.InitializeOnLoadMethodAttribute") != null,
+            new EquatableArray<string>(FormatterRules.RegisteringReferences(c)
+                .OrderBy(n => n, StringComparer.Ordinal).ToArray())));
 
         var entries = CollectAll(models, static m => ToEntry(m))
             .Select(static (x, _) => new EquatableArray<RegistryEntry>(
@@ -248,7 +236,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
     };
 
     private static RegistryEntry ToEntry(TypeModel model) =>
-        new(model.FormatterName, model.OpenTypeName, model.TypeParameters.Length, model.TypeId, model.NameId);
+        new(model.FormatterName, model.TypeParameters.Length, model.TypeId, model.NameId);
 
     private static void Emit(SourceProductionContext spc, TypeModel model)
     {

@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Nino.Generator.Generation.Emit;
 
 namespace Nino.Generator.Generation;
 
@@ -30,7 +29,6 @@ internal sealed class FormatterResolver
     private readonly RawRules _raw;
     private readonly Visibility _visibility;
     private readonly FormatterRules _rules;
-    private readonly IReadOnlyList<HelperSources.Helper> _helpers;
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _plain = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, ResolvedFormatter?> _utf8 = new(SymbolEqualityComparer.Default);
 
@@ -43,7 +41,6 @@ internal sealed class FormatterResolver
         _raw = raw;
         _visibility = visibility;
         _rules = new FormatterRules(compilation, symbols);
-        _helpers = HelperSources.Available(compilation);
     }
 
     public static string Cached(ITypeSymbol type) => $"{Core}CachedFormatter<{TypeNames.Global(type)}>";
@@ -143,12 +140,6 @@ internal sealed class FormatterResolver
         var definition = type.OriginalDefinition;
         if (FirstMatch(_rules.ForDefinition(definition), type, utf8) is { } registered)
             return new ResolvedFormatter(registered, true);
-        foreach (var helper in _helpers)
-        {
-            if (SymbolEqualityComparer.Default.Equals(helper.Target, definition))
-                return Registered(helper.Bind(type, a => Element(a, utf8)));
-        }
-
         if (_raw.IsRawUnmanaged(type))
             return new ResolvedFormatter($"{Core}UnmanagedFormatter<{TypeNames.Global(type)}>", true);
 

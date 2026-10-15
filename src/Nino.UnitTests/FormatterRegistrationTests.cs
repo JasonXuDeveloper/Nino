@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -101,6 +102,11 @@ public sealed class RuntimeBox<T>
 [NinoType] public sealed class PairBox { public KeyValuePair<int, string> Value; }
 [NinoType] public sealed class DerivedListBox { public DerivedIntList Value; }
 [NinoType] public sealed class OffsetBox { public DateTimeOffset Value; }
+[NinoType] public sealed class ImmutableArrayBox { public ImmutableArray<string> Value; }
+[NinoType] public sealed class ImmutableListBox { public ImmutableList<int> Value; }
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
+[NinoType] public sealed class PriorityQueueBox { public PriorityQueue<string, int> Value; }
+#endif
 
 public sealed class DerivedIntList : List<int>
 {
@@ -192,5 +198,35 @@ public class FormatterRegistrationTests
         AssertSameBytes(new DerivedListBox { Value = new DerivedIntList { 4 } }, new DerivedIntList { 4 });
         var offset = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.FromHours(8));
         AssertSameBytes(new OffsetBox { Value = offset }, offset);
+        // Registered by the Nino.Immutable package.
+        AssertSameBytes(new ImmutableArrayBox { Value = ImmutableArray.Create("a", null) },
+            ImmutableArray.Create("a", null));
+        AssertSameBytes(new ImmutableArrayBox(), default(ImmutableArray<string>));
+        AssertSameBytes(new ImmutableListBox { Value = ImmutableList.Create(1, 2) }, ImmutableList.Create(1, 2));
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD
+        var queue = new PriorityQueue<string, int>();
+        queue.Enqueue("q", 2);
+        AssertSameBytes(new PriorityQueueBox { Value = queue }, queue);
+#endif
+    }
+
+    private static string Hex(byte[] bytes) => BitConverter.ToString(bytes).Replace("-", "");
+
+    // The wire format of the formatters that used to be generated into each assembly is unchanged.
+    [TestMethod]
+    public void MovedFormattersKeepTheirBytes()
+    {
+        Assert.AreEqual("020000000100000002000000",
+            Hex(NinoSerializer.Serialize(ImmutableArray.Create(1, 2))));
+        Assert.AreEqual("FFFFFFFF", Hex(NinoSerializer.Serialize(default(ImmutableArray<int>))));
+        Assert.AreEqual("0100000005000000", Hex(NinoSerializer.Serialize(ImmutableList.Create(5))));
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD
+        var queue = new PriorityQueue<int, int>();
+        queue.Enqueue(7, 3);
+        Assert.AreEqual("010000000700000003000000", Hex(NinoSerializer.Serialize(queue)));
+        var back = NinoDeserializer.Deserialize<PriorityQueue<int, int>>(NinoSerializer.Serialize(queue));
+        Assert.IsTrue(back.TryDequeue(out int element, out int priority));
+        Assert.AreEqual((7, 3), (element, priority));
+#endif
     }
 }

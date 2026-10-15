@@ -43,7 +43,7 @@ public class AdvancedCollectionTests
 
         Console.WriteLine("SortedSet tests passed!");
 
-#if NET6_0_OR_GREATER
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
         // Test PriorityQueue<TElement, TPriority>
         // 1. Primitive unmanaged
         PriorityQueue<int, int> priorityQueueInt = new PriorityQueue<int, int>();
@@ -266,7 +266,7 @@ public class AdvancedCollectionTests
         Assert.AreEqual(1, immutableListOf2DArraysResult[0][0, 0]);
         Assert.AreEqual(8, immutableListOf2DArraysResult[1][1, 1]);
 
-#if NET6_0_OR_GREATER
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
         // 5. PriorityQueue with nested generic type parameters
         PriorityQueue<List<string>, int> priorityQueueNested = new PriorityQueue<List<string>, int>();
         priorityQueueNested.Enqueue(new List<string> { "a", "b" }, 2);

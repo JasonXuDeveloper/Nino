@@ -734,7 +734,7 @@ public class ArraySerializationTests
         Console.WriteLine("ArraySegment with complex array types tests passed!");
     }
 
-#if NET6_0_OR_GREATER
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
     [TestMethod]
     public void TestPriorityQueueWithComplexArrays()
     {

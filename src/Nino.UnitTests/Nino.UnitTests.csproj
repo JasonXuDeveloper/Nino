@@ -21,6 +21,11 @@
       <DefineConstants>TRACE;WEAK_VERSION_TOLERANCE</DefineConstants>
     </PropertyGroup>
 
+    <!-- The netstandard builds of Nino.Core have no PriorityQueue formatter (netstandard has no PriorityQueue). -->
+    <PropertyGroup Condition="'$(NinoCoreTfm)' != ''">
+      <DefineConstants>$(DefineConstants);NINO_CORE_NETSTANDARD</DefineConstants>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" PrivateAssets="all"/>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.3.0" />
@@ -53,6 +58,7 @@
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
                           SetTargetFramework="TargetFramework=$(NinoCoreTfm)"/>
+        <ProjectReference Include="..\Nino.Immutable\Nino.Immutable.csproj"/>
         <ProjectReference Include="..\Nino.Generator\Nino.Generator.csproj"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="true"/>

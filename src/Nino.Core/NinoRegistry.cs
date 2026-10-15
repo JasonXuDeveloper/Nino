@@ -40,7 +40,6 @@ namespace Nino.Core
     {
         private static readonly object Lock = new object();
         private static readonly HashSet<Assembly> Initialized = new HashSet<Assembly>();
-        private static readonly Dictionary<Type, Type> GenericFormatters = new Dictionary<Type, Type>();
         private static int _scannedAssemblyCount;
         private static INinoRegistry[] _registries = Array.Empty<INinoRegistry>();
 
@@ -127,26 +126,6 @@ namespace Nino.Core
             {
                 if (!assembly.IsDynamic)
                     EnsureInitialized(assembly);
-            }
-        }
-
-        /// <summary>
-        /// Registers the generic formatter definition of a generic <c>[NinoType]</c>, e.g.
-        /// <c>(typeof(Box&lt;&gt;), typeof(BoxFormatter&lt;&gt;))</c>. Closed formatters are built on first use.
-        /// </summary>
-        public static void RegisterGeneric(Type typeDefinition, Type formatterDefinition)
-        {
-            lock (Lock)
-            {
-                GenericFormatters[typeDefinition] = formatterDefinition;
-            }
-        }
-
-        internal static Type FindGeneric(Type typeDefinition)
-        {
-            lock (Lock)
-            {
-                return GenericFormatters.TryGetValue(typeDefinition, out var formatter) ? formatter : null;
             }
         }
 

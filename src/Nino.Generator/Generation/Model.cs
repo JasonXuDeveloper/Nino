@@ -84,8 +84,6 @@ internal sealed record TypeModel(
     EquatableArray<string> TypeParameters,
     // " where T : struct" ... or "".
     string Constraints,
-    // "global::Ns.Outer.Box<,>" for generic types, otherwise "".
-    string OpenTypeName,
     FormatterKind Kind,
     // Type id, or 0 for generic types (computed at runtime).
     int TypeId,
@@ -127,8 +125,9 @@ internal sealed record TypeModel(
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.
 internal sealed record FormatterRegistration(string TypeName, string Formatter, int Id);
 
-// A generated formatter, as the registry lists it. OpenTypeName and Arity are set for generic types only.
-internal sealed record RegistryEntry(string FormatterName, string OpenTypeName, int Arity, int TypeId, int NameId);
+// A generated formatter, as the registry lists it. Arity: its number of type parameters (0 if not generic).
+internal sealed record RegistryEntry(string FormatterName, int Arity, int TypeId, int NameId);
 
+// RegisteringReferences: one formatter (open name) of each referenced assembly that registers formatters.
 internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,
-    bool HasUnityEditor);
+    bool HasUnityEditor, EquatableArray<string> RegisteringReferences);

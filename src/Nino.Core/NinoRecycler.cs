@@ -77,7 +77,8 @@ namespace Nino.Core
     /// </list>
     /// Elements a collection drops (it shrinks, it is cleared and refilled, a dictionary key disappears) are each
     /// recycled once as the element type, by the collection formatter, through the <c>DiscardAll</c>,
-    /// <c>DiscardPairs</c> and <c>DrainAndDiscard</c> helpers.
+    /// <c>DiscardPairs</c> and <c>DrainAndDiscard</c> helpers (dictionaries and priority queues recycle both halves
+    /// of each dropped pair).
     /// An instance read as a back reference (<see cref="Reader.ReadReference{T}"/>) replaces the slot without
     /// recycling: it may still be referenced elsewhere in the graph. Recycling means
     /// <see cref="NinoRecycler{T}.Recycle"/> with the declared type of the slot (or element).
@@ -209,5 +210,28 @@ namespace Nino.Core
                     NinoRecycler<TValue>.Recycle(pair.Value);
             }
         }
+
+#if NET6_0_OR_GREATER
+        /// <summary>
+        /// Discards the (element, priority) pairs of a priority queue that is about to be cleared and refilled: each
+        /// element and priority is recycled once. The caller clears the queue.
+        /// </summary>
+        internal static void DiscardPairs<TElement, TPriority>(
+            PriorityQueue<TElement, TPriority>.UnorderedItemsCollection pairs)
+        {
+            bool elements = NinoRecycler<TElement>.IsRegistered;
+            bool priorities = NinoRecycler<TPriority>.IsRegistered;
+            if (!elements && !priorities)
+                return;
+
+            foreach (var (element, priority) in pairs)
+            {
+                if (elements)
+                    NinoRecycler<TElement>.Recycle(element);
+                if (priorities)
+                    NinoRecycler<TPriority>.Recycle(priority);
+            }
+        }
+#endif
     }
 }

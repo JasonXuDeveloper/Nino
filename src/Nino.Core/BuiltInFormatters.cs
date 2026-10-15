@@ -26,6 +26,9 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(DictionaryFormatter<,,,>))]
 [assembly: NinoFormatter(typeof(QueueFormatter<,>))]
 [assembly: NinoFormatter(typeof(StackFormatter<,>))]
+#if NET6_0_OR_GREATER
+[assembly: NinoFormatter(typeof(PriorityQueueFormatter<,,,>))]
+#endif
 
 // Collection interfaces, read into List<T>, HashSet<T> or Dictionary<TKey, TValue>.
 [assembly: NinoFormatter(typeof(InterfaceListFormatter<,,>), typeof(IEnumerable<>), typeof(ICollection<>),

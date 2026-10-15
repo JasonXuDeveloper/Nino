@@ -55,7 +55,8 @@
 ### 🧩 **Comprehensive Type Support**
 - **Primitives & Built-ins**: Full support for all C# primitive types (`int`, `float`, `DateTime`, etc.)
 - **Modern C# Features**: `records`, `record structs`, `structs`, `classes`, and generics
-- **Collections**: Any `IEnumerable<T>` including `List<T>`, `Dictionary<TKey,TValue>`, `HashSet<T>`, `ConcurrentDictionary<TKey,TValue>`
+- **Collections**: Any `IEnumerable<T>` including `List<T>`, `Dictionary<TKey,TValue>`, `HashSet<T>`, `ConcurrentDictionary<TKey,TValue>`, and `PriorityQueue<TElement,TPriority>` on .NET 6+
+- **Immutable collections**: `ImmutableArray<T>` and `ImmutableList<T>` with the `Nino.Immutable` package
 - **Advanced Generics**: Complex nested types like `Dictionary<string, List<CustomType[]>>`
 - **Value Types**: `ValueTuple`, `Tuple`, `KeyValuePair<TKey,TValue>`, `Nullable<T>`
 
@@ -107,6 +108,8 @@ See [docs/v4-design.md](docs/v4-design.md) for the format and architecture, and
 **Standard .NET Projects:**
 ```bash
 dotnet add package Nino
+# Optional: ImmutableArray<T> / ImmutableList<T> support
+dotnet add package Nino.Immutable
 ```
 
 **Unity Projects (via OpenUPM):**

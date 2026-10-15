@@ -65,6 +65,9 @@ public class RecycleOwnershipTests
         Watch<object>();
         Watch<Tuple<int, RcItem>>();
         Watch<int?>();
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD
+        Watch<PriorityQueue<RcItem, RcItem>>();
+#endif
     }
 
     [TestCleanup]
@@ -207,6 +210,29 @@ public class RecycleOwnershipTests
         Assert.AreEqual(3, concurrent.Count);
         AssertRecycled(As(items[0]), As(items[1]));
     }
+
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
+    [TestMethod]
+    public void PriorityQueueRefilled()
+    {
+        var items = Items(2);
+        var priorities = Items(2);
+        var queue = new PriorityQueue<RcItem, RcItem>(Comparer<RcItem>.Create((x, y) => x.Id.CompareTo(y.Id)));
+        queue.Enqueue(items[0], priorities[0]);
+        queue.Enqueue(items[1], priorities[1]);
+        var data = new PriorityQueue<RcItem, RcItem>(Comparer<RcItem>.Create((x, y) => x.Id.CompareTo(y.Id)));
+        data.Enqueue(new RcItem { Id = 9 }, new RcItem { Id = 1 });
+        Read(ref queue, data);
+        Assert.AreEqual(1, queue.Count);
+        // Both halves of every dropped pair, once each.
+        AssertRecycled(As(items[0]), As(items[1]), As(priorities[0]), As(priorities[1]));
+
+        var old = queue;
+        Read(ref queue, null);
+        Assert.IsNull(queue);
+        AssertRecycled(As(old));
+    }
+#endif
 
     // ---- dictionaries ----
 

@@ -24,6 +24,11 @@ internal static class RegistryEmitter
         var w = new CodeWriter();
         w.Raw(FormatterEmitter.Header);
         w.Line($"[assembly: {Core}NinoGenerated(typeof({Gen}{name}))]");
+        var list = entries.OrderBy(e => e.FormatterName, System.StringComparer.Ordinal).ToList();
+        // Generic [NinoType]s are closed at runtime: their formatter definitions are ordinary formatter
+        // registrations (each implements INinoFormatter<Box<T>> in exactly the type's own parameters).
+        foreach (var entry in list.Where(e => e.Arity != 0))
+            w.Line($"[assembly: {Core}NinoFormatter(typeof({Gen}{entry.FormatterName}<{new string(',', entry.Arity - 1)}>))]");
         w.Line();
         w.Open($"namespace {GenNamespace}");
         w.Line("/// <summary>");
@@ -33,17 +38,17 @@ internal static class RegistryEmitter
         w.Line(HiddenAttribute);
         w.Open($"internal sealed class {name} : {Core}INinoRegistry");
 
-        var list = entries.OrderBy(e => e.FormatterName, System.StringComparer.Ordinal).ToList();
         w.Block($"static {name}()", () =>
         {
             w.Line($"{Core}NinoRegistry.Add(new {name}());");
-            foreach (var entry in list.Where(e => e.OpenTypeName.Length != 0))
-                w.Line($"{Core}NinoRegistry.RegisterGeneric(typeof({entry.OpenTypeName}), typeof({entry.FormatterName}<{new string(',', entry.Arity - 1)}>));");
+            // Libraries declaring formatters this assembly may resolve at runtime (see FormatterRules.RegisteringReferences).
+            foreach (var formatter in options.RegisteringReferences)
+                w.Line($"{Core}NinoRegistry.EnsureInitialized(typeof({formatter}).Assembly);");
         });
         w.Line();
         EmitIdDispatch(w, "public", $"{Gen}{UsagesClass}.Register(id);",
             // Keyed by wire id (polymorphic reads) and, for [NinoFormerName] types, also by name id (by-type lookups).
-            list.Where(e => e.OpenTypeName.Length == 0)
+            list.Where(e => e.Arity == 0)
                 .SelectMany(e => e.NameId == e.TypeId
                     ? new[] { (Id: e.TypeId, Entry: e) }
                     : new[] { (Id: e.TypeId, Entry: e), (Id: e.NameId, Entry: e) })

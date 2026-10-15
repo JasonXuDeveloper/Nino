@@ -313,7 +313,7 @@ public class RefOverloadTests
         Assert.IsTrue(existingSortedSet.Contains(1));
         Assert.IsFalse(existingSortedSet.Contains(10)); // Should be cleared
 
-#if NET6_0_OR_GREATER
+#if NET6_0_OR_GREATER && !NINO_CORE_NETSTANDARD // PriorityQueue: .NET 6+ builds of Nino.Core only
         // Test ref overload for PriorityQueue
         PriorityQueue<string, int> priorityQueue = new PriorityQueue<string, int>();
         priorityQueue.Enqueue("first", 1);

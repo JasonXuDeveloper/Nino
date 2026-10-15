@@ -352,6 +352,7 @@ The workflow automatically handles different versioning requirements:
 - `src/Nino.Core/Nino.Core.csproj` - Core package version
 - `src/Nino/Nino.csproj` - Main package version
 - `src/Nino.Generator/Nino.Generator.csproj` - Generator package version
+- `src/Nino.Immutable/Nino.Immutable.csproj` - Immutable collections package version
 - `src/Nino.Unity/Packages/com.jasonxudeveloper.nino/package.json` - Unity package version
 
 **Unity Package DLLs:**

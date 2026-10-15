@@ -55,7 +55,8 @@
 ### 🧩 **全面的类型支持**
 - **基础类型**：完全支持所有C#基础类型（`int`、`float`、`DateTime`等）
 - **现代C#特性**：`records`、`record structs`、`structs`、`classes`和泛型
-- **集合类型**：任何`IEnumerable<T>`，包括`List<T>`、`Dictionary<TKey,TValue>`、`HashSet<T>`、`ConcurrentDictionary<TKey,TValue>`
+- **集合类型**：任何`IEnumerable<T>`，包括`List<T>`、`Dictionary<TKey,TValue>`、`HashSet<T>`、`ConcurrentDictionary<TKey,TValue>`，以及 .NET 6+ 上的`PriorityQueue<TElement,TPriority>`
+- **不可变集合**：安装 `Nino.Immutable` 包即可支持`ImmutableArray<T>`、`ImmutableList<T>`
 - **高级泛型**：复杂嵌套类型如`Dictionary<string, List<CustomType[]>>`
 - **值类型**：`ValueTuple`、`Tuple`、`KeyValuePair<TKey,TValue>`、`Nullable<T>`
 
@@ -103,6 +104,8 @@ v4 是一次大版本重写，**二进制格式与 v3 及之前的 v4 beta 不�
 **标准.NET项目：**
 ```bash
 dotnet add package Nino
+# 可选：支持 ImmutableArray<T> / ImmutableList<T>
+dotnet add package Nino.Immutable
 ```
 
 **Unity项目（通过OpenUPM）：**

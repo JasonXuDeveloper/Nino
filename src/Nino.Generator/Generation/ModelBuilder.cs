@@ -179,7 +179,6 @@ internal static class ModelBuilder
             FormatterName(type),
             new EquatableArray<string>(typeParameters.Select(p => p.Name)),
             Constraints(typeParameters),
-            generic ? OpenName(type) : "",
             kind,
             typeId,
             idName,

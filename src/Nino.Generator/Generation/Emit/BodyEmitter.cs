@@ -260,9 +260,11 @@ internal sealed class BodyEmitter
             return;
         }
 
+        // A class is built in a local and then replaces the old instance (which is recycled); a struct is
+        // assigned in place.
         bool isClass = _m.Kind != FormatterKind.Struct;
-        if (isClass)
-            _w.Line("var __old = value;");
+        string target = isClass ? "__new" : "value";
+        string assign = isClass ? "var __new = " : "value = ";
 
         var args = new HashSet<string>(c.Arguments);
         var assigned = _m.Members.Where(x => !args.Contains(x.Name) && !x.Unassignable).ToList();
@@ -271,11 +273,11 @@ internal sealed class BodyEmitter
                       string.Join(", ", c.Arguments.Select(a => Local(_m.Members.First(x => x.Name == a)))) + ")";
         if (initializers.Count == 0)
         {
-            _w.Line($"value = {call};");
+            _w.Line($"{assign}{call};");
         }
         else
         {
-            _w.Line($"value = {call}");
+            _w.Line($"{assign}{call}");
             _w.Open();
             foreach (var member in initializers)
                 _w.Line($"{Identifier(member.Name)} = {Local(member)},");
@@ -283,13 +285,10 @@ internal sealed class BodyEmitter
         }
 
         foreach (var member in assigned.Where(x => x.Access != MemberAccess.Direct))
-            _w.Line(Set(_m, member, "value", Local(member)));
+            _w.Line(Set(_m, member, target, Local(member)));
 
         if (isClass)
-        {
-            _w.Line("if (__old != null)");
-            _w.Indented(() => _w.Line($"{Core}NinoRecycler<{T}>.Recycle(__old);"));
-        }
+            _w.Line($"{Core}NinoRecycler.Replace(ref value, __new);");
     }
 
     private void EmitMemberReads(string r, bool inPlace, string onEnd)

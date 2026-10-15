@@ -216,9 +216,11 @@ raw unmanaged values, `[NinoType]`s), every formatter is declared on its assembl
 [assembly: NinoFormatter(typeof(InterfaceListFormatter<,,>), typeof(IList<>), typeof(IEnumerable<>))]
 ```
 
-Nino.Core declares its BCL formatters this way (`BuiltInFormatters.cs`), the generator declares the helpers it
-emits (PriorityQueue, immutable collections), and any library or application can declare formatters for its own
-or third-party types. The generator (`FormatterRules`, `FormatterResolver`) and the runtime
+Nino.Core declares its BCL formatters this way (`BuiltInFormatters.cs`; `PriorityQueue<,>` only in its .NET 6+
+builds, since netstandard and Unity have none), the `Nino.Immutable` package declares `ImmutableArray<T>` and
+`ImmutableList<T>`, generated code declares the formatter definition of each generic `[NinoType]`
+(`[assembly: NinoFormatter(typeof(NinoGen.Box_1Formatter<>))]`, which implements `INinoFormatter<Box<T>>` in exactly
+the type's parameters), and any library or application can declare formatters for its own or third-party types. The generator (`FormatterRules`, `FormatterResolver`) and the runtime
 (`NinoFormatterResolver`, for type parameters of generic `[NinoType]`s) apply the same registrations with the same
 rules, and a test checks that both write the same bytes:
 
@@ -233,6 +235,13 @@ rules, and a test checks that both write the same bytes:
 Lookup order: registrations of the type's own definition (and of arrays, by rank) in `Priority` order, then raw
 unmanaged values, then `[NinoType]`s, then registrations of a bare type parameter (`INinoFormatter<TCollection>`),
 which match by their constraints (or the `targets` they list). NINO020 reports a registration that cannot be used.
+The generator ignores the generated registrations of generic `[NinoType]`s: it names its own generated formatters
+directly and reaches other assemblies' through `CachedFormatter<T>`, so only the runtime resolver closes them.
+
+The runtime reads an assembly's registrations when it first meets one of its types, or when a lookup misses (then
+every loaded assembly). A formatter-only library may not be loaded yet when only a runtime-closed generic needs it
+(`Box<T>` with an `ImmutableArray<T>` member names no `Nino.Immutable` type), so each generated registry also calls
+`NinoRegistry.EnsureInitialized` for every referenced assembly whose registrations its compilation saw.
 
 ### Formatter cache and registration
 
@@ -253,8 +262,8 @@ populated by:
    switch over every type would load every formatter on the first lookup. Startup no longer grows with the
    number of types (1100 types: 309 ms → 67 ms process time on .NET 8, against 43 ms for an empty app).
 2. Lazy resolution on first access: built-in generic types (`List<T>`, `Dictionary<,>`, arrays, tuples,
-   and so on) and generic `[NinoType]`s registered by generic type definition are constructed with
-   `MakeGenericType`.
+   and so on) and generic `[NinoType]`s are constructed with `MakeGenericType` from the `[assembly: NinoFormatter]`
+   registrations (see above); there is no second registration mechanism for generic `[NinoType]`s.
 
 Registration is idempotent and thread safe: writers take a lock and publish with `Volatile.Write`, and
 readers never lock.
@@ -315,12 +324,13 @@ one state:
 | --- | --- | --- |
 | reused in place | none | every formatter, when the instance fits |
 | handed on | `Reuse<TDeclared, TConcrete>(ref value)`: returns the instance if it is a `TConcrete` (that formatter now owns it), else recycles it as `TDeclared` and clears the slot | interface collections (read into `List<T>`, `HashSet<T>`, `Dictionary<,>`), `NinoObject` and polymorphic reads (by exact runtime type) |
-| replaced | `Replace(ref value, replacement)`: stores the new instance, then recycles the old one | tuples, reallocated arrays; generated code for re-created (constructor / `init`) types does the same |
+| replaced | `Replace(ref value, replacement)`: stores the new instance, then recycles the old one | tuples, reallocated arrays, generated code for re-created (constructor / `init`) class types |
 | discarded | `Discard(ref value)`: the data holds `null` | every reference formatter, `T?` |
 
 Elements a collection drops (the tail of a shrinking list or array, the contents of a set, queue, stack or
-dictionary that is cleared and refilled, dictionary entries whose key is gone) are each recycled once with the
-element type (`DiscardAll`, `DiscardPairs`, `DrainAndDiscard`). An instance dropped as a whole takes its elements
+dictionary that is cleared and refilled, dictionary entries whose key is gone, the pairs of a priority queue that
+is cleared and refilled) are each recycled once with the element type (`DiscardAll`, `DiscardPairs`,
+`DrainAndDiscard`); for dictionaries and priority queues both halves of each pair are. An instance dropped as a whole takes its elements
 with it: they are not recycled separately. `RecycleOwnershipTests` pins these counts for every formatter family.
 
 `[NinoPooled]` on a sealed, in-place `[NinoType]` class makes the generator add `ReturnToPool()` and two

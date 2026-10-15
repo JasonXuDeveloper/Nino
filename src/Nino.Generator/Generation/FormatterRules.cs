@@ -60,7 +60,8 @@ internal sealed class FormatterRules
                 if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, symbols.FormatterAttribute))
                     continue;
                 var rule = Read(attribute, symbols, out _);
-                if (rule != null && compilation.IsSymbolAccessibleWithin(rule.Formatter, compilation.Assembly))
+                if (rule != null && !IsGeneratedNinoTypeFormatter(rule) &&
+                    compilation.IsSymbolAccessibleWithin(rule.Formatter, compilation.Assembly))
                     Add(rule);
             }
         }
@@ -113,6 +114,45 @@ internal sealed class FormatterRules
             _byDefinition[definition] = list = new List<FormatterRule>();
         return list;
     }
+
+    /// <summary>
+    /// For each referenced assembly (other than Nino.Core) that registers formatters this compilation can use, the
+    /// open name of one of its formatters (<c>global::Lib.ImmutableArrayFormatter&lt;,&gt;</c>). The generated registry
+    /// names them so the runtime resolver sees their registrations even before anything else loads the assembly
+    /// (a formatter only needed by a generic <c>[NinoType]</c>, closed at runtime, is not referenced by any code).
+    /// </summary>
+    public static IEnumerable<string> RegisteringReferences(Compilation compilation)
+    {
+        var attributeType = compilation.GetTypeByMetadataName(NinoNames.Core("NinoFormatterAttribute"));
+        if (attributeType == null)
+            yield break;
+        var core = attributeType.ContainingAssembly;
+        foreach (var assembly in RegisteringAssemblies(compilation, core))
+        {
+            if (SymbolEqualityComparer.Default.Equals(assembly, compilation.Assembly) ||
+                SymbolEqualityComparer.Default.Equals(assembly, core))
+                continue;
+            foreach (var attribute in assembly.GetAttributes())
+            {
+                if (SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, attributeType) &&
+                    attribute.ConstructorArguments.Length != 0 &&
+                    attribute.ConstructorArguments[0].Value is INamedTypeSymbol { OriginalDefinition: var formatter } &&
+                    SymbolEqualityComparer.Default.Equals(formatter.ContainingAssembly, assembly) &&
+                    formatter.ContainingType == null &&
+                    compilation.IsSymbolAccessibleWithin(formatter, compilation.Assembly))
+                {
+                    yield return TypeNames.OpenName(formatter);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Generated code registers the formatters of generic [NinoType]s for the runtime resolver. The generator resolves
+    // [NinoType]s itself (its own generated formatter, or CachedFormatter<T> for other assemblies'), so it skips them.
+    private static bool IsGeneratedNinoTypeFormatter(FormatterRule rule) =>
+        rule.Formatter.ContainingNamespace is { Name: TypeNames.GenNamespace, ContainingNamespace.IsGlobalNamespace: true } &&
+        rule.Pattern is INamedTypeSymbol pattern && pattern.OriginalDefinition.IsNinoType();
 
     // Registrations can only come from Nino.Core, assemblies that reference it, and the compilation itself.
     private static IEnumerable<IAssemblySymbol> RegisteringAssemblies(Compilation compilation, IAssemblySymbol core)

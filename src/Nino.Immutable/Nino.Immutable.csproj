@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
+        <PackageId>Nino.Immutable</PackageId>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <Version>4.0.0-beta.47</Version>
+        <Title>Nino.Immutable</Title>
+        <Authors>JasonXuDeveloper</Authors>
+        <Description>Nino formatters for System.Collections.Immutable (ImmutableArray&lt;T&gt;, ImmutableList&lt;T&gt;).</Description>
+        <Copyright>JasonXuDeveloper</Copyright>
+        <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageTags>Nino;Serialization;Binary;Immutable</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <BranchName>refs/heads/main</BranchName>
+        <!-- Enable embedding repository URL in the PDB -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <!-- Embed source files for files not tracked in source control -->
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <!-- Include source files in the symbol package -->
+        <IncludeSource>true</IncludeSource>
+        <!-- For SDK-style projects, set DebugType to embed the source link info -->
+        <DebugType>embedded</DebugType>
+        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to test a specific Nino.Core build. -->
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
+                          SetTargetFramework="TargetFramework=$(NinoCoreTfm)"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PackageReference Include="System.Collections.Immutable" Version="8.0.0"/>
+    </ItemGroup>
+
+</Project>

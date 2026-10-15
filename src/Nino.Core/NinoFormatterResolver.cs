@@ -130,8 +130,6 @@ namespace Nino.Core
                 return FirstMatch(rules.ForArray(ArrayKey(type)), type);
 
             var definition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
-            if (type.IsGenericType && NinoRegistry.FindGeneric(definition) is { } generic)
-                return generic.MakeGenericType(type.GetGenericArguments());
             var registered = FirstMatch(rules.ForDefinition(definition), type);
             if (registered != null)
                 return registered;
