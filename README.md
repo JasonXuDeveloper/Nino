@@ -35,7 +35,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 ## Why Nino
 
 - **Faster than MemoryPack.** Serializing classes and polymorphic types is 2.4–3.9× faster. Deserializing them is
-  1.10–1.33× faster, and raw struct arrays are on par.
+  1.10–1.33× faster, and raw struct arrays are close (a block copy in both).
 - **Zero allocation.** Serializing allocates nothing. Deserializing into existing or pooled objects
   (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either, and is up to 6.5× faster than MemoryPack's
   overwrite mode.
@@ -140,7 +140,7 @@ networking, persistence and Unity.
 |---|---|---|
 | Serialize classes and polymorphic types | **2.4–3.9× faster** | |
 | Deserialize classes and polymorphic types | **1.10–1.33× faster** | |
-| Raw struct arrays | on par; padded structs serialize ~5 ns slower per 1.6 KB (v4 zeroes padding) | copies padding as is |
+| Raw struct arrays | close (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
 | Deserialize into existing objects | **0 B, up to 6.5× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids | `[MemoryPackUnion]` tags you maintain |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
@@ -160,7 +160,7 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 
 | v4 vs v3 (3.3.13) | |
 |---|---|
-| Serialize | **1.28× faster** (class), **1.48× faster** (class array); padded struct arrays 0.81× (v4 zeroes padding) |
+| Serialize | **1.28× faster** (class), **1.48× faster** (class array), on par on struct arrays |
 | Deserialize | on par (classes and raw arrays), while adding reference tracking, reuse deserialization and payload validation |
 | Compiling the generated code | **44× faster** at 330 types (56 s → 1.3 s), **289× faster** at 1,100 types (636 s → 2.2 s) |
 | Running the generator | **7.9× faster**; after an edit, only that type is re-generated |

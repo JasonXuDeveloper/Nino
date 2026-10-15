@@ -65,8 +65,8 @@ grows linearly, at about 3.5 KB of source and 2 ms of compile time per type.
 ## Runtime
 
 `src/Nino.Benchmark` (BenchmarkDotNet 0.15.2, `ShortRun` job with 5 warm-up and 15 measured iterations, server
-GC) on .NET 10.0.13, Intel Xeon 2.10 GHz, 4 cores. All four benchmark classes ran in one session, v4 and
-MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org, running a port of the same `SimpleTest`
+GC) on .NET 10.0.13, Intel Xeon 2.10 GHz, 4 cores. All four benchmark classes ran in one session (the rows
+marked * in a second one, see below), v4 and MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org, running a port of the same `SimpleTest`
 (same data, same attributes) directly before and directly after the v4 session on the same machine; the v3
 column is the mean of those two runs. v3 has no polymorphic or pooling benchmarks.
 
@@ -84,15 +84,20 @@ them on everything except the sub-nanosecond `SimpleStruct` deserialize; v3's ow
 | Polymorphic class | 8.52 µs | 26.0 µs | — | **3.06× faster** | — |
 | Polymorphic class array | 68.6 µs | 267 µs | — | **3.89× faster** | — |
 | Polymorphic `Foo[]` | 7.05 µs | 25.5 µs | — | **3.62× faster** | — |
-| `SimpleStruct` (`int` + `DateTime`) | 1.02 ns | 3.10 ns | 1.18 ns | **3.03× faster** | 1.15× faster |
-| `SimpleStruct[100]` | 25.9 ns | 21.4 ns | 20.9 ns | 0.83× | 0.81× |
+| `SimpleStruct` (`int` + `DateTime`) * | 1.30 ns | 3.08 ns | 1.71 ns | **2.36× faster** | **1.31× faster** |
+| `SimpleStruct[100]` * | 16.0 ns | 21.7 ns | 15.8 ns | **1.36× faster** | on par |
 | `Vector4[10000]` | 4.38 µs | 4.49 µs | 4.44 µs | on par | on par |
 
-`SimpleStruct` has 4 bytes of padding. v4 zeroes it, so the output is deterministic and never carries
-leftover memory; v3 and MemoryPack copy whatever the padding contains. For a single value this is one or two
-inlined constant stores. For `SimpleStruct[100]` (1.6 KB) the masked copy costs about 5 ns over a plain
-`memcpy`, which is why v4 is behind there. Structs without padding (`Vector4[10000]`) are one block copy, as
-in the other two.
+\* `SimpleStruct` is declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`: 12 bytes, no padding, so
+every serializer copies it as one block. These rows were re-run after that change with the same protocol (v3, then
+v4, then v3 again, same settings). In that run MemoryPack's `SimpleStruct[100]` serialize took 18.3 ns in both v3
+sessions and 21.7 ns in the v4 session, so read the 1.36× as "ahead by a few nanoseconds".
+
+Without `Pack`, `SimpleStruct` is 16 bytes with 4 bytes of padding after the `int`. v4 zeroes padding, so the output
+is deterministic and never carries leftover memory (an `ArrayPool` array or `stackalloc` under `[SkipLocalsInit]`
+can hold anything there); v3 and MemoryPack copy whatever the padding contains. In the earlier run with the padded
+struct, that masked copy made `SimpleStruct[100]` serialize take 25.9 ns against 21.4 ns for MemoryPack and
+20.9 ns for v3. A single value's padding is cleared by one or two inlined constant stores.
 
 ### Deserialize (new instances)
 
@@ -103,7 +108,7 @@ in the other two.
 | Polymorphic class | 29.1 µs | 33.9 µs | — | **1.17× faster** | — |
 | Polymorphic class array | 392 µs | 461 µs | — | **1.18× faster** | — |
 | Polymorphic `Foo[]` | 28.6 µs | 38.1 µs | — | **1.33× faster** | — |
-| `SimpleStruct[100]` | 176 ns | 185 ns | 181 ns | 1.05× faster | on par |
+| `SimpleStruct[100]` * | 133 ns | 149 ns | 142 ns | **1.12× faster** | 1.07× faster |
 | `Vector4[10000]` | 125 µs | 125 µs | 127 µs | on par | on par |
 
 Deserializing classes is dominated by allocating the result objects, the same bytes for all three. To see how
