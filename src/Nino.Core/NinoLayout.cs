@@ -272,6 +272,7 @@ namespace Nino.Core
         private readonly byte[] _mask;
         private readonly ulong[] _words; // the mask repeated over lcm(length, 8) bytes
         private readonly Vector<byte>[]? _vectors; // the mask repeated over lcm(length, vector width) bytes
+        private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
 
         /// <summary>Returns a mask, or null when <paramref name="mask"/> keeps every byte.</summary>
         public static NinoMask? Create(byte[] mask) =>
@@ -280,6 +281,19 @@ namespace Nino.Core
         private NinoMask(byte[] mask)
         {
             _mask = mask;
+            var gaps = new System.Collections.Generic.List<int>();
+            for (int i = 0; i < mask.Length; i++)
+            {
+                if (mask[i] != 0)
+                    continue;
+                int start = i;
+                while (i + 1 < mask.Length && mask[i + 1] == 0)
+                    i++;
+                gaps.Add(start);
+                gaps.Add(i + 1 - start);
+            }
+
+            _gaps = gaps.ToArray();
             var words = Repeat(mask, 8);
             _words = new ulong[words.Length / 8];
             for (int i = 0; i < _words.Length; i++)
@@ -349,8 +363,53 @@ namespace Nino.Core
                 Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & _mask[i % _mask.Length]);
         }
 
-        /// <summary>Applies the mask in place.</summary>
-        public void Clear(ref byte destination, int count) => Copy(ref destination, ref destination, count);
+        /// <summary>
+        /// Zeroes the padding of <paramref name="count"/> elements in place. Only stores: reading back bytes just
+        /// written by narrower field stores would stall on store forwarding.
+        /// </summary>
+        public void Clear(ref byte destination, int count)
+        {
+            int[] gaps = _gaps;
+            for (int e = 0; e < count; e++)
+            {
+                ref byte element = ref Unsafe.Add(ref destination, e * _mask.Length);
+                for (int g = 0; g < gaps.Length; g += 2)
+                    Zero(ref Unsafe.Add(ref element, gaps[g]), gaps[g + 1]);
+            }
+        }
+
+        private static void Zero(ref byte destination, int length)
+        {
+            switch (length)
+            {
+                case 1:
+                    destination = 0;
+                    return;
+                case 2:
+                    Unsafe.WriteUnaligned(ref destination, (ushort)0);
+                    return;
+                case 3:
+                    Unsafe.WriteUnaligned(ref destination, (ushort)0);
+                    Unsafe.Add(ref destination, 2) = 0;
+                    return;
+                case 4:
+                    Unsafe.WriteUnaligned(ref destination, 0u);
+                    return;
+                case 5:
+                case 6:
+                case 7:
+                    // Two overlapping stores, both inside the gap.
+                    Unsafe.WriteUnaligned(ref destination, 0u);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, length - 4), 0u);
+                    return;
+                case 8:
+                    Unsafe.WriteUnaligned(ref destination, 0ul);
+                    return;
+                default:
+                    Unsafe.InitBlockUnaligned(ref destination, 0, (uint)length);
+                    return;
+            }
+        }
     }
 
     /// <summary>

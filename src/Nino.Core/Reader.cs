@@ -147,10 +147,6 @@ namespace Nino.Core
             return NinoUnsafe.Read<T>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos));
         }
 
-        /// <summary>Reads an unmanaged value. <typeparamref name="T"/> must not contain references.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void UnsafeRead<T>(out T value) => value = UnsafeRead<T>();
-
         /// <summary>
         /// Reads an unmanaged value written by <see cref="Writer.WriteValue{T}"/> (converted on runtimes that lay
         /// the type out differently). <typeparamref name="T"/> must not contain references.
