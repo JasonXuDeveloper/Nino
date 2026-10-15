@@ -137,7 +137,8 @@ this also applies to subtypes of a tracked type. Make the members assignable.
 
 ### NINO017
 
-A `[NinoRefDeserialization]` factory must be `public static`, parameterless and return the containing type.
+A `[NinoRefDeserialization]` factory must be `public static`, callable without arguments (parameterless, or every
+parameter optional, like ET's `static T Create(bool isFromPool = false)`) and return the containing type.
 
 ## Pooling
 

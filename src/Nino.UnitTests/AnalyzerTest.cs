@@ -1586,7 +1586,7 @@ public class TestClass
 ";
 
         await SetUpAnalyzerTest(code,
-            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance", "must be parameterless")).RunAsync();
+            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance", "must be callable without arguments (parameterless, or every parameter optional)")).RunAsync();
     }
 
     [TestMethod]
@@ -1627,7 +1627,7 @@ public class TestClass
 
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance",
-                "must be public, must be static, must be parameterless, must return TestClass")).RunAsync();
+                "must be public, must be static, must be callable without arguments (parameterless, or every parameter optional), must return TestClass")).RunAsync();
     }
 
     [TestMethod]

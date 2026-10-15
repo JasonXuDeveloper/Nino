@@ -182,8 +182,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             errors.Add("must be public");
         if (!method.IsStatic)
             errors.Add("must be static");
-        if (method.Parameters.Length > 0)
-            errors.Add("must be parameterless");
+        if (!ConstructionPlanner.CallableWithoutArguments(method))
+            errors.Add("must be callable without arguments (parameterless, or every parameter optional)");
         if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
             errors.Add($"must return {method.ContainingType.ToDisplayString()}");
         if (errors.Count > 0)

@@ -11,6 +11,21 @@ internal static class ConstructionPlanner
 {
     private static readonly ConstructionModel Unconstructible = new(true, "", EquatableArray<string>.Empty, "");
 
+    /// <summary>
+    /// Whether generated code can call <paramref name="method"/> as <c>M()</c>: every parameter is optional (or
+    /// <c>params</c>), as in ET's <c>static T Create(bool isFromPool = false)</c> or <c>MultiMap(int maxPoolCount = 0)</c>.
+    /// </summary>
+    public static bool CallableWithoutArguments(IMethodSymbol method)
+    {
+        foreach (var parameter in method.Parameters)
+        {
+            if (!parameter.IsOptional && !parameter.IsParams)
+                return false;
+        }
+
+        return true;
+    }
+
     public static ConstructionModel Plan(INamedTypeSymbol type, List<MemberModel> members, TypeFacts facts,
         DiagnosticSink? diagnostics)
     {
@@ -21,7 +36,7 @@ internal static class ConstructionPlanner
         var factories = type.GetMembers().OfType<IMethodSymbol>().Where(m =>
             m.IsStatic && m.MethodKind == MethodKind.Ordinary &&
             SymbolEqualityComparer.Default.Equals(m.ReturnType, type)).ToList();
-        var refFactory = factories.FirstOrDefault(m => m.Parameters.Length == 0 &&
+        var refFactory = factories.FirstOrDefault(m => CallableWithoutArguments(m) &&
                                                        m.DeclaredAccessibility == Accessibility.Public &&
                                                        NinoSymbols.Has(m, known.RefDeserialization));
         string refFactoryName = refFactory == null ? "" : $"{typeName}.{refFactory.Name}";
@@ -31,7 +46,7 @@ internal static class ConstructionPlanner
             .FirstOrDefault(m => NinoSymbols.Has(m, known.Constructor));
 
         if (marked == null && !members.Any(m => m.ConstructionOnly) &&
-            (type.IsValueType || constructors.Any(c => c.Parameters.Length == 0)))
+            (type.IsValueType || constructors.Any(CallableWithoutArguments)))
             return new ConstructionModel(false, $"new {typeName}", EquatableArray<string>.Empty, refFactoryName);
 
         string Creator(IMethodSymbol m) => m.MethodKind == MethodKind.Constructor
