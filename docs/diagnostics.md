@@ -80,7 +80,9 @@ Nino has no formatter for the member type (delegates, `Task`, pointers...). The 
 
 ### NINO008
 
-`[NinoCustomFormatter(typeof(F))]` requires `F` to derive from `NinoFormatter<T>`, where `T` is exactly the member
+`[NinoCustomFormatter(typeof(F))]` requires `F` to be either a struct implementing `INinoFormatter<T>` (called directly,
+like the built-in formatters) or a non-abstract class deriving from `NinoFormatter<T>` with a public parameterless
+constructor (one shared instance), where `T` is exactly the member
 type.
 
 ### NINO009

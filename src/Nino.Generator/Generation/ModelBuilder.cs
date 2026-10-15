@@ -262,6 +262,8 @@ internal static class ModelBuilder
         var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
         if (custom is { ConstructorArguments: { Length: > 0 } args } && args[0].Value is INamedTypeSymbol customType)
         {
+            if (!known.IsCustomFormatterOf(customType, memberType))
+                return null; // NINO008, reported by the analyzer
             formatter = customType.IsValueType
                 ? Global(customType)
                 : $"{Core}CustomFormatter<{Global(memberType)}, {Global(customType)}>";

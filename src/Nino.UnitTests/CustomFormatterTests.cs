@@ -102,4 +102,20 @@ public class CustomFormatterTests
             throw;
         }
     }
+
+    [TestMethod]
+    public void StructCustomFormatterIsUsed()
+    {
+        var value = new ExampleWithStructFormatter { Small = 3, Negative = -2, After = 7 };
+        byte[] bytes = NinoSerializer.Serialize(value);
+        var result = NinoDeserializer.Deserialize<ExampleWithStructFormatter>(bytes);
+        Assert.AreEqual(3, result.Small);
+        Assert.AreEqual(-2, result.Negative);
+        Assert.AreEqual(7, result.After);
+
+        // One varint byte per long instead of 8 raw bytes.
+        var plain = NinoSerializer.Serialize(new ExampleWithStructFormatter { After = 7 });
+        Assert.AreEqual(plain.Length, bytes.Length);
+        Assert.IsTrue(bytes.Length < 8 + 8 + 4);
+    }
 }

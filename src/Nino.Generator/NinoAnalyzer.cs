@@ -102,8 +102,8 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
             }
 
             if (customFormatter is { ConstructorArguments: { Length: > 0 } args } &&
-                args[0].Value is INamedTypeSymbol formatter && known.Formatter != null &&
-                TypeFacts.MemberType(member) is { } memberType && !IsFormatterOf(formatter, memberType, known.Formatter))
+                args[0].Value is INamedTypeSymbol formatter && TypeFacts.MemberType(member) is { } memberType &&
+                !known.IsCustomFormatterOf(formatter, memberType))
                 sink.Report(NinoDiagnostics.InvalidCustomFormatter, member, formatter.ToDisplayString(),
                     memberType.ToDisplayString());
 
@@ -181,14 +181,4 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>Whether <paramref name="formatter"/> derives from <c>NinoFormatter&lt;memberType&gt;</c>.</summary>
-    private static bool IsFormatterOf(INamedTypeSymbol formatter, ITypeSymbol memberType, INamedTypeSymbol ninoFormatter)
-    {
-        for (var baseType = formatter.BaseType; baseType != null; baseType = baseType.BaseType)
-        {
-            if (SymbolEqualityComparer.Default.Equals(baseType.OriginalDefinition, ninoFormatter))
-                return SymbolEqualityComparer.Default.Equals(baseType.TypeArguments[0], memberType);
-        }
-
-        return false;
-    }
 }

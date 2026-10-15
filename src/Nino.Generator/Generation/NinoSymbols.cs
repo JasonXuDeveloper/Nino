@@ -10,7 +10,7 @@ namespace Nino.Generator.Generation;
 internal sealed class NinoSymbols
 {
     public readonly INamedTypeSymbol? NinoType, Member, Ignore, CustomFormatter, Formatter, Utf8, FormerName,
-        ExplicitOrder, Constructor, RefDeserialization, Pooled, StructLayout;
+        ExplicitOrder, Constructor, RefDeserialization, Pooled, StructLayout, IFormatter;
 
     public NinoSymbols(Compilation compilation)
     {
@@ -20,6 +20,7 @@ internal sealed class NinoSymbols
         Ignore = Core("NinoIgnoreAttribute");
         CustomFormatter = Core("NinoCustomFormatterAttribute");
         Formatter = Core("NinoFormatter`1");
+        IFormatter = Core("INinoFormatter`1");
         Utf8 = Core("NinoUtf8Attribute");
         FormerName = Core("NinoFormerNameAttribute");
         ExplicitOrder = Core("NinoExplicitOrderAttribute");
@@ -27,6 +28,51 @@ internal sealed class NinoSymbols
         RefDeserialization = Core("NinoRefDeserializationAttribute");
         Pooled = Core("NinoPooledAttribute");
         StructLayout = compilation.GetTypeByMetadataName("System.Runtime.InteropServices.StructLayoutAttribute");
+    }
+
+    /// <summary>
+    /// Whether <paramref name="formatter"/> can be the <c>[NinoCustomFormatter]</c> of a <paramref name="memberType"/>
+    /// member: a struct implementing <c>INinoFormatter&lt;T&gt;</c> (called directly, like built-in formatters), or a
+    /// concrete class deriving from <c>NinoFormatter&lt;T&gt;</c> with a public parameterless constructor (one shared
+    /// instance). <c>T</c> is exactly the member type. The analyzer reports NINO008 for anything else and the
+    /// generator skips the member.
+    /// </summary>
+    public bool IsCustomFormatterOf(INamedTypeSymbol formatter, ITypeSymbol memberType)
+    {
+        if (formatter.IsUnboundGenericType || formatter.TypeKind == TypeKind.Error)
+            return false;
+        if (formatter.IsValueType)
+        {
+            if (IFormatter == null || formatter.IsRefLikeType)
+                return false;
+            foreach (var i in formatter.AllInterfaces)
+            {
+                if (SymbolEqualityComparer.Default.Equals(i.OriginalDefinition, IFormatter) &&
+                    SymbolEqualityComparer.Default.Equals(i.TypeArguments[0], memberType))
+                    return true;
+            }
+
+            return false;
+        }
+
+        if (Formatter == null || formatter.IsAbstract || formatter.IsStatic)
+            return false;
+        bool constructible = false;
+        foreach (var ctor in formatter.InstanceConstructors)
+        {
+            if (ctor.Parameters.Length == 0 && ctor.DeclaredAccessibility == Accessibility.Public)
+                constructible = true;
+        }
+
+        if (!constructible)
+            return false;
+        for (var baseType = formatter.BaseType; baseType != null; baseType = baseType.BaseType)
+        {
+            if (SymbolEqualityComparer.Default.Equals(baseType.OriginalDefinition, Formatter))
+                return SymbolEqualityComparer.Default.Equals(baseType.TypeArguments[0], memberType);
+        }
+
+        return false;
     }
 
     /// <summary>The <paramref name="attribute"/> applied to <paramref name="symbol"/>, or null.</summary>

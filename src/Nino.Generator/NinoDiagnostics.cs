@@ -49,7 +49,8 @@ internal static class NinoDiagnostics
         "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization");
 
     public static readonly DiagnosticDescriptor InvalidCustomFormatter = Error("NINO008",
-        "Invalid custom formatter type", "Custom formatter '{0}' must inherit from NinoFormatter<{1}>");
+        "Invalid custom formatter type",
+        "Custom formatter '{0}' must be a struct implementing INinoFormatter<{1}>, or a class deriving from NinoFormatter<{1}> with a public parameterless constructor");
 
     public static readonly DiagnosticDescriptor PrivateMember = Error("NINO009", "Non-public member is not serialized",
         "Member '{0}' of NinoType '{1}' is not public, and the type does not set containNonPublicMembers: it is not serialized");

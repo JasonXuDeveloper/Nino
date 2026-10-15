@@ -80,6 +80,40 @@ public class CompactIntFormatter : NinoFormatter<int>
 }
 
 /// <summary>
+/// Struct custom formatter: called directly by generated code (no virtual call, no instance).
+/// Writes a long as a zig-zag varint.
+/// </summary>
+public struct ZigZagLongFormatter : INinoFormatter<long>
+{
+    public void Serialize(long value, ref Writer writer)
+    {
+        ulong v = (ulong)((value << 1) ^ (value >> 63));
+        while (v >= 0x80)
+        {
+            writer.Write((byte)(v | 0x80));
+            v >>= 7;
+        }
+
+        writer.Write((byte)v);
+    }
+
+    public void Deserialize(ref long value, ref Reader reader)
+    {
+        ulong v = 0;
+        int shift = 0;
+        byte b;
+        do
+        {
+            reader.Read(out b);
+            v |= (ulong)(b & 0x7F) << shift;
+            shift += 7;
+        } while ((b & 0x80) != 0);
+
+        value = (long)(v >> 1) ^ -(long)(v & 1);
+    }
+}
+
+/// <summary>
 /// Example type using the new singleton-based custom formatters
 /// </summary>
 [NinoType]
@@ -97,6 +131,18 @@ public class ExampleWithCustomFormatters
     // Another custom field with singleton formatter
     [NinoCustomFormatter(typeof(CompactIntFormatter))]
     public int CompactInt;
+}
+
+[NinoType]
+public class ExampleWithStructFormatter
+{
+    [NinoCustomFormatter(typeof(ZigZagLongFormatter))]
+    public long Small;
+
+    [NinoCustomFormatter(typeof(ZigZagLongFormatter))]
+    public long Negative { get; set; }
+
+    public int After;
 }
 
 // Helper class for comparison testing (without custom formatters)

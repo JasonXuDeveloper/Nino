@@ -882,6 +882,17 @@ public struct StructIntFormatter : INinoFormatter<int>
     public void Deserialize(ref int value, ref Reader reader) { }
 }
 
+public abstract class AbstractIntFormatter : NinoFormatter<int>
+{
+}
+
+public class NoDefaultCtorFormatter : NinoFormatter<int>
+{
+    public NoDefaultCtorFormatter(int scale) { }
+    public override void Serialize(int value, ref Writer writer) { }
+    public override void Deserialize(ref int value, ref Reader reader) { }
+}
+
 [NinoType]
 public class TestClass
 {
@@ -895,16 +906,26 @@ public class TestClass
     public int? {|#1:NullableMember|};
 
     [NinoCustomFormatter(typeof(StructIntFormatter))]
-    public int {|#2:Struct|};
+    public int Struct;
+
+    [NinoCustomFormatter(typeof(StructIntFormatter))]
+    public long {|#2:StructWrongType|};
+
+    [NinoCustomFormatter(typeof(AbstractIntFormatter))]
+    public int {|#3:Abstract|};
+
+    [NinoCustomFormatter(typeof(NoDefaultCtorFormatter))]
+    public int {|#4:NoDefaultCtor|};
 }
 ";
 
-        // Formatters must derive from NinoFormatter<T> for exactly the member type; struct INinoFormatter<T>
-        // implementations are rejected as well.
+        // Exactly the member type; a struct INinoFormatter<T> is called directly, a class needs to be constructible.
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO008").WithLocation(0).WithArguments("NullableIntFormatter", "int"),
             Verify.Diagnostic("NINO008").WithLocation(1).WithArguments("IntFormatter", "int?"),
-            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("StructIntFormatter", "int")).RunAsync();
+            Verify.Diagnostic("NINO008").WithLocation(2).WithArguments("StructIntFormatter", "long"),
+            Verify.Diagnostic("NINO008").WithLocation(3).WithArguments("AbstractIntFormatter", "int"),
+            Verify.Diagnostic("NINO008").WithLocation(4).WithArguments("NoDefaultCtorFormatter", "int")).RunAsync();
     }
 
     [TestMethod]
