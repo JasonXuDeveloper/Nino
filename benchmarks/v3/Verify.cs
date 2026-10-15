@@ -90,17 +90,21 @@ public static class Verify
         a != null && b != null && a.Length == b.Length && a.Zip(b).All(p => eq(p.First, p.Second));
 
     private static bool Eq(SimpleStruct a, SimpleStruct b) =>
-        a.Id == b.Id && a.CreateTime == b.CreateTime;
+        a.Id == b.Id && SameInstant(a.CreateTime, b.CreateTime);
 
     private static bool Eq(SimpleClass a, SimpleClass b)
     {
         if (a is null || b is null) return ReferenceEquals(a, b);
-        return a.Id == b.Id && a.Tag == b.Tag && a.Guid == b.Guid && a.CreateTime == b.CreateTime
+        return a.Id == b.Id && a.Tag == b.Tag && a.Guid == b.Guid && SameInstant(a.CreateTime, b.CreateTime)
                && a.Name == b.Name && a.Desc == b.Desc
                && a.Numbers.AsSpan().SequenceEqual(b.Numbers)
-               && a.Dates.SequenceEqual(b.Dates)
+               && a.Dates.Count == b.Dates.Count && a.Dates.Zip(b.Dates).All(p => SameInstant(p.First, p.Second))
                && DictEq(a.Map1, b.Map1) && DictEq(a.Map2, b.Map2);
     }
+
+    // MessagePack stores DateTime as a UTC timestamp and reads it back with Kind = Utc, so a local DateTime.Now
+    // comes back shifted by the time zone offset: compare the instant, not the raw ticks.
+    private static bool SameInstant(DateTime a, DateTime b) => a.ToUniversalTime() == b.ToUniversalTime();
 
     private static bool DictEq<TK, TV>(Dictionary<TK, TV> a, Dictionary<TK, TV> b) =>
         a.Count == b.Count && a.All(kv => b.TryGetValue(kv.Key, out var v) && EqualityComparer<TV>.Default.Equals(kv.Value, v));
