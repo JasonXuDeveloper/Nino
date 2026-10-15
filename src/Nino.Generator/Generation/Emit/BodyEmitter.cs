@@ -450,6 +450,9 @@ internal sealed class BodyEmitter
             foreach (var member in members)
             {
                 _w.Line($"case {member.Key}:");
+                // Data written before a [NinoFormerName] rename; writes always use the current name.
+                foreach (int formerKey in member.FormerKeys)
+                    _w.Line($"case {formerKey}:");
                 _w.Open();
                 EmitMemberRead(member, "__m", inPlace);
                 if (member.Raw == null)

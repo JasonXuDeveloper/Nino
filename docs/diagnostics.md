@@ -31,6 +31,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO021](#nino021) | Error | `[NinoConstructor]` is not accessible to generated code |
 | [NINO022](#nino022) | Warning | A member hidden with `new` cannot be reached by generated code |
 | [NINO023](#nino023) | Error | A struct serializes no member |
+| [NINO024](#nino024) | Warning | `[NinoFormerName]` on a member of a type that is not keyed |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -148,7 +149,15 @@ written as its raw memory (1 byte) and is not reported.
 ### NINO014
 
 Keyed members (`keyed: true`) are identified by a 32-bit hash of their name, inherited members included; two names
-collide. Rename one of them.
+collide. Rename one of them. A member's `[NinoFormerName]`s are keys too: a former name that is another member's
+current or former name (or hashes like one) would make old data ambiguous, and is reported on the member that
+claims it second. A former name equal to the member's own name is ignored.
+
+### NINO024
+
+Member-level `[NinoFormerName]` lets keyed types read data written before a member was renamed. Positional and
+version-tolerant types write no member names (members are matched by position), so there it has no effect. Remove
+it, or make the type `keyed`.
 
 ### NINO015
 

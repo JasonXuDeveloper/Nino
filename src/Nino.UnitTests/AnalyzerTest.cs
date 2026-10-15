@@ -1466,7 +1466,7 @@ public sealed class EmptyClass
 
     #endregion
 
-    #region Features (NINO014-NINO017)
+    #region Features (NINO014-NINO017, NINO024)
 
     [TestMethod]
     public async Task NINO014_KeyCollision()
@@ -1523,6 +1523,66 @@ public class {|#0:Derived|} : Base
         // Inherited members share the key space; only the type that has both reports.
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO014").WithLocation(0).WithArguments("dzFy", "zsaa", "Derived")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO014_FormerNameCollision()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType(keyed: true)]
+public class TestClass
+{
+    [NinoFormerName(""B"")] public int {|#0:A|};
+    public int B;
+    [NinoFormerName(""Old"")] public int C { get; set; }
+    [NinoFormerName(""Old"")] public int {|#1:D|} { get; set; }
+}
+
+[NinoType(keyed: true)]
+public class NoCollision
+{
+    [NinoFormerName(""A"")] [NinoFormerName(""Older"")] [NinoFormerName(""Older"")] public int A;
+    [NinoFormerName(""Hp"")] [NinoFormerName(""Health"")] public int HitPoints;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO014").WithLocation(0).WithArguments("B", "A (former name 'B')", "TestClass"),
+            Verify.Diagnostic("NINO014").WithLocation(1)
+                .WithArguments("C (former name 'Old')", "D (former name 'Old')", "TestClass")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO024_FormerNameNotKeyed()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class Positional
+{
+    [NinoFormerName(""Hp"")] public int {|#0:Health|};
+}
+
+[NinoType(versionTolerant: true)]
+public struct Tolerant
+{
+    [NinoFormerName(""Hp"")] public int {|#1:Health|} { get; set; }
+}
+
+[NinoFormerName(""Old.Name"")]
+[NinoType(keyed: true)]
+public class Keyed
+{
+    [NinoFormerName(""Hp"")] public int Health;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO024").WithLocation(0).WithArguments("Health", "Positional"),
+            Verify.Diagnostic("NINO024").WithLocation(1).WithArguments("Health", "Tolerant")).RunAsync();
     }
 
     [TestMethod]

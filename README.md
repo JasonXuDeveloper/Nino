@@ -49,7 +49,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
   cycles. All are opt-in per type, so types that don't use them pay nothing.
 - **One format everywhere.** `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` write identical bytes,
   so a Unity client and a .NET server talk to each other directly.
-- **Mistakes caught while you type.** 23 analyzer diagnostics (NINO001–NINO023), many with a one-click fix.
+- **Mistakes caught while you type.** 24 analyzer diagnostics (NINO001–NINO024), many with a one-click fix.
 
 ## Built for
 
@@ -123,8 +123,8 @@ snapshot.ReturnToPool();
 ### Data that changes over time
 
 ```csharp
-[NinoType(keyed: true)]            // members are matched by name: add, reorder or remove them
-public class SaveGame { public int Level; public string Hero; }
+[NinoType(keyed: true)]            // members are matched by name: add, reorder, remove or rename them
+public class SaveGame { [NinoFormerName("Lvl")] public int Level; public string Hero; }
 
 [NinoType(trackReferences: true)]  // shared references and cycles survive a round trip
 public class Node { public string Name; public List<Node> Links; }

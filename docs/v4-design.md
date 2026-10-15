@@ -193,6 +193,11 @@ header | int32 bodyLength | { int32 key, int32 length, value }*
 * Cost: 8 bytes per member. On an 8-member class (net8, no tiering) serialize takes about 1.3x and
   deserialize about 1.2x the positional time, while staying faster than MemoryPack's positional mode.
 * A member-name hash collision within one type is a compile-time error (NINO014), so it cannot corrupt data.
+* Renamed members: `[NinoFormerName("Old")]` on a field or property (once per earlier name) adds the former
+  name's key as an extra `case` of the fallback `switch`; writes and the in-order path use the current name only,
+  so members without the attribute cost nothing and renamed ones only reach the fallback when reading old data.
+  Former names take part in the collision check (NINO014). Positional and version-tolerant types write no
+  names, so there the attribute is a warning (NINO024).
 
 ### Reference tracking
 

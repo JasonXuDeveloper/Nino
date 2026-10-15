@@ -59,6 +59,8 @@ internal sealed record MemberModel(
     string SourceName,
     // Id of the member in keyed bodies: the hash of its name.
     int Key,
+    // Keys of its [NinoFormerName]s (keyed bodies only), also accepted when reading.
+    EquatableArray<int> FormerKeys,
     string TypeName,
     string Formatter,
     // Set when the member is written raw as part of an unmanaged block, otherwise null.

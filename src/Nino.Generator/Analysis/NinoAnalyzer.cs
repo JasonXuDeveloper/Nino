@@ -25,6 +25,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         NinoDiagnostics.SubTypeWithoutNinoType,
         NinoDiagnostics.RedundantMember,
         NinoDiagnostics.RedundantIgnore,
+        NinoDiagnostics.FormerNameNotKeyed,
         NinoDiagnostics.AmbiguousMember,
         NinoDiagnostics.PrivateMember,
         NinoDiagnostics.DuplicateIndex,

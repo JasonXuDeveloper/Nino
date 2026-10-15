@@ -43,7 +43,7 @@
 - **线程安全。** 任意多个线程同时序列化、反序列化，热路径上没有锁。
 - **数据可以演进。** 版本兼容、keyed 成员、引用追踪（共享引用和循环引用），都按类型按需开启，不用的类型零开销。
 - **处处同一格式。** `netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 写出的字节完全一致，Unity 客户端和 .NET 服务端可以直接互通。
-- **写代码时就发现错误。** 23 条分析器诊断（NINO001–NINO023），多数带一键修复。
+- **写代码时就发现错误。** 24 条分析器诊断（NINO001–NINO024），多数带一键修复。
 
 ## 适用场景
 
@@ -117,8 +117,8 @@ snapshot.ReturnToPool();
 ### 会变化的数据
 
 ```csharp
-[NinoType(keyed: true)]            // 按成员名匹配：可以增加、调整顺序、删除成员
-public class SaveGame { public int Level; public string Hero; }
+[NinoType(keyed: true)]            // 按成员名匹配：可以增加、调整顺序、删除、重命名成员
+public class SaveGame { [NinoFormerName("Lvl")] public int Level; public string Hero; }
 
 [NinoType(trackReferences: true)]  // 共享引用和循环引用在往返后保持不变
 public class Node { public string Name; public List<Node> Links; }

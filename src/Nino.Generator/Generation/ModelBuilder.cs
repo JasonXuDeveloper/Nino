@@ -142,6 +142,7 @@ internal static class ModelBuilder
 
         if (attr.Keyed && diagnostics != null)
         {
+            // Current names first, so a former name that collides names the member it collides with.
             var seen = new Dictionary<int, string>();
             foreach (var member in members)
             {
@@ -149,6 +150,37 @@ internal static class ModelBuilder
                     diagnostics.Report(NinoDiagnostics.KeyCollision, type, other, member.Name, type.ToDisplayString());
                 else
                     seen[member.Key] = member.Name;
+            }
+
+            for (int i = 0; i < members.Count; i++)
+            {
+                var member = members[i];
+                if (member.FormerKeys.Length == 0)
+                    continue;
+                var claimed = new HashSet<int> { member.Key };
+                foreach (var former in NinoSymbols.StringArguments(memberSymbols[i], known.FormerName))
+                {
+                    int formerKey = ComputeId(member.Name == member.SourceName
+                        ? former
+                        : $"{memberSymbols[i].ContainingType.Name}.{former}");
+                    if (!claimed.Add(formerKey))
+                        continue;
+                    string label = $"{member.Name} (former name '{former}')";
+                    if (seen.TryGetValue(formerKey, out var other))
+                        diagnostics.Report(NinoDiagnostics.KeyCollision, memberSymbols[i], other, label,
+                            type.ToDisplayString());
+                    else
+                        seen[formerKey] = label;
+                }
+            }
+        }
+        else if (!attr.Keyed && diagnostics != null)
+        {
+            // Only keyed bodies write member names; elsewhere a member's former name means nothing.
+            foreach (var symbol in type.GetMembers())
+            {
+                if (symbol is IFieldSymbol or IPropertySymbol && NinoSymbols.Has(symbol, known.FormerName))
+                    diagnostics.Report(NinoDiagnostics.FormerNameNotKeyed, symbol, symbol.Name, type.ToDisplayString());
             }
         }
 
@@ -419,11 +451,23 @@ internal static class ModelBuilder
         int typeId = registered && raw == null ? facts.TypeId(memberType) : 0;
         string name = renamed == 0 ? symbol.Name : $"{symbol.Name}__{renamed}";
         // Keyed: a renamed member's key is its declaring type's name with its own.
-        int key = ComputeId(renamed == 0 ? symbol.Name : $"{declaring.Name}.{symbol.Name}");
-        return new MemberModel(name, symbol.Name, key, Global(memberType), formatter, raw,
+        int key = ComputeId(KeyName(symbol.Name, renamed, declaring));
+        var formerKeys = EquatableArray<int>.Empty;
+        if (type.GetNinoTypeOptions()?.Keyed == true)
+        {
+            formerKeys = new EquatableArray<int>(NinoSymbols.StringArguments(symbol, known.FormerName)
+                .Select(former => ComputeId(KeyName(former, renamed, declaring)))
+                .Where(former => former != key)
+                .Distinct());
+        }
+
+        return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter, raw,
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
             Visibility.IsConstructionOnly(symbol), false, typeId);
     }
+
+    private static string KeyName(string name, int renamed, INamedTypeSymbol declaring) =>
+        renamed == 0 ? name : $"{declaring.Name}.{name}";
 
     /// <summary>How many more derived members of the same name are serialized after <c>symbols[index]</c>.</summary>
     private static int DerivedSameNamed(MemberList symbols, int index)

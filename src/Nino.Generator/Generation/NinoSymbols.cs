@@ -76,6 +76,22 @@ internal sealed class NinoSymbols
 
     public static bool Has(ISymbol symbol, INamedTypeSymbol? attribute) => Get(symbol, attribute) != null;
 
+    /// <summary>The string arguments of every <paramref name="attribute"/> applied to <paramref name="symbol"/>.</summary>
+    public static List<string> StringArguments(ISymbol symbol, INamedTypeSymbol? attribute)
+    {
+        var values = new List<string>();
+        if (attribute == null)
+            return values;
+        foreach (var data in symbol.GetAttributes())
+        {
+            if (SymbolEqualityComparer.Default.Equals(data.AttributeClass, attribute) &&
+                data.ConstructorArguments.FirstOrDefault().Value is string value)
+                values.Add(value);
+        }
+
+        return values;
+    }
+
     /// <summary>
     /// The C# 11 <c>required</c> members the type and its bases declare, which <c>new T()</c> must set in its object
     /// initializer unless the constructor is <c>[SetsRequiredMembers]</c>. <c>IsRequired</c> is read by reflection:

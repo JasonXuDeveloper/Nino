@@ -83,6 +83,10 @@ internal static class NinoDiagnostics
     public static readonly DiagnosticDescriptor KeyCollision = Error("NINO014", "Member key collision",
         "Members '{0}' and '{1}' of keyed NinoType '{2}' hash to the same key; rename one of them");
 
+    public static readonly DiagnosticDescriptor FormerNameNotKeyed = Warning("NINO024",
+        "[NinoFormerName] on a member has no effect in a positional type",
+        "[NinoFormerName] on member '{0}' has no effect: '{1}' is not keyed, so member names are not written; remove it, or make the type keyed");
+
     public static readonly DiagnosticDescriptor TrackReferencesOnStruct = Warning("NINO015",
         "trackReferences on a struct", "'{0}' is a struct; trackReferences only applies to classes and is ignored");
 

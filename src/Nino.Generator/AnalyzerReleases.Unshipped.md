@@ -28,3 +28,4 @@ NINO020 | Nino | Error | Invalid formatter registration
 NINO021 | Nino | Error | NinoConstructor is not accessible
 NINO022 | Nino | Warning | Hidden member cannot be serialized
 NINO023 | Nino | Error | Struct serializes no member
+NINO024 | Nino | Warning | [NinoFormerName] on a member has no effect in a positional type
