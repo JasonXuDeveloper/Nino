@@ -218,6 +218,37 @@ internal static class ModelBuilder
             }
         }
 
+        // The topmost base class of this assembly whose formatter dispatches subtypes: this type's subtypes are
+        // dispatched there, so each subtype is listed once per hierarchy rather than once per ancestor.
+        string dispatchRoot = "", dispatchRootFormatter = "";
+        if (type.TypeKind == TypeKind.Class && !generic && !trackReferences)
+        {
+            for (var b = type.BaseType; b != null; b = b.BaseType)
+            {
+                if (b.IsNinoType() && !b.IsSealed && !b.IsGenericType && Visibility.IsEligible(b) &&
+                    SymbolEqualityComparer.Default.Equals(b.ContainingAssembly, type.ContainingAssembly) &&
+                    !IsTracked(b))
+                {
+                    dispatchRoot = Global(b);
+                    dispatchRootFormatter = FormatterName(b);
+                }
+            }
+        }
+
+        var baseClasses = new List<string>();
+        for (var b = type.BaseType; b != null; b = b.BaseType)
+        {
+            if (b.IsNinoType())
+                baseClasses.Add(Global(b));
+        }
+
+        var interfaces = new List<string>();
+        foreach (var i in type.AllInterfaces)
+        {
+            if (i.IsNinoType())
+                interfaces.Add(Global(i));
+        }
+
         return new TypeModel(
             Global(type),
             FormatterName(type),
@@ -247,6 +278,10 @@ internal static class ModelBuilder
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
             new EquatableArray<ClosedTypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
+            dispatchRoot,
+            dispatchRootFormatter,
+            new EquatableArray<string>(baseClasses),
+            new EquatableArray<string>(interfaces),
             pooled,
             partialNamespace,
             new EquatableArray<string>(partialDeclarations));

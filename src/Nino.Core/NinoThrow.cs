@@ -66,6 +66,11 @@ namespace Nino.Core
                 "go through types marked [NinoType(trackReferences: true)].");
 
         [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void NotASubtype(Type declaredType, Type actualType) =>
+            throw new InvalidOperationException(
+                $"Nino: the data holds a {actualType.FullName} where a {declaredType.FullName} is expected.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static void ReferenceTypeMismatch(Type expected, Type actual) =>
             throw new InvalidOperationException(
                 $"Nino: object reference to a {actual?.FullName} where a {expected.FullName} is expected.");

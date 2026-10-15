@@ -363,11 +363,27 @@ adopts a subtype from the global registry on its first lookup after checking tha
 Registering per type instead of per (base, subtype) pair keeps generated code linear in the number of types
 rather than in the sum of hierarchy depths, and avoids one generic instantiation per pair.
 
-* **Serialize**: if `value.GetType() == typeof(TBase)`, write the base body directly. Otherwise look up the
-  runtime type in a lock-free open-addressing table and call the subtype's body serializer through its
+* **Generated dispatch (fast path)**: the topmost dispatching class of each hierarchy in an assembly (and each
+  `[NinoType]` interface) gets two methods, emitted with the registry (`NinoGen.Dispatch.g.cs`), that list the
+  subtypes declared in the same assembly (non-generic, not tracked). Classes below the root call the root's.
+  * Serialize: a chain of `value.GetType() == typeof(Sub)` checks, each one method table compare, writing the
+    subtype's id and body directly (up to 64 subtypes; beyond, the registry). With 20 subtypes this writes 1.3x
+    as fast as the registry when the subtypes repeat in a fixed order, and 3x when they come in random order.
+  * Deserialize: `switch (id)` over the subtype ids, each case reading the subtype's body (not inlined, so the
+    switch stays small). The ids are hashes, so the switch is a binary search of conditional branches. In random
+    order this reads 1.5x as fast as the registry, whose indirect call mispredicts; a perfect hash with a dense
+    switch (an indirect jump) was measured too and mispredicts the same way. When the subtypes repeat in a fixed
+    cycle the registry's indirect call is perfectly predicted and the switch is about 10% slower.
+  * A class below the root reads through the root's switch and then checks that the type the data named is one
+    of its own (`NinoObject.EnsureSubtype`), so data naming a sibling type throws instead of being stored.
+  * Each subtype costs two lines per hierarchy (not per ancestor), so generated code stays linear in the number of
+    types: the 330-type workload grows by 8%.
+* **Serialize (registry)**: other subtypes (other assemblies, closed generics, tracked types, more than 64): look up
+  the runtime type in a lock-free open-addressing table and call the subtype's body serializer through its
   handler.
-* **Deserialize**: read the type id and look it up in a second open-addressing table keyed by id. Unknown
-  ids trigger lazy initialization of not-yet-loaded generated registries before failing.
+* **Deserialize (registry)**: the switch's default case reads the type id's handler from a second
+  open-addressing table keyed by id. Unknown ids trigger lazy initialization of not-yet-loaded generated
+  registries before failing.
 * **Generic `[NinoType]`s** have one formatter definition and no registration of their own, so each closed type
   (`Box<int>`) is registered by id like a non-generic type, from three sources:
   1. The generator registers every closed generic `[NinoType]` its compilation names: member types (including

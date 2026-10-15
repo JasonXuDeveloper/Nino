@@ -128,6 +128,13 @@ internal sealed record TypeModel(
     EquatableArray<FactoryRegistration> UsedFactories,
     // Closed generic [NinoType]s the type names (member types, base types), registered by type id.
     EquatableArray<ClosedTypeRegistration> UsedGenericTypes,
+    // The topmost base class of this assembly that dispatches subtypes (and its formatter), or "": a dispatching
+    // type below it uses its dispatch.
+    string DispatchRoot,
+    string DispatchRootFormatter,
+    // The [NinoType] base classes (nearest first) and interfaces (global names), for the subtype dispatch.
+    EquatableArray<string> NinoBaseClasses,
+    EquatableArray<string> NinoInterfaces,
     // [NinoPooled]: instances are taken from NinoPool<T> before being created, and the partial adds the pool hooks.
     bool Pooled,
     // Namespace and containing declarations of the generated partial (accessor class, pool hooks); empty when
@@ -136,6 +143,20 @@ internal sealed record TypeModel(
     EquatableArray<string> PartialDeclarations)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
+
+    /// <summary>
+    /// Whether the formatter dispatches its subtypes through generated code (<c>__WriteSubtype</c> and
+    /// <c>__ReadSubtype</c>, emitted with the registry) before falling back to <c>NinoPolymorphic</c>.
+    /// </summary>
+    public bool DispatchesSubtypes =>
+        !IsGeneric && !TrackReferences && Kind is FormatterKind.Polymorphic or FormatterKind.Class;
+
+    /// <summary>Whether this type's formatter holds the dispatch of its hierarchy (emitted with the registry).</summary>
+    public bool IsDispatchRoot => DispatchesSubtypes && DispatchRoot.Length == 0;
+
+    /// <summary>Whether bases in this assembly dispatch to this type directly.</summary>
+    public bool IsDispatchTarget =>
+        !IsGeneric && !TrackReferences && Kind is FormatterKind.Class or FormatterKind.SealedClass;
 
     /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
     public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
@@ -160,6 +181,10 @@ internal sealed record UsageRegistration(FormatterRegistration? Formatter, Equat
 
 // A generated formatter, as the registry lists it. Arity: its number of type parameters (0 if not generic).
 internal sealed record RegistryEntry(string FormatterName, int Arity, int TypeId, int NameId);
+
+// A type in the per-assembly subtype dispatch: a base (DispatchesSubtypes), a target (IsDispatchTarget), or both.
+internal sealed record DispatchEntry(string TypeName, string FormatterName, int TypeId, bool IsBase, bool IsTarget,
+    EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces);
 
 // RegisteringReferences: one formatter (open name) of each referenced assembly that registers formatters.
 internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,

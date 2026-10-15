@@ -38,7 +38,7 @@ internal static class FormatterEmitter
         if (m.RawStruct)
             iface += $", {Core}INinoRawFormatter";
 
-        w.Open($"internal struct {self} : {iface}{m.Constraints}");
+        w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.Constraints}");
         var body = new BodyEmitter(m, w, names);
 
         // The forwarders and TypeId are a few bytes of IL, which every runtime inlines without being told to;
@@ -50,8 +50,7 @@ internal static class FormatterEmitter
                 EmitEntryPoints(w, m, $"{Core}NinoPolymorphic<{t}>.SerializeReferenced(value, ref writer)",
                     $"{Core}NinoPolymorphic<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
             else
-                EmitEntryPoints(w, m, $"default({Core}PolymorphicFormatter<{t}>).Serialize(value, ref writer)",
-                    $"default({Core}PolymorphicFormatter<{t}>).Deserialize(ref value, ref reader)");
+                EmitDispatchingEntryPoints(w, m, ownId: false);
             w.Line();
             if (m.EmitMembers)
             {
@@ -84,6 +83,9 @@ internal static class FormatterEmitter
             case FormatterKind.Class when m.TrackReferences:
                 EmitEntryPoints(w, m, $"{Core}NinoObject.SerializeReferenced<{t}, {self}>(value, ref writer)",
                     $"{Core}NinoObject.DeserializeReferenced<{t}, {self}>(ref value, ref reader)");
+                break;
+            case FormatterKind.Class when m.DispatchesSubtypes:
+                EmitDispatchingEntryPoints(w, m, ownId: true);
                 break;
             default:
                 EmitEntryPoints(w, m, $"{Core}NinoObject.Serialize<{t}, {self}>(value, ref writer)",
@@ -151,6 +153,32 @@ internal static class FormatterEmitter
             w.Line($"{read};");
             w.Line("reader.EndReference(__index, value);");
         });
+    }
+
+    /// <summary>
+    /// Type id (0 = null) and body. A class's own type is checked first; subtypes go through the generated dispatch
+    /// (<see cref="DispatchEmitter"/>).
+    /// </summary>
+    private static void EmitDispatchingEntryPoints(CodeWriter w, TypeModel m, bool ownId)
+    {
+        string t = m.TypeName;
+        string self = m.FormatterName;
+        // The root's dispatch covers every subtype of this class. Writing needs nothing more (its checks are exact);
+        // reading checks that the type the data named is one of this class.
+        bool root = m.IsDispatchRoot;
+        string write = root ? "__WriteSubtype(value, ref writer)" : $"{m.DispatchRootFormatter}.__WriteSubtype(value, ref writer)";
+        string read = root
+            ? "__ReadSubtype(id, ref value, ref reader);"
+            : $"{m.DispatchRootFormatter}.__ReadSubtype(id, ref {Core}NinoObject.AsBaseSlot<{t}, {m.DispatchRoot}>(ref value), ref reader); {Core}NinoObject.EnsureSubtype<{t}>(value);";
+        w.Line($"public void Serialize({t} value, ref {Core}Writer writer)");
+        w.Indented(() => w.Line(ownId
+            ? $"{{ if (!{Core}NinoObject.TryWriteOwn<{t}, {self}>(value, ref writer)) {write}; }}"
+            : $"{{ if (value == null) writer.UnsafeWrite(0); else {write}; }}"));
+        w.Line();
+        w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader)");
+        w.Indented(() => w.Line(ownId
+            ? $"{{ int id = reader.UnsafeRead<int>(); if (!{Core}NinoObject.TryReadOwn<{t}, {self}>(id, ref value, ref reader)) {{ {read} }} }}"
+            : $"{{ int id = reader.UnsafeRead<int>(); {read} }}"));
     }
 
     private static void EmitRegister(CodeWriter w, TypeModel m)

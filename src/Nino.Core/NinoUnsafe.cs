@@ -10,6 +10,10 @@ namespace Nino.Core
     /// </summary>
     public static class NinoUnsafe
     {
+        /// <summary>Reinterprets a reference the caller has type checked (no cast check).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T As<T>(object value) where T : class => Unsafe.As<T>(value);
+
 #if NET5_0_OR_GREATER
         /// <summary>
         /// Smallest array (in bytes) worth allocating uninitialized: below it the runtime zeroes the memory anyway

@@ -156,6 +156,17 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(formatters, creators, closed));
             });
 
+        // Bases dispatch the subtypes of this assembly through generated code; any other subtype through the registry.
+        var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName, m.TypeId,
+                m.IsDispatchRoot, m.IsDispatchTarget, m.NinoBaseClasses, m.NinoInterfaces))
+            .Select(static (x, _) => new EquatableArray<DispatchEntry>(x.Where(static e => e.IsBase || e.IsTarget)
+                .Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)));
+        context.RegisterImplementationSourceOutput(dispatch.Combine(enabled), static (spc, x) =>
+        {
+            if (x.Right)
+                spc.AddSource("NinoGen.Dispatch.g.cs", DispatchEmitter.Emit(x.Left));
+        });
+
         context.RegisterImplementationSourceOutput(entries.Combine(options).Combine(enabled), static (spc, x) =>
         {
             var ((list, opts), on) = x;
