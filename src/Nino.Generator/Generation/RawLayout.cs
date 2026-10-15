@@ -58,7 +58,7 @@ internal static class RawLayout
 
         if (type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } named)
             return false;
-        switch (FormatterResolver.MetadataName(named.OriginalDefinition))
+        switch (TypeNames.MetadataName(named.OriginalDefinition))
         {
             case "System.TimeSpan":
                 return Primitive(8, cap, baseOffset, offsets, out size, out align);

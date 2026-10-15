@@ -197,7 +197,6 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     private static FormatterRegistration? TransformUsage(GeneratorSyntaxContext ctx, CancellationToken ct)
     {
-        ModelBuilder.ResetMemo();
         if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol { IsGenericMethod: true } method)
             return null;
         var owner = method.ContainingType;
@@ -207,12 +206,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var type = method.TypeArguments[0];
         if (ContainsTypeParameter(type))
             return null;
-        bool weak = ctx.SemanticModel.SyntaxTree.Options.PreprocessorSymbolNames
-            .Contains(NinoTypeHelper.WeakVersionToleranceSymbol);
-        var assembly = ctx.SemanticModel.Compilation.Assembly;
-        var formatter = new FormatterResolver(assembly, weak).Resolve(type, false);
-        if (formatter == null || !ModelBuilder.IsBuiltInFormatter(formatter) ||
-            FormatterResolver.IsRawUnmanaged(type, weak ? assembly : null))
+        var facts = new TypeFacts(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
+        var formatter = new FormatterResolver(facts).Resolve(type, false);
+        if (formatter == null || !ModelBuilder.IsBuiltInFormatter(formatter) || facts.IsRawUnmanaged(type))
             return null;
         return new FormatterRegistration(TypeNames.Global(type), formatter,
             TypeNames.ComputeId(TypeNames.RuntimeName(type)));

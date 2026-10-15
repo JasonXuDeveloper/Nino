@@ -10,25 +10,12 @@ namespace Nino.Generator.Generation;
 internal sealed class FormatterResolver
 {
     private const string Core = "global::Nino.Core.";
-    private readonly IAssemblySymbol _assembly;
-    // The assembly compiled with WEAK_VERSION_TOLERANCE, if any: its types are all version tolerant.
-    private readonly IAssemblySymbol? _weakAssembly;
+    private readonly TypeFacts _facts;
 
-    public FormatterResolver(IAssemblySymbol assembly, bool weakTolerance)
-    {
-        _assembly = assembly;
-        _weakAssembly = weakTolerance ? assembly : null;
-    }
+    public FormatterResolver(TypeFacts facts) => _facts = facts;
 
     public static string Cached(ITypeSymbol type) => $"{Core}CachedFormatter<{TypeNames.Global(type)}>";
 
-    /// <summary>Whether this compilation generates a formatter for <paramref name="type"/>.</summary>
-    public bool IsGeneratedHere(INamedTypeSymbol type)
-    {
-        var definition = type.OriginalDefinition;
-        return SymbolEqualityComparer.Default.Equals(definition.ContainingAssembly, _assembly) &&
-               ModelBuilder.IsEligible(definition) && definition.IsNinoType();
-    }
 
     public static string GeneratedFormatter(INamedTypeSymbol type)
     {
@@ -37,30 +24,6 @@ internal sealed class FormatterResolver
         return args.Count == 0 ? name : $"{name}<{string.Join(", ", args.Select(TypeNames.Global))}>";
     }
 
-    /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
-    public static bool IsRawUnmanaged(ITypeSymbol type, IAssemblySymbol? weakAssembly)
-    {
-        if (type is ITypeParameterSymbol || !type.IsUnmanagedType)
-            return false;
-        if (type.IsNinoType())
-            return type is INamedTypeSymbol ninoStruct && ModelBuilder.IsRawStruct(ninoStruct, weakAssembly);
-        if (type.SpecialType is SpecialType.System_IntPtr or SpecialType.System_UIntPtr || type is IPointerTypeSymbol)
-            return false; // pointer-sized: written as 8 bytes
-        if (type is INamedTypeSymbol named)
-        {
-            if (named.IsTupleType)
-                return false;
-            var definition = named.OriginalDefinition;
-            if (definition.SpecialType == SpecialType.System_Nullable_T)
-                return false;
-            var name = MetadataName(definition);
-            if (name == "System.Collections.Generic.KeyValuePair`2" || name.StartsWith("System.ValueTuple`") ||
-                name == "System.DateTimeOffset")
-                return false;
-        }
-
-        return true;
-    }
 
     /// <summary>Size expression of a raw unmanaged type.</summary>
     public static string RawSize(ITypeSymbol type)
@@ -91,16 +54,6 @@ internal sealed class FormatterResolver
             default:
                 return $"{Core}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()";
         }
-    }
-
-    public static string MetadataName(INamedTypeSymbol definition)
-    {
-        var ns = definition.ContainingNamespace;
-        var nsName = TypeNames.Namespace(ns);
-        var prefix = nsName.Length == 0 ? "" : nsName + ".";
-        return definition.ContainingType != null
-            ? MetadataName(definition.ContainingType) + "+" + definition.MetadataName
-            : prefix + definition.MetadataName;
     }
 
     /// <summary>
@@ -151,10 +104,10 @@ internal sealed class FormatterResolver
         var e = TypeNames.Global(element);
         if (array.IsSZArray)
         {
-            if (IsRawUnmanaged(element, _weakAssembly))
+            if (_facts.IsRawUnmanaged(element))
                 return $"{Core}UnmanagedArrayFormatter<{e}>";
             if (element is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable &&
-                IsRawUnmanaged(nullable.TypeArguments[0], _weakAssembly))
+                _facts.IsRawUnmanaged(nullable.TypeArguments[0]))
                 return $"{Core}NullableArrayFormatter<{TypeNames.Global(nullable.TypeArguments[0])}>";
             return $"{Core}ArrayFormatter<{e}, {Element(element, utf8)}>";
         }
@@ -185,11 +138,11 @@ internal sealed class FormatterResolver
                 return $"{Core}UIntPtrFormatter";
         }
 
-        if (MetadataName(type.OriginalDefinition) == "System.DateTimeOffset")
+        if (TypeNames.MetadataName(type.OriginalDefinition) == "System.DateTimeOffset")
             return $"{Core}DateTimeOffsetFormatter";
 
         var t = TypeNames.Global(type);
-        if (IsRawUnmanaged(type, _weakAssembly))
+        if (_facts.IsRawUnmanaged(type))
             return $"{Core}UnmanagedFormatter<{t}>";
 
         if (type.IsTupleType && type.TupleUnderlyingType is { } underlying)
@@ -201,7 +154,7 @@ internal sealed class FormatterResolver
 
         if (type.IsGenericType)
         {
-            var definition = MetadataName(type.OriginalDefinition);
+            var definition = TypeNames.MetadataName(type.OriginalDefinition);
             switch (definition)
             {
                 case "System.Nullable`1":
@@ -264,7 +217,7 @@ internal sealed class FormatterResolver
         // Checked after the built-in generics: walking the base types and interfaces of BCL instantiations
         // (List<T>, Dictionary<K, V>...) is the most expensive part of a model build.
         if (type.IsNinoType())
-            return IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type);
+            return _facts.IsGeneratedHere(type) ? GeneratedFormatter(type) : Cached(type);
 
         return ResolveUserCollection(type, t, utf8);
     }
@@ -288,7 +241,7 @@ internal sealed class FormatterResolver
                 if (!b.IsGenericType)
                     continue;
                 var ba = b.TypeArguments;
-                switch (MetadataName(b.OriginalDefinition))
+                switch (TypeNames.MetadataName(b.OriginalDefinition))
                 {
                     case "System.Collections.Generic.List`1":
                         return List(t, ba[0], utf8);
@@ -300,7 +253,7 @@ internal sealed class FormatterResolver
             }
 
             var dictionary = type.AllInterfaces.FirstOrDefault(i =>
-                MetadataName(i.OriginalDefinition) == "System.Collections.Generic.IDictionary`2");
+                TypeNames.MetadataName(i.OriginalDefinition) == "System.Collections.Generic.IDictionary`2");
             if (dictionary != null)
             {
                 var da = dictionary.TypeArguments;
@@ -308,12 +261,12 @@ internal sealed class FormatterResolver
             }
 
             var producer = type.AllInterfaces.FirstOrDefault(i =>
-                MetadataName(i.OriginalDefinition) == "System.Collections.Concurrent.IProducerConsumerCollection`1");
+                TypeNames.MetadataName(i.OriginalDefinition) == "System.Collections.Concurrent.IProducerConsumerCollection`1");
             if (producer != null)
                 return $"{Core}ProducerConsumerFormatter<{t}, {TypeNames.Global(producer.TypeArguments[0])}, {Element(producer.TypeArguments[0], utf8)}>";
 
             var collection = type.AllInterfaces.FirstOrDefault(i =>
-                MetadataName(i.OriginalDefinition) == "System.Collections.Generic.ICollection`1");
+                TypeNames.MetadataName(i.OriginalDefinition) == "System.Collections.Generic.ICollection`1");
             if (collection != null)
                 return $"{Core}CollectionFormatter<{t}, {TypeNames.Global(collection.TypeArguments[0])}, {Element(collection.TypeArguments[0], utf8)}>";
         }
@@ -325,10 +278,10 @@ internal sealed class FormatterResolver
     {
         element = element.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
         var e = TypeNames.Global(element);
-        if (IsRawUnmanaged(element, _weakAssembly))
+        if (_facts.IsRawUnmanaged(element))
             return $"{Core}UnmanagedListFormatter<{listType}, {e}>";
         if (element is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable &&
-            IsRawUnmanaged(nullable.TypeArguments[0], _weakAssembly))
+            _facts.IsRawUnmanaged(nullable.TypeArguments[0]))
             return $"{Core}NullableListFormatter<{listType}, {TypeNames.Global(nullable.TypeArguments[0])}>";
         return $"{Core}ListFormatter<{listType}, {e}, {Element(element, utf8)}>";
     }

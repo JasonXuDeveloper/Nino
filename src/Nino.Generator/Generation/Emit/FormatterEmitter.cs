@@ -37,8 +37,6 @@ internal static class FormatterEmitter
         if (m.RawStruct)
             iface += $", {Core}INinoRawFormatter";
 
-        w.Line($"/// <summary>Nino formatter for <c>{EscapeXml(t.Replace("global::", ""))}</c>.</summary>");
-        w.Line("[global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
         w.Open($"internal struct {self} : {iface}{m.Constraints}");
         var body = new BodyEmitter(m, w, names);
 
@@ -110,15 +108,12 @@ internal static class FormatterEmitter
         if (m.IsGeneric)
         {
             w.Line($"private static readonly int s_typeId = {Core}NinoTypeId.Of(typeof({m.TypeName}));");
-            w.Line();
-            w.Block("public int TypeId", () => w.Line("get => s_typeId;"));
+            w.Line("public int TypeId => s_typeId;");
             return;
         }
 
-        w.Line($"/// <summary>FNV-1a of \"{EscapeXml(m.IdName)}\".</summary>");
-        w.Line($"public const int Id = {m.TypeId};");
-        w.Line();
-        w.Block("public int TypeId", () => w.Line("get => Id;"));
+        w.Line($"public const int Id = {m.TypeId}; // FNV-1a of \"{EscapeString(m.IdName)}\"");
+        w.Line("public int TypeId => Id;");
     }
 
     /// <summary>Serialize/Deserialize forwarding to the given calls, behind a reference header when tracked.</summary>

@@ -27,6 +27,17 @@ internal static class TypeNames
         return parent.Length == 0 ? ns.Name : parent + "." + ns.Name;
     }
 
+    /// <summary>Metadata name, e.g. <c>System.Collections.Generic.List`1</c>; nested types joined by <c>+</c>.</summary>
+    public static string MetadataName(INamedTypeSymbol definition)
+    {
+        var ns = definition.ContainingNamespace;
+        var nsName = Namespace(ns);
+        var prefix = nsName.Length == 0 ? "" : nsName + ".";
+        return definition.ContainingType != null
+            ? MetadataName(definition.ContainingType) + "+" + definition.MetadataName
+            : prefix + definition.MetadataName;
+    }
+
     private static string Escape(string name) =>
         Microsoft.CodeAnalysis.CSharp.SyntaxFacts.GetKeywordKind(name) != Microsoft.CodeAnalysis.CSharp.SyntaxKind.None
             ? "@" + name
