@@ -187,7 +187,8 @@ namespace Nino.Core
 
         private static bool IsRawUnmanaged(Type type)
         {
-            if (!NinoUnsafe.IsUnmanaged(type) || IsNinoType(type))
+            if (!NinoUnsafe.IsUnmanaged(type) || IsNinoType(type) || type == typeof(IntPtr) ||
+                type == typeof(UIntPtr) || type == typeof(DateTimeOffset) || type.IsPointer)
                 return false;
             if (type.IsGenericType)
             {
@@ -206,6 +207,12 @@ namespace Nino.Core
                 return typeof(StringFormatter);
             if (type == typeof(object))
                 return typeof(PolymorphicFormatter<object>);
+            if (type == typeof(IntPtr))
+                return typeof(IntPtrFormatter);
+            if (type == typeof(UIntPtr))
+                return typeof(UIntPtrFormatter);
+            if (type == typeof(DateTimeOffset))
+                return typeof(DateTimeOffsetFormatter);
 
             if (type.IsArray)
             {

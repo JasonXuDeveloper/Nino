@@ -45,6 +45,7 @@ namespace Nino.Core
             {
                 var bytes = new byte[Unsafe.SizeOf<T>()];
                 NinoUnsafe.Write(ref bytes[0], value);
+                NinoLayout<T>.ClearPadding(ref bytes[0]);
                 return bytes;
             }
 
@@ -70,6 +71,8 @@ namespace Nino.Core
         private static class RawArray<T>
         {
             public static readonly int ElementSize = Compute();
+
+            public static readonly INinoRawArrayFormatter? Padded = ElementSize == 0 ? null : NinoFormatterCache<T>.Instance.RawArrayPadding;
 
             private static int Compute()
             {
@@ -98,8 +101,14 @@ namespace Nino.Core
             ref byte dst = ref NinoUnsafe.GetArrayDataReference(bytes);
             NinoUnsafe.Write(ref dst, length);
             if (size != 0)
-                Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref dst, 4), ref NinoUnsafe.GetArrayDataReference(array),
-                    (uint)size);
+            {
+                ref byte src = ref NinoUnsafe.GetArrayDataReference(array);
+                if (RawArray<T>.Padded is { } padded)
+                    padded.CopyToWire(ref Unsafe.Add(ref dst, 4), ref src, length);
+                else
+                    Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref dst, 4), ref src, (uint)size);
+            }
+
             return bytes;
         }
 
@@ -145,7 +154,7 @@ namespace Nino.Core
         {
             if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && NinoRaw<T>.IsRaw)
             {
-                writer.UnsafeWrite(value);
+                writer.WriteValue(value);
                 return;
             }
 
@@ -164,7 +173,9 @@ namespace Nino.Core
                     nino.Grow(size);
                 }
 
-                NinoUnsafe.Write(ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(nino.Buffer), index), value);
+                ref byte dst = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(nino.Buffer), index);
+                NinoUnsafe.Write(ref dst, value);
+                NinoLayout<T>.ClearPadding(ref dst);
                 nino.Index = index + size;
                 return;
             }
@@ -172,7 +183,9 @@ namespace Nino.Core
             var span = bufferWriter.GetSpan(size);
             if (span.Length < size)
                 NinoThrow.EndOfData();
-            NinoUnsafe.Write(ref System.Runtime.InteropServices.MemoryMarshal.GetReference(span), value);
+            ref byte first = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(span);
+            NinoUnsafe.Write(ref first, value);
+            NinoLayout<T>.ClearPadding(ref first);
             bufferWriter.Advance(size);
         }
 

@@ -72,7 +72,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            int length = reader.ReadLength(Unsafe.SizeOf<T>());
+            int length = reader.ReadLength(NinoLayout<T>.Size);
             if (length < 0)
             {
                 NinoRecycler.Discard(ref value);

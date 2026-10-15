@@ -44,6 +44,8 @@ internal sealed class FormatterResolver
             return false;
         if (type.IsNinoType())
             return type is INamedTypeSymbol ninoStruct && ModelBuilder.IsRawStruct(ninoStruct, weakAssembly);
+        if (type.SpecialType is SpecialType.System_IntPtr or SpecialType.System_UIntPtr || type is IPointerTypeSymbol)
+            return false; // pointer-sized: written as 8 bytes
         if (type is INamedTypeSymbol named)
         {
             if (named.IsTupleType)
@@ -52,7 +54,8 @@ internal sealed class FormatterResolver
             if (definition.SpecialType == SpecialType.System_Nullable_T)
                 return false;
             var name = MetadataName(definition);
-            if (name == "System.Collections.Generic.KeyValuePair`2" || name.StartsWith("System.ValueTuple`"))
+            if (name == "System.Collections.Generic.KeyValuePair`2" || name.StartsWith("System.ValueTuple`") ||
+                name == "System.DateTimeOffset")
                 return false;
         }
 
@@ -176,7 +179,14 @@ internal sealed class FormatterResolver
                 return utf8 ? $"{Core}Utf8StringFormatter" : $"{Core}StringFormatter";
             case SpecialType.System_Object:
                 return $"{Core}PolymorphicFormatter<object>";
+            case SpecialType.System_IntPtr:
+                return $"{Core}IntPtrFormatter";
+            case SpecialType.System_UIntPtr:
+                return $"{Core}UIntPtrFormatter";
         }
+
+        if (MetadataName(type.OriginalDefinition) == "System.DateTimeOffset")
+            return $"{Core}DateTimeOffsetFormatter";
 
         var t = TypeNames.Global(type);
         if (IsRawUnmanaged(type, _weakAssembly))

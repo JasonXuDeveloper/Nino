@@ -53,7 +53,7 @@ public class IncrementalGeneratorTests
         driver = driver.RunGenerators(compilation);
         var derived = Output(driver, "Derived");
         var holder = Output(driver, "Holder");
-        StringAssert.Contains(holder, "UnsafeWrite<global::Inc.Inner>");
+        StringAssert.Contains(holder, "WriteValue<global::Inc.Inner>");
 
         // Unrelated edit: same outputs.
         compilation = Edit(compilation, "Inner.cs", "}\n}", "}\n// comment\n}");
@@ -69,7 +69,7 @@ public class IncrementalGeneratorTests
         // A member type that stops being raw changes how the holder writes it.
         compilation = Edit(compilation, "Inner.cs", "public int A;", "public int A; public string S;");
         driver = driver.RunGenerators(compilation);
-        Assert.IsFalse(Output(driver, "Holder").Contains("UnsafeWrite<global::Inc.Inner>"));
+        Assert.IsFalse(Output(driver, "Holder").Contains("WriteValue<global::Inc.Inner>"));
     }
 
     [TestMethod]

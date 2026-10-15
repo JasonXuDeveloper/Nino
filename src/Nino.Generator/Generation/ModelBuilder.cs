@@ -386,7 +386,8 @@ internal static class ModelBuilder
                 return false;
             if (HasAttribute(member, "NinoCustomFormatterAttribute"))
                 return false;
-            if (field.Type is INamedTypeSymbol nested && nested.IsNinoType() && !IsRawStruct(nested, weakAssembly))
+            // Every field must itself be raw: Nullable, tuples, nint or DateTimeOffset have their own formats.
+            if (!FormatterResolver.IsRawUnmanaged(field.Type, weakAssembly))
                 return false;
         }
 
@@ -669,7 +670,10 @@ internal static class ModelBuilder
             needsPartialAccessor = true;
         }
 
-        string rawSize = custom == null && FormatterResolver.IsRawUnmanaged(memberType, weakAssembly)
+        // Members join unmanaged blocks when their layout is the same on every runtime; others (rare struct
+        // shapes such as { int; long }) go through their formatter, which converts them where needed.
+        string rawSize = custom == null && FormatterResolver.IsRawUnmanaged(memberType, weakAssembly) &&
+                         RawLayout.IsPortable(memberType)
             ? FormatterResolver.RawSize(memberType)
             : "";
 

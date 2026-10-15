@@ -111,7 +111,13 @@ namespace Nino.Core
     /// <summary>Unmanaged <c>T[]</c>: length (-1 = null), then one block copy.</summary>
     public struct UnmanagedArrayFormatter<T> : INinoFormatter<T[]>, INinoRawArrayFormatter where T : unmanaged
     {
-        int INinoRawArrayFormatter.ElementSize => Unsafe.SizeOf<T>();
+        // Elements with a non-canonical layout take the formatter path, which converts them.
+        int INinoRawArrayFormatter.ElementSize => NinoLayout<T>.IsCanonical ? Unsafe.SizeOf<T>() : 0;
+
+        INinoRawArrayFormatter? INinoRawArrayFormatter.Padded => NinoLayout<T>.HasPadding ? this : null;
+
+        void INinoRawArrayFormatter.CopyToWire(ref byte destination, ref byte source, int count) =>
+            NinoLayout<T>.CopyToWire(ref destination, ref source, count);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T[] value, ref Writer writer) => writer.Write(value);
@@ -119,7 +125,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T[] value, ref Reader reader)
         {
-            int length = reader.ReadLength(Unsafe.SizeOf<T>());
+            int length = reader.ReadLength(NinoLayout<T>.Size);
             if (length < 0)
             {
                 NinoRecycler.Discard(ref value);
@@ -414,7 +420,7 @@ namespace Nino.Core
             if (RawFormatter<TFormatter>.Is)
             {
                 int size = checked(count * Unsafe.SizeOf<T>());
-                Unsafe.CopyBlockUnaligned(ref writer.Reserve(size), ref Unsafe.As<T, byte>(ref first), (uint)size);
+                NinoLayout<T>.CopyToWire(ref writer.Reserve(size), ref Unsafe.As<T, byte>(ref first), count);
                 return;
             }
 

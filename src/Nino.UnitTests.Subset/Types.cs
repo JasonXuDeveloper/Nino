@@ -35,9 +35,18 @@ public class SomeCollections
     public List<UniTask<int>> UniTasks2;
     public List<UniTask<string>> UniTasks3;
 }
-// Unmanaged and every field serialized: written as raw memory (including padding).
+// Unmanaged, every field serialized and the same layout on every runtime: written as raw memory.
 [NinoType]
 public struct SubsetRawStruct
+{
+    public int X;
+    public int W;
+    public long Y;
+}
+
+// The long sits at offset 8 on 64-bit but at 4 on x86, so the struct is written member by member.
+[NinoType]
+public struct SubsetUnportableStruct
 {
     public int X;
     public long Y;
@@ -47,7 +56,7 @@ public struct SubsetRawStruct
 public struct SubsetRawOuter
 {
     public SubsetRawStruct Inner;
-    public int Z { get; set; }
+    public long Z { get; set; }
 }
 
 // A field is not serialized, so the struct is written member by member.
@@ -65,4 +74,11 @@ public struct SubsetTolerantStruct
 {
     public int X;
     public long Y;
+}
+
+[NinoType]
+public struct SubsetPadded
+{
+    public byte A;
+    public int B;
 }

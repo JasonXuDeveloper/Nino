@@ -47,6 +47,18 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// Stores <paramref name="value"/> at <paramref name="destination"/> + <paramref name="offset"/> with its
+        /// padding bytes cleared (see <see cref="NinoLayout{T}"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteValue<T>(ref byte destination, int offset, T value)
+        {
+            ref byte dst = ref Unsafe.Add(ref destination, offset);
+            Write(ref dst, value);
+            NinoLayout<T>.ClearPadding(ref dst);
+        }
+
+        /// <summary>
         /// Loads a <typeparamref name="T"/> from <paramref name="source"/> without alignment requirements.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

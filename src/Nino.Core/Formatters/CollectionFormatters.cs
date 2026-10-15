@@ -84,6 +84,8 @@ namespace Nino.Core
                     offset += size;
                 }
 
+                NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref dst, 4), count);
+
                 return;
             }
 

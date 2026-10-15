@@ -151,13 +151,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnsafeRead<T>(out T value) => value = UnsafeRead<T>();
 
-        /// <summary>Reads an unmanaged value.</summary>
+        /// <summary>
+        /// Reads an unmanaged value written by <see cref="Writer.WriteValue{T}"/> (converted on runtimes that lay
+        /// the type out differently). <typeparamref name="T"/> must not contain references.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public T Read<T>() where T : unmanaged => UnsafeRead<T>();
+        public T ReadValue<T>() => NinoLayout<T>.Read(ref ReadBlock(NinoLayout<T>.Size));
 
         /// <summary>Reads an unmanaged value.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read<T>(out T value) where T : unmanaged => value = UnsafeRead<T>();
+        public T Read<T>() where T : unmanaged => ReadValue<T>();
+
+        /// <summary>Reads an unmanaged value.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Read<T>(out T value) where T : unmanaged => value = ReadValue<T>();
 
         /// <summary>Reads a bool (any non-zero byte is true).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -173,7 +180,7 @@ namespace Nino.Core
                 return;
             }
 
-            value = UnsafeRead<T>();
+            value = ReadValue<T>();
         }
 
         /// <summary>Reads 4 bytes without consuming them.</summary>
@@ -257,6 +264,13 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReadUnmanagedRaw<T>(Span<T> destination) where T : unmanaged
         {
+            if (!NinoLayout<T>.IsCanonical)
+            {
+                for (int i = 0; i < destination.Length; i++)
+                    destination[i] = ReadValue<T>();
+                return;
+            }
+
             var bytes = MemoryMarshal.AsBytes(destination);
             ReadRaw(bytes.Length).CopyTo(bytes);
         }
@@ -265,7 +279,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read<T>(out T[] value) where T : unmanaged
         {
-            int length = ReadLength(Unsafe.SizeOf<T>());
+            int length = ReadLength(NinoLayout<T>.Size);
             if (length < 0)
             {
                 value = null;

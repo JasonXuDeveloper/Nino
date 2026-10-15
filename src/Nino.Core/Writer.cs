@@ -108,9 +108,16 @@ namespace Nino.Core
             _pos = pos + size;
         }
 
+        /// <summary>
+        /// Writes an unmanaged value in its canonical layout (padding cleared, converted on runtimes that lay the
+        /// type out differently). <typeparamref name="T"/> must not contain references.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void WriteValue<T>(T value) => NinoLayout<T>.Write(ref Reserve(NinoLayout<T>.Size), value);
+
         /// <summary>Writes an unmanaged value.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(T value) where T : unmanaged => UnsafeWrite(value);
+        public void Write<T>(T value) where T : unmanaged => WriteValue(value);
 
         /// <summary>Writes a nullable unmanaged value: a has-value byte, then the value if present.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -122,9 +129,9 @@ namespace Nino.Core
                 return;
             }
 
-            ref byte dst = ref Reserve(1 + Unsafe.SizeOf<T>());
+            ref byte dst = ref Reserve(1 + NinoLayout<T>.Size);
             dst = 1;
-            NinoUnsafe.Write(ref dst, 1, value.GetValueOrDefault());
+            NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
         }
 
         /// <summary>Writes a collection length; use -1 for null.</summary>
@@ -170,18 +177,36 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteUnmanagedRaw<T>(ReadOnlySpan<T> values) where T : unmanaged
         {
-            WriteRaw(MemoryMarshal.AsBytes(values));
+            if (!NinoLayout<T>.IsCanonical)
+            {
+                foreach (var item in values)
+                    WriteValue(item);
+                return;
+            }
+
+            if (values.IsEmpty)
+                return;
+            NinoLayout<T>.CopyToWire(ref Reserve(values.Length * Unsafe.SizeOf<T>()),
+                ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), values.Length);
         }
 
         /// <summary>Writes a length-prefixed block of unmanaged values.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(ReadOnlySpan<T> values) where T : unmanaged
         {
+            if (!NinoLayout<T>.IsCanonical)
+            {
+                WriteLength(values.Length);
+                WriteUnmanagedRaw(values);
+                return;
+            }
+
             var bytes = MemoryMarshal.AsBytes(values);
             ref byte dst = ref Reserve(4 + bytes.Length);
             NinoUnsafe.Write(ref dst, values.Length);
             if (bytes.Length != 0)
-                Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref dst, 4), ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+                NinoLayout<T>.CopyToWire(ref Unsafe.Add(ref dst, 4), ref MemoryMarshal.GetReference(bytes),
+                    values.Length);
         }
 
         /// <summary>Writes a length-prefixed unmanaged array (-1 for null).</summary>

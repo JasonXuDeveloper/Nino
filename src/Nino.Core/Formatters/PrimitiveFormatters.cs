@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Core
@@ -6,10 +7,54 @@ namespace Nino.Core
     public struct UnmanagedFormatter<T> : INinoFormatter<T>, INinoRawFormatter where T : unmanaged
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(T value, ref Writer writer) => writer.UnsafeWrite(value);
+        public void Serialize(T value, ref Writer writer) => writer.WriteValue(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref T value, ref Reader reader) => value = reader.UnsafeRead<T>();
+        public void Deserialize(ref T value, ref Reader reader) => value = reader.ReadValue<T>();
+    }
+
+    /// <summary><c>IntPtr</c>/<c>nint</c>: always 8 bytes, so 32-bit and 64-bit processes share data.</summary>
+    public struct IntPtrFormatter : INinoFormatter<IntPtr>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(IntPtr value, ref Writer writer) => writer.UnsafeWrite(value.ToInt64());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref IntPtr value, ref Reader reader) => value = new IntPtr(reader.UnsafeRead<long>());
+    }
+
+    /// <summary><c>UIntPtr</c>/<c>nuint</c>: always 8 bytes, so 32-bit and 64-bit processes share data.</summary>
+    public struct UIntPtrFormatter : INinoFormatter<UIntPtr>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(UIntPtr value, ref Writer writer) => writer.UnsafeWrite(value.ToUInt64());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref UIntPtr value, ref Reader reader) => value = new UIntPtr(reader.UnsafeRead<ulong>());
+    }
+
+    /// <summary>
+    /// <c>DateTimeOffset</c>: UTC ticks (int64) and offset minutes (int16). Its raw memory has padding and a
+    /// different size on x86, so it is never copied raw.
+    /// </summary>
+    public struct DateTimeOffsetFormatter : INinoFormatter<DateTimeOffset>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(DateTimeOffset value, ref Writer writer)
+        {
+            ref byte dst = ref writer.Reserve(10);
+            NinoUnsafe.Write(ref dst, value.UtcTicks);
+            NinoUnsafe.Write(ref dst, 8, (short)(value.Offset.Ticks / TimeSpan.TicksPerMinute));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref DateTimeOffset value, ref Reader reader)
+        {
+            ref byte src = ref reader.ReadBlock(10);
+            long utc = NinoUnsafe.Read<long>(ref src);
+            long offset = NinoUnsafe.Read<short>(ref src, 8) * TimeSpan.TicksPerMinute;
+            value = new DateTimeOffset(utc + offset, new TimeSpan(offset));
+        }
     }
 
     /// <summary>Writes a string as UTF-16 (the default).</summary>
@@ -52,6 +97,7 @@ namespace Nino.Core
                 ref byte dst = ref writer.Reserve(1 + Unsafe.SizeOf<T>());
                 dst = 1;
                 NinoUnsafe.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
+                NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref dst, 1));
                 return;
             }
 

@@ -167,10 +167,10 @@ internal static class Emitter
         {
             sb.AppendLine("        // Unmanaged and every field serialized: the struct is written as its raw memory.");
             sb.AppendLine($"        {Inline}");
-            sb.AppendLine($"        public void WriteBody({m.TypeName} value, ref {Core}Writer writer) => writer.UnsafeWrite(value);");
+            sb.AppendLine($"        public void WriteBody({m.TypeName} value, ref {Core}Writer writer) => writer.WriteValue(value);");
             sb.AppendLine();
             sb.AppendLine($"        {Inline}");
-            sb.AppendLine($"        public void ReadBody(ref {m.TypeName} value, ref {Core}Reader reader) => value = reader.UnsafeRead<{m.TypeName}>();");
+            sb.AppendLine($"        public void ReadBody(ref {m.TypeName} value, ref {Core}Reader reader) => value = reader.ReadValue<{m.TypeName}>();");
         }
         else
         {
@@ -404,6 +404,11 @@ internal static class Emitter
         sb.AppendLine("        }");
     }
 
+    // Struct members (their size is not a constant) may have padding, which WriteValue clears.
+    private static bool IsStructSize(MemberModel member) => !char.IsDigit(member.RawSize[0]);
+
+    private static string WriteMethod(MemberModel member) => IsStructSize(member) ? "WriteValue" : "Write";
+
     private static IEnumerable<MemberModel> OwnMembers(TypeModel m) =>
         m.BaseFormatter.Length == 0 ? m.Members : m.Members.Skip(m.BaseMemberCount);
 
@@ -431,7 +436,7 @@ internal static class Emitter
 
             if (group.Count == 1)
             {
-                sb.AppendLine($"            writer.UnsafeWrite<{first.TypeName}>({Get(m, first, "value")});");
+                sb.AppendLine($"            writer.{(IsStructSize(first) ? "WriteValue" : "UnsafeWrite")}<{first.TypeName}>({Get(m, first, "value")});");
                 continue;
             }
 
@@ -439,7 +444,7 @@ internal static class Emitter
             string p = "__p" + block++;
             sb.AppendLine($"            ref byte {p} = ref writer.Reserve({total});");
             for (int i = 0; i < group.Count; i++)
-                sb.AppendLine($"            {Core}NinoUnsafe.Write<{group[i].TypeName}>(ref {p}, {offsets[i]}, {Get(m, group[i], "value")});");
+                sb.AppendLine($"            {Core}NinoUnsafe.{WriteMethod(group[i])}<{group[i].TypeName}>(ref {p}, {offsets[i]}, {Get(m, group[i], "value")});");
         }
     }
 
@@ -643,7 +648,7 @@ internal static class Emitter
             {
                 lines.Add($"            {Core}NinoUnsafe.Write<int>(ref {p}, {Sum(constant, symbolic)}, {Key(member)});");
                 lines.Add($"            {Core}NinoUnsafe.Write<int>(ref {p}, {Sum(constant + 4, symbolic)}, {member.RawSize});");
-                lines.Add($"            {Core}NinoUnsafe.Write<{member.TypeName}>(ref {p}, {Sum(constant + 8, symbolic)}, {Get(m, member, "value")});");
+                lines.Add($"            {Core}NinoUnsafe.{WriteMethod(member)}<{member.TypeName}>(ref {p}, {Sum(constant + 8, symbolic)}, {Get(m, member, "value")});");
                 constant += 8;
                 if (int.TryParse(member.RawSize, out int size))
                     constant += size;

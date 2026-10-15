@@ -38,6 +38,8 @@ namespace Nino.Core
                         NinoThrow.InvalidData("collection was modified during serialization");
                     NinoUnsafe.Write(ref dst, offset, pair.Key);
                     NinoUnsafe.Write(ref dst, offset + keySize, pair.Value);
+                    NinoLayout<TKey>.ClearPadding(ref Unsafe.Add(ref dst, offset));
+                    NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref dst, offset + keySize));
                     offset += pairSize;
                 }
 
