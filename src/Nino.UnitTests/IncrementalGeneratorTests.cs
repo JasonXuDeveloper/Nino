@@ -87,4 +87,29 @@ public class IncrementalGeneratorTests
         driver = driver.RunGenerators(compilation);
         StringAssert.Contains(Output(driver, "Part"), "value.Y");
     }
+
+    [TestMethod]
+    public void NestedTypesWithPrivateMembersCompileWithoutUnsafeAccessor()
+    {
+        // No NET8_0_OR_GREATER symbol: private members go through an accessor declared inside the partial chain.
+        var compilation = Create(("Nested.cs", Usings + @"
+public partial class Outer
+{
+    internal partial class Middle
+    {
+        [NinoType(containNonPublicMembers: true)]
+        public partial class Inner { private int _secret; public string Name; }
+
+        [NinoType(containNonPublicMembers: true)]
+        public partial struct InnerStruct { private long _value; }
+    }
+}
+}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
+        Assert.AreEqual(0, generatorDiagnostics.Length, string.Join("\n", generatorDiagnostics));
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+        StringAssert.Contains(Output(driver, "Outer_Middle_Inner"), "_secret");
+    }
 }

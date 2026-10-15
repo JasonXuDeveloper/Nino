@@ -115,12 +115,8 @@ internal class SomeContainer
 }
 ";
 
-        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO002")
-                .WithLocation(5, 16)
-                .WithArguments("TestClass"),
-            Verify.Diagnostic("NINO002")
-                .WithLocation(14, 20)
-                .WithArguments("NestedTestClass.NestedA"),
+        // Internal types are fine; private and protected ones cannot be named by the generated formatters.
+        await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO002")
                 .WithLocation(21, 19)
                 .WithArguments("NestedTestClass.NestedB"),
@@ -325,7 +321,7 @@ public class TestClass2
     }
 
     [TestMethod]
-    public async Task TestNino008()
+    public async Task NestedTypeMayContainNonPublicMembers()
     {
         var code = @"
 using Nino.Core;
@@ -341,9 +337,8 @@ public class TestNested
 }
 ";
 
-        await SetUpAnalyzerTest(code, Verify.Diagnostic("NINO008")
-            .WithSpan(7, 18, 7, 27)
-            .WithArguments("TestClass")).RunAsync();
+        // Nested types are supported: the generator declares their accessor inside the partial chain.
+        await SetUpAnalyzerTest(code).RunAsync();
     }
 
     [TestMethod]

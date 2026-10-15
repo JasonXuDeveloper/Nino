@@ -2,355 +2,168 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Nino.Generator.Generation;
 
 namespace Nino.Generator;
 
+/// <summary>Checks how the Nino attributes are used. Diagnostics about generation itself come from the generator.</summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
-public class NinoAnalyzer : DiagnosticAnalyzer
+public sealed class NinoAnalyzer : DiagnosticAnalyzer
 {
+    private static readonly ImmutableArray<DiagnosticDescriptor> Supported = ImmutableArray.Create(
+        NinoDiagnostics.InaccessibleType,
+        NinoDiagnostics.SubTypeWithoutNinoType,
+        NinoDiagnostics.RedundantMember,
+        NinoDiagnostics.RedundantIgnore,
+        NinoDiagnostics.AmbiguousMember,
+        NinoDiagnostics.PrivateMember,
+        NinoDiagnostics.DuplicateIndex,
+        NinoDiagnostics.InvalidCustomFormatter,
+        NinoDiagnostics.InvalidRefDeserialization);
+
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => Supported;
+
     public override void Initialize(AnalysisContext context)
     {
-        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze |
-                                               GeneratedCodeAnalysisFlags.ReportDiagnostics);
+        context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-
-        // All Type declarations syntaxes with NinoTypeAttribute applied must be public
-        context.RegisterSymbolAction(
-            symbolContext =>
-            {
-                var symbol = symbolContext.Symbol;
-                if (symbol is not INamedTypeSymbol typeSymbol) return;
-                if (typeSymbol.IsUnmanagedType) return;
-                if (!typeSymbol.IsNinoType()) return;
-
-                if (!typeSymbol.IsAccessible())
-                    symbolContext.ReportDiagnostic(Diagnostic.Create(
-                        SupportedDiagnostics[1],
-                        typeSymbol.Locations.First(),
-                        typeSymbol.GetDisplayString()));
-            },
-            SymbolKind.NamedType);
-
-        // A sub-type of a NinoType must also have the NinoTypeAttribute applied
-        context.RegisterSyntaxNodeAction(
-            syntaxContext =>
-            {
-                var typeDeclarationSyntax = (TypeDeclarationSyntax)syntaxContext.Node;
-                var typeSymbol = typeDeclarationSyntax.GetTypeSymbol(syntaxContext);
-                if (typeSymbol == null) return;
-                if (typeSymbol.IsNinoType())
-                {
-                    // check redundant NinoMemberAttribute and NinoIgnoreAttribute
-                    // The attribute that applies, which may be inherited from a base type (as the generator uses).
-                    var attr = typeSymbol.GetNinoTypeAttribute()!;
-                    bool autoCollect = attr.autoCollect;
-                    bool containNonPublic = attr.containNonPublicMembers;
-
-                    // check if the type is nested
-                    if (typeDeclarationSyntax.Parent is TypeDeclarationSyntax && containNonPublic)
-                    {
-                        syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                            SupportedDiagnostics[7],
-                            typeDeclarationSyntax.Identifier.GetLocation(),
-                            typeDeclarationSyntax.Identifier.Text));
-                    }
-
-                    foreach (var member in typeSymbol.GetMembers())
-                    {
-                        bool definedNinoMember = member.GetAttributesCache()
-                            .Any(x => x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
-                        bool definedNinoIgnore =
-                            member.GetAttributesCache().Any(x => x.AttributeClass?.Name == "NinoIgnoreAttribute");
-
-                        // Check NinoCustomFormatterAttribute validation - NINO010
-                        var customFormatterAttr = member.GetAttributesCache()
-                            .FirstOrDefault(x => x.AttributeClass?.Name == "NinoCustomFormatterAttribute");
-                        if (customFormatterAttr != null && customFormatterAttr.ConstructorArguments.Length > 0)
-                        {
-                            var formatterTypeArg = customFormatterAttr.ConstructorArguments[0];
-                            if (formatterTypeArg.Value is INamedTypeSymbol formatterType)
-                            {
-                                // Get the member type for validation
-                                ITypeSymbol? memberType = member switch
-                                {
-                                    IFieldSymbol field => field.Type,
-                                    IPropertySymbol property => property.Type,
-                                    _ => null
-                                };
-
-                                if (memberType != null)
-                                {
-                                    // Check if formatter inherits from NinoFormatter<memberType>
-                                    var expectedBaseType = "NinoFormatter<" + memberType.ToDisplayString() + ">";
-                                    bool isValidFormatter = IsValidNinoFormatter(formatterType, memberType);
-
-                                    if (!isValidFormatter)
-                                    {
-                                        syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                                            SupportedDiagnostics[9], // NINO010
-                                            member.Locations.First(),
-                                            formatterType.ToDisplayString(),
-                                            memberType.ToDisplayString()));
-                                    }
-                                }
-                            }
-                        }
-
-                        // auto collect but manually annotated - nino004
-                        if (autoCollect && definedNinoMember)
-                        {
-                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                                SupportedDiagnostics[3],
-                                member.Locations.First(),
-                                member.Name,
-                                typeSymbol.Name));
-                        }
-
-                        // not auto collect and manually annotated but is private - nino007
-                        if (!autoCollect && definedNinoMember &&
-                            member.DeclaredAccessibility == Accessibility.Private &&
-                            !containNonPublic)
-                        {
-                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                                SupportedDiagnostics[6],
-                                member.Locations.First(),
-                                member.Name,
-                                typeSymbol.Name));
-                        }
-
-                        // not annotated but manually ignored when not manually annotated - nino005
-                        if (!autoCollect && !definedNinoMember && definedNinoIgnore)
-                        {
-                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                                SupportedDiagnostics[4],
-                                member.Locations.First(),
-                                member.Name,
-                                typeSymbol.Name));
-                        }
-
-                        // ambiguous annotation - nino006
-                        if (!autoCollect && definedNinoIgnore && definedNinoMember)
-                        {
-                            syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                                SupportedDiagnostics[5],
-                                member.Locations.First(),
-                                member.Name,
-                                typeSymbol.Name));
-                        }
-                    }
-
-                    // Check for duplicate member indices - nino009
-                    if (!autoCollect)
-                    {
-                        var memberIndices = new Dictionary<ushort, (string memberName, ISymbol member)>();
-                        HashSet<ushort> reported = new();
-                        HashSet<ISymbol> visited = new(SymbolEqualityComparer.Default);
-                        foreach (var member in typeSymbol.GetMembers())
-                        {
-                            if (!visited.Add(member)) continue;
-
-                            var ninoMemberAttr = member.GetAttributesCache()
-                                .FirstOrDefault(x =>
-                                    x.AttributeClass?.Name.EndsWith("NinoMemberAttribute") == true);
-
-                            if (ninoMemberAttr != null && ninoMemberAttr.ConstructorArguments.Length > 0)
-                            {
-                                var indexArg = ninoMemberAttr.ConstructorArguments[0];
-                                if (indexArg.Value != null)
-                                {
-                                    var index = (ushort)indexArg.Value;
-
-                                    if (memberIndices.TryGetValue(index, out var existingMember))
-                                    {
-                                        if (!reported.Add(index)) continue;
-                                        // Report duplicate for current member
-                                        syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                                            SupportedDiagnostics[8],
-                                            member.Locations.First(),
-                                            typeSymbol.Name,
-                                            member.Name,
-                                            existingMember.member.ContainingType.Name,
-                                            existingMember.memberName));
-                                    }
-                                    else
-                                    {
-                                        memberIndices[index] = (member.Name, member);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    return;
-                }
-
-                //check base type
-                var baseType = typeSymbol.BaseType;
-                while (baseType != null)
-                {
-                    if (baseType.IsNinoType())
-                    {
-                        syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                            SupportedDiagnostics[2],
-                            typeDeclarationSyntax.Identifier.GetLocation(),
-                            typeDeclarationSyntax.Identifier.Text,
-                            baseType.Name));
-                        break;
-                    }
-
-                    baseType = baseType.BaseType;
-                }
-
-                // check base interfaces
-                foreach (var interfaceType in typeSymbol.AllInterfaces)
-                {
-                    if (interfaceType.IsNinoType())
-                    {
-                        syntaxContext.ReportDiagnostic(Diagnostic.Create(
-                            SupportedDiagnostics[2],
-                            typeDeclarationSyntax.Identifier.GetLocation(),
-                            typeDeclarationSyntax.Identifier.Text,
-                            interfaceType.Name));
-                        break;
-                    }
-                }
-            },
-            SyntaxKind.ClassDeclaration, SyntaxKind.StructDeclaration,
-            SyntaxKind.InterfaceDeclaration, SyntaxKind.RecordDeclaration,
-            SyntaxKind.RecordStructDeclaration);
-
-        // Validate NinoRefDeserializationAttribute usage - NINO012
-        context.RegisterSymbolAction(
-            symbolContext =>
-            {
-                var symbol = symbolContext.Symbol;
-                if (symbol is not IMethodSymbol methodSymbol) return;
-
-                var hasAttribute = methodSymbol.GetAttributesCache().Any(a =>
-                    a.AttributeClass != null &&
-                    a.AttributeClass.ToDisplayString().EndsWith("NinoRefDeserializationAttribute"));
-
-                if (!hasAttribute) return;
-
-                var errors = new List<string>();
-
-                // Check if method is public
-                if (methodSymbol.DeclaredAccessibility != Accessibility.Public)
-                {
-                    errors.Add("must be public");
-                }
-
-                // Check if method is static
-                if (!methodSymbol.IsStatic)
-                {
-                    errors.Add("must be static");
-                }
-
-                // Check if method is parameterless
-                if (methodSymbol.Parameters.Length > 0)
-                {
-                    errors.Add("must be parameterless");
-                }
-
-                // Check if method returns the containing type
-                if (!SymbolEqualityComparer.Default.Equals(methodSymbol.ReturnType, methodSymbol.ContainingType))
-                {
-                    errors.Add($"must return {methodSymbol.ContainingType.ToDisplayString()}");
-                }
-
-                if (errors.Count > 0)
-                {
-                    symbolContext.ReportDiagnostic(Diagnostic.Create(
-                        SupportedDiagnostics[11], // NINO012
-                        methodSymbol.Locations.First(),
-                        methodSymbol.Name,
-                        string.Join(", ", errors)));
-                }
-            },
-            SymbolKind.Method);
+        context.RegisterCompilationStartAction(start =>
+        {
+            // Nothing to check in compilations that do not reference Nino.
+            if (start.Compilation.GetTypeByMetadataName("Nino.Core.NinoTypeAttribute") == null)
+                return;
+            var refDeserialization = start.Compilation.GetTypeByMetadataName("Nino.Core.NinoRefDeserializationAttribute");
+            // Symbol actions run once per type, not once per partial declaration.
+            start.RegisterSymbolAction(AnalyzeType, SymbolKind.NamedType);
+            if (refDeserialization != null)
+                start.RegisterSymbolAction(c => AnalyzeMethod(c, refDeserialization), SymbolKind.Method);
+        });
     }
 
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(new DiagnosticDescriptor("NINO001",
-                "Nino encountered an error during the generation",
-                "Something went wrong during the generation",
-                "Nino",
-                DiagnosticSeverity.Error, true),
-            new DiagnosticDescriptor("NINO002",
-                "'NinoType' should be applied to a public class",
-                "[NinoType] should be applied to a public class (even if it is nested) (Check all levels of accessibility for {0})",
-                "'Nino",
-                DiagnosticSeverity.Error, true),
-            new DiagnosticDescriptor("NINO003",
-                "Sub-type of a NinoType should also have the NinoTypeAttribute applied",
-                "Sub-type '{0}' of NinoType '{1}' should also have the NinoTypeAttribute applied to ensure serialization does not lead to undefined behavior",
-                "Nino",
-                DiagnosticSeverity.Warning, true),
-            new DiagnosticDescriptor("NINO004",
-                "Redundant NinoMemberAttribute",
-                "Member '{0}' of NinoType '{1}' will be automatically collected, the NinoMemberAttribute is redundant",
-                "Nino",
-                DiagnosticSeverity.Warning, true),
-            new DiagnosticDescriptor("NINO005",
-                "Redundant NinoIgnoreAttribute",
-                "Member '{0}' of NinoType '{1}' will not be collected at anytime, the NinoIgnoreAttribute is redundant",
-                "Nino",
-                DiagnosticSeverity.Warning, true),
-            new DiagnosticDescriptor("NINO006",
-                "Ambiguous member",
-                "Member '{0}' of NinoType '{1}' is annotated with both NinoMemberAttribute and NinoIgnoreAttribute, it is ambiguous",
-                "Nino",
-                DiagnosticSeverity.Error, true),
-            new DiagnosticDescriptor("NINO007",
-                "Suspicious member",
-                "Member '{0}' of NinoType '{1}' is private but this type is not marked as containing non-public members",
-                "Nino",
-                DiagnosticSeverity.Error, true),
-            new DiagnosticDescriptor("NINO008",
-                "Nested type that may contain non-public members",
-                "NinoType '{0}' is allowed to contain non-public members so it cannot be nested",
-                "Nino",
-                DiagnosticSeverity.Error, true),
-            new DiagnosticDescriptor("NINO009",
-                "Duplicate member index",
-                "Member '{0}.{1}' has the same index as another member '{2}.{3}'",
-                "Nino",
-                DiagnosticSeverity.Error, true),
-            new DiagnosticDescriptor("NINO010",
-                "Invalid custom formatter type",
-                "Custom formatter '{0}' must inherit from NinoFormatter<{1}>",
-                "Nino",
-                DiagnosticSeverity.Error, true),
-            new DiagnosticDescriptor("NINO011",
-                "Member type cannot be serialized",
-                "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization",
-                "Nino",
-                DiagnosticSeverity.Warning, true),
-            new DiagnosticDescriptor("NINO012",
-                "Invalid NinoRefDeserializationAttribute usage",
-                "Method '{0}' with [NinoRefDeserialization] {1}",
-                "Nino",
-                DiagnosticSeverity.Error, true)
-        );
-
-    private static bool IsValidNinoFormatter(INamedTypeSymbol formatterType, ITypeSymbol memberType)
+    private static void AnalyzeType(SymbolAnalysisContext context)
     {
-        // Check if formatter inherits from NinoFormatter<memberType>
-        var baseType = formatterType.BaseType;
-        while (baseType != null)
+        var type = (INamedTypeSymbol)context.Symbol;
+        var attr = type.GetNinoTypeAttribute();
+        if (attr == null)
         {
-            if (baseType.Name == "NinoFormatter" &&
-                baseType.IsGenericType &&
-                baseType.TypeArguments.Length == 1)
+            ReportMissingNinoType(context, type);
+            return;
+        }
+
+        // The generator skips types it cannot name from outside them.
+        if (!TypeFacts.IsEligible(type))
+            Report(context, NinoDiagnostics.InaccessibleType, type, type.GetDisplayString());
+
+        var indices = attr.autoCollect ? null : new Dictionary<ushort, ISymbol>();
+        HashSet<ushort>? reported = null;
+        foreach (var member in type.GetMembers())
+        {
+            AttributeData? ninoMember = null, customFormatter = null;
+            bool ignored = false;
+            foreach (var a in member.GetAttributes())
             {
-                var formatterGenericArg = baseType.TypeArguments[0];
-                return SymbolEqualityComparer.Default.Equals(formatterGenericArg, memberType);
+                switch (a.AttributeClass?.Name)
+                {
+                    case "NinoMemberAttribute": ninoMember = a; break;
+                    case "NinoIgnoreAttribute": ignored = true; break;
+                    case "NinoCustomFormatterAttribute": customFormatter = a; break;
+                }
             }
 
-            baseType = baseType.BaseType;
+            if (customFormatter is { ConstructorArguments: { Length: > 0 } args } &&
+                args[0].Value is INamedTypeSymbol formatter &&
+                MemberType(member) is { } memberType && !IsFormatterOf(formatter, memberType))
+                Report(context, NinoDiagnostics.InvalidCustomFormatter, member, formatter.ToDisplayString(),
+                    memberType.ToDisplayString());
+
+            bool annotated = ninoMember != null;
+            if (attr.autoCollect)
+            {
+                if (annotated)
+                    Report(context, NinoDiagnostics.RedundantMember, member, member.Name, type.Name);
+                continue;
+            }
+
+            if (annotated && ignored)
+                Report(context, NinoDiagnostics.AmbiguousMember, member, member.Name, type.Name);
+            else if (ignored)
+                Report(context, NinoDiagnostics.RedundantIgnore, member, member.Name, type.Name);
+            if (annotated && member.DeclaredAccessibility == Accessibility.Private && !attr.containNonPublicMembers)
+                Report(context, NinoDiagnostics.PrivateMember, member, member.Name, type.Name);
+
+            if (ninoMember is { ConstructorArguments: { Length: > 0 } indexArgs } && indexArgs[0].Value is ushort index)
+            {
+                if (!indices!.TryGetValue(index, out var existing))
+                    indices[index] = member;
+                else if ((reported ??= new HashSet<ushort>()).Add(index))
+                    Report(context, NinoDiagnostics.DuplicateIndex, member, type.Name, member.Name,
+                        existing.ContainingType.Name, existing.Name);
+            }
+        }
+    }
+
+    /// <summary>A type deriving from a NinoType that does not pass its attribute on must declare its own.</summary>
+    private static void ReportMissingNinoType(SymbolAnalysisContext context, INamedTypeSymbol type)
+    {
+        if (type.TypeKind is not (TypeKind.Class or TypeKind.Struct or TypeKind.Interface))
+            return;
+        for (var baseType = type.BaseType; baseType != null; baseType = baseType.BaseType)
+        {
+            if (baseType.IsNinoType())
+            {
+                Report(context, NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, baseType.Name);
+                return;
+            }
+        }
+
+        foreach (var interfaceType in type.AllInterfaces)
+        {
+            if (interfaceType.IsNinoType())
+            {
+                Report(context, NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, interfaceType.Name);
+                return;
+            }
+        }
+    }
+
+    private static void AnalyzeMethod(SymbolAnalysisContext context, INamedTypeSymbol attribute)
+    {
+        var method = (IMethodSymbol)context.Symbol;
+        if (!method.GetAttributes().Any(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, attribute)))
+            return;
+
+        var errors = new List<string>();
+        if (method.DeclaredAccessibility != Accessibility.Public)
+            errors.Add("must be public");
+        if (!method.IsStatic)
+            errors.Add("must be static");
+        if (method.Parameters.Length > 0)
+            errors.Add("must be parameterless");
+        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
+            errors.Add($"must return {method.ContainingType.ToDisplayString()}");
+        if (errors.Count > 0)
+            Report(context, NinoDiagnostics.InvalidRefDeserialization, method, method.Name, string.Join(", ", errors));
+    }
+
+    private static void Report(SymbolAnalysisContext context, DiagnosticDescriptor descriptor, ISymbol symbol,
+        params object[] args) =>
+        context.ReportDiagnostic(Diagnostic.Create(descriptor, symbol.Locations.FirstOrDefault(), args));
+
+    private static ITypeSymbol? MemberType(ISymbol member) => member switch
+    {
+        IFieldSymbol field => field.Type,
+        IPropertySymbol property => property.Type,
+        _ => null
+    };
+
+    /// <summary>Whether <paramref name="formatter"/> derives from <c>NinoFormatter&lt;memberType&gt;</c>.</summary>
+    private static bool IsFormatterOf(INamedTypeSymbol formatter, ITypeSymbol memberType)
+    {
+        for (var baseType = formatter.BaseType; baseType != null; baseType = baseType.BaseType)
+        {
+            if (baseType is { Name: "NinoFormatter", TypeArguments.Length: 1 })
+                return SymbolEqualityComparer.Default.Equals(baseType.TypeArguments[0], memberType);
         }
 
         return false;

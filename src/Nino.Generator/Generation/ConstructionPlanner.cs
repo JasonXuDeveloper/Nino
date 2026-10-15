@@ -59,9 +59,8 @@ internal static class ConstructionPlanner
                 var match = MatchMember(name);
                 if (match == null)
                 {
-                    diagnostics.Add(new DiagnosticInfo("NINO001", "Missing constructor member",
-                        "Missing constructor member {0} for {1}",
-                        DiagnosticSeverity.Error, LocationInfo.From(marked.Locations.FirstOrDefault()) ?? location,
+                    diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.MissingConstructorMember,
+                        LocationInfo.From(marked.Locations.FirstOrDefault()) ?? location,
                         name, type.ToDisplayString()));
                     return new ConstructionModel(true, "", EquatableArray<string>.Empty, "");
                 }
@@ -105,9 +104,7 @@ internal static class ConstructionPlanner
         {
             if (type.IsValueType)
                 return new ConstructionModel(true, $"new {typeName}", EquatableArray<string>.Empty, "");
-            diagnostics.Add(new DiagnosticInfo("NINO001", "No usable constructor",
-                "'{0}' has no accessible parameterless constructor and no constructor whose parameters all match serialized members; mark one with [NinoConstructor]",
-                DiagnosticSeverity.Error, location, type.ToDisplayString()));
+            diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.NoUsableConstructor, location, type.ToDisplayString()));
             return new ConstructionModel(true, "", EquatableArray<string>.Empty, "");
         }
 

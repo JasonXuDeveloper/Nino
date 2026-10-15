@@ -37,55 +37,73 @@ public class CodeFixTest
     #region NINO002 Tests - Make Type Public
 
     [TestMethod]
-    public async Task NINO002_MakeTypePublic_PrivateClass()
+    public async Task NINO002_MakeTypePublic_PrivateProtectedClass()
     {
         var code = @"
 using Nino.Core;
 
-[NinoType]
-internal class TestClass
+public class OuterClass
 {
-    public int Value { get; set; }
+    [NinoType]
+    private protected class TestClass
+    {
+        public int Value { get; set; }
+    }
 }";
 
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType]
-public class TestClass
+public class OuterClass
 {
-    public int Value { get; set; }
+    [NinoType]
+    public class TestClass
+    {
+        public int Value { get; set; }
+    }
 }";
 
         var diagnostic = new DiagnosticResult("NINO002", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(5, 16, 5, 25);
+            .WithSpan(7, 29, 7, 38);
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
 
     [TestMethod]
-    public async Task NINO002_MakeTypePublic_InternalClass()
+    public async Task NINO002_MakeTypePublic_ContainingTypes()
     {
         var code = @"
 using Nino.Core;
 
-[NinoType]
-internal class TestClass
+internal class Outer
 {
-    public int Value { get; set; }
+    class Middle
+    {
+        [NinoType]
+        class TestClass
+        {
+            public int Value { get; set; }
+        }
+    }
 }";
 
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType]
-public class TestClass
+internal class Outer
 {
-    public int Value { get; set; }
+    public class Middle
+    {
+        [NinoType]
+        public class TestClass
+        {
+            public int Value { get; set; }
+        }
+    }
 }";
 
         var diagnostic = new DiagnosticResult("NINO002", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(5, 16, 5, 25);
+            .WithSpan(9, 15, 9, 24);
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
@@ -129,17 +147,23 @@ public class OuterClass
         var code = @"
 using Nino.Core;
 
-[NinoType]
-internal record TestRecord(int Value);";
+public class OuterClass
+{
+    [NinoType]
+    private record TestRecord(int Value);
+}";
 
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType]
-public record TestRecord(int Value);";
+public class OuterClass
+{
+    [NinoType]
+    public record TestRecord(int Value);
+}";
 
         var diagnostic = new DiagnosticResult("NINO002", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(5, 17, 5, 27);
+            .WithSpan(7, 20, 7, 30);
 
         await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
@@ -430,78 +454,6 @@ public class TestClass
         var test = SetUpCodeFixTest(code, fixedCode, diagnostic);
         test.CodeActionIndex = 1; // Select "Update type to allow non-public members" option
         await test.RunAsync();
-    }
-
-    #endregion
-
-    #region NINO008 Tests - Fix Nested Type with Non-Public Members
-
-    [TestMethod]
-    public async Task NINO008_SetContainNonPublicMembersToFalse()
-    {
-        var code = @"
-using Nino.Core;
-
-public class OuterClass
-{
-    [NinoType(containNonPublicMembers: true)]
-    public class InnerClass
-    {
-        public int Value { get; set; }
-    }
-}";
-
-        var fixedCode = @"
-using Nino.Core;
-
-public class OuterClass
-{
-    [NinoType(containNonPublicMembers: false)]
-    public class InnerClass
-    {
-        public int Value { get; set; }
-    }
-}";
-
-        var diagnostic = new DiagnosticResult("NINO008", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(7, 18, 7, 28)
-            .WithArguments("InnerClass");
-
-        await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
-    }
-
-    [TestMethod]
-    public async Task NINO008_SetContainNonPublicMembersToFalse_WithAutoCollect()
-    {
-        var code = @"
-using Nino.Core;
-
-public class OuterClass
-{
-    [NinoType(autoCollect: true, containNonPublicMembers: true)]
-    public class InnerClass
-    {
-        public int Value { get; set; }
-    }
-}";
-
-        var fixedCode = @"
-using Nino.Core;
-
-public class OuterClass
-{
-    [NinoType(autoCollect: true, containNonPublicMembers: false)]
-    public class InnerClass
-    {
-        public int Value { get; set; }
-    }
-}";
-
-        var diagnostic = new DiagnosticResult("NINO008", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
-            .WithSpan(7, 18, 7, 28)
-            .WithArguments("InnerClass");
-
-        await SetUpCodeFixTest(code, fixedCode, diagnostic).RunAsync();
     }
 
     #endregion

@@ -109,7 +109,7 @@ internal sealed class TypeFacts
         // Sealed classes have no subtypes to delegate to them.
         if (type.TypeKind != TypeKind.Class || type.IsStatic || type.IsSealed)
             return false;
-                if (_delegatable.TryGetValue(type, out bool known))
+        if (_delegatable.TryGetValue(type, out bool known))
             return known;
         bool result = ComputeIsDelegatable(type);
         _delegatable[type] = result;

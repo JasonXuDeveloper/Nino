@@ -116,9 +116,7 @@ internal static class ModelBuilder
                 int key = TypeNames.ComputeId(member.Name);
                 if (seen.TryGetValue(key, out var other))
                 {
-                    diagnostics.Add(new DiagnosticInfo("NINO015", "Member key collision",
-                        "Members '{0}' and '{1}' of keyed NinoType '{2}' hash to the same key; rename one of them",
-                        DiagnosticSeverity.Error, location, other, member.Name, type.ToDisplayString()));
+                    diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.KeyCollision, location, other, member.Name, type.ToDisplayString()));
                 }
                 else
                 {
@@ -147,9 +145,7 @@ internal static class ModelBuilder
                     (m.Access == MemberAccess.Direct && m.IsProperty))
                     continue;
                 members[i] = m with { Unassignable = true };
-                diagnostics.Add(new DiagnosticInfo("NINO014", "Member cannot be deserialized",
-                    "Member '{0}' of '{1}' is read-only and is not a constructor parameter; its serialized value is ignored when deserializing",
-                    DiagnosticSeverity.Warning, location, m.Name, type.ToDisplayString()));
+                diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.ReadOnlyMember, location, m.Name, type.ToDisplayString()));
             }
         }
 
@@ -159,15 +155,11 @@ internal static class ModelBuilder
         bool trackReferences = tracked && kind != FormatterKind.Struct;
         if (tracked && kind == FormatterKind.Struct)
         {
-            diagnostics.Add(new DiagnosticInfo("NINO016", "Cannot track references",
-                "'{0}' is a struct; trackReferences only applies to classes and is ignored",
-                DiagnosticSeverity.Warning, location, type.ToDisplayString()));
+            diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.TrackReferencesOnStruct, location, type.ToDisplayString()));
         }
         else if (trackReferences && construction.Recreate)
         {
-            diagnostics.Add(new DiagnosticInfo("NINO016", "Cannot track references",
-                "'{0}' is re-created from constructor arguments or read-only members, so a reference to it cannot be read before it exists; trackReferences needs a type whose members are all assignable",
-                DiagnosticSeverity.Error, location, type.ToDisplayString()));
+            diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.TrackReferencesNeedsAssignableMembers, location, type.ToDisplayString()));
         }
 
         if (typeParameters.Count == 0 && kind != FormatterKind.Polymorphic)
@@ -186,9 +178,7 @@ internal static class ModelBuilder
         {
             if (!IsPartialChain(type))
             {
-                diagnostics.Add(new DiagnosticInfo("NINO013", "Type must be partial",
-                    "'{0}' serializes non-public members, so it (and every type containing it) must be declared partial",
-                    DiagnosticSeverity.Error, location, type.ToDisplayString()));
+                diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.NotPartial, location, type.ToDisplayString()));
             }
             else
             {
@@ -324,9 +314,7 @@ internal static class ModelBuilder
 
         if (formatter == null)
         {
-            diagnostics.Add(new DiagnosticInfo("NINO011", "Member type cannot be serialized",
-                "Member '{0}' of type '{1}' in NinoType '{2}' has an unrecognizable type and will be skipped during serialization/deserialization",
-                DiagnosticSeverity.Warning, LocationInfo.From(symbol.Locations.FirstOrDefault()), symbol.Name, memberType.ToDisplayString(), type.ToDisplayString()));
+            diagnostics.Add(new DiagnosticInfo(NinoDiagnostics.UnserializableMember, LocationInfo.From(symbol.Locations.FirstOrDefault()), symbol.Name, memberType.ToDisplayString(), type.ToDisplayString()));
             return null;
         }
 

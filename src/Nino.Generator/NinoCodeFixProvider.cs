@@ -21,7 +21,7 @@ public class NinoCodeFixProvider : CodeFixProvider
     private const string ChangeIndexEquivalenceKey = "ChangeIndex";
 
     public override ImmutableArray<string> FixableDiagnosticIds => ImmutableArray.Create(
-        "NINO002", "NINO003", "NINO004", "NINO005", "NINO006", "NINO007", "NINO008", "NINO009"
+        "NINO002", "NINO003", "NINO004", "NINO005", "NINO006", "NINO007", "NINO009"
     );
 
     public override FixAllProvider GetFixAllProvider()
@@ -64,10 +64,6 @@ public class NinoCodeFixProvider : CodeFixProvider
                 await RegisterNino007FixAsync(context, root, node).ConfigureAwait(false);
                 break;
 
-            case "NINO008": // Nested type with non-public members
-                RegisterNino008Fix(context, root, node);
-                break;
-
             case "NINO009": // Duplicate member index
                 await RegisterNino009FixAsync(context, root, node).ConfigureAwait(false);
                 break;
@@ -92,90 +88,56 @@ public class NinoCodeFixProvider : CodeFixProvider
     private Task<Document> MakeTypePublicAsync(Document document, SyntaxNode root,
         TypeDeclarationSyntax typeDeclaration)
     {
-        TypeDeclarationSyntax newTypeDeclaration;
-
-        // Check if type has any accessibility modifier
-        var hasAccessibilityModifier = typeDeclaration.Modifiers.Any(m =>
-            m.IsKind(SyntaxKind.PublicKeyword) ||
-            m.IsKind(SyntaxKind.PrivateKeyword) ||
-            m.IsKind(SyntaxKind.ProtectedKeyword) ||
-            m.IsKind(SyntaxKind.InternalKeyword));
-
-        if (hasAccessibilityModifier)
+        // The type itself becomes public; containing types only need to be public or internal.
+        var targets = new List<TypeDeclarationSyntax> { typeDeclaration };
+        for (var parent = typeDeclaration.Parent as TypeDeclarationSyntax; parent != null;
+             parent = parent.Parent as TypeDeclarationSyntax)
         {
-            // Replace existing accessibility modifier with public
-            var oldModifiers = typeDeclaration.Modifiers;
-            var newModifiers = SyntaxFactory.TokenList();
-
-            foreach (var modifier in oldModifiers)
-            {
-                if (modifier.IsKind(SyntaxKind.PrivateKeyword) ||
-                    modifier.IsKind(SyntaxKind.ProtectedKeyword) ||
-                    modifier.IsKind(SyntaxKind.InternalKeyword))
-                {
-                    newModifiers = newModifiers.Add(SyntaxFactory.Token(SyntaxKind.PublicKeyword)
-                        .WithTriviaFrom(modifier));
-                }
-                else
-                {
-                    newModifiers = newModifiers.Add(modifier);
-                }
-            }
-
-            newTypeDeclaration = typeDeclaration.WithModifiers(newModifiers);
-        }
-        else
-        {
-            // Add public modifier
-            var publicToken = SyntaxFactory.Token(SyntaxKind.PublicKeyword)
-                .WithTrailingTrivia(SyntaxFactory.Space);
-            newTypeDeclaration = typeDeclaration.WithModifiers(
-                typeDeclaration.Modifiers.Insert(0, publicToken));
+            if (!IsPublicOrInternal(parent.Modifiers))
+                targets.Add(parent);
         }
 
-        // Handle nested types - make parent types public too
-        var currentParent = typeDeclaration.Parent as TypeDeclarationSyntax;
-        var nodesToReplace = new Dictionary<SyntaxNode, SyntaxNode> { { typeDeclaration, newTypeDeclaration } };
-
-        while (currentParent != null)
-        {
-            var parentModifiers = currentParent.Modifiers;
-            if (!parentModifiers.Any(m => m.IsKind(SyntaxKind.PublicKeyword)))
-            {
-                var newParentModifiers = SyntaxFactory.TokenList();
-                bool replaced = false;
-
-                foreach (var modifier in parentModifiers)
-                {
-                    if (modifier.IsKind(SyntaxKind.PrivateKeyword) ||
-                        modifier.IsKind(SyntaxKind.ProtectedKeyword) ||
-                        modifier.IsKind(SyntaxKind.InternalKeyword))
-                    {
-                        newParentModifiers = newParentModifiers.Add(
-                            SyntaxFactory.Token(SyntaxKind.PublicKeyword).WithTriviaFrom(modifier));
-                        replaced = true;
-                    }
-                    else
-                    {
-                        newParentModifiers = newParentModifiers.Add(modifier);
-                    }
-                }
-
-                if (!replaced)
-                {
-                    var publicToken = SyntaxFactory.Token(SyntaxKind.PublicKeyword)
-                        .WithTrailingTrivia(SyntaxFactory.Space);
-                    newParentModifiers = parentModifiers.Insert(0, publicToken);
-                }
-
-                nodesToReplace[currentParent] = currentParent.WithModifiers(newParentModifiers);
-            }
-
-            currentParent = currentParent.Parent as TypeDeclarationSyntax;
-        }
-
-        var newRoot = root.ReplaceNodes(nodesToReplace.Keys, (original, _) => nodesToReplace[original]);
+        // The replacement is built from the rewritten node, so a containing type keeps the change to its member.
+        var newRoot = root.ReplaceNodes(targets, (_, rewritten) => MakePublic(rewritten));
         return Task.FromResult(document.WithSyntaxRoot(newRoot));
+    }
+
+    private static bool IsPublicOrInternal(SyntaxTokenList modifiers) =>
+        modifiers.Any(SyntaxKind.PublicKeyword) ||
+        (modifiers.Any(SyntaxKind.InternalKeyword) && !modifiers.Any(SyntaxKind.PrivateKeyword));
+
+    private static bool IsAccessibilityModifier(SyntaxToken token) =>
+        token.IsKind(SyntaxKind.PublicKeyword) || token.IsKind(SyntaxKind.PrivateKeyword) ||
+        token.IsKind(SyntaxKind.ProtectedKeyword) || token.IsKind(SyntaxKind.InternalKeyword);
+
+    /// <summary>Replaces the accessibility modifiers (e.g. <c>private protected</c>) with <c>public</c>.</summary>
+    private static TypeDeclarationSyntax MakePublic(TypeDeclarationSyntax declaration)
+    {
+        var modifiers = declaration.Modifiers;
+        int first = -1;
+        for (int i = modifiers.Count - 1; i >= 0; i--)
+        {
+            if (!IsAccessibilityModifier(modifiers[i]))
+                continue;
+            first = i;
+            if (i + 1 < modifiers.Count && IsAccessibilityModifier(modifiers[i + 1]))
+                modifiers = modifiers.RemoveAt(i + 1);
+        }
+
+        var publicToken = SyntaxFactory.Token(SyntaxKind.PublicKeyword);
+        if (first >= 0)
+            return declaration.WithModifiers(modifiers.Replace(modifiers[first], publicToken.WithTriviaFrom(modifiers[first])));
+
+        // No modifier: move the leading trivia (e.g. indentation) of the first token in front of 'public'.
+        if (modifiers.Count > 0)
+            return declaration.WithModifiers(modifiers
+                .Replace(modifiers[0], modifiers[0].WithLeadingTrivia())
+                .Insert(0, publicToken.WithLeadingTrivia(modifiers[0].LeadingTrivia).WithTrailingTrivia(SyntaxFactory.Space)));
+        var keyword = declaration.Keyword;
+        return declaration
+            .WithKeyword(keyword.WithLeadingTrivia())
+            .WithModifiers(SyntaxFactory.TokenList(
+                publicToken.WithLeadingTrivia(keyword.LeadingTrivia).WithTrailingTrivia(SyntaxFactory.Space)));
     }
 
     #endregion
@@ -461,75 +423,6 @@ public class NinoCodeFixProvider : CodeFixProvider
                     SyntaxFactory.AttributeArgumentList(args.Add(newArg)));
             }
         }
-
-        var newRoot = root.ReplaceNode(ninoTypeAttr, newAttr);
-        return Task.FromResult(document.WithSyntaxRoot(newRoot));
-    }
-
-    #endregion
-
-    #region NINO008 - Fix Nested Type with Non-Public Members
-
-    private void RegisterNino008Fix(CodeFixContext context, SyntaxNode root, SyntaxNode node)
-    {
-        var typeDeclaration = node.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().FirstOrDefault();
-        if (typeDeclaration == null) return;
-
-        context.RegisterCodeFix(
-            CodeAction.Create(
-                title: "Set containNonPublicMembers to false",
-                createChangedDocument: _ => UpdateContainNonPublicMembersToFalseAsync(
-                    context.Document, root, typeDeclaration),
-                equivalenceKey: ChangeParameterEquivalenceKey),
-            context.Diagnostics);
-    }
-
-    private Task<Document> UpdateContainNonPublicMembersToFalseAsync(Document document, SyntaxNode root,
-        TypeDeclarationSyntax typeDeclaration)
-    {
-        var ninoTypeAttr = typeDeclaration.AttributeLists
-            .SelectMany(list => list.Attributes)
-            .FirstOrDefault(attr =>
-            {
-                var name = attr.Name.ToString();
-                return name == "NinoType" || name == "NinoTypeAttribute";
-            });
-
-        if (ninoTypeAttr == null || ninoTypeAttr.ArgumentList == null)
-            return Task.FromResult(document);
-
-        var args = ninoTypeAttr.ArgumentList.Arguments;
-
-        // Find the containNonPublicMembers argument (either named or positional)
-        var containNonPublicMembersArgIndex = -1;
-        for (int i = 0; i < args.Count; i++)
-        {
-            var arg = args[i];
-            if (arg.NameColon != null && arg.NameColon.Name.ToString() == "containNonPublicMembers")
-            {
-                containNonPublicMembersArgIndex = i;
-                break;
-            }
-            else if (arg.NameColon == null && i == 1) // Second positional argument
-            {
-                containNonPublicMembersArgIndex = i;
-                break;
-            }
-        }
-
-        if (containNonPublicMembersArgIndex == -1) return Task.FromResult(document);
-
-        // Create new argument with false value
-        var oldArg = args[containNonPublicMembersArgIndex];
-        var newArg = SyntaxFactory.AttributeArgument(
-                SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression))
-            .WithNameColon(oldArg.NameColon); // Preserve the name if it exists
-
-        // Replace the argument at the found index
-        var newArgs = args.Replace(args[containNonPublicMembersArgIndex], newArg);
-
-        var newAttr = ninoTypeAttr.WithArgumentList(
-            SyntaxFactory.AttributeArgumentList(newArgs));
 
         var newRoot = root.ReplaceNode(ninoTypeAttr, newAttr);
         return Task.FromResult(document.WithSyntaxRoot(newRoot));

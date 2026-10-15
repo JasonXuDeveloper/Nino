@@ -75,17 +75,18 @@ public sealed record LocationInfo(string FilePath, TextSpan Span, LinePositionSp
     }
 }
 
-public sealed record DiagnosticInfo(string Id, string Title, string Format, DiagnosticSeverity Severity,
-    LocationInfo? Location, EquatableArray<string> Arguments)
+/// <summary>A diagnostic to report once the model is output. Descriptors are the shared <see cref="NinoDiagnostics"/>.</summary>
+public sealed record DiagnosticInfo(DiagnosticDescriptor Descriptor, LocationInfo? Location,
+    EquatableArray<string> Arguments)
 {
-    public DiagnosticInfo(string id, string title, string format, DiagnosticSeverity severity, LocationInfo? location,
-        params string[] arguments) : this(id, title, format, severity, location, new EquatableArray<string>(arguments))
+    public DiagnosticInfo(DiagnosticDescriptor descriptor, LocationInfo? location, params string[] arguments)
+        : this(descriptor, location, new EquatableArray<string>(arguments))
     {
     }
 
     public Diagnostic ToDiagnostic() =>
-        Diagnostic.Create(new DiagnosticDescriptor(Id, Title, Format, "Nino", Severity, true),
-            Location?.ToLocation() ?? Microsoft.CodeAnalysis.Location.None, Arguments.Cast<object>().ToArray());
+        Diagnostic.Create(Descriptor, Location?.ToLocation() ?? Microsoft.CodeAnalysis.Location.None,
+            Arguments.Cast<object>().ToArray());
 }
 
 public sealed record TypeModel(

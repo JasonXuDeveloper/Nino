@@ -6,9 +6,37 @@ using Nino.Core;
 #nullable disable
 namespace Nino.UnitTests;
 
+public partial class NestedPrivateOuter
+{
+    internal partial class Middle
+    {
+        [NinoType(containNonPublicMembers: true)]
+        public partial class Inner
+        {
+            private int _secret;
+            public string Name;
+
+            public int Secret
+            {
+                get => _secret;
+                set => _secret = value;
+            }
+        }
+    }
+}
+
 [TestClass]
 public class PrivateMemberAccessTests
 {
+    [TestMethod]
+    public void NestedTypeWithPrivateMembersRoundTrips()
+    {
+        var value = new NestedPrivateOuter.Middle.Inner { Name = "nested", Secret = 42 };
+        var result = NinoDeserializer.Deserialize<NestedPrivateOuter.Middle.Inner>(NinoSerializer.Serialize(value));
+        Assert.AreEqual("nested", result.Name);
+        Assert.AreEqual(42, result.Secret);
+    }
+
     [TestMethod]
     public void TestPrivateAccess()
     {
