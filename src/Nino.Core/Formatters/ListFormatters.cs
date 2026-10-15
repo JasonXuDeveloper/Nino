@@ -80,7 +80,10 @@ namespace Nino.Core
         }
     }
 
-    /// <summary><c>List&lt;T?&gt;</c> of raw <typeparamref name="T"/>: same bytes as the per-element encoding.</summary>
+    /// <summary>
+    /// <c>List&lt;T?&gt;</c> of raw <typeparamref name="T"/>: the bytes of <see cref="NullableArrayFormatter{T}"/>
+    /// (fixed stride), not the per-element encoding of <c>IList&lt;T?&gt;</c>.
+    /// </summary>
     public struct NullableListFormatter<[NinoCreated] TList, [NinoRaw] T> : INinoFormatter<TList>
         where TList : List<T?>
         where T : unmanaged

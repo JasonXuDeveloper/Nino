@@ -56,6 +56,7 @@ hosts are not supported.
 | `string` (default, UTF-16) | `int32` char count, then UTF-16 code units |
 | `string` with `[NinoUtf8]` | `int32` byte count (`-1` = null), then UTF-8 bytes |
 | Array / list of unmanaged `T` | length, then one block copy of the elements |
+| `T?[]` / `List<T?>` of raw `T` | length, then each element in the canonical `Nullable<T>` layout (fixed stride: flag, padding, value); an `IList<T?>`/`IEnumerable<T?>` member writes each element as a single `T?` instead (see `docs/pitfalls.md`) |
 | Other collections | length, then each element |
 | Dictionary | length, then key/value pairs |
 | Multi-dimensional array `T[,..]` | `int32` rank-lengths (`-1` for null in the first slot), then elements in row-major order |

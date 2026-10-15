@@ -23,6 +23,11 @@ versions. Nino defines the bytes instead:
   `Nullable<T>` matches, the block is copied as is (padding cleared). Elsewhere it is converted element
   by element: `NullableLayout<T>` probes the runtime's field offsets once (it builds `default(T)` as a
   `T?` and finds the flag byte) instead of assuming an order.
+- The two encodings are not interchangeable. `int?[]` and `List<int?>` members use the fixed stride (here 8
+  bytes per element: flag, 3 bytes of padding, value), while a member declared as an interface
+  (`IList<int?>`, `IEnumerable<int?>`, `ICollection<int?>`...) writes each element on its own: 1 byte for null,
+  1 + 4 bytes otherwise, whatever collection it holds. Changing a member between the two kinds changes the
+  format.
 
 ### `ValueTuple` uses `LayoutKind.Auto`
 

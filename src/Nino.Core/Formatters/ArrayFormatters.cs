@@ -143,9 +143,11 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// <c>T?[]</c> of raw <typeparamref name="T"/>: the same bytes as <see cref="ArrayFormatter{T,TFormatter}"/> with
-    /// <see cref="NullableFormatter{T,TFormatter}"/> (length, then a has-value byte and the value per element),
-    /// written into one reservation and read without per-element calls.
+    /// <c>T?[]</c> of raw <typeparamref name="T"/>: length, then every element at a fixed stride in the canonical
+    /// <c>Nullable&lt;T&gt;</c> layout (see <see cref="NinoNullables{T}"/>), written into one reservation and read
+    /// without per-element calls. Not the bytes of <see cref="ArrayFormatter{T,TFormatter}"/> with
+    /// <see cref="NullableFormatter{T,TFormatter}"/> (a has-value byte, then the value only when present), which
+    /// sequences declared as interfaces (<c>IList&lt;T?&gt;</c>, <c>IEnumerable&lt;T?&gt;</c>) write.
     /// </summary>
     public struct NullableArrayFormatter<[NinoRaw] T> : INinoFormatter<T?[]> where T : unmanaged
     {
