@@ -54,7 +54,7 @@ public class IncrementalGeneratorTests
         driver = driver.RunGenerators(compilation);
         var derived = Output(driver, "Derived");
         var holder = Output(driver, "Holder");
-        StringAssert.Contains(holder, "WriteValue<global::Inc.Inner>");
+        StringAssert.Contains(holder, "WriteValueIn<global::Inc.Inner>");
 
         // Unrelated edit: same outputs.
         compilation = Edit(compilation, "Inner.cs", "}\n}", "}\n// comment\n}");

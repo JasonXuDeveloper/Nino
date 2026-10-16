@@ -94,7 +94,8 @@ internal sealed class BodyEmitter
         _w.Line($"public void {name}({parameters}) => __{name}({args});");
         _w.Line();
         _w.Line(_names.NoInline);
-        if (!_m.TopInline)
+        bool localWriter = name == "WriteBody" && LocalWriter;
+        if (!_m.TopInline && !localWriter)
             return $"private static void __{name}({parameters})";
         if (name == "ReadBody" && LocalReader)
         {
@@ -103,6 +104,16 @@ internal sealed class BodyEmitter
                 _w.Line("var __r = reader;");
                 _w.Line($"__{name}Inline(ref value, ref __r);");
                 _w.Line("reader = __r;");
+            });
+        }
+        else if (localWriter)
+        {
+            // The members are written by the inlinable twin (__Top's, or one made for this), through the local.
+            _w.Block($"private static void __{name}({parameters})", () =>
+            {
+                _w.Line("var __w = writer;");
+                _w.Line($"__{name}Inline(value, ref __w);");
+                _w.Line("writer = __w;");
             });
         }
         else
@@ -198,6 +209,12 @@ internal sealed class BodyEmitter
 
             if (group.Count == 1)
             {
+                if (WriteFrom(first) != null)
+                {
+                    _w.Line(RawWrite(first, $"writer.Reserve({first.Raw!.Expression})", "0"));
+                    continue;
+                }
+
                 string method = RawBlock.IsStruct(first) ? "WriteValue" : "UnsafeWrite";
                 _w.Line($"writer.{method}<{first.TypeName}>({Get(_m, first, "value")});");
                 continue;
@@ -218,8 +235,24 @@ internal sealed class BodyEmitter
     }
 
     // Struct members may have padding, which WriteValue clears.
-    private string RawWrite(MemberModel member, string p, string offset) =>
-        $"{Core}NinoUnsafe.{(RawBlock.IsStruct(member) ? "WriteValue" : "Write")}<{member.TypeName}>(ref {p}, {offset}, {Get(_m, member, "value")});";
+    private string RawWrite(MemberModel member, string p, string offset)
+    {
+        string method = RawBlock.IsStruct(member) ? "WriteValue" : "Write";
+        return WriteFrom(member) is { } field
+            ? $"{Core}NinoUnsafe.{method}In<{member.TypeName}>(ref {p}, {offset}, in {field});"
+            : $"{Core}NinoUnsafe.{method}<{member.TypeName}>(ref {p}, {offset}, {Get(_m, member, "value")});";
+    }
+
+    /// <summary>
+    /// The field to write a raw member from by reference (<c>NinoUnsafe.WriteIn</c>), or null to pass it by value:
+    /// fields wider than 8 bytes (Guid, decimal, structs), which by value the JIT copies to the stack and loads
+    /// again. Narrower values are better by value, where the load folds the field offset.
+    /// </summary>
+    private string? WriteFrom(MemberModel member) =>
+        !member.IsProperty && member.Access is MemberAccess.Direct or MemberAccess.Cast &&
+        (RawBlock.IsStruct(member) || member.Raw!.Bytes > 8)
+            ? MemberCode.Ref(_m, member, "value")
+            : null;
 
     /// <summary>Each member as (key, length, value); consecutive raw members share one reservation.</summary>
     private void EmitKeyedWrites()
@@ -260,6 +293,45 @@ internal sealed class BodyEmitter
     /// false): a nested body takes the reader's address, which would keep the local in memory too.
     /// </summary>
     private bool LocalReader => OutOfLine && !_m.Nests && !_m.Keyed && !_m.TrackReferences;
+
+    /// <summary>
+    /// Whether the out-of-line write body works on a local copy of the writer, written back at its end, for the
+    /// reasons of <see cref="LocalReader"/> (the position, the buffer and its length are otherwise loaded, and the
+    /// position stored, for every member). The formatters keep the writer's address from calls that are not inlined
+    /// (or pass a copy), so the local stays in registers.
+    /// </summary>
+    private bool LocalWriter => OutOfLine && !_m.Nests && !_m.Keyed && !_m.TrackReferences &&
+                                _m.CollectionFormatter.Length == 0 &&
+                                _m.Members.All(static x => x.Raw != null || WritesInRegisters(x.Formatter));
+
+    /// <summary>
+    /// Formatters whose writes never pass the writer's address to a call that is not inlined: strings, raw arrays
+    /// and lists, and dictionaries of raw keys and raw or UTF-16 string values. Any other member would take the
+    /// address of the local writer (keeping it in memory) or need a copy of it around the call, which costs more
+    /// than the loads and stores the local saves.
+    /// </summary>
+    private static bool WritesInRegisters(string formatter)
+    {
+        if (formatter == Core + "StringFormatter" || formatter == Core + "Utf8StringFormatter" ||
+            formatter.StartsWith(Core + "UnmanagedArrayFormatter<", System.StringComparison.Ordinal) ||
+            formatter.StartsWith(Core + "UnmanagedListFormatter<", System.StringComparison.Ordinal))
+            return true;
+        if (!formatter.StartsWith(Core + "DictionaryFormatter<", System.StringComparison.Ordinal))
+            return false;
+        // DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>: the last two arguments.
+        string args = formatter.Substring(Core.Length + "DictionaryFormatter<".Length);
+        int value = args.LastIndexOf(", " + Core, System.StringComparison.Ordinal);
+        if (value < 0)
+            return false;
+        int key = args.LastIndexOf(", " + Core, value - 1, System.StringComparison.Ordinal);
+        if (key < 0)
+            return false;
+        string keyFormatter = args.Substring(key + 2, value - key - 2);
+        string valueFormatter = args.Substring(value + 2, args.Length - value - 3);
+        return keyFormatter.StartsWith(Core + "UnmanagedFormatter<", System.StringComparison.Ordinal) &&
+               (valueFormatter == Core + "StringFormatter" ||
+                valueFormatter.StartsWith(Core + "UnmanagedFormatter<", System.StringComparison.Ordinal));
+    }
 
     public void EmitReadBody()
     {

@@ -430,6 +430,10 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReadLength(int minElementSize = 1)
         {
+            // A constant in the formatters: one compare covers null, invalid and too long.
+            if (minElementSize >= 1)
+                return TryReadLength(minElementSize, out int count) ? count : NinoWire.NullLength;
+
             int length = UnsafeRead<int>();
             if (length < 0)
             {
@@ -441,6 +445,28 @@ namespace Nino.Core
             if ((long)length * minElementSize > Remaining)
                 NinoThrow.InvalidLength(length);
             return length;
+        }
+
+        /// <summary>
+        /// Reads a collection length into <paramref name="length"/>; false for null. Throws if the payload cannot
+        /// possibly contain <c>length * minElementSize</c> more bytes (<paramref name="minElementSize"/> at least 1).
+        /// The sign is tested first: the callers then know the length is not negative, which drops the checks of
+        /// <c>new List&lt;T&gt;(length)</c>, <c>CollectionsMarshal.SetCount</c> and the like.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool TryReadLength(int minElementSize, out int length)
+        {
+            length = UnsafeRead<int>();
+            if (length < 0)
+            {
+                if (length != NinoWire.NullLength)
+                    NinoThrow.InvalidLength(length);
+                return false;
+            }
+
+            if ((ulong)(uint)length * (uint)minElementSize > (uint)(_data.Length - _pos))
+                NinoThrow.InvalidLength(length);
+            return true;
         }
 
         /// <summary>Reads a length-prefixed sub-reader (used for version-tolerant bodies).</summary>

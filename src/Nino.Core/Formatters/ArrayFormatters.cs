@@ -59,32 +59,41 @@ namespace Nino.Core
         public static T[] EnsureLength<T>(ref T[] array, int length, bool uninitialized = false)
         {
             var current = array;
-            if (current != null)
-                return current.Length == length ? current : Resize(ref array, length, uninitialized);
-            // No array yet (a new object): allocated here, the JIT's allocation helper called directly rather than
-            // through Resize (a call, a frame, and a checked store of the result through the ref).
-            if (length == 0)
-                return Resize(ref array, 0, uninitialized);
-            var result = uninitialized ? NinoUnsafe.AllocateUninitializedArray<T>(length) : new T[length];
-            array = result;
-            return result;
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static T[] Resize<T>(ref T[] array, int length, bool uninitialized)
-        {
-            var old = array;
-            var result = length == 0
-                ? Array.Empty<T>()
-                : uninitialized
-                    ? NinoUnsafe.AllocateUninitializedArray<T>(length)
-                    : new T[length];
-            if (old == null || old.Length == 0)
+            if (current == null)
             {
-                // Nothing to move or drop (the shared empty array is never recycled).
+                // No array yet (a new object): allocated here, the JIT's allocation helper called directly rather
+                // than through Resize (a call and a frame).
+                var result = NinoUnsafe.NewArray<T>(length, uninitialized);
                 array = result;
                 return result;
             }
+
+            if (current.Length == length)
+                return current;
+            // Resize takes the old array by value and the slot is stored here: the slot's address reaching a call
+            // would keep it in memory when it is a local (the value of a property, read into a local and stored back
+            // after), with a store and a reload around the call, and zeroed in the prolog.
+            var resized = Resize(current, length, uninitialized);
+            array = resized;
+            // As NinoRecycler.Replace: the old array is recycled once the new one took the slot (the shared empty
+            // array never is).
+            if (current.Length != 0)
+                NinoRecycler<T[]>.Recycle(current);
+            return resized;
+        }
+
+        /// <summary>
+        /// A new array of <paramref name="length"/> elements for <paramref name="old"/> (null, or of another length):
+        /// moves over the elements that fit (unless <paramref name="uninitialized"/>), recycles the rest and clears
+        /// the old array. The caller stores the result and recycles the old array.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static T[] Resize<T>(T[] old, int length, bool uninitialized)
+        {
+            var result = NinoUnsafe.NewArray<T>(length, uninitialized);
+            // Nothing to move or drop (the shared empty array is never recycled).
+            if (old == null || old.Length == 0)
+                return result;
 
             // The elements that fit move to the new array (which now owns them; an uninitialized one is about to be
             // overwritten, so they are dropped too), the rest are dropped, and the emptied old array is replaced.
@@ -93,7 +102,6 @@ namespace Nino.Core
             NinoRecycler.DiscardAll(old.AsSpan(keep));
             if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 Array.Clear(old, 0, old.Length);
-            NinoRecycler.Replace(ref array, result);
             return result;
         }
     }
@@ -117,8 +125,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T[] value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
+            if (!reader.TryReadLength(1, out int length))
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -197,9 +204,7 @@ namespace Nino.Core
                 return null;
             }
 
-            if (length == 0)
-                return Array.Empty<T>();
-            var array = NinoUnsafe.AllocateUninitializedArray<T>(length);
+            var array = NinoUnsafe.NewArray<T>(length, uninitialized: true);
             Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
                 ref Unsafe.Add(ref start, NinoWire.LengthSize), (uint)length * size);
             return array;

@@ -181,10 +181,17 @@ internal sealed record TypeModel(
     /// body (one that does passes the reader to that body's call anyway): a large body inlined into every call site
     /// would use up the JIT's inlining budget there.
     /// </summary>
-    public bool TopInline => !IsGeneric && !TrackReferences && !RawStruct && !Keyed && !Nests && Levels.Length == 0 &&
+    public bool TopInline => HasTop && !Keyed && Levels.Length == 0 &&
                              BaseFormatter.Length == 0 && CollectionFormatter.Length == 0 &&
-                             Kind == FormatterKind.SealedClass &&
                              Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
+
+    /// <summary>
+    /// Whether the formatter has a <c>__Top</c> twin: sealed classes whose body opens no class body. With no body
+    /// open around it (the calls that create their reader or writer), such a body is never deferred and counts no
+    /// depth, so the twin skips the depth check and calls the body directly (inlined if <see cref="TopInline"/>,
+    /// else the out-of-line body), also for each element of a built-in collection of it.
+    /// </summary>
+    public bool HasTop => !IsGeneric && !TrackReferences && !RawStruct && !Nests && Kind == FormatterKind.SealedClass;
 
     /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
     public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";

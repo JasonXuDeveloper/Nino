@@ -16,7 +16,7 @@ namespace Nino.Generator.Generation;
 /// <see cref="Call"/> the <c>NinoDirect</c> call it makes, <see cref="Attribute"/> its <c>[InterceptsLocation]</c>.
 /// Calls with the same signature and call share one interceptor. <see cref="Inlinable"/>: the call creates its own
 /// reader or writer, so no class body is open around <see cref="Formatter"/>: the call then uses the <c>__Top</c>
-/// twin (<see cref="TypeModel.TopInline"/>) of the formatter, or of the element formatters of a built-in collection
+/// twin (<see cref="TypeModel.HasTop"/>) of the formatter, or of the element formatters of a built-in collection
 /// (<c>List&lt;Small&gt;</c>, <c>Dictionary&lt;int, Small&gt;</c>), whose elements are read and written there too.
 /// </summary>
 internal sealed record InterceptedCall(string Signature, string Call, string Attribute, string Formatter = "",

@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Core
 {
@@ -13,46 +15,120 @@ namespace Nino.Core
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
+        /// <summary>Writes the count and the pairs of a dictionary (not null).</summary>
+        // Inlined, with the loops out of line: the writer's address never reaches a call that is not inlined (raw
+        // pairs are written into one reservation taken here; other pairs go through a copy of the writer), so the
+        // caller keeps the writer's fields in registers.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write(Dictionary<TKey, TValue> value, ref Writer writer)
         {
             if (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is)
             {
                 // Raw keys and values: one reservation for the whole dictionary, no per-element bounds checks.
-                int keySize = Unsafe.SizeOf<TKey>();
-                int pairSize = keySize + Unsafe.SizeOf<TValue>();
                 int count = value.Count;
-                ref byte dst = ref writer.Reserve(checked(NinoWire.LengthSize + count * pairSize));
-                NinoUnsafe.Write(ref dst, count);
-                int offset = NinoWire.LengthSize;
-                int written = 0;
-                foreach (var pair in value)
-                {
-                    if (++written > count)
-                        NinoThrow.InvalidData("collection was modified during serialization");
-                    NinoUnsafe.Write(ref dst, offset, pair.Key);
-                    NinoUnsafe.Write(ref dst, offset + keySize, pair.Value);
-                    NinoLayout<TKey>.ClearPadding(ref Unsafe.Add(ref dst, offset));
-                    NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref dst, offset + keySize));
-                    offset += pairSize;
-                }
-
+                WriteRaw(value, ref writer.Reserve(checked(NinoWire.LengthSize +
+                                                           count * (Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()))),
+                    count);
                 return;
             }
 
+            if (RawFormatter<TKeyFormatter>.Is && typeof(TValueFormatter) == typeof(StringFormatter))
+            {
+                // Raw keys and UTF-16 strings: written into the free part of the buffer by value; only when they
+                // do not fit does the buffer grow, through the general loop.
+                int written = WriteStringPairs(Unsafe.As<Dictionary<TKey, string>>(value),
+                    ref writer.FreeSpace(out int available), available);
+                if (written >= 0)
+                {
+                    writer.Commit(written);
+                    return;
+                }
+            }
+
+            var copy = writer;
+            WritePairs(value, ref copy);
+            writer = copy;
+        }
+
+        /// <summary>
+        /// The bytes of <see cref="WritePairs"/> for raw keys and UTF-16 strings, written into <paramref name="dst"/>
+        /// (<paramref name="available"/> bytes). Returns the number of bytes written, or -1 when they do not fit.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int WriteStringPairs(Dictionary<TKey, string> value, ref byte dst, int available)
+        {
+            int keySize = Unsafe.SizeOf<TKey>();
+            int count = value.Count;
+            if (available < NinoWire.LengthSize)
+                return -1;
+            NinoUnsafe.Write(ref dst, count);
+            nuint pos = NinoWire.LengthSize;
+            nuint end = (nuint)(uint)available;
+            int written = 0;
+            foreach (var pair in value)
+            {
+                if (++written > count)
+                    NinoThrow.InvalidData("collection was modified during serialization");
+                string s = pair.Value;
+                int length = s == null ? NinoWire.NullLength : s.Length;
+                nuint chars = s == null ? 0 : (nuint)(uint)length * sizeof(char);
+                nuint size = (nuint)(uint)(keySize + NinoWire.LengthSize) + chars;
+                if (size > end - pos)
+                    return -1;
+                ref byte entry = ref Unsafe.Add(ref dst, (nint)pos);
+                NinoUnsafe.Write(ref entry, 0, pair.Key);
+                NinoLayout<TKey>.ClearPadding(ref entry);
+                NinoUnsafe.Write(ref entry, keySize, length);
+                if (chars != 0)
+                    Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref entry, keySize + NinoWire.LengthSize),
+                        ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(s.AsSpan())), (uint)chars);
+                pos += size;
+            }
+
+            return (int)pos;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteRaw(Dictionary<TKey, TValue> value, ref byte dst, int count)
+        {
+            int keySize = Unsafe.SizeOf<TKey>();
+            int pairSize = keySize + Unsafe.SizeOf<TValue>();
+            NinoUnsafe.Write(ref dst, count);
+            ref byte pairs = ref Unsafe.Add(ref dst, NinoWire.LengthSize);
+            int written = 0;
+            foreach (var pair in value)
+            {
+                if (++written > count)
+                    NinoThrow.InvalidData("collection was modified during serialization");
+                NinoUnsafe.Write(ref pairs, 0, pair.Key);
+                NinoUnsafe.Write(ref pairs, keySize, pair.Value);
+                NinoLayout<TKey>.ClearPadding(ref pairs);
+                NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref pairs, keySize));
+                pairs = ref Unsafe.Add(ref pairs, pairSize);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WritePairs(Dictionary<TKey, TValue> value, ref Writer target)
+        {
+            // A local writer, so its fields stay in registers inside the loop.
+            var writer = target;
             writer.WriteLength(value.Count);
             foreach (var pair in value)
             {
                 default(TKeyFormatter).Serialize(pair.Key, ref writer);
                 default(TValueFormatter).Serialize(pair.Value, ref writer);
             }
+
+            target = writer;
         }
 
-        /// <summary>Reads the pair count, validated against the remaining bytes (-1 for null).</summary>
+        /// <summary>Reads the pair count, validated against the remaining bytes; false for null.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int ReadLength(ref Reader reader) =>
-            reader.ReadLength(RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is
+        public static bool TryReadLength(ref Reader reader, out int length) =>
+            reader.TryReadLength(RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is
                 ? Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()
-                : 1);
+                : 1, out length);
 
         /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/> pairs.</summary>
         public static void Reset(Dictionary<TKey, TValue> dictionary, int length)
@@ -172,10 +248,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void AddRaw(Dictionary<TKey, TValue> dictionary, ref byte src, int length)
         {
+            // A cursor rather than an int offset, which every access would sign-extend.
             int keySize = Unsafe.SizeOf<TKey>();
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
-            for (int i = 0, offset = 0; i < length; i++, offset += pairSize)
-                Add(dictionary, NinoUnsafe.Read<TKey>(ref src, offset), NinoUnsafe.Read<TValue>(ref src, offset + keySize));
+            for (int i = 0; i < length; i++)
+            {
+                Add(dictionary, NinoUnsafe.Read<TKey>(ref src), NinoUnsafe.Read<TValue>(ref src, keySize));
+                src = ref Unsafe.Add(ref src, pairSize);
+            }
         }
 
         /// <summary>Reads <paramref name="length"/> pairs into <paramref name="dictionary"/>.</summary>
@@ -231,6 +311,7 @@ namespace Nino.Core
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(Dictionary<TKey, TValue> value, ref Writer writer)
         {
             if (value == null)
@@ -241,8 +322,7 @@ namespace Nino.Core
 
         public void Deserialize(ref Dictionary<TKey, TValue> value, ref Reader reader)
         {
-            int length = NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.ReadLength(ref reader);
-            if (length < 0)
+            if (!NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.TryReadLength(ref reader, out int length))
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -274,6 +354,7 @@ namespace Nino.Core
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TDictionary value, ref Writer writer)
         {
             if (value == null)
@@ -284,8 +365,7 @@ namespace Nino.Core
 
         public void Deserialize(ref TDictionary value, ref Reader reader)
         {
-            int length = NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.ReadLength(ref reader);
-            if (length < 0)
+            if (!NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.TryReadLength(ref reader, out int length))
             {
                 NinoRecycler.Discard(ref value);
                 return;

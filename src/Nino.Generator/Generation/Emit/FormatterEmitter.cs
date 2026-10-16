@@ -108,7 +108,7 @@ internal static class FormatterEmitter
             body.EmitReadBody();
         }
 
-        if (m.TopInline)
+        if (m.HasTop)
         {
             w.Line();
             EmitTop(w, m, names);
@@ -125,8 +125,8 @@ internal static class FormatterEmitter
     }
 
     /// <summary>
-    /// The formatter the intercepted top-level calls use (see <see cref="TypeModel.TopInline"/>): the same bytes,
-    /// with the body inlined into the caller instead of called.
+    /// The formatter the intercepted top-level calls use (see <see cref="TypeModel.HasTop"/>): the same bytes, with
+    /// no depth check, and the body inlined into the caller (<see cref="TypeModel.TopInline"/>) or called directly.
     /// </summary>
     private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names)
     {
@@ -141,9 +141,13 @@ internal static class FormatterEmitter
         w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeTop<{t}, {top}>(ref value, ref reader);");
 
         w.Line(names.Inline);
-        w.Line($"public void WriteBody({t} value, ref {Core}Writer writer) => __WriteBodyInline(value, ref writer);");
+        w.Line(m.TopInline
+            ? $"public void WriteBody({t} value, ref {Core}Writer writer) => __WriteBodyInline(value, ref writer);"
+            : $"public void WriteBody({t} value, ref {Core}Writer writer) => default({m.FormatterName}).WriteBody(value, ref writer);");
         w.Line(names.Inline);
-        w.Line($"public void ReadBody(ref {t} value, ref {Core}Reader reader) => __ReadBodyInline(ref value, ref reader);");
+        w.Line(m.TopInline
+            ? $"public void ReadBody(ref {t} value, ref {Core}Reader reader) => __ReadBodyInline(ref value, ref reader);"
+            : $"public void ReadBody(ref {t} value, ref {Core}Reader reader) => default({m.FormatterName}).ReadBody(ref value, ref reader);");
         w.Close();
     }
 

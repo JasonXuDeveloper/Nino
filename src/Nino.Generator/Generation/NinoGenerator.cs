@@ -178,8 +178,8 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 .ThenBy(c => c.Attribute, StringComparer.Ordinal)));
         var fileLocal = context.ParseOptionsProvider.Select(static (o, _) =>
             o is CSharpParseOptions { LanguageVersion: >= LanguageVersion.CSharp11 });
-        // Formatters with a __Top twin for these calls (see TypeModel.TopInline).
-        var top = CollectAll(models, static m => m.TopInline ? m.FormatterName : "")
+        // Formatters with a __Top twin for these calls (see TypeModel.HasTop).
+        var top = CollectAll(models, static m => m.HasTop ? m.FormatterName : "")
             .Select(static (x, _) => new EquatableArray<string>(x.Where(static n => n.Length != 0).Distinct()
                 .OrderBy(n => n, StringComparer.Ordinal)));
         context.RegisterImplementationSourceOutput(intercepted.Combine(fileLocal).Combine(enabled).Combine(top),

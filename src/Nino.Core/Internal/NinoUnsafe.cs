@@ -41,12 +41,17 @@ namespace Nino.Core
         public static void Write<T>(ref byte destination, T value)
         {
             // 32-bit ARM faults on unaligned 8-byte (LDRD/STRD/VSTR) accesses, which some runtimes emit for
-            // unaligned stores of 8+ byte values. A byte-wise block copy is always safe there.
+            // unaligned stores of 8+ byte values. A byte-wise block copy is always safe there. It takes the value's
+            // address, so it is in another method: an address taken here, even on a branch the JIT folds away,
+            // would make every inlined caller pass the value through a stack temporary.
             if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
                 Unsafe.WriteUnaligned(ref destination, value);
             else
-                Unsafe.CopyBlockUnaligned(ref destination, ref Unsafe.As<T, byte>(ref value), (uint)Unsafe.SizeOf<T>());
+                WriteBytes(ref destination, value);
         }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteBytes<T>(ref byte destination, T value) => WriteIn(ref destination, in value);
 
         /// <summary>
         /// Stores <paramref name="value"/> at <paramref name="destination"/> + <paramref name="offset"/>.
@@ -66,6 +71,38 @@ namespace Nino.Core
         {
             ref byte dst = ref Unsafe.Add(ref destination, offset);
             Write(ref dst, value);
+            NinoLayout<T>.ClearPadding(ref dst);
+        }
+
+        /// <summary>
+        /// <see cref="Write{T}(ref byte, T)"/> from a reference: for values wider than a register that live in the
+        /// heap (fields of the object being written), which by value would be copied to the stack and loaded
+        /// again (a Guid: a 16-byte store and reload). Values of at most 8 bytes are better passed by value, where
+        /// the load folds the field offset.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteIn<T>(ref byte destination, in T value)
+        {
+            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+                Unsafe.WriteUnaligned(ref destination, value);
+            else
+                Unsafe.CopyBlockUnaligned(ref destination, ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)),
+                    (uint)Unsafe.SizeOf<T>());
+        }
+
+        /// <summary><see cref="WriteIn{T}(ref byte, in T)"/> at <paramref name="destination"/> + <paramref name="offset"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteIn<T>(ref byte destination, int offset, in T value)
+        {
+            WriteIn(ref Unsafe.Add(ref destination, offset), in value);
+        }
+
+        /// <summary><see cref="WriteValue{T}"/> from a reference (see <see cref="WriteIn{T}(ref byte, in T)"/>).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteValueIn<T>(ref byte destination, int offset, in T value)
+        {
+            ref byte dst = ref Unsafe.Add(ref destination, offset);
+            WriteIn(ref dst, in value);
             NinoLayout<T>.ClearPadding(ref dst);
         }
 
@@ -118,6 +155,44 @@ namespace Nino.Core
                 return GC.AllocateUninitializedArray<T>(length);
 #endif
             return new T[length];
+        }
+
+        /// <summary>
+        /// A new array of <paramref name="length"/> (not negative) elements, the shared empty array for 0, and
+        /// allocated uninitialized where that is cheaper (<see cref="AllocateUninitializedArray{T}"/>) when
+        /// <paramref name="uninitialized"/> (the caller overwrites every element). One unsigned compare picks the
+        /// common case, a zeroed array of 1 element or more. The others are inline too: a call in between would cost
+        /// a frame on the large arrays (where an uninitialized one is called for).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static T[] NewArray<T>(int length, bool uninitialized)
+        {
+            if ((uint)(length - 1) < (uint)MaxZeroedLength<T>(uninitialized))
+                return new T[length];
+            if (length == 0)
+                return Array.Empty<T>();
+#if NET5_0_OR_GREATER
+            // At least MinUninitializedArrayBytes: the size test of AllocateUninitializedArray is already made.
+            if (uninitialized)
+                return GC.AllocateUninitializedArray<T>(length);
+#endif
+            return new T[length];
+        }
+
+        /// <summary>
+        /// The longest array of <typeparamref name="T"/> that <see cref="AllocateUninitializedArray{T}"/> allocates
+        /// zeroed (when <paramref name="uninitialized"/>; otherwise any length), as <c>new T[length]</c> does. A
+        /// JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int MaxZeroedLength<T>(bool uninitialized)
+        {
+#if NET5_0_OR_GREATER
+            // length * size < MinUninitializedArrayBytes.
+            if (uninitialized)
+                return (MinUninitializedArrayBytes - 1) / Unsafe.SizeOf<T>();
+#endif
+            return int.MaxValue;
         }
 
         /// <summary>

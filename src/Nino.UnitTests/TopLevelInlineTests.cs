@@ -10,9 +10,10 @@ using Nino.Core;
 namespace Nino.UnitTests;
 
 /// <summary>
-/// Small bodies get a <c>__Top</c> twin of their formatter, which the interceptors of top-level calls use: the body
-/// is inlined into the caller. This assembly defines WEAK_VERSION_TOLERANCE (no type here has one), so the types
-/// are compiled here, and their bytes and reads through <c>__Top</c> compared with the regular formatter's.
+/// Sealed classes that nest nothing get a <c>__Top</c> twin of their formatter, which the interceptors of top-level
+/// calls use: no depth check, and a small body is inlined into the caller. This assembly defines
+/// WEAK_VERSION_TOLERANCE (no type here has one), so the types are compiled here, and their bytes and reads through
+/// <c>__Top</c> compared with the regular formatter's.
 /// </summary>
 [TestClass]
 public class TopLevelInlineTests
@@ -65,6 +66,8 @@ namespace Top
                 Check<Text, NinoGen.Top_TextFormatter.__Top, NinoGen.Top_TextFormatter>(new Text { B = new string('é', 3000) }),
                 Check<Dates, NinoGen.Top_DatesFormatter.__Top, NinoGen.Top_DatesFormatter>(new Dates { A = new List<DateTime> { new DateTime(2020, 1, 2) } }),
                 Check<Map, NinoGen.Top_MapFormatter.__Top, NinoGen.Top_MapFormatter>(new Map { A = new Dictionary<int, string> { [1] = ""a"", [2] = null } }),
+                Check<Big, NinoGen.Top_BigFormatter.__Top, NinoGen.Top_BigFormatter>(new Big { A = ""a"", C = ""ç"" }),
+                Check<Big, NinoGen.Top_BigFormatter.__Top, NinoGen.Top_BigFormatter>(null),
                 // Top-level collections: the interceptors use the __Top twins of their elements' formatters.
                 Check<Text[], ArrayFormatter<Text, NinoGen.Top_TextFormatter.__Top>, ArrayFormatter<Text, NinoGen.Top_TextFormatter>>(
                     new[] { new Text { A = ""a"", B = ""é"" }, null, new Text() }),
@@ -92,9 +95,13 @@ namespace Top
         var run = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator()).RunGenerators(compilation)
             .GetRunResult();
         var sources = run.GeneratedTrees.ToDictionary(t => Path.GetFileName(t.FilePath), t => t.ToString());
-        // Sealed classes with small bodies only: Big has three formatter members.
+        // Sealed classes only. Small bodies are inlined into the twin; Big has three formatter members, so its twin
+        // calls the regular body (skipping only the depth check).
         StringAssert.Contains(sources["NinoGen.Top_IntsFormatter.g.cs"], "struct __Top");
-        Assert.IsFalse(sources["NinoGen.Top_BigFormatter.g.cs"].Contains("__Top"));
+        StringAssert.Contains(sources["NinoGen.Top_IntsFormatter.g.cs"], "=> __WriteBodyInline(value, ref writer);");
+        StringAssert.Contains(sources["NinoGen.Top_BigFormatter.g.cs"], "struct __Top");
+        StringAssert.Contains(sources["NinoGen.Top_BigFormatter.g.cs"],
+            "=> default(Top_BigFormatter).WriteBody(value, ref writer);");
         Assert.IsFalse(sources["NinoGen.Top_PairFormatter.g.cs"].Contains("__Top"));
 
         using var stream = new MemoryStream();

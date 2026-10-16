@@ -168,4 +168,36 @@ namespace Nino.Core
             t_cached = context;
         }
     }
+
+    /// <summary>
+    /// What a <see cref="Writer"/> keeps beyond its buffer and position: the back references and the deferred
+    /// bodies of one serialization call. Rented on first use (one cached instance per thread), so calls that track
+    /// nothing and never nest deep touch nothing.
+    /// </summary>
+    internal sealed class NinoWriteContext
+    {
+        [ThreadStatic] private static NinoWriteContext t_cached;
+
+        public NinoReferenceWriteTable Refs;
+        public NinoDeferrals Deferrals;
+
+        public static NinoWriteContext Rent() => NinoThreadCache.Take(ref t_cached) ?? new NinoWriteContext();
+
+        public static void Return(NinoWriteContext context)
+        {
+            if (context.Deferrals != null)
+            {
+                NinoDeferrals.Return(context.Deferrals);
+                context.Deferrals = null;
+            }
+
+            if (context.Refs != null)
+            {
+                NinoReferenceWriteTable.Return(context.Refs);
+                context.Refs = null;
+            }
+
+            t_cached = context;
+        }
+    }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Nino.Core.Internal;
 
 namespace Nino.Core
@@ -30,8 +31,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
+            if (!reader.TryReadLength(1, out int length))
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -68,15 +68,24 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            int length = reader.ReadLength(NinoLayout<T>.Size);
-            if (length < 0)
+            if (!reader.TryReadLength(NinoLayout<T>.Size, out int length))
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
             var list = value ??= ListAccess.Create<TList, T>(length);
-            reader.ReadUnmanagedRaw(ListAccess.SetCount<T>(list, length, overwritten: true));
+            var span = ListAccess.SetCount<T>(list, length, overwritten: true);
+            if (!NinoLayout<T>.IsCanonical)
+            {
+                reader.ReadUnmanagedRaw(span);
+                return;
+            }
+
+            // The length was checked against the remaining bytes above: one block copy, no second bounds check.
+            uint bytes = (uint)length * (uint)Unsafe.SizeOf<T>();
+            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
+                ref reader.UnsafeAdvance((int)bytes), bytes);
         }
     }
 

@@ -70,13 +70,10 @@ namespace Nino.Core
         /// <summary>Copies the written bytes into a new array.</summary>
         public byte[] ToArray()
         {
-            if (Index == 0)
-                return Array.Empty<byte>();
-
             // Every byte is overwritten by the copy: a memmove of the written bytes (Index never exceeds the buffer's
-            // length), where Buffer.BlockCopy would check both arrays' types and bounds first.
+            // length), where Buffer.BlockCopy would check both arrays' types and bounds first. Empty for 0.
             int count = Index;
-            var result = NinoUnsafe.AllocateUninitializedArray<byte>(count);
+            var result = NinoUnsafe.NewArray<byte>(count, uninitialized: true);
             Unsafe.CopyBlockUnaligned(ref NinoUnsafe.GetArrayDataReference(result),
                 ref NinoUnsafe.GetArrayDataReference(Buffer), (uint)count);
             return result;

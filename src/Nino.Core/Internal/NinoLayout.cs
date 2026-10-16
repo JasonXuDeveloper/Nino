@@ -477,9 +477,15 @@ namespace Nino.Core
             }
             else
             {
-                NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref value), ref destination, true);
+                WriteConverted(ref destination, value);
             }
         }
+
+        // Its own method: taking the parameter's address in Write, even on a branch the JIT folds away, makes every
+        // inlined caller pass the value through a stack temporary.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteConverted(ref byte destination, T value) =>
+            NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref value), ref destination, true);
 
         /// <summary>Reads a value stored in its wire layout.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

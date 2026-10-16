@@ -18,12 +18,14 @@ namespace Nino.Core
         private readonly NinoArrayBufferWriter _owner;
         private Span<byte> _buffer;
         private int _pos;
-        private NinoReferenceWriteTable _refs;
 
-        // Open class bodies and regions, and the bodies deferred below NinoDepth.Inline (see NinoDepth).
+        // Open class bodies and regions (see NinoDepth).
         internal int Depth;
         private int _regions;
-        private NinoDeferrals _deferrals;
+
+        // Back references and the bodies deferred below NinoDepth.Inline, created on first use: one reference in
+        // the writer rather than two (fewer fields to copy, clear and keep in registers), as in Reader.
+        private NinoWriteContext _context;
 
         /// <exception cref="PlatformNotSupportedException">The host is big-endian.</exception>
         public Writer(NinoArrayBufferWriter buffer)
@@ -47,16 +49,11 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReleaseReferences()
         {
-            if (_deferrals != null)
-            {
-                NinoDeferrals.Return(_deferrals);
-                _deferrals = null;
-            }
-
-            if (_refs == null)
+            var context = _context;
+            if (context == null)
                 return;
-            NinoReferenceWriteTable.Return(_refs);
-            _refs = null;
+            _context = null;
+            NinoWriteContext.Return(context);
         }
 
         /// <summary>
@@ -72,7 +69,8 @@ namespace Nino.Core
                 return false;
             }
 
-            int index = (_refs ??= NinoReferenceWriteTable.Rent()).GetOrAdd(value);
+            var context = _context ??= NinoWriteContext.Rent();
+            int index = (context.Refs ??= NinoReferenceWriteTable.Rent()).GetOrAdd(value);
             UnsafeWrite(index == 0 ? NinoWire.NewReference : index);
             return index == 0;
         }
@@ -118,6 +116,23 @@ namespace Nino.Core
             _pos = pos + size;
             return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
         }
+
+        /// <summary>
+        /// The free part of the buffer (<paramref name="available"/> bytes from the position), for a loop out of line
+        /// that writes into it by value (the writer's address reaching it would keep the caller's writer in memory)
+        /// and then <see cref="Commit"/>s what it wrote, or takes another path when it does not fit.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte FreeSpace(out int available)
+        {
+            int pos = _pos;
+            available = _buffer.Length - pos;
+            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
+        }
+
+        /// <summary>Advances past <paramref name="count"/> bytes written into <see cref="FreeSpace"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void Commit(int count) => _pos += count;
 
         /// <summary>Writes an unmanaged value. <typeparamref name="T"/> must not contain references.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -203,7 +218,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndRegion(int lengthPosition)
         {
-            if (--_regions == 0 && _deferrals != null)
+            if (--_regions == 0 && _context != null)
             {
                 EndOuterRegion(lengthPosition);
                 return;
@@ -220,8 +235,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void EndOuterRegion(int lengthPosition)
         {
-            var d = _deferrals;
-            if (d.Region.IsEmpty)
+            var d = _context.Deferrals;
+            if (d == null || d.Region.IsEmpty)
             {
                 PatchLength(lengthPosition);
                 return;
@@ -255,7 +270,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void WriteDeferred(in NinoDeferredItem item, int depth)
         {
-            var d = _deferrals;
+            var d = _context.Deferrals;
             d.Current = item.Value;
             d.CurrentAnchor = item.Anchor;
             d.CurrentGeneration = item.Generation;
@@ -274,7 +289,7 @@ namespace Nino.Core
             // No copy of the writer: only a body that nests others gets here, and such a body is not inlined
             // (BodyEmitter), so the caller passed the writer's address to a call already; a copy holds references
             // and would be zeroed in the prolog of every method this is inlined into.
-            if (depth == 0 && _deferrals != null)
+            if (depth == 0 && _context != null)
                 WriteTopDeferred();
         }
 
@@ -285,8 +300,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void WriteTopDeferred()
         {
-            var d = _deferrals;
-            if (d.TopActive || d.Top.IsEmpty)
+            var d = _context.Deferrals;
+            if (d == null || d.TopActive || d.Top.IsEmpty)
                 return;
             d.TopActive = true;
             while (!d.Top.IsEmpty)
@@ -309,15 +324,20 @@ namespace Nino.Core
         internal void DeferBody<T, TFormatter>(T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T> =>
-            _deferrals = DeferBody<T, TFormatter>(value, _deferrals, _pos, _regions);
+            _context = DeferBody<T, TFormatter>(value, _context, _pos, _regions);
 
         // The fields by value, as in Reader.DeferBody: the writer's address reaches no call, and no copy of it is
         // made (it would be zeroed in the prolog of every caller: generated dispatch inlines one per type).
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static NinoDeferrals DeferBody<T, TFormatter>(T value, NinoDeferrals d, int pos, int regions)
+        private static NinoWriteContext DeferBody<T, TFormatter>(T value, NinoWriteContext context, int pos,
+            int regions)
             where T : class
-            where TFormatter : struct, INinoBodyFormatter<T> =>
-            Defer(d, pos, regions, value, NinoDeferredBody<T, TFormatter>.Instance);
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            context ??= NinoWriteContext.Rent();
+            context.Deferrals = Defer(context.Deferrals, pos, regions, value, NinoDeferredBody<T, TFormatter>.Instance);
+            return context;
+        }
 
         private static NinoDeferrals Defer(NinoDeferrals d, int pos, int regions, object value,
             NinoDeferredBody body)

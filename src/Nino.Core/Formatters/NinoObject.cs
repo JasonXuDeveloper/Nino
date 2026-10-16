@@ -55,9 +55,10 @@ namespace Nino.Core
             var old = value;
             if (old != null && old.GetType() != typeof(TSub))
                 NinoRecycler.Discard(ref value);
-            var sub = Unsafe.As<TSub>(value);
-            ReadBodyOutOfLine<TSub, TFormatter>(ref sub, ref reader);
-            value = sub;
+            // The slot itself, seen as a TSub slot (it now holds null or a TSub): a local copy would reach the call
+            // by address, an untracked GC slot per subtype of the dispatch, all zeroed in its prolog on every call
+            // (and stored back through a second write barrier).
+            ReadBodyOutOfLine<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
         }
 
         /// <summary>
