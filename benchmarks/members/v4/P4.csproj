@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Optimize>true</Optimize><Nullable>disable</Nullable><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);NinoGen</InterceptorsNamespaces></PropertyGroup>
+  <ItemGroup><Compile Include="../shared/Parts.cs" /><PackageReference Include="BenchmarkDotNet" Version="0.15.2" />
+    <ProjectReference Include="../../../src/Nino.Core/Nino.Core.csproj" />
+    <ProjectReference Include="../../../src/Nino.Generator.Roslyn4.12/Nino.Generator.Roslyn4.12.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" /></ItemGroup>
+</Project>

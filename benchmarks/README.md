@@ -14,3 +14,14 @@ reports are in `<out>/v3a`, `<out>/v4` and `<out>/v3b`. `dotnet benchmarks/v3/bi
 --verify` checks that both versions round-trip the benchmark data and prints the payload sizes.
 
 The numbers in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) were measured this way.
+
+## Member by Member
+
+`members/` takes `SimpleClass` apart: each member type (`int`/`Guid`/`DateTime` header, UTF-16 and UTF-8 strings,
+`int[]`, `List<DateTime>`, both dictionaries) is its own type, plus struct and `Vector4` arrays, built once against
+Nino 3.3.13 and once against this repository. When a case of the full run is slower, this shows which member is.
+
+```sh
+benchmarks/members/run.sh                     # v3, v4, v3 again, in-process; a few minutes
+FILTER='*DMap*' benchmarks/members/run.sh     # only some cases
+```
