@@ -50,7 +50,7 @@ namespace Nino.Core
 
         private NinoPool()
         {
-            // From now on a dropped object may be a pooled instance (see NinoRecycler<T>.IsRegistered).
+            // From now on a dropped object may be a pooled instance (see NinoRecycler<T>.MayRecycle).
             NinoRecycler.PoolsInUse = true;
         }
 

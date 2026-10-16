@@ -137,7 +137,7 @@ namespace Nino.UnitTests.Corner
                     Assert.AreSame(trackedBack, trackedBack.Next);
 
                     // Non-generic entry points.
-                    var boxed = NinoDeserializer.Deserialize(NinoSerializer.Serialize((object)new ColdA { Id = n }), typeof(ColdA));
+                    var boxed = NinoDeserializer.DeserializeBoxed(NinoSerializer.SerializeBoxed(new ColdA { Id = n }, typeof(ColdA)), typeof(ColdA));
                     Assert.AreEqual(n, ((ColdA)boxed).Id);
                 }
             });

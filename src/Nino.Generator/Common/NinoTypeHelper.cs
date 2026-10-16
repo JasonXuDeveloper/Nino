@@ -84,9 +84,14 @@ internal sealed class NinoTypeOptions
     public bool AutoCollect { get; private set; } = true;
     public bool ContainNonPublicMembers { get; private set; }
     public bool AllowInheritance { get; private set; } = true;
-    public bool VersionTolerant { get; private set; }
-    public bool Keyed { get; private set; }
+    public NinoFormat Format { get; private set; }
     public bool TrackReferences { get; private set; }
+
+    /// <summary><see cref="NinoFormat.VersionTolerant"/> (not counting <c>WEAK_VERSION_TOLERANCE</c>).</summary>
+    public bool VersionTolerant => Format == NinoFormat.VersionTolerant;
+
+    /// <summary><see cref="NinoFormat.Keyed"/>.</summary>
+    public bool Keyed => Format == NinoFormat.Keyed;
 
     public static NinoTypeOptions From(AttributeData attribute)
     {
@@ -97,6 +102,14 @@ internal sealed class NinoTypeOptions
         var arguments = attribute.ConstructorArguments;
         for (int i = 0; i < parameters.Length && i < arguments.Length; i++)
         {
+            if (parameters[i].Name == "format")
+            {
+                // An enum argument's value is its underlying int.
+                if (arguments[i].Value is int format)
+                    options.Format = (NinoFormat)format;
+                continue;
+            }
+
             if (arguments[i].Value is not bool value)
                 continue;
             switch (parameters[i].Name)
@@ -104,12 +117,18 @@ internal sealed class NinoTypeOptions
                 case "autoCollect": options.AutoCollect = value; break;
                 case "containNonPublicMembers": options.ContainNonPublicMembers = value; break;
                 case "allowInheritance": options.AllowInheritance = value; break;
-                case "versionTolerant": options.VersionTolerant = value; break;
-                case "keyed": options.Keyed = value; break;
                 case "trackReferences": options.TrackReferences = value; break;
             }
         }
 
         return options;
     }
+}
+
+/// <summary>The values of <c>Nino.Core.NinoFormat</c> (<c>[NinoType(format: ...)]</c>).</summary>
+internal enum NinoFormat
+{
+    Positional = 0,
+    VersionTolerant = 1,
+    Keyed = 2,
 }

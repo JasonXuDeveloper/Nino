@@ -96,8 +96,8 @@ the hashed name, so types can be renamed or moved without breaking existing data
 once (`Nino.Core/Internal/NinoHash.cs`) and that file is also compiled into the generator, so ids computed at
 compile time and at run time cannot diverge.
 
-After the header comes the **body**: the members in declaration order (or `[NinoMember(n)]` order /
-`[NinoExplicitOrder]`), base-class members first. Consecutive unmanaged members are written as one block
+After the header comes the **body**: the members in declaration order (or `[NinoMember(n)]` order), base-class
+members first. Consecutive unmanaged members are written as one block
 (a single bounds check and reservation for the whole block).
 
 The serialized members are the type's fields and properties (its own and its `[NinoType]` bases'):
@@ -120,7 +120,7 @@ A `[NinoType]` struct is written as its **raw memory** (one copy, and arrays/lis
 is unmanaged, not version tolerant, uses the default sequential layout, has no custom member formatters, and
 every instance field (including auto-property backing fields) is serialized. Nested `[NinoType]` struct fields
 must qualify as well. The bytes are the canonical (64-bit CoreCLR) layout with padding zeroed, converted on
-runtimes that lay the type out differently (see `docs/pitfalls.md`), so reordering fields changes the format; mark the struct `versionTolerant` (or ignore a field) to opt out. Otherwise structs are written
+runtimes that lay the type out differently (see `docs/pitfalls.md`), so reordering fields changes the format; give the struct `format: NinoFormat.VersionTolerant` (or ignore a field) to opt out. Otherwise structs are written
 member by member.
 
 ### Collections
@@ -169,7 +169,7 @@ Nino creates a collection only when the slot is `null`, through `NinoActivator<T
 
 ### Version tolerance
 
-A type marked `[NinoType(versionTolerant: true)]` (or every type when the project defines
+A type marked `[NinoType(format: NinoFormat.VersionTolerant)]` (or every positional type when the project defines
 `WEAK_VERSION_TOLERANCE`) writes its body as one region: one `int32` byte length, then the members of its whole
 hierarchy (each `[NinoType]` class from the root down to the type itself), root first:
 
@@ -210,7 +210,7 @@ at any depth.
 
 ### Keyed members
 
-A type marked `[NinoType(keyed: true)]` writes each member with a key and a length, so members can be removed,
+A type marked `[NinoType(format: NinoFormat.Keyed)]` writes each member with a key and a length, so members can be removed,
 reordered or inserted freely (MessagePack's `[Key("name")]`), mainly for data authored in the Unity editor:
 
 ```
@@ -367,8 +367,8 @@ deserialization.
   for types from other assemblies, and for types resolved at runtime. It costs one virtual call.
 * **Custom formatters**: `[NinoCustomFormatter(typeof(F))]`, where `F` is a struct implementing `INinoFormatter<T>`
   for exactly the member type (NINO008 otherwise), called as `default(F)` and inlined. Every formatter a user
-  writes is a struct: `NinoFormatter<T>` is only the runtime dispatch carrier and is internal, and
-  `NinoFormatterCache<T>.Register<TFormatter>()` takes a struct formatter type.
+  writes is a struct: `NinoFormatter<T>` is only the runtime dispatch carrier and is internal. There is no
+  run-time registration API: formatters are declared with `[assembly: NinoFormatter]` or `[NinoCustomFormatter]`.
 
 ### Formatter registrations
 
@@ -444,9 +444,8 @@ populated by:
    registrations (see above). The generated registrations of closed generic `[NinoType]`s (item 1) only name
    the same closed formatters ahead of time, for AOT runtimes and reads by type id.
 
-Registration is idempotent and thread safe: writers take a lock and publish with `Volatile.Write`, and
-readers never lock. `NinoFormatterCache<T>.Register` (a formatter chosen by the application) must run before the first
-use of `T`: the first use takes a snapshot of the formatter, and a later `Register` throws.
+Registration is idempotent and thread safe: the first registration of a type wins (published with a compare-exchange),
+and readers never lock. A registered formatter never changes.
 
 ### Polymorphism
 
@@ -520,7 +519,7 @@ Cache-line reasoning assumes 64-byte lines.
   of padding before and after), away from the shared stack's count and lock, which batch transfers write, and
   from neighbouring objects. Measured with 4 threads churning 100 instances each, the cost there is the lock
   itself; the padding is kept so the fast path never shares a line with a writer.
-* No static field is written on a hot path: formatter instances, the `Replaced` flag, `NinoRecycler.PoolsInUse`
+* No static field is written on a hot path: formatter instances, `NinoRecycler.PoolsInUse`
   are written once; scratch buffers and reference tables are thread-static.
 * Raw-key/raw-value dictionaries, unmanaged arrays and `T?[]` read and write with one bounds check for the whole
   collection; masked copies (padding cleared) use vectors with aligned stores (see `NinoMask`).
@@ -667,6 +666,13 @@ from `NinoFormatterCache<T>` in the caller, where `T` is usually exact: a refere
 the method shared generic code, with a generic dictionary lookup for the formatter (serializing a small sealed
 class: 22 ns → 10 ns). What remains is one virtual call through the cached formatter.
 
+The boxed calls for a type known only at run time, `NinoSerializer.SerializeBoxed(value, type)` and
+`NinoDeserializer.DeserializeBoxed(data, type)` (plus writer, buffer writer, reader and reuse overloads), take the
+`Type` explicitly and write exactly what the generic call with `T` = `type` writes, null and subtypes included. They
+look up a cached `BoxedFormatter<T>` per type (a dictionary lookup) that forwards to the generic call. There is no
+`Serialize(object)`: it would compete with `Serialize<object>` in overload resolution and silently pick a different
+format.
+
 On compilers that load the generator's Roslyn 4.8 or 4.12 build (.NET 8 SDK and later), the generator also intercepts each such call whose type
 argument is known at the call site and whose formatter it resolves (not raw values or arrays of raw elements,
 which the regular calls already copy directly, and not types it can only reach through `CachedFormatter<T>`):
@@ -674,12 +680,10 @@ which the regular calls already copy directly, and not types it can only reach t
 `NinoDeserializer.Deserialize<T>(ReadOnlySpan<byte>)` of a raw value is intercepted too, to
 `NinoDirect.DeserializeRaw<T>`: one bounds check and one unaligned load with a single return, which the JIT keeps in
 registers (the regular method's several returns go through a stack temp).
-The bytes are the same. A formatter registered at run time with `NinoFormatterCache<T>.Register` still wins
-(`NinoDirect` checks a flag it sets), so intercepted and regular calls never disagree. The flag is read once, on the
-first use of `T`, into a `static readonly` field (`NinoTopFormatter<T>`, with the formatter itself), so Tier1 code
-folds the check away, and regular calls know the formatter's exact class and call it directly instead of virtually.
-Registering a formatter for `T` after `T` has been serialized or deserialized (top-level calls, raw copies,
-`CachedFormatter<T>`) therefore throws `InvalidOperationException`, rather than being ignored by code already compiled.
+The bytes are the same: formatters are only declared at compile time, so intercepted and regular calls never
+disagree, and `NinoDirect` calls the formatter with no check. Regular calls read the formatter once, on the first use
+of `T`, into a `static readonly` field (`NinoTopFormatter<T>`), so Tier1 code knows its exact class and calls it
+directly instead of virtually.
 Measured on .NET 8 (small types, ns per call, regular → intercepted): deserializing a non-sealed class
 15.5 → 11.6, a sealed class 29.5 → 24, a struct with a string 16.7 → 15.0.
 
@@ -726,8 +730,11 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in formatter structs, `NinoObject`
 (class headers and subtype dispatch), `NinoDirect` (intercepted top-level calls), `NinoPolymorphic`, `NinoRegistry`,
 `NinoFormatterCache`, `NinoActivator`, `NinoRecycler` and `NinoUnsafe`. The members that exist only for generated code
-(`NinoObject`, `NinoDirect`, `NinoRegistry.Add`, `INinoRegistry`, `[NinoGenerated]`, the pool's per-thread stack)
-are hidden from IntelliSense. There is deliberately no forwarding facade in front of them: every call it added is a
+(`NinoObject`, `NinoDirect`, `NinoUnsafe`, `NinoRegistry.Add`, `INinoRegistry`, `INinoBodyFormatter<T>`,
+`INinoRawFormatter`, `NinoPolymorphic<TBase>`, `NinoPolymorphic.Register<TSub, TFormatter>`/`RegisterTracked`,
+`NinoFormatterCache<T>.TryRegister`/`TryRegisterFixed`, the region, reference and unchecked value members of
+`Writer`/`Reader`, `[NinoGenerated]`, the pool's per-thread stack) are hidden from IntelliSense
+(`[EditorBrowsable(Never)]`); they stay public because generated code lives in the user's assembly. There is deliberately no forwarding facade in front of them: every call it added is a
 real call under Mono's interpreter and in HybridCLR hot-update code, which do not inline.
 
 ### Sources shared with the runtime

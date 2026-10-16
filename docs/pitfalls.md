@@ -88,8 +88,8 @@ Types without padding pay nothing: the check is a JIT-time constant.
 ### Reordering fields of a raw struct changes the format
 
 A `[NinoType]` struct that qualifies for raw copying is written in its canonical memory order.
-Reordering its fields or changing its `StructLayout` breaks existing data. Mark it `versionTolerant` (or
-ignore a field) to opt out of raw copying.
+Reordering its fields or changing its `StructLayout` breaks existing data. Give it `format: NinoFormat.VersionTolerant`
+(or ignore a field) to opt out of raw copying.
 
 ## Source generator
 

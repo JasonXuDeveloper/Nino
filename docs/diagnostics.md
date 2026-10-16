@@ -32,6 +32,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO022](#nino022) | Warning | A member hidden with `new` cannot be reached by generated code |
 | [NINO023](#nino023) | Error | A struct serializes no member |
 | [NINO024](#nino024) | Warning | `[NinoFormerName]` on a member of a type that is not keyed |
+| [NINO025](#nino025) | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -85,6 +86,13 @@ re-creates it. Add it to the constructor, make it settable, or `[NinoIgnore]` it
 The constructor or factory method marked `[NinoConstructor]` is called by generated code outside the type, so it
 must be `public` or `internal` (`protected internal` also works); a `private` or `protected` one cannot be called.
 The type is not constructed by the generated formatter: deserializing it throws `NotSupportedException`.
+
+### NINO025
+
+A type with a `[NinoConstructor]` (a constructor or a static factory method) is re-created through it on every read, so its
+`[NinoFactory]` method is never called. Remove one of the two attributes:
+`[NinoFactory]` to keep re-creating instances from the constructor, or `[NinoConstructor]` to create instances with
+the factory and fill them in place.
 
 ## Members
 
@@ -141,14 +149,14 @@ A positional `[NinoType]` struct has no header, so one without serialized member
 or skipped) is written as zero bytes. On its own it round-trips, but a list, array or dictionary of it cannot be
 read back: collection counts are checked against the bytes left, so that hostile data cannot trigger huge
 allocations, and every element must take at least one byte. Serialize a member, or mark the struct
-`versionTolerant` or `keyed` (each instance then writes its 4-byte length). A struct without any instance field is
+`NinoFormat.VersionTolerant` or `NinoFormat.Keyed` (each instance then writes its 4-byte length). A struct without any instance field is
 written as its raw memory (1 byte) and is not reported.
 
 ## Features
 
 ### NINO014
 
-Keyed members (`keyed: true`) are identified by a 32-bit hash of their name, inherited members included; two names
+Keyed members (`format: NinoFormat.Keyed`) are identified by a 32-bit hash of their name, inherited members included; two names
 collide. Rename one of them. A member's `[NinoFormerName]`s are keys too: a former name that is another member's
 current or former name (or hashes like one) would make old data ambiguous, and is reported on the member that
 claims it second. A former name equal to the member's own name is ignored.
@@ -157,7 +165,7 @@ claims it second. A former name equal to the member's own name is ignored.
 
 Member-level `[NinoFormerName]` lets keyed types read data written before a member was renamed. Positional and
 version-tolerant types write no member names (members are matched by position), so there it has no effect. Remove
-it, or make the type `keyed`.
+it, or give the type `format: NinoFormat.Keyed`.
 
 ### NINO015
 

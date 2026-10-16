@@ -83,6 +83,11 @@ internal static class ConstructionPlanner
 
         if (marked != null)
         {
+            // The instance is always created through the [NinoConstructor]: the factory is never called.
+            if (factory != null)
+                diagnostics?.Report(NinoDiagnostics.FactoryIgnored, factory, factory.Name, type.ToDisplayString(),
+                    marked.ToDisplayString());
+
             // Generated code calls it from outside the type: a private or protected one would not compile.
             if (!facts.Visibility.IsVisible(marked))
             {

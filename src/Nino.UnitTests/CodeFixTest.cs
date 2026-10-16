@@ -1465,7 +1465,7 @@ public struct TestStruct
         var code = @"
 using Nino.Core;
 
-[NinoType(true, false, true, false, false, true)]
+[NinoType(true, false, true, NinoFormat.Positional, true)]
 public struct {|#0:TestStruct|}
 {
     public int Value;
@@ -1474,7 +1474,7 @@ public struct {|#0:TestStruct|}
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType(true, false, true, false, false)]
+[NinoType(true, false, true, NinoFormat.Positional)]
 public struct TestStruct
 {
     public int Value;
@@ -1490,7 +1490,7 @@ public struct TestStruct
         var code = @"
 using Nino.Core;
 
-[NinoType(versionTolerant: true, trackReferences: true)]
+[NinoType(format: NinoFormat.VersionTolerant, trackReferences: true)]
 public struct {|#0:TestStruct|}
 {
     public int Value;
@@ -1499,7 +1499,7 @@ public struct {|#0:TestStruct|}
         var fixedCode = @"
 using Nino.Core;
 
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct TestStruct
 {
     public int Value;

@@ -14,7 +14,7 @@ namespace Nino.Generator.Generation;
 internal sealed class NinoSymbols
 {
     public readonly INamedTypeSymbol? NinoType, Member, Ignore, CustomFormatter, Utf8, FormerName,
-        ExplicitOrder, Constructor, Factory, Created, Raw, Pooled, StructLayout, IFormatter, FormatterAttribute,
+        Constructor, Factory, Created, Raw, Pooled, StructLayout, IFormatter, FormatterAttribute,
         Serializer, Deserializer;
 
     public NinoSymbols(Compilation compilation)
@@ -28,7 +28,6 @@ internal sealed class NinoSymbols
         FormatterAttribute = Core("NinoFormatterAttribute");
         Utf8 = Core("NinoUtf8Attribute");
         FormerName = Core("NinoFormerNameAttribute");
-        ExplicitOrder = Core("NinoExplicitOrderAttribute");
         Constructor = Core("NinoConstructorAttribute");
         Factory = Core("NinoFactoryAttribute");
         Created = Core("NinoCreatedAttribute");

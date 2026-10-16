@@ -18,11 +18,6 @@ namespace Nino.Core
     {
         private static NinoFormatter<T> _instance;
 
-        // Written under NinoFormatterCache.Gate only (registration and the first use), read by NinoTopFormatter<T>
-        // once: a formatter registered with Register, and whether T has been serialized or deserialized yet.
-        private static bool _replaced;
-        private static bool _used;
-
         /// <summary>The formatter for <typeparamref name="T"/>; resolved on first access.</summary>
         internal static NinoFormatter<T> Instance
         {
@@ -34,51 +29,10 @@ namespace Nino.Core
         public static bool IsRegistered => Volatile.Read(ref _instance) != null;
 
         /// <summary>
-        /// Registers (or replaces) the formatter for <typeparamref name="T"/>, used by the top-level APIs and by
-        /// <see cref="CachedFormatter{T}"/>. Register at startup: once <typeparamref name="T"/> has been serialized
-        /// or deserialized, the formatter in use is fixed, and registering one throws.
+        /// Registers the formatter unless one is already registered. Used by generated code: users declare
+        /// formatters with <c>[assembly: NinoFormatter]</c> or <c>[NinoCustomFormatter]</c> instead.
         /// </summary>
-        /// <exception cref="InvalidOperationException"><typeparamref name="T"/> has already been serialized or
-        /// deserialized.</exception>
-        public static void Register<TFormatter>() where TFormatter : struct, INinoFormatter<T>
-        {
-            lock (NinoFormatterCache.Gate)
-            {
-                if (_used)
-                    NinoThrow.RegisteredAfterUse(typeof(T));
-                Volatile.Write(ref _instance, new StructFormatter<T, TFormatter>());
-                _replaced = true;
-            }
-
-            NinoFormatterCache.MarkRegistered(typeof(T));
-        }
-
-        /// <summary>
-        /// The first use of <typeparamref name="T"/> by the top-level APIs or <see cref="CachedFormatter{T}"/>: from
-        /// now on <see cref="Register{TFormatter}"/> throws, so the formatter and the flag returned stay valid.
-        /// Null when <typeparamref name="T"/> has no formatter (its callers then report it through
-        /// <see cref="Instance"/>).
-        /// </summary>
-        internal static NinoFormatter<T> TakeSnapshot(out bool replaced)
-        {
-            try
-            {
-                _ = Instance;
-            }
-            catch (Exception)
-            {
-                // No formatter: the regular path reports it on every call.
-            }
-
-            lock (NinoFormatterCache.Gate)
-            {
-                _used = true;
-                replaced = _replaced;
-                return Volatile.Read(ref _instance);
-            }
-        }
-
-        /// <summary>Registers the formatter unless one is already registered. Used by generated code.</summary>
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         public static void TryRegister<TFormatter>() where TFormatter : struct, INinoFormatter<T>
         {
             if (Volatile.Read(ref _instance) != null)
@@ -126,9 +80,6 @@ namespace Nino.Core
     /// </summary>
     internal static class NinoFormatterCache
     {
-        /// <summary>Orders registrations with the first use of a type (see <see cref="NinoTopFormatter{T}"/>).</summary>
-        internal static readonly object Gate = new object();
-
         private static readonly ConcurrentDictionary<Type, bool> Registered = new ConcurrentDictionary<Type, bool>();
 
         /// <summary>Called after the formatter of <paramref name="type"/> has been stored.</summary>
@@ -144,8 +95,7 @@ namespace Nino.Core
     /// <summary>
     /// Whether the registered formatter of <typeparamref name="T"/> writes its raw memory. Evaluated once, on the first
     /// top-level call for a value type; as a <c>static readonly</c> field it is a JIT-time constant afterwards, so the
-    /// top-level APIs copy raw values directly instead of calling the formatter. Register custom formatters for
-    /// such types before first use.
+    /// top-level APIs copy raw values directly instead of calling the formatter.
     /// </summary>
     internal static class NinoRaw<T>
     {
@@ -155,26 +105,34 @@ namespace Nino.Core
         {
             if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 return false;
-            // Through the snapshot: copying raw values is a use of T's formatter, after which it cannot be replaced.
             var formatter = NinoTopFormatter<T>.Formatter;
             return formatter != null && formatter.IsRaw;
         }
     }
 
     /// <summary>
-    /// The formatter of <typeparamref name="T"/> as the top-level APIs and <see cref="CachedFormatter{T}"/> use it, taken
-    /// on the first such use (<see cref="NinoFormatterCache{T}.TakeSnapshot"/>), after which registering another
-    /// throws. Both fields are <c>static readonly</c>: Tier1 code folds <see cref="Replaced"/> to a constant (the
-    /// intercepted calls of <see cref="NinoDirect"/> lose their check) and knows the exact class of
-    /// <see cref="Formatter"/>, so it calls the struct formatter directly (and inlines it) instead of virtually.
+    /// The formatter of <typeparamref name="T"/> as the top-level APIs and <see cref="CachedFormatter{T}"/> use it.
+    /// A registered formatter never changes (the first registration wins), so it is read once into a
+    /// <c>static readonly</c> field: Tier1 code knows the exact class of <see cref="Formatter"/>, so it calls the
+    /// struct formatter directly (and inlines it) instead of virtually.
     /// </summary>
     internal static class NinoTopFormatter<T>
     {
         /// <summary>The formatter; null when <typeparamref name="T"/> has none (use <see cref="Get"/>).</summary>
-        public static readonly NinoFormatter<T> Formatter = NinoFormatterCache<T>.TakeSnapshot(out Replaced);
+        public static readonly NinoFormatter<T> Formatter = Load();
 
-        /// <summary>Whether <see cref="Formatter"/> was registered with <see cref="NinoFormatterCache{T}.Register{TFormatter}"/>.</summary>
-        public static readonly bool Replaced;
+        private static NinoFormatter<T> Load()
+        {
+            try
+            {
+                return NinoFormatterCache<T>.Instance;
+            }
+            catch (Exception)
+            {
+                // No formatter: the regular path reports it on every call.
+                return null;
+            }
+        }
 
         /// <summary><see cref="Formatter"/>, or the error of a type without one.</summary>
         public static NinoFormatter<T> Get

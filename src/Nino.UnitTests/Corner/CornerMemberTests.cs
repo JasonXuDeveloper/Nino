@@ -473,10 +473,10 @@ namespace C
     }
 
     // Keyed bodies never delegate to the base formatter; the hidden member has a key of its own.
-    [NinoType(keyed: true)]
+    [NinoType(format: NinoFormat.Keyed)]
     public class KeyedBase { public int Value { get; set; } }
 
-    [NinoType(keyed: true)]
+    [NinoType(format: NinoFormat.Keyed)]
     public class Keyed : KeyedBase { public new string Value { get; set; } }
 
     // Hidden by a member that is not serialized.

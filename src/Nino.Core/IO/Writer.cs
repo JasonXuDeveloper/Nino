@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -149,6 +150,7 @@ namespace Nino.Core
         /// the 1-based index of an object already written by this writer, or <c>-1</c> for a new object, in which
         /// case it returns true and the caller writes the object (see <see cref="NinoWire"/>).
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public bool WriteReference(object value)
         {
             if (value == null)
@@ -238,6 +240,7 @@ namespace Nino.Core
         internal void Commit(int count) => Skip(count);
 
         /// <summary>Writes an unmanaged value. <typeparamref name="T"/> must not contain references.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnsafeWrite<T>(T value)
         {
@@ -250,6 +253,7 @@ namespace Nino.Core
         /// Writes an unmanaged value in its canonical layout (padding cleared, converted on runtimes that lay the
         /// type out differently). <typeparamref name="T"/> must not contain references.
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteValue<T>(T value) => NinoLayout<T>.Write(ref Reserve(NinoLayout<T>.Size), value);
 
@@ -307,6 +311,7 @@ namespace Nino.Core
         /// Generated code: starts a length-prefixed region (a version-tolerant body, a keyed body or member) and
         /// returns the position of its length, for <see cref="EndRegion"/>.
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int BeginRegion()
         {
@@ -315,6 +320,7 @@ namespace Nino.Core
         }
 
         /// <summary>Generated code: ends the region <see cref="BeginRegion"/> started.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndRegion(int lengthPosition)
         {

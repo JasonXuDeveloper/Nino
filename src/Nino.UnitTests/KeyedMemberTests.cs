@@ -6,7 +6,7 @@ using Nino.Core;
 namespace Nino.UnitTests;
 
 // Two versions of the same keyed schema: V2 reorders members, removes Old and inserts New.
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class KeyedV1
 {
     public int Id;
@@ -15,7 +15,7 @@ public sealed class KeyedV1
     public float Old;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class KeyedV2
 {
     public string Name;
@@ -25,7 +25,7 @@ public sealed class KeyedV2
 }
 
 // Same prefix as V1, then diverges: the in-order fast path reads Id and Name, then falls back.
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class KeyedV3
 {
     public int Id;
@@ -35,7 +35,7 @@ public sealed class KeyedV3
     public List<int> Items;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public struct KeyedStruct
 {
     public int A;
@@ -43,61 +43,61 @@ public struct KeyedStruct
     public string C;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed record KeyedRecord(int Id, string Name);
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed record KeyedRecordV2(string Name, int Extra, int Id);
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class KeyedBase
 {
     public int BaseValue;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class KeyedDerived : KeyedBase
 {
     public string DerivedValue;
 }
 
 // A member renamed twice: Hp, then Health, then HitPoints.
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class KeyedHpV1
 {
     public int Hp;
     public string Name;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class KeyedHpV2
 {
     [NinoFormerName("Hp")] public int Health;
     public string Name;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class KeyedHpV3
 {
     public string Name;
     [NinoFormerName("Hp")] [NinoFormerName("Health")] public int HitPoints;
 }
 
-[NinoType(keyed: true, versionTolerant: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public struct KeyedTolerantHpV1
 {
     public int Hp;
     public string Name;
 }
 
-[NinoType(keyed: true, versionTolerant: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public struct KeyedTolerantHpV2
 {
     public string Name;
     [NinoFormerName("Hp")] public int Health;
 }
 
-[NinoType(keyed: true, trackReferences: true)]
+[NinoType(format: NinoFormat.Keyed, trackReferences: true)]
 public sealed class KeyedTrackedV1
 {
     public TrackedLeaf Leaf;
@@ -105,7 +105,7 @@ public sealed class KeyedTrackedV1
     public KeyedTrackedV1 Self;
 }
 
-[NinoType(keyed: true, trackReferences: true)]
+[NinoType(format: NinoFormat.Keyed, trackReferences: true)]
 public sealed class KeyedTrackedV2
 {
     [NinoFormerName("Leaf")] public TrackedLeaf First;

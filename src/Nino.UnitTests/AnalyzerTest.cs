@@ -670,6 +670,58 @@ public class ProtectedInternalConstructor
     }
 
     [TestMethod]
+    public async Task NINO025_FactoryIgnoredBecauseOfNinoConstructor()
+    {
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class StaticConstructor
+{
+    public int A;
+
+    [NinoFactory]
+    public static StaticConstructor {|#0:Rent|}() => new StaticConstructor();
+
+    [NinoConstructor]
+    public static StaticConstructor Create(int a) => new StaticConstructor { A = a };
+}
+
+[NinoType]
+public class InstanceConstructor
+{
+    public int A;
+
+    [NinoFactory]
+    public static InstanceConstructor {|#1:Rent|}() => new InstanceConstructor(0);
+
+    [NinoConstructor]
+    public InstanceConstructor(int a)
+    {
+        A = a;
+    }
+}
+
+[NinoType]
+public class FactoryOnly
+{
+    public int A;
+
+    [NinoFactory]
+    public static FactoryOnly Rent() => new FactoryOnly();
+
+    public static FactoryOnly Create(int a) => new FactoryOnly { A = a };
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO025").WithLocation(0)
+                .WithArguments("Rent", "StaticConstructor", "StaticConstructor.Create(int)"),
+            Verify.Diagnostic("NINO025").WithLocation(1)
+                .WithArguments("Rent", "InstanceConstructor", "InstanceConstructor.InstanceConstructor(int)")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO006_ReadOnlyMember()
     {
         var code = @"
@@ -1437,13 +1489,13 @@ public struct NoFields
 }
 
 // Each instance writes its length.
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct Tolerant
 {
     [NinoIgnore] public int A;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public struct Keyed
 {
     [NinoIgnore] public int A;
@@ -1475,7 +1527,7 @@ public sealed class EmptyClass
         var code = @"
 using Nino.Core;
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class {|#0:TestClass|}
 {
     public int dzFy;
@@ -1489,7 +1541,7 @@ public class NotKeyed
     public int zsaa;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class NoCollision
 {
     public int A;
@@ -1507,13 +1559,13 @@ public class NoCollision
         var code = @"
 using Nino.Core;
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class Base
 {
     public int dzFy;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class {|#0:Derived|} : Base
 {
     public int zsaa { get; set; }
@@ -1531,7 +1583,7 @@ public class {|#0:Derived|} : Base
         var code = @"
 using Nino.Core;
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class TestClass
 {
     [NinoFormerName(""B"")] public int {|#0:A|};
@@ -1540,7 +1592,7 @@ public class TestClass
     [NinoFormerName(""Old"")] public int {|#1:D|} { get; set; }
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class NoCollision
 {
     [NinoFormerName(""A"")] [NinoFormerName(""Older"")] [NinoFormerName(""Older"")] public int A;
@@ -1566,14 +1618,14 @@ public class Positional
     [NinoFormerName(""Hp"")] public int {|#0:Health|};
 }
 
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct Tolerant
 {
     [NinoFormerName(""Hp"")] public int {|#1:Health|} { get; set; }
 }
 
 [NinoFormerName(""Old.Name"")]
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class Keyed
 {
     [NinoFormerName(""Hp"")] public int Health;

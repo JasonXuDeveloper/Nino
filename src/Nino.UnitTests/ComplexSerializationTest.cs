@@ -453,16 +453,16 @@ namespace Nino.UnitTests
             complexData.A[1] = new[] { 4, 5, 6 };
             complexData.B = new List<int[]>() { new[] { 7, 8, 9 } };
 
-            // Test object Serialize(object value) - boxing serialization
-            byte[] buf1 = NinoSerializer.Serialize((object)complexData);
+            // SerializeBoxed(object, Type)
+            byte[] buf1 = NinoSerializer.SerializeBoxed(complexData, typeof(ComplexData));
             byte[] buf1Generic = NinoSerializer.Serialize(complexData);
             Console.WriteLine(string.Join(",", buf1));
             Console.WriteLine(string.Join(",", buf1Generic));
             Assert.IsNotNull(buf1);
             Assert.IsTrue(buf1.SequenceEqual(buf1Generic));
 
-            // Test object Deserialize(ReadOnlySpan<byte> data, Type type) - boxing deserialization
-            object result1 = NinoDeserializer.Deserialize(buf1, typeof(ComplexData));
+            // DeserializeBoxed(ReadOnlySpan<byte>, Type)
+            object result1 = NinoDeserializer.DeserializeBoxed(buf1, typeof(ComplexData));
             Assert.IsInstanceOfType(result1, typeof(ComplexData));
             var typedResult1 = (ComplexData)result1;
             Assert.AreEqual(complexData.ToString(), typedResult1.ToString());
@@ -482,11 +482,11 @@ namespace Nino.UnitTests
             };
 
             // Boxing serialize
-            byte[] buf2 = NinoSerializer.Serialize((object)data);
+            byte[] buf2 = NinoSerializer.SerializeBoxed(data, typeof(Data));
             Assert.IsNotNull(buf2);
 
             // Boxing deserialize
-            object result2 = NinoDeserializer.Deserialize(buf2, typeof(Data));
+            object result2 = NinoDeserializer.DeserializeBoxed(buf2, typeof(Data));
             Assert.IsInstanceOfType(result2, typeof(Data));
             var typedResult2 = (Data)result2;
             Assert.AreEqual(data.ToString(), typedResult2.ToString());

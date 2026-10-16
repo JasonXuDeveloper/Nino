@@ -82,7 +82,7 @@ namespace Nino.Core
     {
         /// <summary>
         /// A creator of <typeparamref name="T"/> was set: pooled instances may now be dropped from slots of a base type,
-        /// so collections walk the elements they drop (see <see cref="NinoRecycler{T}.IsRegistered"/>).
+        /// so collections walk the elements they drop (see <see cref="NinoRecycler{T}.MayRecycle"/>).
         /// </summary>
         public static void OnRegistered(Type type)
         {

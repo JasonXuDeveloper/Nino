@@ -117,10 +117,10 @@ snapshot.ReturnToPool();
 ### 会变化的数据
 
 ```csharp
-[NinoType(keyed: true)]            // 按成员名匹配：可以增加、调整顺序、删除、重命名成员
+[NinoType(format: NinoFormat.Keyed)] // 按成员名匹配：可以增加、调整顺序、删除、重命名成员
 public class SaveGame { [NinoFormerName("Lvl")] public int Level; public string Hero; }
 
-[NinoType(trackReferences: true)]  // 共享引用和循环引用在往返后保持不变
+[NinoType(trackReferences: true)]    // 共享引用和循环引用在往返后保持不变
 public class Node { public string Name; public List<Node> Links; }
 ```
 

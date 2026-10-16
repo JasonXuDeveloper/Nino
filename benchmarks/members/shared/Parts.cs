@@ -27,8 +27,8 @@ namespace Parts;
 [NinoType, StructLayout(LayoutKind.Sequential, Pack = 4)] public partial struct PStruct { public int Id; public DateTime T; }
 #if !V3
 // Version tolerant, over two levels of a hierarchy (v4 only: v3 has no version tolerance).
-[NinoType(versionTolerant: true)] public partial class PTolBase { public int Id; public bool Tag; }
-[NinoType(versionTolerant: true)] public sealed partial class PTol : PTolBase { public Guid G; public DateTime T; public string S; }
+[NinoType(format: NinoFormat.VersionTolerant)] public partial class PTolBase { public int Id; public bool Tag; }
+[NinoType(format: NinoFormat.VersionTolerant)] public sealed partial class PTol : PTolBase { public Guid G; public DateTime T; public string S; }
 #endif
 
 [MemoryDiagnoser, GcServer(true)]

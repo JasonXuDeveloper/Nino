@@ -99,7 +99,7 @@ public class RefOverloadTests
             Name = "Nino"
         };
         object boxed = dt;
-        NinoDeserializer.Deserialize(bytes, typeof(Data), ref boxed);
+        NinoDeserializer.DeserializeBoxed(bytes, ref boxed, typeof(Data));
         Assert.IsTrue(boxed is Data);
         var data = (Data)boxed;
         Assert.AreEqual(10, data.X);

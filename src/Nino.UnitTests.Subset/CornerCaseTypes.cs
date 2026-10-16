@@ -86,7 +86,7 @@ namespace Nino.UnitTests.Subset.Corner
         public string B;
     }
 
-    [NinoType(versionTolerant: true)]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class ExplicitTolerantSealed
     {
         public int A;

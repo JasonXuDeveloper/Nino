@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -208,6 +209,7 @@ namespace Nino.Core
         /// and <see cref="EndReference"/> when done. Otherwise <paramref name="value"/> is now null or the
         /// object read earlier.
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ReadReference<T>(ref T value, out int index) where T : class
         {
@@ -245,6 +247,7 @@ namespace Nino.Core
         }
 
         /// <summary>Records the instance of the object whose header was just read.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetReference(object value)
         {
@@ -254,6 +257,7 @@ namespace Nino.Core
         }
 
         /// <summary>Records the object read after <see cref="ReadReference{T}"/> returned true.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndReference(int index, object value) => _context.Refs.Set(index, value);
 
@@ -272,6 +276,7 @@ namespace Nino.Core
         /// Generated code: reads a length-prefixed region (a version-tolerant body, a keyed body or member),
         /// written between <see cref="Writer.BeginRegion"/> and <see cref="Writer.EndRegion"/>.
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Reader ReadRegion()
         {
@@ -310,6 +315,7 @@ namespace Nino.Core
         /// Generated code: call when done with a reader returned by <see cref="ReadRegion"/>, right after reading
         /// it. At the end of the outermost region, reads the bodies deferred inside it.
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndRegion(in Reader region)
         {
@@ -484,6 +490,7 @@ namespace Nino.Core
         public void Advance(int count) => ReadBlock(count);
 
         /// <summary>Reads an unmanaged value. <typeparamref name="T"/> must not contain references.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T UnsafeRead<T>()
         {
@@ -499,6 +506,7 @@ namespace Nino.Core
         /// Reads an unmanaged value written by <see cref="Writer.WriteValue{T}"/> (converted on runtimes that lay
         /// the type out differently). <typeparamref name="T"/> must not contain references.
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public T ReadValue<T>() => NinoLayout<T>.Read(ref ReadBlock(NinoLayout<T>.Size));
 
@@ -528,6 +536,7 @@ namespace Nino.Core
         }
 
         /// <summary>Consumes 4 bytes if they equal <paramref name="expected"/>; otherwise consumes nothing.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryReadInt32(int expected)
         {
@@ -538,6 +547,7 @@ namespace Nino.Core
         }
 
         /// <summary>Consumes 8 bytes if they equal <paramref name="expected"/>; otherwise consumes nothing.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryReadInt64(long expected)
         {
@@ -593,7 +603,11 @@ namespace Nino.Core
             return true;
         }
 
-        /// <summary>Reads a length-prefixed sub-reader (used for version-tolerant bodies).</summary>
+        /// <summary>
+        /// Reads a length-prefixed sub-reader: an <c>int32</c> byte length (written with
+        /// <see cref="Writer.PatchLength"/>, for instance), then the bytes the returned reader reads. For custom
+        /// formatters; call <see cref="EndSlice"/> when done with it. Generated bodies use regions instead.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Reader ReadSlice()
         {

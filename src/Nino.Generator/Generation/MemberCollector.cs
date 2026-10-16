@@ -66,18 +66,6 @@ internal static class MemberCollector
         bool autoCollect = attr.AutoCollect;
         bool containNonPublic = attr.ContainNonPublicMembers;
 
-        var explicitOrder = NinoSymbols.Get(type, known.ExplicitOrder);
-        var order = new Dictionary<string, int>();
-        if (explicitOrder != null && explicitOrder.ConstructorArguments.Length > 0)
-        {
-            var values = explicitOrder.ConstructorArguments[0].Values;
-            for (int i = 0; i < values.Length; i++)
-            {
-                if (values[i].Value is string s)
-                    order[s] = i;
-            }
-        }
-
         var levels = new List<INamedTypeSymbol>();
         var visited = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
@@ -166,8 +154,7 @@ internal static class MemberCollector
             }
 
             var sorted = candidates
-                .OrderBy(c => order.Count > 0 && order.TryGetValue(c.Symbol.Name, out var o) ? o : int.MaxValue)
-                .ThenBy(c => c.Index)
+                .OrderBy(c => c.Index)
                 .ThenBy(c => c.Symbol.Name, StringComparer.Ordinal);
 
             foreach (var c in sorted)

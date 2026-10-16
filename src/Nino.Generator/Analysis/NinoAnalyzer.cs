@@ -21,6 +21,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         NinoDiagnostics.MissingConstructorMember,
         NinoDiagnostics.NoUsableConstructor,
         NinoDiagnostics.InaccessibleConstructor,
+        NinoDiagnostics.FactoryIgnored,
         NinoDiagnostics.InaccessibleType,
         NinoDiagnostics.SubTypeWithoutNinoType,
         NinoDiagnostics.RedundantMember,

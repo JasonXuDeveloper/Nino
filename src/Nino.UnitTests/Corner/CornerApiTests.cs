@@ -112,7 +112,7 @@ namespace Nino.UnitTests.Corner
             var boxedWriter = new StingyBufferWriter();
             NinoSerializer.SerializeBoxed(Payload(), boxedWriter, typeof(ApiPayload));
             CollectionAssert.AreEqual(expected, boxedWriter.Written);
-            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize((object)Payload()));
+            CollectionAssert.AreEqual(expected, NinoSerializer.SerializeBoxed(Payload(), typeof(ApiPayload)));
         }
 
         [TestMethod]
@@ -147,29 +147,86 @@ namespace Nino.UnitTests.Corner
         public void NonGenericDeserialize()
         {
             var bytes = NinoSerializer.Serialize(Payload());
-            AssertPayload((ApiPayload)NinoDeserializer.Deserialize(bytes, typeof(ApiPayload)));
+            AssertPayload((ApiPayload)NinoDeserializer.DeserializeBoxed(bytes, typeof(ApiPayload)));
 
             object existing = new ApiPayload();
             var before = existing;
-            NinoDeserializer.Deserialize(bytes, typeof(ApiPayload), ref existing);
+            NinoDeserializer.DeserializeBoxed(bytes, ref existing, typeof(ApiPayload));
             Assert.AreSame(before, existing);
             AssertPayload((ApiPayload)existing);
 
             // An existing value of another type is not reused.
             object other = "not a payload";
-            NinoDeserializer.Deserialize(bytes, typeof(ApiPayload), ref other);
+            NinoDeserializer.DeserializeBoxed(bytes, ref other, typeof(ApiPayload));
             AssertPayload((ApiPayload)other);
 
-            Assert.AreEqual(5, NinoDeserializer.Deserialize(NinoSerializer.Serialize(5), typeof(int)));
-            Assert.AreEqual(5L, NinoDeserializer.Deserialize(NinoSerializer.Serialize((object)5L), typeof(long)));
-            Assert.IsNull(NinoDeserializer.Deserialize(NinoSerializer.Serialize<string>(null), typeof(string)));
-            Assert.AreEqual(9, ((RawPadded)NinoDeserializer.Deserialize(NinoSerializer.Serialize(new RawPadded { D = 9 }), typeof(RawPadded))).D);
-            var shape = NinoDeserializer.Deserialize(NinoSerializer.Serialize<AbstractShape>(new SquareShape { Side = 3 }), typeof(AbstractShape));
+            Assert.AreEqual(5, NinoDeserializer.DeserializeBoxed(NinoSerializer.Serialize(5), typeof(int)));
+            Assert.AreEqual(5L, NinoDeserializer.DeserializeBoxed(NinoSerializer.SerializeBoxed(5L, typeof(long)), typeof(long)));
+            Assert.IsNull(NinoDeserializer.DeserializeBoxed(NinoSerializer.Serialize<string>(null), typeof(string)));
+            Assert.AreEqual(9, ((RawPadded)NinoDeserializer.DeserializeBoxed(NinoSerializer.Serialize(new RawPadded { D = 9 }), typeof(RawPadded))).D);
+            var shape = NinoDeserializer.DeserializeBoxed(NinoSerializer.Serialize<AbstractShape>(new SquareShape { Side = 3 }), typeof(AbstractShape));
             Assert.AreEqual(3, ((SquareShape)shape).Side);
-            CollectionAssert.AreEqual(new[] { 1 }, (List<int>)NinoDeserializer.Deserialize(NinoSerializer.Serialize(new List<int> { 1 }), typeof(List<int>)));
+            CollectionAssert.AreEqual(new[] { 1 }, (List<int>)NinoDeserializer.DeserializeBoxed(NinoSerializer.Serialize(new List<int> { 1 }), typeof(List<int>)));
 
-            Assert.ThrowsException<ArgumentNullException>(() => NinoDeserializer.Deserialize(bytes, null));
-            Assert.ThrowsException<ArgumentNullException>(() => NinoSerializer.Serialize((object)null));
+            Assert.ThrowsException<ArgumentNullException>(() => NinoDeserializer.DeserializeBoxed(bytes, null));
+            Assert.ThrowsException<ArgumentNullException>(() => NinoSerializer.SerializeBoxed(Payload(), null));
+        }
+
+        [TestMethod]
+        public void BoxedRoundTrips()
+        {
+            // SerializeBoxed(value, type) writes exactly what Serialize<T> writes with T = type.
+            object payload = Payload();
+            var bytes = NinoSerializer.SerializeBoxed(payload, typeof(ApiPayload));
+            CollectionAssert.AreEqual(NinoSerializer.Serialize((ApiPayload)payload), bytes);
+            AssertPayload((ApiPayload)NinoDeserializer.DeserializeBoxed(bytes, typeof(ApiPayload)));
+
+            // Polymorphic: a subtype boxed as its base keeps its runtime type.
+            object square = new SquareShape { Name = "sq", Side = 4 };
+            var shapeBytes = NinoSerializer.SerializeBoxed(square, typeof(AbstractShape));
+            CollectionAssert.AreEqual(NinoSerializer.Serialize<AbstractShape>((SquareShape)square), shapeBytes);
+            var shape = NinoDeserializer.DeserializeBoxed(shapeBytes, typeof(AbstractShape));
+            Assert.IsInstanceOfType(shape, typeof(SquareShape));
+            Assert.AreEqual("sq", ((SquareShape)shape).Name);
+            Assert.AreEqual(4, ((SquareShape)shape).Side);
+
+            // As object: the type id is written, the value comes back as its runtime type.
+            var objectBytes = NinoSerializer.SerializeBoxed(square, typeof(object));
+            Assert.IsInstanceOfType(NinoDeserializer.DeserializeBoxed(objectBytes, typeof(object)), typeof(SquareShape));
+
+            // Value types, nullables and collections.
+            Assert.AreEqual(42, NinoDeserializer.DeserializeBoxed(NinoSerializer.SerializeBoxed(42, typeof(int)), typeof(int)));
+            Assert.AreEqual(7, NinoDeserializer.DeserializeBoxed(NinoSerializer.SerializeBoxed(7, typeof(int?)), typeof(int?)));
+            Assert.AreEqual(9, ((RawPadded)NinoDeserializer.DeserializeBoxed(
+                NinoSerializer.SerializeBoxed(new RawPadded { D = 9 }, typeof(RawPadded)), typeof(RawPadded))).D);
+            CollectionAssert.AreEqual(new[] { 1, 2 }, (List<int>)NinoDeserializer.DeserializeBoxed(
+                NinoSerializer.SerializeBoxed(new List<int> { 1, 2 }, typeof(List<int>)), typeof(List<int>)));
+
+            // Null, for every type that can be null.
+            foreach (var type in new[] { typeof(ApiPayload), typeof(AbstractShape), typeof(object), typeof(string), typeof(int?), typeof(List<int>) })
+            {
+                var nullBytes = NinoSerializer.SerializeBoxed(null, type);
+                Assert.IsNull(NinoDeserializer.DeserializeBoxed(nullBytes, type), type.Name);
+                object existing = "replaced by null";
+                NinoDeserializer.DeserializeBoxed(nullBytes, ref existing, type);
+                Assert.IsNull(existing, type.Name);
+            }
+            CollectionAssert.AreEqual(NinoSerializer.Serialize<ApiPayload>(null), NinoSerializer.SerializeBoxed(null, typeof(ApiPayload)));
+
+            // Writer and reader overloads.
+            var writerBuffer = new NinoArrayBufferWriter();
+            var writer = new Writer(writerBuffer);
+            NinoSerializer.SerializeBoxed(square, ref writer, typeof(AbstractShape));
+            NinoSerializer.SerializeBoxed(null, ref writer, typeof(AbstractShape));
+            writer.Flush();
+            var reader = new Reader(writerBuffer.WrittenSpan);
+            object first = null, second = new SquareShape();
+            NinoDeserializer.DeserializeBoxed(ref first, ref reader, typeof(AbstractShape));
+            NinoDeserializer.DeserializeBoxed(ref second, ref reader, typeof(AbstractShape));
+            Assert.AreEqual(4, ((SquareShape)first).Side);
+            Assert.IsNull(second);
+
+            Assert.ThrowsException<ArgumentNullException>(() => NinoSerializer.SerializeBoxed(payload, (Type)null));
         }
 
         [TestMethod]
@@ -182,7 +239,7 @@ namespace Nino.UnitTests.Corner
             Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<VerOuterV1>(Array.Empty<byte>()));
             Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<List<int>>(Array.Empty<byte>()));
             Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<int[]>(Array.Empty<byte>()));
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize(Array.Empty<byte>(), typeof(ApiPayload)));
+            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.DeserializeBoxed(Array.Empty<byte>(), typeof(ApiPayload)));
             var target = Payload();
             Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize(Array.Empty<byte>(), ref target));
         }

@@ -6,7 +6,7 @@ namespace Nino.Core
     /// <summary>
     /// Throw helpers. Kept out of line so callers stay small enough to inline.
     /// </summary>
-    public static class NinoThrow
+    internal static class NinoThrow
     {
 #if NET8_0_OR_GREATER
         // Not NoInlining on CoreCLR: the JIT then looks at the body, sees that it only throws, does not inline it
@@ -52,15 +52,8 @@ namespace Nino.Core
         [MethodImpl(Cold)]
         public static void NoFormatter(Type type) =>
             throw new InvalidOperationException(
-                $"Nino: no formatter for {type.FullName}. Mark it with [NinoType], declare a struct formatter with " +
-                "[assembly: NinoFormatter] or register one with NinoFormatterCache<T>.Register<TFormatter>().");
-
-        [MethodImpl(Cold)]
-        public static void RegisteredAfterUse(Type type) =>
-            throw new InvalidOperationException(
-                $"Nino: cannot register a formatter for {type.FullName}: {type.FullName} has already been " +
-                "serialized or deserialized, and the formatter in use cannot change. Register formatters at " +
-                "startup, before the first call that serializes or deserializes the type.");
+                $"Nino: no formatter for {type.FullName}. Mark it with [NinoType], or declare a struct formatter with " +
+                "[assembly: NinoFormatter] (or [NinoCustomFormatter] on the member).");
 
         [MethodImpl(Cold)]
         public static void FactoryReturnedNull(Type type) =>

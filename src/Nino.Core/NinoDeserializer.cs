@@ -94,16 +94,23 @@ namespace Nino.Core
             return value;
         }
 
-        /// <summary>Deserializes a value of <paramref name="type"/> and returns it boxed.</summary>
-        public static object Deserialize(ReadOnlySpan<byte> data, Type type)
+        /// <summary>
+        /// Deserializes a value of <paramref name="type"/> (written by <c>Serialize&lt;T&gt;</c> with
+        /// <c>T</c> = <paramref name="type"/>, or <see cref="NinoSerializer.SerializeBoxed(object, Type)"/>) and
+        /// returns it boxed.
+        /// </summary>
+        public static object DeserializeBoxed(ReadOnlySpan<byte> data, Type type)
         {
             object value = null;
-            Deserialize(data, type, ref value);
+            DeserializeBoxed(data, ref value, type);
             return value;
         }
 
-        /// <summary>Deserializes a value of <paramref name="type"/> into <paramref name="value"/>.</summary>
-        public static void Deserialize(ReadOnlySpan<byte> data, Type type, ref object value)
+        /// <summary>
+        /// Deserializes a value of <paramref name="type"/> into <paramref name="value"/>, reusing it when it is an
+        /// instance of <paramref name="type"/>.
+        /// </summary>
+        public static void DeserializeBoxed(ReadOnlySpan<byte> data, ref object value, Type type)
         {
             if (type == null)
                 throw new ArgumentNullException(nameof(type));

@@ -74,7 +74,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         [NinoDiagnostics.TrackReferencesOnStruct.Id] = new[]
         {
             new Fix("Remove trackReferences", "RemoveTrackReferences",
-                (e, n) => SetTypeArgument(e, n, "trackReferences", 5, false)),
+                (e, n) => SetTypeArgument(e, n, "trackReferences", 4, false)),
         },
         [NinoDiagnostics.InvalidPooledType.Id] = new[]
         {

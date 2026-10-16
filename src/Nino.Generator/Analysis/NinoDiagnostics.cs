@@ -4,7 +4,7 @@ namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021), its members (007-013, 022-023), features (014-017), pooling
+/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023), features (014-017), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -44,6 +44,10 @@ internal static class NinoDiagnostics
         "NinoConstructor is not accessible",
         "[NinoConstructor] '{0}' of '{1}' cannot be called by generated code; it must be public or internal");
 
+    public static readonly DiagnosticDescriptor FactoryIgnored = Warning("NINO025",
+        "NinoFactory ignored because of NinoConstructor",
+        "[NinoFactory] '{0}' of '{1}' is never called: instances are always created through [NinoConstructor] '{2}'; remove one of the two attributes");
+
     public static readonly DiagnosticDescriptor ReadOnlyMember = Warning("NINO006", "Member cannot be deserialized",
         "Member '{0}' of '{1}' is read-only and is not a constructor parameter; its serialized value is ignored when deserializing");
 
@@ -73,7 +77,7 @@ internal static class NinoDiagnostics
         "Member '{0}.{1}' has the same index as another member '{2}.{3}'");
 
     public static readonly DiagnosticDescriptor EmptyStruct = Error("NINO023", "Struct serializes no member",
-        "NinoType struct '{0}' serializes no member, so it is written as zero bytes and a collection of it cannot be read back; serialize a member, or make it versionTolerant or keyed");
+        "NinoType struct '{0}' serializes no member, so it is written as zero bytes and a collection of it cannot be read back; serialize a member, or give it NinoFormat.VersionTolerant or NinoFormat.Keyed");
 
     public static readonly DiagnosticDescriptor HiddenMember = Warning("NINO022", "Hidden member cannot be serialized",
         "Member '{0}' of '{1}' is hidden by a member of the same name in '{2}', and generated code can only reach it through [UnsafeAccessor] (.NET 8+, non-generic types); it is skipped");
@@ -85,7 +89,7 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor FormerNameNotKeyed = Warning("NINO024",
         "[NinoFormerName] on a member has no effect in a positional type",
-        "[NinoFormerName] on member '{0}' has no effect: '{1}' is not keyed, so member names are not written; remove it, or make the type keyed");
+        "[NinoFormerName] on member '{0}' has no effect: '{1}' is not keyed, so member names are not written; remove it, or give the type NinoFormat.Keyed");
 
     public static readonly DiagnosticDescriptor TrackReferencesOnStruct = Warning("NINO015",
         "trackReferences on a struct", "'{0}' is a struct; trackReferences only applies to classes and is ignored");

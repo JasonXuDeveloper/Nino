@@ -69,7 +69,7 @@ public struct SubsetPartialStruct
 }
 
 // Version tolerant structs are never raw.
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct SubsetTolerantStruct
 {
     public int X;

@@ -27,19 +27,19 @@ namespace Nino.UnitTests
         public long E;
     }
 
-    [NinoType(versionTolerant: true)]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DelegTolerant1
     {
         public int A;
     }
 
-    [NinoType(versionTolerant: true)]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DelegTolerant2 : DelegTolerant1
     {
         public string B;
     }
 
-    [NinoType(versionTolerant: true)]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public class DelegTolerant3 : DelegTolerant2
     {
         public string C;

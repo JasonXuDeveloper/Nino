@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace Nino.Core
@@ -27,6 +28,7 @@ namespace Nino.Core
     /// Formatter for the body of a <c>[NinoType]</c>: the members, without the null/type header.
     /// Implemented by generated formatters and used for polymorphic dispatch.
     /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public interface INinoBodyFormatter<T> : INinoFormatter<T>
     {
         /// <summary>The type id written in front of the body when the declared type is not sealed.</summary>
@@ -134,6 +136,7 @@ namespace Nino.Core
     /// Marker for struct formatters whose output is exactly the in-memory bytes of the value
     /// (<c>Unsafe.SizeOf&lt;T&gt;()</c> bytes). The top-level APIs copy such values directly.
     /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public interface INinoRawFormatter
     {
     }

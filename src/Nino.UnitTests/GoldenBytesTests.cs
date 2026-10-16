@@ -20,7 +20,7 @@ public struct GoldenPoint
     public int Y;
 }
 
-[NinoType(versionTolerant: false)]
+[NinoType(format: NinoFormat.Positional)]
 public abstract class GoldenShape
 {
     public string Name;

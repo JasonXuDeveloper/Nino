@@ -54,7 +54,7 @@ namespace Nino.UnitTests.Subset.Deep
         public TolerantInner Inner;
     }
 
-    [NinoType(versionTolerant: true)]
+    [NinoType(format: NinoFormat.VersionTolerant)]
     public sealed class TolerantInner
     {
         public int Value;

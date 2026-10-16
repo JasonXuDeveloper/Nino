@@ -37,7 +37,7 @@ namespace Nino.Core
         /// <typeparamref name="T"/> implements <see cref="INinoPooled"/>, or the value may be a pooled instance and
         /// pooled instances exist. Collections skip walking dropped elements otherwise.
         /// </summary>
-        public static bool IsRegistered
+        public static bool MayRecycle
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             get => Handler != null || IsPooled || (MayBePooled && NinoRecycler.PoolsInUse);
@@ -170,7 +170,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void DiscardAll<T>(Span<T> values)
         {
-            if (!NinoRecycler<T>.IsRegistered)
+            if (!NinoRecycler<T>.MayRecycle)
                 return;
 
             foreach (var item in values)
@@ -184,7 +184,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void DiscardAll<T>(IEnumerable<T> items)
         {
-            if (!NinoRecycler<T>.IsRegistered)
+            if (!NinoRecycler<T>.MayRecycle)
                 return;
 
             foreach (var item in items)
@@ -194,7 +194,7 @@ namespace Nino.Core
         /// <summary>Empties a producer/consumer collection, recycling each element once.</summary>
         internal static void DrainAndDiscard<T>(IProducerConsumerCollection<T> items)
         {
-            bool recycle = NinoRecycler<T>.IsRegistered;
+            bool recycle = NinoRecycler<T>.MayRecycle;
             while (items.TryTake(out var item))
             {
                 if (recycle)
@@ -208,8 +208,8 @@ namespace Nino.Core
         /// </summary>
         internal static void DiscardPairs<TKey, TValue>(IEnumerable<KeyValuePair<TKey, TValue>> pairs)
         {
-            bool keys = NinoRecycler<TKey>.IsRegistered;
-            bool values = NinoRecycler<TValue>.IsRegistered;
+            bool keys = NinoRecycler<TKey>.MayRecycle;
+            bool values = NinoRecycler<TValue>.MayRecycle;
             if (!keys && !values)
                 return;
 
@@ -230,8 +230,8 @@ namespace Nino.Core
         internal static void DiscardPairs<TElement, TPriority>(
             PriorityQueue<TElement, TPriority>.UnorderedItemsCollection pairs)
         {
-            bool elements = NinoRecycler<TElement>.IsRegistered;
-            bool priorities = NinoRecycler<TPriority>.IsRegistered;
+            bool elements = NinoRecycler<TElement>.MayRecycle;
+            bool priorities = NinoRecycler<TPriority>.MayRecycle;
             if (!elements && !priorities)
                 return;
 

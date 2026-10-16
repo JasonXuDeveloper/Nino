@@ -38,7 +38,7 @@ public class TrackedSquare : TrackedShape
 }
 
 // Untracked holders whose bodies are sliced: references must stay shared across the slices.
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class TolerantHolder
 {
     public TrackedLeaf A;
@@ -46,7 +46,7 @@ public class TolerantHolder
     public List<TrackedLeaf> More;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public class KeyedHolder
 {
     public TrackedLeaf A;

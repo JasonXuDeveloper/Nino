@@ -123,10 +123,10 @@ snapshot.ReturnToPool();
 ### Data that changes over time
 
 ```csharp
-[NinoType(keyed: true)]            // members are matched by name: add, reorder, remove or rename them
+[NinoType(format: NinoFormat.Keyed)] // members are matched by name: add, reorder, remove or rename them
 public class SaveGame { [NinoFormerName("Lvl")] public int Level; public string Hero; }
 
-[NinoType(trackReferences: true)]  // shared references and cycles survive a round trip
+[NinoType(trackReferences: true)]    // shared references and cycles survive a round trip
 public class Node { public string Name; public List<Node> Links; }
 ```
 

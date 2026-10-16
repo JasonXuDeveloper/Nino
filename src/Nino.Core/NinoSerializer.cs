@@ -228,14 +228,15 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Serializes a boxed value as its runtime type. Read it back with
-        /// <see cref="NinoDeserializer.Deserialize(ReadOnlySpan{byte}, Type)"/> and the same type.
+        /// Serializes a boxed value as <paramref name="type"/>, exactly as <c>Serialize&lt;T&gt;</c> with
+        /// <c>T</c> = <paramref name="type"/> would (null included, for a type that can be null). Read it back with
+        /// <see cref="NinoDeserializer.DeserializeBoxed(ReadOnlySpan{byte}, Type)"/> and the same type.
         /// </summary>
-        public static byte[] Serialize(object value)
+        public static byte[] SerializeBoxed(object value, Type type)
         {
-            if (value == null)
-                throw new ArgumentNullException(nameof(value), "Use Serialize<T> to serialize null values.");
-            return BoxedFormatter.Get(value.GetType()).Serialize(value);
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            return BoxedFormatter.Get(type).Serialize(value);
         }
 
         /// <summary>Serializes a boxed value as <paramref name="type"/>.</summary>

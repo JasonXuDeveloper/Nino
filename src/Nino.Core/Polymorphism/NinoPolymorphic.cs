@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -212,6 +213,7 @@ namespace Nino.Core
         /// Registers <typeparamref name="TSub"/> with its generated formatter, once. Every base type finds it
         /// on first use, so a type is not registered once per base type.
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static void Register<TSub, TFormatter>(int id) where TFormatter : struct, INinoBodyFormatter<TSub>
         {
             NinoPolymorphic<object>.Register(new SubtypeHandler<TSub, TFormatter>(id));
@@ -221,6 +223,7 @@ namespace Nino.Core
         /// Registers a class marked <c>trackReferences</c> (or deriving from one): written through a declared type
         /// that is not tracked, its reference header follows the type id.
         /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public static void RegisterTracked<TSub, TFormatter>(int id)
             where TSub : class
             where TFormatter : struct, INinoBodyFormatter<TSub>
@@ -324,6 +327,7 @@ namespace Nino.Core
     /// reader that sees the key also sees the handler. Growing publishes a new array with one reference write.
     /// </para>
     /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoPolymorphic<TBase> where TBase : class
     {
         private struct TypeEntry

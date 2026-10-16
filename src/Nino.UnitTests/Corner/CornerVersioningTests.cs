@@ -108,21 +108,21 @@ namespace Nino.UnitTests.Corner
     }
 
     // Keyed hierarchy where the base gains a member and the leaf reorders.
-    [NinoType(keyed: true)]
+    [NinoType(format: NinoFormat.Keyed)]
     public class KeyedVerBaseV1
     {
         public int A;
         public string B;
     }
 
-    [NinoType(keyed: true)]
+    [NinoType(format: NinoFormat.Keyed)]
     public sealed class KeyedVerLeafV1 : KeyedVerBaseV1
     {
         public long C;
         public List<int> D;
     }
 
-    [NinoType(keyed: true)]
+    [NinoType(format: NinoFormat.Keyed)]
     public class KeyedVerBaseV2
     {
         public string B;
@@ -130,21 +130,21 @@ namespace Nino.UnitTests.Corner
         public int A;
     }
 
-    [NinoType(keyed: true)]
+    [NinoType(format: NinoFormat.Keyed)]
     public sealed class KeyedVerLeafV2 : KeyedVerBaseV2
     {
         public List<int> D;
         public long C;
     }
 
-    [NinoType(keyed: true)]
+    [NinoType(format: NinoFormat.Keyed)]
     public sealed class KeyedOuter
     {
         public KeyedVerLeafV1 Inner;
         public int After;
     }
 
-    [NinoType(keyed: true)]
+    [NinoType(format: NinoFormat.Keyed)]
     public sealed class KeyedOuterV2
     {
         public int After;

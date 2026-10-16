@@ -28,7 +28,7 @@ public class DeepTreeLeaf : DeepTree
     public string Tag;
 }
 
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public class DeepTolerant
 {
     public int Value;
@@ -36,7 +36,7 @@ public class DeepTolerant
     public string Name;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class DeepKeyed
 {
     public int Value;
@@ -72,7 +72,7 @@ public sealed class DeepHashed
     public override bool Equals(object obj) => obj is DeepHashed other && other.Value == Value;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public struct DeepKeyedRoot
 {
     public int Before;
@@ -81,7 +81,7 @@ public struct DeepKeyedRoot
 }
 
 // Two versions of one type, for readers that skip members they do not know.
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class DeepKeyedV1
 {
     public int A;
@@ -89,7 +89,7 @@ public sealed class DeepKeyedV1
     public int B;
 }
 
-[NinoType(keyed: true)]
+[NinoType(format: NinoFormat.Keyed)]
 public sealed class DeepKeyedV2
 {
     public int A;
@@ -98,14 +98,14 @@ public sealed class DeepKeyedV2
     public int B;
 }
 
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class DeepLevelV1
 {
     public int A;
     public DeepLink Known;
 }
 
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class DeepLevelV2
 {
     public int A;
@@ -133,7 +133,7 @@ public sealed class DeepCarrier
     public DeepCarrier Next;
 }
 
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public sealed class DeepTolerantCarrier
 {
     public int Value;

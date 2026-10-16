@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -8,6 +9,7 @@ namespace Nino.Core
     /// Low-level unaligned memory access used by <see cref="Writer"/>, <see cref="Reader"/> and generated code.
     /// All values are stored little-endian, exactly as laid out in memory.
     /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoUnsafe
     {
 

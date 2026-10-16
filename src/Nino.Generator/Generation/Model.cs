@@ -105,8 +105,9 @@ internal sealed record TypeModel(
     string IdName,
     // Hash of the runtime name ignoring [NinoFormerName]: the key a by-type lookup computes without reflection.
     int NameId,
+    // NinoFormat.VersionTolerant, or WEAK_VERSION_TOLERANCE (which also sets it on keyed types: see Tolerant).
     bool VersionTolerant,
-    // Members written as (key, length, value): see NinoTypeAttribute.Keyed.
+    // Members written as (key, length, value): see NinoFormat.Keyed.
     bool Keyed,
     // Objects written with a reference header (null, back reference or new): see trackReferences.
     bool TrackReferences,

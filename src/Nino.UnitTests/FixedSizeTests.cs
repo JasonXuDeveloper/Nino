@@ -38,7 +38,7 @@ public class FixedSizeTests
         var expected = ViaWriter(value);
         Assert.AreEqual(size, expected.Length);
         CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(value));
-        CollectionAssert.AreEqual(expected, NinoSerializer.Serialize((object)value));
+        CollectionAssert.AreEqual(expected, NinoSerializer.SerializeBoxed(value, typeof(T)));
         CollectionAssert.AreEqual(expected, direct);
     }
 

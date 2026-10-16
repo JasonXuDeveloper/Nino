@@ -19,7 +19,7 @@ public sealed class UnmanagedBox<T> where T : unmanaged
 }
 
 /// <summary>Unmanaged for C#, but written member by member (version tolerant), so not raw.</summary>
-[NinoType(versionTolerant: true)]
+[NinoType(format: NinoFormat.VersionTolerant)]
 public struct TolerantPoint
 {
     public int X;
