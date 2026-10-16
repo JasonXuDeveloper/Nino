@@ -26,6 +26,10 @@ namespace Nino.Core
         public static void EndOfData() =>
             throw new InvalidOperationException("Nino: unexpected end of data.");
 
+        /// <summary>A payload larger than an array can hold (what a checked size computation throws).</summary>
+        [MethodImpl(Cold)]
+        internal static void TooLarge() => throw new OverflowException();
+
         [MethodImpl(Cold)]
         public static void InvalidLength(int length) =>
             throw new InvalidOperationException($"Nino: invalid length {length}.");

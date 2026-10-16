@@ -1,3 +1,4 @@
+using System.Linq;
 using Nino.Generator.Common;
 
 namespace Nino.Generator.Generation;
@@ -166,6 +167,24 @@ internal sealed record TypeModel(
     /// <summary>Whether bases in this assembly dispatch to this type directly.</summary>
     public bool IsDispatchTarget =>
         !IsGeneric && !TrackReferences && Kind is FormatterKind.Class or FormatterKind.SealedClass;
+
+    /// <summary>
+    /// Whether the body is compiled on its own (it calls formatters): see <c>BodyEmitter</c>.
+    /// </summary>
+    public bool OutOfLineBody => Members.Any(static x => x.Raw == null) || CollectionFormatter.Length != 0;
+
+    /// <summary>
+    /// Whether the formatter has a <c>__Top</c> twin for the intercepted top-level calls, whose body is inlined into
+    /// the caller: the caller then owns the reader or writer, which the JIT keeps in registers (passed to the
+    /// out-of-line body, its address keeps every field in memory, zeroed in the prolog and reloaded after each
+    /// store). Only for sealed classes whose small body (at most two members that call formatters) opens no class
+    /// body (one that does passes the reader to that body's call anyway): a large body inlined into every call site
+    /// would use up the JIT's inlining budget there.
+    /// </summary>
+    public bool TopInline => !IsGeneric && !TrackReferences && !RawStruct && !Keyed && !Nests && Levels.Length == 0 &&
+                             BaseFormatter.Length == 0 && CollectionFormatter.Length == 0 &&
+                             Kind == FormatterKind.SealedClass &&
+                             Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
 
     /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
     public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";

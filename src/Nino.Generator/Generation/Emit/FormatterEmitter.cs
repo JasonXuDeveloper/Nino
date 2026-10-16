@@ -108,6 +108,12 @@ internal static class FormatterEmitter
             body.EmitReadBody();
         }
 
+        if (m.TopInline)
+        {
+            w.Line();
+            EmitTop(w, m, names);
+        }
+
         AccessorEmitter.EmitUnsafeAccessors(w, m);
         if (!m.IsGeneric)
         {
@@ -115,6 +121,29 @@ internal static class FormatterEmitter
             EmitRegister(w, m);
         }
 
+        w.Close();
+    }
+
+    /// <summary>
+    /// The formatter the intercepted top-level calls use (see <see cref="TypeModel.TopInline"/>): the same bytes,
+    /// with the body inlined into the caller instead of called.
+    /// </summary>
+    private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names)
+    {
+        string t = m.TypeName;
+        string top = m.FormatterName + ".__Top";
+        w.Open($"internal struct __Top : {Core}INinoBodyFormatter<{t}>");
+        w.Line("public int TypeId => Id;");
+        w.Line($"public bool Nests => default({m.FormatterName}).Nests;");
+        w.Line($"public bool Deferrable => default({m.FormatterName}).Deferrable;");
+        w.Line($"public {t} Create() => default({m.FormatterName}).Create();");
+        w.Line($"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTop<{t}, {top}>(value, ref writer);");
+        w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeTop<{t}, {top}>(ref value, ref reader);");
+
+        w.Line(names.Inline);
+        w.Line($"public void WriteBody({t} value, ref {Core}Writer writer) => __WriteBodyInline(value, ref writer);");
+        w.Line(names.Inline);
+        w.Line($"public void ReadBody(ref {t} value, ref {Core}Reader reader) => __ReadBodyInline(ref value, ref reader);");
         w.Close();
     }
 

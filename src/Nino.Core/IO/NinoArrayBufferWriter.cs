@@ -78,11 +78,21 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref byte Reserve(int size)
         {
+            // The array in a local: read again after the store to Index, the field would be loaded twice (the JIT
+            // cannot tell the store does not change it).
+            var buffer = Buffer;
             int index = Index;
-            if ((uint)size > (uint)(Buffer.Length - index))
-                Grow(size);
+            if ((uint)size > (uint)(buffer.Length - index))
+                buffer = GrowFor(size);
             Index = index + size;
-            return ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(Buffer), index);
+            return ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(buffer), index);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private byte[] GrowFor(int size)
+        {
+            Grow(size);
+            return Buffer;
         }
 
         public void Advance(int count)

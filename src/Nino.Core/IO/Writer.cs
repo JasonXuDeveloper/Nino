@@ -31,13 +31,13 @@ namespace Nino.Core
             // A JIT-time constant on CoreCLR, NativeAOT and Mono: the check folds away.
             if (!BitConverter.IsLittleEndian)
                 NinoThrow.BigEndianHost();
-            _owner = buffer ?? throw new ArgumentNullException(nameof(buffer));
+            if (buffer == null)
+                throw new ArgumentNullException(nameof(buffer));
+            // One block clear rather than a store per field (see Reader's constructor).
+            this = default;
+            _owner = buffer;
             _buffer = buffer.Buffer;
             _pos = buffer.Index;
-            _refs = null;
-            Depth = 0;
-            _regions = 0;
-            _deferrals = null;
         }
 
         /// <summary>
@@ -439,7 +439,9 @@ namespace Nino.Core
         private const int Utf8WorstCaseMaxChars = 1024;
 
         /// <summary>Writes a string as UTF-8: byte count (-1 for null), then the bytes.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        // Inlined, with the counting and the encoding out of line taking values: an instance call would take the
+        // writer's address, which keeps all its fields in memory in the caller.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteUtf8(string value)
         {
             if (value == null)
@@ -452,7 +454,7 @@ namespace Nino.Core
             // bytes first, so the buffer does not grow to three times the string (or overflow the count).
             int maxBytes = value.Length <= Utf8WorstCaseMaxChars
                 ? value.Length * 3
-                : Encoding.UTF8.GetByteCount(value);
+                : Utf8ByteCount(value);
             int lengthPos = _pos;
             ref byte dst = ref Reserve(NinoWire.LengthSize + maxBytes);
             int written = EncodeUtf8(value, ref Unsafe.Add(ref dst, NinoWire.LengthSize), maxBytes);
@@ -461,7 +463,10 @@ namespace Nino.Core
             _pos = lengthPos + NinoWire.LengthSize + written;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int Utf8ByteCount(string value) => Encoding.UTF8.GetByteCount(value);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static unsafe int EncodeUtf8(string value, ref byte destination, int capacity)
         {
             if (value.Length == 0)

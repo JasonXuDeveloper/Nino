@@ -373,6 +373,45 @@ namespace Nino.Core
             WriteBody<T, TFormatter>(value, ref writer);
         }
 
+        /// <summary>
+        /// Generated <c>__Top</c> formatters: <see cref="SerializeSealed{T,TFormatter}"/> with a writer that the
+        /// top-level call just created (no body open, so none is deferred), for a body that opens no class body
+        /// (<see cref="INinoBodyFormatter{T}.Nests"/> false): the depth stays 0. Little IL: inlined into the caller
+        /// with the body, it leaves the JIT's inlining budget to the body's own helpers.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeTop<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            if (value == null)
+            {
+                writer.UnsafeWrite(NinoWire.Null);
+                return;
+            }
+
+            writer.UnsafeWrite(NinoWire.NotNull);
+            default(TFormatter).WriteBody(value, ref writer);
+        }
+
+        /// <summary>
+        /// Generated <c>__Top</c> formatters: <see cref="DeserializeSealed{T,TFormatter}"/> with a reader that the
+        /// top-level call just created (see <see cref="SerializeTop{T,TFormatter}"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializeTop<T, TFormatter>(ref T value, ref Reader reader)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
+            {
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            default(TFormatter).ReadBody(ref value, ref reader);
+        }
+
         /// <summary>Sealed class: reads what <see cref="SerializeSealed{T,TFormatter}"/> wrote.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void DeserializeSealed<T, TFormatter>(ref T value, ref Reader reader)

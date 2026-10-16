@@ -83,8 +83,14 @@ namespace Nino.Core
         /// <summary>Wire size of one element; 0 when elements are not written as one block on this runtime.</summary>
         int ElementSize { get; }
 
-        /// <summary>Writes the length and the elements of <paramref name="array"/> (a <c>T[]</c>, not null).</summary>
-        void Write(ref byte destination, System.Array array);
+        /// <summary>
+        /// Writes the length and the elements of <paramref name="array"/> (a <c>T[]</c>, not null) into
+        /// <paramref name="buffer"/>: one capacity check, the length and one block copy.
+        /// </summary>
+        void Write(NinoArrayBufferWriter buffer, System.Array array);
+
+        /// <summary><paramref name="array"/> (not null) as a new byte array of exactly its size.</summary>
+        byte[] Serialize(System.Array array);
 
         /// <summary>
         /// Reads a whole payload holding one array, into <paramref name="existing"/> (null or a <c>T[]</c>) where

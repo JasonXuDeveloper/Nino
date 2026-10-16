@@ -59,7 +59,15 @@ namespace Nino.Core
         public static T[] EnsureLength<T>(ref T[] array, int length, bool uninitialized = false)
         {
             var current = array;
-            return current != null && current.Length == length ? current : Resize(ref array, length, uninitialized);
+            if (current != null)
+                return current.Length == length ? current : Resize(ref array, length, uninitialized);
+            // No array yet (a new object): allocated here, the JIT's allocation helper called directly rather than
+            // through Resize (a call, a frame, and a checked store of the result through the ref).
+            if (length == 0)
+                return Resize(ref array, 0, uninitialized);
+            var result = uninitialized ? NinoUnsafe.AllocateUninitializedArray<T>(length) : new T[length];
+            array = result;
+            return result;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -126,20 +134,75 @@ namespace Nino.Core
         // Elements with a non-canonical layout take the formatter path, which converts them.
         int INinoRawArrayFormatter.ElementSize => NinoLayout<T>.IsCanonical ? Unsafe.SizeOf<T>() : 0;
 
-        void INinoRawArrayFormatter.Write(ref byte destination, Array array)
+        // The top-level calls reach these through a static readonly field of their exact type, so they are inlined
+        // there with Unsafe.SizeOf<T>() a constant: no multiplication by a loaded size, no overflow branches.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoRawArrayFormatter.Write(NinoArrayBufferWriter buffer, Array array)
         {
             var values = Unsafe.As<T[]>(array);
-            NinoLayout<T>.WriteLengthPrefixed(ref destination,
-                ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), values.Length);
+            int length = values.Length;
+            NinoLayout<T>.WriteLengthPrefixed(ref buffer.Reserve(WireSize(length)),
+                ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), length);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        byte[] INinoRawArrayFormatter.Serialize(Array array)
+        {
+            var values = Unsafe.As<T[]>(array);
+            int length = values.Length;
+            // Every byte is written below.
+            var bytes = NinoUnsafe.AllocateUninitializedArray<byte>(WireSize(length));
+            NinoLayout<T>.WriteLengthPrefixed(ref NinoUnsafe.GetArrayDataReference(bytes),
+                ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), length);
+            return bytes;
+        }
+
+        /// <summary>The length prefix and <paramref name="length"/> elements, in bytes.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int WireSize(int length)
+        {
+            // In 64 bits: cannot overflow; one compare rejects what does not fit an array.
+            ulong size = NinoWire.LengthSize + (ulong)(uint)length * (uint)Unsafe.SizeOf<T>();
+            if (size > int.MaxValue)
+                NinoThrow.TooLarge();
+            return (int)size;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Array INinoRawArrayFormatter.Read(ReadOnlySpan<byte> data, Array existing)
         {
+            // A new array (NinoDeserializer.Deserialize<T[]>(data) passes null, a constant once inlined): no slot
+            // to reuse, so no local whose address reaches the recycler and stays in memory.
+            if (existing == null && NinoLayout<T>.IsCanonical)
+                return ReadNew(data);
             var reader = new Reader(data);
             var value = Unsafe.As<T[]>(existing);
             Deserialize(ref value, ref reader);
             return value;
+        }
+
+        /// <summary>The bytes of <see cref="Deserialize"/>, into a new array (null for null).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static T[] ReadNew(ReadOnlySpan<byte> data)
+        {
+            if (data.Length < NinoWire.LengthSize)
+                NinoThrow.EndOfData();
+            ref byte start = ref MemoryMarshal.GetReference(data);
+            int length = NinoUnsafe.Read<int>(ref start);
+            uint size = (uint)Unsafe.SizeOf<T>();
+            if ((ulong)(uint)length * size > (uint)(data.Length - NinoWire.LengthSize))
+            {
+                if (length != NinoWire.NullLength)
+                    NinoThrow.InvalidLength(length);
+                return null;
+            }
+
+            if (length == 0)
+                return Array.Empty<T>();
+            var array = NinoUnsafe.AllocateUninitializedArray<T>(length);
+            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
+                ref Unsafe.Add(ref start, NinoWire.LengthSize), (uint)length * size);
+            return array;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

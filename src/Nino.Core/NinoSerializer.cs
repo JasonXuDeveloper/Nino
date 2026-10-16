@@ -45,7 +45,8 @@ namespace Nino.Core
             if (NinoRaw.Is<T>())
                 return SerializeRaw(value);
 
-            if (RawArray<T>.Info is { } raw && value != null)
+            // The formatter is a static readonly field: Tier1 code calls (and inlines) it as its exact type.
+            if (RawArray<T>.Formatter is { } raw && value != null)
                 return raw.Serialize(Unsafe.As<Array>(value));
 
             return SerializeToArray(value, NinoFormatterCache<T>.Instance);
@@ -82,28 +83,22 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Set when <typeparamref name="T"/> is an array of raw elements. Arrays are reference types, so this code
-        /// is shared between instantiations and every static access is a generic dictionary lookup: everything
-        /// the fast path needs is behind one.
+        /// The formatter of <typeparamref name="T"/> when it is an array of raw elements (null otherwise). A static
+        /// readonly field: Tier1 code knows its exact type and calls it directly (inlined, with the element size a
+        /// constant), without a type guard or interface dispatch. Arrays are reference types, so code that is not
+        /// inlined into a caller of the exact type is shared, and this field is a generic dictionary lookup there.
         /// </summary>
         internal static class RawArray<T>
         {
-            public static readonly RawArrayWriter Info = Create();
+            public static readonly INinoRawArrayFormatter Formatter = Create();
 
-            /// <summary>
-            /// The array formatter of <see cref="Info"/> (null when it is null). A static readonly field: Tier1 code
-            /// knows its exact type and calls it directly, without a type guard or interface dispatch.
-            /// </summary>
-            public static readonly INinoRawArrayFormatter Formatter = Info?.Formatter;
-
-            private static RawArrayWriter Create()
+            private static INinoRawArrayFormatter Create()
             {
                 if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1)
                     return null;
                 try
                 {
-                    var formatter = NinoFormatterCache<T>.Instance.RawArray;
-                    return formatter == null ? null : new RawArrayWriter(formatter.ElementSize, formatter);
+                    return NinoFormatterCache<T>.Instance.RawArray;
                 }
                 catch (Exception)
                 {
@@ -111,39 +106,6 @@ namespace Nino.Core
                     return null;
                 }
             }
-        }
-
-        /// <summary>
-        /// Writes an array of raw elements: its length, then one block copy, in code specialized for the element
-        /// type (the array formatter's), so only the lookup of this object is shared code.
-        /// </summary>
-        internal sealed class RawArrayWriter
-        {
-            private readonly int _elementSize;
-            private readonly INinoRawArrayFormatter _formatter;
-
-            public RawArrayWriter(int elementSize, INinoRawArrayFormatter formatter)
-            {
-                _elementSize = elementSize;
-                _formatter = formatter;
-            }
-
-            /// <summary>Length plus element bytes.</summary>
-            public int Size(Array array) => checked(NinoWire.LengthSize + array.Length * _elementSize);
-
-            /// <summary>The result is allocated at its exact size and filled with one copy.</summary>
-            public byte[] Serialize(Array array)
-            {
-                var bytes = NinoUnsafe.AllocateUninitializedArray<byte>(Size(array));
-                _formatter.Write(ref NinoUnsafe.GetArrayDataReference(bytes), array);
-                return bytes;
-            }
-
-            public INinoRawArrayFormatter Formatter => _formatter;
-
-            public void Write(ref byte destination, Array array) => _formatter.Write(ref destination, array);
-
-            public Array Read(ReadOnlySpan<byte> data, Array existing) => _formatter.Read(data, existing);
         }
 
         /// <summary>
@@ -159,7 +121,17 @@ namespace Nino.Core
                 return;
             }
 
-            if (RawArray<T>.Info == null && bufferWriter is NinoArrayBufferWriter nino)
+            if (RawArray<T>.Formatter is { } raw)
+            {
+                // An array of raw elements: one capacity check and one block copy, inlined with the element size
+                // a constant (the formatter is a static readonly field: Tier1 code knows its exact type).
+                if (value != null && bufferWriter is NinoArrayBufferWriter target)
+                {
+                    raw.Write(target, Unsafe.As<Array>(value));
+                    return;
+                }
+            }
+            else if (bufferWriter is NinoArrayBufferWriter nino)
             {
                 WriteFormatted(value, nino, NinoFormatterCache<T>.Instance);
                 return;
@@ -168,17 +140,12 @@ namespace Nino.Core
             SerializeOther(value, bufferWriter, NinoFormatterCache<T>.Instance);
         }
 
+        // Out of line: inlined, it would take the caller's inlining budget for paths the calls above do not take.
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static void SerializeOther<T>(T value, IBufferWriter<byte> bufferWriter, NinoFormatter<T> formatter)
         {
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
-                if (value != null && RawArray<T>.Info is { } raw)
-                {
-                    var array = Unsafe.As<Array>(value);
-                    raw.Write(ref nino.Reserve(raw.Size(array)), array);
-                    return;
-                }
-
                 WriteFormatted(value, nino, formatter);
                 return;
             }

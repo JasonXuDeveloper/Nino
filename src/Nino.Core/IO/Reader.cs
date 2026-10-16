@@ -32,11 +32,10 @@ namespace Nino.Core
             // A JIT-time constant on CoreCLR, NativeAOT and Mono: the check folds away.
             if (!BitConverter.IsLittleEndian)
                 NinoThrow.BigEndianHost();
+            // One block clear rather than a store per field: less IL, which the top-level calls inline together
+            // with the body within the JIT's inlining budget.
+            this = default;
             _data = data;
-            _pos = 0;
-            Depth = 0;
-            _regions = 0;
-            _context = null;
         }
 
         /// <summary>A part of a reader that already passed the endianness check, from <paramref name="pos"/>.</summary>
@@ -598,8 +597,10 @@ namespace Nino.Core
         }
 
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public unsafe string ReadUtf8()
+        // Inlined, with the transcoding out of line taking values: an instance call would take the reader's address,
+        // which keeps all its fields in memory in the caller.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public string ReadUtf8()
         {
             int pos = _pos;
             int remaining = _data.Length - pos;
@@ -616,7 +617,12 @@ namespace Nino.Core
             if ((uint)length > (uint)(remaining - sizeof(int)))
                 NinoThrow.EndOfData();
             _pos = pos + sizeof(int) + length;
-            ref byte src = ref Unsafe.Add(ref start, sizeof(int));
+            return DecodeUtf8(ref Unsafe.Add(ref start, sizeof(int)), length);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe string DecodeUtf8(ref byte src, int length)
+        {
 #if NETSTANDARD2_0
             fixed (byte* p = &src)
             {

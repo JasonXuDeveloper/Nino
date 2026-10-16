@@ -77,12 +77,13 @@ internal sealed class BodyEmitter
     /// before the small helpers it and the caller use (bounds checks, depth tracking, flush) are inlined. Bodies of
     /// raw members only are a few stores and stay inlinable.
     /// </summary>
-    private bool OutOfLine => _m.Members.Any(x => x.Raw == null) || _m.CollectionFormatter.Length != 0;
+    private bool OutOfLine => _m.OutOfLineBody;
 
     /// <summary>
     /// The signature of a body method. An out-of-line body is a static method behind an inlined instance forwarder:
     /// a call to an instance method of the (empty) formatter struct stores a dummy byte on the caller's stack and
-    /// passes its address as <c>this</c>.
+    /// passes its address as <c>this</c>. With a <c>__Top</c> twin (<see cref="TypeModel.TopInline"/>), the body is
+    /// an inlinable static method (<c>__ReadBodyInline</c>) that the out-of-line one and <c>__Top</c> call.
     /// </summary>
     private string BodySignature(string name, string parameters)
     {
@@ -93,7 +94,12 @@ internal sealed class BodyEmitter
         _w.Line($"public void {name}({parameters}) => __{name}({args});");
         _w.Line();
         _w.Line(_names.NoInline);
-        return $"private static void __{name}({parameters})";
+        if (!_m.TopInline)
+            return $"private static void __{name}({parameters})";
+        _w.Line($"private static void __{name}({parameters}) => __{name}Inline({args});");
+        _w.Line();
+        _w.Line(_names.Inline);
+        return $"private static void __{name}Inline({parameters})";
     }
 
     public void EmitWriteBody()
