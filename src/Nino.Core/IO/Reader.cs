@@ -311,6 +311,15 @@ namespace Nino.Core
             return ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos);
         }
 
+        /// <summary>Consumes <paramref name="size"/> bytes the caller already checked are there.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte UnsafeAdvance(int size)
+        {
+            int pos = _pos;
+            _pos = pos + size;
+            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos);
+        }
+
         /// <summary>Skips <paramref name="count"/> bytes.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Advance(int count) => ReadBlock(count);
@@ -437,8 +446,15 @@ namespace Nino.Core
                 return;
             }
 
-            var bytes = MemoryMarshal.AsBytes(destination);
-            ReadRaw(bytes.Length).CopyTo(bytes);
+            // One bounds check and a block copy (the JIT's memcpy helper): AsBytes, Slice and CopyTo would add an
+            // overflow check, two more bounds checks and a call through SpanHelpers.Memmove's indirection cell.
+            ulong size = (ulong)(uint)destination.Length * (uint)Unsafe.SizeOf<T>();
+            int pos = _pos;
+            if (size > (uint)(_data.Length - pos))
+                NinoThrow.EndOfData();
+            _pos = pos + (int)size;
+            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)),
+                ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos), (uint)size);
         }
 
         /// <summary>Reads a length-prefixed unmanaged array written by <see cref="Writer.Write{T}(T[])"/>.</summary>
@@ -498,6 +514,7 @@ namespace Nino.Core
         }
 
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public unsafe string ReadUtf8()
         {
             int length = UnsafeRead<int>();

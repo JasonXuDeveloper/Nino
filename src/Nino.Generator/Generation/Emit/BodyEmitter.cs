@@ -65,8 +65,21 @@ internal sealed class BodyEmitter
         _w.Line($"public void ReadBody(ref {T} value, ref {Core}Reader reader) => value = reader.ReadValue<{T}>();");
     }
 
+    /// <summary>
+    /// A body that calls formatters (strings, collections, other types) is compiled on its own rather than inlined
+    /// into the caller: inlined, it would use up the caller's inlining budget (a share of the caller's own size)
+    /// before the small helpers it and the caller use (bounds checks, depth tracking, flush) are inlined. Bodies of
+    /// raw members only are a few stores and stay inlinable.
+    /// </summary>
+    private void EmitBodyInlining()
+    {
+        if (_m.Members.Any(x => x.Raw == null) || _m.CollectionFormatter.Length != 0)
+            _w.Line(_names.NoInline);
+    }
+
     public void EmitWriteBody()
     {
+        EmitBodyInlining();
         if (_m.EmitMembers && !_m.Keyed && _m.CollectionFormatter.Length == 0)
         {
             _w.Line($"public void WriteBody({T} value, ref {Core}Writer writer) => WriteMembers(value, ref writer);");
@@ -206,6 +219,7 @@ internal sealed class BodyEmitter
 
     public void EmitReadBody()
     {
+        EmitBodyInlining();
         _w.Open($"public void ReadBody(ref {T} value, ref {Core}Reader reader)");
         string r = "reader";
         if (_m.Keyed)

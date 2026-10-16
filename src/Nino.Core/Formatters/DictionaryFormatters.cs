@@ -154,36 +154,64 @@ namespace Nino.Core
             NinoRecycler.DiscardPairs<TKey, TValue>(stale);
         }
 
+        /// <summary>Adds a pair; a key the data repeats (under the dictionary's comparer) is invalid data.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Add(Dictionary<TKey, TValue> dictionary, TKey key, TValue value)
+        {
+#if NETSTANDARD2_0
+            int before = dictionary.Count;
+            dictionary[key] = value;
+            if (dictionary.Count == before)
+                NinoThrow.DuplicateKey(dictionary.GetType());
+#else
+            if (!dictionary.TryAdd(key, value))
+                NinoThrow.DuplicateKey(dictionary.GetType());
+#endif
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void AddRaw(Dictionary<TKey, TValue> dictionary, ref byte src, int length)
+        {
+            int keySize = Unsafe.SizeOf<TKey>();
+            int pairSize = keySize + Unsafe.SizeOf<TValue>();
+            for (int i = 0, offset = 0; i < length; i++, offset += pairSize)
+                Add(dictionary, NinoUnsafe.Read<TKey>(ref src, offset), NinoUnsafe.Read<TValue>(ref src, offset + keySize));
+        }
+
         /// <summary>Reads <paramref name="length"/> pairs into <paramref name="dictionary"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
-            // The count grows by one per pair; a key the data repeats (under the dictionary's comparer) does not.
-            int expected = dictionary.Count;
             if (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is)
             {
-                int keySize = Unsafe.SizeOf<TKey>();
-                int pairSize = keySize + Unsafe.SizeOf<TValue>();
-                ref byte src = ref reader.ReadBlock(length * pairSize);
-                for (int i = 0, offset = 0; i < length; i++, offset += pairSize)
-                {
-                    dictionary[NinoUnsafe.Read<TKey>(ref src, offset)] = NinoUnsafe.Read<TValue>(ref src, offset + keySize);
-                    if (dictionary.Count == expected++)
-                        NinoThrow.DuplicateKey(dictionary.GetType());
-                }
-
+                // The block is taken here and the pairs added out of line: the reader's address never leaves the
+                // caller, and the caller stays small enough for the JIT to inline the rest of its path.
+                ref byte src = ref reader.ReadBlock(length * (Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()));
+                AddRaw(dictionary, ref src, length);
                 return;
             }
 
+            // Out of line, through a copy of the reader (see AddRaw).
+            var copy = reader;
+            ReadPairs(dictionary, length, ref copy);
+            reader = copy;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadPairs(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
+        {
+            // A local reader, so its fields stay in registers inside the loop.
+            var reader = source;
             for (int i = 0; i < length; i++)
             {
                 TKey key = default;
                 TValue item = default;
                 default(TKeyFormatter).Deserialize(ref key, ref reader);
                 default(TValueFormatter).Deserialize(ref item, ref reader);
-                dictionary[key] = item;
-                if (dictionary.Count == expected++)
-                    NinoThrow.DuplicateKey(dictionary.GetType());
+                Add(dictionary, key, item);
             }
+
+            source = reader;
         }
     }
 
@@ -220,7 +248,11 @@ namespace Nino.Core
             }
             else
             {
-                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref reader);
+                // Through a copy: the reader's own address must not reach a call that is not inlined (see
+                // NinoObject.ReadBody), or none of its fields stay in registers in the caller.
+                var copy = reader;
+                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref copy);
+                reader = copy;
             }
         }
     }
@@ -253,7 +285,9 @@ namespace Nino.Core
             }
 
             value ??= NinoActivator<TDictionary>.Create();
-            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref reader);
+            var copy = reader;
+            NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref copy);
+            reader = copy;
         }
     }
 

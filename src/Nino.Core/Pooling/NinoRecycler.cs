@@ -51,9 +51,15 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Recycle(T value)
         {
-            if (value == null)
-                return;
+            if (value != null)
+                RecycleCore(value);
+        }
 
+        // Out of line: dropped instances are rare, and the code inlined at every slot that may drop one would use
+        // up the JIT's inlining budget of the method it is inlined into.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void RecycleCore(T value)
+        {
             var handler = Handler;
             if (handler != null)
             {

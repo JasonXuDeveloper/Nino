@@ -92,12 +92,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Dispose() => Flush();
 
+        // Static, taking and returning values: an instance method would take the writer's address, and a writer
+        // whose address escapes keeps every field in memory (and is zeroed in the prolog) in all inlined callers.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void Grow(int size)
+        private static Span<byte> Grow(NinoArrayBufferWriter owner, int pos, int size)
         {
-            _owner.Index = _pos;
-            _owner.Grow(size);
-            _buffer = _owner.Buffer;
+            owner.Index = pos;
+            owner.Grow(size);
+            return owner.Buffer;
         }
 
         /// <summary>
@@ -109,7 +111,7 @@ namespace Nino.Core
         {
             int pos = _pos;
             if ((uint)size > (uint)(_buffer.Length - pos))
-                Grow(size);
+                _buffer = Grow(_owner, pos, size);
             _pos = pos + size;
             return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
         }
@@ -121,7 +123,7 @@ namespace Nino.Core
             int size = Unsafe.SizeOf<T>();
             int pos = _pos;
             if ((uint)size > (uint)(_buffer.Length - pos))
-                Grow(size);
+                _buffer = Grow(_owner, pos, size);
             NinoUnsafe.Write(ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos), value);
             _pos = pos + size;
         }
@@ -263,7 +265,12 @@ namespace Nino.Core
         internal void ExitBody()
         {
             if (--Depth == 0 && _deferrals != null)
-                WriteTopDeferred();
+            {
+                // Through a copy, as in Reader.ExitBody: the writer's own address must not reach a call.
+                var writer = this;
+                writer.WriteTopDeferred();
+                this = writer;
+            }
         }
 
         /// <summary>
@@ -383,6 +390,7 @@ namespace Nino.Core
         private const int Utf8WorstCaseMaxChars = 1024;
 
         /// <summary>Writes a string as UTF-8: byte count (-1 for null), then the bytes.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public void WriteUtf8(string value)
         {
             if (value == null)

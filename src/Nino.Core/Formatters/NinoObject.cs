@@ -80,7 +80,10 @@ namespace Nino.Core
         {
             if (writer.Depth >= NinoDepth.Inline)
             {
-                WriteDeep<T, TFormatter>(value, ref writer);
+                // Through a copy, as in ReadBody.
+                var deep = writer;
+                WriteDeep<T, TFormatter>(value, ref deep);
+                writer = deep;
                 return;
             }
 
@@ -121,8 +124,11 @@ namespace Nino.Core
             {
                 // Through a copy: passing the reader's address to a call that is not inlined would keep the JIT
                 // from holding its fields in registers.
+                // The same for the value: its address reaching a call keeps it in memory in the caller.
                 var deep = reader;
-                ReadDeep<T, TFormatter>(ref value, ref deep);
+                var instance = value;
+                ReadDeep<T, TFormatter>(ref instance, ref deep);
+                value = instance;
                 reader = deep;
                 return;
             }

@@ -55,6 +55,7 @@ namespace Nino.Core
             return current != null && current.Length == length ? current : Resize(ref array, length, uninitialized);
         }
 
+        [MethodImpl(MethodImplOptions.NoInlining)]
         private static T[] Resize<T>(ref T[] array, int length, bool uninitialized)
         {
             var old = array;
@@ -125,6 +126,7 @@ namespace Nino.Core
                 ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), values.Length);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         Array INinoRawArrayFormatter.Read(ReadOnlySpan<byte> data, Array existing)
         {
             var reader = new Reader(data);
@@ -138,6 +140,32 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T[] value, ref Reader reader)
+        {
+            if (!NinoLayout<T>.IsCanonical)
+            {
+                DeserializeConverted(ref value, ref reader);
+                return;
+            }
+
+            // One bounds check for the count and the elements: a negative count (null, or invalid) is a huge
+            // unsigned size and takes the cold path.
+            int length = reader.UnsafeRead<int>();
+            uint size = (uint)Unsafe.SizeOf<T>();
+            if ((ulong)(uint)length * size > (uint)reader.Remaining)
+            {
+                if (length != NinoWire.NullLength)
+                    NinoThrow.InvalidLength(length);
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            var array = NinoElements.EnsureLength(ref value, length, uninitialized: true);
+            uint bytes = (uint)length * size;
+            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
+                ref reader.UnsafeAdvance((int)bytes), bytes);
+        }
+
+        private static void DeserializeConverted(ref T[] value, ref Reader reader)
         {
             int length = reader.ReadLength(NinoLayout<T>.Size);
             if (length < 0)

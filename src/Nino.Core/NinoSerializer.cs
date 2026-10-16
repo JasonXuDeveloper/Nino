@@ -90,6 +90,12 @@ namespace Nino.Core
         {
             public static readonly RawArrayWriter Info = Create();
 
+            /// <summary>
+            /// The array formatter of <see cref="Info"/> (null when it is null). A static readonly field: Tier1 code
+            /// knows its exact type and calls it directly, without a type guard or interface dispatch.
+            /// </summary>
+            public static readonly INinoRawArrayFormatter Formatter = Info?.Formatter;
+
             private static RawArrayWriter Create()
             {
                 if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1)
@@ -132,6 +138,8 @@ namespace Nino.Core
                 _formatter.Write(ref NinoUnsafe.GetArrayDataReference(bytes), array);
                 return bytes;
             }
+
+            public INinoRawArrayFormatter Formatter => _formatter;
 
             public void Write(ref byte destination, Array array) => _formatter.Write(ref destination, array);
 

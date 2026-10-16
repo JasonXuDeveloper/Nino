@@ -40,6 +40,16 @@ internal sealed class FormatterNames
         }
     }
 
+    /// <summary>The no-inlining attribute, through the same aliases.</summary>
+    public string NoInline
+    {
+        get
+        {
+            _inline = true;
+            return "[__NinoInline(__NinoInlineOptions.NoInlining)]";
+        }
+    }
+
     /// <summary>The name to write for <paramref name="formatter"/>: its alias when it has one.</summary>
     public string Use(string formatter)
     {
