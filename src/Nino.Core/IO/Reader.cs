@@ -816,55 +816,78 @@ namespace Nino.Core
         public string ReadUtf8()
         {
             int remaining = Avail;
-            if ((uint)remaining < sizeof(int))
-                NinoThrow.EndOfData();
             ref byte start = ref Cur;
-            int length = NinoUnsafe.Read<int>(ref start);
-            if (length <= 0)
+            int length;
+            if ((uint)remaining >= 2 * sizeof(int))
             {
-                Skip(sizeof(int));
-                return EmptyOrNull(length);
+                // The char count and the byte count in one load.
+                ulong counts = NinoUnsafe.Read<ulong>(ref start);
+                length = (int)counts;
+                if (length > 0)
+                {
+                    int size = (int)(counts >> 32);
+                    if ((uint)size > (uint)(remaining - 2 * sizeof(int)))
+                        NinoThrow.EndOfData();
+                    // Moved past the string before decoding it, so nothing is kept across the call (a throw ends
+                    // the read).
+                    Skip(2 * sizeof(int) + size);
+                    return DecodeUtf8(ref Unsafe.Add(ref start, 2 * sizeof(int)), size, length);
+                }
+            }
+            else
+            {
+                length = Utf8ShortCount(ref start, remaining);
             }
 
-            // The prefix counts chars, and every char takes at least one byte: checked before the string is allocated.
-            if ((uint)length > (uint)(remaining - sizeof(int)))
-                NinoThrow.EndOfData();
-            var value = DecodeUtf8(ref Unsafe.Add(ref start, sizeof(int)), remaining - sizeof(int), length,
-                out int consumed);
-            Skip(sizeof(int) + consumed);
-            return value;
+            Skip(sizeof(int));
+            return EmptyOrNull(length);
         }
 
         /// <summary>
-        /// Decodes the <paramref name="length"/> chars at <paramref name="src"/> (at most <paramref name="available"/>
-        /// bytes, which may go on past the string) into a string allocated at that length, in one pass. Returns the
-        /// string and the bytes it took; data that is truncated, is not UTF-8, or does not end on a char boundary
-        /// throws.
+        /// The char count of a UTF-8 string in the last 0 to 7 bytes, where only a null or empty one (a count alone)
+        /// fits; anything else is data that ends early.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe string DecodeUtf8(ref byte src, int available, int length, out int consumed)
+        private static int Utf8ShortCount(ref byte src, int remaining)
         {
-            // Not the empty string: length > 0. Freshly allocated and not yet published, so it is written in place.
+            if (remaining < sizeof(int))
+                NinoThrow.EndOfData();
+            int length = NinoUnsafe.Read<int>(ref src);
+            if (length > 0)
+                NinoThrow.EndOfData();
+            return length;
+        }
+
+        /// <summary>
+        /// Decodes exactly the <paramref name="size"/> bytes at <paramref name="src"/> into a string of
+        /// <paramref name="length"/> (&gt; 0) chars, in one pass. Bytes that are not UTF-8, or that decode to another
+        /// number of chars, throw; a char count above the byte count throws before the string is allocated.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe string DecodeUtf8(ref byte src, int size, int length)
+        {
+            // Every char (UTF-16 code unit) takes 1 to 3 bytes (a surrogate pair 4 for 2): size >= length bounds the
+            // allocation by the data. size > 3 * length decodes to more chars than the string holds, which the
+            // transcoder reports (DestinationTooSmall).
+            if (size < length)
+                NinoThrow.InvalidData("invalid UTF-8 string.");
+            // Freshly allocated and not yet published, so it is written in place.
             var value = new string('\0', length);
 #if NET8_0_OR_GREATER
-            var chars = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(value.AsSpan()), length);
-            // The transcoder stops when the string is full: the bytes after it (the next member) are not decoded,
-            // whatever status that boundary gives (an invalid byte, or a sequence that does not fit).
-            System.Text.Unicode.Utf8.ToUtf16(MemoryMarshal.CreateReadOnlySpan(ref src, available), chars,
-                out consumed, out int written, replaceInvalidSequences: false);
-            if (written != length)
+            // Done means every byte was decoded; the chars must then fill the string exactly.
+            var status = System.Text.Unicode.Utf8.ToUtf16(MemoryMarshal.CreateReadOnlySpan(ref src, size),
+                MemoryMarshal.CreateSpan(ref Unsafe.AsRef(in value.GetPinnableReference()), length),
+                out _, out int written, replaceInvalidSequences: false);
+            if (status != System.Buffers.OperationStatus.Done || written != length)
                 NinoThrow.InvalidData("invalid UTF-8 string.");
-            return value;
 #else
-            // The bytes of the chars from their lead bytes, then a strict decoder over exactly those bytes, which
-            // validates them (the count of chars agrees for valid UTF-8 only).
-            int size = Utf8Size(ref src, available, length);
             fixed (byte* p = &src)
             fixed (char* d = value)
             {
                 int written;
                 try
                 {
+                    // Strict: invalid bytes, or more chars than the string holds, throw ArgumentException.
                     written = StrictUtf8.GetChars(p, size, d, length);
                 }
                 catch (ArgumentException)
@@ -875,70 +898,12 @@ namespace Nino.Core
                 if (written != length)
                     NinoThrow.InvalidData("invalid UTF-8 string.");
             }
-
-            consumed = size;
-            return value;
 #endif
+            return value;
         }
 
 #if !NET8_0_OR_GREATER
         private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
-
-        /// <summary>The number of bytes of the first <paramref name="chars"/> UTF-16 chars, read from the lead bytes.</summary>
-        private static int Utf8Size(ref byte src, int available, int chars)
-        {
-            int i = 0;
-            while (chars > 0)
-            {
-                // Eight ASCII bytes at a time.
-                if (chars >= 8 && available - i >= 8 &&
-                    (NinoUnsafe.Read<ulong>(ref Unsafe.Add(ref src, i)) & 0x8080808080808080UL) == 0)
-                {
-                    i += 8;
-                    chars -= 8;
-                    continue;
-                }
-
-                if (i >= available)
-                    NinoThrow.EndOfData();
-                byte lead = Unsafe.Add(ref src, i);
-                int bytes, units;
-                if (lead < 0x80)
-                {
-                    bytes = 1;
-                    units = 1;
-                }
-                else if (lead >= 0xC2 && lead < 0xE0)
-                {
-                    bytes = 2;
-                    units = 1;
-                }
-                else if (lead >= 0xE0 && lead < 0xF0)
-                {
-                    bytes = 3;
-                    units = 1;
-                }
-                else if (lead >= 0xF0 && lead < 0xF5)
-                {
-                    bytes = 4;
-                    units = 2;
-                }
-                else
-                {
-                    NinoThrow.InvalidData("invalid UTF-8 string.");
-                    return 0;
-                }
-
-                if (units > chars)
-                    NinoThrow.InvalidData("invalid UTF-8 string.");
-                if (bytes > available - i)
-                    NinoThrow.EndOfData();
-                i += bytes;
-                chars -= units;
-            }
-
-            return i;
-        }
 #endif
     }
 }

@@ -575,8 +575,9 @@ namespace Nino.Core
         private const int Utf8WorstCaseMaxChars = 1024;
 
         /// <summary>
-        /// Writes a string as UTF-8: its UTF-16 length (char count; -1 for null), then the UTF-8 bytes. Unpaired
-        /// surrogates are written as U+FFFD, one char each, so the count is that of the string read back.
+        /// Writes a string as UTF-8: its UTF-16 length (char count; -1 for null, 0 for empty, with nothing after
+        /// either), then the UTF-8 byte count and the bytes. Unpaired surrogates are written as U+FFFD, one char
+        /// each, so the char count is that of the string read back.
         /// </summary>
         // Inlined, with the counting and the encoding out of line taking values: an instance call would take the
         // writer's address, which keeps all its fields in memory in the caller.
@@ -594,34 +595,51 @@ namespace Nino.Core
             int maxBytes = value.Length <= Utf8WorstCaseMaxChars
                 ? value.Length * 3
                 : Utf8ByteCount(value);
-            // Room for the worst case; only the bytes written are kept.
-            ref byte dst = ref Ensure(NinoWire.LengthSize + maxBytes);
-            NinoUnsafe.Write(ref dst, value.Length);
-            int written = EncodeUtf8(value, ref Unsafe.Add(ref dst, NinoWire.LengthSize), maxBytes);
-            Skip(NinoWire.LengthSize + written);
+            // Room for the worst case; only the bytes written (counts included) are kept.
+            ref byte dst = ref Ensure(2 * sizeof(int) + maxBytes);
+            Skip(EncodeUtf8(value, ref dst, maxBytes));
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static int Utf8ByteCount(string value) => Encoding.UTF8.GetByteCount(value);
 
+        /// <summary>
+        /// Writes the counts and the UTF-8 bytes of <paramref name="value"/> (at most <paramref name="capacity"/>)
+        /// at <paramref name="destination"/>; returns the bytes written, counts included.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static unsafe int EncodeUtf8(string value, ref byte destination, int capacity)
         {
             if (value.Length == 0)
-                return 0;
+            {
+                NinoUnsafe.Write(ref destination, 0);
+                return sizeof(int);
+            }
+
+            ref byte bytes = ref Unsafe.Add(ref destination, 2 * sizeof(int));
 #if NET8_0_OR_GREATER
-            var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), MemoryMarshal.CreateSpan(ref destination, capacity),
-                out _, out int written, replaceInvalidSequences: true);
+            // Without replacement, the transcoder's call is all that is inlined; an unpaired surrogate stops it.
+            var status = System.Text.Unicode.Utf8.FromUtf16(value.AsSpan(), MemoryMarshal.CreateSpan(ref bytes, capacity),
+                out _, out int written, replaceInvalidSequences: false);
             if (status != System.Buffers.OperationStatus.Done)
-                NinoThrow.InvalidData("Failed to encode UTF-8 string");
-            return written;
+                written = EncodeUtf8Replacing(value, ref bytes, capacity);
 #else
+            int written = EncodeUtf8Replacing(value, ref bytes, capacity);
+#endif
+            // The char count and the byte count in one store.
+            NinoUnsafe.Write(ref destination, (uint)value.Length | ((ulong)(uint)written << 32));
+            return 2 * sizeof(int) + written;
+        }
+
+        /// <summary>The UTF-8 bytes of <paramref name="value"/>, each unpaired surrogate written as U+FFFD.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe int EncodeUtf8Replacing(string value, ref byte destination, int capacity)
+        {
             fixed (char* src = value)
             fixed (byte* dst = &destination)
             {
                 return Encoding.UTF8.GetBytes(src, value.Length, dst, capacity);
             }
-#endif
         }
     }
 }

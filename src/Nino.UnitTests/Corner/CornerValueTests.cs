@@ -344,13 +344,14 @@ namespace Nino.UnitTests.Corner
                 Assert.AreEqual(s, Rt.RoundTrip(s));
             }
 
-            // UTF-8 member: char (UTF-16 code unit) count prefix, then the bytes.
+            // UTF-8 member: char (UTF-16 code unit) count, byte count, then the bytes.
             var only = new StringHolder { Utf8 = "é😀" };
             var bytes = NinoSerializer.Serialize(only);
             var utf8 = Encoding.UTF8.GetBytes("é😀");
             var at = IndexOf(bytes, utf8);
-            Assert.IsTrue(at >= 4);
-            Assert.AreEqual("é😀".Length, BitConverter.ToInt32(bytes, at - 4));
+            Assert.IsTrue(at >= 8);
+            Assert.AreEqual("é😀".Length, BitConverter.ToInt32(bytes, at - 8));
+            Assert.AreEqual(utf8.Length, BitConverter.ToInt32(bytes, at - 4));
 
             // UTF-16 null is -1, empty is 0.
             CollectionAssert.AreEqual(BitConverter.GetBytes(-1), NinoSerializer.Serialize<string>(null));

@@ -56,20 +56,31 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 | `T?` (nullable value type) | 1 byte has-value flag, then the value if present |
 | Collection / array / string length | `int32`; `-1` means `null` |
 | `string` (default, UTF-16) | `int32` char count, then UTF-16 code units |
-| `string` with `[NinoUtf8]` | `int32` char count (`-1` = null, `0` = empty), then UTF-8 bytes (see below) |
+| `string` with `[NinoUtf8]` | `int32` char count (`-1` = null, `0` = empty; nothing follows either), then `int32` byte count and the UTF-8 bytes (see below) |
 | Array / list of unmanaged `T` | length, then one block copy of the elements |
 | `T?[]` / `List<T?>` of raw `T` | length, then each element in the canonical `Nullable<T>` layout (fixed stride: flag, padding, value); an `IList<T?>`/`IEnumerable<T?>` member writes each element as a single `T?` instead (see `docs/pitfalls.md`) |
 | Other collections | length, then each element |
 | Dictionary | length, then key/value pairs |
 | Multi-dimensional array `T[,..]` | `int32` rank-lengths (`-1` for null in the first slot), then elements in row-major order |
 
-A `[NinoUtf8]` string's prefix is its length in UTF-16 code units (`string.Length`, as in v3), not its byte count.
-The bytes are the string's UTF-8 encoding, an unpaired surrogate written as U+FFFD (one code unit, so the count is
-that of the string read back), and nothing marks their end: the reader allocates the string at its final length and
-decodes into it in one pass, stopping when it is full; the bytes it decoded are the string's. Every code unit takes at
-least one byte, so a count larger than the remaining bytes is rejected before allocating; data that ends early, is
-not UTF-8 (including overlong forms and encoded surrogates) or ends inside a surrogate pair throws. A byte-count
-prefix would make the reader count the chars first (a second pass over the bytes), as `Encoding.UTF8.GetString` does.
+A `[NinoUtf8]` string is written as:
+
+* `int32` **char count** `c`: its length in UTF-16 code units (`string.Length`, as in v3). `-1` is null and `0` the
+  empty string; nothing follows either. Any other negative count is invalid.
+* if `c > 0`: `int32` **byte count** `b`, then exactly `b` bytes, the string's UTF-8 encoding (an unpaired surrogate is
+  written as U+FFFD, one code unit, so `c` is also the length of the string read back).
+
+A UTF-16 code unit takes 1 to 3 bytes (a surrogate pair 4 bytes for 2 units), so every valid string has
+`c <= b <= 3 * c`. For example `"é😀"` (3 code units: U+00E9 and a surrogate pair) is
+`03 00 00 00` `06 00 00 00` `C3 A9 F0 9F 98 80`, and `null` is `FF FF FF FF`.
+
+The reader loads both counts at once, checks that `b` bytes remain and that `c <= b` (which bounds the allocation by
+the data) before allocating the string at `c` chars, then decodes exactly those `b` bytes into it in one pass and
+moves past them; it never reads beyond them. The data is rejected (`InvalidOperationException`) when it ends early,
+when a count is out of range (`b > 3 * c` decodes to more chars than the string holds), or when the `b` bytes are not
+strict UTF-8 (including overlong forms, encoded surrogates and a sequence cut by the end of the range) or do not
+decode to exactly `c` chars. The char count lets the reader allocate before decoding, the byte count lets it decode
+the bytes in a single call without finding their end first.
 
 ### Objects
 
