@@ -191,6 +191,13 @@ namespace Nino.Core
                 return;
             }
 
+            if (RawFormatter<TKeyFormatter>.Is && typeof(TValueFormatter) == typeof(StringFormatter))
+            {
+                // Raw keys and UTF-16 strings: one loop with the state in registers (see Reader.ReadStrings).
+                reader.ReadStringPairs(Unsafe.As<Dictionary<TKey, string>>(dictionary), length);
+                return;
+            }
+
             // Out of line, through a copy of the reader (see AddRaw).
             var copy = reader;
             ReadPairs(dictionary, length, ref copy);

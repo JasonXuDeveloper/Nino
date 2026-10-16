@@ -596,6 +596,68 @@ namespace Nino.Core
             return pos;
         }
 
+        /// <summary>
+        /// Reads <paramref name="count"/> pairs of a raw key (its memory is its wire layout) and a UTF-16 string into
+        /// <paramref name="dictionary"/>: <see cref="ReadStrings"/> for a <c>Dictionary&lt;TKey, string&gt;</c>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ReadStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary, int count) =>
+            _pos = ReadStringPairs(dictionary, ref MemoryMarshal.GetReference(_data), _pos, _data.Length, count);
+
+        // Generic over the key only, so a value-type key makes this unshared code (the dictionary's methods inlined
+        // with no run-time lookups). The state is four values kept in registers across the string and dictionary
+        // allocations (dictionary, cursor, end, pairs left), with the key the fifth: x64 has five callee-saved
+        // registers. The key and the string's length are checked together.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe int ReadStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary,
+            ref byte data, int pos, int end, int count)
+        {
+            int head = Unsafe.SizeOf<TKey>() + sizeof(int);
+            ref byte src = ref Unsafe.Add(ref data, pos);
+            ref byte last = ref Unsafe.Add(ref data, end);
+            while (count-- > 0)
+            {
+                if ((nuint)(nint)Unsafe.ByteOffset(ref src, ref last) < (uint)head)
+                    NinoThrow.EndOfData();
+                TKey key = NinoUnsafe.Read<TKey>(ref src);
+                int length = NinoUnsafe.Read<int>(ref Unsafe.Add(ref src, Unsafe.SizeOf<TKey>()));
+                src = ref Unsafe.Add(ref src, head);
+                string value;
+                if (length <= 0)
+                {
+                    value = EmptyOrNull(length);
+                }
+                else
+                {
+                    nuint size = (nuint)(uint)length * sizeof(char);
+                    if (size > (nuint)(nint)Unsafe.ByteOffset(ref src, ref last))
+                        NinoThrow.EndOfData();
+                    ref byte chars = ref src;
+                    src = ref Unsafe.Add(ref src, (nint)size);
+#if NETSTANDARD2_0
+                    fixed (byte* p = &chars)
+                    {
+                        value = new string((char*)p, 0, length);
+                    }
+#else
+                    value = new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref chars), length));
+#endif
+                }
+
+#if NETSTANDARD2_0
+                int before = dictionary.Count;
+                dictionary[key] = value;
+                if (dictionary.Count == before)
+                    NinoThrow.DuplicateKey(dictionary.GetType());
+#else
+                if (!dictionary.TryAdd(key, value))
+                    NinoThrow.DuplicateKey(dictionary.GetType());
+#endif
+            }
+
+            return end - (int)(nint)Unsafe.ByteOffset(ref src, ref last);
+        }
+
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>
         // Inlined, with the transcoding out of line taking values: an instance call would take the reader's address,
         // which keeps all its fields in memory in the caller.

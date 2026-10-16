@@ -1078,6 +1078,33 @@ public class Holder
     }
 
     [TestMethod]
+    public void RawKeyStringDictionaryChecksItsData()
+    {
+        // Raw keys and UTF-16 values are read by their own loop (Reader.ReadStringPairs), new or into an empty
+        // dictionary: the same results and checks as the general one.
+        var value = new Dictionary<int, string> { [1] = "a", [2] = null, [3] = "", [4] = "bc" };
+        var bytes = NinoSerializer.Serialize(value);
+        CollectionAssert.AreEqual(value.ToList(), NinoDeserializer.Deserialize<Dictionary<int, string>>(bytes).ToList());
+        var empty = new Dictionary<int, string>();
+        NinoDeserializer.Deserialize(bytes, ref empty);
+        CollectionAssert.AreEqual(value.ToList(), empty.ToList());
+
+        // Count, key 1, length 1, "a", then the second key: made 1 too.
+        var repeated = (byte[])bytes.Clone();
+        Assert.AreEqual(2, BitConverter.ToInt32(repeated, 14));
+        BitConverter.GetBytes(1).CopyTo(repeated, 14);
+        var e = Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(repeated));
+        StringAssert.Contains(e.Message, "twice");
+
+        for (int cut = 4; cut < bytes.Length; cut++)
+        {
+            var truncated = bytes.AsSpan(0, cut).ToArray();
+            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(truncated),
+                $"cut at {cut}");
+        }
+    }
+
+    [TestMethod]
     public void TruncatedAndNegativeCounts()
     {
         var bytes = NinoSerializer.Serialize(new RawListHolder { Value = new RawList { 1, 2, 3 } });

@@ -96,7 +96,17 @@ internal sealed class BodyEmitter
         _w.Line(_names.NoInline);
         if (!_m.TopInline)
             return $"private static void __{name}({parameters})";
-        _w.Line($"private static void __{name}({parameters}) => __{name}Inline({args});");
+        if (name == "ReadBody" && LocalReader)
+        {
+            _w.Block($"private static void __{name}({parameters})", () =>
+            {
+                _w.Line("var __r = reader;");
+                _w.Line($"__{name}Inline(ref value, ref __r);");
+                _w.Line("reader = __r;");
+            });
+        }
+        else
+            _w.Line($"private static void __{name}({parameters}) => __{name}Inline({args});");
         _w.Line();
         _w.Line(_names.Inline);
         return $"private static void __{name}Inline({parameters})";
@@ -242,10 +252,27 @@ internal sealed class BodyEmitter
 
     // ----- reads ---------------------------------------------------------------------------------------------
 
+    /// <summary>
+    /// Whether the out-of-line read body works on a local copy of the reader, written back at its end: through the
+    /// <c>ref</c> parameter, the position is stored after every member and loaded again by the next one (a store to
+    /// load forwarding on the critical path of each member, and a load, an operation and a store on ARM64), where
+    /// a local the JIT keeps in registers. Only for bodies that open no class body (<see cref="TypeModel.Nests"/>
+    /// false): a nested body takes the reader's address, which would keep the local in memory too.
+    /// </summary>
+    private bool LocalReader => OutOfLine && !_m.Nests && !_m.Keyed && !_m.TrackReferences;
+
     public void EmitReadBody()
     {
         _w.Open(BodySignature("ReadBody", $"ref {T} value, ref {Core}Reader reader"));
         string r = "reader";
+        // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
+        bool local = LocalReader && !_m.TopInline;
+        if (local)
+        {
+            _w.Line("var __r = reader;");
+            r = "__r";
+        }
+
         if (_m.Keyed)
         {
             _w.Line("var __reader = reader.ReadRegion();");
@@ -256,6 +283,8 @@ internal sealed class BodyEmitter
             EmitRecreatingRead(r);
         else
             EmitInPlaceRead(r);
+        if (local)
+            _w.Line("reader = __r;");
         _w.Close();
     }
 
