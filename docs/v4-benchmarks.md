@@ -209,7 +209,17 @@ Runtime (`src/Nino.Benchmark`, BenchmarkDotNet):
 
 ```sh
 dotnet run -c Release --project src/Nino.Benchmark -- --filter '*' --launchCount 1 --warmupCount 5 --iterationCount 15
+dotnet run -c Release --project src/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*' \
+    --launchCount 1 --warmupCount 5 --iterationCount 15                                  # some classes only
 ```
+
+The suite has seven classes, all against MemoryPack 1.21.4 (the tables above come from the first four):
+`SimpleTest` and `PolymorphicTest` (also against MessagePack), `PooledTest` and `PooledGraphTest` (reuse and
+pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
+`GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`
+against MemoryPack's `GenerateType.VersionTolerant`, one and 100) and `FixedSizeTest` (types of fixed size serialized
+to a `byte[]` of exactly that size: an unmanaged struct, a sealed class of the same members and an array of 100 of
+them). [benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from [`benchmarks/v3`](../benchmarks/v3), the same `SimpleTest` built against the `Nino` 3.3.13
 package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3, the full v4 suite,

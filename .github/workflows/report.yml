@@ -38,6 +38,9 @@ jobs:
       # The docs site (nino.docs scripts/sync-benchmarks.ts) looks for this heading.
       V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
       V3_OUT: ${{ github.workspace }}/v3-results
+      # Every benchmark class of src/Nino.Benchmark: one joined table (Program.cs, ConfigOptions.JoinSummary) in the
+      # Performance Report, its Type column naming the class. A class missing from the table is reported as a warning.
+      BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest
 
     steps:
       - name: Determine target tag/ref
@@ -141,11 +144,19 @@ jobs:
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
           dotnet run -c Release --no-build -- --filter '*' $BDN_ARGS
           
-          # Verify benchmark results exist (check for any github markdown file)
-          MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)
+          # Verify benchmark results exist: the joined report of all classes (any github markdown file otherwise)
+          MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-joined-*-report-github.md" -type f 2>/dev/null | head -n1)
+          [[ -n "$MARKDOWN_FILE" ]] || MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)
           if [[ -n "$MARKDOWN_FILE" && -f "$MARKDOWN_FILE" ]]; then
             echo "✅ Benchmark completed successfully"
             echo "Found: $MARKDOWN_FILE"
+            for CLASS in $BENCH_CLASSES; do
+              if grep -qE "^\| *${CLASS} +\|" "$MARKDOWN_FILE"; then
+                echo "  ✅ $CLASS"
+              else
+                echo "::warning::$CLASS is missing from the benchmark report"
+              fi
+            done
           else
             echo "❌ Benchmark results not found in $(pwd)"
             echo "Available files in results directory:"
@@ -193,8 +204,9 @@ jobs:
           # Find the generated markdown file (BenchmarkDotNet generates various filename patterns)
           echo "🔍 Looking for benchmark markdown files..."
           
-          # Look for any markdown file in results using wildcard search
-          BENCHMARK_FILE=$(find Nino.Benchmark -path "*/BenchmarkDotNet.Artifacts/results/*.md" -type f | head -n1)
+          # The joined report of every benchmark class (one table); any github report if there is none
+          BENCHMARK_FILE=$(find Nino.Benchmark -path "*/BenchmarkDotNet.Artifacts/results/*-joined-*-report-github.md" -type f | head -n1)
+          [[ -n "$BENCHMARK_FILE" ]] || BENCHMARK_FILE=$(find Nino.Benchmark -path "*/BenchmarkDotNet.Artifacts/results/*-report-github.md" -type f | head -n1)
           
           if [[ -z "$BENCHMARK_FILE" || ! -f "$BENCHMARK_FILE" ]]; then
             echo "❌ No markdown benchmark report found in BenchmarkDotNet artifacts"

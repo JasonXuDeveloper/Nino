@@ -22,6 +22,31 @@ before and after the v4 suite in the same job on the same runner with the same s
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
 adds whichever section is missing.
 
+## Benchmark Classes
+
+`src/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
+MemoryPack; `SimpleTest` and `PolymorphicTest` add MessagePack. All of them land in one joined table, which is the
+Performance Report of each release.
+
+| Class | What it measures |
+|---|---|
+| `SimpleTest` | `SimpleClass`, `SimpleClass[100]`, `SimpleStruct`, `SimpleStruct[100]`, `Vector4[10000]`: serialize to a reused buffer writer, deserialize new instances (`SimpleClassSerialize`, ..., `VectorsDeserialize`) |
+| `PolymorphicTest` | Polymorphic class, polymorphic class array, polymorphic `Foo[]` (`PolymorphicClassSerialize`, ...) |
+| `PooledTest` | `SimpleClass`'s members pooled with `[NinoPooled]`, against MemoryPack's overwrite (`PooledDeserialize`) |
+| `PooledGraphTest` | Pooled node and leaves: new, reused in place, pooled elements, against MemoryPack's overwrite (`Plain`, `Node`, `Leaves`) |
+| `ReferenceTest` | A 200-node graph with shared tags, shared peers and cycles: `[NinoType(trackReferences: true)]` against MemoryPack's `GenerateType.CircularReference` (`GraphSerialize`, `GraphDeserialize`) |
+| `VersionTolerantTest` | `SimpleClass`'s members as `NinoFormat.VersionTolerant` against MemoryPack's `GenerateType.VersionTolerant`, one and 100 (`TolerantClassSerialize`, `TolerantClassesSerialize`, `TolerantClassDeserialize`, `TolerantClassesDeserialize`) |
+| `FixedSizeTest` | Types of fixed size (`NinoSerializer.GetFixedSize<T>()` is not -1), serialized to a new `byte[]` of exactly that size: a 40-byte unmanaged struct, a sealed class of the same members, and an array of 100 of the classes (`FixedStructSerialize`, `FixedClassSerialize`, `FixedClassesSerialize` and the `Deserialize` ones) |
+
+Method names are unique across classes (`<Serializer><Serialize|Deserialize><Case>`, e.g. `NinoSerializeTolerantClass`,
+`MemoryPackDeserializeGraph`): the documentation site and the `Payload` column key rows by method name alone.
+
+```sh
+cd src/Nino.Benchmark
+dotnet run -c Release -- --filter '*' --launchCount 1 --warmupCount 5 --iterationCount 15   # the published settings
+dotnet run -c Release -- --filter '*FixedSizeTest*' --launchCount 1 --warmupCount 1 --iterationCount 3   # a quick look
+```
+
 ## Member by Member
 
 `members/` takes `SimpleClass` apart: each member type (`int`/`Guid`/`DateTime` header, UTF-16 and UTF-8 strings,
