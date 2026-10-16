@@ -24,4 +24,5 @@ Nino 3.3.13 and once against this repository. When a case of the full run is slo
 ```sh
 benchmarks/members/run.sh                     # v3, v4, v3 again, in-process; a few minutes
 FILTER='*DMap*' benchmarks/members/run.sh     # only some cases
+FILTER='*DStr*' DISASM=1 benchmarks/members/run.sh   # also the JIT's code of each case, in results/asm
 ```
