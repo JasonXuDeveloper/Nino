@@ -324,7 +324,9 @@ internal static class ModelBuilder
             partialNamespace,
             new EquatableArray<string>(partialDeclarations),
             kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate &&
-            (construction.Factory.Length != 0 || construction.Creator.Length != 0) && !ComparesByValue(type));
+            (construction.Factory.Length != 0 || construction.Creator.Length != 0) && !ComparesByValue(type),
+            kind is not (FormatterKind.Class or FormatterKind.SealedClass) ||
+            collection is { OpensBodies: true } || members.Any(m => m.OpensBodies));
     }
 
     /// <summary>
@@ -418,6 +420,7 @@ internal static class ModelBuilder
 
         string? formatter;
         bool registered = false;
+        bool opensBodies = true;
         var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
         if (custom is { ConstructorArguments: { Length: > 0 } args } && args[0].Value is INamedTypeSymbol customType)
         {
@@ -431,7 +434,10 @@ internal static class ModelBuilder
             formatter = resolved?.Code;
             registered = resolved?.Registered == true;
             if (resolved is { } r)
+            {
                 factories.AddRange(r.Factories);
+                opensBodies = r.OpensBodies;
+            }
         }
 
         if (formatter == null)
@@ -492,7 +498,7 @@ internal static class ModelBuilder
 
         return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter, raw,
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
-            Visibility.IsConstructionOnly(symbol), false, typeId);
+            Visibility.IsConstructionOnly(symbol), false, typeId, opensBodies);
     }
 
     private static string KeyName(string name, int renamed, INamedTypeSymbol declaring) =>

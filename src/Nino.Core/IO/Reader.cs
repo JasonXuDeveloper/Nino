@@ -181,9 +181,11 @@ namespace Nino.Core
             {
                 // Through copies: passing this reader's address to a call that is not inlined would keep the
                 // JIT from holding its fields in registers on the hot path.
+                // Only the fields the call changes are copied back: the others keep their known values here.
                 var parent = this;
                 parent.EndDeferredRegion(region);
-                this = parent;
+                _refs = parent._refs;
+                _deferrals = parent._deferrals;
             }
         }
 
@@ -238,9 +240,11 @@ namespace Nino.Core
             if (--Depth == 0 && _deferrals != null)
             {
                 // A copy, as in EndRegion.
+                // Reading the deferred bodies moves the position and may record references, nothing else.
                 var reader = this;
                 reader.ReadTopDeferred();
-                this = reader;
+                _pos = reader._pos;
+                _refs = reader._refs;
             }
         }
 
@@ -264,16 +268,35 @@ namespace Nino.Core
             d.TopActive = false;
         }
 
-        /// <summary>Defers the body of <paramref name="value"/> (created, not yet read), nested too deep to read now.</summary>
+        /// <summary>
+        /// Creates <paramref name="value"/> if null and defers its body, nested too deep to read now. Only the
+        /// deferral queue changes: the other fields go by value, so the reader's address reaches no call.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void DeferBody<T, TFormatter>(ref T value)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T> =>
+            _deferrals = DeferBody<T, TFormatter>(ref value, _deferrals, _refs, _origin + _pos, _regions);
+
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal void Defer(object value, NinoDeferredBody body)
+        private static NinoDeferrals DeferBody<T, TFormatter>(ref T value, NinoDeferrals d,
+            NinoReferenceReadTable refs, int position, int regions)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
         {
-            var d = _deferrals ??= NinoDeferrals.Rent();
-            var item = new NinoDeferredItem { Value = value, Body = body, Position = _origin + _pos };
-            if (_regions == 0)
+            if (value == null)
+                value = default(TFormatter).Create();
+            // A tracked object is recorded now: back references to it may come before its body.
+            if (refs != null && refs.Pending != 0)
+                refs.Set(refs.Pending, value);
+            d ??= NinoDeferrals.Rent();
+            var item = new NinoDeferredItem
+                { Value = value, Body = NinoDeferredBody<T, TFormatter>.Instance, Position = position };
+            if (regions == 0)
                 d.Top.Add(in item);
             else
                 d.Region.Add(in item);
+            return d;
         }
 
         /// <summary>Number of bytes consumed so far.</summary>

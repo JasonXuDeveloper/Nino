@@ -75,7 +75,9 @@ internal sealed record MemberModel(
     // Whether the member is read-only for us even at construction (no way to assign it): read and dropped.
     bool Unassignable,
     // Runtime type id of the member type when its built-in formatter is registered for top-level use, else 0.
-    int TypeId);
+    int TypeId,
+    // Whether the member's formatter may write or read a class body (see ResolvedFormatter.OpensBodies).
+    bool OpensBodies);
 
 internal sealed record ConstructionModel(
     // Re-create the instance on every read (constructor arguments, init-only or readonly members).
@@ -145,7 +147,9 @@ internal sealed record TypeModel(
     EquatableArray<string> PartialDeclarations,
     // A class whose body can be read after its instance is in its slot (see NinoDepth): created without its
     // members (not by a constructor taking them) and not compared by value.
-    bool Deferrable)
+    bool Deferrable,
+    // Whether a class body may hold class bodies (see INinoBodyFormatter.Nests): false lets it skip the depth count.
+    bool Nests)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 

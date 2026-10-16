@@ -87,6 +87,13 @@ namespace Nino.Core
                 return;
             }
 
+            if (!default(TFormatter).Nests)
+            {
+                // Nothing nests in this body: the depth it would count is seen by no other body.
+                default(TFormatter).WriteBody(value, ref writer);
+                return;
+            }
+
             writer.Depth++;
             default(TFormatter).WriteBody(value, ref writer);
             writer.ExitBody();
@@ -122,14 +129,29 @@ namespace Nino.Core
         {
             if (reader.Depth >= NinoDepth.Inline)
             {
-                // Through a copy: passing the reader's address to a call that is not inlined would keep the JIT
-                // from holding its fields in registers.
-                // The same for the value: its address reaching a call keeps it in memory in the caller.
-                var deep = reader;
+                // The value through a copy: its address reaching a call keeps it in memory in the caller.
                 var instance = value;
-                ReadDeep<T, TFormatter>(ref instance, ref deep);
+                if (default(TFormatter).Deferrable)
+                {
+                    reader.DeferBody<T, TFormatter>(ref instance);
+                }
+                else
+                {
+                    // The reader too: passing its address to a call that is not inlined would keep the JIT from
+                    // holding its fields in registers.
+                    var deep = reader;
+                    ReadTooDeep<T, TFormatter>(ref instance, ref deep);
+                    reader = deep;
+                }
+
                 value = instance;
-                reader = deep;
+                return;
+            }
+
+            if (!default(TFormatter).Nests)
+            {
+                // Nothing nests in this body: the depth it would count is seen by no other body.
+                default(TFormatter).ReadBody(ref value, ref reader);
                 return;
             }
 
@@ -138,21 +160,12 @@ namespace Nino.Core
             reader.ExitBody();
         }
 
+        /// <summary>A body that cannot be deferred, read in place up to <see cref="NinoDepth.Max"/>.</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadDeep<T, TFormatter>(ref T value, ref Reader reader)
+        private static void ReadTooDeep<T, TFormatter>(ref T value, ref Reader reader)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if (default(TFormatter).Deferrable)
-            {
-                if (value == null)
-                    value = default(TFormatter).Create();
-                // A tracked object is recorded now: back references to it may come before its body.
-                reader.SetReference(value);
-                reader.Defer(value, NinoDeferredBody<T, TFormatter>.Instance);
-                return;
-            }
-
             if (reader.Depth >= NinoDepth.Max)
                 NinoThrow.TooDeep(typeof(T));
             reader.Depth++;

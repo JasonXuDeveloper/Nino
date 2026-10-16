@@ -83,6 +83,8 @@ namespace Nino.Core
 
             public bool Deferrable => default(TFormatter).Deferrable;
 
+            public bool Nests => default(TFormatter).Nests;
+
             public object Create() => default(TFormatter).Create();
 
             public void WriteBody(object value, ref Writer writer) =>

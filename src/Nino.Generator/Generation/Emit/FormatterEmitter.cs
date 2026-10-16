@@ -135,6 +135,7 @@ internal static class FormatterEmitter
     private static void EmitDeferral(CodeWriter w, TypeModel m)
     {
         string t = m.TypeName;
+        w.Line($"public bool Nests => {(m.Nests ? "true" : "false")};");
         if (!m.Deferrable)
         {
             w.Line("public bool Deferrable => false;");

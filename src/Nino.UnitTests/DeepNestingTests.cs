@@ -114,6 +114,33 @@ public sealed class DeepLevelV2
     public int B;
 }
 
+// A class with no class members (it nests nothing): its formatter skips the depth count, which must not change
+// the bytes or where the bodies around it are deferred.
+[NinoType]
+public sealed class DeepPayload
+{
+    public int A;
+    public string S;
+    public List<int> Items;
+}
+
+[NinoType]
+public sealed class DeepCarrier
+{
+    public int Value;
+    public DeepPayload Payload;
+    public List<DeepPayload> Payloads;
+    public DeepCarrier Next;
+}
+
+[NinoType(versionTolerant: true)]
+public sealed class DeepTolerantCarrier
+{
+    public int Value;
+    public DeepPayload Payload;
+    public DeepTolerantCarrier Next;
+}
+
 /// <summary>
 /// Graphs nested deeper than the stack could hold: bodies below NinoDepth.Inline are deferred, so writing and
 /// reading take a bounded stack (checked on threads with a small one).
@@ -188,6 +215,89 @@ public class DeepNestingTests
             1, 2, 0, 0, 0,
             0
         }, bytes);
+    }
+
+    private static DeepPayload Payload(int i) =>
+        new() { A = i, S = "p" + i, Items = new List<int> { i, i + 1 } };
+
+    private static void AssertPayload(DeepPayload p, int i)
+    {
+        Assert.AreEqual(i, p.A);
+        Assert.AreEqual("p" + i, p.S);
+        CollectionAssert.AreEqual(new List<int> { i, i + 1 }, p.Items);
+    }
+
+    [TestMethod]
+    public void BodiesThatNestNothingAroundTheLimit()
+    {
+        OnSmallStack(() =>
+        {
+            // (length, size, FNV-1a of the bytes) of both graphs, as written before bodies that nest nothing
+            // skipped the depth count.
+            var expected = new Dictionary<int, (int, uint, int, uint)>
+            {
+                [1] = (73, 4214724714, 39, 460018732),
+                [126] = (9641, 2046539566, 5073, 465228561),
+                [127] = (9721, 643215281, 5115, 3568902670),
+                [128] = (9821, 907246340, 5169, 2014360594),
+                [129] = (9909, 3341170309, 5219, 1147734962),
+                [130] = (9989, 1972122068, 5261, 1920952179),
+                [300] = (23613, 4199597498, 12417, 2222059541),
+                [10_000] = (837437, 1956515680, 439033, 1384134880),
+            };
+            foreach (int length in expected.Keys)
+            {
+                DeepCarrier head = null;
+                DeepTolerantCarrier tolerant = null;
+                for (int i = length - 1; i >= 0; i--)
+                {
+                    head = new DeepCarrier
+                    {
+                        Value = i, Payload = Payload(i), Payloads = new List<DeepPayload> { Payload(i), null },
+                        Next = head
+                    };
+                    tolerant = new DeepTolerantCarrier { Value = i, Payload = Payload(i), Next = tolerant };
+                }
+
+                var bytes = NinoSerializer.Serialize(head);
+                var tolerantBytes = NinoSerializer.Serialize(tolerant);
+                Assert.AreEqual(expected[length],
+                    (bytes.Length, Checksum(bytes), tolerantBytes.Length, Checksum(tolerantBytes)));
+                for (int pass = 0; pass < 2; pass++)
+                {
+                    // Pass 1 reads into the instances of pass 0.
+                    NinoDeserializer.Deserialize(bytes, ref head);
+                    NinoDeserializer.Deserialize(tolerantBytes, ref tolerant);
+                    int i = 0;
+                    for (var node = head; node != null; node = node.Next, i++)
+                    {
+                        Assert.AreEqual(i, node.Value);
+                        AssertPayload(node.Payload, i);
+                        Assert.AreEqual(2, node.Payloads.Count);
+                        AssertPayload(node.Payloads[0], i);
+                        Assert.IsNull(node.Payloads[1]);
+                    }
+
+                    Assert.AreEqual(length, i);
+                    i = 0;
+                    for (var node = tolerant; node != null; node = node.Next, i++)
+                    {
+                        Assert.AreEqual(i, node.Value);
+                        AssertPayload(node.Payload, i);
+                    }
+
+                    Assert.AreEqual(length, i);
+                }
+            }
+        });
+    }
+
+    private static uint Checksum(byte[] bytes)
+    {
+        uint h = 2166136261;
+        foreach (byte b in bytes)
+            h = (h ^ b) * 16777619;
+        return h;
     }
 
     [TestMethod]

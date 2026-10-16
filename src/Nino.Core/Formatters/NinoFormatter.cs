@@ -48,6 +48,12 @@ namespace Nino.Core
         /// </summary>
         bool Deferrable { get; }
 
+        /// <summary>
+        /// Whether the body may hold class bodies (through its members' formatters). A body that cannot skips the
+        /// depth count: nothing nested in it would see the count, so the bytes are the same either way.
+        /// </summary>
+        bool Nests { get; }
+
         /// <summary>Creates the empty instance a deferred body is read into later.</summary>
         T Create();
     }
