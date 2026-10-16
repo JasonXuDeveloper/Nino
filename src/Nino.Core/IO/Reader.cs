@@ -178,7 +178,13 @@ namespace Nino.Core
             if (_refs == null)
                 _refs = region._refs;
             if (region._deferrals != null)
-                EndDeferredRegion(in region);
+            {
+                // Through copies: passing this reader's address to a call that is not inlined would keep the
+                // JIT from holding its fields in registers on the hot path.
+                var parent = this;
+                parent.EndDeferredRegion(region);
+                this = parent;
+            }
         }
 
         /// <summary>
@@ -187,7 +193,7 @@ namespace Nino.Core
         /// it does not know) are skipped. Bodies deferred while reading the section are appended to the queue.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void EndDeferredRegion(in Reader region)
+        private void EndDeferredRegion(Reader region)
         {
             var d = _deferrals = region._deferrals;
             if (region._regions != 1 || d.Region.IsEmpty)
@@ -230,7 +236,12 @@ namespace Nino.Core
         internal void ExitBody()
         {
             if (--Depth == 0 && _deferrals != null)
-                ReadTopDeferred();
+            {
+                // A copy, as in EndRegion.
+                var reader = this;
+                reader.ReadTopDeferred();
+                this = reader;
+            }
         }
 
         /// <summary>Every body is closed: reads the bodies deferred outside regions, in order (as written).</summary>

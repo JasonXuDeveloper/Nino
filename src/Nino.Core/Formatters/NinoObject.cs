@@ -119,7 +119,11 @@ namespace Nino.Core
         {
             if (reader.Depth >= NinoDepth.Inline)
             {
-                ReadDeep<T, TFormatter>(ref value, ref reader);
+                // Through a copy: passing the reader's address to a call that is not inlined would keep the JIT
+                // from holding its fields in registers.
+                var deep = reader;
+                ReadDeep<T, TFormatter>(ref value, ref deep);
+                reader = deep;
                 return;
             }
 
