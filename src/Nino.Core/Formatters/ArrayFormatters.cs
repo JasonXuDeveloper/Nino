@@ -39,6 +39,13 @@ namespace Nino.Core
         public static void Read<T, TFormatter>(Span<T> values, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
+            if (typeof(TFormatter) == typeof(StringFormatter))
+            {
+                // One loop with the position in a register (see Reader.ReadStrings).
+                reader.ReadStrings(ref Unsafe.As<T, string>(ref MemoryMarshal.GetReference(values)), values.Length);
+                return;
+            }
+
             for (int i = 0; i < values.Length; i++)
                 default(TFormatter).Deserialize(ref values[i], ref reader);
         }

@@ -11,18 +11,20 @@ namespace Nino.Core
     /// </summary>
     public ref struct Reader
     {
+        // A reader made by ReadSlice or ReadRegion continues its parent's state and shares its data: its span is
+        // the parent's cut at the reader's end, and positions count from the start of the top-level data. So a
+        // region needs no origin of its own (deferrals are keyed by position), and the section after it is found
+        // from the parent's position and the region's end.
         private readonly ReadOnlySpan<byte> _data;
         private int _pos;
-        private NinoReferenceReadTable _refs;
 
-        // Open class bodies and regions, and the bodies deferred below NinoDepth.Inline (see NinoDepth). A reader
-        // made by ReadSlice or ReadRegion continues its parent's state; _origin is where its data starts in the
-        // top-level data, and _section the size of the deferred bodies' section after a region (0 for none).
-        private NinoDeferrals _deferrals;
-        private int _origin;
+        // Open class bodies, and open regions (see NinoDepth).
         internal int Depth;
         private int _regions;
-        private int _section;
+
+        // Back references and deferred bodies, created on first use and shared with the readers made from this
+        // one: the hot struct stays four values (data, position, depth, regions) and one reference.
+        private NinoReadContext _context;
 
         /// <exception cref="PlatformNotSupportedException">The host is big-endian.</exception>
         public Reader(ReadOnlySpan<byte> data)
@@ -32,26 +34,31 @@ namespace Nino.Core
                 NinoThrow.BigEndianHost();
             _data = data;
             _pos = 0;
-            _refs = null;
-            _deferrals = null;
-            _origin = 0;
             Depth = 0;
             _regions = 0;
-            _section = 0;
+            _context = null;
         }
 
-        /// <summary>A slice of a reader that already passed the endianness check.</summary>
-        private Reader(ReadOnlySpan<byte> data, NinoReferenceReadTable refs, NinoDeferrals deferrals, int origin,
-            int depth, int regions)
+        /// <summary>A part of a reader that already passed the endianness check, from <paramref name="pos"/>.</summary>
+        private Reader(ReadOnlySpan<byte> data, int pos, int depth, int regions, NinoReadContext context)
         {
             _data = data;
-            _pos = 0;
-            _refs = refs;
-            _deferrals = deferrals;
-            _origin = origin;
+            _pos = pos;
             Depth = depth;
             _regions = regions;
-            _section = 0;
+            _context = context;
+        }
+
+        /// <summary>The data up to <paramref name="end"/> (at most its length, checked by the caller).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ReadOnlySpan<byte> Prefix(ReadOnlySpan<byte> data, int end)
+        {
+#if NETSTANDARD2_0
+            return data.Slice(0, end);
+#else
+            // No second bounds check: the caller compared the end with the data.
+            return MemoryMarshal.CreateReadOnlySpan(ref MemoryMarshal.GetReference(data), end);
+#endif
         }
 
         /// <summary>
@@ -61,16 +68,11 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReleaseReferences()
         {
-            if (_deferrals != null)
-            {
-                NinoDeferrals.Return(_deferrals);
-                _deferrals = null;
-            }
-
-            if (_refs == null)
+            var context = _context;
+            if (context == null)
                 return;
-            NinoReferenceReadTable.Return(_refs);
-            _refs = null;
+            _context = null;
+            NinoReadContext.Return(context);
         }
 
         /// <summary>
@@ -97,13 +99,18 @@ namespace Nino.Core
             return false;
         }
 
-        private int BeginReference() => (_refs ??= NinoReferenceReadTable.Rent()).Begin();
+        private int BeginReference()
+        {
+            var context = _context ??= NinoReadContext.Rent();
+            return (context.Refs ??= NinoReferenceReadTable.Rent()).Begin();
+        }
 
         private T GetReference<T>(int index) where T : class
         {
-            if (_refs == null)
+            var refs = _context?.Refs;
+            if (refs == null)
                 NinoThrow.InvalidReference(index);
-            var obj = _refs.Get(index);
+            var obj = refs.Get(index);
             if (obj is T t)
                 return t;
             NinoThrow.ReferenceTypeMismatch(typeof(T), obj.GetType());
@@ -114,14 +121,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetReference(object value)
         {
-            var refs = _refs;
+            var refs = _context?.Refs;
             if (refs != null && refs.Pending != 0)
                 refs.Set(refs.Pending, value);
         }
 
         /// <summary>Records the object read after <see cref="ReadReference{T}"/> returned true.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void EndReference(int index, object value) => _refs.Set(index, value);
+        public void EndReference(int index, object value) => _context.Refs.Set(index, value);
 
         /// <summary>
         /// Call when done with a reader returned by <see cref="ReadSlice"/>: objects it read stay visible to
@@ -130,10 +137,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndSlice(in Reader slice)
         {
-            if (_refs == null)
-                _refs = slice._refs;
-            if (_deferrals == null)
-                _deferrals = slice._deferrals;
+            if (_context == null)
+                _context = slice._context;
         }
 
         /// <summary>
@@ -144,28 +149,34 @@ namespace Nino.Core
         public Reader ReadRegion()
         {
             int length = UnsafeRead<int>();
-            if ((uint)length > (uint)Remaining)
-                return ReadSectionedRegion(length);
-            var region = new Reader(_data.Slice(_pos, length), _refs, _deferrals, _origin + _pos, Depth, _regions + 1);
-            _pos += length;
-            return region;
+            int pos = _pos;
+            int members = length;
+            if ((uint)length > (uint)(_data.Length - pos))
+            {
+                // A region followed by a section of deferred bodies, or invalid data: the region ends where its
+                // members do, and this reader skips the section too.
+                members = SectionedRegion(ref MemoryMarshal.GetReference(_data), pos, _data.Length - pos, length);
+                length &= int.MaxValue;
+            }
+
+            _pos = pos + length;
+            return new Reader(Prefix(_data, pos + members), pos, Depth, _regions + 1, _context);
         }
 
-        /// <summary>A region followed by a section of deferred bodies, or invalid data.</summary>
+        /// <summary>
+        /// The length of the members of a region whose length has <see cref="NinoDepth.SectionFlag"/> set (a section of
+        /// deferred bodies follows them, then the section's offset); throws on any other invalid length.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private Reader ReadSectionedRegion(int length)
+        private static int SectionedRegion(ref byte data, int pos, int remaining, int length)
         {
             int total = length & int.MaxValue;
-            if (length >= 0 || total < sizeof(int) || total > Remaining)
+            if (length >= 0 || total < sizeof(int) || total > remaining)
                 NinoThrow.InvalidLength(length);
-            int members = NinoUnsafe.Read<int>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data),
-                _pos + total - sizeof(int)));
+            int members = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, pos + total - sizeof(int)));
             if ((uint)members > (uint)(total - sizeof(int)))
                 NinoThrow.InvalidData("invalid offset of deferred bodies.");
-            var region = new Reader(_data.Slice(_pos, members), _refs, _deferrals, _origin + _pos, Depth, _regions + 1);
-            region._section = total - sizeof(int) - members;
-            _pos += total;
-            return region;
+            return members;
         }
 
         /// <summary>
@@ -175,37 +186,38 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void EndRegion(in Reader region)
         {
-            if (_refs == null)
-                _refs = region._refs;
-            if (region._deferrals != null)
-            {
-                // Through copies: passing this reader's address to a call that is not inlined would keep the
-                // JIT from holding its fields in registers on the hot path.
-                // Only the fields the call changes are copied back: the others keep their known values here.
-                var parent = this;
-                parent.EndDeferredRegion(region);
-                _refs = parent._refs;
-                _deferrals = parent._deferrals;
-            }
+            var context = region._context;
+            if (context == null)
+                return;
+            // The region's context is this reader's, or one the region created (this reader had none).
+            _context = context;
+            if (_regions == 0 && context.Deferrals != null)
+                EndDeferredRegion(_data, _pos, region._data.Length, context, Depth);
         }
 
         /// <summary>
-        /// Reads the section after the outermost region: each body deferred inside the region is matched, in
-        /// order, with its entry (by the key the writer gave it); entries for objects this reader skipped (members
+        /// Reads the section after the outermost region (ending at <paramref name="regionEnd"/>; this reader is at
+        /// <paramref name="pos"/>, past the section and its offset): each body deferred inside the region is matched,
+        /// in order, with its entry (by the key the writer gave it); entries for objects this reader skipped (members
         /// it does not know) are skipped. Bodies deferred while reading the section are appended to the queue.
+        /// Static, with the reader's fields by value: the reader's address reaches no call.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void EndDeferredRegion(Reader region)
+        private static void EndDeferredRegion(ReadOnlySpan<byte> data, int pos, int regionEnd,
+            NinoReadContext context, int depth)
         {
-            var d = _deferrals = region._deferrals;
-            if (region._regions != 1 || d.Region.IsEmpty)
+            var d = context.Deferrals;
+            if (d.Region.IsEmpty)
                 return;
-            if (region._section == 0)
+            // A region without a section ends where this reader is.
+            int sectionEnd = pos - sizeof(int);
+            if (sectionEnd <= regionEnd)
                 NinoThrow.InvalidData("missing deferred bodies.");
 
-            int start = _pos - sizeof(int) - region._section;
-            var section = new Reader(_data.Slice(start, region._section), _refs, d, _origin + start, Depth, 1);
-            int depth = Math.Min(Depth, NinoDepth.Inline - 1) + 1;
+            // Keys are relative to the start of the region's members (validated by ReadRegion).
+            int start = regionEnd - NinoUnsafe.Read<int>(ref Unsafe.Add(ref MemoryMarshal.GetReference(data), sectionEnd));
+            var section = new Reader(Prefix(data, sectionEnd), regionEnd, depth, 1, context);
+            int entryDepth = Math.Min(depth, NinoDepth.Inline - 1) + 1;
             while (!d.Region.IsEmpty)
             {
                 var item = d.Region.Items[d.Region.Head++];
@@ -215,22 +227,17 @@ namespace Nino.Core
                     int length = section.UnsafeRead<int>();
                     if ((uint)length > (uint)section.Remaining)
                         NinoThrow.InvalidLength(length);
-                    int pos = section._pos;
-                    section._pos = pos + length;
-                    if (region._origin + key != item.Position)
+                    int entryPos = section._pos;
+                    section._pos = entryPos + length;
+                    if (start + key != item.Position)
                         continue;
-                    var entry = new Reader(section._data.Slice(pos, length), section._refs, d, section._origin + pos,
-                        depth, 1);
+                    var entry = new Reader(Prefix(data, entryPos + length), entryPos, entryDepth, 1, context);
                     item.Body.Read(item.Value, ref entry);
-                    if (section._refs == null)
-                        section._refs = entry._refs;
                     break;
                 }
             }
 
             d.Region.Clear();
-            if (_refs == null)
-                _refs = section._refs;
         }
 
         /// <summary>
@@ -243,7 +250,7 @@ namespace Nino.Core
             Depth = depth;
             // No copy of the reader, as in Writer.ExitBody: only a body that nests others gets here, and such a
             // body is not inlined, so its caller passed the reader's address to a call already.
-            if (depth == 0 && _deferrals != null)
+            if (depth == 0 && _context != null && _context.Deferrals != null)
                 ReadTopDeferred();
         }
 
@@ -251,7 +258,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void ReadTopDeferred()
         {
-            var d = _deferrals;
+            var d = _context.Deferrals;
             if (d.TopActive || d.Top.IsEmpty)
                 return;
             d.TopActive = true;
@@ -268,37 +275,40 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Creates <paramref name="value"/> if null and defers its body, nested too deep to read now. Only the
-        /// deferral queue changes: the other fields go by value, so the reader's address reaches no call.
+        /// Defers the body of <paramref name="value"/> (the instance its slot now holds), nested too deep to read
+        /// now. Only the context changes: the other fields go by value, so the reader's address reaches no call.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void DeferBody<T, TFormatter>(ref T value)
+        internal void DeferBody<T, TFormatter>(T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T> =>
-            _deferrals = DeferBody<T, TFormatter>(ref value, _deferrals, _refs, _origin + _pos, _regions);
+            _context = DeferBody<T, TFormatter>(value, _context, _pos, _regions);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static NinoDeferrals DeferBody<T, TFormatter>(ref T value, NinoDeferrals d,
-            NinoReferenceReadTable refs, int position, int regions)
+        private static NinoReadContext DeferBody<T, TFormatter>(T value, NinoReadContext context, int position,
+            int regions)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if (value == null)
-                value = default(TFormatter).Create();
+            context ??= NinoReadContext.Rent();
             // A tracked object is recorded now: back references to it may come before its body.
+            var refs = context.Refs;
             if (refs != null && refs.Pending != 0)
                 refs.Set(refs.Pending, value);
-            d ??= NinoDeferrals.Rent();
+            var d = context.Deferrals ??= NinoDeferrals.Rent();
             var item = new NinoDeferredItem
                 { Value = value, Body = NinoDeferredBody<T, TFormatter>.Instance, Position = position };
             if (regions == 0)
                 d.Top.Add(in item);
             else
                 d.Region.Add(in item);
-            return d;
+            return context;
         }
 
-        /// <summary>Number of bytes consumed so far.</summary>
+        /// <summary>
+        /// Position in the data: bytes consumed so far. A reader from <see cref="ReadSlice"/> counts from the start
+        /// of the data of the reader it was made from.
+        /// </summary>
         public int Position
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -439,11 +449,11 @@ namespace Nino.Core
         public Reader ReadSlice()
         {
             int length = UnsafeRead<int>();
-            if ((uint)length > (uint)Remaining)
+            int pos = _pos;
+            if ((uint)length > (uint)(_data.Length - pos))
                 NinoThrow.InvalidLength(length);
-            var slice = new Reader(_data.Slice(_pos, length), _refs, _deferrals, _origin + _pos, Depth, _regions);
-            _pos += length;
-            return slice;
+            _pos = pos + length;
+            return new Reader(Prefix(_data, pos + length), pos, Depth, _regions, _context);
         }
 
         /// <summary>Reads <paramref name="length"/> raw bytes.</summary>
@@ -535,6 +545,56 @@ namespace Nino.Core
 #else
             return new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref src), length));
 #endif
+        }
+
+        /// <summary>
+        /// Reads <paramref name="count"/> UTF-16 strings into the slots starting at <paramref name="first"/> (the
+        /// elements of a string collection): <see cref="ReadString"/> in one loop that keeps the position and the
+        /// data in registers, where through the reader's reference they are loaded, and the position stored, for
+        /// every string.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ReadStrings(ref string first, int count) =>
+            _pos = ReadStrings(ref MemoryMarshal.GetReference(_data), _pos, _data.Length, ref first, count);
+
+        // Static, the loop's state in five values (data, position, end, slot, last slot): as many as x64 has
+        // callee-saved registers to keep them in across the string allocations.
+        private static unsafe int ReadStrings(ref byte data, int pos, int end, ref string first, int count)
+        {
+            ref string slot = ref first;
+            ref string last = ref Unsafe.Add(ref first, count);
+            while (Unsafe.IsAddressLessThan(ref slot, ref last))
+            {
+                if ((uint)(end - pos) < sizeof(int))
+                    NinoThrow.EndOfData();
+                int length = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, pos));
+                pos += sizeof(int);
+                if (length <= 0)
+                {
+                    slot = EmptyOrNull(length);
+                }
+                else
+                {
+                    // One bounds check: the string is only allocated after it.
+                    ulong size = (ulong)(uint)length * sizeof(char);
+                    if (size > (uint)(end - pos))
+                        NinoThrow.EndOfData();
+                    ref byte src = ref Unsafe.Add(ref data, pos);
+                    pos += (int)size;
+#if NETSTANDARD2_0
+                    fixed (byte* p = &src)
+                    {
+                        slot = new string((char*)p, 0, length);
+                    }
+#else
+                    slot = new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref src), length));
+#endif
+                }
+
+                slot = ref Unsafe.Add(ref slot, 1);
+            }
+
+            return pos;
         }
 
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>

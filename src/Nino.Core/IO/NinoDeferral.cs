@@ -136,4 +136,36 @@ namespace Nino.Core
             t_cached = deferrals;
         }
     }
+
+    /// <summary>
+    /// What a <see cref="Reader"/> and the readers made from it share beyond their position: the back references
+    /// and the deferred bodies of one deserialization call. Rented on first use (one cached instance per thread),
+    /// so calls that track nothing and never nest deep touch nothing.
+    /// </summary>
+    internal sealed class NinoReadContext
+    {
+        [ThreadStatic] private static NinoReadContext t_cached;
+
+        public NinoReferenceReadTable Refs;
+        public NinoDeferrals Deferrals;
+
+        public static NinoReadContext Rent() => NinoThreadCache.Take(ref t_cached) ?? new NinoReadContext();
+
+        public static void Return(NinoReadContext context)
+        {
+            if (context.Deferrals != null)
+            {
+                NinoDeferrals.Return(context.Deferrals);
+                context.Deferrals = null;
+            }
+
+            if (context.Refs != null)
+            {
+                NinoReferenceReadTable.Return(context.Refs);
+                context.Refs = null;
+            }
+
+            t_cached = context;
+        }
+    }
 }

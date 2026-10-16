@@ -95,7 +95,11 @@ namespace Nino.Core
             if (depth >= NinoDepth.Inline)
             {
                 if (default(TFormatter).Deferrable)
-                    reader.DeferBody<T, TFormatter>(ref value);
+                {
+                    if (value == null)
+                        value = default(TFormatter).Create();
+                    reader.DeferBody<T, TFormatter>(value);
+                }
                 else
                     ReadTooDeep<T, TFormatter>(ref value, ref reader);
                 return;
@@ -187,22 +191,27 @@ namespace Nino.Core
             int depth = reader.Depth;
             if (depth >= NinoDepth.Inline)
             {
-                // The value through a copy: its address reaching a call keeps it in memory in the caller.
-                var instance = value;
                 if (default(TFormatter).Deferrable)
                 {
-                    reader.DeferBody<T, TFormatter>(ref instance);
+                    // The instance is created here and passed by value: a local whose address reaches a call is
+                    // an untracked GC slot, zeroed in the prolog and again after every inlined copy of this path
+                    // (once per element in a collection loop).
+                    var instance = value;
+                    if (instance == null)
+                        value = instance = default(TFormatter).Create();
+                    reader.DeferBody<T, TFormatter>(instance);
                 }
                 else
                 {
-                    // The reader too: passing its address to a call that is not inlined would keep the JIT from
-                    // holding its fields in registers.
+                    // The value and the reader through copies: their addresses reaching a call that is not
+                    // inlined would keep the JIT from holding them in registers.
+                    var instance = value;
                     var deep = reader;
                     ReadTooDeep<T, TFormatter>(ref instance, ref deep);
                     reader = deep;
+                    value = instance;
                 }
 
-                value = instance;
                 return;
             }
 
