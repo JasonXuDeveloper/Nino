@@ -31,16 +31,41 @@ defaults:
     working-directory: ./src
 
 jobs:
-  build-test:
-    name: Build and Test
+  # The test configurations run side by side, each on its own runner: building is ~20 s, so each job builds what
+  # it tests instead of waiting on a shared build. "Build and Test" collects their results and fails if any failed.
+  unit-tests:
+    name: Unit tests (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # net8.0 and net10.0 builds of Nino.Core compile the same code (no NET10-only paths): run it once, on .NET 10,
+          # with the Roslyn 4.12 generator (interceptors on).
+          - name: net10.0
+            framework: net10.0
+            properties: ''
+            coverage: true
+            # This one builds the whole solution, so every project still has to compile.
+            project: ''
+          # What Unity and older compilers run: Nino.Core netstandard2.1, regular calls instead of interceptors.
+          - name: netstandard2.1 without interceptors
+            framework: net8.0
+            properties: -p:NinoCoreTfm=netstandard2.1 -p:NinoRegularCalls=true
+            coverage: false
+            project: Nino.UnitTests/Nino.UnitTests.csproj
+          # The .NET 8 SDK's preview interceptor attribute: Nino.Core netstandard2.0, the Roslyn 4.8 generator.
+          # Each Nino.Core build is checked against the pinned bytes of GoldenBytesTests.
+          - name: netstandard2.0 with Roslyn 4.8
+            framework: net8.0
+            properties: -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
+            coverage: false
+            project: Nino.UnitTests/Nino.UnitTests.csproj
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -58,35 +83,58 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Build
+        run: >
+          dotnet build ${{ matrix.project }} -c Debug
+          ${{ matrix.project && format('-f {0}', matrix.framework) || '' }} ${{ matrix.properties }}
 
-      - name: Build solution
-        run: dotnet build --no-restore --configuration Debug
+      - name: Test
+        run: >
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f ${{ matrix.framework }}
+          ${{ matrix.properties }} --logger trx --results-directory ./TestResults
+          ${{ matrix.coverage && '--collect:"XPlat Code Coverage"' || '' }}
 
-      - name: Copy DLLs for Unity tests
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ strategy.job-index }}
+          path: ./src/TestResults
+          retention-days: 30
+
+  unity-tests:
+    name: Unity tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Skip Unity tests for external PRs (secrets not available in forks)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Build the DLLs Unity loads
         run: |
+          dotnet build Nino.Core/Nino.Core.csproj -c Debug -f netstandard2.1
+          dotnet build Nino.Generator/Nino.Generator.csproj -c Debug
           cp ./Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
           cp ./Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
-
-      # net8.0 and net10.0 builds of Nino.Core compile the same code (no NET10-only paths): run it once, on .NET 10.
-      - name: Run unit tests
-        run: dotnet test --no-build --verbosity normal --configuration Debug --framework net10.0 --collect:"XPlat Code Coverage" --results-directory ./TestResults
-
-      # The default run covers Nino.Core net10.0 with the Roslyn 4.12 generator (interceptors on). Two more
-      # builds, on .NET 8, cover the rest, each Nino.Core build checked against the pinned bytes of GoldenBytesTests:
-      # - netstandard2.1 without interceptors: what Unity and older compilers run;
-      # - netstandard2.0 with the Roslyn 4.8 generator: the .NET 8 SDK's preview interceptor attribute.
-      - name: Run unit tests against Nino.Core netstandard2.1 without interceptors
-        run: |
-          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1 -p:NinoRegularCalls=true
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1 -p:NinoRegularCalls=true
-
-      - name: Run unit tests against Nino.Core netstandard2.0 with the Roslyn 4.8 generator
-        run: |
-          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
 
       - name: Cache Unity Library
         uses: actions/cache@v4
@@ -99,8 +147,6 @@ jobs:
             Library-
 
       - name: Run Unity tests
-        # Skip Unity tests for external PRs (secrets not available in forks)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: game-ci/unity-test-runner@v4
         id: unity-tests
         env:
@@ -113,23 +159,39 @@ jobs:
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           unityVersion: '2022.3.51f1'
 
-      - name: Upload test results
+      - name: Upload Unity results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results-${{ github.run_number }}
+          name: test-results-unity
           path: |
-            artifacts
-            ./src/TestResults
+            ./artifacts
+            ${{ steps.unity-tests.outputs.coveragePath }}
           retention-days: 30
 
-      - name: Upload Unity coverage
-        uses: actions/upload-artifact@v4
-        if: always() && steps.unity-tests.outputs.coveragePath
+  # The one check to require: fails if any configuration failed (a skipped Unity run, on fork PRs, is not a failure).
+  build-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: [ unit-tests, unity-tests ]
+    if: always()
+    steps:
+      - name: Merge test results
+        uses: actions/upload-artifact/merge@v4
+        if: always()
+        continue-on-error: true
         with:
-          name: unity-coverage-${{ github.run_number }}
-          path: ${{ steps.unity-tests.outputs.coveragePath }}
+          name: test-results-${{ github.run_number }}
+          pattern: test-results-*
+          delete-merged: true
           retention-days: 30
+
+      - name: Check results
+        working-directory: .
+        run: |
+          echo "unit tests: ${{ needs.unit-tests.result }}, Unity tests: ${{ needs.unity-tests.result }}"
+          [ "${{ needs.unit-tests.result }}" = success ] || exit 1
+          case "${{ needs.unity-tests.result }}" in success|skipped) ;; *) exit 1 ;; esac
 
   # Run benchmarks on PRs only
   benchmark:
