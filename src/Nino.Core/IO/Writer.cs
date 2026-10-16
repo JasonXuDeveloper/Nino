@@ -16,8 +16,18 @@ namespace Nino.Core
     public ref struct Writer
     {
         private readonly NinoArrayBufferWriter _owner;
+
+        // The buffer and the position, per target (see Reader): .NET 8+ keeps a cursor (ref fields: the next byte,
+        // the end of the buffer and its start), netstandard the buffer and a position. Only the "Cursor" section
+        // below reads them.
+#if NET8_0_OR_GREATER
+        private ref byte _cur;
+        private int _avail;
+        private ref byte _start;
+#else
         private Span<byte> _buffer;
         private int _pos;
+#endif
 
         // Open class bodies and regions (see NinoDepth).
         internal int Depth;
@@ -38,9 +48,83 @@ namespace Nino.Core
             // One block clear rather than a store per field (see Reader's constructor).
             this = default;
             _owner = buffer;
-            _buffer = buffer.Buffer;
-            _pos = buffer.Index;
+            SetBuffer(buffer.Buffer, buffer.Index);
         }
+
+        // ---- Cursor: the buffer and the position, per target. Nothing else reads the fields above.
+
+        /// <summary>Writes into <paramref name="buffer"/> (null: none yet) from <paramref name="pos"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void SetBuffer(byte[] buffer, int pos)
+        {
+#if NET8_0_OR_GREATER
+            Span<byte> span = buffer;
+            _start = ref MemoryMarshal.GetReference(span);
+            _cur = ref Unsafe.Add(ref _start, pos);
+            _avail = span.Length - pos;
+#else
+            _buffer = buffer;
+            _pos = pos;
+#endif
+        }
+
+        /// <summary>The next byte.</summary>
+        private ref byte Cur
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => ref _cur;
+#else
+            get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), _pos);
+#endif
+        }
+
+        /// <summary>The number of free bytes.</summary>
+        private int Avail
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => _avail;
+#else
+            get => _buffer.Length - _pos;
+#endif
+        }
+
+        /// <summary>Moves past <paramref name="count"/> bytes (checked by the caller).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void Skip(int count)
+        {
+#if NET8_0_OR_GREATER
+            _cur = ref Unsafe.Add(ref _cur, count);
+            _avail -= count;
+#else
+            _pos += count;
+#endif
+        }
+
+        /// <summary>The position in the buffer.</summary>
+        private int Pos
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => (int)(nint)Unsafe.ByteOffset(ref _start, ref _cur);
+#else
+            get => _pos;
+#endif
+        }
+
+        /// <summary>The byte at <paramref name="position"/> (already written).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private ref byte At(int position)
+        {
+#if NET8_0_OR_GREATER
+            return ref Unsafe.Add(ref _start, position);
+#else
+            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), position);
+#endif
+        }
+
+        // ---- End of the cursor.
 
         /// <summary>
         /// Ends reference tracking: later objects are not matched against the ones written so far. Called by
@@ -79,12 +163,12 @@ namespace Nino.Core
         public int Position
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _pos;
+            get => Pos;
         }
 
         /// <summary>Commits the written bytes to the underlying buffer.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Flush() => _owner.Index = _pos;
+        public void Flush() => _owner.Index = Pos;
 
         /// <summary>Same as <see cref="Flush"/>; enables <c>using var writer = ...</c>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -110,11 +194,27 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref byte Reserve(int size)
         {
-            int pos = _pos;
-            if ((uint)size > (uint)(_buffer.Length - pos))
-                _buffer = Grow(_owner, pos, size);
-            _pos = pos + size;
-            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
+            ref byte block = ref Ensure(size);
+            Skip(size);
+            return ref block;
+        }
+
+        /// <summary>Makes room for <paramref name="size"/> bytes and returns a reference to the first one.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private ref byte Ensure(int size)
+        {
+            if ((uint)size > (uint)Avail)
+                Grow(size);
+            return ref Cur;
+        }
+
+        // Only the position lives across the call (the cursor is rebuilt from the new buffer): with the cursor live
+        // across it, callers kept it in callee-saved registers (two more pushes and pops, and copies).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void Grow(int size)
+        {
+            int pos = Pos;
+            SetBuffer(Grow(_owner, pos, size), pos);
         }
 
         /// <summary>
@@ -125,25 +225,21 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref byte FreeSpace(out int available)
         {
-            int pos = _pos;
-            available = _buffer.Length - pos;
-            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
+            available = Avail;
+            return ref Cur;
         }
 
         /// <summary>Advances past <paramref name="count"/> bytes written into <see cref="FreeSpace"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void Commit(int count) => _pos += count;
+        internal void Commit(int count) => Skip(count);
 
         /// <summary>Writes an unmanaged value. <typeparamref name="T"/> must not contain references.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void UnsafeWrite<T>(T value)
         {
             int size = Unsafe.SizeOf<T>();
-            int pos = _pos;
-            if ((uint)size > (uint)(_buffer.Length - pos))
-                _buffer = Grow(_owner, pos, size);
-            NinoUnsafe.Write(ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos), value);
-            _pos = pos + size;
+            NinoUnsafe.Write(ref Ensure(size), value);
+            Skip(size);
         }
 
         /// <summary>
@@ -184,7 +280,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int ReserveInt32()
         {
-            int pos = _pos;
+            int pos = Pos;
             Reserve(sizeof(int));
             return pos;
         }
@@ -193,7 +289,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void PatchInt32(int position, int value)
         {
-            NinoUnsafe.Write(ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), position), value);
+            NinoUnsafe.Write(ref At(position), value);
         }
 
         /// <summary>
@@ -201,7 +297,7 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void PatchLength(int lengthPosition) =>
-            PatchInt32(lengthPosition, _pos - lengthPosition - NinoWire.LengthSize);
+            PatchInt32(lengthPosition, Pos - lengthPosition - NinoWire.LengthSize);
 
         /// <summary>
         /// Generated code: starts a length-prefixed region (a version-tolerant body, a keyed body or member) and
@@ -243,7 +339,7 @@ namespace Nino.Core
             }
 
             int start = lengthPosition + NinoWire.LengthSize;
-            int section = _pos;
+            int section = Pos;
             int depth = Depth;
             object current = d.Current, anchor = d.CurrentAnchor;
             int generation = d.CurrentGeneration;
@@ -264,7 +360,7 @@ namespace Nino.Core
             d.CurrentGeneration = generation;
             d.Region.Clear();
             UnsafeWrite(section - start);
-            PatchInt32(lengthPosition, (_pos - start) | NinoDepth.SectionFlag);
+            PatchInt32(lengthPosition, (Pos - start) | NinoDepth.SectionFlag);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -324,7 +420,7 @@ namespace Nino.Core
         internal void DeferBody<T, TFormatter>(T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T> =>
-            _context = DeferBody<T, TFormatter>(value, _context, _pos, _regions);
+            _context = DeferBody<T, TFormatter>(value, _context, Pos, _regions);
 
         // The fields by value, as in Reader.DeferBody: the writer's address reaches no call, and no copy of it is
         // made (it would be zeroed in the prolog of every caller: generated dispatch inlines one per type).
@@ -414,11 +510,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private ref byte ReserveLarge(ulong size)
         {
-            int pos = _pos;
-            if (size > (uint)(_buffer.Length - pos))
-                _buffer = GrowLarge(_owner, pos, size);
-            _pos = pos + (int)size;
-            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
+            if (size > (uint)Avail)
+            {
+                int pos = Pos;
+                SetBuffer(GrowLarge(_owner, pos, size), pos);
+            }
+            ref byte block = ref Cur;
+            Skip((int)size);
+            return ref block;
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -478,12 +577,11 @@ namespace Nino.Core
             int maxBytes = value.Length <= Utf8WorstCaseMaxChars
                 ? value.Length * 3
                 : Utf8ByteCount(value);
-            int lengthPos = _pos;
-            ref byte dst = ref Reserve(NinoWire.LengthSize + maxBytes);
+            // Room for the worst case; only the bytes written are kept.
+            ref byte dst = ref Ensure(NinoWire.LengthSize + maxBytes);
             NinoUnsafe.Write(ref dst, value.Length);
             int written = EncodeUtf8(value, ref Unsafe.Add(ref dst, NinoWire.LengthSize), maxBytes);
-            // give back the unused part of the worst-case reservation
-            _pos = lengthPos + NinoWire.LengthSize + written;
+            Skip(NinoWire.LengthSize + written);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]

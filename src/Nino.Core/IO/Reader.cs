@@ -11,12 +11,25 @@ namespace Nino.Core
     /// </summary>
     public ref struct Reader
     {
-        // A reader made by ReadSlice or ReadRegion continues its parent's state and shares its data: its span is
-        // the parent's cut at the reader's end, and positions count from the start of the top-level data. So a
-        // region needs no origin of its own (deferrals are keyed by position), and the section after it is found
-        // from the parent's position and the region's end.
+        // A reader made by ReadSlice or ReadRegion continues its parent's state and shares its data: it ends at the
+        // reader's end, and positions count from the start of the top-level data. So a region needs no origin of
+        // its own (deferrals are keyed by position), and the section after it is found from the parent's position
+        // and the region's end.
+        //
+        // The data is held two ways (the only code that differs per target, in the "Cursor" section below):
+        // .NET 8+ keeps a cursor (ref fields: the next byte, the bytes left, and the start for positions), so a read is a
+        // load at the cursor and an add to it, with one register fewer than a span and a position (no sign
+        // extension and add per access). netstandard has no ref fields and keeps the span and a position. Every
+        // other member uses the cursor primitives (Cur, Avail, Skip, Pos...), so the rest of the reader, the
+        // formatters and generated code are the same for both.
+#if NET8_0_OR_GREATER
+        private ref byte _cur;
+        private int _avail;
+        private readonly ref byte _origin;
+#else
         private readonly ReadOnlySpan<byte> _data;
         private int _pos;
+#endif
 
         // Open class bodies, and open regions (see NinoDepth).
         internal int Depth;
@@ -35,17 +48,125 @@ namespace Nino.Core
             // One block clear rather than a store per field: less IL, which the top-level calls inline together
             // with the body within the JIT's inlining budget.
             this = default;
+#if NET8_0_OR_GREATER
+            _origin = ref MemoryMarshal.GetReference(data);
+            _cur = ref _origin;
+            _avail = data.Length;
+#else
             _data = data;
+#endif
         }
 
-        /// <summary>A part of a reader that already passed the endianness check, from <paramref name="pos"/>.</summary>
+        // ---- Cursor: the data and the position, per target. Nothing else reads the fields above.
+
+        /// <summary>
+        /// A part of a reader that already passed the endianness check: the bytes of <paramref name="data"/> (from the
+        /// start of the top-level data) from <paramref name="pos"/> to its end.
+        /// </summary>
         private Reader(ReadOnlySpan<byte> data, int pos, int depth, int regions, NinoReadContext context)
         {
+#if NET8_0_OR_GREATER
+            _origin = ref MemoryMarshal.GetReference(data);
+            _cur = ref Unsafe.Add(ref _origin, pos);
+            _avail = data.Length - pos;
+#else
             _data = data;
             _pos = pos;
+#endif
             Depth = depth;
             _regions = regions;
             _context = context;
+        }
+
+#if NET8_0_OR_GREATER
+        /// <summary>A part of a reader: <paramref name="length"/> bytes from <paramref name="cur"/>.</summary>
+        private Reader(ref byte origin, ref byte cur, int length, int depth, int regions, NinoReadContext context)
+        {
+            _origin = ref origin;
+            _cur = ref cur;
+            _avail = length;
+            Depth = depth;
+            _regions = regions;
+            _context = context;
+        }
+#endif
+
+        /// <summary>The next byte.</summary>
+        private ref byte Cur
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => ref _cur;
+#else
+            get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), _pos);
+#endif
+        }
+
+        /// <summary>The number of bytes left.</summary>
+        private int Avail
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => _avail;
+#else
+            get => _data.Length - _pos;
+#endif
+        }
+
+        /// <summary>Moves past <paramref name="count"/> bytes (checked by the caller).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void Skip(int count)
+        {
+#if NET8_0_OR_GREATER
+            _cur = ref Unsafe.Add(ref _cur, count);
+            _avail -= count;
+#else
+            _pos += count;
+#endif
+        }
+
+        /// <summary>The position: bytes from the start of the top-level data.</summary>
+        private int Pos
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => (int)(nint)Unsafe.ByteOffset(ref _origin, ref _cur);
+#else
+            get => _pos;
+#endif
+        }
+
+        /// <summary>The top-level data up to this reader's end.</summary>
+        private ReadOnlySpan<byte> Data
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if NET8_0_OR_GREATER
+            get => MemoryMarshal.CreateReadOnlySpan(ref _origin, Pos + _avail);
+#else
+            get => _data;
+#endif
+        }
+
+        /// <summary>A reader over the next <paramref name="length"/> bytes (checked by the caller), in this one's state.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Reader Sub(int length, int regions)
+        {
+#if NET8_0_OR_GREATER
+            return new Reader(ref _origin, ref _cur, length, Depth, regions, _context);
+#else
+            return new Reader(Prefix(_data, _pos + length), _pos, Depth, regions, _context);
+#endif
+        }
+
+        /// <summary>The next <paramref name="length"/> bytes (checked by the caller).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private ReadOnlySpan<byte> Peek(int length)
+        {
+#if NET8_0_OR_GREATER
+            return MemoryMarshal.CreateReadOnlySpan(ref _cur, length);
+#else
+            return _data.Slice(_pos, length);
+#endif
         }
 
         /// <summary>The data up to <paramref name="end"/> (at most its length, checked by the caller).</summary>
@@ -59,6 +180,8 @@ namespace Nino.Core
             return MemoryMarshal.CreateReadOnlySpan(ref MemoryMarshal.GetReference(data), end);
 #endif
         }
+
+        // ---- End of the cursor.
 
         /// <summary>
         /// Ends reference tracking for this reader. Called by the <see cref="NinoDeserializer"/> APIs that create
@@ -148,18 +271,18 @@ namespace Nino.Core
         public Reader ReadRegion()
         {
             int length = UnsafeRead<int>();
-            int pos = _pos;
             int members = length;
-            if ((uint)length > (uint)(_data.Length - pos))
+            if ((uint)length > (uint)Avail)
             {
                 // A region followed by a section of deferred bodies, or invalid data: the region ends where its
                 // members do, and this reader skips the section too.
-                members = SectionedRegion(ref MemoryMarshal.GetReference(_data), pos, _data.Length - pos, length);
+                members = SectionedRegion(ref Cur, Avail, length);
                 length &= int.MaxValue;
             }
 
-            _pos = pos + length;
-            return new Reader(Prefix(_data, pos + members), pos, Depth, _regions + 1, _context);
+            var region = Sub(members, _regions + 1);
+            Skip(length);
+            return region;
         }
 
         /// <summary>
@@ -167,12 +290,12 @@ namespace Nino.Core
         /// deferred bodies follows them, then the section's offset); throws on any other invalid length.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static int SectionedRegion(ref byte data, int pos, int remaining, int length)
+        private static int SectionedRegion(ref byte data, int remaining, int length)
         {
             int total = length & int.MaxValue;
             if (length >= 0 || total < sizeof(int) || total > remaining)
                 NinoThrow.InvalidLength(length);
-            int members = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, pos + total - sizeof(int)));
+            int members = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, total - sizeof(int)));
             if ((uint)members > (uint)(total - sizeof(int)))
                 NinoThrow.InvalidData("invalid offset of deferred bodies.");
             return members;
@@ -191,7 +314,7 @@ namespace Nino.Core
             // The region's context is this reader's, or one the region created (this reader had none).
             _context = context;
             if (_regions == 0 && context.Deferrals != null)
-                EndDeferredRegion(_data, _pos, region._data.Length, context, Depth);
+                EndDeferredRegion(Data, Pos, region.Pos + region.Avail, context, Depth);
         }
 
         /// <summary>
@@ -226,8 +349,8 @@ namespace Nino.Core
                     int length = section.UnsafeRead<int>();
                     if ((uint)length > (uint)section.Remaining)
                         NinoThrow.InvalidLength(length);
-                    int entryPos = section._pos;
-                    section._pos = entryPos + length;
+                    int entryPos = section.Pos;
+                    section.Skip(length);
                     if (start + key != item.Position)
                         continue;
                     var entry = new Reader(Prefix(data, entryPos + length), entryPos, entryDepth, 1, context);
@@ -281,7 +404,7 @@ namespace Nino.Core
         internal void DeferBody<T, TFormatter>(T value)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T> =>
-            _context = DeferBody<T, TFormatter>(value, _context, _pos, _regions);
+            _context = DeferBody<T, TFormatter>(value, _context, Pos, _regions);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static NinoReadContext DeferBody<T, TFormatter>(T value, NinoReadContext context, int position,
@@ -311,21 +434,21 @@ namespace Nino.Core
         public int Position
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _pos;
+            get => Pos;
         }
 
         /// <summary>Number of bytes left.</summary>
         public int Remaining
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _data.Length - _pos;
+            get => Avail;
         }
 
         /// <summary>Whether all bytes have been consumed.</summary>
         public bool Eof
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => _pos >= _data.Length;
+            get => Avail <= 0;
         }
 
         /// <summary>
@@ -335,20 +458,20 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref byte ReadBlock(int size)
         {
-            int pos = _pos;
-            if ((uint)size > (uint)(_data.Length - pos))
+            ref byte block = ref Cur;
+            if ((uint)size > (uint)Avail)
                 NinoThrow.EndOfData();
-            _pos = pos + size;
-            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos);
+            Skip(size);
+            return ref block;
         }
 
         /// <summary>Consumes <paramref name="size"/> bytes the caller already checked are there.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref byte UnsafeAdvance(int size)
         {
-            int pos = _pos;
-            _pos = pos + size;
-            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos);
+            ref byte block = ref Cur;
+            Skip(size);
+            return ref block;
         }
 
         /// <summary>Skips <paramref name="count"/> bytes.</summary>
@@ -360,11 +483,11 @@ namespace Nino.Core
         public T UnsafeRead<T>()
         {
             int size = Unsafe.SizeOf<T>();
-            int pos = _pos;
-            if ((uint)size > (uint)(_data.Length - pos))
+            ref byte block = ref Cur;
+            if ((uint)size > (uint)Avail)
                 NinoThrow.EndOfData();
-            _pos = pos + size;
-            return NinoUnsafe.Read<T>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos));
+            Skip(size);
+            return NinoUnsafe.Read<T>(ref block);
         }
 
         /// <summary>
@@ -403,11 +526,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryReadInt32(int expected)
         {
-            int pos = _pos;
-            if (_data.Length - pos < sizeof(int) ||
-                NinoUnsafe.Read<int>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos)) != expected)
+            if (Avail < sizeof(int) || NinoUnsafe.Read<int>(ref Cur) != expected)
                 return false;
-            _pos = pos + sizeof(int);
+            Skip(sizeof(int));
             return true;
         }
 
@@ -415,11 +536,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryReadInt64(long expected)
         {
-            int pos = _pos;
-            if (_data.Length - pos < sizeof(long) ||
-                NinoUnsafe.Read<long>(ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos)) != expected)
+            if (Avail < sizeof(long) || NinoUnsafe.Read<long>(ref Cur) != expected)
                 return false;
-            _pos = pos + sizeof(long);
+            Skip(sizeof(long));
             return true;
         }
 
@@ -464,7 +583,7 @@ namespace Nino.Core
                 return false;
             }
 
-            if ((ulong)(uint)length * (uint)minElementSize > (uint)(_data.Length - _pos))
+            if ((ulong)(uint)length * (uint)minElementSize > (uint)Avail)
                 NinoThrow.InvalidLength(length);
             return true;
         }
@@ -474,21 +593,21 @@ namespace Nino.Core
         public Reader ReadSlice()
         {
             int length = UnsafeRead<int>();
-            int pos = _pos;
-            if ((uint)length > (uint)(_data.Length - pos))
+            if ((uint)length > (uint)Avail)
                 NinoThrow.InvalidLength(length);
-            _pos = pos + length;
-            return new Reader(Prefix(_data, pos + length), pos, Depth, _regions, _context);
+            var slice = Sub(length, _regions);
+            Skip(length);
+            return slice;
         }
 
         /// <summary>Reads <paramref name="length"/> raw bytes.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ReadOnlySpan<byte> ReadRaw(int length)
         {
-            if ((uint)length > (uint)Remaining)
+            if ((uint)length > (uint)Avail)
                 NinoThrow.EndOfData();
-            var span = _data.Slice(_pos, length);
-            _pos += length;
+            var span = Peek(length);
+            Skip(length);
             return span;
         }
 
@@ -506,12 +625,12 @@ namespace Nino.Core
             // One bounds check and a block copy (the JIT's memcpy helper): AsBytes, Slice and CopyTo would add an
             // overflow check, two more bounds checks and a call through SpanHelpers.Memmove's indirection cell.
             ulong size = (ulong)(uint)destination.Length * (uint)Unsafe.SizeOf<T>();
-            int pos = _pos;
-            if (size > (uint)(_data.Length - pos))
+            ref byte src = ref Cur;
+            if (size > (uint)Avail)
                 NinoThrow.EndOfData();
-            _pos = pos + (int)size;
-            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)),
-                ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos), (uint)size);
+            Skip((int)size);
+            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), ref src,
+                (uint)size);
         }
 
         /// <summary>Reads a length-prefixed unmanaged array written by <see cref="Writer.Write{T}(T[])"/>.</summary>
@@ -544,15 +663,14 @@ namespace Nino.Core
         {
             // The length and the characters with the position and the data loaded once and stored once: through
             // UnsafeRead and ReadBlockOf, the position is stored, reloaded and stored again.
-            int pos = _pos;
-            int remaining = _data.Length - pos;
+            int remaining = Avail;
             if ((uint)remaining < sizeof(int))
                 NinoThrow.EndOfData();
-            ref byte start = ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos);
+            ref byte start = ref Cur;
             int length = NinoUnsafe.Read<int>(ref start);
             if (length <= 0)
             {
-                _pos = pos + sizeof(int);
+                Skip(sizeof(int));
                 return EmptyOrNull(length);
             }
 
@@ -560,7 +678,7 @@ namespace Nino.Core
             ulong size = (ulong)(uint)length * sizeof(char);
             if (size > (uint)(remaining - sizeof(int)))
                 NinoThrow.EndOfData();
-            _pos = pos + sizeof(int) + (int)size;
+            Skip(sizeof(int) + (int)size);
             ref byte src = ref Unsafe.Add(ref start, sizeof(int));
 #if NETSTANDARD2_0
             fixed (byte* p = &src)
@@ -580,12 +698,13 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void ReadStrings(ref string first, int count) =>
-            _pos = ReadStrings(ref MemoryMarshal.GetReference(_data), _pos, _data.Length, ref first, count);
+            Skip(ReadStrings(ref Cur, Avail, ref first, count));
 
         // Static, the loop's state in five values (data, position, end, slot, last slot): as many as x64 has
-        // callee-saved registers to keep them in across the string allocations.
-        private static unsafe int ReadStrings(ref byte data, int pos, int end, ref string first, int count)
+        // callee-saved registers to keep them in across the string allocations. Returns the bytes read.
+        private static unsafe int ReadStrings(ref byte data, int end, ref string first, int count)
         {
+            int pos = 0;
             ref string slot = ref first;
             ref string last = ref Unsafe.Add(ref first, count);
             while (Unsafe.IsAddressLessThan(ref slot, ref last))
@@ -628,7 +747,7 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal void ReadStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary, int count) =>
-            _pos = ReadStringPairs(dictionary, ref MemoryMarshal.GetReference(_data), _pos, _data.Length, count);
+            Skip(ReadStringPairs(dictionary, ref Cur, Avail, count));
 
         // Generic over the key only, so a value-type key makes this unshared code (the dictionary's methods inlined
         // with no run-time lookups). The state is four values kept in registers across the string and dictionary
@@ -636,10 +755,11 @@ namespace Nino.Core
         // registers. The key and the string's length are checked together.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static unsafe int ReadStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary,
-            ref byte data, int pos, int end, int count)
+            ref byte data, int end, int count)
         {
+            // Returns the bytes read.
             int head = Unsafe.SizeOf<TKey>() + sizeof(int);
-            ref byte src = ref Unsafe.Add(ref data, pos);
+            ref byte src = ref data;
             ref byte last = ref Unsafe.Add(ref data, end);
             while (count-- > 0)
             {
@@ -690,15 +810,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string ReadUtf8()
         {
-            int pos = _pos;
-            int remaining = _data.Length - pos;
+            int remaining = Avail;
             if ((uint)remaining < sizeof(int))
                 NinoThrow.EndOfData();
-            ref byte start = ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), pos);
+            ref byte start = ref Cur;
             int length = NinoUnsafe.Read<int>(ref start);
             if (length <= 0)
             {
-                _pos = pos + sizeof(int);
+                Skip(sizeof(int));
                 return EmptyOrNull(length);
             }
 
@@ -707,7 +826,7 @@ namespace Nino.Core
                 NinoThrow.EndOfData();
             var value = DecodeUtf8(ref Unsafe.Add(ref start, sizeof(int)), remaining - sizeof(int), length,
                 out int consumed);
-            _pos = pos + sizeof(int) + consumed;
+            Skip(sizeof(int) + consumed);
             return value;
         }
 
