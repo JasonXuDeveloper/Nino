@@ -78,7 +78,18 @@ internal sealed record MemberModel(
     // Runtime type id of the member type when its built-in formatter is registered for top-level use, else 0.
     int TypeId,
     // Whether the member's formatter may write or read a class body (see ResolvedFormatter.OpensBodies).
-    bool OpensBodies);
+    bool OpensBodies,
+    // The formatter with the generated formatters it is composed of replaced by their __Shallow twins (see
+    // TypeFacts.HasShallow), for shallow bodies; the formatter itself when none has one.
+    string ShallowFormatter,
+    // Whether a new instance (TypeModel.FreshRead) holds null in this member, which a Nino.Core formatter then reads
+    // from a null local rather than from the member: a field or auto-property of a reference type without an
+    // initializer, in a type whose constructors set nothing.
+    bool Fresh,
+    // Whether the member's Nino.Core formatter reads its elements in a loop inlined into the body (any collection
+    // but strings, raw arrays and lists, and dictionaries of raw keys and raw or string values; see
+    // TypeNames.IsFlat).
+    bool ReadsLoop);
 
 internal sealed record ConstructionModel(
     // Re-create the instance on every read (constructor arguments, init-only or readonly members).
@@ -149,7 +160,20 @@ internal sealed record TypeModel(
     bool Nests,
     // Whether every (non-null) value is written in the same number of bytes (TypeFacts.IsFixedSize): the formatter
     // implements INinoFixedSizeFormatter.
-    bool FixedSize)
+    bool FixedSize,
+    // How deep below its own check a value can check the depth (TypeFacts.DepthBound): -1 if it opens no class
+    // body, TypeFacts.Unbounded when not known.
+    int DepthBound,
+    // Whether the formatter has a __Shallow twin (TypeFacts.HasShallow).
+    bool Shallow,
+    // CollectionFormatter with its element formatters' __Shallow twins.
+    string ShallowCollectionFormatter,
+    // Whether ReadBody reads a new instance (created by `new T()`, not taken from a pool or a factory) apart from
+    // an existing one: its members are known to be null there (MemberModel.Fresh), so their formatters' reuse
+    // paths fold away. Only for types whose members read no loop in the body (MemberModel.ReadsLoop): a second copy
+    // of a loop saves little per object and the JIT may allocate its registers worse there. Sealed classes only: those
+    // are what collections hold many new instances of, and the second copy costs compile time for every type.
+    bool FreshRead)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 
@@ -197,6 +221,29 @@ internal sealed record TypeModel(
     /// else the out-of-line body), also for each element of a built-in collection of it.
     /// </summary>
     public bool HasTop => !IsGeneric && !TrackReferences && !RawStruct && !Nests && Kind == FormatterKind.SealedClass;
+
+    /// <summary>
+    /// Whether the <c>__Shallow</c> twin has bodies of its own: a member (or the elements of a collection) is
+    /// written by a formatter with twins. Otherwise the twin calls the body, which then has no depth to skip.
+    /// </summary>
+    public bool ShallowBodies => Shallow && !RawStruct &&
+                                 (ShallowCollectionFormatter != CollectionFormatter ||
+                                  Members.Any(static x => x.ShallowFormatter != x.Formatter));
+
+    /// <summary>
+    /// Whether a shallow body writes the base class's members itself rather than through its <c>WriteMembers</c>,
+    /// whose formatters count the depth: one of them has a twin.
+    /// </summary>
+    public bool ShallowInlinesBase => BaseFormatter.Length != 0 &&
+                                      Members.Take(BaseMemberCount).Any(static x => x.ShallowFormatter != x.Formatter);
+
+    /// <summary>
+    /// Whether <c>Serialize</c>/<c>Deserialize</c> choose the <c>__Shallow</c> twin when the depth leaves room for
+    /// the whole nesting bound (<c>NinoObject.SerializeSealed</c> with a bound): a sealed class whose body counts the
+    /// depth (<see cref="Nests"/>), which the twin then skips with every check inside. A body that does not nest
+    /// checks only its own depth, which the twin cannot skip.
+    /// </summary>
+    public bool BoundedEntry => Shallow && Kind == FormatterKind.SealedClass && Nests && !TrackReferences;
 
     /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
     public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";

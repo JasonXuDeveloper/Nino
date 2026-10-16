@@ -394,6 +394,58 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// Sealed class whose body checks the depth at most <paramref name="bound"/> levels below its own check (a
+        /// generator constant: the longest chain of class bodies through its members' types; recursive and
+        /// polymorphic types have none). When the depth leaves room for all of them below
+        /// <see cref="NinoDepth.Inline"/>, no body in it is deferred and nothing sees the count: the body is
+        /// <typeparamref name="TShallow"/>'s, which counts and checks no depth (nor do its members). Otherwise as
+        /// <see cref="SerializeSealed{T,TFormatter}"/>. The same bytes either way.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeSealed<T, TFormatter, TShallow>(T value, ref Writer writer, int bound)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+            where TShallow : struct, INinoBodyFormatter<T>
+        {
+            if (value == null)
+            {
+                writer.UnsafeWrite(NinoWire.Null);
+                return;
+            }
+
+            writer.UnsafeWrite(NinoWire.NotNull);
+            if (writer.Depth < NinoDepth.Inline - bound)
+            {
+                default(TShallow).WriteBody(value, ref writer);
+                return;
+            }
+
+            WriteBody<T, TFormatter>(value, ref writer);
+        }
+
+        /// <summary>Reads what <see cref="SerializeSealed{T,TFormatter,TShallow}"/> wrote, choosing the same way.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void DeserializeSealed<T, TFormatter, TShallow>(ref T value, ref Reader reader, int bound)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+            where TShallow : struct, INinoBodyFormatter<T>
+        {
+            if (reader.UnsafeRead<byte>() == NinoWire.Null)
+            {
+                NinoRecycler.Discard(ref value);
+                return;
+            }
+
+            if (reader.Depth < NinoDepth.Inline - bound)
+            {
+                default(TShallow).ReadBody(ref value, ref reader);
+                return;
+            }
+
+            ReadBody<T, TFormatter>(ref value, ref reader);
+        }
+
+        /// <summary>
         /// Generated <c>__Top</c> formatters: <see cref="SerializeSealed{T,TFormatter}"/> with a writer that the
         /// top-level call just created (no body open, so none is deferred), for a body that opens no class body
         /// (<see cref="INinoBodyFormatter{T}.Nests"/> false): the depth stays 0. Little IL: inlined into the caller

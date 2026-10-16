@@ -81,6 +81,12 @@ internal static class FormatterEmitter
                 EmitEntryPoints(w, m, $"{Core}NinoObject.WriteBody<{t}, {self}>(value, ref writer)",
                     $"{Core}NinoObject.ReadBody<{t}, {self}>(ref value, ref reader)");
                 break;
+            case FormatterKind.SealedClass when m.BoundedEntry:
+                // The twin's bodies when the depth leaves room for the whole nesting bound (see TypeFacts.DepthBound).
+                EmitEntryPoints(w, m,
+                    $"{Core}NinoObject.SerializeSealed<{t}, {self}, {self}.__Shallow>(value, ref writer, {m.DepthBound})",
+                    $"{Core}NinoObject.DeserializeSealed<{t}, {self}, {self}.__Shallow>(ref value, ref reader, {m.DepthBound})");
+                break;
             case FormatterKind.SealedClass:
                 EmitEntryPoints(w, m, $"{Core}NinoObject.SerializeSealed<{t}, {self}>(value, ref writer)",
                     $"{Core}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader)");
@@ -119,7 +125,19 @@ internal static class FormatterEmitter
         if (m.HasTop)
         {
             w.Line();
-            EmitTop(w, m, names);
+            EmitTop(w, m, names, body);
+        }
+
+        if (m.Shallow)
+        {
+            if (m.ShallowBodies)
+            {
+                w.Line();
+                body.EmitShallowBodies();
+            }
+
+            w.Line();
+            EmitShallow(w, m, names, body);
         }
 
         AccessorEmitter.EmitUnsafeAccessors(w, m);
@@ -136,16 +154,38 @@ internal static class FormatterEmitter
     /// The formatter the intercepted top-level calls use (see <see cref="TypeModel.HasTop"/>): the same bytes, with
     /// no depth check, and the body inlined into the caller (<see cref="TypeModel.TopInline"/>) or called directly.
     /// </summary>
-    private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names)
+    private static void EmitTop(CodeWriter w, TypeModel m, FormatterNames names, BodyEmitter body)
     {
         string t = m.TypeName;
         string top = m.FormatterName + ".__Top";
+        // An out-of-line body on a local writer (BodyEmitter.LocalWriter, not inlined at the top): the presence
+        // byte is written there too, on the local, rather than by the caller on a writer whose address the call
+        // takes (each write a load and store of its cursor in memory).
+        bool serializeTop = !m.TopInline && body.LocalWriter;
+        if (serializeTop)
+        {
+            w.Line(names.NoInline);
+            w.Open($"private static void __SerializeTop({t} value, ref {Core}Writer writer)");
+            w.Line("var __w = writer;");
+            w.Line("if (value == null)");
+            w.Indented(() => w.Line($"__w.UnsafeWrite((byte){NinoWire.Null});"));
+            w.Open("else");
+            w.Line($"__w.UnsafeWrite((byte){NinoWire.NotNull});");
+            w.Line("__WriteBodyInline(value, ref __w);");
+            w.Close();
+            w.Line("writer = __w;");
+            w.Close();
+            w.Line();
+        }
+
         w.Open($"internal struct __Top : {Core}INinoBodyFormatter<{t}>");
         w.Line("public int TypeId => Id;");
         w.Line($"public bool Nests => default({m.FormatterName}).Nests;");
         w.Line($"public bool Deferrable => default({m.FormatterName}).Deferrable;");
         w.Line($"public {t} Create() => default({m.FormatterName}).Create();");
-        w.Line($"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTop<{t}, {top}>(value, ref writer);");
+        w.Line(serializeTop
+            ? $"public void Serialize({t} value, ref {Core}Writer writer) => __SerializeTop(value, ref writer);"
+            : $"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTop<{t}, {top}>(value, ref writer);");
         w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeTop<{t}, {top}>(ref value, ref reader);");
 
         w.Line(names.Inline);
@@ -156,6 +196,55 @@ internal static class FormatterEmitter
         w.Line(m.TopInline
             ? $"public void ReadBody(ref {t} value, ref {Core}Reader reader) => __ReadBodyInline(ref value, ref reader);"
             : $"public void ReadBody(ref {t} value, ref {Core}Reader reader) => default({m.FormatterName}).ReadBody(ref value, ref reader);");
+        w.Close();
+    }
+
+    /// <summary>
+    /// The twin for where the nesting bound is known to stay below <c>NinoDepth.Inline</c> (see
+    /// <see cref="TypeModel.Shallow"/>): the same bytes, with no depth counted or checked, here or in the members
+    /// (their formatters' twins). Used by the bodies of other twins, by <see cref="TypeModel.BoundedEntry"/> and by the
+    /// intercepted top-level calls.
+    /// </summary>
+    private static void EmitShallow(CodeWriter w, TypeModel m, FormatterNames names, BodyEmitter body)
+    {
+        string t = m.TypeName;
+        string self = m.FormatterName;
+        string twin = self + ".__Shallow";
+        w.Open($"internal struct __Shallow : {Core}INinoBodyFormatter<{t}>");
+        w.Line("public int TypeId => Id;");
+        w.Line($"public bool Nests => default({self}).Nests;");
+        w.Line($"public bool Deferrable => default({self}).Deferrable;");
+        w.Line($"public {t} Create() => default({self}).Create();");
+        if (m.Kind == FormatterKind.Struct)
+        {
+            w.Line($"public void Serialize({t} value, ref {Core}Writer writer) => WriteBody(value, ref writer);");
+            w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader) => ReadBody(ref value, ref reader);");
+        }
+        else
+        {
+            // The null flag, then the body with no depth check: SerializeTop/DeserializeTop.
+            w.Line($"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTop<{t}, {twin}>(value, ref writer);");
+            w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeTop<{t}, {twin}>(ref value, ref reader);");
+        }
+
+        w.Line(names.Inline);
+        w.Line(m.ShallowBodies
+            ? $"public void WriteBody({t} value, ref {Core}Writer writer) => __WriteBodyShallow(value, ref writer);"
+            : $"public void WriteBody({t} value, ref {Core}Writer writer) => default({self}).WriteBody(value, ref writer);");
+        w.Line(names.Inline);
+        if (m.ShallowBodies && body.SplitFresh)
+        {
+            w.Open($"public void ReadBody(ref {t} value, ref {Core}Reader reader)");
+            body.EmitFreshForwarder("__ReadBodyShallow");
+            w.Close();
+        }
+        else
+        {
+            w.Line(m.ShallowBodies
+                ? $"public void ReadBody(ref {t} value, ref {Core}Reader reader) => __ReadBodyShallow(ref value, ref reader);"
+                : $"public void ReadBody(ref {t} value, ref {Core}Reader reader) => default({self}).ReadBody(ref value, ref reader);");
+        }
+
         w.Close();
     }
 

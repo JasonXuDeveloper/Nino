@@ -182,12 +182,17 @@ public sealed class NinoGenerator : IIncrementalGenerator
         var top = CollectAll(models, static m => m.HasTop ? m.FormatterName : "")
             .Select(static (x, _) => new EquatableArray<string>(x.Where(static n => n.Length != 0).Distinct()
                 .OrderBy(n => n, StringComparer.Ordinal)));
-        context.RegisterImplementationSourceOutput(intercepted.Combine(fileLocal).Combine(enabled).Combine(top),
+        // Formatters with a __Shallow twin (see TypeModel.Shallow).
+        var shallow = CollectAll(models, static m => m.Shallow ? m.FormatterName : "")
+            .Select(static (x, _) => new EquatableArray<string>(x.Where(static n => n.Length != 0).Distinct()
+                .OrderBy(n => n, StringComparer.Ordinal)));
+        context.RegisterImplementationSourceOutput(
+            intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow),
             static (spc, x) =>
             {
-                var (((calls, local), on), tops) = x;
+                var ((((calls, local), on), tops), twins) = x;
                 if (on && calls.Length != 0)
-                    spc.AddSource("NinoGen.Interceptors.g.cs", Interceptors.Emit(calls, local, tops));
+                    spc.AddSource("NinoGen.Interceptors.g.cs", Interceptors.Emit(calls, local, tops, twins));
             });
 
 #endif

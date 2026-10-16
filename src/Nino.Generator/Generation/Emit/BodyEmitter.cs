@@ -28,6 +28,18 @@ internal sealed class BodyEmitter
     /// </summary>
     private string _target = "value";
 
+    /// <summary>
+    /// Whether the body being emitted is the <c>__Shallow</c> twin's (<see cref="TypeModel.ShallowBodies"/>): its
+    /// members go through the twins of their formatters, which count and check no depth.
+    /// </summary>
+    private bool _shallow;
+
+    /// <summary>Whether the reads being emitted are of a new instance (<see cref="TypeModel.FreshRead"/>).</summary>
+    private bool _fresh;
+
+    /// <summary>Whether a <see cref="TypeModel.FreshRead"/> body is emitted without its fresh copy (see <see cref="EmitTopSplitReadBody"/>).</summary>
+    private bool _reuseOnly;
+
     public BodyEmitter(TypeModel model, CodeWriter writer, FormatterNames names)
     {
         _m = model;
@@ -43,11 +55,28 @@ internal sealed class BodyEmitter
     /// <summary>Whether WriteBody/ReadBody put the members in a region (version tolerant or keyed).</summary>
     private bool Region => _m.Tolerant || _m.Keyed;
 
-    private bool Delegates => _m.BaseFormatter.Length != 0;
+    private bool Delegates => _m.BaseFormatter.Length != 0 && !(_shallow && _m.ShallowInlinesBase);
 
     private IEnumerable<MemberModel> OwnMembers => Delegates ? _m.Members.Skip(_m.BaseMemberCount) : _m.Members;
 
-    private string Formatter(MemberModel member) => _names.Use(member.Formatter);
+    private string Formatter(MemberModel member) =>
+        _names.Use(_shallow ? member.ShallowFormatter : member.Formatter);
+
+    private string CollectionFormatter => _shallow ? _m.ShallowCollectionFormatter : _m.CollectionFormatter;
+
+    /// <summary>
+    /// The bodies of the <c>__Shallow</c> twin (<see cref="TypeModel.ShallowBodies"/>): <c>__WriteBodyShallow</c> and
+    /// <c>__ReadBodyShallow</c>, the bodies with their members' formatters replaced by their twins. Out of line, as
+    /// the bodies are (a member that has a twin calls a formatter).
+    /// </summary>
+    public void EmitShallowBodies()
+    {
+        _shallow = true;
+        EmitWriteBody();
+        _w.Line();
+        EmitReadBody();
+        _shallow = false;
+    }
 
     // ----- entry ---------------------------------------------------------------------------------------------
 
@@ -77,10 +106,16 @@ internal sealed class BodyEmitter
     /// </summary>
     private string BodySignature(string name, string parameters)
     {
+        if (_shallow)
+        {
+            _w.Line(_names.NoInline);
+            return $"internal static void __{name}Shallow({parameters})";
+        }
+
         if (!OutOfLine)
             return $"public void {name}({parameters})";
         string args = name == "WriteBody" ? "value, ref writer" : "ref value, ref reader";
-        _w.Line(_names.Inline);
+        // A one-call forwarder: small enough for the JIT to inline without the attribute, which only costs compile time.
         _w.Line($"public void {name}({parameters}) => __{name}({args});");
         _w.Line();
         _w.Line(_names.NoInline);
@@ -116,7 +151,7 @@ internal sealed class BodyEmitter
     public void EmitWriteBody()
     {
         string signature = BodySignature("WriteBody", $"{T} value, ref {Core}Writer writer");
-        if (_m.EmitMembers && !Region && _m.CollectionFormatter.Length == 0)
+        if (_m.EmitMembers && !_shallow && !Region && _m.CollectionFormatter.Length == 0)
         {
             _w.Line($"{signature} => WriteMembers(value, ref writer);");
             _w.Line();
@@ -129,11 +164,11 @@ internal sealed class BodyEmitter
             if (_m.Keyed)
                 _w.Line("int __length = writer.BeginRegion();");
             if (_m.CollectionFormatter.Length != 0)
-                _w.Line($"default({_m.CollectionFormatter}).Serialize(value, ref writer);");
+                _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
             // Version tolerant: the members (the elements of a collection come first, as positional ones).
             if (Tolerant)
                 _w.Line("int __length = writer.BeginRegion();");
-            if (_m.EmitMembers)
+            if (_m.EmitMembers && !_shallow)
                 _w.Line("WriteMembers(value, ref writer);");
             else
                 EmitMemberWrites();
@@ -141,7 +176,7 @@ internal sealed class BodyEmitter
                 _w.Line("writer.EndRegion(__length);");
         });
 
-        if (_m.EmitMembers)
+        if (_m.EmitMembers && !_shallow)
         {
             _w.Line();
             EmitMembersMethods();
@@ -333,57 +368,161 @@ internal sealed class BodyEmitter
     /// position stored, for every member). The formatters keep the writer's address from calls that are not inlined
     /// (or pass a copy), so the local stays in registers.
     /// </summary>
-    private bool LocalWriter => OutOfLine && !_m.Nests && !_m.Keyed && !_m.TrackReferences &&
+    public bool LocalWriter => OutOfLine && !_m.Nests && !_m.Keyed && !_m.TrackReferences &&
                                 _m.CollectionFormatter.Length == 0 &&
                                 _m.Members.All(static x => x.Raw != null || WritesInRegisters(x.Formatter));
 
     /// <summary>
-    /// Formatters whose writes never pass the writer's address to a call that is not inlined: strings, raw arrays
-    /// and lists, and dictionaries of raw keys and raw or UTF-16 string values. Any other member would take the
-    /// address of the local writer (keeping it in memory) or need a copy of it around the call, which costs more
-    /// than the loads and stores the local saves.
+    /// Formatters whose writes never pass the writer's address to a call that is not inlined (<see cref="IsFlat"/>).
+    /// Any other member would take the address of the local writer (keeping it in memory) or need a copy of it
+    /// around the call, which costs more than the loads and stores the local saves.
     /// </summary>
-    private static bool WritesInRegisters(string formatter)
-    {
-        if (formatter == Core + "StringFormatter" || formatter == Core + "Utf8StringFormatter" ||
-            formatter.StartsWith(Core + "UnmanagedArrayFormatter<", System.StringComparison.Ordinal) ||
-            formatter.StartsWith(Core + "UnmanagedListFormatter<", System.StringComparison.Ordinal))
-            return true;
-        if (!formatter.StartsWith(Core + "DictionaryFormatter<", System.StringComparison.Ordinal))
-            return false;
-        // DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>: the last two arguments.
-        string args = formatter.Substring(Core.Length + "DictionaryFormatter<".Length);
-        int value = args.LastIndexOf(", " + Core, System.StringComparison.Ordinal);
-        if (value < 0)
-            return false;
-        int key = args.LastIndexOf(", " + Core, value - 1, System.StringComparison.Ordinal);
-        if (key < 0)
-            return false;
-        string keyFormatter = args.Substring(key + 2, value - key - 2);
-        string valueFormatter = args.Substring(value + 2, args.Length - value - 3);
-        return keyFormatter.StartsWith(Core + "UnmanagedFormatter<", System.StringComparison.Ordinal) &&
-               (valueFormatter == Core + "StringFormatter" ||
-                valueFormatter.StartsWith(Core + "UnmanagedFormatter<", System.StringComparison.Ordinal));
-    }
+    private static bool WritesInRegisters(string formatter) => IsFlat(formatter);
 
     public void EmitReadBody()
     {
+        if (SplitFresh)
+        {
+            EmitSplitReadBody();
+            return;
+        }
+
+        if (_m.FreshRead && _m.TopInline && OutOfLine && !_shallow)
+        {
+            EmitTopSplitReadBody();
+            return;
+        }
+
         _w.Open(BodySignature("ReadBody", $"ref {T} value, ref {Core}Reader reader"));
+        EmitReadBodyContents(fresh: false);
+        _w.Close();
+    }
+
+    private void EmitReadBodyContents(bool fresh)
+    {
         string r = "reader";
         // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
-        bool local = LocalReader && !_m.TopInline;
+        bool local = LocalReader && !_m.TopInline && !_shallow;
         if (local)
         {
             _w.Line("var __r = reader;");
             r = "__r";
         }
 
-        if (_m.Construction.Recreate)
+        if (fresh)
+        {
+            // The slot held null and the pool, if any, had nothing: a new instance, whose members are null.
+            // The test always passes (the forwarder calls this for a null slot only), but it is kept: a method
+            // without a branch gets no profile from tiered PGO, and without one the JIT stops inlining the
+            // collection constructors of the member reads. An instance passed in anyway is still read correctly
+            // (its members are replaced, not reused).
+            _target = "__v";
+            _w.Line("var __v = value;");
+            _w.Line("if (__v == null)");
+            _w.Indented(() => _w.Line($"value = __v = {_m.Construction.Creator}();"));
+            _fresh = true;
+            EmitInPlaceMembers(r);
+            _fresh = false;
+        }
+        else if (_m.Construction.Recreate)
             EmitRecreatingRead(r);
         else
             EmitInPlaceRead(r);
         if (local)
             _w.Line("reader = __r;");
+    }
+
+    /// <summary>
+    /// Whether an out-of-line body reads a new instance in a method of its own (<c>__ReadBodyFresh</c>, see
+    /// <see cref="TypeModel.FreshRead"/>), chosen by the inlined <c>ReadBody</c>: one method holding both copies of
+    /// the member reads would keep more values live at once (spilled in loops). Small bodies inlined into the
+    /// top-level calls (<see cref="TypeModel.TopInline"/>) hold both copies in one method instead
+    /// (<see cref="EmitTopSplitReadBody"/>).
+    /// </summary>
+    public bool SplitFresh => _m.FreshRead && OutOfLine && !_m.TopInline;
+
+    /// <summary>
+    /// The statements of the inlined <c>ReadBody</c> of a <see cref="SplitFresh"/> body (named
+    /// <paramref name="body"/>): a null slot is read as a new instance (a pooled type takes one from its pool
+    /// first, read as an existing one).
+    /// </summary>
+    public void EmitFreshForwarder(string body)
+    {
+        _w.Open("if (value == null)");
+        if (_m.Pooled)
+        {
+            _w.Line($"var __p = {T}.RentFromNinoPool();");
+            _w.Open("if (__p == null)");
+            _w.Line($"{body}Fresh(ref value, ref reader);");
+            _w.Line("return;");
+            _w.Close();
+            _w.Line("value = __p;");
+        }
+        else
+        {
+            _w.Line($"{body}Fresh(ref value, ref reader);");
+            _w.Line("return;");
+        }
+
+        _w.Close();
+        _w.Line($"{body}(ref value, ref reader);");
+    }
+
+    private void EmitSplitReadBody()
+    {
+        string parameters = $"ref {T} value, ref {Core}Reader reader";
+        string body = _shallow ? "__ReadBodyShallow" : "__ReadBody";
+        if (!_shallow)
+        {
+            // The shallow twin's forwarder is its struct's (FormatterEmitter).
+            _w.Line(_names.Inline);
+            _w.Open($"public void ReadBody({parameters})");
+            EmitFreshForwarder(body);
+            _w.Close();
+            _w.Line();
+        }
+
+        _w.Line(_names.NoInline);
+        _w.Open($"internal static void {body}({parameters})");
+        EmitReadBodyContents(fresh: false);
+        _w.Close();
+        _w.Line();
+        _w.Line(_names.NoInline);
+        _w.Open($"internal static void {body}Fresh({parameters})");
+        EmitReadBodyContents(fresh: true);
+        _w.Close();
+    }
+
+    /// <summary>
+    /// The read body of a <see cref="TypeModel.FreshRead"/> type with a <c>__Top</c> twin: the out-of-line body
+    /// (elements and members) holds both copies of the member reads (<see cref="EmitFreshSplit"/>), while the body
+    /// inlined into the top-level calls, where the JIT already knows whether the slot is null, holds the reuse copy
+    /// only (a second copy there only adds locals for the JIT to keep apart).
+    /// </summary>
+    private void EmitTopSplitReadBody()
+    {
+        string parameters = $"ref {T} value, ref {Core}Reader reader";
+        _w.Line($"public void ReadBody({parameters}) => __ReadBody(ref value, ref reader);");
+        _w.Line();
+        _w.Line(_names.NoInline);
+        _w.Open($"private static void __ReadBody({parameters})");
+        string r = "reader";
+        if (LocalReader)
+        {
+            _w.Line("var __r = reader;");
+            r = "__r";
+        }
+
+        EmitInPlaceRead(r);
+        if (LocalReader)
+            _w.Line("reader = __r;");
+        _w.Close();
+        _w.Line();
+        _w.Line(_names.Inline);
+        _w.Open($"private static void __ReadBodyInline({parameters})");
+        _reuseOnly = true;
+        EmitInPlaceRead("reader");
+        _reuseOnly = false;
         _w.Close();
     }
 
@@ -393,6 +532,12 @@ internal sealed class BodyEmitter
         if (_m.Kind != FormatterKind.Struct)
         {
             string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
+            if (_m.FreshRead && !SplitFresh && !_reuseOnly)
+            {
+                EmitFreshSplit(r, c.Creator + "()");
+                return;
+            }
+
             if (_m.Pooled)
                 create = T + ".RentFromNinoPool() ?? " + create;
             // The instance in a local (a collection formatter may replace value, so not for collections).
@@ -409,29 +554,72 @@ internal sealed class BodyEmitter
                 _w.Line("if (value == null)");
                 _w.Indented(() => _w.Line($"value = {create};"));
             }
-
-            if (_m.TrackReferences)
-                _w.Line($"reader.SetReference({_target});");
         }
+
+        EmitInPlaceMembers(r);
+    }
+
+    /// <summary>
+    /// <see cref="TypeModel.FreshRead"/>: a new instance (the slot held null and the pool, if any, had none) is
+    /// read by a copy of the member reads that knows its members are null (<see cref="MemberModel.Fresh"/>); an
+    /// existing or pooled one by the reads that reuse what it holds.
+    /// </summary>
+    private void EmitFreshSplit(string r, string create)
+    {
+        _target = "__v";
+        _w.Line("var __v = value;");
+        _w.Open("if (__v == null)");
+        if (_m.Pooled)
+        {
+            _w.Line($"__v = {T}.RentFromNinoPool();");
+            _w.Open("if (__v != null)");
+            _w.Line("value = __v;");
+            _w.Line("goto __reuse;");
+            _w.Close();
+        }
+
+        _w.Line($"value = __v = {create};");
+        _fresh = true;
+        EmitInPlaceMembers(r);
+        _fresh = false;
+        _w.Line("goto __done;");
+        _w.Close();
+        if (_m.Pooled)
+            _w.Line("__reuse:");
+        _target = "__v";
+        _w.Open();
+        EmitInPlaceMembers(r);
+        _w.Close();
+        _w.Line("__done: ;");
+    }
+
+    /// <summary>The reads of an instance in <see cref="_target"/> (or of a struct in place), in its regions.</summary>
+    private void EmitInPlaceMembers(string r)
+    {
+        if (_m.TrackReferences)
+            _w.Line($"reader.SetReference({_target});");
 
         // Keyed: the region holds everything; version tolerant: the members (the elements of a collection come first).
         string outer = r;
         if (_m.Keyed)
             r = BeginRegionRead(r);
         if (_m.CollectionFormatter.Length != 0)
-            _w.Line($"default({_m.CollectionFormatter}).Deserialize(ref value, ref {r});");
+            _w.Line($"default({CollectionFormatter}).Deserialize(ref value, ref {r});");
         if (Tolerant)
             r = BeginRegionRead(r);
 
-        if (_m.EmitMembers)
+        if (_m.EmitMembers && !_shallow && !_fresh)
             _w.Line($"ReadMembers({_target}, ref {r});");
         else
-            EmitMemberReads(r, inPlace: true, eof: "goto __end;");
+            EmitMemberReads(r, inPlace: true, eof: $"goto {EndLabel};");
         _target = "value";
 
         if (Region)
             EndRegionRead(outer);
     }
+
+    /// <summary>The label a version-tolerant read jumps to at the end of its region (one per copy of the reads).</summary>
+    private string EndLabel => _fresh ? "__endFresh" : "__end";
 
     /// <summary>Opens the region of the members (<c>__reader</c>, read from <paramref name="r"/>).</summary>
     private string BeginRegionRead(string r)
@@ -446,7 +634,7 @@ internal sealed class BodyEmitter
     private void EndRegionRead(string outer)
     {
         if (Tolerant)
-            _w.Line("__end:");
+            _w.Line(EndLabel + ":");
         _w.Line($"{outer}.EndRegion(in __reader);");
     }
 
@@ -570,6 +758,18 @@ internal sealed class BodyEmitter
         if (!inPlace)
         {
             _w.Line($"default({formatter}).Deserialize(ref {Local(member)}, ref {r});");
+            return;
+        }
+
+        if (_fresh && member.Fresh)
+        {
+            // The member of a new instance is null: read from a null local, which the formatter (inlined) knows,
+            // so its reuse path folds away; then stored.
+            _w.Open();
+            _w.Line($"{member.TypeName} __t = null;");
+            _w.Line($"default({formatter}).Deserialize(ref __t, ref {r});");
+            _w.Line(Set(_m, member, _target, "__t"));
+            _w.Close();
             return;
         }
 

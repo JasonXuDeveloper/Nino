@@ -24,6 +24,7 @@ internal sealed class FormatterNames
         int index = 0;
         // Formatters mentioning the type's own type parameters cannot be aliased outside the type.
         foreach (var formatter in m.Members.Select(x => x.Formatter)
+                     .Concat(m.ShallowBodies ? m.Members.Select(x => x.ShallowFormatter) : Enumerable.Empty<string>())
                      .Where(f => f.Length > MinAliasedLength && !MentionsAny(f, m.TypeParameters))
                      .Distinct()
                      .OrderByDescending(f => f.Length))

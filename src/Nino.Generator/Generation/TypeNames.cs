@@ -346,4 +346,65 @@ internal static class TypeNames
 
         return sb.ToString();
     }
+
+    /// <summary>
+    /// <paramref name="formatter"/> with the generated formatters in <paramref name="names"/> replaced by their nested
+    /// twin <paramref name="suffix"/> (<c>.__Top</c>, <c>.__Shallow</c>): the formatter itself, or the element
+    /// formatters it is composed of (whole type arguments of built-in collection, nullable and tuple formatters;
+    /// generated formatters take no formatter type arguments, and a generic one is never replaced).
+    /// </summary>
+    internal static string WithTwin(string formatter, HashSet<string> names, string suffix)
+    {
+        if (names.Count == 0)
+            return formatter;
+        if (names.Contains(formatter))
+            return formatter + suffix;
+        var result = new StringBuilder(formatter.Length);
+        int i = 0;
+        while (true)
+        {
+            int start = formatter.IndexOf(Gen, i, System.StringComparison.Ordinal);
+            if (start < 0)
+                break;
+            int end = start + Gen.Length;
+            while (end < formatter.Length && (char.IsLetterOrDigit(formatter[end]) || formatter[end] == '_'))
+                end++;
+            result.Append(formatter, i, end - i);
+            // A whole type argument: followed by ',' or '>' (not a generic formatter or a nested name).
+            if (end < formatter.Length && formatter[end] is ',' or '>' &&
+                names.Contains(formatter.Substring(start, end - start)))
+                result.Append(suffix);
+            i = end;
+        }
+
+        return result.Append(formatter, i, formatter.Length - i).ToString();
+    }
+
+    /// <summary>
+    /// Nino.Core formatters that read and write without a loop over elements in the generated body, and never pass
+    /// the reader's or writer's address to a call that is not inlined: strings, raw arrays and lists, and
+    /// dictionaries of raw keys and raw or UTF-16 string values.
+    /// </summary>
+    internal static bool IsFlat(string formatter)
+    {
+        if (formatter == Core + "StringFormatter" || formatter == Core + "Utf8StringFormatter" ||
+            formatter.StartsWith(Core + "UnmanagedArrayFormatter<", System.StringComparison.Ordinal) ||
+            formatter.StartsWith(Core + "UnmanagedListFormatter<", System.StringComparison.Ordinal))
+            return true;
+        if (!formatter.StartsWith(Core + "DictionaryFormatter<", System.StringComparison.Ordinal))
+            return false;
+        // DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>: the last two arguments.
+        string args = formatter.Substring(Core.Length + "DictionaryFormatter<".Length);
+        int value = args.LastIndexOf(", " + Core, System.StringComparison.Ordinal);
+        if (value < 0)
+            return false;
+        int key = args.LastIndexOf(", " + Core, value - 1, System.StringComparison.Ordinal);
+        if (key < 0)
+            return false;
+        string keyFormatter = args.Substring(key + 2, value - key - 2);
+        string valueFormatter = args.Substring(value + 2, args.Length - value - 3);
+        return keyFormatter.StartsWith(Core + "UnmanagedFormatter<", System.StringComparison.Ordinal) &&
+               (valueFormatter == Core + "StringFormatter" ||
+                valueFormatter.StartsWith(Core + "UnmanagedFormatter<", System.StringComparison.Ordinal));
+    }
 }

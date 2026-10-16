@@ -194,6 +194,10 @@ internal static class ModelBuilder
         else if (trackReferences && construction.Recreate)
             diagnostics?.Report(NinoDiagnostics.TrackReferencesNeedsAssignableMembers, type, type.ToDisplayString());
 
+        // The nesting bound and the __Shallow twin (non-generic: a twin of a generic formatter is never named).
+        int bound = kind == FormatterKind.Polymorphic || generic ? TypeFacts.Unbounded : facts.TypeBound(type);
+        bool shallow = !generic && kind is FormatterKind.SealedClass or FormatterKind.Struct && facts.HasShallow(type);
+
         var used = new List<FormatterRegistration>();
         if (!generic && kind != FormatterKind.Polymorphic)
         {
@@ -299,7 +303,14 @@ internal static class ModelBuilder
             (construction.Factory.Length != 0 || construction.Creator.Length != 0) && !ComparesByValue(type),
             kind is not (FormatterKind.Class or FormatterKind.SealedClass) ||
             collection is { OpensBodies: true } || members.Any(m => m.OpensBodies),
-            !rawStruct && facts.IsFixedSize(type));
+            !rawStruct && facts.IsFixedSize(type),
+            bound,
+            shallow,
+            collection is { } sc ? facts.ShallowFormatter(sc.Code, sc, false) : "",
+            kind == FormatterKind.SealedClass && !construction.Recreate &&
+            construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
+            !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
+            !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type));
     }
 
     /// <summary>
@@ -392,8 +403,10 @@ internal static class ModelBuilder
         var known = facts.Symbols;
 
         string? formatter;
+        string? shallowFormatter = null;
         bool registered = false;
         bool opensBodies = true;
+        bool readsLoop = false;
         var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
         if (custom is { ConstructorArguments: { Length: > 0 } args } && args[0].Value is INamedTypeSymbol customType)
         {
@@ -403,13 +416,16 @@ internal static class ModelBuilder
         }
         else
         {
-            var resolved = facts.Resolver.Resolve(memberType, NinoSymbols.Has(symbol, known.Utf8));
+            bool utf8 = NinoSymbols.Has(symbol, known.Utf8);
+            var resolved = facts.Resolver.Resolve(memberType, utf8);
             formatter = resolved?.Code;
             registered = resolved?.Registered == true;
             if (resolved is { } r)
             {
                 factories.AddRange(r.Factories);
                 opensBodies = r.OpensBodies;
+                shallowFormatter = facts.ShallowFormatter(r.Code, r, utf8);
+                readsLoop = r.Elements is { IsDefault: false, Length: > 0 } && !TypeNames.IsFlat(r.Code);
             }
         }
 
@@ -471,7 +487,68 @@ internal static class ModelBuilder
 
         return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter, raw,
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
-            Visibility.IsConstructionOnly(symbol), false, typeId, opensBodies);
+            Visibility.IsConstructionOnly(symbol), false, typeId, opensBodies, shallowFormatter ?? formatter,
+            custom == null && memberType.IsReferenceType && formatter.StartsWith(Core, System.StringComparison.Ordinal) &&
+            !formatter.StartsWith(Core + "CachedFormatter<", System.StringComparison.Ordinal) &&
+            formatter != Core + "ObjectFormatter" && formatter != Core + "StringFormatter" &&
+            formatter != Core + "Utf8StringFormatter" && StartsDefault(symbol),
+            raw == null && readsLoop);
+    }
+
+    /// <summary>
+    /// Whether <c>new T()</c> leaves every serialized member at its default value as far as the constructors go: each
+    /// class of the chain (up to <c>object</c>) has a parameterless constructor that is implicit, or declared in
+    /// source with an empty body and no arguments to the constructor it chains to. Field initializers cannot touch
+    /// other members; those of the members themselves are checked by <see cref="StartsDefault"/>.
+    /// </summary>
+    private static bool ConstructsDefaults(INamedTypeSymbol type)
+    {
+        for (var t = type; t != null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
+        {
+            var constructor = t.InstanceConstructors.FirstOrDefault(static c => c.Parameters.Length == 0);
+            if (constructor == null)
+                return false;
+            if (constructor.IsImplicitlyDeclared)
+                continue;
+            if (constructor.DeclaringSyntaxReferences.Length == 0)
+                return false;
+            foreach (var reference in constructor.DeclaringSyntaxReferences)
+            {
+                if (reference.GetSyntax() is not ConstructorDeclarationSyntax syntax ||
+                    syntax.ExpressionBody != null || syntax.Body is not { Statements.Count: 0 } ||
+                    syntax.Initializer is { } init &&
+                    (!init.IsKind(SyntaxKind.BaseConstructorInitializer) || init.ArgumentList.Arguments.Count != 0))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether the member is null in a new instance (given <see cref="ConstructsDefaults"/>): a field or an
+    /// auto-property declared in source without an initializer. A property with accessor bodies may compute its
+    /// value, so its getter is called as before.
+    /// </summary>
+    private static bool StartsDefault(ISymbol member)
+    {
+        if (member.DeclaringSyntaxReferences.Length == 0)
+            return false;
+        foreach (var reference in member.DeclaringSyntaxReferences)
+        {
+            switch (reference.GetSyntax())
+            {
+                case VariableDeclaratorSyntax { Initializer: null } when member is IFieldSymbol:
+                    continue;
+                case PropertyDeclarationSyntax { Initializer: null, ExpressionBody: null, AccessorList: { } accessors }
+                    when accessors.Accessors.All(static a => a.Body == null && a.ExpressionBody == null):
+                    continue;
+                default:
+                    return false;
+            }
+        }
+
+        return true;
     }
 
     private static string KeyName(string name, int renamed, INamedTypeSymbol declaring) =>
