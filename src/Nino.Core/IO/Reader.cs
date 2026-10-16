@@ -676,23 +676,119 @@ namespace Nino.Core
                 return EmptyOrNull(length);
             }
 
+            // The prefix counts chars, and every char takes at least one byte: checked before the string is allocated.
             if ((uint)length > (uint)(remaining - sizeof(int)))
                 NinoThrow.EndOfData();
-            _pos = pos + sizeof(int) + length;
-            return DecodeUtf8(ref Unsafe.Add(ref start, sizeof(int)), length);
+            var value = DecodeUtf8(ref Unsafe.Add(ref start, sizeof(int)), remaining - sizeof(int), length,
+                out int consumed);
+            _pos = pos + sizeof(int) + consumed;
+            return value;
         }
 
+        /// <summary>
+        /// Decodes the <paramref name="length"/> chars at <paramref name="src"/> (at most <paramref name="available"/>
+        /// bytes, which may go on past the string) into a string allocated at that length, in one pass. Returns the
+        /// string and the bytes it took; data that is truncated, is not UTF-8, or does not end on a char boundary
+        /// throws.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe string DecodeUtf8(ref byte src, int length)
+        private static unsafe string DecodeUtf8(ref byte src, int available, int length, out int consumed)
         {
-#if NETSTANDARD2_0
-            fixed (byte* p = &src)
-            {
-                return Encoding.UTF8.GetString(p, length);
-            }
+            // Not the empty string: length > 0. Freshly allocated and not yet published, so it is written in place.
+            var value = new string('\0', length);
+#if NET8_0_OR_GREATER
+            var chars = MemoryMarshal.CreateSpan(ref MemoryMarshal.GetReference(value.AsSpan()), length);
+            // The transcoder stops when the string is full: the bytes after it (the next member) are not decoded,
+            // whatever status that boundary gives (an invalid byte, or a sequence that does not fit).
+            System.Text.Unicode.Utf8.ToUtf16(MemoryMarshal.CreateReadOnlySpan(ref src, available), chars,
+                out consumed, out int written, replaceInvalidSequences: false);
+            if (written != length)
+                NinoThrow.InvalidData("invalid UTF-8 string.");
+            return value;
 #else
-            return Encoding.UTF8.GetString(MemoryMarshal.CreateReadOnlySpan(ref src, length));
+            // The bytes of the chars from their lead bytes, then a strict decoder over exactly those bytes, which
+            // validates them (the count of chars agrees for valid UTF-8 only).
+            int size = Utf8Size(ref src, available, length);
+            fixed (byte* p = &src)
+            fixed (char* d = value)
+            {
+                int written;
+                try
+                {
+                    written = StrictUtf8.GetChars(p, size, d, length);
+                }
+                catch (ArgumentException)
+                {
+                    written = -1;
+                }
+
+                if (written != length)
+                    NinoThrow.InvalidData("invalid UTF-8 string.");
+            }
+
+            consumed = size;
+            return value;
 #endif
         }
+
+#if !NET8_0_OR_GREATER
+        private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
+
+        /// <summary>The number of bytes of the first <paramref name="chars"/> UTF-16 chars, read from the lead bytes.</summary>
+        private static int Utf8Size(ref byte src, int available, int chars)
+        {
+            int i = 0;
+            while (chars > 0)
+            {
+                // Eight ASCII bytes at a time.
+                if (chars >= 8 && available - i >= 8 &&
+                    (NinoUnsafe.Read<ulong>(ref Unsafe.Add(ref src, i)) & 0x8080808080808080UL) == 0)
+                {
+                    i += 8;
+                    chars -= 8;
+                    continue;
+                }
+
+                if (i >= available)
+                    NinoThrow.EndOfData();
+                byte lead = Unsafe.Add(ref src, i);
+                int bytes, units;
+                if (lead < 0x80)
+                {
+                    bytes = 1;
+                    units = 1;
+                }
+                else if (lead >= 0xC2 && lead < 0xE0)
+                {
+                    bytes = 2;
+                    units = 1;
+                }
+                else if (lead >= 0xE0 && lead < 0xF0)
+                {
+                    bytes = 3;
+                    units = 1;
+                }
+                else if (lead >= 0xF0 && lead < 0xF5)
+                {
+                    bytes = 4;
+                    units = 2;
+                }
+                else
+                {
+                    NinoThrow.InvalidData("invalid UTF-8 string.");
+                    return 0;
+                }
+
+                if (units > chars)
+                    NinoThrow.InvalidData("invalid UTF-8 string.");
+                if (bytes > available - i)
+                    NinoThrow.EndOfData();
+                i += bytes;
+                chars -= units;
+            }
+
+            return i;
+        }
+#endif
     }
 }

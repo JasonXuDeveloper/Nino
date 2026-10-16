@@ -13,26 +13,51 @@ namespace Nino.Core
         /// <summary>Largest scratch buffer kept per thread between calls.</summary>
         private const int MaxRetainedScratch = 1024 * 1024;
 
+        // The thread's scratch buffer stays in its slot and is marked in use (a byte store on the instance) instead
+        // of being taken out and put back: returning it then neither reads the thread-static again nor stores a
+        // reference into it (a write barrier). A nested call on the same thread (from a custom formatter) finds it in
+        // use and gets a buffer of its own.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static NinoArrayBufferWriter RentScratch()
         {
-            var buffer = NinoThreadCache.Take(ref _scratch);
-            if (buffer == null)
-                return new NinoArrayBufferWriter();
+            var buffer = _scratch;
+            if (buffer == null || buffer.ScratchState != NinoArrayBufferWriter.ScratchIdle)
+                return RentOther();
+            buffer.ScratchState = NinoArrayBufferWriter.ScratchInUse;
             buffer.Index = 0;
+            return buffer;
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static NinoArrayBufferWriter RentOther()
+        {
+            var buffer = new NinoArrayBufferWriter();
+            if (_scratch == null)
+            {
+                buffer.ScratchState = NinoArrayBufferWriter.ScratchInUse;
+                _scratch = buffer;
+            }
+
             return buffer;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void ReturnScratch(NinoArrayBufferWriter buffer)
         {
-            if (buffer.Capacity > MaxRetainedScratch)
-            {
-                buffer.Dispose();
-                return;
-            }
+            if (buffer.ScratchState == NinoArrayBufferWriter.ScratchInUse && buffer.Buffer.Length <= MaxRetainedScratch)
+                buffer.ScratchState = NinoArrayBufferWriter.ScratchIdle;
+            else
+                ReleaseScratch(buffer);
+        }
 
-            _scratch = buffer;
+        /// <summary>A buffer that is not kept: one a nested call created, or the scratch buffer grown too large.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReleaseScratch(NinoArrayBufferWriter buffer)
+        {
+            if (ReferenceEquals(_scratch, buffer))
+                _scratch = null;
+            buffer.ScratchState = 0;
+            buffer.Dispose();
         }
 
         /// <summary>Serializes <paramref name="value"/> into a new byte array.</summary>
@@ -49,7 +74,7 @@ namespace Nino.Core
             if (RawArray<T>.Formatter is { } raw && value != null)
                 return raw.Serialize(Unsafe.As<Array>(value));
 
-            return SerializeToArray(value, NinoFormatterCache<T>.Instance);
+            return SerializeToArray(value, NinoTopFormatter<T>.Get);
         }
 
         private static byte[] SerializeRaw<T>(T value)
@@ -96,15 +121,8 @@ namespace Nino.Core
             {
                 if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1)
                     return null;
-                try
-                {
-                    return NinoFormatterCache<T>.Instance.RawArray;
-                }
-                catch (Exception)
-                {
-                    // No formatter: the regular path reports it.
-                    return null;
-                }
+                // Through the snapshot (a use of T's formatter); null without a formatter: the regular path reports it.
+                return NinoTopFormatter<T>.Formatter?.RawArray;
             }
         }
 
@@ -133,11 +151,11 @@ namespace Nino.Core
             }
             else if (bufferWriter is NinoArrayBufferWriter nino)
             {
-                WriteFormatted(value, nino, NinoFormatterCache<T>.Instance);
+                WriteFormatted(value, nino, NinoTopFormatter<T>.Get);
                 return;
             }
 
-            SerializeOther(value, bufferWriter, NinoFormatterCache<T>.Instance);
+            SerializeOther(value, bufferWriter, NinoTopFormatter<T>.Get);
         }
 
         // Out of line: inlined, it would take the caller's inlining budget for paths the calls above do not take.
@@ -172,7 +190,7 @@ namespace Nino.Core
                 return;
             }
 
-            NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+            NinoTopFormatter<T>.Get.Serialize(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

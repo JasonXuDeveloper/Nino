@@ -23,7 +23,7 @@ namespace Nino.UnitTests
         public void LongUtf8Strings()
         {
             // Past the worst-case reservation's limit the byte count is computed first: the same bytes, and a buffer
-            // sized for them rather than for three bytes per char.
+            // sized for them rather than for three bytes per char. The prefix is the char count either way.
             var text = string.Concat(Enumerable.Repeat("ascii é ニ 😀 ", 400)) + "\ud800 tail";
             foreach (var value in new[] { text, text.Substring(0, 1024), text.Substring(0, 1025), new string('a', 100_000) })
             {
@@ -32,7 +32,7 @@ namespace Nino.UnitTests
                 writer.WriteUtf8(value);
                 writer.Flush();
                 var expected = System.Text.Encoding.UTF8.GetBytes(value);
-                CollectionAssert.AreEqual(BitConverter.GetBytes(expected.Length).Concat(expected).ToArray(),
+                CollectionAssert.AreEqual(BitConverter.GetBytes(value.Length).Concat(expected).ToArray(),
                     buffer.WrittenSpan.ToArray());
                 var reader = new Reader(buffer.WrittenSpan);
                 Assert.AreEqual(System.Text.Encoding.UTF8.GetString(expected), reader.ReadUtf8());

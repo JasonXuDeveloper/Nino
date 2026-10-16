@@ -23,6 +23,15 @@ namespace Nino.Core
         /// <summary>Number of bytes written into <see cref="Buffer"/>.</summary>
         internal int Index;
 
+        /// <summary>
+        /// <see cref="NinoSerializer"/>'s per-thread scratch buffer: <see cref="ScratchIdle"/> or
+        /// <see cref="ScratchInUse"/> while it is cached, 0 otherwise (any other instance).
+        /// </summary>
+        internal byte ScratchState;
+
+        internal const byte ScratchIdle = 1;
+        internal const byte ScratchInUse = 2;
+
         public NinoArrayBufferWriter() : this(DefaultCapacity)
         {
         }
@@ -64,9 +73,12 @@ namespace Nino.Core
             if (Index == 0)
                 return Array.Empty<byte>();
 
-            // Every byte is overwritten by the copy.
-            var result = NinoUnsafe.AllocateUninitializedArray<byte>(Index);
-            System.Buffer.BlockCopy(Buffer, 0, result, 0, Index);
+            // Every byte is overwritten by the copy: a memmove of the written bytes (Index never exceeds the buffer's
+            // length), where Buffer.BlockCopy would check both arrays' types and bounds first.
+            int count = Index;
+            var result = NinoUnsafe.AllocateUninitializedArray<byte>(count);
+            Unsafe.CopyBlockUnaligned(ref NinoUnsafe.GetArrayDataReference(result),
+                ref NinoUnsafe.GetArrayDataReference(Buffer), (uint)count);
             return result;
         }
 

@@ -151,10 +151,10 @@ namespace Nino.Core
     public struct CachedFormatter<T> : INinoFormatter<T>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(T value, ref Writer writer) => NinoFormatterCache<T>.Instance.Serialize(value, ref writer);
+        public void Serialize(T value, ref Writer writer) => NinoTopFormatter<T>.Get.Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T value, ref Reader reader) =>
-            NinoFormatterCache<T>.Instance.Deserialize(ref value, ref reader);
+            NinoTopFormatter<T>.Get.Deserialize(ref value, ref reader);
     }
 }

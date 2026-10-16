@@ -56,6 +56,13 @@ namespace Nino.Core
                 "[assembly: NinoFormatter] or register one with NinoFormatterCache<T>.Register<TFormatter>().");
 
         [MethodImpl(Cold)]
+        public static void RegisteredAfterUse(Type type) =>
+            throw new InvalidOperationException(
+                $"Nino: cannot register a formatter for {type.FullName}: {type.FullName} has already been " +
+                "serialized or deserialized, and the formatter in use cannot change. Register formatters at " +
+                "startup, before the first call that serializes or deserializes the type.");
+
+        [MethodImpl(Cold)]
         public static void FactoryReturnedNull(Type type) =>
             throw new InvalidOperationException($"Nino: the factory of {type.FullName} returned null.");
 

@@ -56,12 +56,20 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 | `T?` (nullable value type) | 1 byte has-value flag, then the value if present |
 | Collection / array / string length | `int32`; `-1` means `null` |
 | `string` (default, UTF-16) | `int32` char count, then UTF-16 code units |
-| `string` with `[NinoUtf8]` | `int32` byte count (`-1` = null), then UTF-8 bytes |
+| `string` with `[NinoUtf8]` | `int32` char count (`-1` = null, `0` = empty), then UTF-8 bytes (see below) |
 | Array / list of unmanaged `T` | length, then one block copy of the elements |
 | `T?[]` / `List<T?>` of raw `T` | length, then each element in the canonical `Nullable<T>` layout (fixed stride: flag, padding, value); an `IList<T?>`/`IEnumerable<T?>` member writes each element as a single `T?` instead (see `docs/pitfalls.md`) |
 | Other collections | length, then each element |
 | Dictionary | length, then key/value pairs |
 | Multi-dimensional array `T[,..]` | `int32` rank-lengths (`-1` for null in the first slot), then elements in row-major order |
+
+A `[NinoUtf8]` string's prefix is its length in UTF-16 code units (`string.Length`, as in v3), not its byte count.
+The bytes are the string's UTF-8 encoding, an unpaired surrogate written as U+FFFD (one code unit, so the count is
+that of the string read back), and nothing marks their end: the reader allocates the string at its final length and
+decodes into it in one pass, stopping when it is full; the bytes it decoded are the string's. Every code unit takes at
+least one byte, so a count larger than the remaining bytes is rejected before allocating; data that ends early, is
+not UTF-8 (including overlong forms and encoded surrogates) or ends inside a surrogate pair throws. A byte-count
+prefix would make the reader count the chars first (a second pass over the bytes), as `Encoding.UTF8.GetString` does.
 
 ### Objects
 
@@ -410,7 +418,8 @@ populated by:
    the same closed formatters ahead of time, for AOT runtimes and reads by type id.
 
 Registration is idempotent and thread safe: writers take a lock and publish with `Volatile.Write`, and
-readers never lock.
+readers never lock. `NinoFormatterCache<T>.Register` (a formatter chosen by the application) must run before the first
+use of `T`: the first use takes a snapshot of the formatter, and a later `Register` throws.
 
 ### Polymorphism
 
@@ -636,7 +645,11 @@ argument is known at the call site and whose formatter it resolves (not raw valu
 which the regular calls already copy directly, and not types it can only reach through `CachedFormatter<T>`):
 `NinoGen.Interceptors.g.cs` redirects it to `Nino.Core.NinoDirect`, which calls the formatter struct directly.
 The bytes are the same. A formatter registered at run time with `NinoFormatterCache<T>.Register` still wins
-(`NinoDirect` checks a flag it sets), so intercepted and regular calls never disagree.
+(`NinoDirect` checks a flag it sets), so intercepted and regular calls never disagree. The flag is read once, on the
+first use of `T`, into a `static readonly` field (`NinoTopFormatter<T>`, with the formatter itself), so Tier1 code
+folds the check away, and regular calls know the formatter's exact class and call it directly instead of virtually.
+Registering a formatter for `T` after `T` has been serialized or deserialized (top-level calls, raw copies,
+`CachedFormatter<T>`) therefore throws `InvalidOperationException`, rather than being ignored by code already compiled.
 Measured on .NET 8 (small types, ns per call, regular → intercepted): deserializing a non-sealed class
 15.5 → 11.6, a sealed class 29.5 → 24, a struct with a string 16.7 → 15.0.
 
@@ -657,6 +670,12 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * C# 11+ projects get a file-local `InterceptsLocationAttribute` and interceptor class; older language versions
   get internal ones.
 * Calls in generic code (`T` a type parameter) are left alone: the interceptor would be shared code too.
+* A sealed class with a small body that opens no class body (at most eight members, one or two of which call
+  formatters) also gets a `__Top` twin of its formatter, whose body is inlined into the caller, so the reader or writer
+  the top-level call creates stays in registers. Calls that create their reader or writer use it, for the type itself
+  and for the elements of a built-in collection of it (`List<Small>`, `Small[]`, `Dictionary<int, Small>`): no class
+  body is open around those either, and the twin writes the same bytes wherever none is. A collection then reads and
+  writes each element inline in its loop, instead of calling the element's body.
 
 ### The API generated code calls
 

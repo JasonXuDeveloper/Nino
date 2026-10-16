@@ -19,7 +19,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoFormatterCache<T>.Replaced)
+            if (NinoTopFormatter<T>.Replaced)
                 return SerializeReplaced(value);
             return SerializeToArray<T, TFormatter>(value);
         }
@@ -63,7 +63,7 @@ namespace Nino.Core
         public static void Serialize<T, TFormatter>(T value, IBufferWriter<byte> bufferWriter)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (!NinoFormatterCache<T>.Replaced && bufferWriter is NinoArrayBufferWriter nino)
+            if (!NinoTopFormatter<T>.Replaced && bufferWriter is NinoArrayBufferWriter nino)
                 Write<T, TFormatter>(value, nino);
             else
                 SerializeReplaced(value, bufferWriter);
@@ -73,7 +73,7 @@ namespace Nino.Core
         public static void Serialize<T, TFormatter>(T value, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoFormatterCache<T>.Replaced)
+            if (NinoTopFormatter<T>.Replaced)
             {
                 // Through a copy: the writer's address reaching a call would keep its fields in memory.
                 var copy = writer;
@@ -98,7 +98,7 @@ namespace Nino.Core
         {
             // The replaced-formatter path is out of line: inlined, it takes the address of value and of a second
             // Reader, which keeps value in memory and zeroes both in the prolog of every call.
-            if (NinoFormatterCache<T>.Replaced)
+            if (NinoTopFormatter<T>.Replaced)
                 return DeserializeReplaced<T>(data);
 
             var reader = new Reader(data);
@@ -115,7 +115,7 @@ namespace Nino.Core
         public static void Deserialize<T, TFormatter>(ReadOnlySpan<byte> data, ref T value)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoFormatterCache<T>.Replaced)
+            if (NinoTopFormatter<T>.Replaced)
             {
                 DeserializeReplaced(data, ref value);
                 return;
@@ -130,7 +130,7 @@ namespace Nino.Core
         public static void Deserialize<T, TFormatter>(ref T value, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (NinoFormatterCache<T>.Replaced)
+            if (NinoTopFormatter<T>.Replaced)
             {
                 // Through a copy, as in Serialize.
                 var copy = reader;

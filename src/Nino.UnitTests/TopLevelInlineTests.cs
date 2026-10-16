@@ -65,6 +65,15 @@ namespace Top
                 Check<Text, NinoGen.Top_TextFormatter.__Top, NinoGen.Top_TextFormatter>(new Text { B = new string('é', 3000) }),
                 Check<Dates, NinoGen.Top_DatesFormatter.__Top, NinoGen.Top_DatesFormatter>(new Dates { A = new List<DateTime> { new DateTime(2020, 1, 2) } }),
                 Check<Map, NinoGen.Top_MapFormatter.__Top, NinoGen.Top_MapFormatter>(new Map { A = new Dictionary<int, string> { [1] = ""a"", [2] = null } }),
+                // Top-level collections: the interceptors use the __Top twins of their elements' formatters.
+                Check<Text[], ArrayFormatter<Text, NinoGen.Top_TextFormatter.__Top>, ArrayFormatter<Text, NinoGen.Top_TextFormatter>>(
+                    new[] { new Text { A = ""a"", B = ""é"" }, null, new Text() }),
+                Check<Text[], ArrayFormatter<Text, NinoGen.Top_TextFormatter.__Top>, ArrayFormatter<Text, NinoGen.Top_TextFormatter>>(null),
+                Check<List<Ints>, ListFormatter<List<Ints>, Ints, NinoGen.Top_IntsFormatter.__Top>, ListFormatter<List<Ints>, Ints, NinoGen.Top_IntsFormatter>>(
+                    Enumerable.Range(0, 50).Select(i => i % 7 == 0 ? null : new Ints { Id = i, A = new[] { i } }).ToList()),
+                Check<Dictionary<int, Map>, DictionaryFormatter<int, Map, UnmanagedFormatter<int>, NinoGen.Top_MapFormatter.__Top>,
+                    DictionaryFormatter<int, Map, UnmanagedFormatter<int>, NinoGen.Top_MapFormatter>>(
+                    new Dictionary<int, Map> { [1] = new Map { A = new Dictionary<int, string> { [3] = ""c"" } }, [2] = null }),
             };
             return string.Join(""; "", results.Where(r => r != ""ok""));
         }

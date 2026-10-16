@@ -15,8 +15,9 @@ namespace Nino.Generator.Generation;
 /// One intercepted top-level call. <see cref="Signature"/> is the interceptor's parameter list and return type,
 /// <see cref="Call"/> the <c>NinoDirect</c> call it makes, <see cref="Attribute"/> its <c>[InterceptsLocation]</c>.
 /// Calls with the same signature and call share one interceptor. <see cref="Inlinable"/>: the call creates its own
-/// reader or writer, and <see cref="Formatter"/> is generated: it then uses the formatter's <c>__Top</c> twin where
-/// the type has one (<see cref="TypeModel.TopInline"/>).
+/// reader or writer, so no class body is open around <see cref="Formatter"/>: the call then uses the <c>__Top</c>
+/// twin (<see cref="TypeModel.TopInline"/>) of the formatter, or of the element formatters of a built-in collection
+/// (<c>List&lt;Small&gt;</c>, <c>Dictionary&lt;int, Small&gt;</c>), whose elements are read and written there too.
 /// </summary>
 internal sealed record InterceptedCall(string Signature, string Call, string Attribute, string Formatter = "",
     bool Inlinable = false);
@@ -113,11 +114,45 @@ internal static class Interceptors
 
         signature.Append(')');
         // Overloads given a reader or writer leave its fields in the caller's memory: nothing to gain there.
-        bool inlinable = formatter.Code.StartsWith(TypeNames.Gen, StringComparison.Ordinal) &&
-                         !method.Parameters.Any(p => p.RefKind == RefKind.Ref && p.Type.Name is "Reader" or "Writer");
+        bool inlinable = !method.Parameters.Any(p => p.RefKind == RefKind.Ref && p.Type.Name is "Reader" or "Writer");
         return new InterceptedCall(signature.ToString(),
             $"{TypeNames.Core}NinoDirect.{method.Name}<{name}, {formatter.Code}>({arguments})", attribute,
             formatter.Code, inlinable);
+    }
+
+    /// <summary>
+    /// <paramref name="formatter"/> with the <c>__Top</c> twins of the generated formatters in <paramref name="tops"/>:
+    /// the formatter itself, or the element formatters it is composed of (type arguments of built-in collection,
+    /// nullable and tuple formatters). Those are called with no class body open, as the formatter is, since only
+    /// generated bodies open one and generated formatters take no formatter type arguments; and a <c>__Top</c> twin
+    /// writes and reads the same bytes as its formatter wherever no class body is open (its body opens none).
+    /// </summary>
+    internal static string WithTop(string formatter, HashSet<string> tops)
+    {
+        if (tops.Count == 0)
+            return formatter;
+        if (tops.Contains(formatter))
+            return formatter + ".__Top";
+        const string gen = TypeNames.Gen;
+        var result = new StringBuilder(formatter.Length);
+        int i = 0;
+        while (true)
+        {
+            int start = formatter.IndexOf(gen, i, StringComparison.Ordinal);
+            if (start < 0)
+                break;
+            int end = start + gen.Length;
+            while (end < formatter.Length && (char.IsLetterOrDigit(formatter[end]) || formatter[end] == '_'))
+                end++;
+            result.Append(formatter, i, end - i);
+            // A whole type argument: followed by ',' or '>' (not a generic formatter or a nested name).
+            if (end < formatter.Length && formatter[end] is ',' or '>' &&
+                tops.Contains(formatter.Substring(start, end - start)))
+                result.Append(".__Top");
+            i = end;
+        }
+
+        return result.Append(formatter, i, formatter.Length - i).ToString();
     }
 
     /// <summary>Whether generated code in this assembly can name the type (no private or protected parts).</summary>
@@ -160,8 +195,8 @@ internal static class Interceptors
         w.AppendLine($"    {scope} static class NinoInterceptors");
         w.AppendLine("    {");
         int n = 0;
-        foreach (var group in calls.GroupBy(c => (c.Signature, Call: c.Inlinable && tops.Contains(c.Formatter)
-                     ? c.Call.Replace(c.Formatter + ">(", c.Formatter + ".__Top>(")
+        foreach (var group in calls.GroupBy(c => (c.Signature, Call: c.Inlinable
+                     ? c.Call.Replace(", " + c.Formatter + ">(", ", " + WithTop(c.Formatter, tops) + ">(")
                      : c.Call)))
         {
             if (n != 0)

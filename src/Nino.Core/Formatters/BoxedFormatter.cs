@@ -28,12 +28,12 @@ namespace Nino.Core
             NinoSerializer.Serialize((T)value, bufferWriter);
 
         public override void Serialize(object value, ref Writer writer) =>
-            NinoFormatterCache<T>.Instance.Serialize((T)value, ref writer);
+            NinoTopFormatter<T>.Get.Serialize((T)value, ref writer);
 
         public override void Deserialize(ref object value, ref Reader reader)
         {
             T typed = value is T existing ? existing : default;
-            NinoFormatterCache<T>.Instance.Deserialize(ref typed, ref reader);
+            NinoTopFormatter<T>.Get.Deserialize(ref typed, ref reader);
             value = typed;
         }
     }

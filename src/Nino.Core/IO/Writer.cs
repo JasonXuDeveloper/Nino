@@ -438,7 +438,10 @@ namespace Nino.Core
         /// <summary>Longest string <see cref="WriteUtf8"/> reserves 3 bytes per char for.</summary>
         private const int Utf8WorstCaseMaxChars = 1024;
 
-        /// <summary>Writes a string as UTF-8: byte count (-1 for null), then the bytes.</summary>
+        /// <summary>
+        /// Writes a string as UTF-8: its UTF-16 length (char count; -1 for null), then the UTF-8 bytes. Unpaired
+        /// surrogates are written as U+FFFD, one char each, so the count is that of the string read back.
+        /// </summary>
         // Inlined, with the counting and the encoding out of line taking values: an instance call would take the
         // writer's address, which keeps all its fields in memory in the caller.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -457,8 +460,8 @@ namespace Nino.Core
                 : Utf8ByteCount(value);
             int lengthPos = _pos;
             ref byte dst = ref Reserve(NinoWire.LengthSize + maxBytes);
+            NinoUnsafe.Write(ref dst, value.Length);
             int written = EncodeUtf8(value, ref Unsafe.Add(ref dst, NinoWire.LengthSize), maxBytes);
-            NinoUnsafe.Write(ref dst, written);
             // give back the unused part of the worst-case reservation
             _pos = lengthPos + NinoWire.LengthSize + written;
         }
