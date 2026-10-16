@@ -43,8 +43,11 @@ namespace Nino.Core
         /// <summary>
         /// Generated subtype dispatch: reads the body of <typeparamref name="TSub"/> (its type id consumed) into a
         /// slot declared as <typeparamref name="TBase"/>, reusing the instance only if it is exactly
-        /// <typeparamref name="TSub"/>. The type check is inlined into the (non-shared) dispatch, where it is one
-        /// method table compare; the body is not, since a dispatch method holding every subtype's body reads slower.
+        /// <typeparamref name="TSub"/>. Inlined into a method of the dispatching formatter (one per subtype), which
+        /// the dispatch's switch calls as a tail call: there it is not shared code, which it would be called from the
+        /// switch (<typeparamref name="TSub"/> is a class), taking a generic context in a register and a frame slot.
+        /// The body is not inlined into the switch either, since a dispatch method holding every subtype's body reads
+        /// slower.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ReadExact<TBase, TSub, TFormatter>(ref TBase value, ref Reader reader)
@@ -53,18 +56,15 @@ namespace Nino.Core
             where TFormatter : struct, INinoBodyFormatter<TSub>
         {
             var old = value;
-            // Every path ends with a call (a tail call): nothing is live across a call in the dispatch, which then
-            // saves no registers in its prolog.
             if (old != null && old.GetType() != typeof(TSub))
             {
                 ReadReplacing<TBase, TSub, TFormatter>(ref value, ref reader);
                 return;
             }
 
-            // The slot itself, seen as a TSub slot (it now holds null or a TSub): a local copy would reach the call
-            // by address, an untracked GC slot per subtype of the dispatch, all zeroed in its prolog on every call
-            // (and stored back through a second write barrier).
-            ReadBodyOutOfLine<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
+            // The slot itself, seen as a TSub slot (it now holds null or a TSub): a local copy would reach the body
+            // by address, an untracked GC slot zeroed in the prolog (and stored back through a second write barrier).
+            ReadExactBody<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
         }
 
         /// <summary><see cref="ReadExact{TBase,TSub,TFormatter}"/> into a slot holding an instance of another type.</summary>
@@ -75,7 +75,7 @@ namespace Nino.Core
             where TFormatter : struct, INinoBodyFormatter<TSub>
         {
             NinoRecycler.Discard(ref value);
-            ReadBodyOutOfLine<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
+            ReadExactBody<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
         }
 
         /// <summary>
@@ -100,12 +100,14 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// <see cref="ReadBody{T,TFormatter}"/>, spelled out: this is shared code, and an inlined ReadBody (a generic
-        /// method) would look up its generic context on every call, though only its deep path needs it. The
-        /// reader is a <c>ref</c> parameter here, in memory anyway.
+        /// <see cref="ReadBody{T,TFormatter}"/>, spelled out for <see cref="ReadExact{TBase,TSub,TFormatter}"/>: where
+        /// it is shared code (<see cref="ReadReplacing{TBase,TSub,TFormatter}"/>) an inlined ReadBody (a generic
+        /// method) would look up its generic context on every call, though only its deep path needs it, and the
+        /// reader is a <c>ref</c> parameter, in memory anyway (ReadBody's copy of it for a deep body would be zeroed
+        /// in the prolog).
         /// </summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReadBodyOutOfLine<T, TFormatter>(ref T value, ref Reader reader)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadExactBody<T, TFormatter>(ref T value, ref Reader reader)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {

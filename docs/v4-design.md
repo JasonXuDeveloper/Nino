@@ -462,15 +462,21 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
   * Serialize: a chain of `value.GetType() == typeof(Sub)` checks, each one method table compare, writing the
     subtype's id and body directly (up to 64 subtypes; beyond, the registry). With 20 subtypes this writes 1.3x
     as fast as the registry when the subtypes repeat in a fixed order, and 3x when they come in random order.
-  * Deserialize: `switch (id)` over the subtype ids, each case reading the subtype's body (not inlined, so the
-    switch stays small). The ids are hashes, so the switch is a binary search of conditional branches. In random
+  * Deserialize: `switch (id)` over the subtype ids, each case a tail call to a one-line method of the root's
+    formatter (`__ReadExact{n}`, not inlined, so the switch stays small) that checks the instance in the slot and
+    reads the subtype's body. In that non-generic method `NinoObject.ReadExact` is not shared code; called from the
+    switch it would be (the subtype is a class), taking a generic context in a register and a frame slot on every
+    call. The ids are hashes, so the switch is a binary search of conditional branches. In random
     order this reads 1.5x as fast as the registry, whose indirect call mispredicts; a perfect hash with a dense
     switch (an indirect jump) was measured too and mispredicts the same way. When the subtypes repeat in a fixed
     cycle the registry's indirect call is perfectly predicted and the switch is about 10% slower.
   * A class below the root reads through the root's switch and then checks that the type the data named is one
     of its own (`NinoObject.EnsureSubtype`), so data naming a sibling type throws instead of being stored.
-  * Each subtype costs two lines per hierarchy (not per ancestor), so generated code stays linear in the number of
-    types: the 330-type workload grows by 8%.
+  * Each subtype costs three lines per hierarchy (not per ancestor), so generated code stays linear in the number
+    of types: the 330-type workload grows by 12%. Writes call `NinoObject.WriteExact` from the chain (inlined where
+    the caller's budget allows, else shared code): a non-generic method per subtype there too wrote 4.5% fewer
+    instructions for an array of 20 subtypes, but more where the bodies would have been inlined, and cost about
+    2.5% more compile time on the 330-type workload.
 * **Serialize (registry)**: other subtypes (other assemblies, closed generics, tracked types, more than 64): look up
   the runtime type in a lock-free open-addressing table and call the subtype's body serializer through its
   handler.

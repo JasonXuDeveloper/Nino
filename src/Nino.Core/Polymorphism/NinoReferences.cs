@@ -99,7 +99,14 @@ namespace Nino.Core
     {
         [ThreadStatic] private static NinoReferenceReadTable t_cached;
 
-        private object[] _objects = new object[8];
+        // An object in a struct: storing into an object[] is a covariant array store, a call that checks the
+        // element type before the write barrier.
+        private struct Slot
+        {
+            public object Value;
+        }
+
+        private Slot[] _objects = new Slot[8];
         private int _count;
 
         // Index of the object whose instance has not been recorded yet (0 = none).
@@ -122,7 +129,7 @@ namespace Nino.Core
         {
             if (_count == _objects.Length)
                 Array.Resize(ref _objects, _count * 2);
-            _objects[_count++] = null;
+            _objects[_count++].Value = null;
             Pending = _count;
             return _count;
         }
@@ -130,7 +137,11 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Set(int index, object value)
         {
-            _objects[index - 1] = value;
+            // Usually called twice per object (once its instance exists, then when it is read): the second call
+            // finds it stored and skips the write barrier.
+            ref var slot = ref _objects[index - 1].Value;
+            if (!ReferenceEquals(slot, value))
+                slot = value;
             if (Pending == index)
                 Pending = 0;
         }
@@ -139,7 +150,7 @@ namespace Nino.Core
         {
             if ((uint)(index - 1) >= (uint)_count)
                 NinoThrow.InvalidReference(index);
-            var value = _objects[index - 1];
+            var value = _objects[index - 1].Value;
             if (value == null)
                 NinoThrow.IncompleteReference(index);
             return value;
