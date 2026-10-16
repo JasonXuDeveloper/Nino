@@ -14,6 +14,13 @@ namespace Nino.Core
             // Raw values inline into the caller as a length check and a load.
             if (NinoRaw.Is<T>())
                 return ReadRaw<T>(data);
+            // Arrays of raw elements: read by code specialized for the element type, as the serializer writes them.
+            if (NinoSerializer.RawArray<T>.Info is { } raw)
+            {
+                object array = raw.Read(data, null);
+                return Unsafe.As<object, T>(ref array);
+            }
+
             return DeserializeFormatted<T>(data);
         }
 
@@ -39,6 +46,13 @@ namespace Nino.Core
             if (NinoRaw.Is<T>())
             {
                 value = ReadRaw<T>(data);
+                return;
+            }
+
+            if (NinoSerializer.RawArray<T>.Info is { } raw)
+            {
+                object array = raw.Read(data, Unsafe.As<T, Array>(ref value));
+                value = Unsafe.As<object, T>(ref array);
                 return;
             }
 

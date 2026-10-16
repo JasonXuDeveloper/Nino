@@ -125,6 +125,14 @@ namespace Nino.Core
                 ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(values)), values.Length);
         }
 
+        Array INinoRawArrayFormatter.Read(ReadOnlySpan<byte> data, Array existing)
+        {
+            var reader = new Reader(data);
+            var value = Unsafe.As<T[]>(existing);
+            Deserialize(ref value, ref reader);
+            return value;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T[] value, ref Writer writer) => writer.Write(value);
 

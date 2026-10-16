@@ -79,6 +79,12 @@ namespace Nino.Core
 
         /// <summary>Writes the length and the elements of <paramref name="array"/> (a <c>T[]</c>, not null).</summary>
         void Write(ref byte destination, System.Array array);
+
+        /// <summary>
+        /// Reads a whole payload holding one array, into <paramref name="existing"/> (null or a <c>T[]</c>) where
+        /// possible. Code specialized for the element type, with its own reader.
+        /// </summary>
+        System.Array Read(System.ReadOnlySpan<byte> data, System.Array existing);
     }
 
     /// <summary>

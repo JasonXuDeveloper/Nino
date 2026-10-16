@@ -86,7 +86,7 @@ namespace Nino.Core
         /// is shared between instantiations and every static access is a generic dictionary lookup: everything
         /// the fast path needs is behind one.
         /// </summary>
-        private static class RawArray<T>
+        internal static class RawArray<T>
         {
             public static readonly RawArrayWriter Info = Create();
 
@@ -111,7 +111,7 @@ namespace Nino.Core
         /// Writes an array of raw elements: its length, then one block copy, in code specialized for the element
         /// type (the array formatter's), so only the lookup of this object is shared code.
         /// </summary>
-        private sealed class RawArrayWriter
+        internal sealed class RawArrayWriter
         {
             private readonly int _elementSize;
             private readonly INinoRawArrayFormatter _formatter;
@@ -134,6 +134,8 @@ namespace Nino.Core
             }
 
             public void Write(ref byte destination, Array array) => _formatter.Write(ref destination, array);
+
+            public Array Read(ReadOnlySpan<byte> data, Array existing) => _formatter.Read(data, existing);
         }
 
         /// <summary>
