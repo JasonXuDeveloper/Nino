@@ -15,6 +15,13 @@ reports are in `<out>/v3a`, `<out>/v4` and `<out>/v3b`. `dotnet benchmarks/v3/bi
 
 The numbers in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) were measured this way.
 
+Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) builds `v3/`, runs it
+before and after the v4 suite in the same job on the same runner with the same settings, and adds a
+**📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
+`compare.py` table for each v3 run, then the v3 reports. The documentation site takes its v4-vs-v3 ratios from that
+section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
+adds whichever section is missing.
+
 ## Member by Member
 
 `members/` takes `SimpleClass` apart: each member type (`int`/`Guid`/`DateTime` header, UTF-16 and UTF-8 strings,

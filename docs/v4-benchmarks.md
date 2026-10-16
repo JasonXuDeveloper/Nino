@@ -213,4 +213,6 @@ dotnet run -c Release --project src/Nino.Benchmark -- --filter '*' --launchCount
 
 The v3 numbers come from [`benchmarks/v3`](../benchmarks/v3), the same `SimpleTest` built against the `Nino` 3.3.13
 package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3, the full v4 suite,
-v3 again) and prints v4 against both v3 runs.
+v3 again) and prints v4 against both v3 runs. The release workflow runs the same protocol on its CI runner for every
+release and publishes the result in the release notes ("v3 3.3.13 vs v4 (same machine)"); once the newest v4
+release carries that section, the documentation site shows its ratios instead of the numbers above.

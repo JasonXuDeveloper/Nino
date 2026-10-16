@@ -31,7 +31,14 @@ jobs:
     name: Run Performance Benchmarks
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    
+    env:
+      # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few.
+      BDN_ARGS: --launchCount 1 --warmupCount 5 --iterationCount 15
+      # The second section of the release body: Nino v3 3.3.13 against this release, on this runner.
+      # The docs site (nino.docs scripts/sync-benchmarks.ts) looks for this heading.
+      V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
+      V3_OUT: ${{ github.workspace }}/v3-results
+
     steps:
       - name: Determine target tag/ref
         id: determine_target
@@ -65,12 +72,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASE_BODY=$(gh release view "${{ env.tag_name }}" --json body --jq '.body')
-          if [[ $RELEASE_BODY == *"Performance Report"* ]]; then
+          # Skip only when both sections are there; otherwise run and add the missing one.
+          if [[ $RELEASE_BODY == *"Performance Report"* && $RELEASE_BODY == *"$V3_HEADING"* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "⏭️ Benchmark already exists for this release"
+            echo "⏭️ Benchmark and v3 comparison already exist for this release"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
-            echo "✅ No benchmark found, will run"
+            echo "✅ A section is missing, will run"
           fi
       
       - name: Setup .NET
@@ -101,15 +109,37 @@ jobs:
         run: |
           cd Nino.Benchmark
           dotnet build -c Release
-      
+
+      # Nino v3 3.3.13 from nuget.org (benchmarks/v3 has its own nuget.config), the same SimpleTest. It runs before
+      # and after the v4 run, as benchmarks/run.sh does, so drift of the runner shows. A v3 failure never blocks
+      # the Performance Report: the v3 section is then left out.
+      - name: Build v3 benchmark (Nino 3.3.13)
+        id: v3_build
+        if: steps.check_benchmark.outputs.skip != 'true'
+        continue-on-error: true
+        run: |
+          dotnet build -c Release benchmarks/v3
+          dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll --verify
+
+      - name: Run v3 benchmark (before v4)
+        id: v3_before
+        if: steps.check_benchmark.outputs.skip != 'true' && steps.v3_build.outcome == 'success'
+        continue-on-error: true
+        working-directory: ./benchmarks/v3
+        run: |
+          # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
+          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' $BDN_ARGS --artifacts "$V3_OUT/before"
+          find "$V3_OUT/before/results" -name '*-report-github.md' | grep -q .
+
       - name: Run benchmarks
         if: steps.check_benchmark.outputs.skip != 'true'
         working-directory: ./src
         run: |
           cd Nino.Benchmark
           echo "Running benchmarks for ${{ env.tag_name }}..."
-          # The settings of the published numbers (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few.
-          dotnet run -c Release --no-build -- --filter '*' --launchCount 1 --warmupCount 5 --iterationCount 15
+          # The settings of the published numbers (BDN_ARGS above, docs/v4-benchmarks.md).
+          # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
+          dotnet run -c Release --no-build -- --filter '*' $BDN_ARGS
           
           # Verify benchmark results exist (check for any github markdown file)
           MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)
@@ -129,6 +159,16 @@ jobs:
             exit 1
           fi
       
+      - name: Run v3 benchmark (after v4)
+        id: v3_after
+        if: steps.check_benchmark.outputs.skip != 'true' && steps.v3_before.outcome == 'success'
+        continue-on-error: true
+        working-directory: ./benchmarks/v3
+        run: |
+          # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
+          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' $BDN_ARGS --artifacts "$V3_OUT/after"
+          find "$V3_OUT/after/results" -name '*-report-github.md' | grep -q .
+
       - name: Upload benchmark artifacts
         if: steps.check_benchmark.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
@@ -136,6 +176,7 @@ jobs:
           name: benchmark-results-${{ env.tag_name }}
           path: |
             src/Nino.Benchmark/**/BenchmarkDotNet.Artifacts/results
+            v3-results/*/results
           retention-days: 90
       
       
@@ -164,41 +205,97 @@ jobs:
           
           echo "✅ Found benchmark report: $BENCHMARK_FILE"
           
-          # Read benchmark content
-          PERF_CONTENT=$(cat "$BENCHMARK_FILE")
-          
-          
           # Get current release body
-          RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
-          
-          # Check if benchmark already exists in release notes
-          if [[ $RELEASE_BODY == *"Performance Report"* ]]; then
-            echo "⏭️ Benchmark already exists in release notes"
+          gh release view "$TAG_NAME" --json body --jq '.body' > current_notes.md
+          HAS_PERF=false; HAS_V3=false
+          grep -q "Performance Report" current_notes.md && HAS_PERF=true
+          grep -qF "$V3_HEADING" current_notes.md && HAS_V3=true
+
+          # The Performance Report section, in the format the docs site has always parsed: keep it as it is.
+          : > perf_section.md
+          if [[ $HAS_PERF == true ]]; then
+            echo "⏭️ Performance Report already exists in release notes"
+          else
+            {
+              echo "## 📊 Performance Report"
+              echo ""
+              echo "<details>"
+              echo "<summary>Click to expand benchmark results</summary>"
+              echo ""
+              cat "$BENCHMARK_FILE"
+              echo ""
+              echo "</details>"
+              echo ""
+              echo "---"
+              echo "*Benchmark generated automatically on $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
+            } > perf_section.md
+          fi
+
+          # The v3 section: the compare.py tables (v4 against each v3 run) and the v3 reports.
+          : > v3_section.md
+          V3_BEFORE=$(find "$V3_OUT/before/results" -name '*-report-github.md' 2>/dev/null | head -n1 || true)
+          V3_AFTER=$(find "$V3_OUT/after/results" -name '*-report-github.md' 2>/dev/null | head -n1 || true)
+          if [[ $HAS_V3 == true ]]; then
+            echo "⏭️ v3 comparison already exists in release notes"
+          elif [[ -z "$V3_BEFORE" ]]; then
+            echo "⚠️ No v3 report (see the v3 steps): the v3 comparison is left out"
+          else
+            RUNS=("$V3_BEFORE"); LABELS=("before"); WHEN="before"
+            if [[ -n "$V3_AFTER" ]]; then RUNS+=("$V3_AFTER"); LABELS+=("after"); WHEN="before and after"; fi
+            {
+              echo "$V3_HEADING"
+              echo ""
+              echo "<details>"
+              echo "<summary>Nino v3 3.3.13 (NuGet) against ${TAG_NAME}, back to back on the same runner</summary>"
+              echo ""
+              # Never write the words "Performance Report" here: parsers find the v4 report by them.
+              echo "\`benchmarks/v3\` (the same \`SimpleTest\`, built against Nino 3.3.13 from nuget.org) ran ${WHEN} the v4"
+              echo "run below, in the same job on the same runner, with the same BenchmarkDotNet settings"
+              echo "(\`${BDN_ARGS}\`). MemoryPack runs in both, so its two columns show how much the runner moved."
+              for i in "${!RUNS[@]}"; do
+                echo ""
+                echo "### v4 vs v3 (v3 run ${LABELS[$i]} v4)"
+                echo ""
+                python3 "$GITHUB_WORKSPACE/benchmarks/v3/compare.py" "${RUNS[$i]}" "$BENCHMARK_FILE" \
+                  || echo "compare.py could not read the reports."
+              done
+              for i in "${!RUNS[@]}"; do
+                echo ""
+                echo "### v3 3.3.13 report (run ${LABELS[$i]} v4)"
+                echo ""
+                cat "${RUNS[$i]}"
+              done
+              echo ""
+              echo "</details>"
+            } > v3_section.md
+          fi
+
+          if [[ ! -s perf_section.md && ! -s v3_section.md ]]; then
+            echo "⏭️ Nothing to add"
             exit 0
           fi
-          
-          # Create updated release notes with better formatting
-          {
-            echo "$RELEASE_BODY"
-            echo ""
-            echo "## 📊 Performance Report"
-            echo ""
-            echo "<details>"
-            echo "<summary>Click to expand benchmark results</summary>"
-            echo ""
-            cat "$BENCHMARK_FILE"
-            echo ""
-            echo "</details>"
-            echo ""
-            echo "---"
-            echo "*Benchmark generated automatically on $(date -u '+%Y-%m-%d %H:%M:%S UTC')*"
-          } > updated_notes.md
-          
+
+          # The v3 section goes before the Performance Report: parsers that read every table from
+          # "Performance Report" to the end of the body then never see the v3 tables.
+          python3 - <<'EOF'
+          import re
+          body = open("current_notes.md", encoding="utf-8").read().rstrip("\n")
+          v3 = open("v3_section.md", encoding="utf-8").read().strip("\n")
+          perf = open("perf_section.md", encoding="utf-8").read().strip("\n")
+          match = re.search(r"^.*Performance Report", body, re.MULTILINE)
+          if match:  # the report is already there: put the v3 section in front of its heading
+              head, tail = body[:match.start()].rstrip("\n"), body[match.start():]
+          else:
+              head, tail = body, perf
+          parts = [part for part in (head, v3, tail) if part]
+          open("updated_notes.md", "w", encoding="utf-8").write("\n\n".join(parts) + "\n")
+          EOF
+
           # Update the release
           gh release edit "$TAG_NAME" --notes-file updated_notes.md
           echo "✅ Release notes updated with benchmark results"
       
-      # The docs site reads the "Performance Report" section of the latest v4 release at build time: rebuild it.
+      # The docs site reads the "Performance Report" and v3 sections of the latest v4 release at build time: rebuild it.
       - name: Rebuild the docs site
         if: steps.check_benchmark.outputs.skip != 'true'
         env:
