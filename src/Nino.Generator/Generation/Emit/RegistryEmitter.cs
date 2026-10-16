@@ -54,7 +54,7 @@ internal static class RegistryEmitter
                     : new[] { (Id: e.TypeId, Entry: e), (Id: e.NameId, Entry: e) })
                 .GroupBy(x => x.Id, x => x.Entry).OrderBy(g => g.Key)
                 .Select(g => new KeyValuePair<int, List<string>>(g.Key,
-                    g.Select(e => $"{e.FormatterName}.__Register();").ToList()))
+                    g.SelectMany(e => e.Registration).ToList()))
                 .ToList());
         w.Line();
         w.Line("/// <summary>Runs the registration (once).</summary>");

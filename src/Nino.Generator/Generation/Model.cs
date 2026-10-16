@@ -156,7 +156,7 @@ internal sealed record TypeModel(
     // A class whose body can be read after its instance is in its slot (see NinoDepth): created without its
     // members (not by a constructor taking them) and not compared by value.
     bool Deferrable,
-    // Whether a class body may hold class bodies (see INinoBodyFormatter.Nests): false lets it skip the depth count.
+    // Whether a class body may hold class bodies (see NinoBody.Nests): false lets it skip the depth count.
     bool Nests,
     // Whether every (non-null) value is written in the same number of bytes (TypeFacts.IsFixedSize): the formatter
     // implements INinoFixedSizeFormatter.
@@ -245,6 +245,15 @@ internal sealed record TypeModel(
     /// </summary>
     public bool BoundedEntry => Shallow && Kind == FormatterKind.SealedClass && Nests && !TrackReferences;
 
+    /// <summary>
+    /// Whether the body of a class is one block of raw members (positional, not tracked, not a collection): the
+    /// formatter implements <c>INinoRawBodyFormatter</c>, so the type id or null flag in front of the body is written
+    /// into the same reservation (one capacity check instead of two).
+    /// </summary>
+    public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct && !VersionTolerant &&
+                           !Keyed && !TrackReferences && CollectionFormatter.Length == 0 && Members.Length != 0 &&
+                           Members.All(static x => x.Raw != null);
+
     /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
     public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
 }
@@ -267,11 +276,14 @@ internal sealed record UsageRegistration(FormatterRegistration? Formatter, Equat
     EquatableArray<ClosedTypeRegistration> GenericTypes);
 
 // A generated formatter, as the registry lists it. Arity: its number of type parameters (0 if not generic).
-internal sealed record RegistryEntry(string FormatterName, int Arity, int TypeId, int NameId);
+// Registration: the statements registering the formatter (FormatterEmitter.RegisterStatements), run by the registry.
+internal sealed record RegistryEntry(string FormatterName, int Arity, int TypeId, int NameId,
+    EquatableArray<string> Registration);
 
 // A type in the per-assembly subtype dispatch: a base (DispatchesSubtypes), a target (IsDispatchTarget), or both.
+// RawBody: the target's body is one raw block (TypeModel.RawBody), written with its type id in one reservation.
 internal sealed record DispatchEntry(string TypeName, string FormatterName, int TypeId, bool IsBase, bool IsTarget,
-    EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces);
+    EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces, bool RawBody);
 
 // RegisteringReferences: one formatter (open name) of each referenced assembly that registers formatters.
 internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,

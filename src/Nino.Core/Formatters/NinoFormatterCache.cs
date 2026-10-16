@@ -54,6 +54,21 @@ namespace Nino.Core
             NinoFormatterCache.MarkRegistered(typeof(T));
         }
 
+        /// <summary>
+        /// <see cref="TryRegister{TFormatter}"/> for a formatter with a <c>__Top</c> twin, which the regular top-level
+        /// calls write through (see <see cref="INinoTopFormatter{T}"/>). Used by generated code.
+        /// </summary>
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public static void TryRegisterTop<TFormatter, TTop>()
+            where TFormatter : struct, INinoFormatter<T>
+            where TTop : struct, INinoTopFormatter<T>
+        {
+            if (Volatile.Read(ref _instance) != null)
+                return;
+            Interlocked.CompareExchange(ref _instance, new TopStructFormatter<T, TFormatter, TTop>(), null);
+            NinoFormatterCache.MarkRegistered(typeof(T));
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static NinoFormatter<T> Resolve()
         {

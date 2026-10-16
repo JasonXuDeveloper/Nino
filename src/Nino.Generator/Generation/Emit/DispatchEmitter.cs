@@ -93,7 +93,7 @@ internal static class DispatchEmitter
             // array of 20 subtypes, but more where the bodies would have been inlined, and one more method per
             // subtype costs about 2.5% more compile time on a workload of hierarchies.
             foreach (var s in subtypes.Count <= MaxWriteChain ? subtypes : new List<DispatchEntry>())
-                w.Line($"if (value.GetType() == typeof({s.TypeName})) {{ __NinoObject.WriteExact<{s.TypeName}, {s.FormatterName}>(value, ref writer); return; }}");
+                w.Line($"if (value.GetType() == typeof({s.TypeName})) {{ __NinoObject.WriteExact{(s.RawBody ? "Raw" : "")}<{s.TypeName}, {s.FormatterName}>(value, ref writer); return; }}");
             w.Line($"{Core}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
         });
         w.Line();

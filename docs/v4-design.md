@@ -477,6 +477,12 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     the caller's budget allows, else shared code): a non-generic method per subtype there too wrote 4.5% fewer
     instructions for an array of 20 subtypes, but more where the bodies would have been inlined, and cost about
     2.5% more compile time on the 330-type workload.
+  * A subtype whose body is one raw block (a class that is not version tolerant, keyed or tracked, whose members
+    are all raw values, see `INinoRawBodyFormatter<T>`) is written by `NinoObject.WriteExactRaw`: one capacity
+    check (`Reserve`) for its type id and body together, then constant-offset stores, instead of one check for the
+    id and another for the body. The same merge applies where the formatter writes its own subtype (`TryWriteOwnRaw`,
+    `SerializeRaw`, `SerializeSealedRaw`: id or null flag with the body) and to the top-level twins
+    (`SerializeTopRaw`). The bytes are the same; the deep path (nesting at `NinoDepth.Inline`) is unchanged.
 * **Serialize (registry)**: other subtypes (other assemblies, closed generics, tracked types, more than 64): look up
   the runtime type in a lock-free open-addressing table and call the subtype's body serializer through its
   handler.
@@ -519,7 +525,12 @@ Cache-line reasoning assumes 64-byte lines.
 * Mutable registration state (`_count`, locks) is only touched during registration, which happens at
   startup, so no padding is needed to protect the read-only tables from false sharing.
 * Consecutive unmanaged members are reserved and written as one block, and unmanaged arrays, lists and raw
-  structs are single block copies, so the writer streams through the buffer line by line.
+  structs are single block copies, so the writer streams through the buffer line by line. Each member of a block
+  is stored at the block's reference plus a constant offset, folded into the store's address: `NinoUnsafe`'s
+  offset overloads (`Write`, `WriteIn`, `WriteValue(In)`, `Read`) add the offset in the access itself rather than
+  pass `Unsafe.Add(ref block, offset)` on to the overload without one, where an offset that is not an IL constant
+  (it follows a struct, `n + NinoUnsafe.SizeOf<S>()`) made the reference a temporary and cost an `lea`/`add` per
+  member (x64 and ARM64).
 * `NinoPool<T>` reads its generation (and warmup flag) on every take and add. They sit on a 64-byte line of their
   own (`NinoPoolLine`, a non-generic explicit-layout base class, since generic classes cannot have one: 56 bytes
   of padding before and after), away from the shared stack's count and lock, which batch transfers write, and
@@ -730,6 +741,30 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
   and for the elements of a built-in collection of it (`List<Small>`, `Small[]`, `Dictionary<int, Small>`): no class
   body is open around those either, and the twin writes the same bytes wherever none is. A collection then reads and
   writes each element inline in its loop, instead of calling the element's body.
+* The top-level calls that create their writer (`Serialize(T)` to `byte[]`, to an `IBufferWriter<byte>` that is a
+  `NinoArrayBufferWriter`) create it in a method of the formatter (`INinoTopFormatter<T>.Write(value, buffer)`) rather
+  than taking the address of a writer created by the caller. For a twin whose body is not inlined
+  (`__WriteTop`, a `NoInlining` method of the formatter) the writer then stays in registers through the whole body,
+  and the JIT knows it starts empty (no region open, no reference context), so closing regions and releasing
+  references fold away; a writer whose address is passed to a body is zeroed, stored and loaded back from memory
+  around every call. The regular calls do the same through `NinoFormatter<T>.Write` (the cached formatter of a type
+  with a twin is a `TopStructFormatter` registered by `NinoFormatterCache<T>.TryRegisterTop`). Measured (x64, a
+  version-tolerant class of five members, two of them inherited, `Serialize(T)` to `byte[]`): 183 → 121
+  instructions per call (with the merged region below). netstandard2.0 (span and position) takes the same route.
+  The top-level reads of a new value (`Deserialize<T>(data)`) do the same through `INinoTopFormatter<T>.Read(data)`
+  (`NinoDirect.DeserializeTop`, `NinoFormatter<T>.Read`): a twin whose body is not inlined reads in `__ReadTop`,
+  which creates the reader and calls the body that reads a new instance, an inlinable method (`__ReadBodyInline`, or
+  `__ReadBodyFreshInline`) that the out-of-line body also calls on its local copy of the reader. Measured (x64, the
+  same class, `Deserialize<T>(byte[])`): 220 → 139 instructions per call. Pooled types keep the regular route
+  (their new value comes from the pool first).
+* A version-tolerant body whose first members are raw values (written by the body itself, not by a base's
+  `WriteMembers`) reserves the region's length and those members together (`Writer.BeginRegion(size, out
+  lengthPosition)`): one capacity check instead of two.
+* Body formatters report whether they open class bodies and can be read later in one `Traits` property
+  (`NinoBody.Nests | NinoBody.Deferrable`, constants the JIT folds), not two, and the registration of each type
+  (`TryRegister`/`TryRegisterTop`/`TryRegisterFixed` and `NinoPolymorphic.Register`) is emitted straight into the
+  assembly's registry instead of a `__Register()` method per formatter called from it: fewer members per type for
+  the compiler to bind and emit (see `v4-benchmarks.md`, compile time).
 
 ### The API generated code calls
 
@@ -737,8 +772,9 @@ Generated formatters call Nino.Core directly: `Writer`/`Reader`, the built-in fo
 (class headers and subtype dispatch), `NinoDirect` (intercepted top-level calls), `NinoPolymorphic`, `NinoRegistry`,
 `NinoFormatterCache`, `NinoActivator`, `NinoRecycler` and `NinoUnsafe`. The members that exist only for generated code
 (`NinoObject`, `NinoDirect`, `NinoUnsafe`, `NinoRegistry.Add`, `INinoRegistry`, `INinoBodyFormatter<T>`,
+`INinoTopFormatter<T>`, `INinoRawBodyFormatter<T>`, `NinoBody`,
 `INinoRawFormatter`, `NinoPolymorphic<TBase>`, `NinoPolymorphic.Register<TSub, TFormatter>`/`RegisterTracked`,
-`NinoFormatterCache<T>.TryRegister`/`TryRegisterFixed`, the region, reference and unchecked value members of
+`NinoFormatterCache<T>.TryRegister`/`TryRegisterTop`/`TryRegisterFixed`, the region, reference and unchecked value members of
 `Writer`/`Reader`, `[NinoGenerated]`, the pool's per-thread stack) are hidden from IntelliSense
 (`[EditorBrowsable(Never)]`); they stay public because generated code lives in the user's assembly. There is deliberately no forwarding facade in front of them: every call it added is a
 real call under Mono's interpreter and in HybridCLR hot-update code, which do not inline.

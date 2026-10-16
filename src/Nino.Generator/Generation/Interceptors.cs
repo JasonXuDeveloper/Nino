@@ -158,6 +158,27 @@ internal static class Interceptors
     internal static string WithTop(string formatter, HashSet<string> tops, HashSet<string> shallow) =>
         TypeNames.WithTwin(TypeNames.WithTwin(formatter, tops, ".__Top"), shallow, ".__Shallow");
 
+    /// <summary>
+    /// The call of an <see cref="InterceptedCall.Inlinable"/> call with the twins of <see cref="WithTop"/>. A write of a
+    /// formatter that has a <c>__Top</c> twin goes through <c>NinoDirect.SerializeTop</c>, which hands the twin the
+    /// buffer to create its writer in (<c>INinoTopFormatter</c>), and a read of a new value through
+    /// <c>NinoDirect.DeserializeTop</c>, which hands it the data to create its reader on.
+    /// </summary>
+    private static string WithTopCall(InterceptedCall c, HashSet<string> tops, HashSet<string> shallow)
+    {
+        string call = c.Call.Replace(", " + c.Formatter + ">(", ", " + WithTop(c.Formatter, tops, shallow) + ">(");
+        const string serialize = TypeNames.Core + "NinoDirect.Serialize<";
+        const string deserialize = TypeNames.Core + "NinoDirect.Deserialize<";
+        if (!tops.Contains(c.Formatter))
+            return call;
+        if (call.StartsWith(serialize, StringComparison.Ordinal))
+            return TypeNames.Core + "NinoDirect.SerializeTop<" + call.Substring(serialize.Length);
+        // Deserialize(data) returning a new value; not Deserialize(data, ref value), which reads into an instance.
+        if (call.StartsWith(deserialize, StringComparison.Ordinal) && call.EndsWith(">(a0)", StringComparison.Ordinal))
+            return TypeNames.Core + "NinoDirect.DeserializeTop<" + call.Substring(deserialize.Length);
+        return call;
+    }
+
     /// <summary>Whether generated code in this assembly can name the type (no private or protected parts).</summary>
     private static bool IsNameable(ITypeSymbol type) => type switch
     {
@@ -200,9 +221,7 @@ internal static class Interceptors
         w.AppendLine($"    {scope} static class NinoInterceptors");
         w.AppendLine("    {");
         int n = 0;
-        foreach (var group in calls.GroupBy(c => (c.Signature, Call: c.Inlinable
-                     ? c.Call.Replace(", " + c.Formatter + ">(", ", " + WithTop(c.Formatter, tops, shallow) + ">(")
-                     : c.Call)))
+        foreach (var group in calls.GroupBy(c => (c.Signature, Call: c.Inlinable ? WithTopCall(c, tops, shallow) : c.Call)))
         {
             if (n != 0)
                 w.AppendLine();

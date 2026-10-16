@@ -29,7 +29,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (!default(TFormatter).Nests)
+            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
             {
                 default(TFormatter).WriteBody(sub, ref writer);
                 return;
@@ -38,6 +38,48 @@ namespace Nino.Core
             writer.Depth = depth + 1;
             default(TFormatter).WriteBody(sub, ref writer);
             writer.ExitBody(depth);
+        }
+
+        /// <summary>
+        /// <see cref="WriteExact{TSub,TFormatter}"/> of a subtype whose body is one raw block: the type id and the body
+        /// in one reservation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteExactRaw<TSub, TFormatter>(object value, ref Writer writer)
+            where TSub : class
+            where TFormatter : struct, INinoRawBodyFormatter<TSub>
+        {
+            var sub = Unsafe.As<TSub>(value);
+            if (writer.Depth >= NinoDepth.Inline)
+            {
+                writer.UnsafeWrite(default(TFormatter).TypeId);
+                WriteDeep<TSub, TFormatter>(sub, ref writer);
+                return;
+            }
+
+            WriteRawWithId<TSub, TFormatter>(sub, ref writer);
+        }
+
+        /// <summary>The type id and the raw body of <paramref name="value"/>, in one reservation (no depth check).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteRawWithId<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoRawBodyFormatter<T>
+        {
+            ref byte block = ref writer.Reserve(sizeof(int) + default(TFormatter).BodySize);
+            NinoUnsafe.Write(ref block, default(TFormatter).TypeId);
+            default(TFormatter).WriteRawBody(value, ref block, sizeof(int));
+        }
+
+        /// <summary>The presence byte and the raw body of <paramref name="value"/>, in one reservation (no depth check).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteRawWithFlag<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoRawBodyFormatter<T>
+        {
+            ref byte block = ref writer.Reserve(1 + default(TFormatter).BodySize);
+            block = NinoWire.NotNull;
+            default(TFormatter).WriteRawBody(value, ref block, 1);
         }
 
         /// <summary>
@@ -114,7 +156,7 @@ namespace Nino.Core
             int depth = reader.Depth;
             if (depth >= NinoDepth.Inline)
             {
-                if (default(TFormatter).Deferrable)
+                if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
                 {
                     if (value == null)
                         value = default(TFormatter).Create();
@@ -125,7 +167,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (!default(TFormatter).Nests)
+            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
             {
                 default(TFormatter).ReadBody(ref value, ref reader);
                 return;
@@ -152,7 +194,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (!default(TFormatter).Nests)
+            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
             {
                 // Nothing nests in this body: the depth it would count is seen by no other body.
                 default(TFormatter).WriteBody(value, ref writer);
@@ -170,7 +212,7 @@ namespace Nino.Core
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if (default(TFormatter).Deferrable)
+            if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
             {
                 writer.DeferBody<T, TFormatter>(value);
                 return;
@@ -211,7 +253,7 @@ namespace Nino.Core
             int depth = reader.Depth;
             if (depth >= NinoDepth.Inline)
             {
-                if (default(TFormatter).Deferrable)
+                if ((default(TFormatter).Traits & NinoBody.Deferrable) != 0)
                 {
                     // The instance is created here and passed by value: a local whose address reaches a call is
                     // an untracked GC slot, zeroed in the prolog and again after every inlined copy of this path
@@ -235,7 +277,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (!default(TFormatter).Nests)
+            if ((default(TFormatter).Traits & NinoBody.Nests) == 0)
             {
                 // Nothing nests in this body: the depth it would count is seen by no other body.
                 default(TFormatter).ReadBody(ref value, ref reader);
@@ -283,6 +325,31 @@ namespace Nino.Core
             return true;
         }
 
+        /// <summary><see cref="TryWriteOwn{T,TFormatter}"/> of a class whose body is one raw block.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryWriteOwnRaw<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoRawBodyFormatter<T>
+        {
+            if (value == null)
+            {
+                writer.UnsafeWrite(NinoWire.NullTypeId);
+                return true;
+            }
+
+            if (value.GetType() != typeof(T))
+                return false;
+            if (writer.Depth >= NinoDepth.Inline)
+            {
+                writer.UnsafeWrite(default(TFormatter).TypeId);
+                WriteDeep<T, TFormatter>(value, ref writer);
+                return true;
+            }
+
+            WriteRawWithId<T, TFormatter>(value, ref writer);
+            return true;
+        }
+
         /// <summary>
         /// Non-sealed class with generated subtype dispatch: reads the body if <paramref name="id"/> is
         /// <typeparamref name="T"/>'s own; false otherwise, for the caller to dispatch.
@@ -320,6 +387,34 @@ namespace Nino.Core
 
             writer.UnsafeWrite(default(TFormatter).TypeId);
             WriteBody<T, TFormatter>(value, ref writer);
+        }
+
+        /// <summary><see cref="Serialize{T,TFormatter}"/> of a class whose body is one raw block.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeRaw<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoRawBodyFormatter<T>
+        {
+            if (value == null)
+            {
+                writer.UnsafeWrite(NinoWire.NullTypeId);
+                return;
+            }
+
+            if (value.GetType() != typeof(T))
+            {
+                NinoPolymorphic<T>.Serialize(value, ref writer);
+                return;
+            }
+
+            if (writer.Depth >= NinoDepth.Inline)
+            {
+                writer.UnsafeWrite(default(TFormatter).TypeId);
+                WriteDeep<T, TFormatter>(value, ref writer);
+                return;
+            }
+
+            WriteRawWithId<T, TFormatter>(value, ref writer);
         }
 
         /// <summary>Non-sealed class: reads what <see cref="Serialize{T,TFormatter}"/> wrote.</summary>
@@ -393,6 +488,46 @@ namespace Nino.Core
             WriteBody<T, TFormatter>(value, ref writer);
         }
 
+        /// <summary><see cref="SerializeSealed{T,TFormatter}"/> of a class whose body is one raw block.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeSealedRaw<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoRawBodyFormatter<T>
+        {
+            if (value == null)
+            {
+                writer.UnsafeWrite(NinoWire.Null);
+                return;
+            }
+
+            if (writer.Depth >= NinoDepth.Inline)
+            {
+                writer.UnsafeWrite(NinoWire.NotNull);
+                WriteDeep<T, TFormatter>(value, ref writer);
+                return;
+            }
+
+            WriteRawWithFlag<T, TFormatter>(value, ref writer);
+        }
+
+        /// <summary>
+        /// <see cref="SerializeTop{T,TFormatter}"/> of a class whose body is one raw block (generated <c>__Top</c> and
+        /// <c>__Shallow</c> formatters): the presence byte and the body in one reservation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeTopRaw<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoRawBodyFormatter<T>
+        {
+            if (value == null)
+            {
+                writer.UnsafeWrite(NinoWire.Null);
+                return;
+            }
+
+            WriteRawWithFlag<T, TFormatter>(value, ref writer);
+        }
+
         /// <summary>
         /// Sealed class whose body checks the depth at most <paramref name="bound"/> levels below its own check (a
         /// generator constant: the longest chain of class bodies through its members' types; recursive and
@@ -448,7 +583,7 @@ namespace Nino.Core
         /// <summary>
         /// Generated <c>__Top</c> formatters: <see cref="SerializeSealed{T,TFormatter}"/> with a writer that the
         /// top-level call just created (no body open, so none is deferred), for a body that opens no class body
-        /// (<see cref="INinoBodyFormatter{T}.Nests"/> false): the depth stays 0. Little IL: inlined into the caller
+        /// (no <see cref="NinoBody.Nests"/>): the depth stays 0. Little IL: inlined into the caller
         /// with the body, it leaves the JIT's inlining budget to the body's own helpers.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

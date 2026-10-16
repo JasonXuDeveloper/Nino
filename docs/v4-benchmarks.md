@@ -61,6 +61,9 @@ grows linearly, at about 3.5 KB of source and 2 ms of compile time per type.
   members are written as one reserved block; built-in formatters used by many types are registered once
   per assembly; trivial forwarders carry no `MethodImpl` attributes; generated names are built by hand
   instead of through `SymbolDisplay`.
+* **Fewer members per type.** Each type's registration is emitted into the assembly's registry rather than into a
+  method of its formatter, and a body formatter's two nesting flags are one property (`Traits`), so every formatter
+  and twin declares fewer members for the compiler to bind and emit.
 
 ## Runtime
 

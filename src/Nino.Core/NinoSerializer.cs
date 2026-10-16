@@ -116,13 +116,10 @@ namespace Nino.Core
         }
 
         /// <summary>Writes <paramref name="value"/> with its formatter, then ends the call's reference tracking.</summary>
-        private static void WriteFormatted<T>(T value, NinoArrayBufferWriter buffer, NinoFormatter<T> formatter)
-        {
-            var writer = new Writer(buffer);
-            formatter.Serialize(value, ref writer);
-            writer.Flush();
-            writer.ReleaseReferences();
-        }
+        // The formatter creates the writer (NinoFormatter.Write): a writer created here would reach its call by address.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteFormatted<T>(T value, NinoArrayBufferWriter buffer, NinoFormatter<T> formatter) =>
+            formatter.Write(value, buffer);
 
         /// <summary>
         /// The formatter of <typeparamref name="T"/> when it is an array of raw elements (null otherwise). A static

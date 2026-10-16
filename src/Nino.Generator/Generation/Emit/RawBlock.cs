@@ -29,8 +29,10 @@ internal sealed class RawBlock
 
     /// <param name="run">The members.</param>
     /// <param name="headers">Whether each value is preceded by an 8-byte (key, length) header (keyed bodies).</param>
-    public RawBlock(IReadOnlyList<MemberModel> run, bool headers = false)
+    /// <param name="start">Bytes in front of the first member (a region's length).</param>
+    public RawBlock(IReadOnlyList<MemberModel> run, bool headers = false, int start = 0)
     {
+        _constant = start;
         foreach (var member in run)
         {
             if (headers)

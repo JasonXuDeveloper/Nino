@@ -120,7 +120,7 @@ internal sealed class BodyEmitter
         _w.Line();
         _w.Line(_names.NoInline);
         bool localWriter = name == "WriteBody" && LocalWriter;
-        if (!_m.TopInline && !localWriter)
+        if (!_m.TopInline && !localWriter && !(name == "ReadBody" && ReadTop))
             return $"private static void __{name}({parameters})";
         if (name == "ReadBody" && LocalReader)
         {
@@ -150,6 +150,12 @@ internal sealed class BodyEmitter
 
     public void EmitWriteBody()
     {
+        if (_m.RawBody && !_shallow)
+        {
+            EmitRawBody();
+            return;
+        }
+
         string signature = BodySignature("WriteBody", $"{T} value, ref {Core}Writer writer");
         if (_m.EmitMembers && !_shallow && !Region && _m.CollectionFormatter.Length == 0)
         {
@@ -166,6 +172,8 @@ internal sealed class BodyEmitter
             if (_m.CollectionFormatter.Length != 0)
                 _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
             // Version tolerant: the members (the elements of a collection come first, as positional ones).
+            if (Tolerant && !(_m.EmitMembers && !_shallow) && TryEmitRegionWithBlock())
+                return;
             if (Tolerant)
                 _w.Line("int __length = writer.BeginRegion();");
             if (_m.EmitMembers && !_shallow)
@@ -181,6 +189,37 @@ internal sealed class BodyEmitter
             _w.Line();
             EmitMembersMethods();
         }
+    }
+
+    /// <summary>
+    /// The write side of a body that is one raw block (<see cref="TypeModel.RawBody"/>): <c>BodySize</c> and
+    /// <c>WriteRawBody</c> (<c>INinoRawBodyFormatter</c>), which the header writes of <c>NinoObject</c> call into
+    /// their own reservation, and <c>WriteBody</c> (and <c>WriteMembers</c>) reserving the block for it.
+    /// </summary>
+    private void EmitRawBody()
+    {
+        var block = new RawBlock(_m.Members.ToList());
+        string self = _m.FormatterName + _m.TypeParameterList;
+        _w.Line($"public int BodySize => {block.Total};");
+        _w.Line();
+        _w.Line(_names.Inline);
+        _w.Block($"public void WriteRawBody({T} value, ref byte destination, int offset)", () =>
+        {
+            for (int i = 0; i < _m.Members.Length; i++)
+                _w.Line(RawWrite(_m.Members[i], "destination", block.Offsets[i] == "0" ? "offset" : "offset + " + block.Offsets[i]));
+        });
+        _w.Line();
+        _w.Line(_names.Inline);
+        _w.Line($"public void WriteBody({T} value, ref {Core}Writer writer) => WriteRawBody(value, ref writer.Reserve(BodySize), 0);");
+        if (!_m.EmitMembers)
+            return;
+        _w.Line();
+        _w.Line(_names.Inline);
+        _w.Line($"internal static void WriteMembers({T} value, ref {Core}Writer writer) => default({self}).WriteBody(value, ref writer);");
+        _w.Line();
+        _w.Line(_names.Inline);
+        _w.Block($"internal static void ReadMembers({T} value, ref {Core}Reader reader)",
+            () => EmitMemberReads("reader", inPlace: true, eof: "return;"));
     }
 
     /// <summary>Static member (de)serializers that derived types call instead of repeating these members.</summary>
@@ -219,6 +258,7 @@ internal sealed class BodyEmitter
             lines.Add($"destination = {NinoWire.NotNull};");
             constant = 1;
         }
+
 
         foreach (var member in _m.Members)
         {
@@ -262,6 +302,29 @@ internal sealed class BodyEmitter
         }
 
         EmitPositionalWrites(OwnMembers);
+    }
+
+    /// <summary>
+    /// A version-tolerant body whose first members are raw values (written here, not by a base's WriteMembers):
+    /// the region's length and those members in one reservation (one capacity check rather than two).
+    /// </summary>
+    private bool TryEmitRegionWithBlock()
+    {
+        if (Delegates || _m.Keyed || _m.CollectionFormatter.Length != 0)
+            return false;
+        var groups = RawBlock.Groups(OwnMembers);
+        if (groups.Count == 0 || groups[0][0].Raw == null)
+            return false;
+        _blocks = 0;
+        var first = groups[0];
+        var block = new RawBlock(first, start: NinoWire.LengthSize);
+        string p = "__p" + _blocks++;
+        _w.Line($"ref byte {p} = ref writer.BeginRegion({block.Total}, out int __length);");
+        for (int i = 0; i < first.Count; i++)
+            _w.Line(RawWrite(first[i], p, block.Offsets[i]));
+        EmitPositionalWrites(groups.Skip(1).SelectMany(g => g));
+        _w.Line("writer.EndRegion(__length);");
+        return true;
     }
 
     private void EmitPositionalWrites(IEnumerable<MemberModel> members)
@@ -363,6 +426,15 @@ internal sealed class BodyEmitter
     private bool LocalReader => OutOfLine && !_m.Nests && !_m.Keyed && !_m.TrackReferences;
 
     /// <summary>
+    /// Whether the <c>__Top</c> twin reads a new value with a reader of its own (<c>__ReadTop</c>, see
+    /// <c>INinoTopFormatter.Read</c>), for the reasons of <see cref="LocalWriter"/>'s <c>__WriteTop</c>: the body that
+    /// reads a new instance (<c>__ReadBodyInline</c>, or <c>__ReadBodyFreshInline</c> when <see cref="SplitFresh"/>) is
+    /// then an inlinable method that the out-of-line one calls on its local copy. Not for pooled types, whose new
+    /// value comes from the pool first.
+    /// </summary>
+    public bool ReadTop => !_shallow && _m.HasTop && !_m.TopInline && LocalReader && !_m.Pooled;
+
+    /// <summary>
     /// Whether the out-of-line write body works on a local copy of the writer, written back at its end, for the
     /// reasons of <see cref="LocalReader"/> (the position, the buffer and its length are otherwise loaded, and the
     /// position stored, for every member). The formatters keep the writer's address from calls that are not inlined
@@ -394,15 +466,14 @@ internal sealed class BodyEmitter
         }
 
         _w.Open(BodySignature("ReadBody", $"ref {T} value, ref {Core}Reader reader"));
-        EmitReadBodyContents(fresh: false);
+        // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
+        EmitReadBodyContents(fresh: false, local: LocalReader && !_m.TopInline && !_shallow && !ReadTop);
         _w.Close();
     }
 
-    private void EmitReadBodyContents(bool fresh)
+    private void EmitReadBodyContents(bool fresh, bool local)
     {
         string r = "reader";
-        // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
-        bool local = LocalReader && !_m.TopInline && !_shallow;
         if (local)
         {
             _w.Line("var __r = reader;");
@@ -484,12 +555,29 @@ internal sealed class BodyEmitter
 
         _w.Line(_names.NoInline);
         _w.Open($"internal static void {body}({parameters})");
-        EmitReadBodyContents(fresh: false);
+        EmitReadBodyContents(fresh: false, local: LocalReader && !_shallow);
         _w.Close();
         _w.Line();
         _w.Line(_names.NoInline);
+        if (ReadTop)
+        {
+            // The new-instance read is also __ReadTop's: inlinable, called here on a local copy of the reader.
+            _w.Block($"internal static void {body}Fresh({parameters})", () =>
+            {
+                _w.Line("var __r = reader;");
+                _w.Line($"{body}FreshInline(ref value, ref __r);");
+                _w.Line("reader = __r;");
+            });
+            _w.Line();
+            _w.Line(_names.Inline);
+            _w.Open($"private static void {body}FreshInline({parameters})");
+            EmitReadBodyContents(fresh: true, local: false);
+            _w.Close();
+            return;
+        }
+
         _w.Open($"internal static void {body}Fresh({parameters})");
-        EmitReadBodyContents(fresh: true);
+        EmitReadBodyContents(fresh: true, local: LocalReader && !_shallow);
         _w.Close();
     }
 

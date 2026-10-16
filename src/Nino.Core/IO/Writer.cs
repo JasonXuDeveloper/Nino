@@ -319,6 +319,21 @@ namespace Nino.Core
             return ReserveInt32();
         }
 
+        /// <summary>
+        /// Generated code: <see cref="BeginRegion()"/> together with the region's first <paramref name="size"/> - 4
+        /// bytes (raw members), in one reservation of <paramref name="size"/> bytes that starts with the region's
+        /// length. Returns that reservation, and in <paramref name="lengthPosition"/> the position for
+        /// <see cref="EndRegion"/>.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref byte BeginRegion(int size, out int lengthPosition)
+        {
+            _regions++;
+            lengthPosition = Pos;
+            return ref Reserve(size);
+        }
+
         /// <summary>Generated code: ends the region <see cref="BeginRegion"/> started.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

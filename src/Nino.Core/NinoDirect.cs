@@ -70,12 +70,49 @@ namespace Nino.Core
         private static void SerializeOther<T>(T value, IBufferWriter<byte> bufferWriter) =>
             NinoSerializer.Serialize(value, bufferWriter);
 
+        /// <summary>
+        /// <see cref="Serialize{T,TFormatter}(T)"/> with a <c>__Top</c> twin that creates its own writer
+        /// (<see cref="INinoTopFormatter{T}"/>). The bytes are the same.
+        /// </summary>
+        public static byte[] SerializeTop<T, TFormatter>(T value) where TFormatter : struct, INinoTopFormatter<T>
+        {
+            var buffer = NinoSerializer.RentScratch();
+            try
+            {
+                default(TFormatter).Write(value, buffer);
+                return buffer.ToArray();
+            }
+            finally
+            {
+                NinoSerializer.ReturnScratch(buffer);
+            }
+        }
+
+        /// <summary>
+        /// <see cref="Serialize{T,TFormatter}(T, IBufferWriter{byte})"/> with a <c>__Top</c> twin that creates its own
+        /// writer (<see cref="INinoTopFormatter{T}"/>). The bytes are the same.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SerializeTop<T, TFormatter>(T value, IBufferWriter<byte> bufferWriter)
+            where TFormatter : struct, INinoTopFormatter<T>
+        {
+            if (bufferWriter is NinoArrayBufferWriter nino)
+                default(TFormatter).Write(value, nino);
+            else
+                SerializeOther(value, bufferWriter);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Serialize<T, TFormatter>(T value, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T> =>
             default(TFormatter).Serialize(value, ref writer);
 
-        private static void Write<T, TFormatter>(T value, NinoArrayBufferWriter buffer)
+        /// <summary>
+        /// Writes <paramref name="value"/> as a whole payload into <paramref name="buffer"/> with a writer created
+        /// here (inlined: in the caller's frame, where the JIT keeps it in registers if no call takes its address).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Write<T, TFormatter>(T value, NinoArrayBufferWriter buffer)
             where TFormatter : struct, INinoFormatter<T>
         {
             var writer = new Writer(buffer);
@@ -93,6 +130,15 @@ namespace Nino.Core
             reader.ReleaseReferences();
             return value;
         }
+
+        /// <summary>
+        /// <see cref="Deserialize{T,TFormatter}(ReadOnlySpan{byte})"/> with a <c>__Top</c> twin that creates its own
+        /// reader (<see cref="INinoTopFormatter{T}.Read"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T DeserializeTop<T, TFormatter>(ReadOnlySpan<byte> data)
+            where TFormatter : struct, INinoTopFormatter<T> =>
+            default(TFormatter).Read(data);
 
         /// <summary>
         /// <see cref="NinoDeserializer.Deserialize{T}(ReadOnlySpan{byte})"/> of a value the generator found is copied

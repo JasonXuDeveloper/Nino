@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Text;
+using Nino.Generator.Common;
 using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
 
@@ -39,6 +40,8 @@ internal static class FormatterEmitter
             iface += $", {Core}INinoRawFormatter";
         if (m.FixedSize)
             iface += $", {Core}INinoFixedSizeFormatter<{t}>";
+        if (m.RawBody)
+            iface += $", {Core}INinoRawBodyFormatter<{t}>";
 
         w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.Constraints}");
         var body = new BodyEmitter(m, w, names);
@@ -60,7 +63,6 @@ internal static class FormatterEmitter
                 w.Line();
             }
 
-            EmitRegister(w, m);
             w.Close();
             return;
         }
@@ -88,7 +90,7 @@ internal static class FormatterEmitter
                     $"{Core}NinoObject.DeserializeSealed<{t}, {self}, {self}.__Shallow>(ref value, ref reader, {m.DepthBound})");
                 break;
             case FormatterKind.SealedClass:
-                EmitEntryPoints(w, m, $"{Core}NinoObject.SerializeSealed<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, $"{Core}NinoObject.SerializeSealed{Raw(m)}<{t}, {self}>(value, ref writer)",
                     $"{Core}NinoObject.DeserializeSealed<{t}, {self}>(ref value, ref reader)");
                 break;
             case FormatterKind.Class when m.TrackReferences:
@@ -99,7 +101,7 @@ internal static class FormatterEmitter
                 EmitDispatchingEntryPoints(w, m, ownId: true);
                 break;
             default:
-                EmitEntryPoints(w, m, $"{Core}NinoObject.Serialize<{t}, {self}>(value, ref writer)",
+                EmitEntryPoints(w, m, $"{Core}NinoObject.Serialize{Raw(m)}<{t}, {self}>(value, ref writer)",
                     $"{Core}NinoObject.Deserialize<{t}, {self}>(ref value, ref reader)");
                 break;
         }
@@ -141,11 +143,6 @@ internal static class FormatterEmitter
         }
 
         AccessorEmitter.EmitUnsafeAccessors(w, m);
-        if (!m.IsGeneric)
-        {
-            w.Line();
-            EmitRegister(w, m);
-        }
 
         w.Close();
     }
@@ -160,33 +157,61 @@ internal static class FormatterEmitter
         string top = m.FormatterName + ".__Top";
         // An out-of-line body on a local writer (BodyEmitter.LocalWriter, not inlined at the top): the presence
         // byte is written there too, on the local, rather than by the caller on a writer whose address the call
-        // takes (each write a load and store of its cursor in memory).
+        // takes (each write a load and store of its cursor in memory). The top-level calls that create their writer
+        // have it created in a method of its own (__WriteTop, see INinoTopFormatter), where the JIT keeps it in
+        // registers and knows it starts empty (no region open, no context) instead of loading it from the caller's
+        // memory and storing it back.
         bool serializeTop = !m.TopInline && body.LocalWriter;
         if (serializeTop)
         {
             w.Line(names.NoInline);
             w.Open($"private static void __SerializeTop({t} value, ref {Core}Writer writer)");
             w.Line("var __w = writer;");
-            w.Line("if (value == null)");
-            w.Indented(() => w.Line($"__w.UnsafeWrite((byte){NinoWire.Null});"));
-            w.Open("else");
-            w.Line($"__w.UnsafeWrite((byte){NinoWire.NotNull});");
-            w.Line("__WriteBodyInline(value, ref __w);");
-            w.Close();
+            EmitTopWrite(w, t);
             w.Line("writer = __w;");
+            w.Close();
+            w.Line();
+            w.Line(names.NoInline);
+            w.Open($"private static void __WriteTop({t} value, {Core}NinoArrayBufferWriter buffer)");
+            w.Line($"var __w = new {Core}Writer(buffer);");
+            EmitTopWrite(w, t);
+            w.Line("__w.Flush();");
+            w.Line("__w.ReleaseReferences();");
             w.Close();
             w.Line();
         }
 
-        w.Open($"internal struct __Top : {Core}INinoBodyFormatter<{t}>");
+        // The same for the top-level reads of a new value (BodyEmitter.ReadTop): the reader is created in __ReadTop.
+        if (body.ReadTop)
+        {
+            w.Line(names.NoInline);
+            w.Open($"private static {t} __ReadTop(global::System.ReadOnlySpan<byte> data)");
+            w.Line($"var __r = new {Core}Reader(data);");
+            w.Line($"{t} value = null;");
+            w.Line($"if (__r.UnsafeRead<byte>() != (byte){NinoWire.Null})");
+            w.Indented(() => w.Line($"{(body.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref value, ref __r);"));
+            w.Line("__r.ReleaseReferences();");
+            w.Line("return value;");
+            w.Close();
+            w.Line();
+        }
+
+        w.Open($"internal struct __Top : {Core}INinoBodyFormatter<{t}>, {Core}INinoTopFormatter<{t}>");
         w.Line("public int TypeId => Id;");
-        w.Line($"public bool Nests => default({m.FormatterName}).Nests;");
-        w.Line($"public bool Deferrable => default({m.FormatterName}).Deferrable;");
+        w.Line($"public int Traits => default({m.FormatterName}).Traits;");
         w.Line($"public {t} Create() => default({m.FormatterName}).Create();");
         w.Line(serializeTop
             ? $"public void Serialize({t} value, ref {Core}Writer writer) => __SerializeTop(value, ref writer);"
-            : $"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTop<{t}, {top}>(value, ref writer);");
+            : m.RawBody
+                ? $"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTopRaw<{t}, {m.FormatterName}>(value, ref writer);"
+                : $"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTop<{t}, {top}>(value, ref writer);");
+        w.Line(serializeTop
+            ? $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => __WriteTop(value, buffer);"
+            : $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => {Core}NinoDirect.Write<{t}, {top}>(value, buffer);");
         w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeTop<{t}, {top}>(ref value, ref reader);");
+        w.Line(body.ReadTop
+            ? $"public {t} Read(global::System.ReadOnlySpan<byte> data) => __ReadTop(data);"
+            : $"public {t} Read(global::System.ReadOnlySpan<byte> data) => {Core}NinoDirect.Deserialize<{t}, {top}>(data);");
 
         w.Line(names.Inline);
         w.Line(m.TopInline
@@ -196,6 +221,17 @@ internal static class FormatterEmitter
         w.Line(m.TopInline
             ? $"public void ReadBody(ref {t} value, ref {Core}Reader reader) => __ReadBodyInline(ref value, ref reader);"
             : $"public void ReadBody(ref {t} value, ref {Core}Reader reader) => default({m.FormatterName}).ReadBody(ref value, ref reader);");
+        w.Close();
+    }
+
+    /// <summary>The null flag and the body of <c>value</c>, on the local writer <c>__w</c>.</summary>
+    private static void EmitTopWrite(CodeWriter w, string t)
+    {
+        w.Line("if (value == null)");
+        w.Indented(() => w.Line($"__w.UnsafeWrite((byte){NinoWire.Null});"));
+        w.Open("else");
+        w.Line($"__w.UnsafeWrite((byte){NinoWire.NotNull});");
+        w.Line("__WriteBodyInline(value, ref __w);");
         w.Close();
     }
 
@@ -212,8 +248,7 @@ internal static class FormatterEmitter
         string twin = self + ".__Shallow";
         w.Open($"internal struct __Shallow : {Core}INinoBodyFormatter<{t}>");
         w.Line("public int TypeId => Id;");
-        w.Line($"public bool Nests => default({self}).Nests;");
-        w.Line($"public bool Deferrable => default({self}).Deferrable;");
+        w.Line($"public int Traits => default({self}).Traits;");
         w.Line($"public {t} Create() => default({self}).Create();");
         if (m.Kind == FormatterKind.Struct)
         {
@@ -223,7 +258,9 @@ internal static class FormatterEmitter
         else
         {
             // The null flag, then the body with no depth check: SerializeTop/DeserializeTop.
-            w.Line($"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTop<{t}, {twin}>(value, ref writer);");
+            w.Line(m.RawBody
+                ? $"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTopRaw<{t}, {self}>(value, ref writer);"
+                : $"public void Serialize({t} value, ref {Core}Writer writer) => {Core}NinoObject.SerializeTop<{t}, {twin}>(value, ref writer);");
             w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeTop<{t}, {twin}>(ref value, ref reader);");
         }
 
@@ -248,6 +285,9 @@ internal static class FormatterEmitter
         w.Close();
     }
 
+    /// <summary>The suffix of the <c>NinoObject</c> methods for a body that is one raw block (<see cref="TypeModel.RawBody"/>).</summary>
+    private static string Raw(TypeModel m) => m.RawBody ? "Raw" : "";
+
     private static void EmitTypeId(CodeWriter w, TypeModel m)
     {
         if (m.IsGeneric)
@@ -265,10 +305,11 @@ internal static class FormatterEmitter
     private static void EmitDeferral(CodeWriter w, TypeModel m)
     {
         string t = m.TypeName;
-        w.Line($"public bool Nests => {(m.Nests ? "true" : "false")};");
+        // NinoBody.Nests and NinoBody.Deferrable.
+        int traits = (m.Nests ? 1 : 0) | (m.Deferrable ? 2 : 0);
+        w.Line($"public int Traits => {traits};");
         if (!m.Deferrable)
         {
-            w.Line("public bool Deferrable => false;");
             w.Line($"public {t} Create() => default;");
             return;
         }
@@ -277,7 +318,6 @@ internal static class FormatterEmitter
         string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
         if (m.Pooled)
             create = t + ".RentFromNinoPool() ?? " + create;
-        w.Line("public bool Deferrable => true;");
         w.Line($"public {t} Create() => {create};");
     }
 
@@ -325,7 +365,7 @@ internal static class FormatterEmitter
             : $"{m.DispatchRootFormatter}.__ReadSubtype(id, ref {Core}NinoObject.AsBaseSlot<{t}, {m.DispatchRoot}>(ref value), ref reader); {Core}NinoObject.EnsureSubtype<{t}>(value);";
         w.Line($"public void Serialize({t} value, ref {Core}Writer writer)");
         w.Indented(() => w.Line(ownId
-            ? $"{{ if (!{Core}NinoObject.TryWriteOwn<{t}, {self}>(value, ref writer)) {write}; }}"
+            ? $"{{ if (!{Core}NinoObject.TryWriteOwn{Raw(m)}<{t}, {self}>(value, ref writer)) {write}; }}"
             : $"{{ if (value == null) writer.UnsafeWrite({NinoWire.NullTypeId}); else {write}; }}"));
         w.Line();
         w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader)");
@@ -334,15 +374,22 @@ internal static class FormatterEmitter
             : $"{{ int id = reader.UnsafeRead<int>(); {read} }}"));
     }
 
-    private static void EmitRegister(CodeWriter w, TypeModel m)
+    /// <summary>
+    /// The statements that register the formatter (non-generic types), emitted into the registry's dispatch
+    /// (<see cref="RegistryEmitter"/>) rather than as a method of the formatter: one method less per type.
+    /// </summary>
+    public static EquatableArray<string> RegisterStatements(TypeModel m)
     {
         if (m.IsGeneric)
-            return;
-        w.Block("internal static void __Register()", () =>
-        {
-            w.Line($"{Core}NinoFormatterCache<{m.TypeName}>.{(m.FixedSize ? "TryRegisterFixed" : "TryRegister")}<{m.FormatterName}>();");
-            if (m.Kind != FormatterKind.Polymorphic)
-                w.Line($"{Core}NinoPolymorphic.{(m.TrackReferences ? "RegisterTracked" : "Register")}<{m.TypeName}, {m.FormatterName}>(Id);");
-        });
+            return new EquatableArray<string>(System.Array.Empty<string>());
+        var code = new System.Collections.Generic.List<string>(2);
+        // A __Top twin writes the regular top-level calls too (a formatter of fixed size writes them inline).
+        if (m.HasTop && !m.FixedSize)
+            code.Add($"{Core}NinoFormatterCache<{m.TypeName}>.TryRegisterTop<{m.FormatterName}, {m.FormatterName}.__Top>();");
+        else
+            code.Add($"{Core}NinoFormatterCache<{m.TypeName}>.{(m.FixedSize ? "TryRegisterFixed" : "TryRegister")}<{m.FormatterName}>();");
+        if (m.Kind != FormatterKind.Polymorphic)
+            code.Add($"{Core}NinoPolymorphic.{(m.TrackReferences ? "RegisterTracked" : "Register")}<{m.TypeName}, {m.FormatterName}>({m.TypeId});");
+        return new EquatableArray<string>(code.ToArray());
     }
 }

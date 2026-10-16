@@ -61,7 +61,14 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write<T>(ref byte destination, int offset, T value)
         {
-            Write(ref Unsafe.Add(ref destination, offset), value);
+            // The offset is added here, in each access, rather than by passing Unsafe.Add(...) on to Write(ref, T):
+            // a computed reference handed to another inlined method becomes a temporary when the offset is not an
+            // IL constant (offset + NinoUnsafe.SizeOf<S>()), and the store then no longer folds the offset into its
+            // address (an extra lea/add per member). Same in WriteIn, WriteValue(In) and Read below.
+            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, offset), value);
+            else
+                WriteBytes(ref Unsafe.Add(ref destination, offset), value);
         }
 
         /// <summary>
@@ -71,9 +78,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteValue<T>(ref byte destination, int offset, T value)
         {
-            ref byte dst = ref Unsafe.Add(ref destination, offset);
-            Write(ref dst, value);
-            NinoLayout<T>.ClearPadding(ref dst);
+            Write(ref destination, offset, value);
+            NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref destination, offset));
         }
 
         /// <summary>
@@ -96,16 +102,19 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteIn<T>(ref byte destination, int offset, in T value)
         {
-            WriteIn(ref Unsafe.Add(ref destination, offset), in value);
+            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, offset), value);
+            else
+                Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref destination, offset),
+                    ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), (uint)Unsafe.SizeOf<T>());
         }
 
         /// <summary><see cref="WriteValue{T}"/> from a reference (see <see cref="WriteIn{T}(ref byte, in T)"/>).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteValueIn<T>(ref byte destination, int offset, in T value)
         {
-            ref byte dst = ref Unsafe.Add(ref destination, offset);
-            WriteIn(ref dst, in value);
-            NinoLayout<T>.ClearPadding(ref dst);
+            WriteIn(ref destination, offset, in value);
+            NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref destination, offset));
         }
 
         /// <summary>
@@ -126,10 +135,10 @@ namespace Nino.Core
         /// Loads a <typeparamref name="T"/> from <paramref name="source"/> + <paramref name="offset"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T Read<T>(ref byte source, int offset)
-        {
-            return Read<T>(ref Unsafe.Add(ref source, offset));
-        }
+        public static T Read<T>(ref byte source, int offset) =>
+            Is64Bit || Unsafe.SizeOf<T>() <= 4
+                ? Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref source, offset))
+                : ReadBytes<T>(ref Unsafe.Add(ref source, offset));
 
         /// <summary><paramref name="source"/> + <paramref name="offset"/> bytes.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

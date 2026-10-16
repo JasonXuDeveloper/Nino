@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -44,20 +45,76 @@ namespace Nino.Core
         void ReadBody(ref T value, ref Reader reader);
 
         /// <summary>
-        /// Whether a body nested too deep to read in place can be read later, into an instance created up front
-        /// (see <see cref="Create"/>): false for structs and for classes built by their constructor or compared by
-        /// value.
+        /// What the body does, as <see cref="NinoBody"/> flags (a constant): <see cref="NinoBody.Nests"/> and
+        /// <see cref="NinoBody.Deferrable"/>. One member for both: generated formatters implement it for every type.
         /// </summary>
-        bool Deferrable { get; }
-
-        /// <summary>
-        /// Whether the body may hold class bodies (through its members' formatters). A body that cannot skips the
-        /// depth count: nothing nested in it would see the count, so the bytes are the same either way.
-        /// </summary>
-        bool Nests { get; }
+        int Traits { get; }
 
         /// <summary>Creates the empty instance a deferred body is read into later.</summary>
         T Create();
+    }
+
+    /// <summary>The flags of <see cref="INinoBodyFormatter{T}.Traits"/>.</summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public static class NinoBody
+    {
+        /// <summary>
+        /// The body may hold class bodies (through its members' formatters). A body that cannot skips the depth count:
+        /// nothing nested in it would see the count, so the bytes are the same either way.
+        /// </summary>
+        public const int Nests = 1;
+
+        /// <summary>
+        /// A body nested too deep to read in place can be read later, into an instance created up front (see
+        /// <see cref="INinoBodyFormatter{T}.Create"/>): not for structs, nor for classes built by their constructor or
+        /// compared by value.
+        /// </summary>
+        public const int Deferrable = 2;
+    }
+
+    /// <summary>
+    /// Generated formatters of classes whose body is one block of raw members (<see cref="BodySize"/> bytes, a
+    /// JIT-time constant). The type id or null flag in front of it is written into the same reservation (one capacity
+    /// check rather than two: see <see cref="NinoObject"/>'s <c>...Raw</c> methods).
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoRawBodyFormatter<T> : INinoBodyFormatter<T>
+    {
+        /// <summary>The bytes of every body.</summary>
+        int BodySize { get; }
+
+        /// <summary>
+        /// Writes the body of <paramref name="value"/> (not null) into the <see cref="BodySize"/> bytes at
+        /// <paramref name="offset"/> from <paramref name="destination"/>: the bytes of
+        /// <see cref="INinoBodyFormatter{T}.WriteBody"/>. The offset (a constant) is added to each member's, so the
+        /// stores address the block directly rather than through a second reference the JIT computes and keeps.
+        /// </summary>
+        void WriteRawBody(T value, ref byte destination, int offset);
+    }
+
+    /// <summary>
+    /// Generated <c>__Top</c> formatters: the top-level calls that create their own writer hand it the buffer
+    /// instead, so the writer is created in the method that writes the value. Passed by address to a method that is
+    /// not inlined (an out-of-line body), a writer lives in memory: zeroed and stored by the caller, loaded and stored
+    /// back by the callee, and each write a load and a store of its cursor. Created in that method, the JIT keeps it
+    /// in registers, and knows its depth, regions and context start empty.
+    /// </summary>
+    [EditorBrowsable(EditorBrowsableState.Never)]
+    public interface INinoTopFormatter<T> : INinoFormatter<T>
+    {
+        /// <summary>
+        /// Writes <paramref name="value"/> as a whole payload at the end of <paramref name="buffer"/> with a writer of
+        /// its own, then commits it (the writer's <see cref="Writer.Flush"/> and <see cref="Writer.ReleaseReferences"/>).
+        /// The same bytes as <see cref="INinoFormatter{T}.Serialize"/> with a new writer.
+        /// </summary>
+        void Write(T value, NinoArrayBufferWriter buffer);
+
+        /// <summary>
+        /// Reads a whole payload from <paramref name="data"/> into a new value with a reader of its own, then ends
+        /// the call's reference tracking (the reader's <see cref="Reader.ReleaseReferences"/>): what
+        /// <see cref="INinoFormatter{T}.Deserialize"/> into a null slot with a new reader reads.
+        /// </summary>
+        T Read(ReadOnlySpan<byte> data);
     }
 
     /// <summary>
@@ -93,6 +150,33 @@ namespace Nino.Core
         public abstract void Serialize(T value, ref Writer writer);
 
         public abstract void Deserialize(ref T value, ref Reader reader);
+
+        /// <summary>
+        /// Writes <paramref name="value"/> as a whole payload into <paramref name="buffer"/> (the top-level calls): the
+        /// writer is created by the formatter's class, specialized for the struct formatter, so the JIT keeps it in
+        /// registers there rather than in the memory of a caller that passes its address (see
+        /// <see cref="INinoTopFormatter{T}"/>).
+        /// </summary>
+        internal virtual void Write(T value, NinoArrayBufferWriter buffer)
+        {
+            var writer = new Writer(buffer);
+            Serialize(value, ref writer);
+            writer.Flush();
+            writer.ReleaseReferences();
+        }
+
+        /// <summary>
+        /// Reads a whole payload into a new value (the top-level calls): the reader is created by the formatter's
+        /// class, for the reasons of <see cref="Write"/>.
+        /// </summary>
+        internal virtual T Read(ReadOnlySpan<byte> data)
+        {
+            var reader = new Reader(data);
+            T value = default;
+            Deserialize(ref value, ref reader);
+            reader.ReleaseReferences();
+            return value;
+        }
 
         /// <summary>Whether the formatter writes exactly the in-memory bytes of <typeparamref name="T"/>.</summary>
         internal virtual bool IsRaw => false;
@@ -172,6 +256,11 @@ namespace Nino.Core
         public override void Deserialize(ref T value, ref Reader reader) =>
             default(TFormatter).Deserialize(ref value, ref reader);
 
+        internal override void Write(T value, NinoArrayBufferWriter buffer) =>
+            NinoDirect.Write<T, TFormatter>(value, buffer);
+
+        internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
+
         internal override bool IsRaw => RawFormatter<TFormatter>.Is;
 
         internal override INinoRawArrayFormatter RawArray =>
@@ -193,9 +282,37 @@ namespace Nino.Core
         public override void Deserialize(ref T value, ref Reader reader) =>
             default(TFormatter).Deserialize(ref value, ref reader);
 
+        internal override void Write(T value, NinoArrayBufferWriter buffer) =>
+            NinoDirect.Write<T, TFormatter>(value, buffer);
+
+        internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
+
         internal override int FixedSize => default(TFormatter).FixedSize;
 
         internal override byte[] SerializeFixed(T value) => NinoDirect.WriteFixed<T, TFormatter>(value);
+    }
+
+    /// <summary>
+    /// <see cref="StructFormatter{T,TFormatter}"/> of a generated formatter with a <c>__Top</c> twin
+    /// (<typeparamref name="TTop"/>), registered by generated code
+    /// (<see cref="NinoFormatterCache{T}.TryRegisterTop{TFormatter,TTop}"/>): the regular top-level calls write through
+    /// the twin, with the writer it creates (see <see cref="INinoTopFormatter{T}"/>); everything else through
+    /// <typeparamref name="TFormatter"/>.
+    /// </summary>
+    internal sealed class TopStructFormatter<T, TFormatter, TTop> : NinoFormatter<T>
+        where TFormatter : struct, INinoFormatter<T>
+        where TTop : struct, INinoTopFormatter<T>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void Deserialize(ref T value, ref Reader reader) =>
+            default(TFormatter).Deserialize(ref value, ref reader);
+
+        internal override void Write(T value, NinoArrayBufferWriter buffer) => default(TTop).Write(value, buffer);
+
+        internal override T Read(ReadOnlySpan<byte> data) => default(TTop).Read(data);
     }
 
     /// <summary>
