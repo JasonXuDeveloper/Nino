@@ -94,8 +94,11 @@ namespace Nino.Core
 
         // Static, taking and returning values: an instance method would take the writer's address, and a writer
         // whose address escapes keeps every field in memory (and is zeroed in the prolog) in all inlined callers.
+        // The array, not a Span: a returned Span is a struct temp holding a reference at every call site, and
+        // generated dispatch inlines dozens of them, past the locals the JIT tracks: untracked GC temps are zeroed
+        // in the prolog on every call.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Span<byte> Grow(NinoArrayBufferWriter owner, int pos, int size)
+        private static byte[] Grow(NinoArrayBufferWriter owner, int pos, int size)
         {
             owner.Index = pos;
             owner.Grow(size);
@@ -260,17 +263,19 @@ namespace Nino.Core
             item.Body.Write(item.Value, ref this);
         }
 
-        /// <summary>Closes a class body opened by incrementing <see cref="Depth"/>.</summary>
+        /// <summary>
+        /// Closes a class body opened at <paramref name="depth"/>, the depth before it (kept in a register by the
+        /// caller, and stored back rather than decremented).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ExitBody()
+        internal void ExitBody(int depth)
         {
-            if (--Depth == 0 && _deferrals != null)
-            {
-                // Through a copy, as in Reader.ExitBody: the writer's own address must not reach a call.
-                var writer = this;
-                writer.WriteTopDeferred();
-                this = writer;
-            }
+            Depth = depth;
+            // No copy of the writer: only a body that nests others gets here, and such a body is not inlined
+            // (BodyEmitter), so the caller passed the writer's address to a call already; a copy holds references
+            // and would be zeroed in the prolog of every method this is inlined into.
+            if (depth == 0 && _deferrals != null)
+                WriteTopDeferred();
         }
 
         /// <summary>
@@ -300,22 +305,37 @@ namespace Nino.Core
         /// last power-of-two length (Brent), which finds any repetition in a number of steps proportional to the
         /// cycle.
         /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void DeferBody<T, TFormatter>(T value)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T> =>
+            _deferrals = DeferBody<T, TFormatter>(value, _deferrals, _pos, _regions);
+
+        // The fields by value, as in Reader.DeferBody: the writer's address reaches no call, and no copy of it is
+        // made (it would be zeroed in the prolog of every caller: generated dispatch inlines one per type).
         [MethodImpl(MethodImplOptions.NoInlining)]
-        internal void Defer(object value, NinoDeferredBody body)
+        private static NinoDeferrals DeferBody<T, TFormatter>(T value, NinoDeferrals d, int pos, int regions)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T> =>
+            Defer(d, pos, regions, value, NinoDeferredBody<T, TFormatter>.Instance);
+
+        private static NinoDeferrals Defer(NinoDeferrals d, int pos, int regions, object value,
+            NinoDeferredBody body)
         {
-            var d = _deferrals ??= NinoDeferrals.Rent();
+            d ??= NinoDeferrals.Rent();
             int generation = d.CurrentGeneration;
             object anchor = generation != 0 && (generation & (generation - 1)) == 0 ? d.Current : d.CurrentAnchor;
             if (ReferenceEquals(value, d.Current) || ReferenceEquals(value, anchor))
                 NinoThrow.Cycle(value.GetType());
             var item = new NinoDeferredItem
             {
-                Value = value, Body = body, Position = _pos, Anchor = anchor, Generation = generation + 1
+                Value = value, Body = body, Position = pos, Anchor = anchor, Generation = generation + 1
             };
-            if (_regions == 0)
+            if (regions == 0)
                 d.Top.Add(in item);
             else
                 d.Region.Add(in item);
+            return d;
         }
 
         /// <summary>Writes raw bytes without a length prefix.</summary>

@@ -233,19 +233,18 @@ namespace Nino.Core
                 _refs = section._refs;
         }
 
-        /// <summary>Closes a class body opened by incrementing <see cref="Depth"/>.</summary>
+        /// <summary>
+        /// Closes a class body opened at <paramref name="depth"/>, the depth before it (kept in a register by the
+        /// caller, and stored back rather than decremented).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal void ExitBody()
+        internal void ExitBody(int depth)
         {
-            if (--Depth == 0 && _deferrals != null)
-            {
-                // A copy, as in EndRegion.
-                // Reading the deferred bodies moves the position and may record references, nothing else.
-                var reader = this;
-                reader.ReadTopDeferred();
-                _pos = reader._pos;
-                _refs = reader._refs;
-            }
+            Depth = depth;
+            // No copy of the reader, as in Writer.ExitBody: only a body that nests others gets here, and such a
+            // body is not inlined, so its caller passed the reader's address to a call already.
+            if (depth == 0 && _deferrals != null)
+                ReadTopDeferred();
         }
 
         /// <summary>Every body is closed: reads the bodies deferred outside regions, in order (as written).</summary>

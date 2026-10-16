@@ -19,7 +19,25 @@ namespace Nino.Core
             where TFormatter : struct, INinoBodyFormatter<TSub>
         {
             writer.UnsafeWrite(default(TFormatter).TypeId);
-            WriteBody<TSub, TFormatter>(Unsafe.As<TSub>(value), ref writer);
+            // WriteBody spelled out: where this is not inlined it is shared code, and an inlined WriteBody (a
+            // generic method) would look up its generic context on every call, though only its deep path needs it.
+            var sub = Unsafe.As<TSub>(value);
+            int depth = writer.Depth;
+            if (depth >= NinoDepth.Inline)
+            {
+                WriteDeep<TSub, TFormatter>(sub, ref writer);
+                return;
+            }
+
+            if (!default(TFormatter).Nests)
+            {
+                default(TFormatter).WriteBody(sub, ref writer);
+                return;
+            }
+
+            writer.Depth = depth + 1;
+            default(TFormatter).WriteBody(sub, ref writer);
+            writer.ExitBody(depth);
         }
 
         /// <summary>
@@ -63,11 +81,36 @@ namespace Nino.Core
                 NinoThrow.NotASubtype(typeof(T), value.GetType());
         }
 
+        /// <summary>
+        /// <see cref="ReadBody{T,TFormatter}"/>, spelled out: this is shared code, and an inlined ReadBody (a generic
+        /// method) would look up its generic context on every call, though only its deep path needs it. The
+        /// reader is a <c>ref</c> parameter here, in memory anyway.
+        /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadBodyOutOfLine<T, TFormatter>(ref T value, ref Reader reader)
             where T : class
-            where TFormatter : struct, INinoBodyFormatter<T> =>
-            ReadBody<T, TFormatter>(ref value, ref reader);
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            int depth = reader.Depth;
+            if (depth >= NinoDepth.Inline)
+            {
+                if (default(TFormatter).Deferrable)
+                    reader.DeferBody<T, TFormatter>(ref value);
+                else
+                    ReadTooDeep<T, TFormatter>(ref value, ref reader);
+                return;
+            }
+
+            if (!default(TFormatter).Nests)
+            {
+                default(TFormatter).ReadBody(ref value, ref reader);
+                return;
+            }
+
+            reader.Depth = depth + 1;
+            default(TFormatter).ReadBody(ref value, ref reader);
+            reader.ExitBody(depth);
+        }
 
         /// <summary>
         /// Writes the body of a class, or defers it when <see cref="NinoDepth.Inline"/> bodies are open (see
@@ -78,12 +121,10 @@ namespace Nino.Core
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if (writer.Depth >= NinoDepth.Inline)
+            int depth = writer.Depth;
+            if (depth >= NinoDepth.Inline)
             {
-                // Through a copy, as in ReadBody.
-                var deep = writer;
-                WriteDeep<T, TFormatter>(value, ref deep);
-                writer = deep;
+                WriteDeep<T, TFormatter>(value, ref writer);
                 return;
             }
 
@@ -94,27 +135,43 @@ namespace Nino.Core
                 return;
             }
 
-            writer.Depth++;
+            writer.Depth = depth + 1;
             default(TFormatter).WriteBody(value, ref writer);
-            writer.ExitBody();
+            writer.ExitBody(depth);
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        /// <summary>A body nested too deep: deferred, or (if it cannot be) written in place.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteDeep<T, TFormatter>(T value, ref Writer writer)
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             if (default(TFormatter).Deferrable)
             {
-                writer.Defer(value, NinoDeferredBody<T, TFormatter>.Instance);
+                writer.DeferBody<T, TFormatter>(value);
                 return;
             }
 
-            if (writer.Depth >= NinoDepth.Max)
+            // Through a copy: passing the writer's address to a call that is not inlined would keep the JIT from
+            // holding its fields in registers. Only for types that cannot be deferred: the copy is zeroed in the
+            // caller's prolog.
+            var deep = writer;
+            WriteTooDeep<T, TFormatter>(value, ref deep);
+            writer = deep;
+        }
+
+        /// <summary>A body that cannot be deferred, written in place up to <see cref="NinoDepth.Max"/>.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteTooDeep<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            int depth = writer.Depth;
+            if (depth >= NinoDepth.Max)
                 NinoThrow.TooDeep(typeof(T));
-            writer.Depth++;
+            writer.Depth = depth + 1;
             default(TFormatter).WriteBody(value, ref writer);
-            writer.ExitBody();
+            writer.ExitBody(depth);
         }
 
         /// <summary>
@@ -127,7 +184,8 @@ namespace Nino.Core
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if (reader.Depth >= NinoDepth.Inline)
+            int depth = reader.Depth;
+            if (depth >= NinoDepth.Inline)
             {
                 // The value through a copy: its address reaching a call keeps it in memory in the caller.
                 var instance = value;
@@ -155,9 +213,9 @@ namespace Nino.Core
                 return;
             }
 
-            reader.Depth++;
+            reader.Depth = depth + 1;
             default(TFormatter).ReadBody(ref value, ref reader);
-            reader.ExitBody();
+            reader.ExitBody(depth);
         }
 
         /// <summary>A body that cannot be deferred, read in place up to <see cref="NinoDepth.Max"/>.</summary>
@@ -166,11 +224,12 @@ namespace Nino.Core
             where T : class
             where TFormatter : struct, INinoBodyFormatter<T>
         {
-            if (reader.Depth >= NinoDepth.Max)
+            int depth = reader.Depth;
+            if (depth >= NinoDepth.Max)
                 NinoThrow.TooDeep(typeof(T));
-            reader.Depth++;
+            reader.Depth = depth + 1;
             default(TFormatter).ReadBody(ref value, ref reader);
-            reader.ExitBody();
+            reader.ExitBody(depth);
         }
 
         /// <summary>
