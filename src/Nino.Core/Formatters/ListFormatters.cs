@@ -75,16 +75,15 @@ namespace Nino.Core
             }
 
             var list = value ??= ListAccess.Create<TList, T>(length);
-            var span = ListAccess.SetCount<T>(list, length, overwritten: true);
             if (!NinoLayout<T>.IsCanonical)
             {
-                reader.ReadUnmanagedRaw(span);
+                reader.ReadUnmanagedRaw(ListAccess.SetCount<T>(list, length, overwritten: true));
                 return;
             }
 
             // The length was checked against the remaining bytes above: one block copy, no second bounds check.
             uint bytes = (uint)length * (uint)Unsafe.SizeOf<T>();
-            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(span)),
+            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref ListAccess.SetCountOverwritten(list, length)),
                 ref reader.UnsafeAdvance((int)bytes), bytes);
         }
     }

@@ -8,8 +8,9 @@ using System.Runtime.InteropServices;
 
 namespace Nino.Core.Internal
 {
-#if !NET8_0_OR_GREATER
-    /// <summary>Mirrors the field layout of <see cref="List{T}"/> (the same on .NET Framework, Mono and IL2CPP).</summary>
+    /// <summary>
+    /// Mirrors the field layout of <see cref="List{T}"/> (the same on .NET Framework, .NET, Mono and IL2CPP).
+    /// </summary>
     [SuppressMessage("ReSharper", "InconsistentNaming")]
 #pragma warning disable CS0649 // assigned through Unsafe.As
     internal sealed class ListView<T>
@@ -18,7 +19,6 @@ namespace Nino.Core.Internal
         public int _size; // Do not rename (binary serialization)
     }
 #pragma warning restore CS0649
-#endif
 
     /// <summary>Direct access to the backing array of a <see cref="List{T}"/>.</summary>
     internal static class ListAccess
@@ -41,6 +41,24 @@ namespace Nino.Core.Internal
             var view = Unsafe.As<ListView<T>>(list);
             return new Span<T>(view._items, 0, view._size);
 #endif
+        }
+
+        /// <summary>
+        /// Sets the count of a list of unmanaged <typeparamref name="T"/> that the caller then overwrites entirely, and
+        /// returns a reference to its first element. No span: its bounds check (the count against the backing array,
+        /// which SetCount just sized) keeps the count live in a second register through the list's allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref T SetCountOverwritten<T>(List<T> list, int count)
+        {
+#if NET8_0_OR_GREATER
+            CollectionsMarshal.SetCount(list, count);
+#else
+            if (list.Capacity < count)
+                list.Capacity = count;
+            Unsafe.As<ListView<T>>(list)._size = count;
+#endif
+            return ref NinoUnsafe.GetArrayDataReference(Unsafe.As<ListView<T>>(list)._items);
         }
 
         /// <summary>

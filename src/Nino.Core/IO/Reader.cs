@@ -49,8 +49,10 @@ namespace Nino.Core
             // with the body within the JIT's inlining budget.
             this = default;
 #if NET8_0_OR_GREATER
-            _origin = ref MemoryMarshal.GetReference(data);
-            _cur = ref _origin;
+            // Through a local: a reader in memory would store a field and load it back.
+            ref byte origin = ref MemoryMarshal.GetReference(data);
+            _origin = ref origin;
+            _cur = ref origin;
             _avail = data.Length;
 #else
             _data = data;
@@ -66,8 +68,9 @@ namespace Nino.Core
         private Reader(ReadOnlySpan<byte> data, int pos, int depth, int regions, NinoReadContext context)
         {
 #if NET8_0_OR_GREATER
-            _origin = ref MemoryMarshal.GetReference(data);
-            _cur = ref Unsafe.Add(ref _origin, pos);
+            ref byte origin = ref MemoryMarshal.GetReference(data);
+            _origin = ref origin;
+            _cur = ref Unsafe.Add(ref origin, (nuint)(uint)pos);
             _avail = data.Length - pos;
 #else
             _data = data;
@@ -98,7 +101,8 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             get => ref _cur;
 #else
-            get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), _pos);
+            // Zero-extended: positions are never negative.
+            get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_data), (nint)(uint)_pos);
 #endif
         }
 
@@ -118,7 +122,8 @@ namespace Nino.Core
         private void Skip(int count)
         {
 #if NET8_0_OR_GREATER
-            _cur = ref Unsafe.Add(ref _cur, count);
+            // Counts are never negative: zero-extended (free) rather than sign-extended.
+            _cur = ref Unsafe.Add(ref _cur, (nuint)(uint)count);
             _avail -= count;
 #else
             _pos += count;

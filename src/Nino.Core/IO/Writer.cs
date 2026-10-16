@@ -59,8 +59,10 @@ namespace Nino.Core
         {
 #if NET8_0_OR_GREATER
             Span<byte> span = buffer;
-            _start = ref MemoryMarshal.GetReference(span);
-            _cur = ref Unsafe.Add(ref _start, pos);
+            // Through a local: a writer in memory would store a field and load it back.
+            ref byte start = ref MemoryMarshal.GetReference(span);
+            _start = ref start;
+            _cur = ref Unsafe.Add(ref start, (nuint)(uint)pos);
             _avail = span.Length - pos;
 #else
             _buffer = buffer;
@@ -75,7 +77,8 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
             get => ref _cur;
 #else
-            get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), _pos);
+            // Zero-extended: positions are never negative.
+            get => ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), (nint)(uint)_pos);
 #endif
         }
 
@@ -95,7 +98,8 @@ namespace Nino.Core
         private void Skip(int count)
         {
 #if NET8_0_OR_GREATER
-            _cur = ref Unsafe.Add(ref _cur, count);
+            // Counts are never negative: zero-extended rather than sign-extended.
+            _cur = ref Unsafe.Add(ref _cur, (nuint)(uint)count);
             _avail -= count;
 #else
             _pos += count;
@@ -118,9 +122,9 @@ namespace Nino.Core
         private ref byte At(int position)
         {
 #if NET8_0_OR_GREATER
-            return ref Unsafe.Add(ref _start, position);
+            return ref Unsafe.Add(ref _start, (nuint)(uint)position);
 #else
-            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), position);
+            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), (nint)(uint)position);
 #endif
         }
 
@@ -316,7 +320,11 @@ namespace Nino.Core
         {
             if (--_regions == 0 && _context != null)
             {
-                EndOuterRegion(lengthPosition);
+                // The fields by value, not the writer: its address (or a copy of it) reaching a call keeps all its
+                // fields in memory in the caller (a generated body's local copy), also on the path that never gets
+                // here. The section is written by a writer of its own; this one continues where it ended.
+                int pos = EndOuterRegion(_owner, Pos, Depth, _context, lengthPosition);
+                SetBuffer(_owner.Buffer, pos);
                 return;
             }
 
@@ -329,7 +337,16 @@ namespace Nino.Core
         /// Bodies deferred while writing the section are appended to it, so the stack stays bounded.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void EndOuterRegion(int lengthPosition)
+        private static int EndOuterRegion(NinoArrayBufferWriter owner, int pos, int depth, NinoWriteContext context,
+            int lengthPosition)
+        {
+            owner.Index = pos;
+            var writer = new Writer(owner) { Depth = depth, _context = context };
+            writer.EndOuterRegionCore(lengthPosition);
+            return writer.Pos;
+        }
+
+        private void EndOuterRegionCore(int lengthPosition)
         {
             var d = _context.Deferrals;
             if (d == null || d.Region.IsEmpty)
