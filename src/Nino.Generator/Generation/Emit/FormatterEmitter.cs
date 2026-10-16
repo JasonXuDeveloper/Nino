@@ -37,6 +37,8 @@ internal static class FormatterEmitter
             : $"{Core}INinoBodyFormatter<{t}>";
         if (m.RawStruct)
             iface += $", {Core}INinoRawFormatter";
+        if (m.FixedSize)
+            iface += $", {Core}INinoFixedSizeFormatter<{t}>";
 
         w.Open($"internal {(m.IsDispatchRoot ? "partial " : "")}struct {self} : {iface}{m.Constraints}");
         var body = new BodyEmitter(m, w, names);
@@ -106,6 +108,12 @@ internal static class FormatterEmitter
             body.EmitWriteBody();
             w.Line();
             body.EmitReadBody();
+        }
+
+        if (m.FixedSize)
+        {
+            w.Line();
+            body.EmitFixed();
         }
 
         if (m.HasTop)
@@ -243,7 +251,7 @@ internal static class FormatterEmitter
             return;
         w.Block("internal static void __Register()", () =>
         {
-            w.Line($"{Core}NinoFormatterCache<{m.TypeName}>.TryRegister<{m.FormatterName}>();");
+            w.Line($"{Core}NinoFormatterCache<{m.TypeName}>.{(m.FixedSize ? "TryRegisterFixed" : "TryRegister")}<{m.FormatterName}>();");
             if (m.Kind != FormatterKind.Polymorphic)
                 w.Line($"{Core}NinoPolymorphic.{(m.TrackReferences ? "RegisterTracked" : "Register")}<{m.TypeName}, {m.FormatterName}>(Id);");
         });

@@ -59,6 +59,28 @@ namespace Nino.Core
     }
 
     /// <summary>
+    /// Generated formatters of types whose values all take the same number of bytes (<see cref="FixedSize"/>, a
+    /// non-null one for a sealed class): structs and sealed classes whose members are all unmanaged values or such
+    /// structs. <see cref="NinoSerializer.Serialize{T}(T)"/> allocates the result at that size and writes the value
+    /// straight into it (see <see cref="NinoDirect.SerializeFixed{T,TFormatter}"/>).
+    /// </summary>
+    [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+    public interface INinoFixedSizeFormatter<T> : INinoFormatter<T>
+    {
+        /// <summary>
+        /// The bytes <see cref="INinoFormatter{T}.Serialize"/> writes for any value (any non-null one: a null
+        /// sealed class is its 1-byte null flag). A JIT-time constant.
+        /// </summary>
+        int FixedSize { get; }
+
+        /// <summary>
+        /// Writes <paramref name="value"/> (not null) into the <see cref="FixedSize"/> bytes at
+        /// <paramref name="destination"/>: the same bytes as <see cref="INinoFormatter{T}.Serialize"/>.
+        /// </summary>
+        void WriteFixed(T value, ref byte destination);
+    }
+
+    /// <summary>
     /// The formatter of <typeparamref name="T"/> held by <see cref="NinoFormatterCache{T}"/>, for code that only finds
     /// it at runtime (top-level calls, <see cref="CachedFormatter{T}"/>): a <see cref="StructFormatter{T,TFormatter}"/>
     /// around a struct formatter, called virtually. Every formatter users write is a struct
@@ -75,6 +97,15 @@ namespace Nino.Core
 
         /// <summary>Set when <typeparamref name="T"/> is an array written as its length and one raw block.</summary>
         internal virtual INinoRawArrayFormatter RawArray => null;
+
+        /// <summary>
+        /// The size of every (non-null) value when it is fixed (<see cref="INinoFixedSizeFormatter{T}"/>), else -1.
+        /// Read through <see cref="NinoTopFormatter{T}.Formatter"/>, whose exact class Tier1 code knows, so a constant.
+        /// </summary>
+        internal virtual int FixedSize => -1;
+
+        /// <summary>A new array of exactly the value's bytes; only when <see cref="FixedSize"/> is not -1.</summary>
+        internal virtual byte[] SerializeFixed(T value) => null;
     }
 
     /// <summary>Formatters of arrays whose elements are written as one raw block.</summary>
@@ -142,6 +173,26 @@ namespace Nino.Core
 
         internal override INinoRawArrayFormatter RawArray =>
             default(TFormatter) is INinoRawArrayFormatter raw && raw.ElementSize != 0 ? raw : null;
+    }
+
+    /// <summary>
+    /// <see cref="StructFormatter{T,TFormatter}"/> of a formatter of fixed size, registered by generated code
+    /// (<see cref="NinoFormatterCache{T}.TryRegisterFixed{TFormatter}"/>): the regular byte array call writes into an
+    /// array of exactly that size too.
+    /// </summary>
+    internal sealed class FixedStructFormatter<T, TFormatter> : NinoFormatter<T>
+        where TFormatter : struct, INinoFixedSizeFormatter<T>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public override void Deserialize(ref T value, ref Reader reader) =>
+            default(TFormatter).Deserialize(ref value, ref reader);
+
+        internal override int FixedSize => default(TFormatter).FixedSize;
+
+        internal override byte[] SerializeFixed(T value) => NinoDirect.WriteFixed<T, TFormatter>(value);
     }
 
     /// <summary>

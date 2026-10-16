@@ -74,7 +74,24 @@ namespace Nino.Core
             if (RawArray<T>.Formatter is { } raw && value != null)
                 return raw.Serialize(Unsafe.As<Array>(value));
 
+            // A value of fixed size: written into an array of that size (a constant check in Tier1 code).
+            if (NinoTopFormatter<T>.Formatter is { FixedSize: >= 0 } fixedSize)
+                return fixedSize.SerializeFixed(value);
+
             return SerializeToArray(value, NinoTopFormatter<T>.Get);
+        }
+
+        /// <summary>
+        /// The number of bytes <see cref="Serialize{T}(T)"/> returns for every value of <typeparamref name="T"/>
+        /// when that number is the same for all of them, else -1. Fixed are raw values and generated structs and
+        /// sealed classes whose members are all unmanaged values or such structs (not version tolerant, keyed or
+        /// tracked); a null instance of such a sealed class is 1 byte (its null flag), every other one this size.
+        /// </summary>
+        public static int GetFixedSize<T>()
+        {
+            if (NinoRaw.Is<T>())
+                return Unsafe.SizeOf<T>();
+            return NinoTopFormatter<T>.Get.FixedSize;
         }
 
         private static byte[] SerializeRaw<T>(T value)

@@ -60,10 +60,12 @@ internal static class DispatchEmitter
     }
 
     /// <summary>
-    /// A switch on the ids, which compiles to a binary search of conditional branches. Measured against a dense
-    /// switch through a perfect hash of the ids (an indirect jump) and the registry (an indirect call): equal on data
-    /// whose subtypes repeat in a fixed order, and about 40% faster when they come in random order, since conditional
-    /// branches mispredict less than indirect ones.
+    /// A switch on the ids, which compiles to a binary search of conditional branches; each case ends with a tail
+    /// call (see <c>NinoObject.ReadExact</c>), so the dispatch keeps nothing across a call and saves no registers.
+    /// Measured against a dense switch through a perfect hash of the ids (a multiplication, a shift and an indirect
+    /// jump through a table) and the registry (an indirect call): with 20 subtypes in random order the hash read
+    /// about 45% slower, since the indirect jump mispredicts where the conditional branches mostly do not, and in a
+    /// fixed order it was equal; it executes one instruction more on x64 and three fewer on ARM64.
     /// </summary>
     private static void EmitReadSwitch(CodeWriter w, DispatchEntry b, List<DispatchEntry> subtypes)
     {
@@ -88,7 +90,7 @@ internal static class DispatchEmitter
         {
             if (subtypes.Count != 0)
                 EmitReadSwitch(w, b, subtypes);
-            w.Line($"{Core}NinoPolymorphic<{t}>.Deserialize(id, ref value, ref reader);");
+            w.Line($"{Core}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
         });
     }
 }

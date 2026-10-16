@@ -159,27 +159,43 @@ Nino creates a collection only when the slot is `null`, through `NinoActivator<T
 ### Version tolerance
 
 A type marked `[NinoType(versionTolerant: true)]` (or every type when the project defines
-`WEAK_VERSION_TOLERANCE`) writes each level of its hierarchy (each `[NinoType]` class from the root down to the
-type itself) behind its own `int32` byte length:
+`WEAK_VERSION_TOLERANCE`) writes its body as one region: one `int32` byte length, then the members of its whole
+hierarchy (each `[NinoType]` class from the root down to the type itself), root first:
 
 ```
-header | { int32 levelLength | level members... } per level, root first
+header | int32 length | members of every level..., root first
 ```
 
-On read, each level is sliced. Members missing from a slice (old data) keep their current value when reading in
-place, or their default, and trailing bytes (new data read by old code) are skipped. So members can be appended to
-any level, a base class as well as the type itself, and each nested tolerant object delimits itself, so this holds
+On read the region is sliced once. Members missing from it (old data: the region ends early) keep their current
+value when reading in place, or their default, and trailing bytes (new data read by old code) are skipped. So
+members can be appended to the **most derived type**, and each nested tolerant object delimits itself, so this holds
 at any depth.
 
-* A type without `[NinoType]` base classes has one level: its body is a single length and its members.
-* A level without members still writes its length (4 bytes), so its first member can be added later. Members of a
-  `[NinoType]` interface lead the level of the first class implementing it, so marker interfaces cost nothing;
-  members appended to an interface are not tolerated (append them to a class).
-* Not tolerated: inserting, removing or reordering members within a level, and adding or removing a `[NinoType]`
-  class in the hierarchy. Use keyed members for those.
+* One length per object, whatever the depth of the hierarchy (earlier v4 builds wrote one length per level:
+  `header | { int32 levelLength | level members... } per level`). Example, a sealed `Leaf : Base` with
+  `Base { int A; }` and `Leaf { int B; }`, `A = 1, B = 7` (after the not-null flag `01`):
+
+  ```
+  per level (old):   01 | 04000000 01000000 | 04000000 07000000
+  one region (now):  01 | 08000000 01000000 07000000
+  ```
+
+* **Appending to a base class is not tolerated.** The members of every level share the region, so a member appended
+  to a base lands before the derived members and shifts them: an old reader reads the new base member's bytes as
+  its first derived member (then skips the rest), and a new reader reads old data's first derived member as the new
+  base member. Only the members of the type itself (the end of the region) can be appended; keyed members tolerate
+  the rest (see below). There is no diagnostic: the generator sees one version of the code, so it could only flag
+  every tolerant class that has tolerant `[NinoType]` subclasses (a possible info-level analyzer), not an actual
+  append.
+* Not tolerated either: inserting, removing or reordering members, and adding or removing a `[NinoType]` class in
+  the hierarchy. Use keyed members for those.
+* A type without members still writes its length (4 bytes), so its first member can be added later. Members of a
+  `[NinoType]` interface lead the members of the first class implementing it, so marker interfaces cost nothing;
+  members appended to an interface are not tolerated.
 * Positional types without version tolerance are unaffected: no lengths at all.
-* A derived type that delegates to its base's `WriteMembers`/`ReadMembers` gets the base's level slices from them,
-  then writes its own; there is no outer length.
+* A derived type that delegates to its base's `WriteMembers`/`ReadMembers` opens the region itself, calls the base's
+  members, then writes or reads its own inside the same region: the members are positional, so they line up with an
+  inline layout. On read every member is preceded by an end-of-region check (`Reader.Eof`), which ends the body.
 
 ### Keyed members
 
@@ -257,7 +273,7 @@ Where the deferred bodies go:
 
 * **Outside any region** (positional types): after the top-level object, once every body around it has closed,
   in the order they were deferred. Bodies deferred while writing those are appended to the queue.
-* **Inside a region** (a version-tolerant level, a keyed body or member): at the end of the **outermost** region,
+* **Inside a region** (a version-tolerant body, a keyed body or member): at the end of the **outermost** region,
   as a section of `(int32 key, int32 length, body)` entries followed by the section's offset in the region:
 
   ```
@@ -644,6 +660,9 @@ On compilers that load the generator's Roslyn 4.8 or 4.12 build (.NET 8 SDK and 
 argument is known at the call site and whose formatter it resolves (not raw values or arrays of raw elements,
 which the regular calls already copy directly, and not types it can only reach through `CachedFormatter<T>`):
 `NinoGen.Interceptors.g.cs` redirects it to `Nino.Core.NinoDirect`, which calls the formatter struct directly.
+`NinoDeserializer.Deserialize<T>(ReadOnlySpan<byte>)` of a raw value is intercepted too, to
+`NinoDirect.DeserializeRaw<T>`: one bounds check and one unaligned load with a single return, which the JIT keeps in
+registers (the regular method's several returns go through a stack temp).
 The bytes are the same. A formatter registered at run time with `NinoFormatterCache<T>.Register` still wins
 (`NinoDirect` checks a flag it sets), so intercepted and regular calls never disagree. The flag is read once, on the
 first use of `T`, into a `static readonly` field (`NinoTopFormatter<T>`, with the formatter itself), so Tier1 code
@@ -670,6 +689,20 @@ Measured on .NET 8 (small types, ns per call, regular → intercepted): deserial
 * C# 11+ projects get a file-local `InterceptsLocationAttribute` and interceptor class; older language versions
   get internal ones.
 * Calls in generic code (`T` a type parameter) are left alone: the interceptor would be shared code too.
+* **Fixed-size types.** A generated struct, or sealed class, whose members are all unmanaged portable values or
+  such structs (not raw itself, not version tolerant, keyed, tracked or a collection, no custom formatters) is
+  written in the same number of bytes for every value. Its formatter also implements `INinoFixedSizeFormatter<T>`
+  (`FixedSize`, and `WriteFixed(value, ref byte destination)`, which stores each member at a constant offset), and
+  `NinoSerializer.Serialize(T)` returning `byte[]` is intercepted to `NinoDirect.SerializeFixed<T, TFormatter>`:
+  it allocates the array at its final size and writes into it, with no writer, scratch buffer, growth checks or
+  final copy. A null sealed class is its null flag, `new byte[1]`. The regular call does the same through the
+  cached formatter (`NinoFormatter<T>.FixedSize`, a constant check in Tier1 code), and
+  `NinoSerializer.GetFixedSize<T>()` returns the size (raw values: their size; -1 when not fixed). The bytes are the
+  regular writer's. Measured (x64, a 10-member struct of 30 bytes, `Serialize(T)` to `byte[]`): 216 → 108
+  instructions per call. The general path still clears its writer twice (the prolog zeroes the address-exposed
+  local, then the constructor's `this = default`): the constructor runs after a branch (the buffer type test or the
+  scratch rent), outside the entry block where the JIT removes redundant zeroing, and storing each field instead
+  measured no better (85/95 → 86/94 x64/ARM64 instructions).
 * A sealed class with a small body that opens no class body (at most eight members, one or two of which call
   formatters) also gets a `__Top` twin of its formatter, whose body is inlined into the caller, so the reader or writer
   the top-level call creates stays in registers. Calls that create their reader or writer use it, for the type itself

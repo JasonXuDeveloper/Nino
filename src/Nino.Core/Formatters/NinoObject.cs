@@ -53,11 +53,28 @@ namespace Nino.Core
             where TFormatter : struct, INinoBodyFormatter<TSub>
         {
             var old = value;
+            // Every path ends with a call (a tail call): nothing is live across a call in the dispatch, which then
+            // saves no registers in its prolog.
             if (old != null && old.GetType() != typeof(TSub))
-                NinoRecycler.Discard(ref value);
+            {
+                ReadReplacing<TBase, TSub, TFormatter>(ref value, ref reader);
+                return;
+            }
+
             // The slot itself, seen as a TSub slot (it now holds null or a TSub): a local copy would reach the call
             // by address, an untracked GC slot per subtype of the dispatch, all zeroed in its prolog on every call
             // (and stored back through a second write barrier).
+            ReadBodyOutOfLine<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
+        }
+
+        /// <summary><see cref="ReadExact{TBase,TSub,TFormatter}"/> into a slot holding an instance of another type.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadReplacing<TBase, TSub, TFormatter>(ref TBase value, ref Reader reader)
+            where TBase : class
+            where TSub : class, TBase
+            where TFormatter : struct, INinoBodyFormatter<TSub>
+        {
+            NinoRecycler.Discard(ref value);
             ReadBodyOutOfLine<TSub, TFormatter>(ref Unsafe.As<TBase, TSub>(ref value), ref reader);
         }
 

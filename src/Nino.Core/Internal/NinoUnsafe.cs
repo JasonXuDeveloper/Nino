@@ -110,11 +110,11 @@ namespace Nino.Core
         /// Loads a <typeparamref name="T"/> from <paramref name="source"/> without alignment requirements.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T Read<T>(ref byte source)
-        {
-            if (Is64Bit || Unsafe.SizeOf<T>() <= 4)
-                return Unsafe.ReadUnaligned<T>(ref source);
+        public static T Read<T>(ref byte source) =>
+            Is64Bit || Unsafe.SizeOf<T>() <= 4 ? Unsafe.ReadUnaligned<T>(ref source) : ReadBytes<T>(ref source);
 
+        private static T ReadBytes<T>(ref byte source)
+        {
             T value = default;
             Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref value), ref source, (uint)Unsafe.SizeOf<T>());
             return value;
@@ -128,6 +128,10 @@ namespace Nino.Core
         {
             return Read<T>(ref Unsafe.Add(ref source, offset));
         }
+
+        /// <summary><paramref name="source"/> + <paramref name="offset"/> bytes.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref byte Add(ref byte source, int offset) => ref Unsafe.Add(ref source, offset);
 
         /// <summary>
         /// Returns a reference to the first element of <paramref name="array"/> without a bounds check.

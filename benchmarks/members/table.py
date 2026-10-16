@@ -13,6 +13,8 @@ def parse(d):
     return r
 a,b,c=[parse(d) for d in sorted(glob.glob(S+"/out-*"))]
 print(f"{'case':10}{'v3a':>10}{'v4':>10}{'v3b':>10}{'v4/v3':>8}   alloc v3 / v4")
-for k in a:
+for k in b:
+    if k not in a or k not in c:
+        print(f"{k:10}{'-':>10}{b[k][0]:10.1f}{'-':>10}{'-':>8}   - / {b[k][1]}"); continue
     v3=(a[k][0]+c[k][0])/2
     print(f"{k:10}{a[k][0]:10.1f}{b[k][0]:10.1f}{c[k][0]:10.1f}{b[k][0]/v3:8.2f}   {a[k][1]} / {b[k][1]}")

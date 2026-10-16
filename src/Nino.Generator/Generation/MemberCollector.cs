@@ -48,13 +48,10 @@ internal readonly record struct MemberFinding(
 /// </summary>
 /// <summary>
 /// The serialized members of a type, root level first. A level is the type itself or one of its [NinoType] base
-/// classes, led by the members of the [NinoType] interfaces it implements first; <see cref="LevelEnds"/> holds, per
-/// level, the index just past its last member (levels without members included), which version-tolerant bodies use
-/// to delimit each level.
+/// classes, led by the members of the [NinoType] interfaces it implements first.
 /// </summary>
 internal sealed class MemberList : List<ISymbol>
 {
-    public List<int> LevelEnds { get; } = new();
 }
 
 internal static class MemberCollector
@@ -187,10 +184,6 @@ internal static class MemberCollector
                 names.Add(symbol.Name);
                 result.Add(symbol);
             }
-
-            // Interfaces are not levels of their own: their members open the level of the class implementing them.
-            if (level.TypeKind != TypeKind.Interface)
-                result.LevelEnds.Add(result.Count);
         }
 
         return result;

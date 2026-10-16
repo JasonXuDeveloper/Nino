@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Core
 {
@@ -44,6 +45,30 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void DeserializeReplaced<T>(ref T value, ref Reader reader) =>
             NinoDeserializer.Deserialize(ref value, ref reader);
+
+        /// <summary>
+        /// <see cref="NinoSerializer.Serialize{T}(T)"/> of a value whose size is fixed: the result is allocated at
+        /// that size and the value written straight into it, with no scratch buffer, writer or copy. The bytes are
+        /// the same.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] SerializeFixed<T, TFormatter>(T value) where TFormatter : struct, INinoFixedSizeFormatter<T>
+        {
+            if (NinoTopFormatter<T>.Replaced)
+                return SerializeReplaced(value);
+            return WriteFixed<T, TFormatter>(value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static byte[] WriteFixed<T, TFormatter>(T value) where TFormatter : struct, INinoFixedSizeFormatter<T>
+        {
+            // A null sealed class: its null flag (0), which a new array holds.
+            if (value == null)
+                return new byte[1];
+            var bytes = new byte[default(TFormatter).FixedSize];
+            default(TFormatter).WriteFixed(value, ref NinoUnsafe.GetArrayDataReference(bytes));
+            return bytes;
+        }
 
         private static byte[] SerializeToArray<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
         {
@@ -110,6 +135,34 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static T DeserializeReplaced<T>(ReadOnlySpan<byte> data) => NinoDeserializer.Deserialize<T>(data);
+
+        /// <summary>
+        /// <see cref="NinoDeserializer.Deserialize{T}(ReadOnlySpan{byte})"/> of a value the generator found is copied
+        /// as its raw bytes: a length check and a load. One return, whose value is loaded in the block that returns
+        /// it: an inlinee with several returns (or a value that crosses a branch) passes a struct through a stack
+        /// temporary, which a struct the JIT cannot promote (a raw struct with <c>Pack</c>) keeps in memory, a load
+        /// and a store more per 8 bytes. A value that is not raw after all (a formatter registered at run time, a runtime
+        /// whose layout is not the wire's) is read by the regular call into a heap copy, which it is loaded from.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T DeserializeRaw<T>(ReadOnlySpan<byte> data)
+        {
+            ref byte source = ref MemoryMarshal.GetReference(data);
+            // Folded to one of the two branches.
+            if (!NinoRaw.Is<T>())
+                source = ref DeserializeOther<T>(data);
+            else if (data.Length < Unsafe.SizeOf<T>())
+                NinoThrow.EndOfData();
+            return NinoUnsafe.Read<T>(ref source);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ref byte DeserializeOther<T>(ReadOnlySpan<byte> data)
+        {
+            var copy = new T[1];
+            copy[0] = NinoDeserializer.Deserialize<T>(data);
+            return ref Unsafe.As<T, byte>(ref copy[0]);
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Deserialize<T, TFormatter>(ReadOnlySpan<byte> data, ref T value)

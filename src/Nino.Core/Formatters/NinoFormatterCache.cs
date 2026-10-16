@@ -87,6 +87,19 @@ namespace Nino.Core
             NinoFormatterCache.MarkRegistered(typeof(T));
         }
 
+        /// <summary>
+        /// <see cref="TryRegister{TFormatter}"/> for a formatter of fixed size, which the regular byte array call
+        /// uses to write into an array of that size. Used by generated code.
+        /// </summary>
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public static void TryRegisterFixed<TFormatter>() where TFormatter : struct, INinoFixedSizeFormatter<T>
+        {
+            if (Volatile.Read(ref _instance) != null)
+                return;
+            Interlocked.CompareExchange(ref _instance, new FixedStructFormatter<T, TFormatter>(), null);
+            NinoFormatterCache.MarkRegistered(typeof(T));
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static NinoFormatter<T> Resolve()
         {

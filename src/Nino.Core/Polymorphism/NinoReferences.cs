@@ -9,15 +9,25 @@ namespace Nino.Core
     /// thread), so calls without tracked objects touch nothing.
     /// <para>
     /// Open addressing on the object identity hash, kept at most half full; avoids the interface calls of a
-    /// <c>Dictionary</c> with a custom comparer.
+    /// <c>Dictionary</c> with a custom comparer. Each entry holds the object and its index side by side, so a hit
+    /// reads one cache line; the slots in use are listed in insertion order, so returning the table clears those
+    /// slots only, however large the table grew in an earlier call.
     /// </para>
     /// </summary>
     internal sealed class NinoReferenceWriteTable
     {
         [ThreadStatic] private static NinoReferenceWriteTable t_cached;
 
-        private object[] _keys = new object[16];
-        private int[] _values = new int[16];
+        private struct Entry
+        {
+            public object Key;
+            public int Value;
+        }
+
+        private Entry[] _entries = new Entry[16];
+
+        // The slot of object i + 1 (at most half the slots are used, plus the one that triggers growth).
+        private int[] _slots = new int[16 / 2 + 1];
         private int _count;
 
         public static NinoReferenceWriteTable Rent() =>
@@ -25,61 +35,62 @@ namespace Nino.Core
 
         public static void Return(NinoReferenceWriteTable table)
         {
-            if (table._keys.Length > NinoThreadCache.MaxRetainedTableCapacity)
+            if (table._entries.Length > NinoThreadCache.MaxRetainedTableCapacity)
                 return;
-            if (table._count != 0)
-            {
-                Array.Clear(table._keys, 0, table._keys.Length);
-                table._count = 0;
-            }
-
+            var entries = table._entries;
+            var slots = table._slots;
+            for (int k = 0; k < table._count; k++)
+                entries[slots[k]].Key = null;
+            table._count = 0;
             t_cached = table;
         }
 
         /// <summary>Returns the 1-based index of an object already written, or 0 after adding a new one.</summary>
         public int GetOrAdd(object value)
         {
-            var keys = _keys;
-            int mask = keys.Length - 1;
+            var entries = _entries;
+            int mask = entries.Length - 1;
             int i = RuntimeHelpers.GetHashCode(value) & mask;
             while (true)
             {
-                var key = keys[i];
+                ref var entry = ref entries[i];
+                var key = entry.Key;
                 if (key == null)
                     break;
                 if (ReferenceEquals(key, value))
-                    return _values[i];
+                    return entry.Value;
                 i = (i + 1) & mask;
             }
 
-            keys[i] = value;
-            _values[i] = ++_count;
-            if (_count * 2 > keys.Length)
+            int count = _count + 1;
+            entries[i].Key = value;
+            entries[i].Value = count;
+            _slots[count - 1] = i;
+            _count = count;
+            if (count * 2 > entries.Length)
                 Grow();
             return 0;
         }
 
         private void Grow()
         {
-            var oldKeys = _keys;
-            var oldValues = _values;
-            var keys = new object[oldKeys.Length * 2];
-            var values = new int[keys.Length];
-            int mask = keys.Length - 1;
-            for (int j = 0; j < oldKeys.Length; j++)
+            var old = _entries;
+            var entries = new Entry[old.Length * 2];
+            var slots = new int[entries.Length / 2 + 1];
+            int mask = entries.Length - 1;
+            // In insertion order: object k + 1 is at _slots[k].
+            for (int k = 0; k < _count; k++)
             {
-                var key = oldKeys[j];
-                if (key == null)
-                    continue;
-                int i = RuntimeHelpers.GetHashCode(key) & mask;
-                while (keys[i] != null)
+                ref var entry = ref old[_slots[k]];
+                int i = RuntimeHelpers.GetHashCode(entry.Key) & mask;
+                while (entries[i].Key != null)
                     i = (i + 1) & mask;
-                keys[i] = key;
-                values[i] = oldValues[j];
+                entries[i] = entry;
+                slots[k] = i;
             }
 
-            _keys = keys;
-            _values = values;
+            _entries = entries;
+            _slots = slots;
         }
     }
 

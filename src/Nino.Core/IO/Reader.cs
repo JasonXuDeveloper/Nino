@@ -141,7 +141,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Generated code: reads a length-prefixed region (a version-tolerant level, a keyed body or member),
+        /// Generated code: reads a length-prefixed region (a version-tolerant body, a keyed body or member),
         /// written between <see cref="Writer.BeginRegion"/> and <see cref="Writer.EndRegion"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

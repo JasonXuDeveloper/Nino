@@ -541,6 +541,15 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// <see cref="Deserialize"/> out of line, for the generated subtype dispatch: inlined, its object local (whose
+        /// address reaches the handler) would be zeroed in the dispatch's prolog on every call and keep the dispatch
+        /// from ending each case with a tail call.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void DeserializeOther(int id, ref TBase value, ref Reader reader) =>
+            Deserialize(id, ref value, ref reader);
+
+        /// <summary>
         /// Reads the body of the type with id <paramref name="id"/> (already consumed). Id 0 means null: the
         /// current value is recycled.
         /// </summary>

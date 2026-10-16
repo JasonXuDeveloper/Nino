@@ -20,8 +20,10 @@ internal sealed class TypeFacts
     private static readonly ConditionalWeakTable<Compilation, TypeFacts> Shared = new();
 
     private readonly ConcurrentDictionary<ISymbol, bool> _delegatable = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ISymbol, bool> _fixedSize = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, int> _typeIds = new(SymbolEqualityComparer.Default);
     private readonly Func<ISymbol, bool> _computeDelegatable;
+    private readonly Func<ISymbol, bool> _computeFixedSize;
     private readonly ParseOptions? _options;
     private readonly string[] _symbols;
 
@@ -45,6 +47,7 @@ internal sealed class TypeFacts
         Compilation = compilation;
         _options = options;
         _computeDelegatable = s => ComputeIsDelegatable((INamedTypeSymbol)s);
+        _computeFixedSize = s => ComputeIsFixedSize((INamedTypeSymbol)s);
         _symbols = SymbolsOf(options).ToArray();
         WeakTolerance = _symbols.Contains("WEAK_VERSION_TOLERANCE");
         Net8 = _symbols.Contains("NET8_0_OR_GREATER");
@@ -107,6 +110,49 @@ internal sealed class TypeFacts
         foreach (var member in Members.Of(type, attr))
         {
             if (Visibility.IsConstructionOnly(member) || !Visibility.IsDirectlyAccessible(member))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Whether every value of <paramref name="type"/> (every non-null one, for a sealed class) is written in the same
+    /// number of bytes, so its formatter implements <c>INinoFixedSizeFormatter</c>: a non-generic struct that is not
+    /// raw, or a sealed class, generated in this assembly, positional (not version tolerant or keyed), not tracked and
+    /// not a collection, whose members are all raw values or such structs, without custom formatters. Computed from
+    /// symbols only, so a type that holds it as a member, the type itself and the interceptors agree.
+    /// </summary>
+    public bool IsFixedSize(INamedTypeSymbol type)
+    {
+        if (type.IsGenericType || !(type.TypeKind == TypeKind.Struct || type.TypeKind == TypeKind.Class && type.IsSealed))
+            return false;
+        return _fixedSize.GetOrAdd(type, _computeFixedSize);
+    }
+
+    private bool ComputeIsFixedSize(INamedTypeSymbol type)
+    {
+        if (!Visibility.IsGeneratedHere(type))
+            return false;
+        var attr = type.GetNinoTypeOptions();
+        if (attr == null || attr.Keyed || attr.VersionTolerant || WeakTolerance)
+            return false;
+        bool isStruct = type.TypeKind == TypeKind.Struct;
+        if (isStruct ? Raw.IsRawStruct(type) : ModelBuilder.IsTracked(type) || Resolver.ResolveCollection(type) != null)
+            return false;
+        var members = Members.Of(type, attr);
+        // A struct without members writes nothing.
+        if (isStruct && members.Count == 0)
+            return false;
+        foreach (var member in members)
+        {
+            if (NinoSymbols.Has(member, Symbols.CustomFormatter) || MemberCollector.MemberType(member) is not { } memberType)
+                return false;
+            if (Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType))
+                continue;
+            // A struct of fixed size, written by its generated formatter.
+            if (memberType is not INamedTypeSymbol { TypeKind: TypeKind.Struct } nested || !IsFixedSize(nested) ||
+                Resolver.Resolve(nested, false)?.Code != FormatterResolver.GeneratedFormatter(nested))
                 return false;
         }
 

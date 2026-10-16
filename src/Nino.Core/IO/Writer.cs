@@ -204,7 +204,7 @@ namespace Nino.Core
             PatchInt32(lengthPosition, _pos - lengthPosition - NinoWire.LengthSize);
 
         /// <summary>
-        /// Generated code: starts a length-prefixed region (a version-tolerant level, a keyed body or member) and
+        /// Generated code: starts a length-prefixed region (a version-tolerant body, a keyed body or member) and
         /// returns the position of its length, for <see cref="EndRegion"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

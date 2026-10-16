@@ -120,11 +120,6 @@ internal sealed record TypeModel(
     // Formatter whose WriteMembers/ReadMembers cover the first BaseMemberCount members, or "".
     string BaseFormatter,
     int BaseMemberCount,
-    // How many of Levels the base formatter covers.
-    int BaseLevelCount,
-    // Version-tolerant positional bodies: the member count of each level, root first, each written behind its own
-    // length so members can be appended to any level. Empty for other bodies.
-    EquatableArray<int> Levels,
     EquatableArray<MemberModel> Members,
     ConstructionModel Construction,
     // (type, formatter) pairs registered for AOT platforms and top-level calls.
@@ -150,9 +145,18 @@ internal sealed record TypeModel(
     // members (not by a constructor taking them) and not compared by value.
     bool Deferrable,
     // Whether a class body may hold class bodies (see INinoBodyFormatter.Nests): false lets it skip the depth count.
-    bool Nests)
+    bool Nests,
+    // Whether every (non-null) value is written in the same number of bytes (TypeFacts.IsFixedSize): the formatter
+    // implements INinoFixedSizeFormatter.
+    bool FixedSize)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
+
+    /// <summary>
+    /// Version-tolerant positional body: the members of the whole hierarchy in one length-prefixed region, so members
+    /// appended to the most derived class are skipped by older readers and missing ones are left to newer readers.
+    /// </summary>
+    public bool Tolerant => VersionTolerant && !Keyed;
 
     /// <summary>
     /// Whether the formatter dispatches its subtypes through generated code (<c>__WriteSubtype</c> and
@@ -181,7 +185,7 @@ internal sealed record TypeModel(
     /// body (one that does passes the reader to that body's call anyway): a large body inlined into every call site
     /// would use up the JIT's inlining budget there.
     /// </summary>
-    public bool TopInline => HasTop && !Keyed && Levels.Length == 0 &&
+    public bool TopInline => HasTop && !Keyed && !Tolerant &&
                              BaseFormatter.Length == 0 && CollectionFormatter.Length == 0 &&
                              Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
 

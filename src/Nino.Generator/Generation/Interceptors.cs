@@ -62,14 +62,38 @@ internal static class Interceptors
             return null;
 
         var type = method.TypeArguments[0];
-        // Raw values and arrays of raw elements are copied directly by the regular calls already.
-        if (!IsNameable(type) || facts.Raw.IsRawUnmanaged(type) ||
-            type is IArrayTypeSymbol { ElementType: var element } && facts.Raw.IsRawUnmanaged(element))
+        if (!IsNameable(type))
+            return null;
+        // Raw values and arrays of raw elements are copied directly by the regular calls already, except a raw value
+        // read into a new one, which NinoDirect.DeserializeRaw returns without a stack temporary.
+        bool raw = facts.Raw.IsRawUnmanaged(type);
+        if (raw && SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer) &&
+            method.Name == "Deserialize" && method.Parameters.Length == 1 &&
+            method.Parameters[0].Type is INamedTypeSymbol { Name: "ReadOnlySpan" })
+            return Intercept(ctx, invocation, method, type, ct, $"{TypeNames.Core}NinoDirect.DeserializeRaw<{TypeNames.Global(type)}>(a0)");
+        if (raw || type is IArrayTypeSymbol { ElementType: var element } && facts.Raw.IsRawUnmanaged(element))
             return null;
         // Only the formatters known here: a cached one is what the regular call uses anyway.
         if (facts.Resolver.Resolve(type, false) is not { } formatter ||
             formatter.Code.StartsWith(TypeNames.Core + "CachedFormatter<", StringComparison.Ordinal))
             return null;
+        // A value of fixed size serialized into a new array: allocated at that size and written straight into.
+        if (SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) && method.Name == "Serialize" &&
+            method.Parameters.Length == 1 && method.ReturnType is IArrayTypeSymbol &&
+            type is INamedTypeSymbol named && facts.IsFixedSize(named) &&
+            formatter.Code == FormatterResolver.GeneratedFormatter(named))
+            return Intercept(ctx, invocation, method, type, ct,
+                $"{TypeNames.Core}NinoDirect.SerializeFixed<{TypeNames.Global(type)}, {formatter.Code}>(a0)");
+        return Intercept(ctx, invocation, method, type, ct, null, formatter.Code);
+    }
+
+    /// <summary>
+    /// The interceptor of <paramref name="invocation"/>: a call to <paramref name="call"/>, or (null) to the
+    /// <c>NinoDirect</c> method of the same name with <paramref name="formatter"/>.
+    /// </summary>
+    private static InterceptedCall? Intercept(GeneratorSyntaxContext ctx, InvocationExpressionSyntax invocation,
+        IMethodSymbol method, ITypeSymbol type, CancellationToken ct, string? call, string formatter = "")
+    {
 #if ROSLYN4_12
         if (ctx.SemanticModel.GetInterceptableLocation(invocation, ct) is not { } location)
             return null;
@@ -115,9 +139,11 @@ internal static class Interceptors
         signature.Append(')');
         // Overloads given a reader or writer leave its fields in the caller's memory: nothing to gain there.
         bool inlinable = !method.Parameters.Any(p => p.RefKind == RefKind.Ref && p.Type.Name is "Reader" or "Writer");
+        if (call != null)
+            return new InterceptedCall(signature.ToString(), call, attribute);
         return new InterceptedCall(signature.ToString(),
-            $"{TypeNames.Core}NinoDirect.{method.Name}<{name}, {formatter.Code}>({arguments})", attribute,
-            formatter.Code, inlinable);
+            $"{TypeNames.Core}NinoDirect.{method.Name}<{name}, {formatter}>({arguments})", attribute,
+            formatter, inlinable);
     }
 
     /// <summary>

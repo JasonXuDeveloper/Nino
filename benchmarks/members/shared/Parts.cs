@@ -25,6 +25,11 @@ namespace Parts;
 [NinoType] public sealed partial class PMap2 { public Dictionary<int, int> A; }
 [NinoType] public sealed partial class PEmpty { public int A; }
 [NinoType, StructLayout(LayoutKind.Sequential, Pack = 4)] public partial struct PStruct { public int Id; public DateTime T; }
+#if !V3
+// Version tolerant, over two levels of a hierarchy (v4 only: v3 has no version tolerance).
+[NinoType(versionTolerant: true)] public partial class PTolBase { public int Id; public bool Tag; }
+[NinoType(versionTolerant: true)] public sealed partial class PTol : PTolBase { public Guid G; public DateTime T; public string S; }
+#endif
 
 [MemoryDiagnoser, GcServer(true)]
 public class B
@@ -66,6 +71,8 @@ public class B
     [Benchmark] public void SVectors() { _w.ResetWrittenCount(); Serializer.Serialize(Vectors, _w); }
     [Benchmark] public void SMap1() { _w.ResetWrittenCount(); Serializer.Serialize(Map1, _w); }
     [Benchmark] public void SUtf8() { _w.ResetWrittenCount(); Serializer.Serialize(Utf8, _w); }
+    [Benchmark] public void SHead() { _w.ResetWrittenCount(); Serializer.Serialize(Head, _w); }
+    [Benchmark] public byte[] SHeadArr() => Serializer.Serialize(Head);
 #else
     readonly NinoArrayBufferWriter _w = new NinoArrayBufferWriter(1 << 20);
     static readonly byte[] bEmpty = NinoSerializer.Serialize(Empty);
@@ -91,6 +98,12 @@ public class B
     [Benchmark] public void SVectors() { _w.ResetWrittenCount(); NinoSerializer.Serialize(Vectors, _w); }
     [Benchmark] public void SMap1() { _w.ResetWrittenCount(); NinoSerializer.Serialize(Map1, _w); }
     [Benchmark] public void SUtf8() { _w.ResetWrittenCount(); NinoSerializer.Serialize(Utf8, _w); }
+    [Benchmark] public void SHead() { _w.ResetWrittenCount(); NinoSerializer.Serialize(Head, _w); }
+    [Benchmark] public byte[] SHeadArr() => NinoSerializer.Serialize(Head);
+    public static readonly PTol Tol = new PTol { Id = 5, Tag = true, G = Guid.NewGuid(), T = DateTime.Now, S = "version tolerant" };
+    static readonly byte[] bTol = NinoSerializer.Serialize(Tol);
+    [Benchmark] public PTol DTol() => NinoDeserializer.Deserialize<PTol>(bTol);
+    [Benchmark] public void STol() { _w.ResetWrittenCount(); NinoSerializer.Serialize(Tol, _w); }
 #endif
 
     public static void Main(string[] args)

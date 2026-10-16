@@ -59,7 +59,9 @@ namespace Nino.UnitTests.Corner
         public int[] AddedArray;
     }
 
-    // Appending to a base class.
+    // Appending to a base class. A tolerant object is one region with every level's members root first, so a member
+    // appended to a base lands before the derived members and shifts them: that is not a compatible change.
+    // Same-typed members keep the outcome deterministic.
     [NinoType]
     public class VerBaseV1
     {
@@ -69,7 +71,7 @@ namespace Nino.UnitTests.Corner
     [NinoType]
     public sealed class VerSealedLeafV1 : VerBaseV1
     {
-        public string B;
+        public int B;
     }
 
     [NinoType]
@@ -82,7 +84,7 @@ namespace Nino.UnitTests.Corner
     [NinoType]
     public sealed class VerSealedLeafV2 : VerBaseV2
     {
-        public string B;
+        public int B;
     }
 
     // Polymorphic leaf that gains members (read with the type id rewritten, as a renamed build would see it).
@@ -250,14 +252,28 @@ namespace Nino.UnitTests.Corner
         [TestMethod]
         public void MemberAppendedToABaseClass()
         {
-            var v2 = Convert<VerSealedLeafV1, VerSealedLeafV2>(new VerSealedLeafV1 { A = 1, B = "b" });
+            // Only appending to the most derived type is tolerated. With one region per object the bytes are the
+            // members root first (A, [AddedInBase], B), so the member appended to the base takes B's place.
+            var v1Bytes = NinoSerializer.Serialize(new VerSealedLeafV1 { A = 1, B = 7 });
+            var v2 = NinoDeserializer.Deserialize<VerSealedLeafV2>(v1Bytes);
             Assert.AreEqual(1, v2.A);
-            Assert.AreEqual(0, v2.AddedInBase);
-            Assert.AreEqual("b", v2.B);
+            Assert.AreEqual(7, v2.AddedInBase); // B's bytes
+            Assert.AreEqual(0, v2.B); // the region ended
 
-            var v1 = Convert<VerSealedLeafV2, VerSealedLeafV1>(new VerSealedLeafV2 { A = 1, AddedInBase = 2, B = "b" });
+            var v2Bytes = NinoSerializer.Serialize(new VerSealedLeafV2 { A = 1, AddedInBase = 2, B = 7 });
+            var v1 = NinoDeserializer.Deserialize<VerSealedLeafV1>(v2Bytes);
             Assert.AreEqual(1, v1.A);
-            Assert.AreEqual("b", v1.B);
+            Assert.AreEqual(2, v1.B); // AddedInBase's bytes; the trailing B is skipped
+#if WEAK_VERSION_TOLERANCE
+            // A sealed class: the not-null flag, then one length for the whole body, then the members root first.
+            // (Before: 01 | 08000000 A AddedInBase | 04000000 B, one length per level.)
+            var expected = new List<byte> { 1 };
+            expected.AddRange(BitConverter.GetBytes(12));
+            expected.AddRange(BitConverter.GetBytes(1));
+            expected.AddRange(BitConverter.GetBytes(2));
+            expected.AddRange(BitConverter.GetBytes(7));
+            CollectionAssert.AreEqual(expected.ToArray(), v2Bytes);
+#endif
         }
 
         [TestMethod]

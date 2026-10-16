@@ -96,76 +96,75 @@ namespace Nino.UnitTests
         {
             var value = new DelegLevel3 { A = 1, Name = "n", Items = new List<int> { 1 }, D = 2.5, E = 7 };
             var writer = new List<byte>();
-            // Under WEAK_VERSION_TOLERANCE each level is prefixed with its length.
-            void Level(params byte[][] members)
+            byte[][] members =
             {
+                NinoSerializer.Serialize(1), NinoSerializer.Serialize("n"),
+                NinoSerializer.Serialize(new List<int> { 1 }),
+                NinoSerializer.Serialize(2.5), NinoSerializer.Serialize(7L)
+            };
 #if WEAK_VERSION_TOLERANCE
-                int length = 0;
-                foreach (var m in members)
-                    length += m.Length;
-                writer.AddRange(System.BitConverter.GetBytes(length));
+            // Under WEAK_VERSION_TOLERANCE the whole body (every level, root first) is prefixed with one length.
+            int length = 0;
+            foreach (var m in members)
+                length += m.Length;
+            writer.AddRange(System.BitConverter.GetBytes(length));
 #endif
-                foreach (var m in members)
-                    writer.AddRange(m);
-            }
+            foreach (var m in members)
+                writer.AddRange(m);
 
-            Level(NinoSerializer.Serialize(1), NinoSerializer.Serialize("n"));
-            Level(NinoSerializer.Serialize(new List<int> { 1 }));
-            Level(NinoSerializer.Serialize(2.5), NinoSerializer.Serialize(7L));
             var body = NinoSerializer.Serialize(value);
             // The type id comes first; then the members in order.
             var expected = writer.ToArray();
             CollectionAssert.AreEqual(expected, body[^expected.Length..]);
         }
 
-        // Each level of a tolerant hierarchy is delimited on its own: any level may gain or lose trailing members.
-        // A level is given as the serialized bytes of its members.
-        private static byte[] TolerantData(params byte[][][] levels)
+        // A tolerant object is one region: its type id, one length, then the members of every level, root first.
+        private static byte[] TolerantData(params byte[][] members)
         {
             var data = new List<byte>(System.BitConverter.GetBytes(NinoTypeId.Of(typeof(DelegTolerant3))));
-            foreach (var level in levels)
-            {
-                int length = 0;
-                foreach (var m in level)
-                    length += m.Length;
-                data.AddRange(System.BitConverter.GetBytes(length));
-                foreach (var m in level)
-                    data.AddRange(m);
-            }
-
+            int length = 0;
+            foreach (var m in members)
+                length += m.Length;
+            data.AddRange(System.BitConverter.GetBytes(length));
+            foreach (var m in members)
+                data.AddRange(m);
             return data.ToArray();
         }
-
-        private static byte[][] Members(params byte[][] members) => members;
 
         [TestMethod]
         public void TolerantChainReadsOlderData()
         {
             var value = new DelegTolerant3 { A = 1, B = "b", C = "c" };
-            var result = NinoDeserializer.Deserialize<DelegTolerant3>(NinoSerializer.Serialize(value));
+            var bytes = NinoSerializer.Serialize(value);
+            CollectionAssert.AreEqual(
+                TolerantData(NinoSerializer.Serialize(1), NinoSerializer.Serialize("b"), NinoSerializer.Serialize("c")),
+                bytes);
+            var result = NinoDeserializer.Deserialize<DelegTolerant3>(bytes);
             Assert.AreEqual(1, result.A);
             Assert.AreEqual("b", result.B);
             Assert.AreEqual("c", result.C);
 
-            // Written before C existed: the leaf level is empty.
-            var older = TolerantData(
-                Members(NinoSerializer.Serialize(5)),
-                Members(NinoSerializer.Serialize("six")),
-                Members());
+            // Written before C existed: the region ends after B.
+            var older = TolerantData(NinoSerializer.Serialize(5), NinoSerializer.Serialize("six"));
             var partial = NinoDeserializer.Deserialize<DelegTolerant3>(older);
             Assert.AreEqual(5, partial.A);
             Assert.AreEqual("six", partial.B);
             Assert.IsNull(partial.C);
 
-            // Written by a newer version whose middle level gained a member: it is skipped, C still lines up.
-            var newer = TolerantData(
-                Members(NinoSerializer.Serialize(5)),
-                Members(NinoSerializer.Serialize("six"), NinoSerializer.Serialize(123L)),
-                Members(NinoSerializer.Serialize("seven")));
+            // Written by a newer version whose leaf gained a trailing member: it is skipped.
+            var newer = TolerantData(NinoSerializer.Serialize(5), NinoSerializer.Serialize("six"),
+                NinoSerializer.Serialize("seven"), NinoSerializer.Serialize(123L));
             var skipped = NinoDeserializer.Deserialize<DelegTolerant3>(newer);
             Assert.AreEqual(5, skipped.A);
             Assert.AreEqual("six", skipped.B);
             Assert.AreEqual("seven", skipped.C);
+
+            // Even older data that ends inside the base: every later member is missing.
+            var oldest = TolerantData(NinoSerializer.Serialize(5));
+            var baseOnly = NinoDeserializer.Deserialize<DelegTolerant3>(oldest);
+            Assert.AreEqual(5, baseOnly.A);
+            Assert.IsNull(baseOnly.B);
+            Assert.IsNull(baseOnly.C);
 
             // In place: a member missing from older data keeps its current value.
             var target = new DelegTolerant3 { C = "kept" };

@@ -11,7 +11,7 @@ namespace Nino.Core
     /// <para>
     /// Where a deferred body goes depends on what encloses it. Outside any length-prefixed region, deferred bodies
     /// follow the top-level object they belong to, once the bodies open around it have all closed. Inside a region
-    /// (a version-tolerant level, a keyed body or member), they go into a section at the end of the outermost
+    /// (a version-tolerant body, a keyed body or member), they go into a section at the end of the outermost
     /// region, keyed by where the deferral happened (relative to the region's start): a reader that skips part of
     /// the region (members it does not know) skips the sections' entries for it too. A region holding a section
     /// has <see cref="SectionFlag"/> set in its length; the section is followed by its offset in the region.

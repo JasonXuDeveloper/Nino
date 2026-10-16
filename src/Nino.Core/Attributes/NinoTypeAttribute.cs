@@ -13,7 +13,9 @@ namespace Nino.Core
         /// <param name="containNonPublicMembers">With <paramref name="autoCollect"/>, also serialize non-public members.</param>
         /// <param name="allowInheritance">Whether subtypes are serializable through this type.</param>
         /// <param name="versionTolerant">
-        /// Prefix the body with its byte length, so members can be appended later without breaking existing data.
+        /// Prefix the body (the members of the whole hierarchy, root first) with its byte length, so members can be
+        /// appended to this type later without breaking existing data. Members appended to a base class shift the
+        /// derived members and are not tolerated.
         /// Defining <c>WEAK_VERSION_TOLERANCE</c> in the project turns this on for every type.
         /// </param>
         /// <param name="keyed">
