@@ -25,6 +25,21 @@ CI runs the same, plus the Unity tests (`src/Nino.Unity`, Unity 2022.3).
   `dotnet run -c Release --project src/Nino.GeneratorBenchmark`.
 * How the runtime and the generator fit together: [docs/v4-design.md](docs/v4-design.md).
 
+## Performance work
+
+* Optimize from the JIT's Tier1 machine code for **both x64 and ARM64**, then confirm with timings. One machine shows
+  both: `benchmarks/cross-jit.sh` installs the other architecture's JIT, and `DISASM=1 benchmarks/members/run.sh`
+  writes both listings for the member cases ([benchmarks/README.md](benchmarks/README.md#machine-code-for-x64-and-arm64)).
+* ARM64 is a load/store architecture: what x64 does in one instruction on memory is a load, an operation and a store
+  there, and 64-bit constants and addresses take several instructions. Keep hot state in registers:
+  * never pass the address of a `Reader`, a `Writer` or a value to a call that is not inlined (pass a copy and write
+    back only the fields that change), or the JIT keeps all its fields in memory;
+  * keep rare paths (replaced formatters, deferral, growth, recycling, transcoding) out of line, so they neither use
+    up the caller's inlining budget nor add locals (past the JIT's tracking limit, locals are zeroed in the prolog);
+  * do not inline a generic method that needs a runtime lookup into shared code on a hot path.
+* Timings on a shared or cloud machine vary by ±15%: interleave runs (base, new, base, new) and read the code before
+  trusting a difference. The wire format must not change unless that is the point: compare the bytes.
+
 ## Pull requests
 
 Branch from `main`, keep a pull request to one change, add tests for behavior changes, and update the docs (README,

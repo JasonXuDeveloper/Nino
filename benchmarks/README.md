@@ -24,5 +24,26 @@ Nino 3.3.13 and once against this repository. When a case of the full run is slo
 ```sh
 benchmarks/members/run.sh                     # v3, v4, v3 again, in-process; a few minutes
 FILTER='*DMap*' benchmarks/members/run.sh     # only some cases
-FILTER='*DStr*' DISASM=1 benchmarks/members/run.sh   # also the JIT's code, in results/asm-*.txt
+FILTER='*DStr*' DISASM=1 benchmarks/members/run.sh   # also the JIT's code for x64 and arm64
 ```
+
+## Machine Code for x64 and ARM64
+
+A slower case is found in the JIT's Tier1 code, and it has to be read for **both x64 and ARM64**: what costs one
+instruction on x64 (`cmp dword ptr [mem], 128`, `inc dword ptr [mem]`) is a load, an operation and a store on ARM64,
+so a value kept in memory instead of a register (a `Reader`/`Writer` whose address reaches a call that is not
+inlined, a `ref` local, a struct with too many live fields) costs more there.
+
+`cross-jit.sh` installs the JIT for the other architecture (arm64 on an x64 machine, x64 on Apple silicon) from
+Microsoft's crossgen2 package into the .NET 10 runtime. With it every method is compiled for both, so one machine
+shows both listings:
+
+```sh
+JIT=$(benchmarks/cross-jit.sh)
+DOTNET_AltJit='*' DOTNET_AltJitName=$JIT DOTNET_JitDisasm='Nino*' dotnet <app>.dll > out.txt   # stdout, not
+python3 benchmarks/members/split-asm.py out.txt asm      # DOTNET_JitStdOutFile; writes asm-x64.txt, asm-arm64.txt
+```
+
+`DISASM=1` on `members/run.sh` does this for the member cases. The cross JIT's code is never run, and the timings of
+a run with it are meaningless. Its ARM64 code is the generic Unix ABI; Apple's differs only in calls with stack
+arguments.
