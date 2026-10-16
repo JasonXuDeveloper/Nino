@@ -90,8 +90,9 @@ def main():
                                 for i, (c, w) in enumerate(zip(r, widths))) + " |")
     print()
     print("v4 vs v3 = mean(v4) / mean(v3); below 1.00x means v4 is faster.")
+    # a case measured as 0.00 ns (the JIT removed the work) has no ratio
     drift = [v4["MemoryPack" + c] / v3["MemoryPack" + c] for c in cases
-             if "MemoryPack" + c in v4 and "MemoryPack" + c in v3]
+             if v4.get("MemoryPack" + c) and v3.get("MemoryPack" + c)]
     if drift:
         print(f"MemoryPack drift (v4 run / v3 run): min {min(drift):.2f}x, max {max(drift):.2f}x "
               "(same code in both runs; the spread is the noise floor of this comparison).")
