@@ -53,21 +53,59 @@ namespace Nino.Core
         {
         }
 
+        // For a class, NinoObject.WriteBody/ReadBody spelled out (as in NinoObject.WriteExact): this is shared code
+        // (TSub is a reference type), where the inlined generic method would look up its generic context on every
+        // call, and ReadBody's copy of the reader for a deep body (in memory here anyway) would be zeroed in the
+        // prolog. Only the deep path goes through ClassBody, out of line.
         public override void Serialize(object value, ref Writer writer)
         {
             writer.UnsafeWrite(Id);
             // Only class bodies count toward the depth (NinoDepth).
             if (typeof(TSub).IsValueType)
+            {
                 default(TFormatter).WriteBody(As(ref value), ref writer);
-            else
-                NinoObject.WriteBody<object, ClassBody>(value, ref writer);
+                return;
+            }
+
+            int depth = writer.Depth;
+            if (depth >= NinoDepth.Inline)
+            {
+                WriteDeep(value, ref writer);
+                return;
+            }
+
+            if (!default(TFormatter).Nests)
+            {
+                default(TFormatter).WriteBody(As(ref value), ref writer);
+                return;
+            }
+
+            writer.Depth = depth + 1;
+            default(TFormatter).WriteBody(As(ref value), ref writer);
+            writer.ExitBody(depth);
         }
 
         public override void Deserialize(ref object value, ref Reader reader)
         {
             if (!typeof(TSub).IsValueType)
             {
-                NinoObject.ReadBody<object, ClassBody>(ref value, ref reader);
+                int depth = reader.Depth;
+                if (depth >= NinoDepth.Inline)
+                {
+                    ReadDeep(ref value, ref reader);
+                    return;
+                }
+
+                // value is null or exactly a TSub, and the body stores a TSub: the slot is read as a TSub slot.
+                if (!default(TFormatter).Nests)
+                {
+                    default(TFormatter).ReadBody(ref Unsafe.As<object, TSub>(ref value), ref reader);
+                    return;
+                }
+
+                reader.Depth = depth + 1;
+                default(TFormatter).ReadBody(ref Unsafe.As<object, TSub>(ref value), ref reader);
+                reader.ExitBody(depth);
                 return;
             }
 
@@ -75,6 +113,14 @@ namespace Nino.Core
             default(TFormatter).ReadBody(ref sub, ref reader);
             value = sub;
         }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void WriteDeep(object value, ref Writer writer) =>
+            NinoObject.WriteBody<object, ClassBody>(value, ref writer);
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void ReadDeep(ref object value, ref Reader reader) =>
+            NinoObject.ReadBody<object, ClassBody>(ref value, ref reader);
 
         /// <summary><typeparamref name="TFormatter"/> over <c>object</c>, for a class <typeparamref name="TSub"/>.</summary>
         private struct ClassBody : INinoBodyFormatter<object>

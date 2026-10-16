@@ -60,8 +60,8 @@ internal static class MemberCode
     }
 
     /// <summary>Stores a read value: into the instance (in place) or into the member's local.</summary>
-    public static string Store(TypeModel m, MemberModel member, bool inPlace, string expr) =>
-        inPlace ? Set(m, member, "value", expr) : $"{Local(member)} = {expr};";
+    public static string Store(TypeModel m, MemberModel member, bool inPlace, string expr, string v = "value") =>
+        inPlace ? Set(m, member, v, expr) : $"{Local(member)} = {expr};";
 
     /// <summary>
     /// For formatters that never reuse the current value (strings), the read expression that replaces the

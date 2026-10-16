@@ -375,9 +375,38 @@ namespace Nino.Core
                 return;
             }
 
-            var bytes = MemoryMarshal.AsBytes(values);
-            NinoLayout<T>.WriteLengthPrefixed(ref Reserve(NinoWire.LengthSize + bytes.Length),
-                ref MemoryMarshal.GetReference(bytes), values.Length);
+            // The size in 64 bits: it cannot overflow, and the capacity check rejects a size too large for an int
+            // on the cold path (AsBytes would check the multiplication with imul/jo, CopyToWire once more).
+            int count = values.Length;
+            ulong size = (ulong)(uint)count * (uint)Unsafe.SizeOf<T>();
+            ref byte dst = ref ReserveLarge(NinoWire.LengthSize + size);
+            NinoUnsafe.Write(ref dst, count);
+            if (count == 0)
+                return;
+            ref byte src = ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values));
+            if (NinoLayout<T>.HasPadding)
+                NinoLayout<T>.CopyToWire(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, count);
+            else
+                Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, (uint)size);
+        }
+
+        /// <summary><see cref="Reserve"/> for a size that may not fit in an int (rejected when it does not).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private ref byte ReserveLarge(ulong size)
+        {
+            int pos = _pos;
+            if (size > (uint)(_buffer.Length - pos))
+                _buffer = GrowLarge(_owner, pos, size);
+            _pos = pos + (int)size;
+            return ref Unsafe.Add(ref MemoryMarshal.GetReference(_buffer), pos);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static byte[] GrowLarge(NinoArrayBufferWriter owner, int pos, ulong size)
+        {
+            if (size > int.MaxValue)
+                throw new OverflowException();
+            return Grow(owner, pos, (int)size);
         }
 
         /// <summary>Writes a length-prefixed unmanaged array (-1 for null).</summary>

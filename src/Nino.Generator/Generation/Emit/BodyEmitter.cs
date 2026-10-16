@@ -22,6 +22,12 @@ internal sealed class BodyEmitter
     private readonly FormatterNames _names;
     private int _blocks;
 
+    /// <summary>
+    /// The instance member reads go to: <c>value</c>, or the local a class body caches it in (a store through
+    /// <c>ref value</c> would otherwise make the JIT reload the reference after every call).
+    /// </summary>
+    private string _target = "value";
+
     public BodyEmitter(TypeModel model, CodeWriter writer, FormatterNames names)
     {
         _m = model;
@@ -71,24 +77,37 @@ internal sealed class BodyEmitter
     /// before the small helpers it and the caller use (bounds checks, depth tracking, flush) are inlined. Bodies of
     /// raw members only are a few stores and stay inlinable.
     /// </summary>
-    private void EmitBodyInlining()
+    private bool OutOfLine => _m.Members.Any(x => x.Raw == null) || _m.CollectionFormatter.Length != 0;
+
+    /// <summary>
+    /// The signature of a body method. An out-of-line body is a static method behind an inlined instance forwarder:
+    /// a call to an instance method of the (empty) formatter struct stores a dummy byte on the caller's stack and
+    /// passes its address as <c>this</c>.
+    /// </summary>
+    private string BodySignature(string name, string parameters)
     {
-        if (_m.Members.Any(x => x.Raw == null) || _m.CollectionFormatter.Length != 0)
-            _w.Line(_names.NoInline);
+        if (!OutOfLine)
+            return $"public void {name}({parameters})";
+        string args = name == "WriteBody" ? "value, ref writer" : "ref value, ref reader";
+        _w.Line(_names.Inline);
+        _w.Line($"public void {name}({parameters}) => __{name}({args});");
+        _w.Line();
+        _w.Line(_names.NoInline);
+        return $"private static void __{name}({parameters})";
     }
 
     public void EmitWriteBody()
     {
-        EmitBodyInlining();
+        string signature = BodySignature("WriteBody", $"{T} value, ref {Core}Writer writer");
         if (_m.EmitMembers && !_m.Keyed && _m.CollectionFormatter.Length == 0)
         {
-            _w.Line($"public void WriteBody({T} value, ref {Core}Writer writer) => WriteMembers(value, ref writer);");
+            _w.Line($"{signature} => WriteMembers(value, ref writer);");
             _w.Line();
             EmitMembersMethods();
             return;
         }
 
-        _w.Block($"public void WriteBody({T} value, ref {Core}Writer writer)", () =>
+        _w.Block(signature, () =>
         {
             if (_m.Keyed)
                 _w.Line("int __length = writer.BeginRegion();");
@@ -219,8 +238,7 @@ internal sealed class BodyEmitter
 
     public void EmitReadBody()
     {
-        EmitBodyInlining();
-        _w.Open($"public void ReadBody(ref {T} value, ref {Core}Reader reader)");
+        _w.Open(BodySignature("ReadBody", $"ref {T} value, ref {Core}Reader reader"));
         string r = "reader";
         if (_m.Keyed)
         {
@@ -243,19 +261,33 @@ internal sealed class BodyEmitter
             string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
             if (_m.Pooled)
                 create = T + ".RentFromNinoPool() ?? " + create;
-            _w.Line("if (value == null)");
-            _w.Indented(() => _w.Line($"value = {create};"));
+            // The instance in a local (a collection formatter may replace value, so not for collections).
+            if (_m.CollectionFormatter.Length == 0)
+                _target = "__v";
+            if (_target == "__v")
+            {
+                _w.Line("var __v = value;");
+                _w.Line("if (__v == null)");
+                _w.Indented(() => _w.Line($"value = __v = {create};"));
+            }
+            else
+            {
+                _w.Line("if (value == null)");
+                _w.Indented(() => _w.Line($"value = {create};"));
+            }
+
             if (_m.TrackReferences)
-                _w.Line("reader.SetReference(value);");
+                _w.Line($"reader.SetReference({_target});");
         }
 
         if (_m.CollectionFormatter.Length != 0)
             _w.Line($"default({_m.CollectionFormatter}).Deserialize(ref value, ref {r});");
 
         if (_m.EmitMembers)
-            _w.Line($"ReadMembers(value, ref {r});");
+            _w.Line($"ReadMembers({_target}, ref {r});");
         else
             EmitMemberReads(r, inPlace: true);
+        _target = "value";
 
         if (_m.Keyed)
             _w.Line("reader.EndRegion(in __reader);");
@@ -315,7 +347,7 @@ internal sealed class BodyEmitter
         bool delegates = inPlace && Delegates;
         var members = inPlace ? OwnMembers : _m.Members;
         if (delegates)
-            _w.Line($"{_m.BaseFormatter}.ReadMembers(value, ref {r});");
+            _w.Line($"{_m.BaseFormatter}.ReadMembers({_target}, ref {r});");
 
         if (_m.Keyed)
         {
@@ -345,7 +377,7 @@ internal sealed class BodyEmitter
             for (int i = 0; i < group.Count; i++)
             {
                 _w.Line(Store(_m, group[i], inPlace,
-                    $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})"));
+                    $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})", _target));
             }
         }
     }
@@ -381,14 +413,14 @@ internal sealed class BodyEmitter
     {
         if (member.Raw != null)
         {
-            _w.Line(Store(_m, member, inPlace, $"{r}.UnsafeRead<{member.TypeName}>()"));
+            _w.Line(Store(_m, member, inPlace, $"{r}.UnsafeRead<{member.TypeName}>()", _target));
             return;
         }
 
         var direct = DirectRead(member, r);
         if (direct != null)
         {
-            _w.Line(Store(_m, member, inPlace, direct));
+            _w.Line(Store(_m, member, inPlace, direct, _target));
             return;
         }
 
@@ -399,7 +431,7 @@ internal sealed class BodyEmitter
             return;
         }
 
-        var reference = Ref(_m, member, "value");
+        var reference = Ref(_m, member, _target);
         if (reference != null)
         {
             _w.Line($"default({formatter}).Deserialize(ref {reference}, ref {r});");
@@ -408,9 +440,9 @@ internal sealed class BodyEmitter
 
         // Properties: read through a local so the existing instance is reused, then assign it back.
         _w.Open();
-        _w.Line($"var __t = {Get(_m, member, "value")};");
+        _w.Line($"var __t = {Get(_m, member, _target)};");
         _w.Line($"default({formatter}).Deserialize(ref __t, ref {r});");
-        _w.Line(Set(_m, member, "value", "__t"));
+        _w.Line(Set(_m, member, _target, "__t"));
         _w.Close();
     }
 
