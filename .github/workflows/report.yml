@@ -108,7 +108,8 @@ jobs:
         run: |
           cd Nino.Benchmark
           echo "Running benchmarks for ${{ env.tag_name }}..."
-          dotnet run -c Release --no-build -- --filter '*'
+          # The settings of the published numbers (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few.
+          dotnet run -c Release --no-build -- --filter '*' --launchCount 1 --warmupCount 5 --iterationCount 15
           
           # Verify benchmark results exist (check for any github markdown file)
           MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)

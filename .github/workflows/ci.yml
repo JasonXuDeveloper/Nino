@@ -70,32 +70,23 @@ jobs:
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
           cp ./Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
 
+      # net8.0 and net10.0 builds of Nino.Core compile the same code (no NET10-only paths): run it once, on .NET 10.
       - name: Run unit tests
-        run: dotnet test --no-build --verbosity normal --configuration Debug --collect:"XPlat Code Coverage" --results-directory ./TestResults
+        run: dotnet test --no-build --verbosity normal --configuration Debug --framework net10.0 --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
-      # Every Nino.Core build must produce identical bytes (GoldenBytesTests pins them): run the suite against the
-      # netstandard builds too.
-      - name: Run unit tests against Nino.Core netstandard2.0
+      # The default run covers Nino.Core net10.0 with the Roslyn 4.12 generator (interceptors on). Two more
+      # builds, on .NET 8, cover the rest, each Nino.Core build checked against the pinned bytes of GoldenBytesTests:
+      # - netstandard2.1 without interceptors: what Unity and older compilers run;
+      # - netstandard2.0 with the Roslyn 4.8 generator: the .NET 8 SDK's preview interceptor attribute.
+      - name: Run unit tests against Nino.Core netstandard2.1 without interceptors
         run: |
-          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0
+          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1 -p:NinoRegularCalls=true
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1 -p:NinoRegularCalls=true
 
-      - name: Run unit tests against Nino.Core netstandard2.1
+      - name: Run unit tests against Nino.Core netstandard2.0 with the Roslyn 4.8 generator
         run: |
-          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.1
-
-      # The Roslyn 4.8 build (.NET 8 SDK) intercepts with the preview attribute form.
-      - name: Run unit tests with the Roslyn 4.8 generator
-        run: |
-          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoGeneratorBuild=4.8
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoGeneratorBuild=4.8
-
-      # Top-level calls are intercepted on Roslyn 4.8+; the regular entry points (Unity, older compilers) must agree.
-      - name: Run unit tests without interceptors
-        run: |
-          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoRegularCalls=true
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoRegularCalls=true
+          dotnet build Nino.UnitTests/Nino.UnitTests.csproj -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
+          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f net8.0 -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
 
       - name: Cache Unity Library
         uses: actions/cache@v4
@@ -144,7 +135,8 @@ jobs:
   benchmark:
     name: Run Benchmarks
     runs-on: ubuntu-latest
-    needs: [ build-test ]
+    # Independent of the tests, so it runs beside them. A quick signal (ShortRun, Nino against MemoryPack); the full,
+    # published numbers come from report.yml on release.
     if: github.event_name == 'pull_request'
     timeout-minutes: 180
     permissions:
@@ -187,7 +179,7 @@ jobs:
         run: |
           cd Nino.Benchmark
           echo "Running benchmarks for PR #${{ github.event.pull_request.number }}..."
-          dotnet run -c Release --no-build -- --filter '*'
+          dotnet run -c Release --no-build -- --filter '*Test.Nino*' '*Test.MemoryPack*'
 
           # Verify benchmark results exist (check for any github markdown file)
           MARKDOWN_FILE=$(find BenchmarkDotNet.Artifacts/results -name "*-report-github.md" -type f 2>/dev/null | head -n1)
