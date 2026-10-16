@@ -19,7 +19,7 @@ namespace Nino.Core
             where TFormatter : struct, INinoBodyFormatter<TSub>
         {
             writer.UnsafeWrite(default(TFormatter).TypeId);
-            default(TFormatter).WriteBody(Unsafe.As<TSub>(value), ref writer);
+            WriteBody<TSub, TFormatter>(Unsafe.As<TSub>(value), ref writer);
         }
 
         /// <summary>
@@ -65,8 +65,90 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadBodyOutOfLine<T, TFormatter>(ref T value, ref Reader reader)
+            where T : class
             where TFormatter : struct, INinoBodyFormatter<T> =>
+            ReadBody<T, TFormatter>(ref value, ref reader);
+
+        /// <summary>
+        /// Writes the body of a class, or defers it when <see cref="NinoDepth.Inline"/> bodies are open (see
+        /// <see cref="NinoDepth"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteBody<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            if (writer.Depth >= NinoDepth.Inline)
+            {
+                WriteDeep<T, TFormatter>(value, ref writer);
+                return;
+            }
+
+            writer.Depth++;
+            default(TFormatter).WriteBody(value, ref writer);
+            writer.ExitBody();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteDeep<T, TFormatter>(T value, ref Writer writer)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            if (default(TFormatter).Deferrable)
+            {
+                writer.Defer(value, NinoDeferredBody<T, TFormatter>.Instance);
+                return;
+            }
+
+            if (writer.Depth >= NinoDepth.Max)
+                NinoThrow.TooDeep(typeof(T));
+            writer.Depth++;
+            default(TFormatter).WriteBody(value, ref writer);
+            writer.ExitBody();
+        }
+
+        /// <summary>
+        /// Reads the body of a class (into <paramref name="value"/>, null or exactly <typeparamref name="T"/>), or,
+        /// as deep as <see cref="WriteBody{T,TFormatter}"/> deferred it, creates the instance and reads the body
+        /// later.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ReadBody<T, TFormatter>(ref T value, ref Reader reader)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            if (reader.Depth >= NinoDepth.Inline)
+            {
+                ReadDeep<T, TFormatter>(ref value, ref reader);
+                return;
+            }
+
+            reader.Depth++;
             default(TFormatter).ReadBody(ref value, ref reader);
+            reader.ExitBody();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadDeep<T, TFormatter>(ref T value, ref Reader reader)
+            where T : class
+            where TFormatter : struct, INinoBodyFormatter<T>
+        {
+            if (default(TFormatter).Deferrable)
+            {
+                if (value == null)
+                    value = default(TFormatter).Create();
+                // A tracked object is recorded now: back references to it may come before its body.
+                reader.SetReference(value);
+                reader.Defer(value, NinoDeferredBody<T, TFormatter>.Instance);
+                return;
+            }
+
+            if (reader.Depth >= NinoDepth.Max)
+                NinoThrow.TooDeep(typeof(T));
+            reader.Depth++;
+            default(TFormatter).ReadBody(ref value, ref reader);
+            reader.ExitBody();
+        }
 
         /// <summary>
         /// Non-sealed class with generated subtype dispatch: writes null (type id 0) or a value of exactly
@@ -86,7 +168,7 @@ namespace Nino.Core
             if (value.GetType() != typeof(T))
                 return false;
             writer.UnsafeWrite(default(TFormatter).TypeId);
-            default(TFormatter).WriteBody(value, ref writer);
+            WriteBody<T, TFormatter>(value, ref writer);
             return true;
         }
 
@@ -103,7 +185,7 @@ namespace Nino.Core
                 return false;
             // ReadBody takes null or exactly T: an instance of a subtype is recycled here.
             NinoRecycler.ReuseExact(ref value, typeof(T));
-            default(TFormatter).ReadBody(ref value, ref reader);
+            ReadBody<T, TFormatter>(ref value, ref reader);
             return true;
         }
 
@@ -126,7 +208,7 @@ namespace Nino.Core
             }
 
             writer.UnsafeWrite(default(TFormatter).TypeId);
-            default(TFormatter).WriteBody(value, ref writer);
+            WriteBody<T, TFormatter>(value, ref writer);
         }
 
         /// <summary>Non-sealed class: reads what <see cref="Serialize{T,TFormatter}"/> wrote.</summary>
@@ -144,7 +226,7 @@ namespace Nino.Core
 
             // ReadBody takes null or exactly T: an instance of a subtype is recycled here.
             NinoRecycler.ReuseExact(ref value, typeof(T));
-            default(TFormatter).ReadBody(ref value, ref reader);
+            ReadBody<T, TFormatter>(ref value, ref reader);
         }
 
         /// <summary>
@@ -164,7 +246,7 @@ namespace Nino.Core
             }
 
             writer.UnsafeWrite(default(TFormatter).TypeId);
-            default(TFormatter).WriteBody(value, ref writer);
+            WriteBody<T, TFormatter>(value, ref writer);
         }
 
         /// <summary>Reads what <see cref="SerializeReferenced{T,TFormatter}"/> wrote.</summary>
@@ -181,7 +263,7 @@ namespace Nino.Core
             }
 
             NinoRecycler.ReuseExact(ref value, typeof(T));
-            default(TFormatter).ReadBody(ref value, ref reader);
+            ReadBody<T, TFormatter>(ref value, ref reader);
         }
 
         /// <summary>Sealed class: 1-byte null flag, then the body.</summary>
@@ -197,7 +279,7 @@ namespace Nino.Core
             }
 
             writer.UnsafeWrite(NinoWire.NotNull);
-            default(TFormatter).WriteBody(value, ref writer);
+            WriteBody<T, TFormatter>(value, ref writer);
         }
 
         /// <summary>Sealed class: reads what <see cref="SerializeSealed{T,TFormatter}"/> wrote.</summary>
@@ -212,7 +294,7 @@ namespace Nino.Core
                 return;
             }
 
-            default(TFormatter).ReadBody(ref value, ref reader);
+            ReadBody<T, TFormatter>(ref value, ref reader);
         }
     }
 }

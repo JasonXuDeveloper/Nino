@@ -79,5 +79,20 @@ namespace Nino.Core
         public static void ReferenceTypeMismatch(Type expected, Type actual) =>
             throw new InvalidOperationException(
                 $"Nino: object reference to a {actual?.FullName} where a {expected.FullName} is expected.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void Cycle(Type type) =>
+            throw new InvalidOperationException(
+                $"Nino: the object graph has a cycle through a {type.FullName}, which would be written forever. " +
+                "Mark the types on the cycle [NinoType(trackReferences: true)] to write each object once.");
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void TooDeep(Type type) =>
+            throw new InvalidOperationException(
+                $"Nino: {type.FullName} is nested more than {NinoDepth.Max} objects deep. Objects deeper than " +
+                $"{NinoDepth.Inline} are written later, from a shallow point, except those built by their constructor " +
+                "or compared by value (records, types overriding GetHashCode or implementing IComparable), which " +
+                "must be complete when their slot gets them. If the graph has a cycle, mark its types " +
+                "[NinoType(trackReferences: true)].");
     }
 }

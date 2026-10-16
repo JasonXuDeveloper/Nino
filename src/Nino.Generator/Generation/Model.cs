@@ -142,7 +142,10 @@ internal sealed record TypeModel(
     // Namespace and containing declarations of the generated partial (accessor class, pool hooks); empty when
     // neither is needed.
     string PartialNamespace,
-    EquatableArray<string> PartialDeclarations)
+    EquatableArray<string> PartialDeclarations,
+    // A class whose body can be read after its instance is in its slot (see NinoDepth): created without its
+    // members (not by a constructor taking them) and not compared by value.
+    bool Deferrable)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 

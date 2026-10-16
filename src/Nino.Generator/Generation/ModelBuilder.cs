@@ -322,7 +322,36 @@ internal static class ModelBuilder
             new EquatableArray<string>(interfaces),
             pooled,
             partialNamespace,
-            new EquatableArray<string>(partialDeclarations));
+            new EquatableArray<string>(partialDeclarations),
+            kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate &&
+            (construction.Factory.Length != 0 || construction.Creator.Length != 0) && !ComparesByValue(type));
+    }
+
+    /// <summary>
+    /// Whether instances of the type are compared by their members (a record, an override of GetHashCode, or
+    /// IComparable): a hashed or sorted collection must not hold one before its members are read, so its body is
+    /// never deferred.
+    /// </summary>
+    private static bool ComparesByValue(INamedTypeSymbol type)
+    {
+        if (type.IsRecord)
+            return true;
+        foreach (var i in type.AllInterfaces)
+        {
+            if (i.ContainingNamespace?.ToDisplayString() == "System" && i.Name == "IComparable")
+                return true;
+        }
+
+        for (var t = type; t != null && t.SpecialType != SpecialType.System_Object; t = t.BaseType)
+        {
+            foreach (var member in t.GetMembers(nameof(GetHashCode)))
+            {
+                if (member is IMethodSymbol { IsOverride: true, Parameters.Length: 0 })
+                    return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Whether the type, a base class or an interface asks for reference tracking.</summary>

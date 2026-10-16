@@ -78,7 +78,7 @@ internal sealed class BodyEmitter
         _w.Block($"public void WriteBody({T} value, ref {Core}Writer writer)", () =>
         {
             if (_m.Keyed)
-                _w.Line("int __length = writer.ReserveInt32();");
+                _w.Line("int __length = writer.BeginRegion();");
             if (_m.CollectionFormatter.Length != 0)
                 _w.Line($"default({_m.CollectionFormatter}).Serialize(value, ref writer);");
             if (_m.EmitMembers)
@@ -86,7 +86,7 @@ internal sealed class BodyEmitter
             else
                 EmitMemberWrites();
             if (_m.Keyed)
-                _w.Line("writer.PatchLength(__length);");
+                _w.Line("writer.EndRegion(__length);");
         });
 
         if (_m.EmitMembers)
@@ -131,9 +131,9 @@ internal sealed class BodyEmitter
         foreach (var level in LevelsFrom(Delegates ? _m.BaseLevelCount : 0))
         {
             string l = "__l" + n++;
-            _w.Line($"int {l} = writer.ReserveInt32();");
+            _w.Line($"int {l} = writer.BeginRegion();");
             EmitPositionalWrites(level);
-            _w.Line($"writer.PatchLength({l});");
+            _w.Line($"writer.EndRegion({l});");
         }
     }
 
@@ -184,9 +184,9 @@ internal sealed class BodyEmitter
             {
                 string l = "__l" + lengths++;
                 _w.Line($"writer.UnsafeWrite<int>({first.Key});");
-                _w.Line($"int {l} = writer.ReserveInt32();");
+                _w.Line($"int {l} = writer.BeginRegion();");
                 EmitFormatterWrite(first);
-                _w.Line($"writer.PatchLength({l});");
+                _w.Line($"writer.EndRegion({l});");
                 continue;
             }
 
@@ -210,7 +210,7 @@ internal sealed class BodyEmitter
         string r = "reader";
         if (_m.Keyed)
         {
-            _w.Line("var __reader = reader.ReadSlice();");
+            _w.Line("var __reader = reader.ReadRegion();");
             r = "__reader";
         }
 
@@ -244,7 +244,7 @@ internal sealed class BodyEmitter
             EmitMemberReads(r, inPlace: true);
 
         if (_m.Keyed)
-            _w.Line("reader.EndSlice(in __reader);");
+            _w.Line("reader.EndRegion(in __reader);");
     }
 
     /// <summary>Reads every member into locals, then constructs the instance from them.</summary>
@@ -255,7 +255,7 @@ internal sealed class BodyEmitter
             _w.Line($"{member.TypeName} {Local(member)} = default;");
         EmitMemberReads(r, inPlace: false);
         if (_m.Keyed)
-            _w.Line("reader.EndSlice(in __reader);");
+            _w.Line("reader.EndRegion(in __reader);");
 
         if (c.Creator.Length == 0)
         {
@@ -344,13 +344,13 @@ internal sealed class BodyEmitter
     {
         if (members.Count == 0)
         {
-            _w.Line($"{r}.ReadSlice();");
+            _w.Line($"{r}.ReadRegion();");
             return;
         }
 
         string s = "__s" + n, end = "__end" + n;
         _w.Open();
-        _w.Line($"var {s} = {r}.ReadSlice();");
+        _w.Line($"var {s} = {r}.ReadRegion();");
         foreach (var member in members)
         {
             _w.Line($"if ({s}.Eof) goto {end};");
@@ -358,7 +358,7 @@ internal sealed class BodyEmitter
         }
 
         _w.Line($"{end}:");
-        _w.Line($"{r}.EndSlice(in {s});");
+        _w.Line($"{r}.EndRegion(in {s});");
         _w.Close();
     }
 
@@ -432,9 +432,9 @@ internal sealed class BodyEmitter
 
             _w.Line($"if (!{r}.TryReadInt32({member.Key})) goto __keyed;");
             _w.Open();
-            _w.Line($"var __m = {r}.ReadSlice();");
+            _w.Line($"var __m = {r}.ReadRegion();");
             EmitMemberRead(member, "__m", inPlace);
-            _w.Line($"{r}.EndSlice(in __m);");
+            _w.Line($"{r}.EndRegion(in __m);");
             _w.Close();
         }
 
@@ -443,7 +443,7 @@ internal sealed class BodyEmitter
             _w.Line("__keyed:");
         _w.Open($"while (!{r}.Eof)");
         _w.Line($"int __key = {r}.UnsafeRead<int>();");
-        _w.Line($"var __m = {r}.ReadSlice();");
+        _w.Line($"var __m = {r}.ReadRegion();");
         if (members.Count != 0)
         {
             _w.Open("switch (__key)");
@@ -456,7 +456,7 @@ internal sealed class BodyEmitter
                 _w.Open();
                 EmitMemberRead(member, "__m", inPlace);
                 if (member.Raw == null)
-                    _w.Line($"{r}.EndSlice(in __m);");
+                    _w.Line($"{r}.EndRegion(in __m);");
                 _w.Line("break;");
                 _w.Close();
             }

@@ -20,6 +20,11 @@ namespace Nino.Core
         private int _pos;
         private NinoReferenceWriteTable _refs;
 
+        // Open class bodies and regions, and the bodies deferred below NinoDepth.Inline (see NinoDepth).
+        internal int Depth;
+        private int _regions;
+        private NinoDeferrals _deferrals;
+
         /// <exception cref="PlatformNotSupportedException">The host is big-endian.</exception>
         public Writer(NinoArrayBufferWriter buffer)
         {
@@ -30,6 +35,9 @@ namespace Nino.Core
             _buffer = buffer.Buffer;
             _pos = buffer.Index;
             _refs = null;
+            Depth = 0;
+            _regions = 0;
+            _deferrals = null;
         }
 
         /// <summary>
@@ -39,6 +47,12 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReleaseReferences()
         {
+            if (_deferrals != null)
+            {
+                NinoDeferrals.Return(_deferrals);
+                _deferrals = null;
+            }
+
             if (_refs == null)
                 return;
             NinoReferenceWriteTable.Return(_refs);
@@ -168,6 +182,134 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void PatchLength(int lengthPosition) =>
             PatchInt32(lengthPosition, _pos - lengthPosition - NinoWire.LengthSize);
+
+        /// <summary>
+        /// Generated code: starts a length-prefixed region (a version-tolerant level, a keyed body or member) and
+        /// returns the position of its length, for <see cref="EndRegion"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int BeginRegion()
+        {
+            _regions++;
+            return ReserveInt32();
+        }
+
+        /// <summary>Generated code: ends the region <see cref="BeginRegion"/> started.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void EndRegion(int lengthPosition)
+        {
+            if (--_regions == 0 && _deferrals != null)
+            {
+                EndOuterRegion(lengthPosition);
+                return;
+            }
+
+            PatchLength(lengthPosition);
+        }
+
+        /// <summary>
+        /// Ends the outermost region: writes the bodies deferred inside it as a section of
+        /// <c>(int32 key, int32 length, body)</c> entries, then the section's offset (see <see cref="NinoDepth"/>).
+        /// Bodies deferred while writing the section are appended to it, so the stack stays bounded.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void EndOuterRegion(int lengthPosition)
+        {
+            var d = _deferrals;
+            if (d.Region.IsEmpty)
+            {
+                PatchLength(lengthPosition);
+                return;
+            }
+
+            int start = lengthPosition + NinoWire.LengthSize;
+            int section = _pos;
+            int depth = Depth;
+            object current = d.Current, anchor = d.CurrentAnchor;
+            int generation = d.CurrentGeneration;
+            _regions = 1;
+            while (!d.Region.IsEmpty)
+            {
+                var item = d.Region.Items[d.Region.Head++];
+                UnsafeWrite(item.Position - start);
+                int length = ReserveInt32();
+                WriteDeferred(in item, Math.Min(depth, NinoDepth.Inline - 1) + 1);
+                PatchLength(length);
+            }
+
+            _regions = 0;
+            Depth = depth;
+            d.Current = current;
+            d.CurrentAnchor = anchor;
+            d.CurrentGeneration = generation;
+            d.Region.Clear();
+            UnsafeWrite(section - start);
+            PatchInt32(lengthPosition, (_pos - start) | NinoDepth.SectionFlag);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void WriteDeferred(in NinoDeferredItem item, int depth)
+        {
+            var d = _deferrals;
+            d.Current = item.Value;
+            d.CurrentAnchor = item.Anchor;
+            d.CurrentGeneration = item.Generation;
+            Depth = depth;
+            item.Body.Write(item.Value, ref this);
+        }
+
+        /// <summary>Closes a class body opened by incrementing <see cref="Depth"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void ExitBody()
+        {
+            if (--Depth == 0 && _deferrals != null)
+                WriteTopDeferred();
+        }
+
+        /// <summary>
+        /// Every body is closed and no region is open: writes the bodies deferred outside regions, in order. Each
+        /// starts at depth 1 again, and those it defers are appended to the queue.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private void WriteTopDeferred()
+        {
+            var d = _deferrals;
+            if (d.TopActive || d.Top.IsEmpty)
+                return;
+            d.TopActive = true;
+            while (!d.Top.IsEmpty)
+                WriteDeferred(in d.Top.Items[d.Top.Head++], 1);
+            Depth = 0;
+            d.Top.Clear();
+            d.TopActive = false;
+            d.Current = d.CurrentAnchor = null;
+            d.CurrentGeneration = 0;
+        }
+
+        /// <summary>
+        /// Defers the body of <paramref name="value"/>, nested too deep to write now. Fails on a cycle: the
+        /// deferred objects form chains (each deferred while writing the previous one), and an object that comes
+        /// back in its own chain would be written forever. The check compares it with the chain's object at the
+        /// last power-of-two length (Brent), which finds any repetition in a number of steps proportional to the
+        /// cycle.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        internal void Defer(object value, NinoDeferredBody body)
+        {
+            var d = _deferrals ??= NinoDeferrals.Rent();
+            int generation = d.CurrentGeneration;
+            object anchor = generation != 0 && (generation & (generation - 1)) == 0 ? d.Current : d.CurrentAnchor;
+            if (ReferenceEquals(value, d.Current) || ReferenceEquals(value, anchor))
+                NinoThrow.Cycle(value.GetType());
+            var item = new NinoDeferredItem
+            {
+                Value = value, Body = body, Position = _pos, Anchor = anchor, Generation = generation + 1
+            };
+            if (_regions == 0)
+                d.Top.Add(in item);
+            else
+                d.Region.Add(in item);
+        }
 
         /// <summary>Writes raw bytes without a length prefix.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

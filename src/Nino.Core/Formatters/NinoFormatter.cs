@@ -40,6 +40,16 @@ namespace Nino.Core
         /// <typeparamref name="T"/>. Creates the instance when needed.
         /// </summary>
         void ReadBody(ref T value, ref Reader reader);
+
+        /// <summary>
+        /// Whether a body nested too deep to read in place can be read later, into an instance created up front
+        /// (see <see cref="Create"/>): false for structs and for classes built by their constructor or compared by
+        /// value.
+        /// </summary>
+        bool Deferrable { get; }
+
+        /// <summary>Creates the empty instance a deferred body is read into later.</summary>
+        T Create();
     }
 
     /// <summary>

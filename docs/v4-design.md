@@ -225,13 +225,63 @@ int32 ref: 0 = null | n > 0 = the n-th object already written in this call | -1 
   reading its members, so a back reference inside its own members resolves. Types that must be re-created
   from constructor arguments or read-only members cannot be tracked (error NINO016); `trackReferences` on a
   struct is ignored with a warning.
-* Bodies read through a slice (version tolerant or keyed) hand their table back to the parent reader
-  (`Reader.EndSlice`), so references stay shared across slices.
+* Bodies read through a region (version tolerant or keyed) hand their table back to the parent reader
+  (`Reader.EndRegion`), so references stay shared across regions.
 * Reuse deserialization reuses instances for new objects as usual; a back reference replaces the current value
   without recycling it, since the old value may still be referenced elsewhere in the graph.
 * Cost (net8, an 8-member sealed class): about 28 ns per top-level call for renting the tables, plus 4 bytes
   and one identity lookup per object. A list repeating one object 100 times is written in a fraction of the
   bytes and time of the untracked list.
+
+### Deep nesting
+
+Class bodies are written and read by nested calls, so a recursive type (a linked list, a tree) would use stack in
+proportion to the depth of its data: a long list overflows the stack on write, and a payload that nests one level
+every few bytes overflows it on read, which ends the process. Instead, the writer and the reader count the class
+bodies open (`Depth`; struct bodies do not count, since a struct cannot contain itself). A body that would open
+below 128 open bodies is **deferred**: the writer queues the object and writes nothing for its body yet; the
+reader, which counts the same way, creates the instance (or reuses the one in the slot), puts it in the slot and
+queues it. The queued bodies are written and read later from a shallow point, each starting a fresh count, so the
+stack stays bounded whatever the depth, and data cannot make it deeper. Data shallower than that is unchanged:
+deferral adds no bytes and no marker.
+
+Where the deferred bodies go:
+
+* **Outside any region** (positional types): after the top-level object, once every body around it has closed,
+  in the order they were deferred. Bodies deferred while writing those are appended to the queue.
+* **Inside a region** (a version-tolerant level, a keyed body or member): at the end of the **outermost** region,
+  as a section of `(int32 key, int32 length, body)` entries followed by the section's offset in the region:
+
+  ```
+  int32 (regionLength | 0x80000000) | members... | { int32 key, int32 length, body }* | int32 sectionOffset
+  ```
+
+  The key is where the deferral happened, relative to the region's start. A reader that skips part of the region
+  (members it does not know, trailing members of a newer version) never queued the objects in it, so it matches
+  its queue against the keys in order and skips the other entries by their length. The reader's region covers
+  the members only, so the section is never read as members. Only the outermost region holds a section: writing
+  the section of an inner region would nest a flush inside the bodies being written, and the stack would grow
+  again. A region without deferred bodies is written as before.
+
+Limits and checks:
+
+* Classes built by their constructor (records with a primary constructor, init-only or read-only members) cannot
+  be put in a slot before their members are read, and classes compared by value (records, `GetHashCode`
+  overrides, `IComparable`) must not be put in a hashed or sorted collection before then, so these are never
+  deferred: past 128 they nest inline, and past 512 open bodies writing or reading throws.
+* An untracked cycle would be written forever (each pass defers the next). The writer compares each deferred
+  object with the deferred object whose body it was found in, and with the one at the last power-of-two length of
+  that chain (Brent's algorithm), so a cycle throws, pointing at `trackReferences`, after a number of steps
+  proportional to its length. Tracked objects are written once, so tracked cycles never reach this.
+* A tracked object that is deferred is recorded (`Reader.SetReference`) when it is created, so back references
+  to it may come before its body.
+* The queues are rented from a per-thread cache on the first deferral and returned when the top-level call ends:
+  reading a 100,000-node list into the same objects again allocates nothing.
+* Data nested inline deeper than 128 is not what a writer produces; inside a region it is rejected (the reader
+  expects a section), outside one it is read as deferred bodies, all with a bounded stack.
+
+Cost: the count is one compare and one increment per class body. Versioned and keyed bodies call
+`BeginRegion`/`EndRegion` (`ReadRegion`/`EndRegion`), which also count regions.
 
 ## Runtime (`Nino.Core`)
 

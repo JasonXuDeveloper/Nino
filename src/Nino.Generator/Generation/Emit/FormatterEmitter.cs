@@ -65,6 +65,8 @@ internal static class FormatterEmitter
 
         EmitTypeId(w, m);
         w.Line();
+        EmitDeferral(w, m);
+        w.Line();
         switch (m.Kind)
         {
             case FormatterKind.Struct:
@@ -74,7 +76,8 @@ internal static class FormatterEmitter
                 break;
             case FormatterKind.SealedClass when m.TrackReferences:
                 // The reference header already says the object is not null.
-                EmitEntryPoints(w, m, "WriteBody(value, ref writer)", "ReadBody(ref value, ref reader)");
+                EmitEntryPoints(w, m, $"{Core}NinoObject.WriteBody<{t}, {self}>(value, ref writer)",
+                    $"{Core}NinoObject.ReadBody<{t}, {self}>(ref value, ref reader)");
                 break;
             case FormatterKind.SealedClass:
                 EmitEntryPoints(w, m, $"{Core}NinoObject.SerializeSealed<{t}, {self}>(value, ref writer)",
@@ -126,6 +129,25 @@ internal static class FormatterEmitter
 
         w.Line($"public const int Id = {m.TypeId}; // FNV-1a of \"{EscapeString(m.IdName)}\"");
         w.Line("public int TypeId => Id;");
+    }
+
+    /// <summary>Whether a body nested too deep can be read later, and the empty instance it is read into.</summary>
+    private static void EmitDeferral(CodeWriter w, TypeModel m)
+    {
+        string t = m.TypeName;
+        if (!m.Deferrable)
+        {
+            w.Line("public bool Deferrable => false;");
+            w.Line($"public {t} Create() => default;");
+            return;
+        }
+
+        var c = m.Construction;
+        string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
+        if (m.Pooled)
+            create = t + ".RentFromNinoPool() ?? " + create;
+        w.Line("public bool Deferrable => true;");
+        w.Line($"public {t} Create() => {create};");
     }
 
     /// <summary>Serialize/Deserialize forwarding to the given calls, behind a reference header when tracked.</summary>
