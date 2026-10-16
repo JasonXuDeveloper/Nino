@@ -13,7 +13,8 @@ Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case for
 reports are in `<out>/v3a`, `<out>/v4` and `<out>/v3b`. `dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll
 --verify` checks that both versions round-trip the benchmark data and prints the payload sizes.
 
-The numbers in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) were measured this way.
+The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) were measured this way, in an earlier run; the
+release notes of each release carry its current numbers.
 
 Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) builds `v3/`, runs it
 before and after the v4 suite in the same job on the same runner with the same settings, and adds a

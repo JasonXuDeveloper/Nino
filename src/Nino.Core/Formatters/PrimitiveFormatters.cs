@@ -132,6 +132,11 @@ namespace Nino.Core
     /// <see cref="NinoPolymorphic{TBase}"/>. Not generic: a formatter generic over a reference type runs as shared
     /// code, which reaches the registry through the generic dictionary on every value (about 1.5x slower).
     /// </summary>
+    /// <remarks>
+    /// Values that are not <c>[NinoType]</c>s are rejected. Dispatch goes through the global registry of every
+    /// <c>[NinoType]</c>, which is slower than the generated dispatch of a common <c>[NinoType]</c> base class or
+    /// interface: prefer that base as the member or argument type.
+    /// </remarks>
     public struct ObjectFormatter : INinoFormatter<object>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

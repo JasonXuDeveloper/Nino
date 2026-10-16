@@ -30,7 +30,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
 </p>
 
-<sub>BenchmarkDotNet 0.15.2, .NET 10.0.13, server GC, Intel Xeon 2.10 GHz; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet directly before and after it on the same machine. Payloads are about the same size (`SimpleClass`: 1,146 bytes in v4, 1,152 in v3, 1,148 in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md).</sub>
+<sub>BenchmarkDotNet 0.15.2, .NET 10.0.13, server GC, Intel Xeon 2.10 GHz; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet directly before and after it on the same machine. Payloads are about the same size (`SimpleClass`: 1,150 bytes in v4, 1,152 in v3, 1,148 in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md); the notes of each release carry that release's numbers.</sub>
 
 ## Why Nino
 
@@ -43,13 +43,13 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
   no IL emit, no registration and no init call, so it works on IL2CPP, NativeAOT and HybridCLR hot updates.
   With the .NET 8 SDK or later, calls are intercepted to the exact formatter, with no virtual call.
 - **Fast to build.** The generator is incremental: one file per type, and only the type you edit is
-  re-generated. Compared with v3, the generated code is 16× smaller and compiles 44× faster.
+  re-generated. Compared with v3, the generated code is 14× smaller and compiles 40× faster.
 - **Thread-safe.** Serialize and deserialize from any number of threads, with no locks on the hot path.
 - **Data that evolves.** Version tolerance, keyed members, and reference tracking for shared references and
   cycles. All are opt-in per type, so types that don't use them pay nothing.
 - **One format everywhere.** `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` write identical bytes,
   so a Unity client and a .NET server talk to each other directly.
-- **Mistakes caught while you type.** 24 analyzer diagnostics (NINO001–NINO024), many with a one-click fix.
+- **Mistakes caught while you type.** 25 analyzer diagnostics (NINO001–NINO025), many with a one-click fix.
 
 ## Built for
 
@@ -162,9 +162,9 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 |---|---|
 | Serialize | **1.28× faster** (class), **1.48× faster** (class array), on par on struct arrays |
 | Deserialize | on par (classes and raw arrays), while adding reference tracking, reuse deserialization and payload validation |
-| Compiling the generated code | **44× faster** at 330 types (56 s → 1.3 s), **289× faster** at 1,100 types (636 s → 2.2 s) |
-| Running the generator | **7.9× faster**; after an edit, only that type is re-generated |
-| Generated code | **16× smaller** source, **6× smaller** IL |
+| Compiling the generated code | **40× faster** at 330 types (44 s → 1.1 s), **289× faster** at 1,100 types (636 s → 2.2 s) |
+| Running the generator | **4.2× faster**; after an edit, only that type is re-generated (**12× faster**) |
+| Generated code | **14× smaller** source, **5× smaller** IL |
 
 New in v4: interceptors, keyed members, reference tracking, `[NinoPooled]` pools, pluggable formatters
 (`[assembly: NinoFormatter(...)]`), user collection types, analyzers with code fixes, and identical bytes on every

@@ -3,9 +3,15 @@
 Why v4: what it costs to build a project that uses Nino, and how fast serialization runs, compared with
 v3 (3.3.13, the last v3 release) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.21.4.
 
-Build-time numbers were measured on an Intel Xeon 2.80 GHz (4 cores, AVX-512, Ubuntu 24.04, .NET SDK
-10.0.402); runtime numbers on an Intel Xeon 2.10 GHz (4 cores, .NET 10.0.13). Absolute times vary between
-machines; the ratios are what to look at.
+Build-time numbers come from two runs, named in each table: the 330-type workload was measured again for this
+revision on an Intel Xeon 2.10 GHz (4 cores, .NET SDK 10.0.402), the 1,100-type timings come from an earlier run on
+an Intel Xeon 2.80 GHz (4 cores, AVX-512, Ubuntu 24.04, .NET SDK 10.0.402). Generated code sizes do not depend on
+the machine and are those of this revision everywhere. Absolute times vary between machines; the ratios are what to
+look at.
+
+The runtime numbers below come from an earlier run of the benchmark suite and predate the latest runtime changes.
+Each release's CI run (`report.yml`) publishes the current numbers, against MemoryPack and against v3 3.3.13 on the
+same machine, in the release notes; the documentation site shows those.
 
 ## Build time and generated code
 
@@ -17,28 +23,40 @@ v4 and v3 times are the median of the last three of five runs (v3 at N = 100: of
 
 ### 330 types (N = 30)
 
+Measured for this revision, v3 and v4 on the same machine (Intel Xeon 2.10 GHz, 4 cores). Generator times on this
+machine moved by up to 3× between sessions (the last runs are still warming up), so read the generator rows as
+"several times faster" rather than as exact ratios.
+
 | | v3 (3.3.13) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
-| Generated source | 18.7 MB (363,233 lines) | 1.15 MB (21,679 lines) | **16× smaller** |
-| Compiling the generated code (emit) | 56.0 s | 1.27 s | **44× faster** |
-| Running the generator | 1.11 s | 0.14 s | **7.9× faster** |
-| Re-generating after editing a member | 1.31 s | 0.19 s | **6.9× faster** |
-| Re-generating after editing a comment | 1.11 s | 0.19 s | **5.8× faster** |
-| IL of the generated code | 2.2 MB | 0.37 MB | **6.0× smaller** |
+| Generated source | 18.7 MB (363,233 lines) | 1.31 MB (23,215 lines) | **14× smaller** |
+| Compiling the generated code (emit) | 43.9 s | 1.10 s | **40× faster** |
+| Running the generator | 1.34 s | 0.32 s | **4.2× faster** |
+| Re-generating after editing a member | 1.11 s | 0.09 s | **12× faster** |
+| Re-generating after editing a comment | 1.06 s | 0.10 s | **11× faster** |
+| IL of the generated code | 2.21 MB | 0.41 MB | **5.3× smaller** |
+
+v4 times are the median of three sessions, each the median of its last three of five runs; v3 is the median of the
+last three of five runs.
 
 ### 1,100 types (N = 100)
 
+Sizes are this revision's. Times come from the earlier run on the Intel Xeon 2.80 GHz (an earlier v4 revision; v3 at
+the median of three runs). For comparison, this revision on the 2.10 GHz machine took 2.2 s to emit, 0.48 s to run
+the generator and 0.63 s / 0.41 s to re-generate after a member / comment edit (median of the last three of five
+runs); v3 was not re-run at this size.
+
 | | v3 (3.3.13) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
-| Generated source | 62.0 MB (1,204,143 lines) | 3.9 MB (72,429 lines) | **16× smaller** |
-| Compiling the generated code (emit) | 636 s | 2.2 s | **289× faster** |
-| Running the generator | 5.5 s | 0.68 s | **8.1× faster** |
-| Re-generating after editing a member | 4.1 s | 0.57 s | **7.2× faster** |
-| Re-generating after editing a comment | 4.1 s | 0.45 s | **9.0× faster** |
-| IL of the generated code | 7.3 MB | 1.3 MB | **5.6× smaller** |
+| Generated source | 62.0 MB (1,204,143 lines) | 4.37 MB (77,535 lines) | **14× smaller** |
+| Compiling the generated code (emit), earlier run | 636 s | 2.2 s | **289× faster** |
+| Running the generator, earlier run | 5.5 s | 0.68 s | **8.1× faster** |
+| Re-generating after editing a member, earlier run | 4.1 s | 0.57 s | **7.2× faster** |
+| Re-generating after editing a comment, earlier run | 4.1 s | 0.45 s | **9.0× faster** |
+| IL of the generated code | 7.3 MB | 1.49 MB | **4.9× smaller** |
 
-v3's compile time grows much faster than the number of types (3.3× the types took 11× the compile time); v4
-grows linearly, at about 3.5 KB of source and 2 ms of compile time per type.
+v3's compile time grows much faster than the number of types (in the earlier run, 3.3× the types took 11× the
+compile time); v4 grows linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 
 ### Why v4 builds faster
 
@@ -67,6 +85,10 @@ grows linearly, at about 3.5 KB of source and 2 ms of compile time per type.
 
 ## Runtime
 
+**These tables are from an earlier run** and predate the latest runtime changes (polymorphic read dispatch, the
+depth bound, `__WriteTop`/`__ReadTop`, merged raw capacity checks, fixed-size types) and the three newer benchmark
+classes. The current numbers are in the Performance Report of each release (see [Reproducing](#reproducing)).
+
 `src/Nino.Benchmark` (BenchmarkDotNet 0.15.2, `ShortRun` job with 5 warm-up and 15 measured iterations, server
 GC) on .NET 10.0.13, Intel Xeon 2.10 GHz, 4 cores. All four benchmark classes ran in one session (the rows
 marked * in a second one, see below), v4 and MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org, running a port of the same `SimpleTest`
@@ -76,7 +98,8 @@ column is the mean of those two runs. v3 has no polymorphic or pooling benchmark
 How much to trust a difference: MemoryPack ran in all three sessions, and its times moved by up to 5% between
 them on everything except the sub-nanosecond `SimpleStruct` deserialize; v3's own two runs differ by up to
 7% on `SimpleClass` deserialize. Differences under about 5% are noise. Payload sizes are about the same
-(`SimpleClass`: 1,146 bytes in v4, 1,152 in v3, 1,148 in MemoryPack).
+(`SimpleClass`: 1,146 bytes in v4 at the time, 1,152 in v3, 1,148 in MemoryPack; v4 now writes 1,150, since a
+`[NinoUtf8]` string also stores its byte count).
 
 ### Serialize (to a reused buffer writer)
 

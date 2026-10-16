@@ -318,6 +318,16 @@ Limits and checks:
 Cost: the count is one compare and one increment per class body. Versioned and keyed bodies call
 `BeginRegion`/`EndRegion` (`ReadRegion`/`EndRegion`), which also count regions.
 
+Most types cannot nest deeply, and for them the generator removes even that. It computes, from symbols only, how
+many class bodies below its own a value of each type can open (`TypeFacts.DepthBound`): a sealed class counts one
+level, a struct none, a built-in collection, nullable or tuple counts what its elements count. Recursive types,
+non-sealed classes and interfaces (a subtype may come from anywhere), generic types, types generated in other
+assemblies, custom formatters and `object` are unbounded. A sealed class or struct whose bound is below 128 (and
+that is not tracked) gets a `__Shallow` twin of its formatter: the same bytes, with no depth counting and no deferral
+checks, its members written and read through their own twins. A nesting sealed class checks the depth once on
+entry and takes the twin when the whole bound fits below 128; otherwise it takes the regular path, so deferral
+still works wherever the data actually gets deep.
+
 ## Runtime (`Nino.Core`)
 
 ### Writer
@@ -688,7 +698,16 @@ The boxed calls for a type known only at run time, `NinoSerializer.SerializeBoxe
 `Type` explicitly and write exactly what the generic call with `T` = `type` writes, null and subtypes included. They
 look up a cached `BoxedFormatter<T>` per type (a dictionary lookup) that forwards to the generic call. There is no
 `Serialize(object)`: it would compete with `Serialize<object>` in overload resolution and silently pick a different
-format.
+format. So `Serialize(value)` with `value` declared as `object`, which in the v4 betas called `Serialize(object)` and
+wrote the value as its runtime type, now binds `Serialize<object>`: it accepts only `[NinoType]` values, writes a type
+id before the body, dispatches through the global registry (`ObjectFormatter`) and is read back with
+`Deserialize<object>`. `SerializeBoxed(value, value.GetType())` writes what the beta overload wrote.
+
+The boxed API is for types known only at run time, as a `Type`, that share no common `[NinoType]` base
+(reflection-driven tooling over arbitrary types). RPC or message dispatch, plugin systems and editor tooling
+should give their types a common `[NinoType]` base class or interface and call `Serialize<TBase>` /
+`Deserialize<TBase>`: the generated switch dispatches on the type id, which is faster than the global registry,
+and reuse deserialization and pooling work as usual (0 GC).
 
 On compilers that load the generator's Roslyn 4.8 or 4.12 build (.NET 8 SDK and later), the generator also intercepts each such call whose type
 argument is known at the call site and whose formatter it resolves (not raw values or arrays of raw elements,

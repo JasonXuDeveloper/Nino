@@ -61,6 +61,14 @@ namespace Nino.Core
         }
 
         /// <summary>Serializes <paramref name="value"/> into a new byte array.</summary>
+        /// <remarks>
+        /// <typeparamref name="T"/> is the static type of the argument. For a polymorphic value, pass the common
+        /// <c>[NinoType]</c> base (<c>Serialize&lt;TBase&gt;(value)</c>): a type id is written and read back with
+        /// <c>Deserialize&lt;TBase&gt;</c>. With <typeparamref name="T"/> = <see cref="object"/> (as when the
+        /// argument is a variable of type <c>object</c>) only <c>[NinoType]</c> values are accepted; a type id is
+        /// written and dispatched through the global registry, which is slower than a common base. For a type known
+        /// only as a <see cref="Type"/>, see <see cref="SerializeBoxed(object, Type)"/>.
+        /// </remarks>
         // The public entry points inline into the caller, where T is usually exact: the formatter and the raw-array
         // check are then static field loads instead of generic dictionary lookups (T a reference type makes any
         // method generic over it shared code), and the out-of-line rest receives the formatter as an argument.
@@ -229,6 +237,20 @@ namespace Nino.Core
         /// <c>T</c> = <paramref name="type"/> would (null included, for a type that can be null). Read it back with
         /// <see cref="NinoDeserializer.DeserializeBoxed(ReadOnlySpan{byte}, Type)"/> and the same type.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Use the boxed API only when the type is known only at runtime, as a <see cref="Type"/>, and the types
+        /// share no common <c>[NinoType]</c> base: reflection-driven tooling over arbitrary types, for example. It
+        /// finds the formatter by <see cref="Type"/> (reflection on first use, a dictionary lookup afterward) and
+        /// boxes value types.
+        /// </para>
+        /// <para>
+        /// For RPC or message dispatch, plugin systems and editor tooling, give the types a common <c>[NinoType]</c>
+        /// base class or interface and call <c>Serialize&lt;TBase&gt;</c> / <c>Deserialize&lt;TBase&gt;</c>
+        /// instead: the generated code writes a type id and dispatches on it, which is faster and works with reuse
+        /// deserialization and pooling (0 GC).
+        /// </para>
+        /// </remarks>
         public static byte[] SerializeBoxed(object value, Type type)
         {
             if (type == null)
@@ -236,7 +258,11 @@ namespace Nino.Core
             return BoxedFormatter.Get(type).Serialize(value);
         }
 
-        /// <summary>Serializes a boxed value as <paramref name="type"/>.</summary>
+        /// <summary>Serializes a boxed value as <paramref name="type"/> with an existing writer.</summary>
+        /// <remarks>
+        /// For types known only at runtime that share no <c>[NinoType]</c> base; otherwise prefer
+        /// <c>Serialize&lt;TBase&gt;</c> (see <see cref="SerializeBoxed(object, Type)"/>).
+        /// </remarks>
         public static void SerializeBoxed(object value, ref Writer writer, Type type)
         {
             if (type == null)
@@ -245,6 +271,10 @@ namespace Nino.Core
         }
 
         /// <summary>Serializes a boxed value as <paramref name="type"/> into <paramref name="bufferWriter"/>.</summary>
+        /// <remarks>
+        /// For types known only at runtime that share no <c>[NinoType]</c> base; otherwise prefer
+        /// <c>Serialize&lt;TBase&gt;</c> (see <see cref="SerializeBoxed(object, Type)"/>).
+        /// </remarks>
         public static void SerializeBoxed(object value, IBufferWriter<byte> bufferWriter, Type type)
         {
             if (type == null)

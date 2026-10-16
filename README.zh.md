@@ -30,7 +30,7 @@
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
 </p>
 
-<sub>BenchmarkDotNet 0.15.2，.NET 10.0.13，服务器 GC，Intel Xeon 2.10 GHz；Nino v4 与 MemoryPack 1.21.4 在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上紧接其前后各跑一次。数据大小基本一致（`SimpleClass`：v4 1,146 字节，v3 1,152 字节，MemoryPack 1,148 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)。</sub>
+<sub>BenchmarkDotNet 0.15.2，.NET 10.0.13，服务器 GC，Intel Xeon 2.10 GHz；Nino v4 与 MemoryPack 1.21.4 在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上紧接其前后各跑一次。数据大小基本一致（`SimpleClass`：v4 1,150 字节，v3 1,152 字节，MemoryPack 1,148 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)；每个版本的发布说明里有该版本的实测数据。</sub>
 
 ## 为什么选 Nino
 
@@ -39,11 +39,11 @@
   比 MemoryPack 的覆盖写入最多快 6.5 倍。
 - **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
   因此 IL2CPP、NativeAOT 和 HybridCLR 热更都能直接用。使用 .NET 8 及以上 SDK 时，调用会被拦截到确切的格式化器，没有虚调用。
-- **编译快。** 生成器是真正增量的：每个类型一个文件，只重新生成你改动的类型。相比 v3，生成代码小 16 倍，编译快 44 倍。
+- **编译快。** 生成器是真正增量的：每个类型一个文件，只重新生成你改动的类型。相比 v3，生成代码小 14 倍，编译快 40 倍。
 - **线程安全。** 任意多个线程同时序列化、反序列化，热路径上没有锁。
 - **数据可以演进。** 版本兼容、keyed 成员、引用追踪（共享引用和循环引用），都按类型按需开启，不用的类型零开销。
 - **处处同一格式。** `netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 写出的字节完全一致，Unity 客户端和 .NET 服务端可以直接互通。
-- **写代码时就发现错误。** 24 条分析器诊断（NINO001–NINO024），多数带一键修复。
+- **写代码时就发现错误。** 25 条分析器诊断（NINO001–NINO025），多数带一键修复。
 
 ## 适用场景
 
@@ -153,9 +153,9 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 |---|---|
 | 序列化 | 类**快 1.28 倍**，类数组**快 1.48 倍**，结构体数组持平 |
 | 反序列化 | 持平（类与原始数组），同时多了引用追踪、复用反序列化和数据校验 |
-| 编译生成代码 | 330 个类型**快 44 倍**（56 秒 → 1.3 秒），1,100 个类型**快 289 倍**（636 秒 → 2.2 秒） |
-| 运行生成器 | **快 7.9 倍**；改动后只重新生成该类型 |
-| 生成代码 | 源码**小 16 倍**，IL **小 6 倍** |
+| 编译生成代码 | 330 个类型**快 40 倍**（44 秒 → 1.1 秒），1,100 个类型**快 289 倍**（636 秒 → 2.2 秒） |
+| 运行生成器 | **快 4.2 倍**；改动后只重新生成该类型（**快 12 倍**） |
+| 生成代码 | 源码**小 14 倍**，IL **小 5 倍** |
 
 v4 新增：拦截器、keyed 成员、引用追踪、`[NinoPooled]` 对象池、可插拔格式化器（`[assembly: NinoFormatter(...)]`）、
 自定义集合类型、分析器与代码修复，以及所有目标框架字节一致。详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)
