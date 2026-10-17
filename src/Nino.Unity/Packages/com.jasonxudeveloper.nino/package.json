@@ -2,7 +2,7 @@
     "name": "com.jasonxudeveloper.nino",
     "version": "4.0.0-preview.147",
     "displayName": "Nino",
-    "description": "High-performance, source-generated binary serializer for C# and .NET: zero GC, IL2CPP and HybridCLR ready, with polymorphism, version tolerance, reference tracking and object pools.",
+    "description": "The fastest binary serializer for C#. General-purpose, source-generated, zero-allocation and thread-safe: for services, RPC, messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.",
     "unity": "2022.3",
     "documentationUrl": "https://nino.xgamedev.net/en/docs/v4/advanced/unity",
     "repoUrl": "https://github.com/JasonXuDeveloper/Nino",

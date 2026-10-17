@@ -9,7 +9,7 @@
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Title>Nino</Title>
         <Authors>JasonXuDeveloper</Authors>
-        <Description>High-performance, source-generated binary serializer for .NET: services, networking, messaging, caching and storage, with Unity, Godot and HybridCLR support.</Description>
+        <Description>The fastest binary serializer for C#. General-purpose, source-generated, zero-allocation and thread-safe: for services, RPC, messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.</Description>
         <Copyright>JasonXuDeveloper</Copyright>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
