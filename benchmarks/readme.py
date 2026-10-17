@@ -13,6 +13,8 @@ usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 rep
 The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->. Everything outside
 the markers (the build-time numbers among it) is written by hand. Ratios follow the docs site (nino.docs
 src/lib/benchmarks.ts): within 5% is "on par", and a case where v4 is slower is left out, never shown as slower.
+A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
+measurable v3 is "faster, too fast to measure" (no ratio: it would only reflect the floor); both under it is on par.
 """
 import argparse
 import re
@@ -23,6 +25,8 @@ ROOT = Path(__file__).resolve().parent.parent
 UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
 # Struct cases: a block copy in both libraries, so they stay out of the class/polymorphic ranges.
 STRUCT_KEYS = {"SimpleStruct", "SimpleStructs", "Vectors"}
+# Below a third of a clock cycle: no work at all can be told apart from BenchmarkDotNet's empty-method overhead.
+FLOOR_NS = 0.1
 CLASS_KEYS = ["SimpleClass", "SimpleClasses", "PolymorphicClass", "PolymorphicClassArray", "PolymorphicFooArray"]
 
 
@@ -61,6 +65,14 @@ def ratio(slow, fast):
 
 def on_par(r):
     return round(abs(r - 1) * 100) <= 5
+
+
+def against(slow, fast):
+    """v3 (slow) against v4 (fast): "unmeasurable" when v4 is under FLOOR_NS and v3 is not, 1.0 when both are, else
+    the ratio."""
+    if fast < FLOOR_NS:
+        return 1.0 if slow < FLOOR_NS else "unmeasurable"
+    return 0.0 if slow < FLOOR_NS else ratio(slow, fast)
 
 
 def one(r):
@@ -137,9 +149,11 @@ def numbers(v4_path, v3_paths):
     if v3:
         cases = {"ser": [("Serialize", "SimpleClass", "class", "类"),
                          ("Serialize", "SimpleClasses", "class array", "类数组"),
+                         ("Serialize", "SimpleStruct", "struct", "结构体"),
                          ("Serialize", "SimpleStructs", "struct array", "结构体数组")],
                  "deser": [("Deserialize", "SimpleClass", "class", "类"),
                            ("Deserialize", "SimpleClasses", "class array", "类数组"),
+                           ("Deserialize", "SimpleStruct", "struct", "结构体"),
                            ("Deserialize", "SimpleStructs", "struct array", "结构体数组")]}
         for op, items in cases.items():
             en, zh = [], []
@@ -147,8 +161,11 @@ def numbers(v4_path, v3_paths):
                 method = f"Nino{verb}{key}"
                 if method not in v3 or method not in v4:
                     continue
-                r = ratio(v3[method], v4[method]["mean"])
-                if on_par(r):
+                r = against(v3[method], v4[method]["mean"])
+                if r == "unmeasurable":
+                    en.append(f"**faster** ({label_en}, too fast to measure: under {FLOOR_NS} ns)")
+                    zh.append(f"{label_zh}**更快**（快到测不出，不到 {FLOOR_NS} ns）")
+                elif on_par(r):
                     en.append(f"on par ({label_en})")
                     zh.append(f"{label_zh}持平")
                 elif r > 1:

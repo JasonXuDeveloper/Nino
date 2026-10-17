@@ -169,8 +169,8 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 
 | v4 vs v3 (3.3.13) | |
 |---|---|
-| Serialize | <!--bench:v3.ser-->**1.52× faster** (class), **1.91× faster** (class array), on par (struct array)<!--/bench--> |
-| Deserialize | <!--bench:v3.deser-->**1.07× faster** (class), **1.06× faster** (class array), on par (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
+| Serialize | <!--bench:v3.ser-->**1.52× faster** (class), **1.91× faster** (class array), **1.15× faster** (struct), on par (struct array)<!--/bench--> |
+| Deserialize | <!--bench:v3.deser-->**1.07× faster** (class), **1.06× faster** (class array), **faster** (struct, too fast to measure: under 0.1 ns), on par (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
 | Compiling the generated code | **51× faster** at 330 types (42.9 s → 0.84 s), **221× faster** at 1,100 types (462 s → 2.1 s) |
 | Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |
