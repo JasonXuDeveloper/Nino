@@ -9,6 +9,7 @@
 /src/.vs
 src/Nino.sln.DotSettings.user
 **/BenchmarkDotNet.Artifacts
+src/Nino.Core/.AssemblyAttributes
 src/Nino.UnitTests/*.binlog
 src/Nino.UnitTests/*.rsp
 
