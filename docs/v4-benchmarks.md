@@ -1,7 +1,7 @@
 # Nino v4 benchmarks
 
 Why v4: what it costs to build a project that uses Nino, and how fast serialization runs, compared with
-v3 (3.3.13, the last v3 release) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.21.4.
+v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.21.4.
 
 All numbers on this page were measured on this revision, on one machine: an Intel Xeon 2.10 GHz (4 cores,
 AVX-512, .NET SDK 10.0.402). Generated code sizes do not depend on the machine. Absolute times vary between
