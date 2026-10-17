@@ -101,7 +101,7 @@ Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // 读
 ### 零分配网络层
 
 ```csharp
-// 直接写进 socket 管道，不产生中间 byte[]。
+// 序列化进 socket 管道：从每线程的池化缓冲区拷贝一次，不分配 byte[]。
 NinoSerializer.Serialize(msg, pipeWriter);
 
 // 复用池化实例（连同它们的列表），而不是每次新建。

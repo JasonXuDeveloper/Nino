@@ -108,7 +108,7 @@ only as a `Type` at run time that shares no `[NinoType]` base with the others.
 ### Zero-allocation networking
 
 ```csharp
-// Write directly into the socket pipe: no intermediate byte[].
+// Serialize into the socket pipe: one copy from a pooled per-thread buffer, no byte[] allocated.
 NinoSerializer.Serialize(msg, pipeWriter);
 
 // Reuse pooled instances (and their lists) instead of allocating new ones.
