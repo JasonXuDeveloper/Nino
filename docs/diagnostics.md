@@ -196,7 +196,7 @@ positional record). 🔧 Make the class sealed (offered for non-abstract classes
 A `[NinoPooled]` class must implement the two partial methods the generator declares:
 `private static partial IEnumerable<T> OnNinoPoolWarmup()`, called once before Nino first deserializes the type (the instances it returns go straight into the pool), and
 `private partial void OnNinoPoolReturn()`, called by `ReturnToPool()` to release what must not outlive the instance's use.
-Empty bodies are fine. 🔧 Implement pool hooks (adds empty bodies for the missing ones).
+`OnNinoPoolReturn` may be empty; `OnNinoPoolWarmup` may return `null` or an empty sequence to start with an empty pool. 🔧 Implement pool hooks (adds an empty `OnNinoPoolReturn` and a warmup that returns `Array.Empty<T>()`).
 
 ## Formatter registrations
 
