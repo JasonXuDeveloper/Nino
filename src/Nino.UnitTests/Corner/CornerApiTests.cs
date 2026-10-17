@@ -278,6 +278,31 @@ namespace Nino.UnitTests.Corner
         }
 
         [TestMethod]
+        public void WriterValueOverloadsKeepTheirEncodings()
+        {
+            // Write<T>(in T) and Write<T>(T?) both accept a nullable: the nullable one must still win (a has-value
+            // byte, then the value), and an in argument read from a field writes the same bytes as a local.
+            int? none = null, five = 5;
+            var holder = new Tuple<Guid>(Guid.NewGuid());
+            var buffer = new NinoArrayBufferWriter();
+            var writer = new Writer(buffer);
+            writer.Write(none);
+            writer.Write(five);
+            writer.Write(7);
+            writer.Write(holder.Item1);
+            writer.Flush();
+            Assert.AreEqual(1 + 5 + 4 + 16, buffer.WrittenCount);
+
+            var reader = new Reader(buffer.WrittenSpan);
+            reader.Read(out int? first);
+            reader.Read(out int? second);
+            Assert.IsNull(first);
+            Assert.AreEqual(5, second);
+            Assert.AreEqual(7, reader.Read<int>());
+            Assert.AreEqual(holder.Item1, reader.Read<Guid>());
+        }
+
+        [TestMethod]
         public void EmptyBufferThrows()
         {
             Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<int>(Array.Empty<byte>()));

@@ -259,7 +259,7 @@ namespace Nino.Core
 
         /// <summary>Writes an unmanaged value.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(T value) where T : unmanaged => WriteValue(value);
+        public void Write<T>(in T value) where T : unmanaged => WriteValue(in value);
 
         /// <summary>Writes a nullable unmanaged value: a has-value byte, then the value if present.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
