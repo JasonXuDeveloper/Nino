@@ -12,7 +12,7 @@
 [![NuGet](https://img.shields.io/nuget/v/Nino?label=NuGet&style=flat-square&logo=nuget)](https://www.nuget.org/packages/Nino)
 [![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?label=OpenUPM&style=flat-square&logo=unity&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
 [![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square)](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/JasonXuDeveloper/Nino)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue?style=flat-square)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
 [🌐 **官网**](https://nino.xgamedev.net/zh) ·
 [🚀 **快速上手**](https://nino.xgamedev.net/zh/docs/v4/start) ·
@@ -23,9 +23,9 @@
 
 </div>
 
-| **<!--bench:ser.polyarray-->5.1<!--/bench-->×** | **<!--bench:reuse.inplace-->8.7<!--/bench-->×** | **0 GC** | **221×** |
+| **最高 <!--bench:ser.max-->5.1<!--/bench-->×** | **<!--bench:reuse.inplace-->8.7<!--/bench-->×** | **0 GC** | **221×** |
 |:---:|:---:|:---:|:---:|
-| 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化到缓冲区、复用池化对象反序列化<br>零 GC 分配 | 编译比 v3 快<br>（1,100 个类型：462 秒 → 2.1 秒） |
+| 序列化<br>比 MemoryPack 快 | 原地反序列化<br>比 MemoryPack 快 | 热路径<br>零 GC 分配 | 编译<br>比 v3 快 |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
