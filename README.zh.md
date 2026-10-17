@@ -63,9 +63,9 @@
 > 第一次用 Nino？请看官网的 **[快速上手](https://nino.xgamedev.net/zh/docs/v4/start)**：.NET、Unity 和 Godot 的安装，第一个类型，以及基础用法。
 
 ```bash
-dotnet add package Nino                # .NET、Godot
-dotnet add package Nino.Immutable      # 可选：ImmutableArray<T> / ImmutableList<T>
-openupm add com.jasonxudeveloper.nino  # Unity
+dotnet add package Nino --prerelease            # .NET、Godot
+dotnet add package Nino.Immutable --prerelease  # 可选：ImmutableArray<T> / ImmutableList<T>
+openupm add com.jasonxudeveloper.nino           # Unity
 ```
 
 ## 快速开始

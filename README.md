@@ -69,9 +69,9 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 > New to Nino? Follow **[Getting Started](https://nino.xgamedev.net/en/docs/v4/start)** on the website: installation for .NET, Unity and Godot, your first type, and the basics.
 
 ```bash
-dotnet add package Nino                # .NET, Godot
-dotnet add package Nino.Immutable      # optional: ImmutableArray<T> / ImmutableList<T>
-openupm add com.jasonxudeveloper.nino  # Unity
+dotnet add package Nino --prerelease            # .NET, Godot
+dotnet add package Nino.Immutable --prerelease  # optional: ImmutableArray<T> / ImmutableList<T>
+openupm add com.jasonxudeveloper.nino           # Unity
 ```
 
 ## Quick start
