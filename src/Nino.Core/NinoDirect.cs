@@ -17,7 +17,7 @@ namespace Nino.Core
     public static class NinoDirect
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] Serialize<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T> =>
+        public static byte[] Serialize<T, TFormatter>(in T value) where TFormatter : struct, INinoFormatter<T> =>
             SerializeToArray<T, TFormatter>(value);
 
         /// <summary>
@@ -26,12 +26,12 @@ namespace Nino.Core
         /// the same.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] SerializeFixed<T, TFormatter>(T value)
+        public static byte[] SerializeFixed<T, TFormatter>(in T value)
             where TFormatter : struct, INinoFixedSizeFormatter<T> =>
             WriteFixed<T, TFormatter>(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static byte[] WriteFixed<T, TFormatter>(T value) where TFormatter : struct, INinoFixedSizeFormatter<T>
+        internal static byte[] WriteFixed<T, TFormatter>(in T value) where TFormatter : struct, INinoFixedSizeFormatter<T>
         {
             // A null sealed class: its null flag (0), which a new array holds.
             if (value == null)
@@ -41,7 +41,7 @@ namespace Nino.Core
             return bytes;
         }
 
-        private static byte[] SerializeToArray<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
+        private static byte[] SerializeToArray<T, TFormatter>(in T value) where TFormatter : struct, INinoFormatter<T>
         {
             var buffer = NinoSerializer.RentScratch();
             try
@@ -56,7 +56,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Serialize<T, TFormatter>(T value, IBufferWriter<byte> bufferWriter)
+        public static void Serialize<T, TFormatter>(in T value, IBufferWriter<byte> bufferWriter)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (bufferWriter is NinoArrayBufferWriter nino)
@@ -67,14 +67,14 @@ namespace Nino.Core
 
         // Another buffer writer: the regular call, out of line so the inlined fast path stays small.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void SerializeOther<T>(T value, IBufferWriter<byte> bufferWriter) =>
+        private static void SerializeOther<T>(in T value, IBufferWriter<byte> bufferWriter) =>
             NinoSerializer.Serialize(value, bufferWriter);
 
         /// <summary>
-        /// <see cref="Serialize{T,TFormatter}(T)"/> with a <c>__Top</c> twin that creates its own writer
+        /// <see cref="Serialize{T,TFormatter}(in T)"/> with a <c>__Top</c> twin that creates its own writer
         /// (<see cref="INinoTopFormatter{T}"/>). The bytes are the same.
         /// </summary>
-        public static byte[] SerializeTop<T, TFormatter>(T value) where TFormatter : struct, INinoTopFormatter<T>
+        public static byte[] SerializeTop<T, TFormatter>(in T value) where TFormatter : struct, INinoTopFormatter<T>
         {
             var buffer = NinoSerializer.RentScratch();
             try
@@ -89,11 +89,11 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// <see cref="Serialize{T,TFormatter}(T, IBufferWriter{byte})"/> with a <c>__Top</c> twin that creates its own
+        /// <see cref="Serialize{T,TFormatter}(in T, IBufferWriter{byte})"/> with a <c>__Top</c> twin that creates its own
         /// writer (<see cref="INinoTopFormatter{T}"/>). The bytes are the same.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void SerializeTop<T, TFormatter>(T value, IBufferWriter<byte> bufferWriter)
+        public static void SerializeTop<T, TFormatter>(in T value, IBufferWriter<byte> bufferWriter)
             where TFormatter : struct, INinoTopFormatter<T>
         {
             if (bufferWriter is NinoArrayBufferWriter nino)
@@ -103,7 +103,7 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Serialize<T, TFormatter>(T value, ref Writer writer)
+        public static void Serialize<T, TFormatter>(in T value, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T> =>
             default(TFormatter).Serialize(value, ref writer);
 
@@ -112,7 +112,7 @@ namespace Nino.Core
         /// here (inlined: in the caller's frame, where the JIT keeps it in registers if no call takes its address).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write<T, TFormatter>(T value, NinoArrayBufferWriter buffer)
+        public static void Write<T, TFormatter>(in T value, NinoArrayBufferWriter buffer)
             where TFormatter : struct, INinoFormatter<T>
         {
             var writer = new Writer(buffer);

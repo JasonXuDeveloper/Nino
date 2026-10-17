@@ -255,7 +255,7 @@ namespace Nino.Core
         /// </summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void WriteValue<T>(T value) => NinoLayout<T>.Write(ref Reserve(NinoLayout<T>.Size), value);
+        public void WriteValue<T>(in T value) => NinoLayout<T>.Write(ref Reserve(NinoLayout<T>.Size), in value);
 
         /// <summary>Writes an unmanaged value.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

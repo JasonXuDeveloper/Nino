@@ -153,11 +153,11 @@ namespace Nino.Core
         /// <see cref="NinoArrayBufferWriter"/> is done in place; other buffer writers receive one copy.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
+        public static void Serialize<T>(in T value, IBufferWriter<byte> bufferWriter)
         {
             if (NinoRaw.Is<T>())
             {
-                WriteRaw(value, bufferWriter);
+                WriteRaw(in value, bufferWriter);
                 return;
             }
 
@@ -204,11 +204,11 @@ namespace Nino.Core
 
         /// <summary>Serializes <paramref name="value"/> with an existing writer.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Serialize<T>(T value, ref Writer writer)
+        public static void Serialize<T>(in T value, ref Writer writer)
         {
             if (NinoRaw.Is<T>())
             {
-                writer.WriteValue(value);
+                writer.WriteValue(in value);
                 return;
             }
 
@@ -216,19 +216,19 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteRaw<T>(T value, IBufferWriter<byte> bufferWriter)
+        private static void WriteRaw<T>(in T value, IBufferWriter<byte> bufferWriter)
         {
             int size = Unsafe.SizeOf<T>();
             if (bufferWriter is NinoArrayBufferWriter nino)
             {
-                NinoLayout<T>.Write(ref nino.Reserve(size), value);
+                NinoLayout<T>.Write(ref nino.Reserve(size), in value);
                 return;
             }
 
             var span = bufferWriter.GetSpan(size);
             if (span.Length < size)
                 NinoThrow.EndOfData();
-            NinoLayout<T>.Write(ref MemoryMarshal.GetReference(span), value);
+            NinoLayout<T>.Write(ref MemoryMarshal.GetReference(span), in value);
             bufferWriter.Advance(size);
         }
 
