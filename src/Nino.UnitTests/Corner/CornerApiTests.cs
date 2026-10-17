@@ -115,6 +115,54 @@ namespace Nino.UnitTests.Corner
             CollectionAssert.AreEqual(expected, NinoSerializer.SerializeBoxed(Payload(), typeof(ApiPayload)));
         }
 
+        /// <summary>A pool that records what it hands out and gets back (issue #198).</summary>
+        private sealed class CountingPool : ArrayPool<byte>
+        {
+            public readonly List<byte[]> Rented = new List<byte[]>();
+            public readonly List<byte[]> Returned = new List<byte[]>();
+
+            public override byte[] Rent(int minimumLength)
+            {
+                var array = new byte[minimumLength];
+                Rented.Add(array);
+                return array;
+            }
+
+            public override void Return(byte[] array, bool clearArray = false) => Returned.Add(array);
+        }
+
+        [TestMethod]
+        public void BufferWriterUsesTheGivenPool()
+        {
+            var expected = NinoSerializer.Serialize(Payload());
+            var pool = new CountingPool();
+            var nino = new NinoArrayBufferWriter(1, pool);
+            Assert.AreEqual(1, pool.Rented.Count);
+
+            // Serializing grows the buffer: every array comes from the pool, and each replaced one goes back to it.
+            NinoSerializer.Serialize(Payload(), nino);
+            CollectionAssert.AreEqual(expected, nino.ToArray());
+            Assert.IsTrue(pool.Rented.Count > 1);
+            CollectionAssert.AreEqual(pool.Rented.Take(pool.Rented.Count - 1).ToList(), pool.Returned);
+
+            var last = pool.Rented[pool.Rented.Count - 1];
+            nino.Dispose();
+            Assert.AreSame(last, pool.Returned[pool.Returned.Count - 1]);
+            Assert.AreEqual(pool.Rented.Count, pool.Returned.Count);
+
+            // Capacity 0 rents nothing until the first write.
+            var empty = new CountingPool();
+            using (var lazy = new NinoArrayBufferWriter(0, empty))
+            {
+                Assert.AreEqual(0, empty.Rented.Count);
+                NinoSerializer.Serialize(Payload(), lazy);
+                CollectionAssert.AreEqual(expected, lazy.ToArray());
+            }
+            Assert.AreEqual(empty.Rented.Count, empty.Returned.Count);
+
+            Assert.ThrowsExactly<ArgumentNullException>(() => new NinoArrayBufferWriter(16, null));
+        }
+
         [TestMethod]
         public void SpanOverloadsAtUnalignedOffsets()
         {

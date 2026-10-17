@@ -5,7 +5,8 @@ using System.Runtime.CompilerServices;
 namespace Nino.Core
 {
     /// <summary>
-    /// A contiguous, growable byte buffer backed by <see cref="ArrayPool{T}.Shared"/>.
+    /// A contiguous, growable byte buffer backed by an <see cref="ArrayPool{T}"/>: <see cref="ArrayPool{T}.Shared"/>,
+    /// or the pool given to the constructor (for example one of pinned arrays for socket I/O).
     /// <see cref="Writer"/> writes into it directly, so serializing into a reused instance allocates nothing.
     /// Not thread safe: use one instance per thread (or per operation).
     /// </summary>
@@ -32,16 +33,28 @@ namespace Nino.Core
         internal const byte ScratchIdle = 1;
         internal const byte ScratchInUse = 2;
 
+        /// <summary>The pool the backing arrays are rented from and returned to.</summary>
+        private readonly ArrayPool<byte> _pool;
+
         public NinoArrayBufferWriter() : this(DefaultCapacity)
         {
         }
 
-        public NinoArrayBufferWriter(int initialCapacity)
+        public NinoArrayBufferWriter(int initialCapacity) : this(initialCapacity, ArrayPool<byte>.Shared)
+        {
+        }
+
+        /// <summary>
+        /// A buffer whose backing arrays come from <paramref name="pool"/>: it rents the first one here and on every
+        /// growth, and returns the old one on growth and on <see cref="Dispose"/>.
+        /// </summary>
+        public NinoArrayBufferWriter(int initialCapacity, ArrayPool<byte> pool)
         {
             if (initialCapacity < 0)
                 throw new ArgumentOutOfRangeException(nameof(initialCapacity));
 
-            Buffer = initialCapacity == 0 ? Array.Empty<byte>() : ArrayPool<byte>.Shared.Rent(initialCapacity);
+            _pool = pool ?? throw new ArgumentNullException(nameof(pool));
+            Buffer = initialCapacity == 0 ? Array.Empty<byte>() : pool.Rent(initialCapacity);
         }
 
         /// <summary>Number of bytes written so far.</summary>
@@ -142,12 +155,12 @@ namespace Nino.Core
             if ((uint)newSize > MaxArrayLength)
                 newSize = Math.Max(needed, MaxArrayLength);
 
-            var newBuffer = ArrayPool<byte>.Shared.Rent(newSize);
+            var newBuffer = _pool.Rent(newSize);
             System.Buffer.BlockCopy(Buffer, 0, newBuffer, 0, Index);
             var old = Buffer;
             Buffer = newBuffer;
             if (old.Length != 0)
-                ArrayPool<byte>.Shared.Return(old);
+                _pool.Return(old);
         }
 
         /// <summary>Returns the underlying buffer to the pool. The instance must not be used afterwards.</summary>
@@ -157,7 +170,7 @@ namespace Nino.Core
             Buffer = Array.Empty<byte>();
             Index = 0;
             if (old.Length != 0)
-                ArrayPool<byte>.Shared.Return(old);
+                _pool.Return(old);
         }
     }
 }
