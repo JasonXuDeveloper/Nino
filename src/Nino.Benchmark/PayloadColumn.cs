@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Reports;
 using BenchmarkDotNet.Running;
-using Perfolizer.Metrology;
 
 namespace Nino.Benchmark;
 
@@ -33,7 +33,7 @@ public class PayloadColumn : IColumn
     public int PriorityInCategory => 0;
     public bool IsNumeric => true;
     public UnitType UnitType => UnitType.Size;
-    public string Legend => "Serialized payload size (from setup)";
+    public string Legend => "Serialized payload size in bytes (from setup)";
 
     public bool IsAvailable(Summary summary) => true;
     public bool IsDefault(Summary summary, BenchmarkCase benchmarkCase) => false;
@@ -48,7 +48,7 @@ public class PayloadColumn : IColumn
         }
 
         if (BenchmarkPayloadRegistry.TryGet(methodName, out var size))
-            return new SizeValue(size).ToString();
+            return size.ToString("N0", CultureInfo.InvariantCulture) + " B";
 
         return "-";
     }

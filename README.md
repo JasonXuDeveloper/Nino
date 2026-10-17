@@ -22,7 +22,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 
 </div>
 
-| **3.9×** | **6.5×** | **0 GC** | **289×** |
+| **4.7×** | **9.0×** | **0 GC** | **289×** |
 |:---:|:---:|:---:|:---:|
 | faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>or deserializing into pooled objects | faster to compile than v3<br>(1,100 types: 636 s → 2.2 s) |
 
@@ -34,10 +34,10 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 
 ## Why Nino
 
-- **Faster than MemoryPack.** Serializing classes and polymorphic types is 2.4–3.9× faster. Deserializing them is
-  1.10–1.33× faster, and raw struct arrays are close (a block copy in both).
+- **Faster than MemoryPack.** Serializing classes and polymorphic types is 3.2–4.7× faster. Deserializing them is
+  1.2–1.7× faster, and raw struct arrays are close (a block copy in both).
 - **Zero allocation.** Serializing allocates nothing. Deserializing into existing or pooled objects
-  (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either, and is up to 6.5× faster than MemoryPack's
+  (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either, and is up to 9.0× faster than MemoryPack's
   overwrite mode.
 - **Everything happens at compile time.** A source generator writes each formatter. There is no reflection,
   no IL emit, no registration and no init call, so it works on IL2CPP, NativeAOT and HybridCLR hot updates.
@@ -138,10 +138,10 @@ networking, persistence and Unity.
 
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
-| Serialize classes and polymorphic types | **2.4–3.9× faster** | |
-| Deserialize classes and polymorphic types | **1.10–1.33× faster** | |
+| Serialize classes and polymorphic types | **3.2–4.7× faster** | |
+| Deserialize classes and polymorphic types | **1.2–1.7× faster** | |
 | Raw struct arrays | close (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
-| Deserialize into existing objects | **0 B, up to 6.5× faster** (in place) | overwrite mode, allocates |
+| Deserialize into existing objects | **0 B, up to 9.0× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids | `[MemoryPackUnion]` tags you maintain |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | 2022.3+, `netstandard2.0` and `2.1`, HybridCLR | `netstandard2.1` |
@@ -160,8 +160,8 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 
 | v4 vs v3 (3.3.13) | |
 |---|---|
-| Serialize | **1.28× faster** (class), **1.48× faster** (class array), on par on struct arrays |
-| Deserialize | on par (classes and raw arrays), while adding reference tracking, reuse deserialization and payload validation |
+| Serialize | **1.50× faster** (class), **2.14× faster** (class array), on par on struct arrays |
+| Deserialize | **1.08× faster** (class), **1.09× faster** (class array), on par on raw arrays, while adding reference tracking, reuse deserialization and payload validation |
 | Compiling the generated code | **40× faster** at 330 types (44 s → 1.1 s), **289× faster** at 1,100 types (636 s → 2.2 s) |
 | Running the generator | **4.2× faster**; after an edit, only that type is re-generated (**12× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |

@@ -9,9 +9,9 @@ an Intel Xeon 2.80 GHz (4 cores, AVX-512, Ubuntu 24.04, .NET SDK 10.0.402). Gene
 the machine and are those of this revision everywhere. Absolute times vary between machines; the ratios are what to
 look at.
 
-The runtime numbers below come from an earlier run of the benchmark suite and predate the latest runtime changes.
-Each release's CI run (`report.yml`) publishes the current numbers, against MemoryPack and against v3 3.3.13 on the
-same machine, in the release notes; the documentation site shows those.
+The runtime numbers below were measured on this revision, on the 2.10 GHz machine. Each release's CI run
+(`report.yml`) publishes the same report, against MemoryPack and against v3 3.3.13 on the same runner, in the
+release notes; the documentation site shows the newest one.
 
 ## Build time and generated code
 
@@ -85,66 +85,57 @@ compile time); v4 grows linearly, at about 4 KB of source and 2 to 3 ms of compi
 
 ## Runtime
 
-**These tables are from an earlier run** and predate the latest runtime changes (polymorphic read dispatch, the
-depth bound, `__WriteTop`/`__ReadTop`, merged raw capacity checks, fixed-size types) and the three newer benchmark
-classes. The current numbers are in the Performance Report of each release (see [Reproducing](#reproducing)).
-
 `src/Nino.Benchmark` (BenchmarkDotNet 0.15.2, `ShortRun` job with 5 warm-up and 15 measured iterations, server
-GC) on .NET 10.0.13, Intel Xeon 2.10 GHz, 4 cores. All four benchmark classes ran in one session (the rows
-marked * in a second one, see below), v4 and MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org, running a port of the same `SimpleTest`
-(same data, same attributes) directly before and directly after the v4 session on the same machine; the v3
-column is the mean of those two runs. v3 has no polymorphic or pooling benchmarks.
+GC) on .NET 10.0.13, Intel Xeon 2.10 GHz, 4 cores, run with `benchmarks/run.sh` on this revision. All seven
+benchmark classes ran in one session, v4 and MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org,
+running a port of the same `SimpleTest` (same data, same attributes) directly before and directly after the v4
+session on the same machine; the v3 column is the mean of those two runs. v3 has no polymorphic, pooling,
+reference, version-tolerant or fixed-size benchmarks. Each release's notes carry the same report from a CI runner.
 
-How much to trust a difference: MemoryPack ran in all three sessions, and its times moved by up to 5% between
-them on everything except the sub-nanosecond `SimpleStruct` deserialize; v3's own two runs differ by up to
-7% on `SimpleClass` deserialize. Differences under about 5% are noise. Payload sizes are about the same
-(`SimpleClass`: 1,146 bytes in v4 at the time, 1,152 in v3, 1,148 in MemoryPack; v4 now writes 1,150, since a
-`[NinoUtf8]` string also stores its byte count).
+How much to trust a difference: MemoryPack ran in all three sessions, and its times moved by 0.84–1.44× between
+them, and v3's own two runs differ by up to 16% (`SimpleClass` deserialize: 624 and 538 ns). This machine is
+shared and noisy, so differences under about 10% are noise. Payload sizes are about the same (`SimpleClass`:
+1,150 bytes in v4, 1,152 in v3, 1,148 in MemoryPack).
 
 ### Serialize (to a reused buffer writer)
 
 | Case | v4 | MemoryPack | v3 | v4 vs MemoryPack | v4 vs v3 |
 |---|---:|---:|---:|---:|---:|
-| `SimpleClass` | 123 ns | 333 ns | 158 ns | **2.70× faster** | **1.28× faster** |
-| `SimpleClass[100]` | 15.5 µs | 37.8 µs | 23.0 µs | **2.44× faster** | **1.48× faster** |
-| Polymorphic class | 8.52 µs | 26.0 µs | — | **3.06× faster** | — |
-| Polymorphic class array | 68.6 µs | 267 µs | — | **3.89× faster** | — |
-| Polymorphic `Foo[]` | 7.05 µs | 25.5 µs | — | **3.62× faster** | — |
-| `SimpleStruct` (`int` + `DateTime`) * | 1.30 ns | 3.08 ns | 1.71 ns | **2.36× faster** | **1.31× faster** |
-| `SimpleStruct[100]` * | 16.0 ns | 21.7 ns | 15.8 ns | **1.36× faster** | on par |
-| `Vector4[10000]` | 4.38 µs | 4.49 µs | 4.44 µs | on par | on par |
+| `SimpleClass` | 94.2 ns | 321 ns | 142 ns | **3.40× faster** | **1.50× faster** |
+| `SimpleClass[100]` | 10.4 µs | 33.1 µs | 22.3 µs | **3.18× faster** | **2.14× faster** |
+| Polymorphic class | 6.82 µs | 24.4 µs | — | **3.58× faster** | — |
+| Polymorphic class array | 58.9 µs | 278 µs | — | **4.72× faster** | — |
+| Polymorphic `Foo[]` | 6.16 µs | 23.5 µs | — | **3.82× faster** | — |
+| `SimpleStruct` (`int` + `DateTime`) | 1.57 ns | 2.75 ns | 1.58 ns | **1.76× faster** | on par |
+| `SimpleStruct[100]` | 14.1 ns | 15.7 ns | 14.8 ns | 1.11× faster | on par |
+| `Vector4[10000]` | 4.27 µs | 4.21 µs | 4.32 µs | on par | on par |
 
-\* `SimpleStruct` is declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`: 12 bytes, no padding, so
-every serializer copies it as one block. These rows were re-run after that change with the same protocol (v3, then
-v4, then v3 again, same settings). In that run MemoryPack's `SimpleStruct[100]` serialize took 18.3 ns in both v3
-sessions and 21.7 ns in the v4 session, so read the 1.36× as "ahead by a few nanoseconds".
-
-Without `Pack`, `SimpleStruct` is 16 bytes with 4 bytes of padding after the `int`. v4 zeroes padding, so the output
-is deterministic and never carries leftover memory (an `ArrayPool` array or `stackalloc` under `[SkipLocalsInit]`
-can hold anything there); v3 and MemoryPack copy whatever the padding contains. In the earlier run with the padded
-struct, that masked copy made `SimpleStruct[100]` serialize take 25.9 ns against 21.4 ns for MemoryPack and
-20.9 ns for v3. A single value's padding is cleared by one or two inlined constant stores.
+`SimpleStruct` is declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`: 12 bytes, no padding, so every
+serializer copies it as one block. Without `Pack`, it is 16 bytes with 4 bytes of padding after the `int`. v4 zeroes
+padding, so the output is deterministic and never carries leftover memory (an `ArrayPool` array or `stackalloc`
+under `[SkipLocalsInit]` can hold anything there); v3 and MemoryPack copy whatever the padding contains. In an
+earlier run with the padded struct, that masked copy made `SimpleStruct[100]` serialize take 25.9 ns against
+21.4 ns for MemoryPack and 20.9 ns for v3. A single value's padding is cleared by one or two inlined constant stores.
 
 ### Deserialize (new instances)
 
 | Case | v4 | MemoryPack | v3 | v4 vs MemoryPack | v4 vs v3 |
 |---|---:|---:|---:|---:|---:|
-| `SimpleClass` | 658 ns | 777 ns | 654 ns | **1.18× faster** | on par |
-| `SimpleClass[100]` | 72.3 µs | 79.5 µs | 67.7 µs | **1.10× faster** | 0.94× |
-| Polymorphic class | 29.1 µs | 33.9 µs | — | **1.17× faster** | — |
-| Polymorphic class array | 392 µs | 461 µs | — | **1.18× faster** | — |
-| Polymorphic `Foo[]` | 28.6 µs | 38.1 µs | — | **1.33× faster** | — |
-| `SimpleStruct[100]` * | 133 ns | 149 ns | 142 ns | **1.12× faster** | 1.07× faster |
-| `Vector4[10000]` | 125 µs | 125 µs | 127 µs | on par | on par |
+| `SimpleClass` | 539 ns | 707 ns | 581 ns | **1.31× faster** | 1.08× faster |
+| `SimpleClass[100]` | 56.7 µs | 67.8 µs | 61.8 µs | **1.20× faster** | 1.09× faster |
+| Polymorphic class | 22.6 µs | 37.6 µs | — | **1.66× faster** | — |
+| Polymorphic class array | 306 µs | 412 µs | — | **1.35× faster** | — |
+| Polymorphic `Foo[]` | 22.0 µs | 29.7 µs | — | **1.35× faster** | — |
+| `SimpleStruct[100]` | 125 ns | 134 ns | 121 ns | 1.08× faster | on par |
+| `Vector4[10000]` | 118 µs | 112 µs | 113 µs | on par | on par |
 
 Deserializing classes is dominated by allocating the result objects, the same bytes for all three. To see how
-much is left, an A/B harness on the build machine built the same `SimpleClass` graph by hand (`new SimpleClass`,
-strings copied from spans, the same arrays, list and dictionaries): that floor took 518–636 ns and v4 took
-602–662 ns, mostly the cost of decoding the UTF-8 member. v4 stays within reach of that floor while adding
-reference tracking, reuse deserialization with pool recycling, version tolerance and payload validation, and
-it is ahead of MemoryPack. Against v3, which does none of these, deserialization is on par (`SimpleClass[100]`
-is 6% slower, at the edge of the noise). `Vector4[10000]` allocates a 160 KB array on the large object heap
-per call, so that row mostly measures gen-2 collections.
+much is left, an A/B harness built the same `SimpleClass` graph by hand (`new SimpleClass`, strings copied from
+spans, the same arrays, list and dictionaries): in an earlier run that floor took 518–636 ns and v4 602–662 ns,
+mostly the cost of decoding the UTF-8 member. v4 stays within reach of that floor while adding reference
+tracking, reuse deserialization with pool recycling, version tolerance and payload validation, and it is ahead of
+MemoryPack and v3. `Vector4[10000]` allocates a 160 KB array on the large object heap per call, so that row
+mostly measures gen-2 collections.
 
 ### Deserialize into existing instances (pooling)
 
@@ -153,13 +144,36 @@ Nino can deserialize into an existing object graph (reuse deserialization) and t
 
 | Case | Nino new | Nino reusing | MemoryPack new | MemoryPack overwrite | Nino reusing vs overwrite |
 |---|---:|---:|---:|---:|---:|
-| Pooled node | 736 ns | **224 ns** (0 B) | 720 ns | 576 ns (1,024 B) | **2.58× faster** |
-| Pooled leaves, in place | 4.73 µs | **789 ns** (0 B) | 4.40 µs | 5.11 µs (12,800 B) | **6.48× faster** |
-| Pooled leaves, pooled elements | 4.73 µs | 3.57 µs (856 B) | 4.40 µs | 5.11 µs (12,800 B) | **1.43× faster** |
-| Pooled class | 716 ns | 552 ns (1,080 B) | 794 ns | 616 ns (1,080 B) | 1.12× faster |
+| Pooled node | 636 ns | **219 ns** (0 B) | 650 ns | 495 ns (1,024 B) | **2.26× faster** |
+| Pooled leaves, in place | 3.99 µs | **511 ns** (0 B) | 4.09 µs | 4.61 µs (12,800 B) | **9.02× faster** |
+| Pooled leaves, pooled elements | 3.99 µs | 2.69 µs (856 B) | 4.09 µs | 4.61 µs (12,800 B) | **1.71× faster** |
+| Pooled class | 531 ns | 462 ns (1,080 B) | 710 ns | 573 ns (1,080 B) | **1.24× faster** |
 
-The "new" columns allocate the same bytes in both serializers and differ by noise. Reusing is where v4 pulls
-away: in-place reuse allocates nothing, and pooled nodes come back without allocating.
+The "new" columns allocate the same bytes in both serializers. Reusing is where v4 pulls away: in-place reuse
+allocates nothing, and pooled nodes come back without allocating.
+
+### Reference tracking, version tolerance and fixed-size types
+
+Each against the closest MemoryPack mode: `ReferenceTest` (a graph of 200 nodes with shared objects and cycles;
+`trackReferences: true` against `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members;
+`NinoFormat.VersionTolerant`, one length per object, against `GenerateType.VersionTolerant`, a length per member)
+and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 100 of the classes, through the
+`byte[]` APIs of both, so allocating the result is part of every call).
+
+| Case | Serialize v4 | MemoryPack | v4 vs MemoryPack | Deserialize v4 | MemoryPack | v4 vs MemoryPack |
+|---|---:|---:|---:|---:|---:|---:|
+| Object graph, 200 tracked nodes | 5.32 µs | 24.9 µs | **4.67× faster** | 6.49 µs | 19.3 µs | **2.97× faster** |
+| `TolerantClass` | 92.5 ns | 415 ns | **4.49× faster** | 538 ns | 784 ns | **1.46× faster** |
+| `TolerantClass[100]` | 10.7 µs | 41.1 µs | **3.85× faster** | 55.6 µs | 77.2 µs | **1.39× faster** |
+| `FixedStruct` | 12.1 ns | 11.5 ns | 0.95× | — | — | — |
+| `FixedClass` | 12.7 ns | 25.2 ns | **1.99× faster** | 11.6 ns | 25.0 ns | **2.15× faster** |
+| `FixedClass[100]` | 897 ns | 1.78 µs | **1.99× faster** | 1.35 µs | 1.40 µs | on par |
+
+Deserializing `FixedStruct` is one 40-byte copy, under a nanosecond in both, and not shown. Serializing it is the
+one case where MemoryPack is ahead, by about half a nanosecond: `MemoryPackSerializer.Serialize(in T)` takes the
+value by reference and copies it into the new array after allocating it, while `NinoSerializer.Serialize(T)`
+takes it by value, so the JIT first copies the 40 bytes to the stack, where they survive the allocation call
+(5 more instructions). The rest of the call is the same.
 
 Neither serializer allocates on the serialize paths above (0 B per call), and deserialization allocates only
 the result objects.
