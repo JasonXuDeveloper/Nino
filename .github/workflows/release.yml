@@ -7,8 +7,9 @@ name: Release
 #            token, no stored secret), create the GitHub release with the notes of .github/scripts/release_notes.py
 #            (every commit since the previous release, grouped, and every contributor; a stable release starts at
 #            the previous stable one, so 4.0.0 covers everything since 3.3.13), then start the benchmark report.
-#            Hand-written highlights in .github/release-notes/vX.Y.Z.md, if committed, go at the top. If it fails, fix the cause and use "Re-run failed jobs": the tag stays, NuGet skips a
-#            version it already has, the release is created once. To change an input (notes_since), run the
+#            The highlights at the top come from Wire-Format/Added/Fixed commit trailers (see release_notes.py).
+#            If it fails, fix the cause and use "Re-run failed jobs": the tag stays, NuGet skips a version it
+#            already has, the release is created once. To change an input (notes_since), run the
 #            workflow again with the same version: for an existing tag it skips straight to publishing.
 # Trusted Publishing policy on nuget.org: owner JasonXuDeveloper, repository Nino, workflow release.yml.
 #
@@ -182,10 +183,8 @@ jobs:
           if gh release view "v$VERSION" >/dev/null 2>&1; then echo "release v$VERSION exists"; exit 0; fi
           PRERELEASE=()
           if [[ "$VERSION" == *-* ]]; then PRERELEASE=(--prerelease); fi
-          {
-            echo "Install: \`dotnet add package Nino --version $VERSION\` (Unity package: \`$UNITY_VERSION\`)"
-            if [[ -f ".github/release-notes/v$VERSION.md" ]]; then echo; cat ".github/release-notes/v$VERSION.md"; fi
-          } > "$RUNNER_TEMP/header.md"
+          echo "Install: \`dotnet add package Nino --version $VERSION\` (Unity package: \`$UNITY_VERSION\`)" \
+            > "$RUNNER_TEMP/header.md"
           # The notes script of main, not of the tag: fixes to it apply to a release published again.
           git fetch -q origin main && git show origin/main:.github/scripts/release_notes.py > "$RUNNER_TEMP/release_notes.py"
           python3 "$RUNNER_TEMP/release_notes.py" --tag "v$VERSION" ${NOTES_SINCE:+--since "$NOTES_SINCE"} \

@@ -13,3 +13,15 @@ Guidance for Claude Code when working in this repository.
   in README.md, docs/v4-benchmarks.md, the chart and the release notes come from a full `benchmarks/run.sh` run
   (or the release workflow), whose job id stays `ShortRun-.NET 10.0`.
 - See benchmarks/README.md for the options.
+
+## Commit messages and release notes
+
+- "Area: summary" plus a body that says why.
+- Release notes are generated (`.github/scripts/release_notes.py`): the commit list, and highlights from trailers in
+  the message's last paragraph, next to `Co-Authored-By`. Give a user-facing change one:
+  - `Wire-Format:` anything that changes the bytes Nino writes, and for which types;
+  - `Added:` a new API, attribute or behavior;
+  - `Fixed:` a user-visible bug.
+  Write each as one sentence or two for users, in Markdown, continuing over indented lines if needed. Put
+  `Closes #N` in the body above the trailers; the issue is appended to the entry. Leave tests, CI, docs and
+  refactors without trailers. The docs site's changelog (nino.docs) is written from the same trailers.

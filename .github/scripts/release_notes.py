@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Write the GitHub release notes of a Nino tag: every commit since the start tag, grouped, plus all contributors.
+"""Write the GitHub release notes of a Nino tag: the highlights, every commit since the start tag, grouped, plus all
+contributors.
 
 Usage (in the release workflow, after the tag is pushed):
   python3 .github/scripts/release_notes.py --tag v4.0.0 [--since v3.3.13] [--header FILE] --out notes.md
@@ -10,6 +11,15 @@ Start tag (unless --since is given):
   stable x.y.z             -> the newest *stable* tag below it          (v4.0.1 -> v4.0.0, v4.1.0 -> v4.0.x)
 Tags matching IGNORE (Unity/OpenUPM -preview.N tags, the v3.9.x v4 test builds) are never a start tag, so
 v4.0.0 starts at v3.3.13. Only tags that are ancestors of --tag are candidates.
+
+Highlights come from trailers in the commit messages of the range, so nothing is written by hand at release time.
+Put them in the message's last paragraph (the trailer block, next to Co-Authored-By); a value may go on over
+indented lines:
+  Wire-Format: what now writes different bytes, and since when   -> "Wire format"
+  Added: a new API, attribute or behavior users can rely on       -> "New"
+  Fixed: a user-visible bug that is fixed                         -> "Fixes"
+Each entry gets the issues the commit closes ("Closes #202" in its body, outside the trailer block) unless it names
+them already. A release without such trailers has no highlights.
 """
 import argparse, fnmatch, json, os, re, subprocess, sys
 from collections import OrderedDict
@@ -20,6 +30,10 @@ BODY_LIMIT = 125_000          # GitHub rejects a longer release body (422)
 RESERVED = 45_000             # left for report.yml's v3 section and Performance Report (~31k today)
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$")
 LABEL_RANK = {"alpha": 0, "beta": 1, "rc": 2, None: 3}
+# Commit trailer -> highlights section, in this order.
+HIGHLIGHTS = [("Wire-Format", "Wire format"), ("Added", "New"), ("Fixed", "Fixes")]
+CHANGELOG = "https://nino.xgamedev.net/en/docs/v4/changelog"
+CLOSES = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.I)
 
 # Release machinery and merge commits: never listed (their changes are the commits themselves).
 SKIP = re.compile(r"^(Bump (to|version to) v|(Bump|Update) Unity Package DLLs|Update README benchmark numbers"
@@ -77,15 +91,37 @@ def start_tag(tag, ref):
 
 def commits(rng):
     sep, end = "\x1f", "\x1e"
-    fmt = sep.join(["%H", "%h", "%an", "%ae", "%s", "%(trailers:key=Co-authored-by,valueonly,separator=%x1d)", "%P"])
+    trailer = "%(trailers:key={},valueonly,unfold,separator=%x1d)"
+    fmt = sep.join(["%H", "%h", "%an", "%ae", "%s", trailer.format("Co-authored-by"), "%P", "%b"] +
+                   [trailer.format(key) for key, _ in HIGHLIGHTS])
     out = []
     for rec in sh("git", "log", "--reverse", f"--format={fmt}{end}", rng).split(end):
         if not rec.strip():
             continue
-        h, short, an, ae, s, co, parents = rec.strip("\n").split(sep)
+        h, short, an, ae, s, co, parents, body, *notes = rec.strip("\n").split(sep)
         out.append(dict(sha=h, short=short, name=an, email=ae, subject=s, merge=len(parents.split()) > 1,
-                        coauthors=[c.strip() for c in co.split("\x1d") if c.strip()]))
+                        coauthors=[c.strip() for c in co.split("\x1d") if c.strip()],
+                        closes=list(dict.fromkeys(CLOSES.findall(body))),
+                        highlights={key: [n.strip() for n in note.split("\x1d") if n.strip()]
+                                    for (key, _), note in zip(HIGHLIGHTS, notes)}))
     return out
+
+
+def highlights(all_commits, since):
+    """The Wire format / New / Fixes sections from the commits' trailers; empty when there are none."""
+    sections = []
+    for key, title in HIGHLIGHTS:
+        entries = []
+        for c in all_commits:
+            for note in c["highlights"][key]:
+                issues = [f"#{n}" for n in c["closes"] if not re.search(rf"#{n}\b", note)]
+                entries.append(f"- {note}{' (' + ', '.join(issues) + ')' if issues else ''}")
+        if entries:
+            intro = f"Only these write different bytes than {since}:\n\n" if key == "Wire-Format" and since else ""
+            sections.append(f"### {title}\n\n{intro}" + "\n".join(entries) + "\n")
+    if not sections:
+        return ""
+    return "\n".join(sections) + f"\nEvery change between v4 releases: [Changelog]({CHANGELOG}).\n\n"
 
 
 def classify(subject):
@@ -176,7 +212,7 @@ def main():
     ap.add_argument("--tag", required=True)
     ap.add_argument("--ref", help="commit the tag points at (default: the tag; for dry runs before tagging)")
     ap.add_argument("--since", help="start tag (default: chosen from the tag list)")
-    ap.add_argument("--header", help="Markdown placed first (install line, hand-written highlights)")
+    ap.add_argument("--header", help="Markdown placed first (the install line)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
@@ -225,6 +261,7 @@ def main():
         listed += 1
 
     header = open(args.header, encoding="utf-8").read().strip() + "\n\n" if args.header else ""
+    header += highlights(all_commits, since)
     compare = f"https://github.com/{REPO}/compare/{since}...{args.tag}" if since else ""
     contributors = ", ".join(sorted(people, key=lambda k: (-people[k], k.lower())))
     newbies = new_contributors(args.tag, since) if since else ""
