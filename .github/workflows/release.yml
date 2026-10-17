@@ -4,8 +4,10 @@ name: Release
 #   tag:     bump the version (src/Directory.Build.props, src/Version.cs, the Unity package.json), build, test,
 #            copy the Unity DLLs, commit "Bump to vX.Y.Z", tag vX.Y.Z (and the OpenUPM tag of a pre-release), push.
 #   publish: from the tag, pack and push to NuGet (Trusted Publishing: a short-lived key from this workflow's OIDC
-#            token, no stored secret), create the GitHub release with GitHub's generated notes, then start the
-#            benchmark report. If it fails, fix the cause and use "Re-run failed jobs": the tag stays, NuGet skips a
+#            token, no stored secret), create the GitHub release with the notes of .github/scripts/release_notes.py
+#            (every commit since the previous release, grouped, and every contributor; a stable release starts at
+#            the previous stable one, so 4.0.0 covers everything since 3.3.13), then start the benchmark report.
+#            Hand-written highlights in .github/release-notes/vX.Y.Z.md, if committed, go at the top. If it fails, fix the cause and use "Re-run failed jobs": the tag stays, NuGet skips a
 #            version it already has, the release is created once.
 # Trusted Publishing policy on nuget.org: owner JasonXuDeveloper, repository Nino, workflow release.yml.
 #
@@ -19,6 +21,10 @@ on:
       version:
         description: "Version to release, without the v (e.g. 4.0.0 or 4.1.0-beta.1)"
         required: true
+        type: string
+      notes_since:
+        description: "Optional: the tag the release notes start from (default: the previous release, see release_notes.py)"
+        required: false
         type: string
 
 permissions:
@@ -124,6 +130,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: v${{ inputs.version }}
+          fetch-depth: 0 # the release notes walk the history since the previous release
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -162,14 +169,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           UNITY_VERSION: ${{ needs.tag.outputs.unity_version }}
+          NOTES_SINCE: ${{ inputs.notes_since }}
         run: |
           if gh release view "v$VERSION" >/dev/null 2>&1; then echo "release v$VERSION exists"; exit 0; fi
-          PRERELEASE=""
-          if [[ "$VERSION" == *-* ]]; then PRERELEASE="--prerelease"; fi
-          # --notes goes first; the generated notes (pull requests since the previous tag) are appended.
-          gh release create "v$VERSION" artifacts/*."$VERSION".nupkg --verify-tag --title "v$VERSION" $PRERELEASE \
-            --notes "Install: \`dotnet add package Nino --version $VERSION\` (Unity package: \`$UNITY_VERSION\`)" \
-            --generate-notes
+          PRERELEASE=()
+          if [[ "$VERSION" == *-* ]]; then PRERELEASE=(--prerelease); fi
+          {
+            echo "Install: \`dotnet add package Nino --version $VERSION\` (Unity package: \`$UNITY_VERSION\`)"
+            if [[ -f ".github/release-notes/v$VERSION.md" ]]; then echo; cat ".github/release-notes/v$VERSION.md"; fi
+          } > "$RUNNER_TEMP/header.md"
+          python3 .github/scripts/release_notes.py --tag "v$VERSION" ${NOTES_SINCE:+--since "$NOTES_SINCE"} \
+            --header "$RUNNER_TEMP/header.md" --out "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" artifacts/*."$VERSION".nupkg --verify-tag --title "v$VERSION" \
+            "${PRERELEASE[@]}" --notes-file "$RUNNER_TEMP/notes.md"
 
       # A release created with the workflow token does not trigger other workflows: start the report explicitly.
       - name: Start the benchmark report

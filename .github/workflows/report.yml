@@ -300,7 +300,11 @@ jobs:
           else:
               head, tail = body, perf
           parts = [part for part in (head, v3, tail) if part]
-          open("updated_notes.md", "w", encoding="utf-8").write("\n\n".join(parts) + "\n")
+          text = "\n\n".join(parts) + "\n"
+          if len(text) > 125000:  # GitHub's limit for a release body: drop the raw v3 reports, keep the tables
+              v3 = re.sub(r"\n### v3 3\.3\.13 report .*?(?=\n</details>)", "\n\n(The raw v3 reports are in the workflow artifacts.)", v3, flags=re.S)
+              text = "\n\n".join(part for part in (head, v3, tail) if part) + "\n"
+          open("updated_notes.md", "w", encoding="utf-8").write(text)
           EOF
 
           # Update the release
