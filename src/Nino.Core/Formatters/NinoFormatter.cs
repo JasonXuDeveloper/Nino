@@ -120,7 +120,7 @@ namespace Nino.Core
     /// <summary>
     /// Generated formatters of types whose values all take the same number of bytes (<see cref="FixedSize"/>, a
     /// non-null one for a sealed class): structs and sealed classes whose members are all unmanaged values or such
-    /// structs. <see cref="NinoSerializer.Serialize{T}(T)"/> allocates the result at that size and writes the value
+    /// structs. <see cref="NinoSerializer.Serialize{T}(in T)"/> allocates the result at that size and writes the value
     /// straight into it (see <see cref="NinoDirect.SerializeFixed{T,TFormatter}"/>).
     /// </summary>
     [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]

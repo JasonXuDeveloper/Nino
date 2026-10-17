@@ -21,7 +21,7 @@ namespace Nino.Core
             SerializeToArray<T, TFormatter>(value);
 
         /// <summary>
-        /// <see cref="NinoSerializer.Serialize{T}(T)"/> of a value whose size is fixed: the result is allocated at
+        /// <see cref="NinoSerializer.Serialize{T}(in T)"/> of a value whose size is fixed: the result is allocated at
         /// that size and the value written straight into it, with no scratch buffer, writer or copy. The bytes are
         /// the same.
         /// </summary>

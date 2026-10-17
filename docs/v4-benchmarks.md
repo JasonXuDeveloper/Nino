@@ -142,10 +142,10 @@ and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 10
 | `FixedClass[100]` | 563 ns | 1.30 µs | **2.30× faster** | 929 ns | 1.04 µs | **1.12× faster** |
 <!--/bench-->
 
-Deserializing `FixedStruct` is one 40-byte copy, about a clock cycle in both. Serializing it compiles
-to the same machine code in both when the value is a local or a parameter (an allocation and one 40-byte copy);
-the benchmark reads it from a static field, and `NinoSerializer.Serialize(T)` takes the value by value where
-`MemoryPackSerializer.Serialize(in T)` takes a reference, so Nino copies it to the stack first.
+Deserializing `FixedStruct` is one 40-byte copy, about a clock cycle in both. Serializing it is an allocation
+and one 40-byte copy from the value straight into the array, the same machine code in both. Up to 4.0.0-rc.2,
+`NinoSerializer.Serialize(T)` took the value by value, so a value read from a field (as in this benchmark) was
+first copied to the stack, before the allocation; since 4.0.0-rc.3 it takes `in T`, as MemoryPack does.
 
 Neither serializer allocates on the serialize paths above (0 B per call), and deserialization allocates only
 the result objects.

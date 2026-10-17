@@ -133,7 +133,8 @@ internal static class Interceptors
             }
 
             signature.Append(refKind).Append(TypeNames.Global(parameter.Type)).Append(" a").Append(i);
-            arguments.Append(refKind).Append('a').Append(i);
+            // an in argument needs no keyword, and the NinoDirect target may take it by value
+            arguments.Append(parameter.RefKind == RefKind.In ? "" : refKind).Append('a').Append(i);
         }
 
         signature.Append(')');

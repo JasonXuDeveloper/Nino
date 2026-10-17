@@ -73,10 +73,10 @@ namespace Nino.Core
         // check are then static field loads instead of generic dictionary lookups (T a reference type makes any
         // method generic over it shared code), and the out-of-line rest receives the formatter as an argument.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static byte[] Serialize<T>(T value)
+        public static byte[] Serialize<T>(in T value)
         {
             if (NinoRaw.Is<T>())
-                return SerializeRaw(value);
+                return SerializeRaw(in value);
 
             // The formatter is a static readonly field: Tier1 code calls (and inlines) it as its exact type.
             if (RawArray<T>.Formatter is { } raw && value != null)
@@ -90,7 +90,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// The number of bytes <see cref="Serialize{T}(T)"/> returns for every value of <typeparamref name="T"/>
+        /// The number of bytes <see cref="Serialize{T}(in T)"/> returns for every value of <typeparamref name="T"/>
         /// when that number is the same for all of them, else -1. Fixed are raw values and generated structs and
         /// sealed classes whose members are all unmanaged values or such structs (not version tolerant, keyed or
         /// tracked); a null instance of such a sealed class is 1 byte (its null flag), every other one this size.
@@ -102,10 +102,10 @@ namespace Nino.Core
             return NinoTopFormatter<T>.Get.FixedSize;
         }
 
-        private static byte[] SerializeRaw<T>(T value)
+        private static byte[] SerializeRaw<T>(in T value)
         {
             var bytes = new byte[Unsafe.SizeOf<T>()];
-            NinoLayout<T>.Write(ref bytes[0], value);
+            NinoLayout<T>.Write(ref bytes[0], in value);
             return bytes;
         }
 

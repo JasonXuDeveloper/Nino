@@ -482,11 +482,11 @@ namespace Nino.Core
 
         /// <summary>Writes <paramref name="value"/> in its wire layout (<see cref="Size"/> bytes).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write(ref byte destination, T value)
+        public static void Write(ref byte destination, in T value)
         {
             if (IsCanonical)
             {
-                NinoUnsafe.Write(ref destination, value);
+                NinoUnsafe.WriteIn(ref destination, in value);
                 ClearPadding(ref destination);
             }
             else
@@ -498,8 +498,8 @@ namespace Nino.Core
         // Its own method: taking the parameter's address in Write, even on a branch the JIT folds away, makes every
         // inlined caller pass the value through a stack temporary.
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteConverted(ref byte destination, T value) =>
-            NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref value), ref destination, true);
+        private static void WriteConverted(ref byte destination, in T value) =>
+            NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref Unsafe.AsRef(in value)), ref destination, true);
 
         /// <summary>Reads a value stored in its wire layout.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
