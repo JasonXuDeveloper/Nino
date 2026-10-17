@@ -22,7 +22,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write(Dictionary<TKey, TValue> value, ref Writer writer)
         {
-            if (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is)
+            if (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>())
             {
                 // Raw keys and values: one reservation for the whole dictionary, no per-element bounds checks.
                 int count = value.Count;
@@ -32,7 +32,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (RawFormatter<TKeyFormatter>.Is && typeof(TValueFormatter) == typeof(StringFormatter))
+            if (RawFormatter.Is<TKey, TKeyFormatter>() && typeof(TValueFormatter) == typeof(StringFormatter))
             {
                 // Raw keys and UTF-16 strings: written into the free part of the buffer by value; only when they
                 // do not fit does the buffer grow, through the general loop.
@@ -126,7 +126,7 @@ namespace Nino.Core
         /// <summary>Reads the pair count, validated against the remaining bytes; false for null.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryReadLength(ref Reader reader, out int length) =>
-            reader.TryReadLength(RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is
+            reader.TryReadLength(RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>()
                 ? Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()
                 : 1, out length);
 
@@ -149,7 +149,7 @@ namespace Nino.Core
         public static void Refill(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
             int before = dictionary.Count;
-            if (before == 0 || (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is))
+            if (before == 0 || (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>()))
             {
                 Reset(dictionary, length);
                 Read(dictionary, length, ref reader);
@@ -262,7 +262,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Read(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
-            if (RawFormatter<TKeyFormatter>.Is && RawFormatter<TValueFormatter>.Is)
+            if (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>())
             {
                 // The block is taken here and the pairs added out of line: the reader's address never leaves the
                 // caller, and the caller stays small enough for the JIT to inline the rest of its path.
@@ -271,7 +271,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (RawFormatter<TKeyFormatter>.Is && typeof(TValueFormatter) == typeof(StringFormatter))
+            if (RawFormatter.Is<TKey, TKeyFormatter>() && typeof(TValueFormatter) == typeof(StringFormatter))
             {
                 // Raw keys and UTF-16 strings: one loop with the state in registers (see Reader.ReadStrings).
                 reader.ReadStringPairs(Unsafe.As<Dictionary<TKey, string>>(dictionary), length);

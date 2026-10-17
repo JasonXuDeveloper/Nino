@@ -560,7 +560,7 @@ namespace Nino.Core
             where TFormatter : struct, INinoFormatter<T>
         {
             // Raw elements (unmanaged values and raw [NinoType] structs) are copied as one block.
-            if (RawFormatter<TFormatter>.Is)
+            if (RawFormatter.Is<T, TFormatter>())
             {
                 int size = checked(count * Unsafe.SizeOf<T>());
                 NinoLayout<T>.CopyToWire(ref writer.Reserve(size), ref Unsafe.As<T, byte>(ref first), count);
@@ -575,7 +575,7 @@ namespace Nino.Core
             where TFormatter : struct, INinoFormatter<T>
         {
             // Raw elements (unmanaged values and raw [NinoType] structs) are copied as one block.
-            if (RawFormatter<TFormatter>.Is)
+            if (RawFormatter.Is<T, TFormatter>())
             {
                 int size = checked(count * Unsafe.SizeOf<T>());
                 Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref first), ref reader.ReadBlock(size), (uint)size);

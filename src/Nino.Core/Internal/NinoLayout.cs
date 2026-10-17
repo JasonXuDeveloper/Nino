@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -142,6 +143,15 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>Why reading the instance fields of an unmanaged struct is safe after trimming and under NativeAOT.</summary>
+        internal const string FieldsJustification =
+            "Reads the instance fields of a struct the program uses. ILLink keeps every instance field of a struct " +
+            "with sequential or explicit layout (the fields make up its size) and removes fields only from " +
+            "auto-layout structs, storage included, so reflection describes the runtime layout. NativeAOT keeps " +
+            "field metadata only when asked: generated code asks ([DynamicDependency] in the registry) for every " +
+            "struct it names. For another struct the fields read as missing, the measured size does not match " +
+            "Unsafe.SizeOf<T>() and the value is copied as it lies in memory, as on any reflection failure here.";
+
         /// <summary>The runtime's view of a type for <see cref="NinoLayoutCore"/>.</summary>
         private struct RuntimeView : INinoLayoutView<Type>
         {
@@ -180,6 +190,7 @@ namespace Nino.Core
                 return type.IsValueType && !type.IsPrimitive ? NinoLeaf.None : NinoLeaf.Unsupported;
             }
 
+            [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = FieldsJustification)]
             public bool Struct(Type type, List<KeyValuePair<Type, int>> fields, out LayoutKind kind, out int pack,
                 out int minSize)
             {

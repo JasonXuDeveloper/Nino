@@ -232,6 +232,9 @@ namespace Nino.Core
 #endif
 
         /// <summary>Whether <paramref name="type"/> is an unmanaged type (no references anywhere in its layout).</summary>
+        // Reached from the runtime resolver (dynamic code only) and the netstandard2.0 build.
+        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = NinoLayout.FieldsJustification)]
         public static bool IsUnmanaged(Type type)
         {
             if (type.IsPrimitive || type.IsEnum || type.IsPointer)

@@ -56,6 +56,14 @@ namespace Nino.Core
                 "[assembly: NinoFormatter] (or [NinoCustomFormatter] on the member).");
 
         [MethodImpl(Cold)]
+        public static void NoGeneratedFormatter(Type type) =>
+            throw new InvalidOperationException(
+                $"Nino: no formatter for {type.FullName}. This runtime cannot build formatters at run time (no " +
+                "dynamic code, as under NativeAOT), so only the formatters the generator registered exist: it " +
+                "registers every closed type it sees used (a [NinoType] member, a NinoSerializer/NinoDeserializer " +
+                "call). Name this exact type in one of them, or mark it with [NinoType].");
+
+        [MethodImpl(Cold)]
         public static void FactoryReturnedNull(Type type) =>
             throw new InvalidOperationException($"Nino: the factory of {type.FullName} returned null.");
 

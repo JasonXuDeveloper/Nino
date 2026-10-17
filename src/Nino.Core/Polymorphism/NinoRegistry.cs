@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -15,9 +16,12 @@ namespace Nino.Core
     public sealed class NinoGeneratedAttribute : Attribute
     {
         /// <summary>The generated registry type; its static constructor registers the assembly.</summary>
+        // NonPublicConstructors keeps the static constructor that NinoRegistry.EnsureInitialized runs.
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)]
         public Type Registry { get; }
 
-        public NinoGeneratedAttribute(Type registry)
+        public NinoGeneratedAttribute(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicConstructors)] Type registry)
         {
             Registry = registry;
         }
@@ -89,6 +93,10 @@ namespace Nino.Core
         /// Runs the generated registration of <paramref name="assembly"/> once, and returns when it has completed,
         /// also when another thread is running it.
         /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2059", Justification =
+            "Runs the static constructor of NinoGeneratedAttribute.Registry, which is annotated NonPublicConstructors " +
+            "(the trimmer keeps the static constructor; the generated module initializer runs it too). The .NET 9 " +
+            "and later analyzers read that annotation here; the .NET 8 one does not.")]
         public static void EnsureInitialized(Assembly assembly)
         {
             // The core library and Nino.Core never contain generated code.

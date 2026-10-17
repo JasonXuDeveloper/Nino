@@ -103,15 +103,23 @@ internal static class ModelBuilder
 
         // Closed generic [NinoType]s named by the members and base types, for the registry (not needed by the analyzer).
         var genericTypes = new List<ClosedTypeRegistration>();
+        // Structs whose layout the runtime measures, for the same registry (LayoutTypes).
+        var layoutTypes = new List<string>();
         if (diagnostics == null)
         {
             foreach (var symbol in memberSymbols)
             {
                 if (MemberCollector.MemberType(symbol) is { } memberType)
+                {
                     ClosedGenerics.Collect(memberType, facts, genericTypes);
+                    LayoutTypes.Collect(memberType, facts, layoutTypes);
+                }
             }
 
             ClosedGenerics.CollectBases(type, facts, genericTypes);
+            // The type itself (a raw struct has no member models) and what its base types name (List<Point>).
+            for (ITypeSymbol? t = type; t != null; t = t.BaseType)
+                LayoutTypes.Collect(t, facts, layoutTypes);
         }
 
         if (attr.Keyed && diagnostics != null)
@@ -310,7 +318,8 @@ internal static class ModelBuilder
             kind == FormatterKind.SealedClass && !construction.Recreate &&
             construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
             !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
-            !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type));
+            !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type),
+            LayoutTypes.ToArray(layoutTypes));
     }
 
     /// <summary>

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Nino.Core.Internal;
 
 namespace Nino.Core
@@ -12,9 +14,20 @@ namespace Nino.Core
     /// (strings, <c>object</c>, raw unmanaged values and <c>[NinoType]</c>s are built in), so both write the same
     /// bytes. Ahead-of-time platforms (IL2CPP) need the generated registrations for value-type instantiations; the
     /// generator emits them for every type it sees used.
+    /// <para>
+    /// Trimming and NativeAOT: everything here closes generic formatter definitions over runtime types, so it is
+    /// <see cref="RequiresDynamicCodeAttribute"/>: where the runtime cannot compile code (NativeAOT, iOS), the callers
+    /// (<see cref="NinoFormatterCache{T}"/>, <see cref="NinoPolymorphic.Register(Type)"/>, <see cref="BoxedFormatter"/>)
+    /// check <c>RuntimeFeature.IsDynamicCodeSupported</c> and use only the generated registrations, so NativeAOT drops
+    /// this class. A trimmed app that runs on a JIT keeps it; what the trimmer cannot see is justified at each
+    /// suppression below: the formatter definitions come from <see cref="NinoFormatterAttribute"/> (annotated), the
+    /// type arguments are types the program uses, and Nino's formatter type parameters ask the trimmer for nothing.
+    /// </para>
     /// </summary>
     internal static class NinoFormatterResolver
     {
+        internal const string DynamicCodeMessage =
+            "Builds formatter types at run time (MakeGenericType); only for types without a generated registration.";
         private static readonly ConcurrentDictionary<Type, Type> Cache = new ConcurrentDictionary<Type, Type>();
         private static readonly object Lock = new object();
         private static readonly HashSet<Assembly> Scanned = new HashSet<Assembly>();
@@ -31,6 +44,11 @@ namespace Nino.Core
         /// <summary>Adds the formatter registrations of <paramref name="assembly"/> (once).</summary>
         internal static void AddAssembly(Assembly assembly)
         {
+#if NET8_0_OR_GREATER
+            // Without dynamic code the registrations are never bound: skip reading them (and this class).
+            if (!RuntimeFeature.IsDynamicCodeSupported)
+                return;
+#endif
             lock (Lock)
             {
                 if (Scanned.Contains(assembly))
@@ -44,6 +62,7 @@ namespace Nino.Core
         /// Whether <paramref name="type"/> is a <c>[NinoType]</c>, directly or through the nearest attributed base type
         /// or an attributed interface that allows inheritance (as in the generator).
         /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = InterfacesJustification)]
         internal static bool IsNinoType(Type type)
         {
             if (Attribute(type) != null)
@@ -67,6 +86,19 @@ namespace Nino.Core
             return false;
         }
 
+        /// <summary>Why reading the interfaces of a runtime type is safe after trimming.</summary>
+        internal const string InterfacesJustification =
+            "Looks for interfaces of a type the program uses (it holds a value of it or names it). The trimmer keeps " +
+            "an interface implementation on every instantiated type whose interface is kept; the interfaces that " +
+            "matter here are kept: a [NinoType] interface by its generated formatter, the collection interfaces " +
+            "that formatter constraints name by Nino.Core's formatters.";
+
+        /// <summary>Why the struct and unmanaged constraints of Nino's own generic types are met after trimming.</summary>
+        internal const string ValueTypeConstraintJustification =
+            "The struct (or unmanaged) constraint makes the trimmer ask for the public parameterless constructor of " +
+            "the type argument, a value type here. A value type is always creatable without one, and Nino only uses " +
+            "these arguments as default(T) and as unmanaged values, never through a constructor.";
+
         private static NinoTypeAttribute Attribute(Type type) =>
             (NinoTypeAttribute)System.Attribute.GetCustomAttribute(type, typeof(NinoTypeAttribute), false);
 
@@ -74,6 +106,7 @@ namespace Nino.Core
         /// Returns a struct type implementing <c>INinoFormatter&lt;type&gt;</c>, or null if Nino cannot format the
         /// type.
         /// </summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
         internal static Type GetFormatterType(Type type, bool topLevel = false)
         {
             if (!topLevel)
@@ -81,6 +114,7 @@ namespace Nino.Core
             return Build(type, true);
         }
 
+        [RequiresDynamicCode(DynamicCodeMessage)]
         private static Type ElementFormatter(Type type)
         {
             NinoRegistry.RegisterType(type);
@@ -106,6 +140,7 @@ namespace Nino.Core
             return true;
         }
 
+        [RequiresDynamicCode(DynamicCodeMessage)]
         private static Type Build(Type type, bool topLevel)
         {
             var result = TryBuild(type, topLevel);
@@ -117,6 +152,10 @@ namespace Nino.Core
             return ReferenceEquals(before, _rules) ? null : TryBuild(type, topLevel);
         }
 
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        // IL2071; IL2070 from the .NET 8 analyzer, which reports the same thing on MakeGenericType itself.
+        [UnconditionalSuppressMessage("Trimming", "IL2071", Justification = ValueTypeConstraintJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = ValueTypeConstraintJustification)]
         private static Type TryBuild(Type type, bool topLevel)
         {
             if (type == typeof(string))
@@ -145,9 +184,14 @@ namespace Nino.Core
         private static int ArrayKey(Type array)
         {
             int rank = array.GetArrayRank();
+#if NET8_0_OR_GREATER
+            return array.IsSZArray ? 1 : -rank;
+#else
             return rank == 1 && array == array.GetElementType()!.MakeArrayType() ? 1 : -rank;
+#endif
         }
 
+        [RequiresDynamicCode(DynamicCodeMessage)]
         private static Type FirstMatch(List<Rule> rules, Type type)
         {
             if (rules == null)
@@ -165,6 +209,7 @@ namespace Nino.Core
         /// <summary>One <see cref="NinoFormatterAttribute"/> registration.</summary>
         private sealed class Rule
         {
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
             private readonly Type _formatter;
             private readonly Type[] _parameters;
             public readonly Type Pattern;
@@ -172,7 +217,8 @@ namespace Nino.Core
             public readonly int Priority;
             public readonly string Name;
 
-            private Rule(Type formatter, Type pattern, Type[] targets, int priority)
+            private Rule([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type formatter,
+                Type pattern, Type[] targets, int priority)
             {
                 _formatter = formatter;
                 _parameters = formatter.IsGenericTypeDefinition ? formatter.GetGenericArguments() : Type.EmptyTypes;
@@ -211,6 +257,8 @@ namespace Nino.Core
             }
 
             /// <summary>The closed formatter type for <paramref name="target"/>, or null if the rule does not apply.</summary>
+            [RequiresDynamicCode(DynamicCodeMessage)]
+            [UnconditionalSuppressMessage("Trimming", "IL2055", Justification = BindJustification)]
             public Type Bind(Type target)
             {
                 if (!NinoFormatterBinding.Bind<Type, Type, TypeSystem, Parameters>(default, new Parameters(_parameters),
@@ -229,6 +277,14 @@ namespace Nino.Core
                     return null; // a constraint the rules above do not model
                 }
             }
+
+            internal const string BindJustification =
+                "Closes a formatter definition registered with [assembly: NinoFormatter] (kept by the attribute) over " +
+                "types the program uses and formatter types built the same way. The trimmer can only ask for what " +
+                "the definition's type parameters declare: Nino's formatters declare no DynamicallyAccessedMembers, " +
+                "their struct constraints are met by every value type (" + ValueTypeConstraintJustification + "), " +
+                "and Satisfies checks a new() constraint (the constructor itself) before binding. A constraint that " +
+                "still fails throws ArgumentException, caught below: the rule then does not apply.";
 
             /// <summary>The formatter's type parameters, for <see cref="NinoFormatterBinding"/>.</summary>
             private readonly struct Parameters : INinoFormatterParameters<Type, Type>
@@ -254,6 +310,14 @@ namespace Nino.Core
 
                 public bool ResolveElement(Type element, out Type formatter)
                 {
+#if NET8_0_OR_GREATER
+                    // Only reached from Bind (RequiresDynamicCode); the check states it for the analyzer.
+                    if (!RuntimeFeature.IsDynamicCodeSupported)
+                    {
+                        formatter = null;
+                        return false;
+                    }
+#endif
                     formatter = ElementFormatter(element);
                     return true;
                 }
@@ -261,6 +325,10 @@ namespace Nino.Core
                 public bool Satisfies(int index, Type bound, Type[] types) => Rule.Satisfies(_parameters[index], bound, types);
             }
 
+            [UnconditionalSuppressMessage("Trimming", "IL2070", Justification =
+                "Checks a new() constraint against a type the program uses. A parameterless constructor the trimmer " +
+                "removed (nothing creates the type) reads as missing, so the formatter is not bound, which is what " +
+                "MakeGenericType would decide; nothing is created through the constructor here.")]
             internal static bool Satisfies(Type parameter, Type type, Type[] args)
             {
                 var attributes = parameter.GenericParameterAttributes;
@@ -434,13 +502,27 @@ namespace Nino.Core
 
             public Type BaseType(Type type) => type.BaseType;
 
+            [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = InterfacesJustification)]
             public IEnumerable<Type> Interfaces(Type type) => type.GetInterfaces();
 
-            public Type MakeArray(Type element, int key) =>
-                key == 1 ? element.MakeArrayType() : element.MakeArrayType(-key);
+            // MakeArray and Construct are only reached from Rule.Bind (RequiresDynamicCode); the checks state it for
+            // the analyzer.
+            public Type MakeArray(Type element, int key)
+            {
+#if NET8_0_OR_GREATER
+                if (!RuntimeFeature.IsDynamicCodeSupported)
+                    return null;
+#endif
+                return key == 1 ? element.MakeArrayType() : element.MakeArrayType(-key);
+            }
 
+            [UnconditionalSuppressMessage("Trimming", "IL2055", Justification = Rule.BindJustification)]
             public Type Construct(Type definition, Type[] arguments)
             {
+#if NET8_0_OR_GREATER
+                if (!RuntimeFeature.IsDynamicCodeSupported)
+                    return null;
+#endif
                 try
                 {
                     return definition.MakeGenericType(arguments);

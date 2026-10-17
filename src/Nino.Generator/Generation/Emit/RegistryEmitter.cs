@@ -8,6 +8,8 @@ namespace Nino.Generator.Generation.Emit;
 /// <summary>Emits the assembly registry and the registrations of built-in formatters the assembly uses.</summary>
 internal static class RegistryEmitter
 {
+    private const string CodeAnalysis = "global::System.Diagnostics.CodeAnalysis.";
+
     /// <summary>Class registering the built-in formatters the assembly uses (<see cref="EmitUsages"/>).</summary>
     private const string UsagesClass = "NinoGenUsages";
 
@@ -86,7 +88,7 @@ internal static class RegistryEmitter
     }
 
     public static string EmitUsages(IEnumerable<FormatterRegistration> usages, IEnumerable<FactoryRegistration> factories,
-        IEnumerable<ClosedTypeRegistration> generics)
+        IEnumerable<ClosedTypeRegistration> generics, IEnumerable<string> layoutTypes)
     {
         var w = new CodeWriter();
         w.Raw(FormatterEmitter.Header);
@@ -98,6 +100,10 @@ internal static class RegistryEmitter
             .Select(u => (u.Id, Code: $"{Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();"))
             .Concat(factories.Select(f => (f.Id, Code: $"{Core}NinoActivator<{f.TypeName}>.TryRegister({f.Creator});")))
             .Concat(generics.SelectMany(GenericStatements));
+        // The registry calls Register, so these stay with it: NativeAOT keeps the fields NinoLayout measures.
+        foreach (var type in layoutTypes)
+            w.Line($"[{CodeAnalysis}DynamicDependency({CodeAnalysis}DynamicallyAccessedMemberTypes.PublicFields | " +
+                   $"{CodeAnalysis}DynamicallyAccessedMemberTypes.NonPublicFields, typeof({type}))]");
         EmitIdDispatch(w, "internal static", "",
             statements.GroupBy(u => u.Id).OrderBy(g => g.Key)
                 .Select(g => new KeyValuePair<int, List<string>>(g.Key, g.Select(u => u.Code).ToList()))

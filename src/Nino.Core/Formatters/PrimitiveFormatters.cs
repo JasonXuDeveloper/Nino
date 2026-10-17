@@ -13,6 +13,19 @@ namespace Nino.Core
         public void Deserialize(ref T value, ref Reader reader) => value = reader.ReadValue<T>();
     }
 
+    /// <summary>
+    /// <see cref="UnmanagedFormatter{T}"/> without the <c>unmanaged</c> constraint (the same bytes), for code that only
+    /// knows <typeparamref name="T"/> is unmanaged at run time and cannot close a generic type then (NativeAOT).
+    /// </summary>
+    internal struct RawValueFormatter<T> : INinoFormatter<T>, INinoRawFormatter
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Serialize(T value, ref Writer writer) => writer.WriteValue(value);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref T value, ref Reader reader) => value = reader.ReadValue<T>();
+    }
+
     /// <summary><c>IntPtr</c>/<c>nint</c>: always 8 bytes, so 32-bit and 64-bit processes share data.</summary>
     public struct IntPtrFormatter : INinoFormatter<IntPtr>
     {
@@ -93,7 +106,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (RawFormatter<TFormatter>.Is)
+            if (RawFormatter.Is<T, TFormatter>())
             {
                 // Flag and value in one reservation.
                 ref byte dst = ref writer.Reserve(1 + Unsafe.SizeOf<T>());
@@ -115,7 +128,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (RawFormatter<TFormatter>.Is)
+            if (RawFormatter.Is<T, TFormatter>())
             {
                 value = reader.UnsafeRead<T>();
                 return;

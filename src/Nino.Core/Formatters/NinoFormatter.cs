@@ -139,14 +139,26 @@ namespace Nino.Core
         void WriteFixed(T value, ref byte destination);
     }
 
+    /// <summary>The formatter of a type, for code that only has a <see cref="Type"/>.</summary>
+    internal abstract class NinoFormatter
+    {
+        /// <summary>
+        /// The boxed entry point of the formatter's type, created where the type is a generic argument rather than
+        /// by closing <see cref="BoxedFormatter{T}"/> at run time (which NativeAOT cannot do).
+        /// </summary>
+        internal abstract BoxedFormatter CreateBoxed();
+    }
+
     /// <summary>
     /// The formatter of <typeparamref name="T"/> held by <see cref="NinoFormatterCache{T}"/>, for code that only finds
     /// it at runtime (top-level calls, <see cref="CachedFormatter{T}"/>): a <see cref="StructFormatter{T,TFormatter}"/>
     /// around a struct formatter, called virtually. Every formatter users write is a struct
     /// <see cref="INinoFormatter{T}"/>; this class is only the dispatch carrier and is not part of the API.
     /// </summary>
-    internal abstract class NinoFormatter<T> : INinoFormatter<T>
+    internal abstract class NinoFormatter<T> : NinoFormatter, INinoFormatter<T>
     {
+        internal sealed override BoxedFormatter CreateBoxed() => new BoxedFormatter<T>();
+
         public abstract void Serialize(T value, ref Writer writer);
 
         public abstract void Deserialize(ref T value, ref Reader reader);
@@ -226,23 +238,31 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// Whether <typeparamref name="TFormatter"/> is an <see cref="INinoRawFormatter"/>. A <c>static readonly</c>
-    /// field, so the JIT folds checks against it; AOT runtimes read a field instead of boxing the formatter.
+    /// Whether <typeparamref name="TFormatter"/> is an <see cref="INinoRawFormatter"/> of <typeparamref name="T"/>. A
+    /// <c>static readonly</c> field, so the JIT folds checks against it; AOT runtimes read a field instead of boxing the
+    /// formatter. Read it through <see cref="RawFormatter.Is{T,TFormatter}"/>.
     /// </summary>
-    internal static class RawFormatter<TFormatter>
+    internal static class RawFormatter<T, TFormatter> where TFormatter : INinoFormatter<T>
     {
         public static readonly bool Is = Compute();
 
-        // Raw only where the value's memory is its wire layout (see NinoLayout).
-        private static bool Compute()
-        {
-            if (!typeof(INinoRawFormatter).IsAssignableFrom(typeof(TFormatter)))
-                return false;
-            foreach (var i in typeof(TFormatter).GetInterfaces())
-                if (i.IsGenericType && i.GetGenericTypeDefinition() == typeof(INinoFormatter<>))
-                    return NinoLayout.Get(i.GetGenericArguments()[0], -1).Canonical;
-            return true;
-        }
+        // Raw only where the value's memory is its wire layout (see NinoLayout). T is the formatter's own type, so no
+        // reflection over its interfaces is needed (which trimming and NativeAOT may not keep).
+        private static bool Compute() =>
+            typeof(INinoRawFormatter).IsAssignableFrom(typeof(TFormatter)) &&
+            NinoLayout.Get(typeof(T), -1).Canonical;
+    }
+
+    internal static class RawFormatter
+    {
+        /// <summary>
+        /// Whether <typeparamref name="TFormatter"/> writes values of <typeparamref name="T"/> as their raw memory.
+        /// Folds to a constant once inlined: raw values are unmanaged, so for a reference type (whose code is shared,
+        /// where a static field of a class generic over it would be a runtime lookup) it is false without a lookup.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Is<T, TFormatter>() where TFormatter : INinoFormatter<T> =>
+            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && RawFormatter<T, TFormatter>.Is;
     }
 
     /// <summary>Wraps a struct formatter as a <see cref="NinoFormatter{T}"/>.</summary>
@@ -261,7 +281,7 @@ namespace Nino.Core
 
         internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
 
-        internal override bool IsRaw => RawFormatter<TFormatter>.Is;
+        internal override bool IsRaw => RawFormatter.Is<T, TFormatter>();
 
         internal override INinoRawArrayFormatter RawArray =>
             default(TFormatter) is INinoRawArrayFormatter raw && raw.ElementSize != 0 ? raw : null;

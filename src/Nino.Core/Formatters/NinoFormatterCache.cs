@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -38,7 +39,7 @@ namespace Nino.Core
             if (Volatile.Read(ref _instance) != null)
                 return;
             Interlocked.CompareExchange(ref _instance, new StructFormatter<T, TFormatter>(), null);
-            NinoFormatterCache.MarkRegistered(typeof(T));
+            NinoFormatterCache.MarkRegistered(typeof(T), _instance);
         }
 
         /// <summary>
@@ -51,7 +52,7 @@ namespace Nino.Core
             if (Volatile.Read(ref _instance) != null)
                 return;
             Interlocked.CompareExchange(ref _instance, new FixedStructFormatter<T, TFormatter>(), null);
-            NinoFormatterCache.MarkRegistered(typeof(T));
+            NinoFormatterCache.MarkRegistered(typeof(T), _instance);
         }
 
         /// <summary>
@@ -66,7 +67,7 @@ namespace Nino.Core
             if (Volatile.Read(ref _instance) != null)
                 return;
             Interlocked.CompareExchange(ref _instance, new TopStructFormatter<T, TFormatter, TTop>(), null);
-            NinoFormatterCache.MarkRegistered(typeof(T));
+            NinoFormatterCache.MarkRegistered(typeof(T), _instance);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -76,7 +77,53 @@ namespace Nino.Core
             var instance = Volatile.Read(ref _instance);
             if (instance != null)
                 return instance;
+#if NET8_0_OR_GREATER
+            // Building a formatter needs dynamic code: without it (NativeAOT), only generated registrations exist,
+            // and the formatters that need no generic type closed at run time.
+            if (!RuntimeFeature.IsDynamicCodeSupported)
+            {
+                var fixedFormatter = CreateWithoutDynamicCode();
+                if (fixedFormatter == null)
+                    NinoThrow.NoGeneratedFormatter(typeof(T));
+                Interlocked.CompareExchange(ref _instance, fixedFormatter, null);
+                NinoFormatterCache.MarkRegistered(typeof(T), _instance);
+                return _instance;
+            }
+#endif
+            return Build();
+        }
 
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// What the resolver builds for <typeparamref name="T"/> when that needs no type made at run time: strings,
+        /// <c>object</c>, and raw unmanaged values (which generated code does not register: a generic
+        /// <c>[NinoType]</c>'s <c>CachedFormatter&lt;T&gt;</c> of an <c>int</c> lands here). Null for anything else.
+        /// </summary>
+        private static NinoFormatter<T> CreateWithoutDynamicCode()
+        {
+            if (typeof(T) == typeof(string))
+                return (NinoFormatter<T>)(object)new StructFormatter<string, StringFormatter>();
+            if (typeof(T) == typeof(object))
+                return (NinoFormatter<T>)(object)new StructFormatter<object, ObjectFormatter>();
+            // A constant per T: reference types (and structs holding references) compile none of this. Generic
+            // structs are left out (their formats are their own: Nullable, KeyValuePair, tuples, generic [NinoType]s),
+            // and so are [NinoType] structs, registered by their generated code (RegisterType, above) when they exist.
+            if (!NinoUnsafe.IsReferenceOrContainsReferences<T>() && !typeof(T).IsGenericType &&
+                typeof(T) != typeof(IntPtr) && typeof(T) != typeof(UIntPtr) && typeof(T) != typeof(DateTimeOffset))
+                return new StructFormatter<T, RawValueFormatter<T>>();
+            return null;
+        }
+#endif
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        [RequiresDynamicCode(NinoFormatterResolver.DynamicCodeMessage)]
+        // IL2076; IL2075 from the .NET 8 analyzer, which reports the same thing on MakeGenericType itself.
+        [UnconditionalSuppressMessage("Trimming", "IL2076",
+            Justification = NinoFormatterResolver.ValueTypeConstraintJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2075",
+            Justification = NinoFormatterResolver.ValueTypeConstraintJustification)]
+        private static NinoFormatter<T> Build()
+        {
             var formatterType = NinoFormatterResolver.GetFormatterType(typeof(T), topLevel: true);
             if (formatterType == null)
                 NinoThrow.NoFormatter(typeof(T));
@@ -84,7 +131,7 @@ namespace Nino.Core
             var created = (NinoFormatter<T>)Activator.CreateInstance(
                 typeof(StructFormatter<,>).MakeGenericType(typeof(T), formatterType));
             Interlocked.CompareExchange(ref _instance, created, null);
-            NinoFormatterCache.MarkRegistered(typeof(T));
+            NinoFormatterCache.MarkRegistered(typeof(T), _instance);
             return _instance;
         }
     }
@@ -95,13 +142,18 @@ namespace Nino.Core
     /// </summary>
     internal static class NinoFormatterCache
     {
-        private static readonly ConcurrentDictionary<Type, bool> Registered = new ConcurrentDictionary<Type, bool>();
+        // The formatter itself too: the boxed APIs reach it from a Type without closing a generic type at run time.
+        private static readonly ConcurrentDictionary<Type, NinoFormatter> Registered =
+            new ConcurrentDictionary<Type, NinoFormatter>();
 
         /// <summary>Called after the formatter of <paramref name="type"/> has been stored.</summary>
-        public static void MarkRegistered(Type type) => Registered.TryAdd(type, true);
+        public static void MarkRegistered(Type type, NinoFormatter formatter) => Registered.TryAdd(type, formatter);
 
         /// <summary>Same as <see cref="NinoFormatterCache{T}.IsRegistered"/>.</summary>
         public static bool IsRegistered(Type type) => Registered.ContainsKey(type);
+
+        /// <summary>The formatter stored for <paramref name="type"/>, or null.</summary>
+        public static NinoFormatter Get(Type type) => Registered.TryGetValue(type, out var formatter) ? formatter : null;
 
         /// <summary>Every type with a formatter so far (a snapshot), for the cold path of polymorphic reads.</summary>
         public static ICollection<Type> RegisteredTypes => Registered.Keys;

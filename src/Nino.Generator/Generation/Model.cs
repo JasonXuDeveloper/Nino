@@ -173,7 +173,9 @@ internal sealed record TypeModel(
     // paths fold away. Only for types whose members read no loop in the body (MemberModel.ReadsLoop): a second copy
     // of a loop saves little per object and the JIT may allocate its registers worse there. Sealed classes only: those
     // are what collections hold many new instances of, and the second copy costs compile time for every type.
-    bool FreshRead)
+    bool FreshRead,
+    // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
+    EquatableArray<string> LayoutTypes)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 
@@ -273,7 +275,7 @@ internal sealed record ClosedTypeRegistration(string TypeName, string Formatter,
 // A top-level NinoSerializer/NinoDeserializer call: the formatter of its type and the creators that formatter needs
 // (null when the type is a [NinoType]), and the closed generic [NinoType]s its type names.
 internal sealed record UsageRegistration(FormatterRegistration? Formatter, EquatableArray<FactoryRegistration> Factories,
-    EquatableArray<ClosedTypeRegistration> GenericTypes);
+    EquatableArray<ClosedTypeRegistration> GenericTypes, EquatableArray<string> LayoutTypes);
 
 // A generated formatter, as the registry lists it. Arity: its number of type parameters (0 if not generic).
 // Registration: the statements registering the formatter (FormatterEmitter.RegisterStatements), run by the registry.

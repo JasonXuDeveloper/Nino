@@ -102,7 +102,7 @@ internal static class ClosedGenerics
         return null;
     }
 
-    private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
+    internal static bool ContainsTypeParameter(ITypeSymbol type) => type switch
     {
         ITypeParameterSymbol => true,
         IArrayTypeSymbol a => ContainsTypeParameter(a.ElementType),
@@ -111,7 +111,7 @@ internal static class ClosedGenerics
     };
 
     /// <summary>Whether the registry (a top-level class in this assembly) can name the type.</summary>
-    private static bool IsNameable(ITypeSymbol type, TypeFacts facts)
+    internal static bool IsNameable(ITypeSymbol type, TypeFacts facts)
     {
         switch (type)
         {

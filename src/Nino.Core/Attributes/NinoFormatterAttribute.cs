@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Nino.Core
 {
@@ -43,13 +44,17 @@ namespace Nino.Core
         /// For a formatter of a bare type parameter: the type definitions it applies to (e.g.
         /// <c>typeof(IList&lt;&gt;)</c>). Empty: any type its constraints admit.
         /// </param>
-        public NinoFormatterAttribute(Type formatterType, params Type[] targets)
+        // Interfaces: the runtime resolver reads the INinoFormatter<T> a formatter implements (NinoFormatterResolver).
+        public NinoFormatterAttribute(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type formatterType,
+            params Type[] targets)
         {
             FormatterType = formatterType;
             Targets = targets ?? Array.Empty<Type>();
         }
 
         /// <summary>The registered formatter.</summary>
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
         public Type FormatterType { get; }
 
         /// <summary>The type definitions a formatter of a bare type parameter is restricted to.</summary>

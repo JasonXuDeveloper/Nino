@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Threading;
 
@@ -240,7 +241,8 @@ namespace Nino.Core
         /// types, type arguments of <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls, and the closed types of
         /// arguments of those), and writing an instance registers its type. Call this at startup for an
         /// instantiation that a process reads but never names nor writes (for example one only created by another
-        /// assembly or through reflection). Generic types are closed with <c>MakeGenericType</c>.
+        /// assembly or through reflection). Generic types are closed with <c>MakeGenericType</c>, which needs dynamic
+        /// code: without it (NativeAOT), only the generated registrations are found.
         /// </para>
         /// Returns false when the type cannot be written polymorphically (abstract, open, or not a <c>[NinoType]</c>).
         /// </summary>
@@ -257,7 +259,25 @@ namespace Nino.Core
             NinoRegistry.RegisterType(type);
             if (NinoPolymorphic<object>.FindRegistered(type) != null)
                 return true;
-            if (!type.IsGenericType || !NinoFormatterResolver.IsNinoType(type))
+            if (!type.IsGenericType)
+                return false;
+#if NET8_0_OR_GREATER
+            if (!RuntimeFeature.IsDynamicCodeSupported)
+                return false;
+#endif
+            return RegisterGeneric(type);
+        }
+
+        /// <summary>Registers a closed generic <c>[NinoType]</c> from its formatter definition.</summary>
+        [RequiresDynamicCode(NinoFormatterResolver.DynamicCodeMessage)]
+        // IL2076; IL2075 from the .NET 8 analyzer, which reports the same thing on MakeGenericType itself.
+        [UnconditionalSuppressMessage("Trimming", "IL2076",
+            Justification = NinoFormatterResolver.ValueTypeConstraintJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2075",
+            Justification = NinoFormatterResolver.ValueTypeConstraintJustification)]
+        private static bool RegisterGeneric(Type type)
+        {
+            if (!NinoFormatterResolver.IsNinoType(type))
                 return false;
 
             // The formatter definition of a generic [NinoType] is an [assembly: NinoFormatter] registration.
@@ -289,6 +309,7 @@ namespace Nino.Core
         }
 
         /// <summary>Whether the type, a base class or an interface is marked <c>trackReferences</c> (as in the generator).</summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = NinoFormatterResolver.InterfacesJustification)]
         private static bool IsTracked(Type type)
         {
             for (var t = type; t != null; t = t.BaseType)

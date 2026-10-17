@@ -68,7 +68,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (RawFormatter<TFormatter>.Is)
+            if (RawFormatter.Is<T, TFormatter>())
             {
                 int size = Unsafe.SizeOf<T>();
                 int count = value.Count;
@@ -97,7 +97,7 @@ namespace Nino.Core
 
         public void Deserialize(ref TSet value, ref Reader reader)
         {
-            bool raw = RawFormatter<TFormatter>.Is;
+            bool raw = RawFormatter.Is<T, TFormatter>();
             if (!reader.TryReadLength(raw ? Unsafe.SizeOf<T>() : 1, out int length))
             {
                 NinoRecycler.Discard(ref value);

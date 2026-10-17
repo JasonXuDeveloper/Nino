@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -80,6 +81,15 @@ namespace Nino.Core
 
     internal static class NinoActivator
     {
+        /// <summary>Why looking up the constructors and factories of a type by reflection is safe after trimming.</summary>
+        private const string CreatorJustification =
+            "The fallback for types no generated code registered a creator for. Generated code registers one " +
+            "(() => new T() or the [NinoFactory] call) for every closed type it binds to a [NinoCreated] parameter, " +
+            "which keeps that constructor or factory; what is left are types only built at run time. Their " +
+            "constructors and factories are kept when the program uses them; one the trimmer removed is not found, " +
+            "and the creator then throws Nino's 'cannot create' InvalidOperationException rather than misbehave. " +
+            "Value types are created as Activator.CreateInstance<T>() always created them.";
+
         /// <summary>
         /// A creator of <typeparamref name="T"/> was set: pooled instances may now be dropped from slots of a base type,
         /// so collections walk the elements they drop (see <see cref="NinoRecycler{T}.MayRecycle"/>).
@@ -96,6 +106,8 @@ namespace Nino.Core
         /// without arguments, then a public parameterless constructor, then a public constructor whose parameters are
         /// all optional (called with their default values).
         /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2090", Justification = CreatorJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2091", Justification = CreatorJustification)]
         public static Func<T> Reflect<T>()
         {
             var type = typeof(T);
@@ -193,6 +205,7 @@ namespace Nino.Core
         }
 
         /// <summary>A public static <see cref="NinoFactoryAttribute"/> factory declared on <paramref name="type"/>.</summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = CreatorJustification)]
         internal static MethodInfo FindFactory(Type type)
         {
             foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
@@ -206,6 +219,7 @@ namespace Nino.Core
         }
 
         /// <summary>Whether a class has what a <see cref="NinoCreatedAttribute"/> parameter requires.</summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = CreatorJustification)]
         internal static bool IsCreatable(Type type)
         {
             if (type.IsValueType || type.IsAbstract || type.IsInterface || type.ContainsGenericParameters)
@@ -232,9 +246,29 @@ namespace Nino.Core
             return true;
         }
 
+        /// <summary>An empty array of <paramref name="arrayType"/> (a params parameter left out).</summary>
+        private static Array EmptyArray(Type arrayType)
+        {
+#if NET9_0_OR_GREATER
+            // The array type itself, so no array type is made at run time (NativeAOT cannot).
+            return Array.CreateInstanceFromArrayType(arrayType, 0);
+#elif NET8_0_OR_GREATER
+            if (RuntimeFeature.IsDynamicCodeSupported)
+                return Array.CreateInstance(arrayType.GetElementType()!, 0);
+            // NativeAOT on .NET 8 cannot make the array type at run time: the parameter's own default (null) instead.
+            return null;
+#else
+            return Array.CreateInstance(arrayType.GetElementType()!, 0);
+#endif
+        }
+
         private static bool IsParams(ParameterInfo parameter) =>
             parameter.IsDefined(typeof(ParamArrayAttribute), false);
 
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification =
+            "Creates default(T) for a value-type parameter left out of a constructor or factory call: a value type " +
+            "is creatable without a constructor, and an explicit parameterless one would not be what default(T) " +
+            "means for an omitted argument anyway.")]
         private static object[] DefaultArguments(MethodBase method)
         {
             var parameters = method.GetParameters();
@@ -243,7 +277,7 @@ namespace Nino.Core
             {
                 var parameter = parameters[i];
                 if (IsParams(parameter))
-                    args[i] = Array.CreateInstance(parameter.ParameterType.GetElementType()!, 0);
+                    args[i] = EmptyArray(parameter.ParameterType);
                 else if (parameter.HasDefaultValue && parameter.DefaultValue != null)
                     args[i] = parameter.DefaultValue;
                 else

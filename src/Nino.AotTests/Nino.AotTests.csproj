@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- A program using every kind of type Nino handles, published trimmed (-p:NinoPublish=trim) or with NativeAOT
+         (-p:NinoPublish=aot) by CI: any trim or AOT warning from Nino.Core or from generated code fails the publish,
+         and running it checks the round trips (see .github/workflows/ci.yml). PublishTrimmed/PublishAot are set
+         here rather than with -p: a global property would reach the netstandard project references too. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <IsPackable>false</IsPackable>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <PublishTrimmed Condition="'$(NinoPublish)' == 'trim'">true</PublishTrimmed>
+        <PublishAot Condition="'$(NinoPublish)' == 'aot'">true</PublishAot>
+        <!-- Every warning on its own (not one IL2104 per assembly), and each one an error. -->
+        <TrimmerSingleWarn>false</TrimmerSingleWarn>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
+        <ProjectReference Include="..\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <Import Project="..\Nino.Generator\build\Nino.Generator.props"/>
+</Project>

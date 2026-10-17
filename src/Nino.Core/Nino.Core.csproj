@@ -32,6 +32,19 @@
         <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     </PropertyGroup>
 
+    <!-- Trim and NativeAOT safe: the analyzers check every build of the .NET targets (netstandard has no
+         annotations to check; its builds compile the internal polyfills in Internal/TrimAttributes.cs). -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net10.0'">
+        <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+    <!-- The .NET 8 reference assemblies do not mark RuntimeFeature.IsDynamicCodeSupported as a guard ([FeatureGuard]
+         is .NET 9), so the analyzer flags the dynamic-code paths behind it, which NativeAOT 8 removes all the same.
+         The net10.0 build compiles the same source with the guard understood. -->
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <NoWarn>$(NoWarn);IL3050</NoWarn>
+    </PropertyGroup>
+
     <!--  for .NET Standard  -->
     <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0' Or '$(TargetFramework)' == 'netstandard2.1'">
         <TargetFrameworkMonikerAssemblyAttributesPath>$([System.IO.Path]::Combine('$(IntermediateOutputPath)','$(TargetFrameworkMoniker).AssemblyAttributes$(DefaultLanguageSourceExtension)'))</TargetFrameworkMonikerAssemblyAttributesPath>

@@ -1,6 +1,8 @@
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
@@ -11,8 +13,34 @@ namespace Nino.Core
             new ConcurrentDictionary<Type, BoxedFormatter>();
 
         // A lambda rather than a method group: older compilers (Unity's) allocate a delegate per method group use.
-        public static BoxedFormatter Get(Type type) => Cache.GetOrAdd(type,
-            t => (BoxedFormatter)Activator.CreateInstance(typeof(BoxedFormatter<>).MakeGenericType(t)));
+        public static BoxedFormatter Get(Type type) => Cache.GetOrAdd(type, t => Create(t));
+
+        private static BoxedFormatter Create(Type type)
+        {
+            // A registered formatter (generated, or built earlier) creates it: no generic type is closed at run time.
+            var formatter = NinoFormatterCache.Get(type);
+            if (formatter == null)
+            {
+                NinoRegistry.RegisterType(type);
+                formatter = NinoFormatterCache.Get(type);
+            }
+
+            if (formatter != null)
+                return formatter.CreateBoxed();
+#if NET8_0_OR_GREATER
+            if (!RuntimeFeature.IsDynamicCodeSupported)
+            {
+                NinoThrow.NoGeneratedFormatter(type);
+                return null;
+            }
+#endif
+            return CreateDynamic(type);
+        }
+
+        // BoxedFormatter<T> resolves T's formatter on first use, as the generic APIs do.
+        [RequiresDynamicCode(NinoFormatterResolver.DynamicCodeMessage)]
+        private static BoxedFormatter CreateDynamic(Type type) =>
+            (BoxedFormatter)Activator.CreateInstance(typeof(BoxedFormatter<>).MakeGenericType(type));
 
         public abstract byte[] Serialize(object value);
         public abstract void Serialize(object value, IBufferWriter<byte> bufferWriter);

@@ -150,12 +150,24 @@ public sealed class NinoGenerator : IIncrementalGenerator
                     .Distinct()
                     .OrderBy(g => g.TypeName, StringComparer.Ordinal)));
 
-        context.RegisterImplementationSourceOutput(registrations.Combine(factories).Combine(generics).Combine(enabled),
+        // Structs whose layout the runtime measures: their field metadata is kept for NativeAOT (LayoutTypes), where
+        // the compilation can name [DynamicDependency].
+        var memberLayouts = CollectAll(models, static m => m.LayoutTypes);
+        var canKeepLayouts = context.CompilationProvider.Select(static (c, _) => LayoutTypes.CanEmit(c));
+        var layouts = usages.Combine(memberLayouts).Combine(canKeepLayouts)
+            .Select(static (x, _) => x.Right
+                ? LayoutTypes.ToArray(x.Left.Left.SelectMany(static u => u.LayoutTypes)
+                    .Concat(x.Left.Right.SelectMany(static a => a)))
+                : EquatableArray<string>.Empty);
+
+        context.RegisterImplementationSourceOutput(
+            registrations.Combine(factories).Combine(generics).Combine(layouts).Combine(enabled),
             static (spc, x) =>
             {
-                var (((formatters, creators), closed), on) = x;
+                var ((((formatters, creators), closed), kept), on) = x;
                 if (on)
-                    spc.AddSource("NinoGen.Usages.g.cs", RegistryEmitter.EmitUsages(formatters, creators, closed));
+                    spc.AddSource("NinoGen.Usages.g.cs",
+                        RegistryEmitter.EmitUsages(formatters, creators, closed, kept));
             });
 
 #if ROSLYN4_8
@@ -293,16 +305,19 @@ public sealed class NinoGenerator : IIncrementalGenerator
             return null;
         var generics = new List<ClosedTypeRegistration>();
         ClosedGenerics.Collect(type, facts, generics);
+        var layouts = new List<string>();
+        LayoutTypes.Collect(type, facts, layouts);
         var formatter = facts.Resolver.Resolve(type, false);
         bool registered = formatter is { Registered: true } && !facts.Raw.IsRawUnmanaged(type);
-        if (!registered && generics.Count == 0)
+        if (!registered && generics.Count == 0 && layouts.Count == 0)
             return null;
         return new UsageRegistration(
             registered
                 ? new FormatterRegistration(TypeNames.Global(type), formatter!.Value.Code, facts.TypeId(type))
                 : null,
             registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
-            new EquatableArray<ClosedTypeRegistration>(generics.Distinct()));
+            new EquatableArray<ClosedTypeRegistration>(generics.Distinct()),
+            LayoutTypes.ToArray(layouts));
     }
 
     private static bool ContainsTypeParameter(ITypeSymbol type) => type switch

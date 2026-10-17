@@ -102,6 +102,44 @@ jobs:
           path: ./src/TestResults
           retention-days: 30
 
+  # Nino.Core and generated code must stay trim and NativeAOT safe: Nino.AotTests is published both ways with every
+  # trim/AOT warning an error (TreatWarningsAsErrors, TrimmerSingleWarn=false), then run; both runs must write the
+  # same bytes.
+  trim-aot:
+    name: Trim and NativeAOT
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Publish trimmed and NativeAOT
+        run: |
+          dotnet publish Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=trim -o ./aot-tests/trim
+          dotnet publish Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=aot -o ./aot-tests/aot
+
+      - name: Run
+        run: |
+          ./aot-tests/trim/Nino.AotTests | tee trim.txt
+          ./aot-tests/aot/Nino.AotTests | tee aot.txt
+          [ "$(grep 'payload sha256' trim.txt)" = "$(grep 'payload sha256' aot.txt)" ]
+
   unity-tests:
     name: Unity tests
     runs-on: ubuntu-latest
@@ -173,7 +211,7 @@ jobs:
   build-test:
     name: Build and Test
     runs-on: ubuntu-latest
-    needs: [ unit-tests, unity-tests ]
+    needs: [ unit-tests, trim-aot, unity-tests ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
     steps:
@@ -190,8 +228,9 @@ jobs:
       - name: Check results
         working-directory: .
         run: |
-          echo "unit tests: ${{ needs.unit-tests.result }}, Unity tests: ${{ needs.unity-tests.result }}"
+          echo "unit tests: ${{ needs.unit-tests.result }}, trim/AOT: ${{ needs.trim-aot.result }}, Unity tests: ${{ needs.unity-tests.result }}"
           [ "${{ needs.unit-tests.result }}" = success ] || exit 1
+          [ "${{ needs.trim-aot.result }}" = success ] || exit 1
           case "${{ needs.unity-tests.result }}" in success|skipped) ;; *) exit 1 ;; esac
 
   # Run benchmarks on PRs only
