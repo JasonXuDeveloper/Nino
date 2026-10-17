@@ -3,15 +3,12 @@
 Why v4: what it costs to build a project that uses Nino, and how fast serialization runs, compared with
 v3 (3.3.13, the last v3 release) and with [MemoryPack](https://github.com/Cysharp/MemoryPack) 1.21.4.
 
-Build-time numbers come from two runs, named in each table: the 330-type workload was measured again for this
-revision on an Intel Xeon 2.10 GHz (4 cores, .NET SDK 10.0.402), the 1,100-type timings come from an earlier run on
-an Intel Xeon 2.80 GHz (4 cores, AVX-512, Ubuntu 24.04, .NET SDK 10.0.402). Generated code sizes do not depend on
-the machine and are those of this revision everywhere. Absolute times vary between machines; the ratios are what to
-look at.
+All numbers on this page were measured on this revision, on one machine: an Intel Xeon 2.10 GHz (4 cores,
+AVX-512, .NET SDK 10.0.402). Generated code sizes do not depend on the machine. Absolute times vary between
+machines; the ratios are what to look at.
 
-The runtime numbers below were measured on this revision, on the 2.10 GHz machine. Each release's CI run
-(`report.yml`) publishes the same report, against MemoryPack and against v3 3.3.13 on the same runner, in the
-release notes; the documentation site shows the newest one.
+Each release's CI run (`report.yml`) publishes the same runtime report, against MemoryPack and against v3 3.3.13 on
+the same runner, in the release notes; the documentation site shows the newest one.
 
 ## Build time and generated code
 
@@ -19,69 +16,36 @@ Workload: a synthetic assembly of `N` abstract root classes, each with a chain o
 leaf and a struct (`N × 11` types). Members are primitives, strings, `List<T>`, `Dictionary<int, string>`,
 references to other `[NinoType]`s and private fields. The harness (Roslyn 4.3 in-process) runs the generator
 on the compilation, then emits the whole assembly; it also measures re-running the generator after an edit.
-v4 and v3 times are the median of the last three of five runs (v3 at N = 100: of three runs).
+Times are the median of the last three of five runs (v3 at N = 100: the median of three runs, which took
+7.6 to 7.8 minutes each). v3 and v4 ran on the same machine (Intel Xeon 2.10 GHz, 4 cores), one after the other.
 
 ### 330 types (N = 30)
 
-Measured for this revision, v3 and v4 on the same machine (Intel Xeon 2.10 GHz, 4 cores). Generator times on this
-machine moved by up to 3× between sessions (the last runs are still warming up), so read the generator rows as
+The generator rows are short (tenths of a second) and move between sessions on this machine, so read them as
 "several times faster" rather than as exact ratios.
 
 | | v3 (3.3.13) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
 | Generated source | 18.7 MB (363,233 lines) | 1.31 MB (23,215 lines) | **14× smaller** |
-| Compiling the generated code (emit) | 43.9 s | 1.10 s | **40× faster** |
-| Running the generator | 1.34 s | 0.32 s | **4.2× faster** |
-| Re-generating after editing a member | 1.11 s | 0.09 s | **12× faster** |
-| Re-generating after editing a comment | 1.06 s | 0.10 s | **11× faster** |
-| IL of the generated code | 2.21 MB | 0.41 MB | **5.3× smaller** |
-
-v4 times are the median of three sessions, each the median of its last three of five runs; v3 is the median of the
-last three of five runs.
+| Compiling the generated code (emit) | 42.9 s | 0.84 s | **51× faster** |
+| Running the generator | 1.01 s | 0.32 s | **3.1× faster** |
+| Re-generating after editing a member | 1.03 s | 0.12 s | **8.3× faster** |
+| Re-generating after editing a comment | 1.01 s | 0.13 s | **7.8× faster** |
+| IL of the generated code | 2.21 MB | 0.42 MB | **5.3× smaller** |
 
 ### 1,100 types (N = 100)
 
-Sizes are this revision's. Times come from the earlier run on the Intel Xeon 2.80 GHz (an earlier v4 revision; v3 at
-the median of three runs). For comparison, this revision on the 2.10 GHz machine took 2.2 s to emit, 0.48 s to run
-the generator and 0.63 s / 0.41 s to re-generate after a member / comment edit (median of the last three of five
-runs); v3 was not re-run at this size.
-
 | | v3 (3.3.13) | v4 | v4 vs v3 |
 |---|---:|---:|---:|
-| Generated source | 62.0 MB (1,204,143 lines) | 4.37 MB (77,535 lines) | **14× smaller** |
-| Compiling the generated code (emit), earlier run | 636 s | 2.2 s | **289× faster** |
-| Running the generator, earlier run | 5.5 s | 0.68 s | **8.1× faster** |
-| Re-generating after editing a member, earlier run | 4.1 s | 0.57 s | **7.2× faster** |
-| Re-generating after editing a comment, earlier run | 4.1 s | 0.45 s | **9.0× faster** |
-| IL of the generated code | 7.3 MB | 1.49 MB | **4.9× smaller** |
+| Generated source | 62.0 MB (1,204,143 lines) | 4.38 MB (77,535 lines) | **14× smaller** |
+| Compiling the generated code (emit) | 462 s | 2.1 s | **221× faster** |
+| Running the generator | 4.6 s | 0.42 s | **11× faster** |
+| Re-generating after editing a member | 3.5 s | 0.48 s | **7.4× faster** |
+| Re-generating after editing a comment | 4.0 s | 0.44 s | **9.1× faster** |
+| IL of the generated code | 7.3 MB | 1.50 MB | **4.9× smaller** |
 
-v3's compile time grows much faster than the number of types (in the earlier run, 3.3× the types took 11× the
-compile time); v4 grows linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
-
-### Why v4 builds faster
-
-* **One file per type, one body per type.** A base type dispatches to its subtypes through a registry
-  instead of inlining their bodies, and a subtype whose leading members are its base's calls the base's
-  `WriteMembers`/`ReadMembers` instead of repeating them.
-* **Truly incremental generator.** Each `[NinoType]` becomes an equatable model inside its own transform
-  (`ForAttributeWithMetadataName`), so editing one type re-emits only that type's file, and an edit that
-  does not change any model (a comment, a method body) re-emits nothing. Models are also cached across
-  compilations while none of the syntax trees they depend on changed.
-* **No whole-compilation scans.** Types that inherit `[NinoType]` are found from syntax first; only
-  candidates are bound.
-* **Nothing runs in the IDE that the IDE does not need.** All generated sources are implementation outputs,
-  which IDEs skip while you type. Diagnostics come from the analyzer instead of the generator, so models carry no
-  source locations and moving code around re-emits nothing.
-* **Work shared across types.** Each type's serialized members, raw layout, resolved member formatters and type
-  ids are memoized once per compilation and shared by the generator and the analyzer, instead of being
-  recomputed for every type that reaches them.
-* **Less to compile per member.** Long formatter types are aliased once per file; consecutive unmanaged
-  members are written as one reserved block; built-in formatters used by many types are registered once
-  per assembly; trivial forwarders carry no `MethodImpl` attributes; generated names are built by hand
-  instead of through `SymbolDisplay`.
-* **Fewer members per type.** Each type's registration is emitted into the assembly's registry rather than into a
-  method of its formatter, and a body formatter's two nesting flags are one property (`Traits`), so every formatter
-  and twin declares fewer members for the compiler to bind and emit.
+v3's compile time grows much faster than the number of types (3.3× the types took 11× the compile time); v4 grows
+about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 
 ## Runtime
 
@@ -92,23 +56,24 @@ running a port of the same `SimpleTest` (same data, same attributes) directly be
 session on the same machine; the v3 column is the mean of those two runs. v3 has no polymorphic, pooling,
 reference, version-tolerant or fixed-size benchmarks. Each release's notes carry the same report from a CI runner.
 
-How much to trust a difference: MemoryPack ran in all three sessions, and its times moved by 0.84–1.44× between
-them, and v3's own two runs differ by up to 16% (`SimpleClass` deserialize: 624 and 538 ns). This machine is
-shared and noisy, so differences under about 10% are noise. Payload sizes are about the same (`SimpleClass`:
-1,150 bytes in v4, 1,152 in v3, 1,148 in MemoryPack).
+How much to trust a difference: MemoryPack ran in all three sessions, and its times moved by 0.49–1.31× between
+them (mostly the sub-nanosecond and short array cases), while v3's own two runs agree within 5% on every case above
+a nanosecond. This machine is shared, so differences under about
+5% are reported as on par. Payload sizes are about the same (`SimpleClass`: 1,150 bytes in v4, 1,152 in v3, 1,148
+in MemoryPack).
 
 ### Serialize (to a reused buffer writer)
 
 | Case | v4 | MemoryPack | v3 | v4 vs MemoryPack | v4 vs v3 |
 |---|---:|---:|---:|---:|---:|
-| `SimpleClass` | 94.2 ns | 321 ns | 142 ns | **3.40× faster** | **1.50× faster** |
-| `SimpleClass[100]` | 10.4 µs | 33.1 µs | 22.3 µs | **3.18× faster** | **2.14× faster** |
-| Polymorphic class | 6.82 µs | 24.4 µs | — | **3.58× faster** | — |
-| Polymorphic class array | 58.9 µs | 278 µs | — | **4.72× faster** | — |
-| Polymorphic `Foo[]` | 6.16 µs | 23.5 µs | — | **3.82× faster** | — |
-| `SimpleStruct` (`int` + `DateTime`) | 1.57 ns | 2.75 ns | 1.58 ns | **1.76× faster** | on par |
-| `SimpleStruct[100]` | 14.1 ns | 15.7 ns | 14.8 ns | 1.11× faster | on par |
-| `Vector4[10000]` | 4.27 µs | 4.21 µs | 4.32 µs | on par | on par |
+| `SimpleClass` | 89.6 ns | 382 ns | 138 ns | **4.26× faster** | **1.54× faster** |
+| `SimpleClass[100]` | 10.3 µs | 33.3 µs | 21.0 µs | **3.24× faster** | **2.05× faster** |
+| Polymorphic class | 6.39 µs | 23.7 µs | — | **3.71× faster** | — |
+| Polymorphic class array | 55.0 µs | 281 µs | — | **5.11× faster** | — |
+| Polymorphic `Foo[]` | 6.23 µs | 23.3 µs | — | **3.74× faster** | — |
+| `SimpleStruct` (`int` + `DateTime`) | 1.34 ns | 3.03 ns | 1.72 ns | **2.26× faster** | **1.28× faster** |
+| `SimpleStruct[100]` | 15.1 ns | 15.5 ns | 19.5 ns | on par | **1.29× faster** |
+| `Vector4[10000]` | 4.19 µs | 4.33 µs | 4.16 µs | on par | on par |
 
 `SimpleStruct` is declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`: 12 bytes, no padding, so every
 serializer copies it as one block. Without `Pack`, it is 16 bytes with 4 bytes of padding after the `int`. v4 zeroes
@@ -121,13 +86,14 @@ earlier run with the padded struct, that masked copy made `SimpleStruct[100]` se
 
 | Case | v4 | MemoryPack | v3 | v4 vs MemoryPack | v4 vs v3 |
 |---|---:|---:|---:|---:|---:|
-| `SimpleClass` | 539 ns | 707 ns | 581 ns | **1.31× faster** | 1.08× faster |
-| `SimpleClass[100]` | 56.7 µs | 67.8 µs | 61.8 µs | **1.20× faster** | 1.09× faster |
-| Polymorphic class | 22.6 µs | 37.6 µs | — | **1.66× faster** | — |
-| Polymorphic class array | 306 µs | 412 µs | — | **1.35× faster** | — |
-| Polymorphic `Foo[]` | 22.0 µs | 29.7 µs | — | **1.35× faster** | — |
-| `SimpleStruct[100]` | 125 ns | 134 ns | 121 ns | 1.08× faster | on par |
-| `Vector4[10000]` | 118 µs | 112 µs | 113 µs | on par | on par |
+| `SimpleClass` | 493 ns | 722 ns | 565 ns | **1.47× faster** | **1.15× faster** |
+| `SimpleClass[100]` | 52.9 µs | 66.7 µs | 59.5 µs | **1.26× faster** | **1.12× faster** |
+| Polymorphic class | 20.3 µs | 30.3 µs | — | **1.49× faster** | — |
+| Polymorphic class array | 285 µs | 409 µs | — | **1.44× faster** | — |
+| Polymorphic `Foo[]` | 19.6 µs | 28.1 µs | — | **1.43× faster** | — |
+| `SimpleStruct[100]` | 131 ns | 133 ns | 122 ns | on par | on par |
+| `Vector4[10000]` | 105 µs | 111 µs | 109 µs | **1.06× faster** | on par |
+
 
 Deserializing classes is dominated by allocating the result objects, the same bytes for all three. To see how
 much is left, an A/B harness built the same `SimpleClass` graph by hand (`new SimpleClass`, strings copied from
@@ -144,13 +110,14 @@ Nino can deserialize into an existing object graph (reuse deserialization) and t
 
 | Case | Nino new | Nino reusing | MemoryPack new | MemoryPack overwrite | Nino reusing vs overwrite |
 |---|---:|---:|---:|---:|---:|
-| Pooled node | 636 ns | **219 ns** (0 B) | 650 ns | 495 ns (1,024 B) | **2.26× faster** |
-| Pooled leaves, in place | 3.99 µs | **511 ns** (0 B) | 4.09 µs | 4.61 µs (12,800 B) | **9.02× faster** |
-| Pooled leaves, pooled elements | 3.99 µs | 2.69 µs (856 B) | 4.09 µs | 4.61 µs (12,800 B) | **1.71× faster** |
-| Pooled class | 531 ns | 462 ns (1,080 B) | 710 ns | 573 ns (1,080 B) | **1.24× faster** |
+| Pooled node | 638 ns | **212 ns** (0 B) | 655 ns | 511 ns (1,024 B) | **2.41× faster** |
+| Pooled leaves, in place | 3.88 µs | **505 ns** (0 B) | 4.13 µs | 4.39 µs (12,800 B) | **8.69× faster** |
+| Pooled leaves, pooled elements | 3.88 µs | 2.45 µs (856 B) | 4.13 µs | 4.39 µs (12,800 B) | **1.79× faster** |
+| Pooled class | 549 ns | **222 ns** (0 B) | 655 ns | 553 ns (1,080 B) | **2.49× faster** |
 
 The "new" columns allocate the same bytes in both serializers. Reusing is where v4 pulls away: in-place reuse
-allocates nothing, and pooled nodes come back without allocating.
+allocates nothing, pooled nodes come back without allocating, and strings whose text did not change are kept
+(the pooled class's strings were its 1,080 bytes per call before).
 
 ### Reference tracking, version tolerance and fixed-size types
 
@@ -162,12 +129,12 @@ and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 10
 
 | Case | Serialize v4 | MemoryPack | v4 vs MemoryPack | Deserialize v4 | MemoryPack | v4 vs MemoryPack |
 |---|---:|---:|---:|---:|---:|---:|
-| Object graph, 200 tracked nodes | 5.32 µs | 24.9 µs | **4.67× faster** | 6.49 µs | 19.3 µs | **2.97× faster** |
-| `TolerantClass` | 92.5 ns | 415 ns | **4.49× faster** | 538 ns | 784 ns | **1.46× faster** |
-| `TolerantClass[100]` | 10.7 µs | 41.1 µs | **3.85× faster** | 55.6 µs | 77.2 µs | **1.39× faster** |
-| `FixedStruct` | 12.1 ns | 11.5 ns | on par | — | — | — |
-| `FixedClass` | 12.7 ns | 25.2 ns | **1.99× faster** | 11.6 ns | 25.0 ns | **2.15× faster** |
-| `FixedClass[100]` | 897 ns | 1.78 µs | **1.99× faster** | 1.35 µs | 1.40 µs | on par |
+| Object graph, 200 tracked nodes | 4.56 µs | 24.1 µs | **5.28× faster** | 5.71 µs | 17.2 µs | **3.02× faster** |
+| `TolerantClass` | 94.4 ns | 418 ns | **4.43× faster** | 521 ns | 764 ns | **1.47× faster** |
+| `TolerantClass[100]` | 10.3 µs | 40.6 µs | **3.95× faster** | 57.7 µs | 80.0 µs | **1.39× faster** |
+| `FixedStruct` | 11.5 ns | 11.7 ns | on par | — | — | — |
+| `FixedClass` | 12.0 ns | 21.9 ns | **1.82× faster** | 11.1 ns | 22.1 ns | **1.99× faster** |
+| `FixedClass[100]` | 1.01 µs | 1.74 µs | **1.72× faster** | 1.37 µs | 2.22 µs | **1.62× faster** |
 
 Deserializing `FixedStruct` is one 40-byte copy, under a nanosecond in both, and not shown. Serializing it compiles
 to the same machine code in both when the value is a local or a parameter (an allocation and one 40-byte copy);

@@ -23,9 +23,9 @@
 
 </div>
 
-| **4.7×** | **9.0×** | **0 GC** | **289×** |
+| **5.1×** | **8.7×** | **0 GC** | **221×** |
 |:---:|:---:|:---:|:---:|
-| 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化到缓冲区、复用池化对象反序列化<br>零 GC 分配 | 编译比 v3 快<br>（1,100 个类型：636 秒 → 2.2 秒） |
+| 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化到缓冲区、复用池化对象反序列化<br>零 GC 分配 | 编译比 v3 快<br>（1,100 个类型：462 秒 → 2.1 秒） |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
@@ -35,12 +35,12 @@
 
 ## 为什么选 Nino
 
-- **比 MemoryPack 更快。** 类和多态类型的序列化快 3.2–4.7 倍，反序列化快 1.2–1.7 倍；原始结构体数组两者都是整块拷贝，性能持平。
-- **零分配。** 序列化到缓冲区（`IBufferWriter<byte>`）不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配，
-  比 MemoryPack 的覆盖写入最多快 9.0 倍。
+- **比 MemoryPack 更快。** 类和多态类型的序列化快 3.2–5.1 倍，反序列化快 1.3–1.5 倍；原始结构体数组两者都是整块拷贝，性能持平。
+- **零分配。** 序列化到缓冲区（`IBufferWriter<byte>`）不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配（内容不变的字符串直接保留），
+  比 MemoryPack 的覆盖写入最多快 8.7 倍。
 - **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
   因此 IL2CPP、NativeAOT 和 HybridCLR 热更都能直接用。使用 .NET 8 及以上 SDK 时，调用会被拦截到确切的格式化器，没有虚调用。
-- **编译快。** 生成器是真正增量的：每个类型一个文件，只重新生成你改动的类型。相比 v3，生成代码小 14 倍，编译快 40 倍。
+- **编译快。** 生成器是真正增量的：每个类型一个文件，只重新生成你改动的类型。相比 v3，生成代码小 14 倍，编译快 51 倍（330 个类型）到 221 倍（1,100 个类型）。
 - **线程安全。** 任意多个线程同时序列化、反序列化，热路径上没有锁。
 - **数据可以演进。** 版本兼容、keyed 成员、引用追踪（共享引用和循环引用），都按类型按需开启，不用的类型零开销。
 - **处处同一格式。** `netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 写出的字节完全一致，Unity 客户端和 .NET 服务端可以直接互通。
@@ -76,7 +76,7 @@ using Nino.Core;
 [NinoType]
 public class Order
 {
-    public int Id;
+    public long Id;
     public string Customer;
     public List<OrderLine> Lines;
 }
@@ -89,11 +89,11 @@ Order copy = NinoDeserializer.Deserialize<Order>(bytes);
 
 ```csharp
 [NinoType] public abstract class Message { public int Seq; }
-[NinoType] public sealed class Move : Message { public Vector3 To; }
+[NinoType] public sealed class Ping : Message { public long SentAt; }
 [NinoType] public sealed class Chat : Message { public string Text; }
 
 byte[] bytes = NinoSerializer.Serialize<Message>(new Chat { Text = "hi" }); // 以基类型声明：写入类型 ID
-Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // 得到 Move 或 Chat
+Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // 得到 Ping 或 Chat
 ```
 
 通过共同的 `[NinoType]` 基类型（而不是 `object`）序列化和反序列化：生成代码按类型 ID 分派，复用反序列化和对象池也都能用。
@@ -107,18 +107,18 @@ NinoSerializer.Serialize(msg, pipeWriter);
 
 // 复用池化实例（连同它们的列表），而不是每次新建。
 [NinoType, NinoPooled]
-public sealed partial class Snapshot
+public sealed partial class ReadingBatch
 {
-    public int Tick;
-    public List<EntityState> Entities;
+    public long Sequence;
+    public List<SensorReading> Readings;
 
-    private static partial IEnumerable<Snapshot> OnNinoPoolWarmup() => Enumerable.Range(0, 16).Select(_ => new Snapshot());
+    private static partial IEnumerable<ReadingBatch> OnNinoPoolWarmup() => Enumerable.Range(0, 16).Select(_ => new ReadingBatch());
     private partial void OnNinoPoolReturn() { }
 }
 
-var snapshot = NinoDeserializer.Deserialize<Snapshot>(span); // 从池中取出
-// ... 使用 ...
-snapshot.ReturnToPool();
+var batch = NinoDeserializer.Deserialize<ReadingBatch>(span); // 从池中取出
+// ... 处理 ...
+batch.ReturnToPool();
 ```
 
 ### 会变化的数据
@@ -138,16 +138,17 @@ public class Node { public string Name; public List<Node> Links; }
 
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
-| 序列化类和多态类型 | **快 3.2–4.7 倍** | |
-| 反序列化类和多态类型 | **快 1.2–1.7 倍** | |
+| 序列化类和多态类型 | **快 3.2–5.1 倍** | |
+| 反序列化类和多态类型 | **快 1.3–1.5 倍** | |
 | 原始结构体数组 | 持平（两者都是整块拷贝）；v4 会清零填充字节，热点结构体建议声明为无填充 | 原样复制填充字节 |
-| 反序列化到已有对象 | **0 B，最多快 9.0 倍**（原地复用） | 覆盖写入，有分配 |
+| 反序列化到已有对象 | **0 B，最多快 8.7 倍**（原地复用） | 覆盖写入，有分配 |
 | 多态 | 自动类型 ID | 需要维护 `[MemoryPackUnion]` 标签 |
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
 | Unity | 2022.3+，`netstandard2.0` 和 `2.1`，HybridCLR | `netstandard2.1` |
 
 MemoryPack 内置支持的类型更多（`BigInteger`、`Uri`、全部不可变集合、`AnimationCurve` 等 Unity 类），还有 TypeScript 生成和
-ASP.NET Core 格式化器。流、异步读写、多段 `ReadOnlySequence<byte>` 输入、回调和压缩，只需在 Nino 的 `IBufferWriter<byte>`
+ASP.NET Core 格式化器。Nino 不生成 TypeScript：浏览器客户端在 .NET WebAssembly 上运行同一套 C# 类型（构建成 `browser-wasm`
+应用，通过 `[JSExport]` 供 JavaScript 调用，字节与服务端相同；[指南](https://nino.xgamedev.net/zh/docs/v4/advanced/browser)）。流、异步读写、多段 `ReadOnlySequence<byte>` 输入、回调和压缩，只需在 Nino 的 `IBufferWriter<byte>`
 和 `ReadOnlySpan<byte>` API 外包几行代码，[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有示例。
 MemoryPack 的 Union 标签是 1 字节，Nino 的类型 ID 是 4 字节，这是有意的取舍：类型 ID 由类型本身算出，子类不用打标签，
 可以定义在任何程序集里（插件、HybridCLR 热更程序集），也不会因为增删子类而重新编号；MemoryPack 的每个 Union 都要手动列出或注册子类。
@@ -158,10 +159,10 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 
 | v4 对比 v3（3.3.13） | |
 |---|---|
-| 序列化 | 类**快 1.50 倍**，类数组**快 2.14 倍**，结构体数组持平 |
-| 反序列化 | 类**快 1.08 倍**，类数组**快 1.09 倍**，原始数组持平，同时多了引用追踪、复用反序列化和数据校验 |
-| 编译生成代码 | 330 个类型**快 40 倍**（44 秒 → 1.1 秒），1,100 个类型**快 289 倍**（636 秒 → 2.2 秒） |
-| 运行生成器 | **快 4.2 倍**；改动后只重新生成该类型（**快 12 倍**） |
+| 序列化 | 类**快 1.54 倍**，类数组**快 2.05 倍**，结构体数组**快 1.29 倍** |
+| 反序列化 | 类**快 1.15 倍**，类数组**快 1.12 倍**，原始数组持平，同时多了引用追踪、复用反序列化和数据校验 |
+| 编译生成代码 | 330 个类型**快 51 倍**（42.9 秒 → 0.84 秒），1,100 个类型**快 221 倍**（462 秒 → 2.1 秒） |
+| 运行生成器 | **快 3.1 倍**；改动后只重新生成该类型（**快 8.3 倍**） |
 | 生成代码 | 源码**小 14 倍**，IL **小 5 倍** |
 
 v4 新增：拦截器、keyed 成员、引用追踪、`[NinoPooled]` 对象池、可插拔格式化器（`[assembly: NinoFormatter(...)]`）、

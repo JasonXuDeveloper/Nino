@@ -23,9 +23,9 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 
 </div>
 
-| **4.7×** | **9.0×** | **0 GC** | **289×** |
+| **5.1×** | **8.7×** | **0 GC** | **221×** |
 |:---:|:---:|:---:|:---:|
-| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>into a buffer or deserializing into pooled objects | faster to compile than v3<br>(1,100 types: 636 s → 2.2 s) |
+| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>into a buffer or deserializing into pooled objects | faster to compile than v3<br>(1,100 types: 462 s → 2.1 s) |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
@@ -35,16 +35,16 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 
 ## Why Nino
 
-- **Faster than MemoryPack.** Serializing classes and polymorphic types is 3.2–4.7× faster. Deserializing them is
-  1.2–1.7× faster, and raw struct arrays are on par (a block copy in both).
+- **Faster than MemoryPack.** Serializing classes and polymorphic types is 3.2–5.1× faster. Deserializing them is
+  1.3–1.5× faster, and raw struct arrays are on par (a block copy in both).
 - **Zero allocation.** Serializing into a buffer (`IBufferWriter<byte>`) allocates nothing. Deserializing into existing or pooled objects
-  (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either, and is up to 9.0× faster than MemoryPack's
-  overwrite mode.
+  (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either (a string whose text is unchanged is kept),
+  and is up to 8.7× faster than MemoryPack's overwrite mode.
 - **Everything happens at compile time.** A source generator writes each formatter. There is no reflection,
   no IL emit, no registration and no init call, so it works on IL2CPP, NativeAOT and HybridCLR hot updates.
   With the .NET 8 SDK or later, calls are intercepted to the exact formatter, with no virtual call.
 - **Fast to build.** The generator is incremental: one file per type, and only the type you edit is
-  re-generated. Compared with v3, the generated code is 14× smaller and compiles 40× faster.
+  re-generated. Compared with v3, the generated code is 14× smaller and compiles 51× (330 types) to 221× (1,100 types) faster.
 - **Thread-safe.** Serialize and deserialize from any number of threads, with no locks on the hot path.
 - **Data that evolves.** Version tolerance, keyed members, and reference tracking for shared references and
   cycles. All are opt-in per type, so types that don't use them pay nothing.
@@ -82,7 +82,7 @@ using Nino.Core;
 [NinoType]
 public class Order
 {
-    public int Id;
+    public long Id;
     public string Customer;
     public List<OrderLine> Lines;
 }
@@ -95,11 +95,11 @@ Order copy = NinoDeserializer.Deserialize<Order>(bytes);
 
 ```csharp
 [NinoType] public abstract class Message { public int Seq; }
-[NinoType] public sealed class Move : Message { public Vector3 To; }
+[NinoType] public sealed class Ping : Message { public long SentAt; }
 [NinoType] public sealed class Chat : Message { public string Text; }
 
 byte[] bytes = NinoSerializer.Serialize<Message>(new Chat { Text = "hi" }); // declared as the base: a type id is written
-Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // a Move or a Chat
+Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // a Ping or a Chat
 ```
 
 Serialize and deserialize through the common `[NinoType]` base (not `object`): generated code dispatches on the type id,
@@ -114,18 +114,18 @@ NinoSerializer.Serialize(msg, pipeWriter);
 
 // Reuse pooled instances (and their lists) instead of allocating new ones.
 [NinoType, NinoPooled]
-public sealed partial class Snapshot
+public sealed partial class ReadingBatch
 {
-    public int Tick;
-    public List<EntityState> Entities;
+    public long Sequence;
+    public List<SensorReading> Readings;
 
-    private static partial IEnumerable<Snapshot> OnNinoPoolWarmup() => Enumerable.Range(0, 16).Select(_ => new Snapshot());
+    private static partial IEnumerable<ReadingBatch> OnNinoPoolWarmup() => Enumerable.Range(0, 16).Select(_ => new ReadingBatch());
     private partial void OnNinoPoolReturn() { }
 }
 
-var snapshot = NinoDeserializer.Deserialize<Snapshot>(span); // taken from the pool
-// ... apply it ...
-snapshot.ReturnToPool();
+var batch = NinoDeserializer.Deserialize<ReadingBatch>(span); // taken from the pool
+// ... process it ...
+batch.ReturnToPool();
 ```
 
 ### Data that changes over time
@@ -146,16 +146,18 @@ networking, message queues, caching, persistence and Unity.
 
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
-| Serialize classes and polymorphic types | **3.2–4.7× faster** | |
-| Deserialize classes and polymorphic types | **1.2–1.7× faster** | |
+| Serialize classes and polymorphic types | **3.2–5.1× faster** | |
+| Deserialize classes and polymorphic types | **1.3–1.5× faster** | |
 | Raw struct arrays | on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
-| Deserialize into existing objects | **0 B, up to 9.0× faster** (in place) | overwrite mode, allocates |
+| Deserialize into existing objects | **0 B, up to 8.7× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids | `[MemoryPackUnion]` tags you maintain |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | 2022.3+, `netstandard2.0` and `2.1`, HybridCLR | `netstandard2.1` |
 
 MemoryPack still has more built-in types (`BigInteger`, `Uri`, every immutable collection, Unity classes such as
-`AnimationCurve`), TypeScript generation and ASP.NET Core formatters. Streams, async I/O, multi-segment
+`AnimationCurve`), TypeScript generation and ASP.NET Core formatters. Nino generates no TypeScript: browser clients
+run the same C# types on .NET WebAssembly (a `browser-wasm` app called from JavaScript through `[JSExport]`, same bytes
+as the server; [guide](https://nino.xgamedev.net/en/docs/v4/advanced/browser)). Streams, async I/O, multi-segment
 `ReadOnlySequence<byte>` input, callbacks and compression are a few lines around Nino's `IBufferWriter<byte>` and
 `ReadOnlySpan<byte>` APIs; the [full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) has examples.
 MemoryPack's union tag is 1 byte where Nino writes a 4-byte type id, and that is a trade: the id is derived from the
@@ -168,10 +170,10 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 
 | v4 vs v3 (3.3.13) | |
 |---|---|
-| Serialize | **1.50× faster** (class), **2.14× faster** (class array), on par on struct arrays |
-| Deserialize | **1.08× faster** (class), **1.09× faster** (class array), on par on raw arrays, while adding reference tracking, reuse deserialization and payload validation |
-| Compiling the generated code | **40× faster** at 330 types (44 s → 1.1 s), **289× faster** at 1,100 types (636 s → 2.2 s) |
-| Running the generator | **4.2× faster**; after an edit, only that type is re-generated (**12× faster**) |
+| Serialize | **1.54× faster** (class), **2.05× faster** (class array), **1.29× faster** (struct array) |
+| Deserialize | **1.15× faster** (class), **1.12× faster** (class array), on par on raw arrays, while adding reference tracking, reuse deserialization and payload validation |
+| Compiling the generated code | **51× faster** at 330 types (42.9 s → 0.84 s), **221× faster** at 1,100 types (462 s → 2.1 s) |
+| Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |
 
 New in v4: interceptors, keyed members, reference tracking, `[NinoPooled]` pools, pluggable formatters

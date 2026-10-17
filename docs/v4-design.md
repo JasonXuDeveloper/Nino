@@ -565,6 +565,12 @@ Cache-line reasoning assumes 64-byte lines.
 * Existing target of the right type: populated in place. Lists and arrays reuse elements by index.
   Dictionaries are merged by key: each value is read into the value its key already maps to, and keys missing
   from the data are removed.
+* Strings are compared, not replaced: a string member, a list or array element, or the value of a key already in a
+  dictionary keeps its string when the data holds the same chars, so an unchanged string costs no allocation
+  (`Reader.ReadString(string current)` and `ReadUtf8(string current)`, which generated code passes the member's
+  current value; `ReadStrings` compares each element). A `[NinoUtf8]` string is compared without decoding, so only
+  ASCII text (as many bytes as chars) is kept; other UTF-8 text is decoded into a new string. A `null` slot, a new
+  instance and a dictionary read from empty (`ReadStringPairs`) read new strings.
 * Types whose members cannot be assigned after construction (constructor parameters, `init`-only, get-only or
   `readonly` members) are re-created, and the old instance is recycled. So are types with C# 11 `required`
   members whose parameterless constructor is not `[SetsRequiredMembers]`: a `[SetsRequiredMembers]` constructor
