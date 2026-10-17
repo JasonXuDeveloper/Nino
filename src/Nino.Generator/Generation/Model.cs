@@ -175,7 +175,10 @@ internal sealed record TypeModel(
     // are what collections hold many new instances of, and the second copy costs compile time for every type.
     bool FreshRead,
     // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
-    EquatableArray<string> LayoutTypes)
+    EquatableArray<string> LayoutTypes,
+    // A raw struct's fields as entries of its published layout (LayoutEmitter); empty for any other type, whose
+    // layout is its members.
+    EquatableArray<string> RawFields)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 

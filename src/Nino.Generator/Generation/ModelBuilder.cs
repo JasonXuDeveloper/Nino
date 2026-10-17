@@ -319,8 +319,21 @@ internal static class ModelBuilder
             construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
             !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
             !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type),
-            LayoutTypes.ToArray(layoutTypes));
+            LayoutTypes.ToArray(layoutTypes),
+            rawStruct ? RawFields(type) : EquatableArray<string>.Empty);
     }
+
+    /// <summary>
+    /// The fields of a raw struct in memory order (sequential layout: declaration order), as
+    /// <c>name:type:raw(size)</c> entries of its published layout (<c>NinoTypeLayoutAttribute</c>).
+    /// </summary>
+    private static EquatableArray<string> RawFields(INamedTypeSymbol type) =>
+        new(type.GetMembers().OfType<IFieldSymbol>().Where(static f => !f.IsStatic && !f.IsConst).Select(static f =>
+        {
+            var size = FormatterResolver.RawSizeOf(f.Type);
+            return $"{(f.AssociatedSymbol ?? f).Name}:{Global(f.Type).Replace("global::", "")}:" +
+                   (size.IsConstant ? "raw(" + size.Expression + ")" : "raw");
+        }));
 
     /// <summary>
     /// Whether instances of the type are compared by their members (a record, an override of GetHashCode, or

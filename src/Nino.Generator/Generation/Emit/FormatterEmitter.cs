@@ -20,6 +20,7 @@ internal static class FormatterEmitter
 
         var sb = new StringBuilder(body.Length + 1024);
         sb.Append(Header);
+        sb.Append(LayoutEmitter.Emit(m)).Append('\n');
         sb.Append("namespace " + GenNamespace + "\n{\n");
         names.WriteAliases(sb);
         sb.Append(body);
