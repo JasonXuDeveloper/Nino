@@ -29,7 +29,8 @@ concurrency:
 jobs:
   benchmark:
     name: Run Performance Benchmarks
-    runs-on: ubuntu-latest
+    # A named image, not ubuntu-latest: the OS under the benchmark changes only when this line does.
+    runs-on: ubuntu-26.04
     timeout-minutes: 180
     env:
       # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few.

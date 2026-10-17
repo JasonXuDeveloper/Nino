@@ -35,7 +35,7 @@ jobs:
   # it tests instead of waiting on a shared build. "Build and Test" collects their results and fails if any failed.
   unit-tests:
     name: Unit tests (${{ matrix.name }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -107,7 +107,7 @@ jobs:
   # same bytes.
   trim-aot:
     name: Trim and NativeAOT
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
 
     steps:
@@ -142,7 +142,7 @@ jobs:
 
   unity-tests:
     name: Unity tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     # Skip Unity tests for external PRs (secrets not available in forks)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
@@ -210,7 +210,7 @@ jobs:
   # The one check to require: fails if any configuration failed (a skipped Unity run, on fork PRs, is not a failure).
   build-test:
     name: Build and Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: [ unit-tests, trim-aot, unity-tests ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
@@ -236,7 +236,7 @@ jobs:
   # Run benchmarks on PRs only
   benchmark:
     name: Run Benchmarks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # Independent of the tests, so it runs beside them. A quick signal (ShortRun, Nino against MemoryPack); the full,
     # published numbers come from report.yml on release.
     if: github.event_name == 'pull_request'

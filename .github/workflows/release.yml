@@ -40,7 +40,7 @@ env:
 
 jobs:
   tag:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     if: github.ref == 'refs/heads/main'
     timeout-minutes: 30
     outputs:
@@ -119,7 +119,7 @@ jobs:
           git push origin HEAD:main "${TAGS[@]}"
 
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: tag
     timeout-minutes: 30
     permissions:
