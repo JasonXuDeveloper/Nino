@@ -64,6 +64,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.0" PrivateAssets="all"/>
+        <PackageReference Include="System.Buffers" Version="4.6.1" />
     </ItemGroup>
 
     <!-- Built against Roslyn 4.3 (the oldest Unity supports): the versioned folder makes NuGet skip compilers
