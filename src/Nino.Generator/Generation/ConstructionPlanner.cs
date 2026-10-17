@@ -51,8 +51,10 @@ internal static class ConstructionPlanner
         var required = NinoSymbols.RequiredMembers(type);
         bool SetsRequired(IMethodSymbol m) => required.Count == 0 || NinoSymbols.SetsRequiredMembers(m);
 
+        // A [NinoFactory] replaces the parameterless constructor, which may then be private (or absent).
         if (marked == null && !members.Any(m => m.ConstructionOnly) &&
-            (type.IsValueType || constructors.Any(c => CallableWithoutArguments(c) && SetsRequired(c))))
+            (type.IsValueType || factory != null ||
+             constructors.Any(c => CallableWithoutArguments(c) && SetsRequired(c))))
             return new ConstructionModel(false, $"new {typeName}", EquatableArray<string>.Empty, factoryName);
 
         string Creator(IMethodSymbol m) => m.MethodKind == MethodKind.Constructor

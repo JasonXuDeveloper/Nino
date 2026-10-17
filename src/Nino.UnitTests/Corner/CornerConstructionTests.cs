@@ -149,6 +149,28 @@ namespace Nino.UnitTests.Corner
         }
     }
 
+    // Only a private constructor: instances come from the factory alone.
+    [NinoType]
+    public class FactoryOnly
+    {
+        public static int Created;
+        public int X;
+        public List<int> Items;
+
+        private FactoryOnly()
+        {
+        }
+
+        [NinoFactory]
+        public static FactoryOnly Create()
+        {
+            Created++;
+            return new FactoryOnly { Items = new List<int>() };
+        }
+
+        public static FactoryOnly Of(int x, params int[] items) => new FactoryOnly { X = x, Items = new List<int>(items) };
+    }
+
     [NinoType]
     public class FactoryOwner
     {
@@ -421,6 +443,23 @@ namespace C
             NinoDeserializer.Deserialize(bytes, ref target);
             Assert.AreEqual(created + 1, EtStyleChild.Created);
             Assert.AreSame(child, target.Child);
+        }
+
+        [TestMethod]
+        public void FactoryReplacesAPrivateConstructor()
+        {
+            var bytes = NinoSerializer.Serialize(FactoryOnly.Of(7, 1, 2));
+
+            int created = FactoryOnly.Created;
+            var back = NinoDeserializer.Deserialize<FactoryOnly>(bytes);
+            Assert.AreEqual(created + 1, FactoryOnly.Created);
+            Assert.AreEqual(7, back.X);
+            CollectionAssert.AreEqual(new[] { 1, 2 }, back.Items);
+
+            var items = back.Items;
+            NinoDeserializer.Deserialize(bytes, ref back);
+            Assert.AreEqual(created + 1, FactoryOnly.Created);
+            Assert.AreSame(items, back.Items);
         }
 
         [TestMethod]
