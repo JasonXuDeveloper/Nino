@@ -18,7 +18,80 @@ namespace Nino.Core.Internal
         public T[] _items; // Do not rename (binary serialization)
         public int _size; // Do not rename (binary serialization)
     }
+
+    /// <summary>
+    /// Mirrors the leading fields of <see cref="Stack{T}"/> (the same on .NET Framework, .NET, Mono and IL2CPP;
+    /// checked by <see cref="CollectionViews.Stack"/>). The elements are <c>_array[0.._size)</c>, bottom to top.
+    /// </summary>
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    internal sealed class StackView<T>
+    {
+        public T[] _array;
+        public int _size;
+        public int _version;
+    }
+
+    /// <summary>
+    /// Mirrors the leading fields of <see cref="Queue{T}"/> (the same on .NET Framework, .NET, Mono and IL2CPP;
+    /// checked by <see cref="CollectionViews.Queue"/>). The elements are a ring from <c>_head</c>, <c>_size</c>
+    /// long; <c>_tail</c> is the next free slot (0 past the end).
+    /// </summary>
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    internal sealed class QueueView<T>
+    {
+        public T[] _array;
+        public int _head;
+        public int _tail;
+        public int _size;
+        public int _version;
+    }
 #pragma warning restore CS0649
+
+    /// <summary>
+    /// Whether <see cref="Stack{T}"/> and <see cref="Queue{T}"/> have the layouts of <see cref="StackView{T}"/> and
+    /// <see cref="QueueView{T}"/> on this runtime, checked once on instances whose contents are known; otherwise their
+    /// formatters use the public API. Static readonly: a constant in Tier1 code.
+    /// </summary>
+    internal static class CollectionViews
+    {
+        public static readonly bool Stack = CheckStack();
+        public static readonly bool Queue = CheckQueue();
+
+        private static bool CheckStack()
+        {
+            try
+            {
+                var stack = new Stack<int>(4);
+                stack.Push(7);
+                stack.Push(9);
+                var view = Unsafe.As<StackView<int>>(stack);
+                return view._size == 2 && view._array is { Length: 4 } array && array[0] == 7 && array[1] == 9;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool CheckQueue()
+        {
+            try
+            {
+                var queue = new Queue<int>(4);
+                queue.Enqueue(5);
+                queue.Enqueue(7);
+                queue.Enqueue(9);
+                queue.Dequeue();
+                var view = Unsafe.As<QueueView<int>>(queue);
+                return view._head == 1 && view._tail == 3 && view._size == 2 &&
+                       view._array is { Length: 4 } array && array[1] == 7 && array[2] == 9;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
 
     /// <summary>Direct access to the backing array of a <see cref="List{T}"/>.</summary>
     internal static class ListAccess

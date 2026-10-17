@@ -30,6 +30,17 @@ namespace Nino.Core
         public static void Write<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // Raw elements (unmanaged values and raw [NinoType] structs, a constant check) are one block, as the
+            // unmanaged formatters write them: an interface, Stack or Queue of them, or any collection whose
+            // formatter is not specialized for them, would otherwise check the capacity per element.
+            if (RawFormatter.Is<T, TFormatter>())
+            {
+                if (!values.IsEmpty)
+                    NinoLayout<T>.CopyToWire(ref writer.Reserve(checked(values.Length * Unsafe.SizeOf<T>())),
+                        ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), values.Length);
+                return;
+            }
+
             foreach (var item in values)
                 default(TFormatter).Serialize(item, ref writer);
         }
@@ -43,6 +54,15 @@ namespace Nino.Core
             {
                 // One loop with the position in a register (see Reader.ReadStrings).
                 reader.ReadStrings(ref Unsafe.As<T, string>(ref MemoryMarshal.GetReference(values)), values.Length);
+                return;
+            }
+
+            // Raw elements: one bounds check and one block copy (see Write).
+            if (RawFormatter.Is<T, TFormatter>())
+            {
+                int size = checked(values.Length * Unsafe.SizeOf<T>());
+                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
+                    ref reader.ReadBlock(size), (uint)size);
                 return;
             }
 
@@ -131,7 +151,10 @@ namespace Nino.Core
                 return;
             }
 
-            NinoElements.Read<T, TFormatter>(NinoElements.EnsureLength(ref value, length), ref reader);
+            // Raw elements are all overwritten by one block copy: a new array need not be zeroed first.
+            NinoElements.Read<T, TFormatter>(
+                NinoElements.EnsureLength(ref value, length, uninitialized: RawFormatter.Is<T, TFormatter>()),
+                ref reader);
         }
     }
 

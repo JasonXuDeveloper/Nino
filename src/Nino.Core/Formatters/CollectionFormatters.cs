@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -169,6 +170,19 @@ namespace Nino.Core
                 return;
             }
 
+            if (CollectionViews.Queue)
+            {
+                // Head to tail: the backing ring as at most two spans (a block each for raw elements).
+                var view = Unsafe.As<QueueView<T>>(value);
+                var ring = view._array;
+                int count = view._size;
+                int first = Math.Min(count, ring.Length - view._head);
+                writer.WriteLength(count);
+                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, view._head, first), ref writer);
+                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, 0, count - first), ref writer);
+                return;
+            }
+
             writer.WriteLength(value.Count);
             foreach (var item in value)
                 default(TFormatter).Serialize(item, ref writer);
@@ -191,6 +205,19 @@ namespace Nino.Core
             {
                 NinoRecycler.DiscardAll(queue);
                 queue.Clear();
+            }
+
+            if (CollectionViews.Queue)
+            {
+                // Read in place from the start of the backing array (a block for raw elements), then the ring set
+                // around them: no capacity check and version bump per element.
+                var view = Unsafe.As<QueueView<T>>(queue);
+                var ring = NinoCollectionViews.ReadInto<T, TFormatter>(ref view._array, length, ref reader);
+                view._head = 0;
+                view._tail = length == ring.Length ? 0 : length;
+                view._size = length;
+                view._version++;
+                return;
             }
 
             for (int i = 0; i < length; i++)
@@ -234,6 +261,14 @@ namespace Nino.Core
             if (count == 0)
                 return;
 
+            if (CollectionViews.Stack)
+            {
+                // The backing array is bottom to top already (a block for raw elements).
+                NinoElements.Write<T, TFormatter>(
+                    new ReadOnlySpan<T>(Unsafe.As<StackView<T>>(value)._array, 0, count), ref writer);
+                return;
+            }
+
             // Enumeration is top to bottom; write bottom to top so reading is a sequence of pushes.
             var buffer = ArrayPool<T>.Shared.Rent(count);
             try
@@ -267,12 +302,46 @@ namespace Nino.Core
                 stack.Clear();
             }
 
+            if (CollectionViews.Stack)
+            {
+                // Bottom to top is the backing array's order: read in place, then set the count.
+                var view = Unsafe.As<StackView<T>>(stack);
+                NinoCollectionViews.ReadInto<T, TFormatter>(ref view._array, length, ref reader);
+                view._size = length;
+                view._version++;
+                return;
+            }
+
             for (int i = 0; i < length; i++)
             {
                 T item = default;
                 default(TFormatter).Deserialize(ref item, ref reader);
                 stack.Push(item);
             }
+        }
+    }
+
+    internal static class NinoCollectionViews
+    {
+        /// <summary>
+        /// Reads <paramref name="length"/> elements into the start of the backing array of an empty Stack or Queue
+        /// (<see cref="StackView{T}"/>, <see cref="QueueView{T}"/>), replacing it with a new one when it is too
+        /// small, and returns the array. Each element is read as a new value, as Push and Enqueue of a default
+        /// one would: slots of references are already default in an empty collection, unmanaged ones may hold
+        /// what was removed and are cleared first, unless a block copy overwrites them.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T[] ReadInto<T, TFormatter>(ref T[] array, int length, ref Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var items = array;
+            if (items.Length < length)
+                array = items = new T[length];
+            var span = new Span<T>(items, 0, length);
+            if (!RawFormatter.Is<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
+                span.Clear();
+            NinoElements.Read<T, TFormatter>(span, ref reader);
+            return items;
         }
     }
 
