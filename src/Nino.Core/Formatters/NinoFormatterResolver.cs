@@ -59,6 +59,21 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// Forgets the formatter registrations of <paramref name="assembly"/> and every formatter type built for or
+        /// from its types (<see cref="NinoRegistry.Remove"/>).
+        /// </summary>
+        internal static void RemoveAssembly(Assembly assembly)
+        {
+            lock (Lock)
+            {
+                Scanned.Remove(assembly);
+                _rules = _rules.Without(assembly);
+            }
+
+            NinoUnload.RemoveFrom(Cache, assembly, formatter => formatter);
+        }
+
+        /// <summary>
         /// Whether <paramref name="type"/> is a <c>[NinoType]</c>, directly or through the nearest attributed base type
         /// or an attributed interface that allows inheritance (as in the generator).
         /// </summary>
@@ -212,6 +227,7 @@ namespace Nino.Core
             [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)]
             private readonly Type _formatter;
             private readonly Type[] _parameters;
+            public readonly Type[] Declared;
             public readonly Type Pattern;
             public readonly Type[] Targets;
             public readonly int Priority;
@@ -222,6 +238,10 @@ namespace Nino.Core
             {
                 _formatter = formatter;
                 _parameters = formatter.IsGenericTypeDefinition ? formatter.GetGenericArguments() : Type.EmptyTypes;
+                Declared = new Type[targets.Length + 2];
+                Declared[0] = formatter;
+                Declared[1] = pattern;
+                targets.CopyTo(Declared, 2);
                 Pattern = pattern;
                 Targets = targets;
                 Priority = priority;
@@ -440,6 +460,13 @@ namespace Nino.Core
                 }
 
                 return new Rules(all);
+            }
+
+            /// <summary>The registrations without those whose formatter, pattern or targets mention <paramref name="assembly"/>.</summary>
+            public Rules Without(Assembly assembly)
+            {
+                var all = _all.FindAll(rule => !Array.Exists(rule.Declared, t => NinoUnload.Mentions(t, assembly)));
+                return all.Count == _all.Count ? this : new Rules(all);
             }
 
             private static int Compare(Rule a, Rule b) => a.Priority != b.Priority

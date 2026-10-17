@@ -65,6 +65,9 @@ namespace Nino.Core
         public static Info Get(Type type, int runtimeSize) =>
             runtimeSize < 0 ? Create(type, runtimeSize) : Cache.GetOrAdd(type, t => Create(t, runtimeSize));
 
+        /// <summary>Forgets the layouts of types of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>).</summary>
+        internal static void Remove(Assembly assembly) => NinoUnload.RemoveFrom(Cache, assembly);
+
         private static Info Create(Type type, int runtimeSize)
         {
             try

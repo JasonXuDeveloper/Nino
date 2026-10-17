@@ -157,6 +157,10 @@ namespace Nino.Core
 
         /// <summary>Every type with a formatter so far (a snapshot), for the cold path of polymorphic reads.</summary>
         public static ICollection<Type> RegisteredTypes => Registered.Keys;
+
+        /// <summary>Forgets the formatters of types of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>).</summary>
+        public static void Remove(System.Reflection.Assembly assembly) =>
+            NinoUnload.RemoveFrom(Registered, assembly, formatter => formatter.GetType());
     }
 
     /// <summary>

@@ -58,7 +58,9 @@ namespace Nino.Core
             lock (Lock)
             {
                 // Not marked initialized: its static constructor is still running (EnsureInitialized waits for it).
-                NinoFormatterResolver.AddAssembly(registry.GetType().Assembly);
+                var assembly = registry.GetType().Assembly;
+                NinoFormatterResolver.AddAssembly(assembly);
+                RemoveOnUnload(assembly);
                 var current = _registries;
                 if (Array.IndexOf(current, registry) >= 0)
                     return;
@@ -68,6 +70,60 @@ namespace Nino.Core
                 Volatile.Write(ref _registries, next);
             }
         }
+
+        /// <summary>
+        /// Forgets everything Nino holds of <paramref name="assembly"/>: its generated registry, the formatters,
+        /// type ids, layouts and polymorphic entries of its types (and of arrays and generics built from them), and
+        /// its <c>[assembly: NinoFormatter]</c> registrations. Afterwards Nino.Core keeps no reference into the
+        /// assembly, so a collectible <c>AssemblyLoadContext</c> that loaded it can unload.
+        /// <para>
+        /// On .NET 8 and later this runs on its own when the collectible context of an assembly with generated Nino
+        /// code starts unloading. Call it yourself only before unloading on other runtimes, or to be sure it has
+        /// run. Call it once nothing serializes or deserializes the assembly's types any more: the assembly cannot
+        /// be used with Nino afterwards. Formatters it registered for types declared outside it (an
+        /// <c>[assembly: NinoFormatter]</c> for a type of another assembly that has already been used) stay.
+        /// </para>
+        /// </summary>
+        public static void Remove(Assembly assembly)
+        {
+            if (assembly == null)
+                throw new ArgumentNullException(nameof(assembly));
+            lock (Lock)
+            {
+                Initialized.Remove(assembly);
+                var current = _registries;
+                var kept = Array.FindAll(current, registry => registry.GetType().Assembly != assembly);
+                if (kept.Length != current.Length)
+                    Volatile.Write(ref _registries, kept);
+                Volatile.Write(ref _scannedAssemblyCount, 0);
+            }
+
+            NinoFormatterResolver.RemoveAssembly(assembly);
+            NinoFormatterCache.Remove(assembly);
+            BoxedFormatter.Remove(assembly);
+            NinoPolymorphic.Remove(assembly);
+            NinoTypeId.Remove(assembly);
+            NinoLayout.Remove(assembly);
+        }
+
+        /// <summary>Removes a collectible assembly when its load context unloads (.NET 8 and later).</summary>
+        private static void RemoveOnUnload(Assembly assembly)
+        {
+#if NET8_0_OR_GREATER
+            if (!assembly.IsCollectible || Hooked.TryGetValue(assembly, out _))
+                return;
+            Hooked.Add(assembly, Lock);
+            var context = System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(assembly);
+            if (context != null)
+                context.Unloading += _ => Remove(assembly);
+#endif
+        }
+
+#if NET8_0_OR_GREATER
+        /// <summary>Collectible assemblies whose unloading is hooked (weakly held: the context owns the hook).</summary>
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, object> Hooked =
+            new System.Runtime.CompilerServices.ConditionalWeakTable<Assembly, object>();
+#endif
 
         /// <summary>Asks every generated registry to register the types with type id <paramref name="id"/>.</summary>
         internal static void RegisterId(int id)
@@ -125,6 +181,8 @@ namespace Nino.Core
             }
 
             NinoFormatterResolver.AddAssembly(assembly);
+            lock (Lock)
+                RemoveOnUnload(assembly);
             foreach (var attribute in attributes)
             {
                 if (attribute.Registry != null)

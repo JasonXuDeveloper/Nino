@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -209,6 +210,37 @@ namespace Nino.Core
     public static class NinoPolymorphic
     {
         /// <summary>
+        /// The base types whose <see cref="NinoPolymorphic{TBase}"/> holds a handler, with its removal, for
+        /// <see cref="Remove"/>.
+        /// </summary>
+        private static readonly List<KeyValuePair<Type, Action<System.Reflection.Assembly>>> Tables =
+            new List<KeyValuePair<Type, Action<System.Reflection.Assembly>>>();
+
+        /// <summary>Called by a <see cref="NinoPolymorphic{TBase}"/> on its first registration.</summary>
+        internal static void Track(Type baseType, Action<System.Reflection.Assembly> remove)
+        {
+            lock (Tables)
+                Tables.Add(new KeyValuePair<Type, Action<System.Reflection.Assembly>>(baseType, remove));
+        }
+
+        /// <summary>
+        /// Removes the handlers of types of <paramref name="assembly"/> from every base type's registry, and the
+        /// registries of its own base types (<see cref="NinoRegistry.Remove"/>).
+        /// </summary>
+        internal static void Remove(System.Reflection.Assembly assembly)
+        {
+            KeyValuePair<Type, Action<System.Reflection.Assembly>>[] tables;
+            lock (Tables)
+            {
+                tables = Tables.ToArray();
+                Tables.RemoveAll(table => NinoUnload.Mentions(table.Key, assembly));
+            }
+
+            foreach (var table in tables)
+                table.Value(assembly);
+        }
+
+        /// <summary>
         /// Registers <typeparamref name="TSub"/> with its generated formatter, once. Every base type finds it
         /// on first use, so a type is not registered once per base type.
         /// </summary>
@@ -364,6 +396,7 @@ namespace Nino.Core
         private static TypeEntry[] _byType = new TypeEntry[8];
         private static IdEntry[] _byId = new IdEntry[8];
         private static int _count;
+        private static bool _tracked;
         private static readonly object Lock = new object();
 
         /// <summary>Registers a handler. Idempotent for the same type and id.</summary>
@@ -391,6 +424,13 @@ namespace Nino.Core
                         $"Nino: type id collision between {clash.Type} and {handler.Type} (id {handler.Id}). " +
                         "Use [NinoFormerName] to give one of them a different id.");
 
+                if (!_tracked)
+                {
+                    // A lambda rather than a method group: older compilers (Unity's) allocate a delegate per use.
+                    NinoPolymorphic.Track(typeof(TBase), assembly => Remove(assembly));
+                    _tracked = true;
+                }
+
                 var byType = _byType;
                 var byId = _byId;
                 if ((_count + 1) * 2 > byType.Length)
@@ -414,6 +454,33 @@ namespace Nino.Core
                 }
 
                 _count++;
+            }
+        }
+
+        /// <summary>
+        /// Drops the handlers of types that mention <paramref name="assembly"/>: the tables are rebuilt without them
+        /// and published like a growth, so lookups running meanwhile see the old or the new tables.
+        /// </summary>
+        private static void Remove(System.Reflection.Assembly assembly)
+        {
+            lock (Lock)
+            {
+                var kept = new List<NinoSubtypeHandler>();
+                foreach (var e in _byType)
+                {
+                    if (e.Key != null && !NinoUnload.Mentions(e.Key, assembly))
+                        kept.Add(e.Handler);
+                }
+
+                if (kept.Count == _count)
+                    return;
+                var byType = new TypeEntry[_byType.Length];
+                var byId = new IdEntry[byType.Length];
+                foreach (var handler in kept)
+                    Insert(byType, byId, handler);
+                Volatile.Write(ref _byType, byType);
+                Volatile.Write(ref _byId, byId);
+                _count = kept.Count;
             }
         }
 

@@ -15,6 +15,10 @@ namespace Nino.Core
         // A lambda rather than a method group: older compilers (Unity's) allocate a delegate per method group use.
         public static BoxedFormatter Get(Type type) => Cache.GetOrAdd(type, t => Create(t));
 
+        /// <summary>Forgets the formatters of types of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>).</summary>
+        public static void Remove(System.Reflection.Assembly assembly) =>
+            NinoUnload.RemoveFrom(Cache, assembly, formatter => formatter.GetType());
+
         private static BoxedFormatter Create(Type type)
         {
             // A registered formatter (generated, or built earlier) creates it: no generic type is closed at run time.

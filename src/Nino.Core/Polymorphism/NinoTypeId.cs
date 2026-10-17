@@ -25,6 +25,9 @@ namespace Nino.Core
         /// <summary>Returns the id of <paramref name="type"/>, honoring <see cref="NinoFormerNameAttribute"/>.</summary>
         public static int Of(Type type) => Cache.GetOrAdd(type, t => Compute(GetIdName(t)));
 
+        /// <summary>Forgets the ids of types of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>).</summary>
+        internal static void Remove(Assembly assembly) => NinoUnload.RemoveFrom(Cache, assembly);
+
         /// <summary>Returns the name hashed for <paramref name="type"/>.</summary>
         public static string GetIdName(Type type)
         {

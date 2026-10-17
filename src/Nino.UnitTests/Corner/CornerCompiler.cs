@@ -23,6 +23,7 @@ internal static class CornerCompiler
         public ImmutableArray<Diagnostic> Errors;
         public string GeneratedCode;
         public Assembly Assembly;
+        public byte[] Image;
 
         public string ErrorText => string.Join("\n", Errors);
         public bool HasAnalyzer(string id) => AnalyzerDiagnostics.Any(d => d.Id == id);
@@ -56,6 +57,8 @@ internal static class CornerCompiler
         using var stream = new MemoryStream();
         var emit = output.Emit(stream);
         result.Errors = emit.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).ToImmutableArray();
+        if (emit.Success)
+            result.Image = stream.ToArray();
         if (emit.Success && load)
             result.Assembly = Assembly.Load(stream.ToArray());
         return result;
