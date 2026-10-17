@@ -1,0 +1,18 @@
+# Text files are stored and checked out with LF line endings on every OS (the repository has always been LF).
+* text=auto eol=lf
+
+# Binary files: never converted or diffed as text.
+*.dll binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.nupkg binary
+*.unitypackage binary
+
+# C# diffs show the enclosing member in hunk headers.
+*.cs diff=csharp
+
+# Checked-in generated code (tools/CodeGen writes it; a test checks it is current): collapsed in pull requests.
+src/Nino.Core/Formatters/TupleFormatters.g.cs linguist-generated
+# The DLLs the release copies into the Unity package.
+src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/**/*.dll linguist-generated
