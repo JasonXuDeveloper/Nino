@@ -30,7 +30,7 @@
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
 </p>
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.13<!--/bench-->，服务器 GC，<!--bench:env.cpu-->INTEL XEON PLATINUM 8573C 2.30 GHz<!--/bench-->；Nino v4 与 MemoryPack 1.21.4 在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上紧接其前后各跑一次。数据大小基本一致（`SimpleClass`：v4 <!--bench:payload.v4-->1,150<!--/bench--> 字节，v3 1,152 字节，MemoryPack <!--bench:payload.memorypack-->1,148<!--/bench--> 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)；每个版本的发布说明里有该版本的实测数据。</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.13<!--/bench-->，服务器 GC，<!--bench:env.cpu-->INTEL XEON PLATINUM 8573C 2.30 GHz<!--/bench-->；Nino v4 与 MemoryPack 1.21.4 在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上<!--bench:v3.when-->紧接其前后各跑一次<!--/bench-->。数据大小基本一致（`SimpleClass`：v4 <!--bench:payload.v4-->1,150<!--/bench--> 字节，v3 1,152 字节，MemoryPack <!--bench:payload.memorypack-->1,148<!--/bench--> 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)；每个版本的发布说明里有该版本的实测数据。</sub>
 
 ## 为什么选 Nino
 

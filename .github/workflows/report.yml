@@ -113,9 +113,9 @@ jobs:
           cd Nino.Benchmark
           dotnet build -c Release
 
-      # Nino v3 3.3.13 from nuget.org (benchmarks/v3 has its own nuget.config), the same SimpleTest. It runs before
-      # and after the v4 run, as benchmarks/run.sh does, so drift of the runner shows. A v3 failure never blocks
-      # the Performance Report: the v3 section is then left out.
+      # Nino v3 3.3.13 from nuget.org (benchmarks/v3 has its own nuget.config), the same SimpleTest. It runs once,
+      # directly before the v4 run, as benchmarks/run.sh does; MemoryPack runs in both, so drift of the runner shows.
+      # A v3 failure never blocks the Performance Report: the v3 section is then left out.
       - name: Build v3 benchmark (Nino 3.3.13)
         id: v3_build
         if: steps.check_benchmark.outputs.skip != 'true'
@@ -124,15 +124,15 @@ jobs:
           dotnet build -c Release benchmarks/v3
           dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll --verify
 
-      - name: Run v3 benchmark (before v4)
-        id: v3_before
+      - name: Run v3 benchmark
+        id: v3_run
         if: steps.check_benchmark.outputs.skip != 'true' && steps.v3_build.outcome == 'success'
         continue-on-error: true
         working-directory: ./benchmarks/v3
         run: |
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
-          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' $BDN_ARGS --artifacts "$V3_OUT/before"
-          find "$V3_OUT/before/results" -name '*-report-github.md' | grep -q .
+          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' $BDN_ARGS --artifacts "$V3_OUT"
+          find "$V3_OUT/results" -name '*-report-github.md' | grep -q .
 
       - name: Run benchmarks
         if: steps.check_benchmark.outputs.skip != 'true'
@@ -170,16 +170,6 @@ jobs:
             exit 1
           fi
       
-      - name: Run v3 benchmark (after v4)
-        id: v3_after
-        if: steps.check_benchmark.outputs.skip != 'true' && steps.v3_before.outcome == 'success'
-        continue-on-error: true
-        working-directory: ./benchmarks/v3
-        run: |
-          # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
-          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' $BDN_ARGS --artifacts "$V3_OUT/after"
-          find "$V3_OUT/after/results" -name '*-report-github.md' | grep -q .
-
       - name: Upload benchmark artifacts
         if: steps.check_benchmark.outputs.skip != 'true'
         uses: actions/upload-artifact@v7
@@ -187,7 +177,7 @@ jobs:
           name: benchmark-results-${{ env.tag_name }}
           path: |
             src/Nino.Benchmark/**/BenchmarkDotNet.Artifacts/results
-            v3-results/*/results
+            v3-results/results
           retention-days: 90
       
       
@@ -243,17 +233,14 @@ jobs:
             } > perf_section.md
           fi
 
-          # The v3 section: the compare.py tables (v4 against each v3 run) and the v3 reports.
+          # The v3 section: the compare.py table (v4 against v3) and the v3 report.
           : > v3_section.md
-          V3_BEFORE=$(find "$V3_OUT/before/results" -name '*-report-github.md' 2>/dev/null | head -n1 || true)
-          V3_AFTER=$(find "$V3_OUT/after/results" -name '*-report-github.md' 2>/dev/null | head -n1 || true)
+          V3_REPORT=$(find "$V3_OUT/results" -name '*-report-github.md' 2>/dev/null | head -n1 || true)
           if [[ $HAS_V3 == true ]]; then
             echo "⏭️ v3 comparison already exists in release notes"
-          elif [[ -z "$V3_BEFORE" ]]; then
+          elif [[ -z "$V3_REPORT" ]]; then
             echo "⚠️ No v3 report (see the v3 steps): the v3 comparison is left out"
           else
-            RUNS=("$V3_BEFORE"); LABELS=("before"); WHEN="before"
-            if [[ -n "$V3_AFTER" ]]; then RUNS+=("$V3_AFTER"); LABELS+=("after"); WHEN="before and after"; fi
             {
               echo "$V3_HEADING"
               echo ""
@@ -261,22 +248,18 @@ jobs:
               echo "<summary>Nino v3 3.3.13 (NuGet) against ${TAG_NAME}, back to back on the same runner</summary>"
               echo ""
               # Never write the words "Performance Report" here: parsers find the v4 report by them.
-              echo "\`benchmarks/v3\` (the same \`SimpleTest\`, built against Nino 3.3.13 from nuget.org) ran ${WHEN} the v4"
+              echo "\`benchmarks/v3\` (the same \`SimpleTest\`, built against Nino 3.3.13 from nuget.org) ran directly before the v4"
               echo "run below, in the same job on the same runner, with the same BenchmarkDotNet settings"
               echo "(\`${BDN_ARGS}\`). MemoryPack runs in both, so its two columns show how much the runner moved."
-              for i in "${!RUNS[@]}"; do
-                echo ""
-                echo "### v4 vs v3 (v3 run ${LABELS[$i]} v4)"
-                echo ""
-                python3 "$GITHUB_WORKSPACE/benchmarks/v3/compare.py" "${RUNS[$i]}" "$BENCHMARK_FILE" \
-                  || echo "compare.py could not read the reports."
-              done
-              for i in "${!RUNS[@]}"; do
-                echo ""
-                echo "### v3 3.3.13 report (run ${LABELS[$i]} v4)"
-                echo ""
-                cat "${RUNS[$i]}"
-              done
+              echo ""
+              echo "### v4 vs v3"
+              echo ""
+              python3 "$GITHUB_WORKSPACE/benchmarks/v3/compare.py" "$V3_REPORT" "$BENCHMARK_FILE" \
+                || echo "compare.py could not read the reports."
+              echo ""
+              echo "### v3 3.3.13 report"
+              echo ""
+              cat "$V3_REPORT"
               echo ""
               echo "</details>"
             } > v3_section.md
@@ -302,7 +285,7 @@ jobs:
           parts = [part for part in (head, v3, tail) if part]
           text = "\n\n".join(parts) + "\n"
           if len(text) > 125000:  # GitHub's limit for a release body: drop the raw v3 reports, keep the tables
-              v3 = re.sub(r"\n### v3 3\.3\.13 report .*?(?=\n</details>)", "\n\n(The raw v3 reports are in the workflow artifacts.)", v3, flags=re.S)
+              v3 = re.sub(r"\n### v3 3\.3\.13 report.*?(?=\n</details>)", "\n\n(The raw v3 reports are in the workflow artifacts.)", v3, flags=re.S)
               text = "\n\n".join(part for part in (head, v3, tail) if part) + "\n"
           open("updated_notes.md", "w", encoding="utf-8").write(text)
           EOF
@@ -341,13 +324,11 @@ jobs:
           fi
           cp "$REPORT" "$RUNNER_TEMP/v4-report.md"
           V3_ARGS=()
-          for RUN in before after; do
-            V3_REPORT=$(find "$V3_OUT/$RUN/results" -name '*-report-github.md' 2>/dev/null | head -n1 || true)
-            if [[ -n "$V3_REPORT" ]]; then
-              cp "$V3_REPORT" "$RUNNER_TEMP/v3-$RUN.md"
-              V3_ARGS+=(--v3 "$RUNNER_TEMP/v3-$RUN.md")
-            fi
-          done
+          V3_REPORT=$(find "$V3_OUT/results" -name '*-report-github.md' 2>/dev/null | head -n1 || true)
+          if [[ -n "$V3_REPORT" ]]; then
+            cp "$V3_REPORT" "$RUNNER_TEMP/v3-report.md"
+            V3_ARGS+=(--v3 "$RUNNER_TEMP/v3-report.md")
+          fi
           git fetch origin main
           git checkout --detach origin/main
 

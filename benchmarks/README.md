@@ -5,7 +5,7 @@
 release, so v4 can be compared with v3 on the same machine. It is not part of `src/Nino.sln`.
 
 ```sh
-benchmarks/run.sh                          # v3, then the full v4 suite, then v3 again; about 50 minutes
+benchmarks/run.sh                          # v3, then the full v4 suite; about 40 minutes
 benchmarks/run.sh /path/to/out             # write the results somewhere else
 QUICK=1 benchmarks/run.sh                  # development run, about 15 to 20 minutes (see below)
 FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest)
@@ -13,20 +13,20 @@ FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always run
 
 `QUICK=1` is for trends and regressions while developing: it sets `NINO_BENCH_QUICK=1`, which switches every class's
 `[NinoJob]` from the published job to 250 ms iterations, 3 warm-up iterations and 6 to 10 measured ones that stop once
-the error is within 2% of the mean, and it runs v3 only once. Do not publish its numbers: the README, the docs site
+the error is within 2% of the mean. Do not publish its numbers: the README, the docs site
 and the release notes use the full protocol, which is what supports "x× faster" and "on par" (within 5%).
 
-Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case for both v3 runs; the BenchmarkDotNet
-reports are in `<out>/v3a`, `<out>/v4` and `<out>/v3b`. `dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll
+Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
+reports are in `<out>/v3` and `<out>/v4`. `dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll
 --verify` checks that both versions round-trip the benchmark data and prints the payload sizes.
 
-The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) were measured this way, in an earlier run; the
-release notes of each release carry its current numbers.
+The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come from an earlier local run (that one ran v3
+before and after v4); the release notes of each release carry its current numbers.
 
 Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) builds `v3/`, runs it
-before and after the v4 suite in the same job on the same runner with the same settings, and adds a
+directly before the v4 suite in the same job on the same runner with the same settings, and adds a
 **📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
-`compare.py` table for each v3 run, then the v3 reports. The documentation site takes its v4-vs-v3 ratios from that
+`compare.py` table, then the v3 report. The documentation site takes its v4-vs-v3 ratios from that
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
 adds whichever section is missing.
 
@@ -37,7 +37,7 @@ local run, the same script updates them from your reports (it writes the SVG; re
 
 ```sh
 python3 benchmarks/readme.py --v4 out/v4/results/*-joined-*-report-github.md \
-  --v3 out/v3a/results/*-report-github.md --v3 out/v3b/results/*-report-github.md --png-html chart.html
+  --v3 out/v3/results/*-report-github.md --png-html chart.html
 ```
 
 Within 5% is written as "on par", and a case where v4 is slower than v3 is left out of the README's v3 sentence.

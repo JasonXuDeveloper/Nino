@@ -5,7 +5,7 @@ usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 rep
 
   --v4        the joined report of src/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
               report.yml produce it
-  --v3        a report of benchmarks/v3 (Nino 3.3.13, SimpleTest); repeat it for the runs before and after v4,
+  --v3        a report of benchmarks/v3 (Nino 3.3.13, SimpleTest); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.
   --png-html  also write the chart wrapped in an HTML page, to render benchmark.png from it (report.yml does
               this with headless Chrome: README.md is packed into the NuGet packages, and nuget.org shows no SVG)
@@ -111,6 +111,9 @@ def numbers(v4_path, v3_paths):
     chart = []
     v3 = {}
     if v3_paths:
+        # How v3 ran next to v4 (README's environment line): once before it, or before and after it (older reports).
+        out["v3.when"] = ("directly before it", "紧接其前跑一次") if len(v3_paths) == 1 else \
+            ("directly before and after it", "紧接其前后各跑一次")
         runs = [parse(p)[1] for p in v3_paths]
         for method in runs[0]:
             if method.startswith("Nino") and all(method in run for run in runs):

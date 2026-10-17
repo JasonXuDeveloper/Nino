@@ -54,7 +54,7 @@ GC) on .NET 10.0.13, Intel Xeon 2.10 GHz, 4 cores, run with `benchmarks/run.sh` 
 benchmark classes ran in one session, v4 and MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org,
 running a port of the same `SimpleTest` (same data, same attributes) directly before and directly after the v4
 session on the same machine; the v3 column is the mean of those two runs. v3 has no polymorphic, pooling,
-reference, version-tolerant or fixed-size benchmarks. Each release's notes carry the same report from a CI runner.
+reference, version-tolerant or fixed-size benchmarks. Each release's notes carry a report from a CI runner, where v3 runs once, directly before v4.
 
 How much to trust a difference: MemoryPack ran in all three sessions, and its times moved by 0.49–1.31× between
 them (mostly the sub-nanosecond and short array cases), while v3's own two runs agree within 5% on every case above

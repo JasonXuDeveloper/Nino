@@ -30,7 +30,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
 </p>
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.13<!--/bench-->, server GC, <!--bench:env.cpu-->INTEL XEON PLATINUM 8573C 2.30 GHz<!--/bench-->; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet directly before and after it on the same machine. Payloads are about the same size (`SimpleClass`: <!--bench:payload.v4-->1,150<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md); the notes of each release carry that release's numbers.</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.13<!--/bench-->, server GC, <!--bench:env.cpu-->INTEL XEON PLATINUM 8573C 2.30 GHz<!--/bench-->; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before and after it<!--/bench--> on the same machine. Payloads are about the same size (`SimpleClass`: <!--bench:payload.v4-->1,150<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md); the notes of each release carry that release's numbers.</sub>
 
 ## Why Nino
 
