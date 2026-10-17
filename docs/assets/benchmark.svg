@@ -5,70 +5,70 @@
 <text x="0" y="44" class="s">BenchmarkDotNet, .NET 10, server GC, same machine. MemoryPack 1.21.4 = 1.00× (its overwrite mode for existing objects). Nino v3 = 3.3.13.</text>
 <text x="0" y="84" class="g">Serialize · SimpleClass</text>
 <text x="90" y="106" class="l" text-anchor="end">Nino v4</text>
-<rect x="100" y="94" width="314.1" height="16" rx="4" fill="url(#v4)"/>
-<text x="422.1" y="106" class="v4">4.26×</text>
+<rect x="100" y="94" width="268.4" height="16" rx="4" fill="url(#v4)"/>
+<text x="376.4" y="106" class="v4">3.41×</text>
 <text x="90" y="127" class="l" text-anchor="end">Nino v3</text>
-<rect x="100" y="115" width="204.3" height="16" rx="4" fill="#8b95a7"/>
-<text x="312.3" y="127" class="l">2.77×</text>
+<rect x="100" y="115" width="178.8" height="16" rx="4" fill="#8b95a7"/>
+<text x="286.8" y="127" class="l">2.27×</text>
 <text x="90" y="148" class="l" text-anchor="end">MemoryPack</text>
-<rect x="100" y="136" width="73.7" height="16" rx="4" fill="#e0a030"/>
-<text x="181.7" y="148" class="l">1.00×</text>
+<rect x="100" y="136" width="78.6" height="16" rx="4" fill="#e0a030"/>
+<text x="186.6" y="148" class="l">1.00×</text>
 <text x="0" y="185" class="g">Serialize · SimpleClass[100]</text>
 <text x="90" y="207" class="l" text-anchor="end">Nino v4</text>
-<rect x="100" y="195" width="238.5" height="16" rx="4" fill="url(#v4)"/>
-<text x="346.5" y="207" class="v4">3.24×</text>
+<rect x="100" y="195" width="246.6" height="16" rx="4" fill="url(#v4)"/>
+<text x="354.6" y="207" class="v4">3.14×</text>
 <text x="90" y="228" class="l" text-anchor="end">Nino v3</text>
-<rect x="100" y="216" width="116.5" height="16" rx="4" fill="#8b95a7"/>
-<text x="224.5" y="228" class="l">1.58×</text>
+<rect x="100" y="216" width="125.1" height="16" rx="4" fill="#8b95a7"/>
+<text x="233.1" y="228" class="l">1.59×</text>
 <text x="90" y="249" class="l" text-anchor="end">MemoryPack</text>
-<rect x="100" y="237" width="73.7" height="16" rx="4" fill="#e0a030"/>
-<text x="181.7" y="249" class="l">1.00×</text>
+<rect x="100" y="237" width="78.6" height="16" rx="4" fill="#e0a030"/>
+<text x="186.6" y="249" class="l">1.00×</text>
 <text x="0" y="286" class="g">Serialize · polymorphic class array</text>
 <text x="90" y="308" class="l" text-anchor="end">Nino v4</text>
-<rect x="100" y="296" width="376.2" height="16" rx="4" fill="url(#v4)"/>
-<text x="484.2" y="308" class="v4">5.11×</text>
+<rect x="100" y="296" width="293.3" height="16" rx="4" fill="url(#v4)"/>
+<text x="401.3" y="308" class="v4">3.73×</text>
 <text x="90" y="329" class="l" text-anchor="end">MemoryPack</text>
-<rect x="100" y="317" width="73.7" height="16" rx="4" fill="#e0a030"/>
-<text x="181.7" y="329" class="l">1.00×</text>
+<rect x="100" y="317" width="78.6" height="16" rx="4" fill="#e0a030"/>
+<text x="186.6" y="329" class="l">1.00×</text>
 <text x="0" y="366" class="g">Deserialize · SimpleClass</text>
 <text x="90" y="388" class="l" text-anchor="end">Nino v4</text>
-<rect x="100" y="376" width="107.9" height="16" rx="4" fill="url(#v4)"/>
-<text x="215.9" y="388" class="v4">1.47×</text>
+<rect x="100" y="376" width="106.1" height="16" rx="4" fill="url(#v4)"/>
+<text x="214.1" y="388" class="v4">1.35×</text>
 <text x="90" y="409" class="l" text-anchor="end">Nino v3</text>
-<rect x="100" y="397" width="94.2" height="16" rx="4" fill="#8b95a7"/>
-<text x="202.2" y="409" class="l">1.28×</text>
+<rect x="100" y="397" width="100.0" height="16" rx="4" fill="#8b95a7"/>
+<text x="208.0" y="409" class="l">1.27×</text>
 <text x="90" y="430" class="l" text-anchor="end">MemoryPack</text>
-<rect x="100" y="418" width="73.7" height="16" rx="4" fill="#e0a030"/>
-<text x="181.7" y="430" class="l">1.00×</text>
+<rect x="100" y="418" width="78.6" height="16" rx="4" fill="#e0a030"/>
+<text x="186.6" y="430" class="l">1.00×</text>
 <text x="0" y="467" class="g">Deserialize · SimpleClass[100]</text>
 <text x="90" y="489" class="l" text-anchor="end">Nino v4</text>
-<rect x="100" y="477" width="92.9" height="16" rx="4" fill="url(#v4)"/>
-<text x="200.9" y="489" class="v4">1.26×</text>
+<rect x="100" y="477" width="98.3" height="16" rx="4" fill="url(#v4)"/>
+<text x="206.3" y="489" class="v4">1.25×</text>
 <text x="90" y="510" class="l" text-anchor="end">Nino v3</text>
-<rect x="100" y="498" width="82.7" height="16" rx="4" fill="#8b95a7"/>
-<text x="190.7" y="510" class="l">1.12×</text>
+<rect x="100" y="498" width="90.1" height="16" rx="4" fill="#8b95a7"/>
+<text x="198.1" y="510" class="l">1.15×</text>
 <text x="90" y="531" class="l" text-anchor="end">MemoryPack</text>
-<rect x="100" y="519" width="73.7" height="16" rx="4" fill="#e0a030"/>
-<text x="181.7" y="531" class="l">1.00×</text>
+<rect x="100" y="519" width="78.6" height="16" rx="4" fill="#e0a030"/>
+<text x="186.6" y="531" class="l">1.00×</text>
 <text x="0" y="568" class="g">Deserialize · polymorphic class array</text>
 <text x="90" y="590" class="l" text-anchor="end">Nino v4</text>
-<rect x="100" y="578" width="105.9" height="16" rx="4" fill="url(#v4)"/>
-<text x="213.9" y="590" class="v4">1.44×</text>
+<rect x="100" y="578" width="107.2" height="16" rx="4" fill="url(#v4)"/>
+<text x="215.2" y="590" class="v4">1.36×</text>
 <text x="90" y="611" class="l" text-anchor="end">MemoryPack</text>
-<rect x="100" y="599" width="73.7" height="16" rx="4" fill="#e0a030"/>
-<text x="181.7" y="611" class="l">1.00×</text>
+<rect x="100" y="599" width="78.6" height="16" rx="4" fill="#e0a030"/>
+<text x="186.6" y="611" class="l">1.00×</text>
 <text x="0" y="648" class="g">Deserialize into existing objects · pooled node (Nino 0 B, MemoryPack 1,024 B)</text>
 <text x="90" y="670" class="l" text-anchor="end">Nino v4</text>
-<rect x="100" y="658" width="177.7" height="16" rx="4" fill="url(#v4)"/>
-<text x="285.7" y="670" class="v4">2.41×</text>
+<rect x="100" y="658" width="192.8" height="16" rx="4" fill="url(#v4)"/>
+<text x="300.8" y="670" class="v4">2.45×</text>
 <text x="90" y="691" class="l" text-anchor="end">MemoryPack</text>
-<rect x="100" y="679" width="73.7" height="16" rx="4" fill="#e0a030"/>
-<text x="181.7" y="691" class="l">1.00×</text>
+<rect x="100" y="679" width="78.6" height="16" rx="4" fill="#e0a030"/>
+<text x="186.6" y="691" class="l">1.00×</text>
 <text x="0" y="728" class="g">Deserialize into existing objects · leaves in place (Nino 0 B, MemoryPack 12,800 B)</text>
 <text x="90" y="750" class="l" text-anchor="end">Nino v4</text>
 <rect x="100" y="738" width="640.0" height="16" rx="4" fill="url(#v4)"/>
-<text x="748.0" y="750" class="v4">8.69×</text>
+<text x="748.0" y="750" class="v4">8.14×</text>
 <text x="90" y="771" class="l" text-anchor="end">MemoryPack</text>
-<rect x="100" y="759" width="73.7" height="16" rx="4" fill="#e0a030"/>
-<text x="181.7" y="771" class="l">1.00×</text>
+<rect x="100" y="759" width="78.6" height="16" rx="4" fill="#e0a030"/>
+<text x="186.6" y="771" class="l">1.00×</text>
 </svg>
