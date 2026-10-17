@@ -6,9 +6,19 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 10
     ignore:
-      # Pinned on purpose: the generator builds against Roslyn 4.3 (Unity) and 4.12 (interceptors).
+      # Pinned on purpose: the generator builds against Roslyn 4.3 (Unity), 4.8 and 4.12 (interceptors), the oldest
+      # compiler each build supports; the analyzers package has to match them.
       - dependency-name: "Microsoft.CodeAnalysis.CSharp"
       - dependency-name: "Microsoft.CodeAnalysis.CSharp.Workspaces"
+      - dependency-name: "Microsoft.CodeAnalysis.Workspaces.Common"
+      - dependency-name: "Microsoft.CodeAnalysis.Analyzers"
+      # The lowest version Nino.Immutable asks of its users.
+      - dependency-name: "System.Collections.Immutable"
+      # MSTest 4 and Microsoft.NET.Test.Sdk 17.14+ reject the test project's netstandard2.1 target.
+      - dependency-name: "MSTest.*"
+        versions: [">= 4.0.0"]
+      - dependency-name: "Microsoft.NET.Test.Sdk"
+        versions: [">= 17.14.0"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
