@@ -4,6 +4,9 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
+using Nino.UnitTests;
+
+[assembly: NinoFormatter(typeof(IssueTest.Issue144.ReadOnlyArrayFormatter<,>))]
 
 namespace Nino.UnitTests
 {
@@ -15,7 +18,7 @@ namespace Nino.UnitTests
         [TestClass]
         public abstract class IssueTestTemplate
         {
-            [TestMethod(nameof(Test))]
+            [TestMethod(DisplayName = nameof(Test))]
             [Timeout(1000)]
             public void Test()
             {
@@ -464,7 +467,6 @@ namespace Nino.UnitTests
 
             protected override void RunTest()
             {
-                return;
                 var list = ListComponent<int>.Create();
                 list.Add(1);
                 list.Add(2);
@@ -660,9 +662,32 @@ namespace Nino.UnitTests
                 }
             }
 
+            /// <summary>
+            /// A read-only list has no way to add items, so Nino needs a formatter for it (registered at the top of
+            /// this file).
+            /// </summary>
+            public struct ReadOnlyArrayFormatter<TValue, TFormatter> : INinoFormatter<ReadOnlyArray<TValue>>
+                where TFormatter : struct, INinoFormatter<TValue>
+            {
+                public void Serialize(ReadOnlyArray<TValue> value, ref Writer writer)
+                {
+                    writer.Write(value.Count);
+                    foreach (var item in value)
+                        default(TFormatter).Serialize(item, ref writer);
+                }
+
+                public void Deserialize(ref ReadOnlyArray<TValue> value, ref Reader reader)
+                {
+                    reader.Read(out int count);
+                    var items = new TValue[count];
+                    for (var i = 0; i < count; i++)
+                        default(TFormatter).Deserialize(ref items[i], ref reader);
+                    value = new ReadOnlyArray<TValue>(items);
+                }
+            }
+
             protected override void RunTest()
             {
-                return;
                 var array = new int[] { 1, 2, 3, 4, 5 };
                 var readOnlyArray = new ReadOnlyArray<int>(array);
                 var bytes = NinoSerializer.Serialize(readOnlyArray);
@@ -757,7 +782,6 @@ namespace Nino.UnitTests
 
             protected override void RunTest()
             {
-                return;
                 MultiMap<long, long> TimeId = new MultiMap<long, long>();
                 TimeId[1].Add(1);
                 TimeId[1].Add(2);

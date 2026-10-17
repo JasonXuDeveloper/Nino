@@ -117,11 +117,11 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void WriteDeep(object value, ref Writer writer) =>
+        private static void WriteDeep(object value, ref Writer writer) =>
             NinoObject.WriteBody<object, ClassBody>(value, ref writer);
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private void ReadDeep(ref object value, ref Reader reader) =>
+        private static void ReadDeep(ref object value, ref Reader reader) =>
             NinoObject.ReadBody<object, ClassBody>(ref value, ref reader);
 
         /// <summary><typeparamref name="TFormatter"/> over <c>object</c>, for a class <typeparamref name="TSub"/>.</summary>

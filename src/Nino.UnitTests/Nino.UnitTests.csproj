@@ -2,7 +2,9 @@
 
     <PropertyGroup>
         <ImplicitUsings>disable</ImplicitUsings>
-        <Nullable>enable</Nullable>
+        <!-- Annotations only: the generator is tested on nullable types, but the test fixtures leave members unset
+             and pass null on purpose, so the flow-analysis warnings would be noise. -->
+        <Nullable>annotations</Nullable>
         <IsPackable>false</IsPackable>
         <LangVersion>11</LangVersion>
         <OutputType>Library</OutputType>
@@ -13,12 +15,13 @@
         <NoWarn>RS1022;NU1608</NoWarn>
     </PropertyGroup>
 
-    <!-- netstandard2.1 is only compiled, never run: it checks the generated code builds the way Unity builds it. The
-         test packages support only runnable targets, so their target checks are off for it, and dotnet test skips it. -->
+    <!-- netstandard2.1 is only compiled, never run: it checks the generated code builds the way Unity builds it. It
+         gets no test runner packages, dotnet test skips it, and the assembly version conflicts a netstandard2.1
+         library cannot redirect (System.Memory and System.ValueTuple from packages vs. the facades) only matter at
+         run time. -->
     <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
         <IsTestProject>false</IsTestProject>
-        <SuppressTfmSupportBuildErrors>true</SuppressTfmSupportBuildErrors>
-        <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+        <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MSB3277</MSBuildWarningsAsMessages>
     </PropertyGroup>
 
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -45,13 +48,11 @@
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="System.Buffers" Version="4.6.1" />
-        <PackageReference Include="System.Memory" Version="4.6.3" />
+        <PackageReference Include="MSTest.TestFramework" Version="4.5.1" />
     </ItemGroup>
 
-    <ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' != 'netstandard2.1' ">
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-        <PackageReference Include="MSTest.TestFramework" Version="4.5.1" />
         <PackageReference Include="MSTest.TestAdapter" Version="4.5.1" />
         <PackageReference Include="coverlet.collector" Version="10.1.0">
           <PrivateAssets>all</PrivateAssets>
@@ -61,9 +62,11 @@
 
     <!-- Patched versions of packages the Roslyn test libraries bring in (security advisories). -->
     <ItemGroup>
-      <PackageReference Include="System.Net.Http" Version="4.3.4" />
       <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
       <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to test a specific Nino.Core build. -->
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"

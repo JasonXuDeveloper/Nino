@@ -70,7 +70,7 @@ internal static class Interceptors
         if (raw && SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer) &&
             method.Name == "Deserialize" && method.Parameters.Length == 1 &&
             method.Parameters[0].Type is INamedTypeSymbol { Name: "ReadOnlySpan" })
-            return Intercept(ctx, invocation, method, type, ct, $"{TypeNames.Core}NinoDirect.DeserializeRaw<{TypeNames.Global(type)}>(a0)");
+            return Intercept(ctx, invocation, method, type, $"{TypeNames.Core}NinoDirect.DeserializeRaw<{TypeNames.Global(type)}>(a0)", "", ct);
         if (raw || type is IArrayTypeSymbol { ElementType: var element } && facts.Raw.IsRawUnmanaged(element))
             return null;
         // Only the formatters known here: a cached one is what the regular call uses anyway.
@@ -82,9 +82,9 @@ internal static class Interceptors
             method.Parameters.Length == 1 && method.ReturnType is IArrayTypeSymbol &&
             type is INamedTypeSymbol named && facts.IsFixedSize(named) &&
             formatter.Code == FormatterResolver.GeneratedFormatter(named))
-            return Intercept(ctx, invocation, method, type, ct,
-                $"{TypeNames.Core}NinoDirect.SerializeFixed<{TypeNames.Global(type)}, {formatter.Code}>(a0)");
-        return Intercept(ctx, invocation, method, type, ct, null, formatter.Code);
+            return Intercept(ctx, invocation, method, type,
+                $"{TypeNames.Core}NinoDirect.SerializeFixed<{TypeNames.Global(type)}, {formatter.Code}>(a0)", "", ct);
+        return Intercept(ctx, invocation, method, type, null, formatter.Code, ct);
     }
 
     /// <summary>
@@ -92,7 +92,7 @@ internal static class Interceptors
     /// <c>NinoDirect</c> method of the same name with <paramref name="formatter"/>.
     /// </summary>
     private static InterceptedCall? Intercept(GeneratorSyntaxContext ctx, InvocationExpressionSyntax invocation,
-        IMethodSymbol method, ITypeSymbol type, CancellationToken ct, string? call, string formatter = "")
+        IMethodSymbol method, ITypeSymbol type, string? call, string formatter, CancellationToken ct)
     {
 #if ROSLYN4_12
         if (ctx.SemanticModel.GetInterceptableLocation(invocation, ct) is not { } location)

@@ -40,7 +40,7 @@ public class RecordSerializationTests
         Assert.IsNotNull(bytes);
 
         SimpleRecord3 result3 = NinoDeserializer.Deserialize<SimpleRecord3>(bytes);
-        Assert.AreEqual(result3.Ignored, 0);
+        Assert.AreEqual(0, result3.Ignored);
         result3.Ignored = 999;
         Assert.AreEqual(record3, result3);
 
@@ -54,7 +54,7 @@ public class RecordSerializationTests
 
         SimpleRecord4 result4 = NinoDeserializer.Deserialize<SimpleRecord4>(bytes);
         Assert.AreEqual(record4.ShouldNotIgnore, result4.ShouldNotIgnore);
-        Assert.AreEqual(result4.Flag, false);
+        Assert.IsFalse(result4.Flag);
         result4.Flag = true;
         Assert.AreEqual(record4, result4);
 

@@ -109,14 +109,14 @@ public class VersionToleranceTests
                     Assert.AreEqual(listElementClass.Id, ((ListElementClass)result[0]).Id);
                     Assert.AreEqual(listElementClass.Name, ((ListElementClass)result[0]).Name);
                     Assert.AreEqual(listElementClass.CreateTime, ((ListElementClass)result[0]).CreateTime);
-                    Assert.AreEqual(listElementClass.Extra, false);
+                    Assert.IsFalse(listElementClass.Extra);
                     break;
                 case ListElementClass2Renamed listElementClass2:
                     Assert.IsTrue(result[1] is ListElementClass2Renamed);
                     Assert.AreEqual(listElementClass2.Id, ((ListElementClass2Renamed)result[1]).Id);
                     Assert.AreEqual(listElementClass2.Name, ((ListElementClass2Renamed)result[1]).Name);
                     Assert.AreEqual(listElementClass2.CreateTime, ((ListElementClass2Renamed)result[1]).CreateTime);
-                    Assert.AreEqual(listElementClass2.Extra, null);
+                    Assert.IsNull(listElementClass2.Extra);
                     break;
             }
         }

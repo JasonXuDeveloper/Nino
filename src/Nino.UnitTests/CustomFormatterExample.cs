@@ -131,13 +131,3 @@ public class ExampleWithStructFormatter
 
     public int After;
 }
-
-// Helper class for comparison testing (without custom formatters)
-[NinoType]
-public class ExampleForComparison
-{
-    public int NormalField;
-    public SpecialValue StandardSpecialValue; // No custom formatter
-    public string NormalString;
-    public int StandardInt; // No custom formatter
-}

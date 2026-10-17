@@ -24,7 +24,7 @@ public partial class HierarchicalSub1 : HierarchicalBase
 [NinoType(false, true)]
 public sealed partial class HierarchicalSub2 : HierarchicalSub1
 {
-    [NinoMember(0)] protected bool E;
+    [NinoMember(0)] private bool E;
     [NinoMember(1)] public List<int> F;
 }
 
@@ -125,6 +125,7 @@ public sealed class CursedGeneric<T>
 [NinoType]
 public sealed class PrivateNestedCollection
 {
+#pragma warning disable CS0649 // never assigned: only the types are used
     private struct MyStruct
     {
         public int X;
@@ -136,6 +137,7 @@ public sealed class PrivateNestedCollection
         public int X;
         public string Y;
     }
+#pragma warning restore CS0649
 
     public void Func()
     {
@@ -652,9 +654,11 @@ namespace Nino.UnitTests
         public List<string?>? NullableList;
         public HashSet<byte[]?>? NullableHashSet;
         public Queue<int?>? NullableQueue;
+#pragma warning disable NINO007 // on purpose: a Task is skipped, and its nullable type arguments must not break that
         public Task<Dictionary<string, byte[]?>?>? NullableTask;
         public Task<Dictionary<string, byte[]?>?> NullableTask2 = null!;
         public Task<Dictionary<string, byte[]?>>? NullableTask3;
+#pragma warning restore NINO007
     }
 }
 #nullable disable

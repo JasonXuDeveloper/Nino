@@ -44,10 +44,12 @@ namespace Nino.UnitTests
             public override string ToString() => $"{Val}";
         }
         
+#pragma warning disable NINO003 // on purpose: a sub-type without [NinoType] cannot be serialized
         public class ABase2Ins2 : ABase2
         {
             public override int Val { get; set; }
         }
+#pragma warning restore NINO003
         
         [TestMethod]
         public void TestInheritance()

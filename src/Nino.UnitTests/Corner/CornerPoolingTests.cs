@@ -110,7 +110,7 @@ namespace Nino.UnitTests.Corner
         public string S;
 
         [NinoFactory]
-        public new static PCompAlt Create(bool isFromPool = false)
+        public static PCompAlt Create(bool isFromPool = false)
         {
             Created++;
             return UserPool.Rent<PCompAlt>();

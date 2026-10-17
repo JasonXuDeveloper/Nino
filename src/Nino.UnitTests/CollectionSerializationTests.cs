@@ -256,10 +256,10 @@ public class CollectionSerializationTests
         List<SimpleClass> result3 = NinoDeserializer.Deserialize<List<SimpleClass>>(bytes);
         Assert.IsNull(result3);
 
-        List<SimpleClass?> d = null;
+        List<SimpleClass> d = null;
         bytes = NinoSerializer.Serialize(d);
         Console.WriteLine(string.Join(", ", bytes));
-        List<SimpleClass?> result4 = NinoDeserializer.Deserialize<List<SimpleClass?>>(bytes);
+        List<SimpleClass> result4 = NinoDeserializer.Deserialize<List<SimpleClass>>(bytes);
         Assert.IsNull(result4);
     }
 
