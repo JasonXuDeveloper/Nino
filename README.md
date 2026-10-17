@@ -5,7 +5,8 @@
 # Nino
 
 **The fastest binary serializer for C#.**<br>
-Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET servers.
+General-purpose, source-generated, zero-allocation and thread-safe: for services, RPC,<br>
+messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 
 [![Build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/ci.yml?branch=main&style=flat-square)](https://github.com/JasonXuDeveloper/Nino/actions)
 [![NuGet](https://img.shields.io/nuget/v/Nino?label=NuGet&style=flat-square&logo=nuget)](https://www.nuget.org/packages/Nino)
@@ -24,7 +25,7 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 
 | **4.7×** | **9.0×** | **0 GC** | **289×** |
 |:---:|:---:|:---:|:---:|
-| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>or deserializing into pooled objects | faster to compile than v3<br>(1,100 types: 636 s → 2.2 s) |
+| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>into a buffer or deserializing into pooled objects | faster to compile than v3<br>(1,100 types: 636 s → 2.2 s) |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
@@ -35,8 +36,8 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 ## Why Nino
 
 - **Faster than MemoryPack.** Serializing classes and polymorphic types is 3.2–4.7× faster. Deserializing them is
-  1.2–1.7× faster, and raw struct arrays are close (a block copy in both).
-- **Zero allocation.** Serializing allocates nothing. Deserializing into existing or pooled objects
+  1.2–1.7× faster, and raw struct arrays are on par (a block copy in both).
+- **Zero allocation.** Serializing into a buffer (`IBufferWriter<byte>`) allocates nothing. Deserializing into existing or pooled objects
   (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either, and is up to 9.0× faster than MemoryPack's
   overwrite mode.
 - **Everything happens at compile time.** A source generator writes each formatter. There is no reflection,
@@ -55,11 +56,13 @@ Source-generated, zero-allocation and thread-safe, for Unity, Godot and .NET ser
 
 | | |
 |---|---|
+| ⚙️ **[Services & IPC](https://nino.xgamedev.net/en/docs/v4/advanced/high-performance)** | Compact binary payloads, no per-call allocations, and safe concurrent use from ASP.NET Core, workers and actors. |
+| 🌐 **[RPC & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)** | Serialize straight into an `IBufferWriter<byte>` (a `PipeWriter`, a pooled buffer), deserialize from a `ReadOnlySpan<byte>`, and reuse pooled message objects. Polymorphic messages need no tags. |
+| 📨 **[Message queues & event streams](https://nino.xgamedev.net/en/docs/v4/advanced/message-queues)** | Polymorphic event types behind one base type, small payloads, and formats that let producers and consumers upgrade at different times. |
+| 🗄️ **[Caching](https://nino.xgamedev.net/en/docs/v4/advanced/caching)** | Values for Redis, `IDistributedCache`/`HybridCache` or in-process caches, with schema changes across deployments. |
+| 💾 **[Persistence & storage](https://nino.xgamedev.net/en/docs/v4/advanced/persistence)** | Version tolerance and keyed members let you add, reorder and remove fields across releases. Reference tracking keeps object graphs with shared references and cycles. |
 | 🎮 **[Unity](https://nino.xgamedev.net/en/docs/v4/advanced/unity)** | Unity 2022.3+, Mono and IL2CPP, HybridCLR hot-update assemblies. `Vector3`, `Quaternion`, `Color32` and other unmanaged structs are copied as raw memory. Install from OpenUPM. |
 | 👾 **[Godot 4 (.NET)](https://nino.xgamedev.net/en/docs/v4/platforms)** | A regular NuGet package for Godot's .NET projects. Godot's math structs (`Vector3`, `Transform3D`, …) are unmanaged and copied as raw memory. |
-| 🌐 **[Game servers & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)** | Serialize straight into an `IBufferWriter<byte>` (a `PipeWriter`, a pooled buffer), deserialize from a `ReadOnlySpan<byte>`, and reuse pooled message objects. Polymorphic messages need no tags. |
-| 💾 **[Save games & persistence](https://nino.xgamedev.net/en/docs/v4/advanced/persistence)** | Version tolerance and keyed members let you add, reorder and remove fields across releases. Reference tracking keeps object graphs with shared references and cycles. |
-| ⚙️ **[Services, caches & IPC](https://nino.xgamedev.net/en/docs/v4/advanced/high-performance)** | Compact binary payloads, no per-call allocations, and safe concurrent use from ASP.NET Core, workers and actors. |
 
 ## Install
 
@@ -77,15 +80,15 @@ openupm add com.jasonxudeveloper.nino  # Unity
 using Nino.Core;
 
 [NinoType]
-public class Player
+public class Order
 {
     public int Id;
-    public string Name;
-    public List<Item> Inventory;
+    public string Customer;
+    public List<OrderLine> Lines;
 }
 
-byte[] bytes = NinoSerializer.Serialize(player);
-Player copy = NinoDeserializer.Deserialize<Player>(bytes);
+byte[] bytes = NinoSerializer.Serialize(order);
+Order copy = NinoDeserializer.Deserialize<Order>(bytes);
 ```
 
 ### Polymorphism without tags
@@ -95,8 +98,13 @@ Player copy = NinoDeserializer.Deserialize<Player>(bytes);
 [NinoType] public sealed class Move : Message { public Vector3 To; }
 [NinoType] public sealed class Chat : Message { public string Text; }
 
-Message msg = NinoDeserializer.Deserialize<Message>(bytes); // a Move or a Chat
+byte[] bytes = NinoSerializer.Serialize<Message>(new Chat { Text = "hi" }); // declared as the base: a type id is written
+Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // a Move or a Chat
 ```
+
+Serialize and deserialize through the common `[NinoType]` base (not `object`): generated code dispatches on the type id,
+and reuse deserialization and pools work with it. `SerializeBoxed`/`DeserializeBoxed` exist only for a type known
+only as a `Type` at run time that shares no `[NinoType]` base with the others.
 
 ### Zero-allocation networking
 
@@ -124,7 +132,7 @@ snapshot.ReturnToPool();
 
 ```csharp
 [NinoType(format: NinoFormat.Keyed)] // members are matched by name: add, reorder, remove or rename them
-public class SaveGame { [NinoFormerName("Lvl")] public int Level; public string Hero; }
+public class Profile { [NinoFormerName("Mail")] public string Email; public string Name; }
 
 [NinoType(trackReferences: true)]    // shared references and cycles survive a round trip
 public class Node { public string Name; public List<Node> Links; }
@@ -132,7 +140,7 @@ public class Node { public string Name; public List<Node> Links; }
 
 **[Read the documentation on nino.xgamedev.net →](https://nino.xgamedev.net/en/docs/v4/start)**, including
 [advanced guides](https://nino.xgamedev.net/en/docs/v4/advanced) for high-performance serialization,
-networking, persistence and Unity.
+networking, message queues, caching, persistence and Unity.
 
 ## Nino vs MemoryPack
 
@@ -140,7 +148,7 @@ networking, persistence and Unity.
 |---|---|---|
 | Serialize classes and polymorphic types | **3.2–4.7× faster** | |
 | Deserialize classes and polymorphic types | **1.2–1.7× faster** | |
-| Raw struct arrays | close (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
+| Raw struct arrays | on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
 | Deserialize into existing objects | **0 B, up to 9.0× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids | `[MemoryPackUnion]` tags you maintain |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |

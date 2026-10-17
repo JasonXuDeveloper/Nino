@@ -16,7 +16,7 @@
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Title>Nino.Generator</Title>
         <Authors>JasonXuDeveloper</Authors>
-        <Description>Source Generator for the high performance and low size binary serialization solution, especially for Unity.</Description>
+        <Description>Source generator, analyzers and code fixes of Nino, a high-performance binary serializer for .NET.</Description>
         <Copyright>JasonXuDeveloper</Copyright>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>

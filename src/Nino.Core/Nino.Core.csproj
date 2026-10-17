@@ -10,7 +10,7 @@
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Title>Nino.Serialization</Title>
         <Authors>JasonXuDeveloper</Authors>
-        <Description>High performance and low size binary serialization solution, especially for Unity.</Description>
+        <Description>High-performance, source-generated binary serializer for .NET: services, networking, messaging, caching and storage, with Unity, Godot and HybridCLR support.</Description>
         <Copyright>JasonXuDeveloper</Copyright>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>

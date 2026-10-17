@@ -22,9 +22,9 @@ API-compatible with v3 or earlier v4 betas.
 
 ## Target frameworks
 
-| Package | Targets |
+| Project | Targets |
 | --- | --- |
-| `Nino.Core` | `netstandard2.0`, `netstandard2.1`, `net8.0`, `net10.0` |
+| `Nino.Core` (NuGet package `Nino.Serialization`) | `netstandard2.0`, `netstandard2.1`, `net8.0`, `net10.0` |
 | `Nino.Generator` | `netstandard2.0` (Roslyn 4.3+): generator, analyzer, suppressor |
 | `Nino.Generator.CodeFixes` | `netstandard2.0` (Roslyn 4.3+ Workspaces): code fixes, IDE only |
 
@@ -33,6 +33,9 @@ Both ship in the `Nino.Generator` package, built three times from the same sourc
 compiler can run. Roslyn 4.3 is the oldest compiler Unity supports, so the 4.3 build, which is also what Unity
 uses, sticks to 4.3 APIs. The 4.8 and 4.12 builds add only call interceptors (see
 [Top-level calls and interceptors](#top-level-calls-and-interceptors)); everything else is shared.
+
+The `Nino` package references `Nino.Serialization` and `Nino.Generator`; `Nino.Immutable` (`netstandard2.0`, `net8.0`)
+adds formatters for `ImmutableArray<T>` and `ImmutableList<T>`.
 
 Generated code is compiled in the user's project, which may be Unity (C# 9). Generated code therefore only
 uses C# 9 features: no static abstract interface members, no ref fields, no raw string literals, no

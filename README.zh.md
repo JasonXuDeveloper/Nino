@@ -5,7 +5,8 @@
 # Nino
 
 **C# 最快的二进制序列化库。**<br>
-源生成、零分配、线程安全，适用于 Unity、Godot 和 .NET 服务端。
+通用、源生成、零分配、线程安全：适用于 .NET 上的服务、RPC、<br>
+消息、缓存和存储，并支持 Unity、Godot 和 HybridCLR。
 
 [![Build](https://img.shields.io/github/actions/workflow/status/JasonXuDeveloper/Nino/ci.yml?branch=main&style=flat-square)](https://github.com/JasonXuDeveloper/Nino/actions)
 [![NuGet](https://img.shields.io/nuget/v/Nino?label=NuGet&style=flat-square&logo=nuget)](https://www.nuget.org/packages/Nino)
@@ -24,7 +25,7 @@
 
 | **4.7×** | **9.0×** | **0 GC** | **289×** |
 |:---:|:---:|:---:|:---:|
-| 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化、复用池化对象反序列化<br>零 GC 分配 | 编译比 v3 快<br>（1,100 个类型：636 秒 → 2.2 秒） |
+| 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化到缓冲区、复用池化对象反序列化<br>零 GC 分配 | 编译比 v3 快<br>（1,100 个类型：636 秒 → 2.2 秒） |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
@@ -34,8 +35,8 @@
 
 ## 为什么选 Nino
 
-- **比 MemoryPack 更快。** 类和多态类型的序列化快 3.2–4.7 倍，反序列化快 1.2–1.7 倍；原始结构体数组两者都是整块拷贝，差距很小。
-- **零分配。** 序列化不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配，
+- **比 MemoryPack 更快。** 类和多态类型的序列化快 3.2–4.7 倍，反序列化快 1.2–1.7 倍；原始结构体数组两者都是整块拷贝，性能持平。
+- **零分配。** 序列化到缓冲区（`IBufferWriter<byte>`）不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配，
   比 MemoryPack 的覆盖写入最多快 9.0 倍。
 - **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
   因此 IL2CPP、NativeAOT 和 HybridCLR 热更都能直接用。使用 .NET 8 及以上 SDK 时，调用会被拦截到确切的格式化器，没有虚调用。
@@ -43,17 +44,19 @@
 - **线程安全。** 任意多个线程同时序列化、反序列化，热路径上没有锁。
 - **数据可以演进。** 版本兼容、keyed 成员、引用追踪（共享引用和循环引用），都按类型按需开启，不用的类型零开销。
 - **处处同一格式。** `netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 写出的字节完全一致，Unity 客户端和 .NET 服务端可以直接互通。
-- **写代码时就发现错误。** 25 条分析器诊断（NINO001–NINO025），多数带一键修复。
+- **写代码时就发现错误。** 25 条分析器诊断（NINO001–NINO025），许多带一键修复。
 
 ## 适用场景
 
 | | |
 |---|---|
+| ⚙️ **[服务与进程间通信](https://nino.xgamedev.net/zh/docs/v4/advanced/high-performance)** | 紧凑的二进制数据、每次调用零分配，可在 ASP.NET Core、后台任务和 Actor 中安全并发使用。 |
+| 🌐 **[RPC 与网络层](https://nino.xgamedev.net/zh/docs/v4/advanced/networking)** | 直接序列化进 `IBufferWriter<byte>`（`PipeWriter`、池化缓冲区），从 `ReadOnlySpan<byte>` 反序列化，复用池化的消息对象。多态消息无需手写标签。 |
+| 📨 **[消息队列与事件流](https://nino.xgamedev.net/zh/docs/v4/advanced/message-queues)** | 多态事件类型共用一个基类型，数据小巧，生产者和消费者可以在不同时间升级。 |
+| 🗄️ **[缓存](https://nino.xgamedev.net/zh/docs/v4/advanced/caching)** | 作为 Redis、`IDistributedCache`/`HybridCache` 或进程内缓存的值格式，跨部署修改结构也没问题。 |
+| 💾 **[持久化与存储](https://nino.xgamedev.net/zh/docs/v4/advanced/persistence)** | 版本兼容和 keyed 成员让你在版本之间增加、调整顺序、删除字段；引用追踪保留共享引用和循环引用的对象图。 |
 | 🎮 **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)** | Unity 2022.3+，Mono 和 IL2CPP，HybridCLR 热更程序集。`Vector3`、`Quaternion`、`Color32` 等非托管结构体按原始内存直接拷贝。通过 OpenUPM 安装。 |
 | 👾 **[Godot 4（.NET）](https://nino.xgamedev.net/zh/docs/v4/platforms)** | Godot 的 .NET 项目直接引用 NuGet 包。Godot 的数学结构体（`Vector3`、`Transform3D` 等）是非托管类型，按原始内存直接拷贝。 |
-| 🌐 **[游戏服务端与网络层](https://nino.xgamedev.net/zh/docs/v4/advanced/networking)** | 直接序列化进 `IBufferWriter<byte>`（`PipeWriter`、池化缓冲区），从 `ReadOnlySpan<byte>` 反序列化，复用池化的消息对象。多态消息无需手写标签。 |
-| 💾 **[存档与持久化](https://nino.xgamedev.net/zh/docs/v4/advanced/persistence)** | 版本兼容和 keyed 成员让你在版本之间增加、调整顺序、删除字段；引用追踪保留共享引用和循环引用的对象图。 |
-| ⚙️ **[服务、缓存与进程间通信](https://nino.xgamedev.net/zh/docs/v4/advanced/high-performance)** | 紧凑的二进制数据、每次调用零分配，可在 ASP.NET Core、后台任务和 Actor 中安全并发使用。 |
 
 ## 安装
 
@@ -71,15 +74,15 @@ openupm add com.jasonxudeveloper.nino  # Unity
 using Nino.Core;
 
 [NinoType]
-public class Player
+public class Order
 {
     public int Id;
-    public string Name;
-    public List<Item> Inventory;
+    public string Customer;
+    public List<OrderLine> Lines;
 }
 
-byte[] bytes = NinoSerializer.Serialize(player);
-Player copy = NinoDeserializer.Deserialize<Player>(bytes);
+byte[] bytes = NinoSerializer.Serialize(order);
+Order copy = NinoDeserializer.Deserialize<Order>(bytes);
 ```
 
 ### 多态，无需标签
@@ -89,8 +92,12 @@ Player copy = NinoDeserializer.Deserialize<Player>(bytes);
 [NinoType] public sealed class Move : Message { public Vector3 To; }
 [NinoType] public sealed class Chat : Message { public string Text; }
 
-Message msg = NinoDeserializer.Deserialize<Message>(bytes); // 得到 Move 或 Chat
+byte[] bytes = NinoSerializer.Serialize<Message>(new Chat { Text = "hi" }); // 以基类型声明：写入类型 ID
+Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // 得到 Move 或 Chat
 ```
+
+通过共同的 `[NinoType]` 基类型（而不是 `object`）序列化和反序列化：生成代码按类型 ID 分派，复用反序列化和对象池也都能用。
+`SerializeBoxed`/`DeserializeBoxed` 只用于类型在运行时才以 `Type` 形式给出、且与其他类型没有共同 `[NinoType]` 基类型的情况。
 
 ### 零分配网络层
 
@@ -118,13 +125,13 @@ snapshot.ReturnToPool();
 
 ```csharp
 [NinoType(format: NinoFormat.Keyed)] // 按成员名匹配：可以增加、调整顺序、删除、重命名成员
-public class SaveGame { [NinoFormerName("Lvl")] public int Level; public string Hero; }
+public class Profile { [NinoFormerName("Mail")] public string Email; public string Name; }
 
 [NinoType(trackReferences: true)]    // 共享引用和循环引用在往返后保持不变
 public class Node { public string Name; public List<Node> Links; }
 ```
 
-**[在官网 nino.xgamedev.net 阅读文档 →](https://nino.xgamedev.net/zh/docs/v4/start)**，包括高性能序列化、网络层、存档和 Unity 的
+**[在官网 nino.xgamedev.net 阅读文档 →](https://nino.xgamedev.net/zh/docs/v4/start)**，包括高性能序列化、网络层、消息队列、缓存、持久化和 Unity 的
 [高级用法](https://nino.xgamedev.net/zh/docs/v4/advanced)。
 
 ## Nino 与 MemoryPack
@@ -133,7 +140,7 @@ public class Node { public string Name; public List<Node> Links; }
 |---|---|---|
 | 序列化类和多态类型 | **快 3.2–4.7 倍** | |
 | 反序列化类和多态类型 | **快 1.2–1.7 倍** | |
-| 原始结构体数组 | 差距很小（两者都是整块拷贝）；v4 会清零填充字节，热点结构体建议声明为无填充 | 原样复制填充字节 |
+| 原始结构体数组 | 持平（两者都是整块拷贝）；v4 会清零填充字节，热点结构体建议声明为无填充 | 原样复制填充字节 |
 | 反序列化到已有对象 | **0 B，最多快 9.0 倍**（原地复用） | 覆盖写入，有分配 |
 | 多态 | 自动类型 ID | 需要维护 `[MemoryPackUnion]` 标签 |
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
