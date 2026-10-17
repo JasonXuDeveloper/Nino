@@ -1,6 +1,6 @@
 {
     "name": "com.jasonxudeveloper.nino",
-    "version": "4.0.0-preview.202",
+    "version": "4.0.0-preview.203",
     "displayName": "Nino",
     "description": "The fastest binary serializer for C#. General-purpose, source-generated, zero-allocation and thread-safe: for services, RPC, messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.",
     "unity": "2022.3",
