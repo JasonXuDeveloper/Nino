@@ -1,6 +1,6 @@
 <Project>
     <PropertyGroup>
         <!-- The version of every Nino package; the Release workflow bumps it (with Version.cs and the Unity package). -->
-        <Version>4.0.0-rc.1</Version>
+        <Version>4.0.0-rc.2</Version>
     </PropertyGroup>
 </Project>
