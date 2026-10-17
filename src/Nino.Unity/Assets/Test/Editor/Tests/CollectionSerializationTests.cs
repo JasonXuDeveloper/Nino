@@ -1,12 +1,9 @@
-using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Nino.Core;
 using Nino.Test;
 using NUnit.Framework;
-using UnityEngine;
-using Debug = UnityEngine.Debug;
 
 namespace Test.Editor.Tests
 {
@@ -60,7 +57,6 @@ namespace Test.Editor.Tests
 
             bytes = NinoSerializer.Serialize(dict);
             Assert.IsNotNull(bytes);
-            Debug.Log($"ConcurrentDictionary bytes: {string.Join(", ", bytes)}");
 
             ConcurrentDictionary<int, int>[] result =
                 NinoDeserializer.Deserialize<ConcurrentDictionary<int, int>[]>(bytes);
@@ -96,7 +92,6 @@ namespace Test.Editor.Tests
                 dict3[i].TryAdd(i, new int[] { i, i });
             }
 
-            NinoSerializer.Serialize(dict2);
             bytes = NinoSerializer.Serialize(dict3);
             Assert.IsNotNull(bytes);
 
@@ -124,8 +119,14 @@ namespace Test.Editor.Tests
                 new Data { x = 3, y = 300, z = 400, f = 3.5f, d = 50.5m, db = 60.5, bo = true, en = TestEnum.A }
             };
             byte[] bytes = NinoSerializer.Serialize(arr);
-            Debug.Log($"List<Data> bytes: {string.Join(", ", bytes)}");
             Assert.IsNotNull(bytes);
+
+            List<Data> result = NinoDeserializer.Deserialize<List<Data>>(bytes);
+            Assert.AreEqual(arr.Count, result.Count);
+            for (int i = 0; i < arr.Count; i++)
+            {
+                Assert.AreEqual(arr[i].ToString(), result[i].ToString());
+            }
         }
 
         [Test]
@@ -251,25 +252,21 @@ namespace Test.Editor.Tests
         {
             List<int> a = null;
             byte[] bytes = NinoSerializer.Serialize(a);
-            Debug.Log($"Null List<int> bytes: {string.Join(", ", bytes)}");
             List<int> result = NinoDeserializer.Deserialize<List<int>>(bytes);
             Assert.IsNull(result);
 
             List<int?> b = null;
             bytes = NinoSerializer.Serialize(b);
-            Debug.Log($"Null List<int?> bytes: {string.Join(", ", bytes)}");
             List<int?> result2 = NinoDeserializer.Deserialize<List<int?>>(bytes);
             Assert.IsNull(result2);
 
             List<Data> c = null;
             bytes = NinoSerializer.Serialize(c);
-            Debug.Log($"Null List<Data> bytes: {string.Join(", ", bytes)}");
             List<Data> result3 = NinoDeserializer.Deserialize<List<Data>>(bytes);
             Assert.IsNull(result3);
 
             List<Data?> d = null;
             bytes = NinoSerializer.Serialize(d);
-            Debug.Log($"Null List<Data?> bytes: {string.Join(", ", bytes)}");
             List<Data?> result4 = NinoDeserializer.Deserialize<List<Data?>>(bytes);
             Assert.IsNull(result4);
         }

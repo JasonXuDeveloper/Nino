@@ -9,16 +9,12 @@ namespace Test.Editor.Tests
 {
     public class Primitives
     {
-        private void RunTest<T>(T input, string inputName, Func<T, string> toString = null,
-            Func<T, T, bool> equality = null)
+        private static void RunTest<T>(T input, string inputName, Func<T, T, bool> equality = null)
         {
             var bytes = NinoSerializer.Serialize(input);
             var output = NinoDeserializer.Deserialize<T>(bytes);
             equality ??= (x, y) => x.Equals(y);
-            toString ??= x => x.ToString();
-            Assert.True(equality(input, output));
-            Debug.Log(
-                $"Serialized {inputName} as: {bytes.Length} bytes: {string.Join(",", bytes)}, deserialized as:{toString(output)}");
+            Assert.True(equality(input, output), $"{inputName} ({typeof(T).Name}) did not round-trip: {output}");
         }
 
         [Test]
@@ -59,28 +55,25 @@ namespace Test.Editor.Tests
             RunTest(l, nameof(l));
             RunTest(m, nameof(m));
             RunTest(n, nameof(n));
-            RunTest(o, nameof(o), x => string.Join(",", x), (input, output) => input.SequenceEqual(output));
-            RunTest(p, nameof(p), x => string.Join(",", x), (input, output) => input.SequenceEqual(output));
-            RunTest(q, nameof(q),
-                x =>
-                    string.Join(",", x.ToList().SelectMany(kvp => $"{kvp.Key}-{kvp.Value}")),
-                (input, output) =>
+            RunTest(o, nameof(o), (input, output) => input.SequenceEqual(output));
+            RunTest(p, nameof(p), (input, output) => input.SequenceEqual(output));
+            RunTest(q, nameof(q), (input, output) =>
+            {
+                if (input.Count != output.Count)
                 {
-                    if (input.Count != output.Count)
+                    return false;
+                }
+
+                foreach (var kvp in input)
+                {
+                    if (!output.TryGetValue(kvp.Key, out var value) || value != kvp.Value)
                     {
                         return false;
                     }
+                }
 
-                    foreach (var kvp in input)
-                    {
-                        if (!output.TryGetValue(kvp.Key, out var value) || value != kvp.Value)
-                        {
-                            return false;
-                        }
-                    }
-
-                    return true;
-                });
+                return true;
+            });
             RunTest(r, nameof(r));
             RunTest(s, nameof(s));
         }
@@ -88,9 +81,9 @@ namespace Test.Editor.Tests
         [Test]
         public void TestUnityPrimitiveTypes()
         {
-            Vector2 a = Vector2.one;
-            Vector3 b = Vector3.one;
-            Vector4 c = Vector4.one;
+            Vector2 a = new Vector2(1.5f, -2.25f);
+            Vector3 b = new Vector3(1.5f, -2.25f, 3.125f);
+            Vector4 c = new Vector4(1.5f, -2.25f, 3.125f, 4f);
             Quaternion d = Quaternion.Euler(1, 2, 3);
             Color e = Color.red;
             Color32 f = new Color32(1, 2, 3, 4);
@@ -101,63 +94,62 @@ namespace Test.Editor.Tests
             GradientAlphaKey[] k = { new(1, 0) };
             Keyframe[] l = { new(0, 0) };
             Matrix4x4 m = Matrix4x4.identity;
+            Vector2Int n = new Vector2Int(-1, 2);
+            Vector3Int o = new Vector3Int(-1, 2, 3);
+            Vector3[] p = { Vector3.up, Vector3.down, b };
 
-            // Test(a, nameof(a));
-            // Test(b, nameof(b));
-            // Test(c, nameof(c));
-            // Test(d, nameof(d));
-            // Test(e, nameof(e));
-            // Test(f, nameof(f));
-            // Test(g, nameof(g));
-            // Test(h, nameof(h));
-            // Test(i, nameof(i));
-            RunTest(j, nameof(j),
-                gradientColorKey =>
-                    string.Join(",", gradientColorKey.Select(x => $"{x.color},{x.time}")),
-                (input, output) =>
+            RunTest(a, nameof(a));
+            RunTest(b, nameof(b));
+            RunTest(c, nameof(c));
+            RunTest(d, nameof(d));
+            RunTest(e, nameof(e));
+            RunTest(f, nameof(f), (input, output) =>
+                input.r == output.r && input.g == output.g && input.b == output.b && input.a == output.a);
+            RunTest(g, nameof(g));
+            RunTest(h, nameof(h));
+            RunTest(i, nameof(i), (input, output) => input.value == output.value);
+            RunTest(j, nameof(j), (input, output) =>
+            {
+                for (int x = 0; x < input.Length; x++)
                 {
-                    for (int i = 0; i < input.Length; i++)
+                    if (input[x].color != output[x].color || !Mathf.Approximately(input[x].time, output[x].time))
                     {
-                        if (input[i].color != output[i].color || !Mathf.Approximately(input[i].time, output[i].time))
-                        {
-                            return false;
-                        }
+                        return false;
                     }
+                }
 
-                    return true;
-                });
-            RunTest(k, nameof(k),
-                gradientAlphaKey =>
-                    string.Join(",", gradientAlphaKey.Select(x => $"{x.alpha},{x.time}")),
-                (input, output) =>
+                return input.Length == output.Length;
+            });
+            RunTest(k, nameof(k), (input, output) =>
+            {
+                for (int x = 0; x < input.Length; x++)
                 {
-                    for (int i = 0; i < input.Length; i++)
+                    if (!Mathf.Approximately(input[x].alpha, output[x].alpha) ||
+                        !Mathf.Approximately(input[x].time, output[x].time))
                     {
-                        if (!Mathf.Approximately(input[i].alpha, output[i].alpha) ||
-                            !Mathf.Approximately(input[i].time, output[i].time))
-                        {
-                            return false;
-                        }
+                        return false;
                     }
+                }
 
-                    return true;
-                });
-            RunTest(l, nameof(l), keyframe =>
-                    string.Join(",", keyframe.Select(x => $"{x.time},{x.value}")),
-                (input, output) =>
+                return input.Length == output.Length;
+            });
+            RunTest(l, nameof(l), (input, output) =>
+            {
+                for (int x = 0; x < input.Length; x++)
                 {
-                    for (int i = 0; i < input.Length; i++)
+                    if (!Mathf.Approximately(input[x].time, output[x].time) ||
+                        !Mathf.Approximately(input[x].value, output[x].value))
                     {
-                        if (!Mathf.Approximately(input[i].time, output[i].time) ||
-                            !Mathf.Approximately(input[i].value, output[i].value))
-                        {
-                            return false;
-                        }
+                        return false;
                     }
+                }
 
-                    return true;
-                });
+                return input.Length == output.Length;
+            });
             RunTest(m, nameof(m));
+            RunTest(n, nameof(n));
+            RunTest(o, nameof(o));
+            RunTest(p, nameof(p), (input, output) => input.SequenceEqual(output));
         }
     }
 }

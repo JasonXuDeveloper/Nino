@@ -1,13 +1,7 @@
 {
     "name": "Test",
     "rootNamespace": "",
-    "references": [
-        "Nino",
-        "Mongo",
-        "Protobuf",
-        "MessagePack",
-        "MessagePack.Annotations"
-    ],
+    "references": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

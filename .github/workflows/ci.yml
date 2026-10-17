@@ -140,7 +140,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: src/Nino.Unity/Library
-          key: Library-Nino-${{ runner.os }}-${{ hashFiles('Nino.Unity/Assets/**', 'Nino.Unity/ProjectSettings/**') }}
+          key: Library-Nino-${{ runner.os }}-${{ hashFiles('src/Nino.Unity/Assets/**', 'src/Nino.Unity/Packages/**', 'src/Nino.Unity/ProjectSettings/**') }}
           restore-keys: |
             Library-Nino-${{ runner.os }}-
             Library-Nino-
