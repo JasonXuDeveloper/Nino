@@ -8,7 +8,8 @@ name: Release
 #            (every commit since the previous release, grouped, and every contributor; a stable release starts at
 #            the previous stable one, so 4.0.0 covers everything since 3.3.13), then start the benchmark report.
 #            Hand-written highlights in .github/release-notes/vX.Y.Z.md, if committed, go at the top. If it fails, fix the cause and use "Re-run failed jobs": the tag stays, NuGet skips a
-#            version it already has, the release is created once.
+#            version it already has, the release is created once. To change an input (notes_since), run the
+#            workflow again with the same version: for an existing tag it skips straight to publishing.
 # Trusted Publishing policy on nuget.org: owner JasonXuDeveloper, repository Nino, workflow release.yml.
 #
 # Unity reads the package from the tag, so the tag must point at the commit that carries the DLLs: both are made
@@ -57,9 +58,6 @@ jobs:
             echo "::error::'$VERSION' is not x.y.z or x.y.z-(alpha|beta|rc).n"; exit 1
           fi
           BASE="${BASH_REMATCH[1]}"; LABEL="${BASH_REMATCH[3]}"; NUM="${BASH_REMATCH[4]}"
-          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
-            echo "::error::tag v$VERSION already exists (to retry publishing, re-run the failed job of its run)"; exit 1
-          fi
           if [[ -z "$LABEL" ]]; then
             UNITY_VERSION="$BASE"
           else
@@ -69,8 +67,15 @@ jobs:
           fi
           echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "unity_version=$UNITY_VERSION" >> "$GITHUB_OUTPUT"
+          # An existing tag: only publish what is still missing (NuGet skips versions it has, the release is
+          # created once), so a release whose publish job failed can be run again with corrected inputs.
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::notice::tag v$VERSION exists: publishing it without bumping or tagging"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Bump version
+        if: steps.version.outputs.exists != 'true'
         env:
           BASE: ${{ steps.version.outputs.base }}
           UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
@@ -89,18 +94,21 @@ jobs:
             8.0.x
 
       - name: Build and test the bumped version
+        if: steps.version.outputs.exists != 'true'
         working-directory: src
         run: |
           dotnet build --configuration Release
           dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build --configuration Release
 
       - name: Copy the Unity DLLs
+        if: steps.version.outputs.exists != 'true'
         run: |
           cp src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll "$UNITY_PACKAGE/Runtime/Nino.Core.dll"
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
           cp src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.dll"
 
       - name: Commit and tag
+        if: steps.version.outputs.exists != 'true'
         env:
           UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
         run: |
@@ -178,7 +186,9 @@ jobs:
             echo "Install: \`dotnet add package Nino --version $VERSION\` (Unity package: \`$UNITY_VERSION\`)"
             if [[ -f ".github/release-notes/v$VERSION.md" ]]; then echo; cat ".github/release-notes/v$VERSION.md"; fi
           } > "$RUNNER_TEMP/header.md"
-          python3 .github/scripts/release_notes.py --tag "v$VERSION" ${NOTES_SINCE:+--since "$NOTES_SINCE"} \
+          # The notes script of main, not of the tag: fixes to it apply to a release published again.
+          git fetch -q origin main && git show origin/main:.github/scripts/release_notes.py > "$RUNNER_TEMP/release_notes.py"
+          python3 "$RUNNER_TEMP/release_notes.py" --tag "v$VERSION" ${NOTES_SINCE:+--since "$NOTES_SINCE"} \
             --header "$RUNNER_TEMP/header.md" --out "$RUNNER_TEMP/notes.md"
           gh release create "v$VERSION" artifacts/*."$VERSION".nupkg --verify-tag --title "v$VERSION" \
             "${PRERELEASE[@]}" --notes-file "$RUNNER_TEMP/notes.md"

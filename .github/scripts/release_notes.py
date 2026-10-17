@@ -29,6 +29,8 @@ GROUPS = [
     ("⚠️ Breaking changes", None, None),
     ("✨ Features", r"^(add|support|allow|introduce|implement|enable|new|rewrite|let|complete|generate|register)\b",
      r"^feat"),
+    # Filled by classify() only: an "Area:" commit to the library whose summary starts with no verb above.
+    ("📦 Runtime, generator and analyzer", None, None),
     ("⚡ Performance", r"^(speed|faster|optimi[sz]e|reduce|avoid|inline|unroll|cache|shrink|trim|reuse|store|copy"
      r"|keep .* in registers|align|tiny optimi|optimi[sz]ation)", r"^perf"),
     ("🐛 Fixes", r"^(fix|bug|correct|handle|prevent|restore|revert|resolve|ensure|guard)\b", r"^fix"),
@@ -36,10 +38,13 @@ GROUPS = [
      r"|use|extract|share|separate|seperate|migrate)", r"^(refactor|.*cleanup)$"),
     ("📖 Documentation", r"^(document|describe|present|docs?\b|readme|update readme)", r"^(docs?|readme)$"),
     ("🧪 Tests", r"^(test|cover)", r"^tests?$"),
-    ("🔧 Build, CI and dependencies", r"^(ci|build|workflow|release|dependabot|bump|update .* dependenc|update \S+\.ya?ml|.*\bci\b)",
-     r"^(ci|build|chore|release|dependabot|benchmark)$"),
+    # Not "release" alone: "Core: release collectible assemblies" is not about releasing.
+    ("🔧 Build, CI and dependencies", r"^(ci|build|workflow|dependabot|bump|update .* dependenc|update \S+\.ya?ml|.*\bci\b)",
+     r"^(ci|build|chore|release|dependabot|benchmarks?|\.git\w*)$"),
     ("Other changes", r"", None),  # catch-all
 ]
+# "Area:" prefixes of the library's own code (the rest of a subject there rarely starts with a verb).
+LIBRARY = re.compile(r"^(core|runtime|generator|analy[sz]er|immutable|interceptors?|serializer|deserializer)$", re.I)
 AI_OR_BOT = re.compile(r"\[bot\]|^(claude|copilot|codex|gemini)$|noreply@anthropic\.com|@openai\.com|gemini@google\.com", re.I)
 
 
@@ -86,14 +91,18 @@ def commits(rng):
 def classify(subject):
     if re.search(r"^\w+(\([^)]*\))?!:|BREAKING", subject):
         return GROUPS[0][0]
-    m = re.match(r"^([A-Za-z][\w ,./-]{0,30}?)(\([^)]*\))?:\s*(.*)$", subject)
+    if re.search(r"\.git(attributes|ignore)\b", subject):
+        return "🔧 Build, CI and dependencies"
+    m = re.match(r"^([.A-Za-z][\w ,./-]{0,30}?)(\([^)]*\))?:\s*(.*)$", subject)
     prefix, rest = (m.group(1).strip().lower(), m.group(3)) if m else ("", subject)
     for title, pattern, prefix_pattern in GROUPS[1:]:
         if prefix_pattern and prefix and re.match(prefix_pattern, prefix, re.I):
             return title
-    for title, pattern, _ in GROUPS[1:]:
+    for title, pattern, _ in GROUPS[1:-1]:
         if pattern is not None and re.match(pattern, rest.strip(), re.I):
             return title
+    if LIBRARY.match(prefix):
+        return "📦 Runtime, generator and analyzer"
     return GROUPS[-1][0]
 
 
@@ -173,6 +182,10 @@ def main():
 
     ref = args.ref or args.tag
     since = args.since or start_tag(args.tag, ref)
+    # Tags are vX.Y.Z: accept the version alone too ("3.3.13").
+    if args.since and subprocess.run(["git", "rev-parse", "-q", "--verify", f"refs/tags/{since}"],
+                                     capture_output=True).returncode != 0:
+        since = f"v{since}"
     print(f"start tag: {since}", file=sys.stderr)
     rng = f"{since}..{ref}" if since else ref
     all_commits = commits(rng)
