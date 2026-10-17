@@ -13,6 +13,13 @@
         <NoWarn>RS1022;NU1608</NoWarn>
     </PropertyGroup>
 
+    <!-- netstandard2.1 is only compiled, never run: it checks the generated code builds the way Unity builds it. The
+         test packages support only runnable targets, so their target checks are off for it. -->
+    <PropertyGroup Condition=" '$(TargetFramework)' == 'netstandard2.1' ">
+        <SuppressTfmSupportBuildErrors>true</SuppressTfmSupportBuildErrors>
+        <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+    </PropertyGroup>
+
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
       <DefineConstants>TRACE;WEAK_VERSION_TOLERANCE</DefineConstants>
     </PropertyGroup>
@@ -42,9 +49,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
-        <PackageReference Include="MSTest.TestFramework" Version="3.11.1" />
-        <PackageReference Include="MSTest.TestAdapter" Version="3.11.1" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+        <PackageReference Include="MSTest.TestFramework" Version="4.5.1" />
+        <PackageReference Include="MSTest.TestAdapter" Version="4.5.1" />
         <PackageReference Include="coverlet.collector" Version="10.1.0">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
