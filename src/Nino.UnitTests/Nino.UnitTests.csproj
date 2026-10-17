@@ -58,8 +58,10 @@
         </PackageReference>
     </ItemGroup>
 
+    <!-- Patched versions of packages the Roslyn test libraries bring in (security advisories). -->
     <ItemGroup>
       <PackageReference Include="System.Net.Http" Version="4.3.4" />
+      <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
       <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
         <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to test a specific Nino.Core build. -->
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
