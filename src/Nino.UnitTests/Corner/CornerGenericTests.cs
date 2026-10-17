@@ -116,7 +116,7 @@ namespace Nino.UnitTests.Corner
             // The id is written in front of non-sealed generic classes and must match the reader's.
             var bytes = NinoSerializer.Serialize(new Box<long> { Item = 1 });
             Assert.AreEqual(NinoTypeId.Of(typeof(Box<long>)), BitConverter.ToInt32(bytes, 0));
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<Box<int>>(bytes));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<Box<int>>(bytes));
         }
 
         [TestMethod]

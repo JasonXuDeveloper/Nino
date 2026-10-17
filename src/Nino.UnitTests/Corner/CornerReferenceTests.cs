@@ -213,7 +213,7 @@ namespace Nino.UnitTests.Corner
             Assert.AreEqual(NinoTypeId.Of(typeof(RefDog)), System.BitConverter.ToInt32(bytes, second));
             Assert.AreEqual(1, System.BitConverter.ToInt32(bytes, second + 4));
             System.BitConverter.GetBytes(NinoTypeId.Of(typeof(RefPeerNode))).CopyTo(bytes, second);
-            Assert.ThrowsException<System.InvalidOperationException>(() => NinoDeserializer.Deserialize<List<object>>(bytes));
+            Assert.ThrowsExactly<System.InvalidOperationException>(() => NinoDeserializer.Deserialize<List<object>>(bytes));
         }
 
         [TestMethod]

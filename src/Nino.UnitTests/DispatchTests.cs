@@ -60,7 +60,7 @@ namespace Nino.UnitTests
         public void SiblingTypeInAMiddleSlotIsRejected()
         {
             var bytes = NinoSerializer.Serialize<DispatchRoot>(new DispatchSibling { D = 1 });
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<DispatchMid>(bytes));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<DispatchMid>(bytes));
         }
 
         [TestMethod]

@@ -61,7 +61,7 @@ namespace Nino.UnitTests
             Assert.AreEqual(aBaseIns.ToString(), NinoDeserializer.Deserialize<ABaseIns>(NinoSerializer.Serialize(aBaseIns)).ToString());
             Assert.AreEqual(aBase2Ins.ToString(), NinoDeserializer.Deserialize<ABase2Ins>(NinoSerializer.Serialize(aBase2Ins)).ToString());
             // ABase2Ins2 has no CachedSerializer because ABase2 has allowInheritance=false, so it throws Exception
-            Assert.ThrowsException<InvalidOperationException>(() => NinoSerializer.Serialize(aBase2Ins2));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(aBase2Ins2));
         }
     }
 }

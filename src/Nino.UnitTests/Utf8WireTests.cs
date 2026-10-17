@@ -33,7 +33,7 @@ public class Utf8WireTests
 
     private static void Throws(byte[] data)
     {
-        Assert.ThrowsException<InvalidOperationException>(() => Read(data, out _), BitConverter.ToString(data));
+        Assert.ThrowsExactly<InvalidOperationException>(() => Read(data, out _), BitConverter.ToString(data));
     }
 
     private static byte[] Write(string value)

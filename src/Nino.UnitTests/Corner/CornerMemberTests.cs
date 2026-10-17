@@ -816,7 +816,7 @@ namespace C
                          new Dictionary<string, int>(), new SimpleNode[] { new SimpleNode() },
                      })
             {
-                Assert.ThrowsException<InvalidOperationException>(
+                Assert.ThrowsExactly<InvalidOperationException>(
                     () => NinoSerializer.Serialize(new ObjectHolder { Value = bad }), bad.GetType().Name);
             }
         }

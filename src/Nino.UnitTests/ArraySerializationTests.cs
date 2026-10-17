@@ -46,13 +46,13 @@ public class ArraySerializationTests
         Assert.AreEqual(1, nested[2][0, 0]);
 
         // The element count is still checked against the payload, and negative lengths are rejected.
-        Assert.ThrowsException<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
             NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new[] { 1000, 1000 })[4..]));
-        Assert.ThrowsException<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
             NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new[] { 2, -1 })[4..]));
-        Assert.ThrowsException<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
             NinoDeserializer.Deserialize<int[,,]>(NinoSerializer.Serialize(new[] { -2, 0, 0 })[4..]));
-        Assert.ThrowsException<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
             NinoDeserializer.Deserialize<int[,]>(NinoSerializer.Serialize(new[] { int.MaxValue, 0 })[4..]));
     }
 

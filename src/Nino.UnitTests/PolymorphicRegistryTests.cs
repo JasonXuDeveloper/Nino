@@ -65,7 +65,7 @@ namespace Nino.UnitTests
         {
             // Same layout as a RegistryShape body (type id, then an int), but the id belongs to an unrelated type.
             var bytes = NinoSerializer.Serialize<object>(new RegistryUnrelated { X = 1 });
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<RegistryShape>(bytes));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<RegistryShape>(bytes));
         }
 
         [TestMethod]

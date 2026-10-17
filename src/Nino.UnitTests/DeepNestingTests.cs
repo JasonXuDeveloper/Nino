@@ -504,11 +504,11 @@ public class DeepNestingTests
         {
             var a = new DeepLink { Value = 1 };
             a.Next = a;
-            Assert.ThrowsException<InvalidOperationException>(() => NinoSerializer.Serialize(a));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(a));
 
             var b = new DeepLink { Value = 2, Next = a };
             a.Next = new DeepLink { Value = 3, Next = b };
-            Assert.ThrowsException<InvalidOperationException>(() => NinoSerializer.Serialize(b));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(b));
 
             // A long cycle: the check compares with the chain's object at the last power of two.
             var ring = Chain(10_000);
@@ -516,7 +516,7 @@ public class DeepNestingTests
             while (last.Next != null)
                 last = last.Next;
             last.Next = ring;
-            Assert.ThrowsException<InvalidOperationException>(() => NinoSerializer.Serialize(ring));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(ring));
         });
     }
 
@@ -543,7 +543,7 @@ public class DeepNestingTests
 
             for (int i = 0; i < 1000; i++)
                 record = new DeepRecord(i, record);
-            Assert.ThrowsException<InvalidOperationException>(() => NinoSerializer.Serialize(record));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(record));
         });
     }
 
@@ -587,15 +587,15 @@ public class DeepNestingTests
             for (var node = NinoDeserializer.Deserialize<PlainLink>(plain); node != null; node = node.Next)
                 length++;
             Assert.AreEqual(1_000_000, length);
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 NinoDeserializer.Deserialize<PlainLink>(plain.AsSpan(0, plain.Length - 1)));
             // Types that cannot be deferred stop at NinoDepth.Max.
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 NinoDeserializer.Deserialize<PlainRecordLike>(plain));
 
             // Inside a region, bodies deeper than NinoDepth.Inline are read from the region's section, which data
             // nested inline does not have: it fails cleanly, and data shallower than that still reads.
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 NinoDeserializer.Deserialize<DeepLink>(HostileTolerantChain(1_000_000)));
             Assert.AreEqual(NinoDepthInline, Length(NinoDeserializer.Deserialize<DeepLink>(
                 HostileTolerantChain(NinoDepthInline))));
@@ -681,7 +681,7 @@ public class DeepNestingTests
         Assert.AreEqual(299, back.Value);
         for (int i = 0; i < 1000; i++)
             chain = new PlainRecordLike(i, chain);
-        Assert.ThrowsException<InvalidOperationException>(() => NinoSerializer.Serialize(chain));
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize(chain));
     }
 
     [TestMethod]

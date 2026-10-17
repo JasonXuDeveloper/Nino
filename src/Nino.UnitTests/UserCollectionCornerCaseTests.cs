@@ -570,9 +570,9 @@ public class UserCollectionCornerCaseTests
     public void FactoryReturningNullIsAClearError()
     {
         var bytes = NinoSerializer.Serialize(new NullFactoryHolder { Value = new NullFactoryList { 1 } });
-        var e = Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<NullFactoryHolder>(bytes));
+        var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<NullFactoryHolder>(bytes));
         StringAssert.Contains(e.Message, "returned null");
-        e = Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new RuntimeBox<NullFactoryList> { Value = new() }));
+        e = Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new RuntimeBox<NullFactoryList> { Value = new() }));
         StringAssert.Contains(e.Message, "returned null");
         // null data never calls the factory
         Assert.IsNull(NinoDeserializer.Deserialize<NullFactoryHolder>(NinoSerializer.Serialize(new NullFactoryHolder())).Value);
@@ -631,13 +631,13 @@ public class UserCollectionCornerCaseTests
     public void UncreatableTypesHaveNoFormatter()
     {
         // Runtime: like the generator (NINO007 below), the resolver finds no formatter.
-        Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new InternalCtorList()));
-        Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly<AbstractList>(new ConcreteList()));
-        Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new TwoWayCollection()));
-        Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new ReadOnlyCollection<int>(new[] { 1 })));
-        Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new LegacyList()));
-        Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new StructCollection()));
-        Assert.ThrowsException<InvalidOperationException>(() => NinoActivator<InternalCtorList>.Create());
+        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new InternalCtorList()));
+        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly<AbstractList>(new ConcreteList()));
+        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new TwoWayCollection()));
+        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new ReadOnlyCollection<int>(new[] { 1 })));
+        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new LegacyList()));
+        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new StructCollection()));
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoActivator<InternalCtorList>.Create());
     }
 
     [TestMethod]
@@ -808,10 +808,10 @@ public class Holder
     public void ReadOnlyCollectionIsAClearError()
     {
         var bytes = NinoSerializer.Serialize(new FrozenHolder { Value = new FrozenCollection() });
-        var e = Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<FrozenHolder>(bytes));
+        var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<FrozenHolder>(bytes));
         StringAssert.Contains(e.Message, "read-only");
         var target = new FrozenHolder { Value = new FrozenCollection() };
-        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize(bytes, ref target));
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize(bytes, ref target));
         CollectionAssert.AreEqual(new[] { 1, 2 }, target.Value.ToArray(), "left untouched");
         // Null data never touches it.
         Assert.IsNull(NinoDeserializer.Deserialize<FrozenHolder>(NinoSerializer.Serialize(new FrozenHolder())).Value);
@@ -1063,18 +1063,18 @@ public class Holder
         // Distinct under the writer's comparer, the same under the reader's.
         var bytes = NinoSerializer.Serialize(new StringDictionaryHolder
             { Value = new Dictionary<string, int> { ["a"] = 1, ["A"] = 2 } });
-        var e = Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<CaseInsensitiveHolder>(bytes));
+        var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<CaseInsensitiveHolder>(bytes));
         StringAssert.Contains(e.Message, "twice");
         // Into an existing empty dictionary as well. (Merging into a non-empty one does not look for repeated keys:
         // see "Reuse deserialization and pooling" in docs/v4-design.md.)
         var target = new CaseInsensitiveHolder { Value = new CaseInsensitiveDictionary() };
-        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize(bytes, ref target));
-        Assert.ThrowsException<InvalidOperationException>(() => RuntimeOnly(new RuntimeBox<CaseInsensitiveDictionary>
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize(bytes, ref target));
+        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new RuntimeBox<CaseInsensitiveDictionary>
             { Value = NinoDeserializer.Deserialize<RuntimeBox<CaseInsensitiveDictionary>>(NinoSerializer.Serialize(
                 new RuntimeBox<Dictionary<string, int>> { Value = new() { ["a"] = 1, ["A"] = 2 } })).Value }));
 
         var setBytes = NinoSerializer.Serialize(new StringSetHolder { Value = new HashSet<string> { "a", "A" } });
-        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<CaseInsensitiveSetHolder>(setBytes));
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<CaseInsensitiveSetHolder>(setBytes));
     }
 
     [TestMethod]
@@ -1093,13 +1093,13 @@ public class Holder
         var repeated = (byte[])bytes.Clone();
         Assert.AreEqual(2, BitConverter.ToInt32(repeated, 14));
         BitConverter.GetBytes(1).CopyTo(repeated, 14);
-        var e = Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(repeated));
+        var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(repeated));
         StringAssert.Contains(e.Message, "twice");
 
         for (int cut = 4; cut < bytes.Length; cut++)
         {
             var truncated = bytes.AsSpan(0, cut).ToArray();
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(truncated),
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(truncated),
                 $"cut at {cut}");
         }
     }
@@ -1111,7 +1111,7 @@ public class Holder
         for (int cut = 1; cut < bytes.Length; cut++)
         {
             var truncated = bytes.AsSpan(0, cut).ToArray();
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<RawListHolder>(truncated),
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<RawListHolder>(truncated),
                 $"cut at {cut}");
         }
 
@@ -1119,13 +1119,13 @@ public class Holder
         var shape = NinoSerializer.Serialize(new RawListHolder { Value = new RawList() });
         int countAt = shape.Length - 4;
         BitConverter.GetBytes(-5).CopyTo(shape, countAt);
-        var e = Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<RawListHolder>(shape));
+        var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<RawListHolder>(shape));
         StringAssert.Contains(e.Message, "-5");
 
         // A huge count is rejected before anything is allocated, and a reused list is left as it was.
         BitConverter.GetBytes(int.MaxValue).CopyTo(shape, countAt);
         var target = new RawListHolder { Value = new RawList { 7 } };
-        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize(shape, ref target));
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize(shape, ref target));
         CollectionAssert.AreEqual(new[] { 7 }, target.Value);
     }
 }
