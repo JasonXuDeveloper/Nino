@@ -30,14 +30,25 @@ internal static class CornerCompiler
     }
 
     public static Result Compile(string source, bool allowUnsafe = false, bool load = true,
-        string[] preprocessorSymbols = null, params Assembly[] extraReferences)
+        string[] preprocessorSymbols = null, params Assembly[] extraReferences) =>
+        Compile(source, allowUnsafe, load, preprocessorSymbols,
+            extraReferences.Select(extra => (MetadataReference)MetadataReference.CreateFromFile(extra.Location)));
+
+    /// <summary>
+    /// Compiles <paramref name="source"/> (not loaded) against the images of earlier results, which it sees as
+    /// metadata, as a package or command-line reference does.
+    /// </summary>
+    public static Result CompileAgainst(string source, params Result[] references) =>
+        Compile(source, false, false, null, references.Select(r => (MetadataReference)MetadataReference.CreateFromImage(r.Image)));
+
+    private static Result Compile(string source, bool allowUnsafe, bool load, string[] preprocessorSymbols,
+        System.Collections.Generic.IEnumerable<MetadataReference> extraReferences)
     {
         var parse = new CSharpParseOptions(LanguageVersion.Latest, preprocessorSymbols: preprocessorSymbols);
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
         refs.Add(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location));
-        foreach (var extra in extraReferences)
-            refs.Add(MetadataReference.CreateFromFile(extra.Location));
+        refs.AddRange(extraReferences);
         var compilation = CSharpCompilation.Create("Corner" + Guid.NewGuid().ToString("N"),
             new[] { CSharpSyntaxTree.ParseText(source, parse) }, refs,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: allowUnsafe,

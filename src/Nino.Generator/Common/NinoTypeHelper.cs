@@ -73,6 +73,28 @@ internal static class NinoTypeHelper
         return ns.Name == "System";
     }
 
+    /// <summary>
+    /// The property or event a compiler-generated field backs, or null. Roslyn links metadata fields only to
+    /// events, so the backing field of an auto-property in a referenced assembly (<c>&lt;Name&gt;k__BackingField</c>)
+    /// is matched by name: a type then reads the same whether its assembly is referenced as source or as metadata.
+    /// </summary>
+    public static ISymbol? AssociatedMember(this IFieldSymbol field)
+    {
+        if (field.AssociatedSymbol != null)
+            return field.AssociatedSymbol;
+        const string suffix = ">k__BackingField";
+        var name = field.Name;
+        if (name.Length <= suffix.Length + 1 || name[0] != '<' || !name.EndsWith(suffix, System.StringComparison.Ordinal))
+            return null;
+        foreach (var member in field.ContainingType.GetMembers(name.Substring(1, name.Length - suffix.Length - 1)))
+        {
+            if (member is IPropertySymbol property && property.IsStatic == field.IsStatic)
+                return property;
+        }
+
+        return null;
+    }
+
     /// <summary>Whether <paramref name="ns"/> is <c>Nino.Core</c> (without allocating its display string).</summary>
     public static bool IsNinoCoreNamespace(INamespaceSymbol? ns) =>
         ns is { Name: "Core", ContainingNamespace: { Name: "Nino", ContainingNamespace.IsGlobalNamespace: true } };

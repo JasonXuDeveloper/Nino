@@ -77,9 +77,10 @@ namespace Nino.Core
         /// its <c>[assembly: NinoFormatter]</c> registrations. Afterwards Nino.Core keeps no reference into the
         /// assembly, so a collectible <c>AssemblyLoadContext</c> that loaded it can unload.
         /// <para>
-        /// On .NET 8 and later this runs on its own when the collectible context of an assembly with generated Nino
-        /// code starts unloading. Call it yourself only before unloading on other runtimes, or to be sure it has
-        /// run. Call it once nothing serializes or deserializes the assembly's types any more: the assembly cannot
+        /// In the .NET 8 and later builds of Nino.Core (what .NET 8+ apps get) this runs on its own when the
+        /// collectible context of an assembly with generated Nino code starts unloading. The netstandard builds
+        /// cannot see <c>AssemblyLoadContext</c>: there, and to be sure it has run, call it yourself before
+        /// unloading. Call it once nothing serializes or deserializes the assembly's types any more: the assembly cannot
         /// be used with Nino afterwards. Formatters it registered for types declared outside it (an
         /// <c>[assembly: NinoFormatter]</c> for a type of another assembly that has already been used) stay.
         /// </para>

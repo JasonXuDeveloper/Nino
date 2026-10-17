@@ -288,8 +288,9 @@ internal static class MemberCollector
             return false;
         return member switch
         {
-            // Implicit fields are backing fields: their properties are the members.
-            IFieldSymbol field => !field.IsImplicitlyDeclared && !field.IsConst && !field.IsFixedSizeBuffer,
+            // Backing fields: their properties are the members (from metadata, only the name tells them apart).
+            IFieldSymbol field => !field.IsImplicitlyDeclared && !field.IsConst && !field.IsFixedSizeBuffer &&
+                                  field.AssociatedMember() == null,
             // Explicit interface implementations belong to the interface, which serializes them if it is a
             // [NinoType]; they have no name generated code could use on the type. The only implicit properties with
             // a setter are a record's positional ones (EqualityContract has none).
@@ -308,8 +309,7 @@ internal static class MemberCollector
             return false;
         foreach (var member in property.ContainingType.GetMembers())
         {
-            if (member is IFieldSymbol { IsImplicitlyDeclared: true } field &&
-                SymbolEqualityComparer.Default.Equals(field.AssociatedSymbol, property))
+            if (member is IFieldSymbol field && SymbolEqualityComparer.Default.Equals(field.AssociatedMember(), property))
                 return true;
         }
 

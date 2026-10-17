@@ -331,7 +331,7 @@ internal static class ModelBuilder
         new(type.GetMembers().OfType<IFieldSymbol>().Where(static f => !f.IsStatic && !f.IsConst).Select(static f =>
         {
             var size = FormatterResolver.RawSizeOf(f.Type);
-            return $"{(f.AssociatedSymbol ?? f).Name}:{Global(f.Type).Replace("global::", "")}:" +
+            return $"{(f.AssociatedMember() ?? f).Name}:{Global(f.Type).Replace("global::", "")}:" +
                    (size.IsConstant ? "raw(" + size.Expression + ")" : "raw");
         }));
 

@@ -84,7 +84,7 @@ internal sealed class RawRules
         {
             if (field.IsStatic || field.IsConst)
                 continue;
-            var member = field.AssociatedSymbol ?? field;
+            var member = field.AssociatedMember() ?? field;
             if (!members.Contains(member.OriginalDefinition))
                 return false;
             if (NinoSymbols.Has(member, _symbols.CustomFormatter))
