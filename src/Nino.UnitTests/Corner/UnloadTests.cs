@@ -49,8 +49,10 @@ namespace Unloadable
     }
 }";
 
+#if !NINO_CORE_NETSTANDARD // The Unloading hook is in the .NET 8+ builds of Nino.Core only; the others need Remove.
         [TestMethod]
         public void CollectibleContextUnloads() => AssertUnloads(removeFirst: false);
+#endif
 
         [TestMethod]
         public void CollectibleContextUnloadsAfterRemove() => AssertUnloads(removeFirst: true);
