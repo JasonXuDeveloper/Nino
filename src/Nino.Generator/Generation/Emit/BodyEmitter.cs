@@ -835,7 +835,9 @@ internal sealed class BodyEmitter
             return;
         }
 
-        var direct = DirectRead(member, r);
+        // An existing instance's string is passed in, and kept when unchanged; a new instance's is null.
+        bool existing = inPlace && !(_fresh && member.Fresh);
+        var direct = DirectRead(member, r, existing ? Get(_m, member, _target) : null);
         if (direct != null)
         {
             _w.Line(Store(_m, member, inPlace, direct, _target));

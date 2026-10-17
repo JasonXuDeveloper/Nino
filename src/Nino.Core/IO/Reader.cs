@@ -744,14 +744,19 @@ namespace Nino.Core
                         NinoThrow.EndOfData();
                     ref byte src = ref Unsafe.Add(ref data, pos);
                     pos += (int)size;
-#if NETSTANDARD2_0
-                    fixed (byte* p = &src)
+                    // An element read in place keeps its string when the data holds the same chars.
+                    var current = slot;
+                    if (current == null || current.Length != length || !SameChars(ref src, current))
                     {
-                        slot = new string((char*)p, 0, length);
-                    }
+#if NETSTANDARD2_0
+                        fixed (byte* p = &src)
+                        {
+                            slot = new string((char*)p, 0, length);
+                        }
 #else
-                    slot = new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref src), length));
+                        slot = new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref src), length));
 #endif
+                    }
                 }
 
                 slot = ref Unsafe.Add(ref slot, 1);
@@ -855,6 +860,93 @@ namespace Nino.Core
 
             Skip(sizeof(int));
             return EmptyOrNull(length);
+        }
+
+        /// <summary>
+        /// Reads a UTF-16 string like <see cref="ReadString()"/>, but returns <paramref name="current"/> when it holds
+        /// the same chars: reading into an existing object keeps an unchanged string instead of allocating a copy.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public string ReadString(string current) => current == null ? ReadString() : ReadStringOver(current);
+
+        /// <summary>Whether the UTF-16 chars at <paramref name="src"/> are those of <paramref name="value"/> (as long).</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe bool SameChars(ref byte src, string value)
+        {
+            fixed (byte* p = &src)
+            {
+                return new ReadOnlySpan<char>(p, value.Length).SequenceEqual(value.AsSpan());
+            }
+        }
+
+        private unsafe string ReadStringOver(string current)
+        {
+            int remaining = Avail;
+            if ((uint)remaining < sizeof(int))
+                NinoThrow.EndOfData();
+            ref byte start = ref Cur;
+            int length = NinoUnsafe.Read<int>(ref start);
+            if (length <= 0)
+            {
+                Skip(sizeof(int));
+                return EmptyOrNull(length);
+            }
+
+            ulong size = (ulong)(uint)length * sizeof(char);
+            if (size > (uint)(remaining - sizeof(int)))
+                NinoThrow.EndOfData();
+            Skip(sizeof(int) + (int)size);
+            ref byte src = ref Unsafe.Add(ref start, sizeof(int));
+            if (current.Length == length && SameChars(ref src, current))
+                return current;
+            fixed (byte* p = &src)
+            {
+                return new string((char*)p, 0, length);
+            }
+        }
+
+        /// <summary>
+        /// Reads a UTF-8 string like <see cref="ReadUtf8()"/>, but returns <paramref name="current"/> when it holds
+        /// the same text (checked for ASCII text on .NET 8 and later): reading into an existing object keeps an
+        /// unchanged string instead of allocating a copy.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public string ReadUtf8(string current) => current == null ? ReadUtf8() : ReadUtf8Over(current);
+
+        private string ReadUtf8Over(string current)
+        {
+            if (current.Length != 0 && Avail >= 2 * sizeof(int))
+            {
+                ref byte start = ref Cur;
+                ulong counts = NinoUnsafe.Read<ulong>(ref start);
+                // ASCII text: as many bytes as chars, compared without decoding.
+                if ((int)counts == current.Length && (int)(counts >> 32) == current.Length &&
+                    current.Length <= Avail - 2 * sizeof(int) &&
+                    SameAscii(ref Unsafe.Add(ref start, 2 * sizeof(int)), current))
+                {
+                    Skip(2 * sizeof(int) + current.Length);
+                    return current;
+                }
+            }
+
+            return ReadUtf8();
+        }
+
+        /// <summary>Whether the bytes at <paramref name="src"/> are ASCII and equal to the chars of <paramref name="value"/>.</summary>
+        private static bool SameAscii(ref byte src, string value)
+        {
+#if NET8_0_OR_GREATER
+            return Ascii.Equals(MemoryMarshal.CreateReadOnlySpan(ref src, value.Length), value.AsSpan());
+#else
+            for (int i = 0; i < value.Length; i++)
+            {
+                byte b = Unsafe.Add(ref src, i);
+                if (b >= 0x80 || b != value[i])
+                    return false;
+            }
+
+            return true;
+#endif
         }
 
         /// <summary>

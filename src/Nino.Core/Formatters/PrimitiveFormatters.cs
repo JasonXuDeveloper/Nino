@@ -66,7 +66,7 @@ namespace Nino.Core
         public void Serialize(string value, ref Writer writer) => writer.Write(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadString();
+        public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadString(value);
     }
 
     /// <summary>Writes a string as UTF-8 (<c>[NinoUtf8]</c>).</summary>
@@ -76,7 +76,7 @@ namespace Nino.Core
         public void Serialize(string value, ref Writer writer) => writer.WriteUtf8(value);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadUtf8();
+        public void Deserialize(ref string value, ref Reader reader) => value = reader.ReadUtf8(value);
     }
 
     /// <summary>Writes a nullable value: a has-value byte, then the value.</summary>

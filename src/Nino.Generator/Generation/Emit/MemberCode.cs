@@ -64,15 +64,19 @@ internal static class MemberCode
         inPlace ? Set(m, member, v, expr) : $"{Local(member)} = {expr};";
 
     /// <summary>
-    /// For formatters that never reuse the current value (strings), the read expression that replaces the
-    /// formatter call. Avoids a property getter call and keeps the generated code short.
+    /// For strings, the read expression that replaces the formatter call; <paramref name="current"/>, the member's
+    /// value in an existing instance, is kept when the data holds the same string (null: a new instance).
     /// </summary>
-    public static string? DirectRead(MemberModel member, string r) => member.Formatter switch
+    public static string? DirectRead(MemberModel member, string r, string? current = null)
     {
-        Core + "StringFormatter" => $"{r}.ReadString()",
-        Core + "Utf8StringFormatter" => $"{r}.ReadUtf8()",
-        _ => null,
-    };
+        string arg = current ?? "";
+        return member.Formatter switch
+        {
+            Core + "StringFormatter" => $"{r}.ReadString({arg})",
+            Core + "Utf8StringFormatter" => $"{r}.ReadUtf8({arg})",
+            _ => null,
+        };
+    }
 
     /// <summary>The write statement that replaces the formatter call for strings, or null.</summary>
     public static string? DirectWrite(MemberModel member, string value) => member.Formatter switch
