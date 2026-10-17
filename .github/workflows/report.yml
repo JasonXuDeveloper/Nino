@@ -63,7 +63,7 @@ jobs:
           echo "tag_name=$TAG_NAME" >> $GITHUB_ENV
       
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ steps.determine_target.outputs.target_ref }}
           fetch-depth: 0
