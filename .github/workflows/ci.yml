@@ -196,6 +196,8 @@ jobs:
           testMode: editmode
           githubToken: ${{ secrets.GITHUB_TOKEN }}
           unityVersion: '2022.3.51f1'
+          # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
+          cliVersion: 'v0.1.72'
 
       - name: Upload Unity results
         uses: actions/upload-artifact@v7
