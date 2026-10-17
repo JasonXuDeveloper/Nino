@@ -12,7 +12,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 [![NuGet](https://img.shields.io/nuget/v/Nino?label=NuGet&style=flat-square&logo=nuget)](https://www.nuget.org/packages/Nino)
 [![OpenUPM](https://img.shields.io/npm/v/com.jasonxudeveloper.nino?label=OpenUPM&style=flat-square&logo=unity&registry_uri=https://package.openupm.com)](https://openupm.com/packages/com.jasonxudeveloper.nino/)
 [![License](https://img.shields.io/github/license/JasonXuDeveloper/Nino?style=flat-square)](https://github.com/JasonXuDeveloper/Nino/blob/main/LICENSE)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/JasonXuDeveloper/Nino)
+[![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue?style=flat-square)](https://deepwiki.com/JasonXuDeveloper/Nino)
 
 [🌐 **Website**](https://nino.xgamedev.net/en) ·
 [🚀 **Getting Started**](https://nino.xgamedev.net/en/docs/v4/start) ·
@@ -23,9 +23,9 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 
 </div>
 
-| **<!--bench:ser.polyarray-->5.1<!--/bench-->×** | **<!--bench:reuse.inplace-->8.7<!--/bench-->×** | **0 GC** | **221×** |
+| **up to <!--bench:ser.max-->5.1<!--/bench-->×** | **<!--bench:reuse.inplace-->8.7<!--/bench-->×** | **0 GC** | **221×** |
 |:---:|:---:|:---:|:---:|
-| faster serialization than MemoryPack<br>(polymorphic arrays) | faster than MemoryPack's overwrite<br>when deserializing into existing objects | zero GC allocations when serializing<br>into a buffer or deserializing into pooled objects | faster to compile than v3<br>(1,100 types: 462 s → 2.1 s) |
+| faster serialization<br>than MemoryPack | faster than MemoryPack<br>deserializing in place | allocations<br>on hot paths | faster builds<br>than v3 |
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">

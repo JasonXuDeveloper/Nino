@@ -89,13 +89,15 @@ def numbers(v4_path, v3_paths):
     def vs_memorypack(verb, key):
         return ratio(v4[f"MemoryPack{verb}{key}"]["mean"], v4[f"Nino{verb}{key}"]["mean"])
 
+    def wins(verb):
+        return [r for r in (vs_memorypack(verb, k) for k in CLASS_KEYS) if r > 1]
+
     def win_range(verb):
-        wins = [r for r in (vs_memorypack(verb, k) for k in CLASS_KEYS) if r > 1]
-        return f"{one(min(wins))}–{one(max(wins))}"
+        return f"{one(min(wins(verb)))}–{one(max(wins(verb)))}"
 
     bdn, runtime, cpu = environment(env)
     out = {
-        "ser.polyarray": one(vs_memorypack("Serialize", "PolymorphicClassArray")),
+        "ser.max": one(max(wins("Serialize"))),
         "reuse.inplace": one(ratio(v4["MemoryPackLeavesOverwrite"]["mean"], v4["NinoLeavesInPlace"]["mean"])),
         "ser.range": win_range("Serialize"),
         "deser.range": win_range("Deserialize"),
