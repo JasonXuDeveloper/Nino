@@ -21,7 +21,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 [**vs MemoryPack**](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) ·
 [**中文**](https://github.com/JasonXuDeveloper/Nino/blob/main/README.zh.md)
 
-**Up to <!--bench:ser.max-->3.8<!--/bench-->× faster** serialization and **<!--bench:reuse.inplace-->7.6<!--/bench-->× faster** in-place deserialization than MemoryPack<br>
+**Up to <!--bench:ser.max-->5.8<!--/bench-->× faster** serialization and **<!--bench:reuse.inplace-->10.7<!--/bench-->× faster** in-place deserialization than MemoryPack<br>
 **Zero GC** allocations on hot paths · **221× faster** builds than v3
 
 </div>
@@ -30,15 +30,15 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
 </p>
 
-<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.13<!--/bench-->, server GC, <!--bench:env.cpu-->INTEL XEON PLATINUM 8573C 3.17 GHz<!--/bench-->; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. Payloads are about the same size (`SimpleClass`: <!--bench:payload.v4-->1,150<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md); the notes of each release carry that release's numbers.</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.8<!--/bench-->, <!--bench:env.runtime-->.NET 10.0.13<!--/bench-->, server GC, <!--bench:env.cpu-->AMD EPYC 7763 3.10 GHz<!--/bench-->; Nino v4 and MemoryPack 1.21.4 in one run, Nino 3.3.13 from NuGet <!--bench:v3.when-->directly before it<!--/bench--> on the same machine. Payloads are about the same size (`SimpleClass`: <!--bench:payload.v4-->1,150<!--/bench--> bytes in v4, 1,152 in v3, <!--bench:payload.memorypack-->1,148<!--/bench--> in MemoryPack). Every case and the method: [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md); the notes of each release carry that release's numbers.</sub>
 
 ## Why Nino
 
-- **Faster than MemoryPack.** Serializing classes and polymorphic types is <!--bench:ser.range-->3.1–3.8<!--/bench-->× faster. Deserializing them is
-  <!--bench:deser.range-->1.3–1.4<!--/bench-->× faster, and raw struct arrays are on par (a block copy in both).
+- **Faster than MemoryPack.** Serializing classes and polymorphic types is <!--bench:ser.range-->3.1–5.8<!--/bench-->× faster. Deserializing them is
+  <!--bench:deser.range-->1.4–1.9<!--/bench-->× faster, and raw struct arrays are on par (a block copy in both).
 - **Zero allocation.** Serializing into a buffer (`IBufferWriter<byte>`) allocates nothing. Deserializing into existing or pooled objects
   (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either (a string whose text is unchanged is kept),
-  and is up to <!--bench:reuse.inplace-->7.6<!--/bench-->× faster than MemoryPack's overwrite mode.
+  and is up to <!--bench:reuse.inplace-->10.7<!--/bench-->× faster than MemoryPack's overwrite mode.
 - **Everything happens at compile time.** A source generator writes each formatter. There is no reflection,
   no IL emit, no registration and no init call, so it works on IL2CPP, NativeAOT and HybridCLR hot updates.
   With the .NET 8 SDK or later, calls are intercepted to the exact formatter, with no virtual call.
@@ -145,10 +145,10 @@ networking, message queues, caching, persistence and Unity.
 
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
-| Serialize classes and polymorphic types | **<!--bench:ser.range-->3.1–3.8<!--/bench-->× faster** | |
-| Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.3–1.4<!--/bench-->× faster** | |
+| Serialize classes and polymorphic types | **<!--bench:ser.range-->3.1–5.8<!--/bench-->× faster** | |
+| Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.4–1.9<!--/bench-->× faster** | |
 | Raw struct arrays | on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
-| Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->7.6<!--/bench-->× faster** (in place) | overwrite mode, allocates |
+| Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->10.7<!--/bench-->× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids | `[MemoryPackUnion]` tags you maintain |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | 2022.3+, `netstandard2.0` and `2.1`, HybridCLR | `netstandard2.1` |
@@ -169,8 +169,8 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 
 | v4 vs v3 (3.3.13) | |
 |---|---|
-| Serialize | <!--bench:v3.ser-->**1.52× faster** (class), **1.91× faster** (class array), **1.15× faster** (struct), on par (struct array)<!--/bench--> |
-| Deserialize | <!--bench:v3.deser-->**1.07× faster** (class), **1.06× faster** (class array), **faster** (struct, too fast to measure: under 0.1 ns), on par (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
+| Serialize | <!--bench:v3.ser-->**1.69× faster** (class), **1.89× faster** (class array), **1.25× faster** (struct array)<!--/bench--> |
+| Deserialize | <!--bench:v3.deser-->on par (class), **1.15× faster** (class array), **1.07× faster** (struct), on par (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
 | Compiling the generated code | **51× faster** at 330 types (42.9 s → 0.84 s), **221× faster** at 1,100 types (462 s → 2.1 s) |
 | Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |
