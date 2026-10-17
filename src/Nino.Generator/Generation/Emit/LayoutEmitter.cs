@@ -34,7 +34,7 @@ internal static class LayoutEmitter
     {
         var sb = new StringBuilder();
         if (m.RawStruct)
-            sb.Append(string.Join(";", m.RawFields));
+            sb.Append(m.RawLayout);
         if (m.CollectionFormatter.Length != 0)
             sb.Append("[elements]::").Append(Plain(m.CollectionFormatter));
         foreach (var member in m.Members)
@@ -43,7 +43,7 @@ internal static class LayoutEmitter
                 sb.Append(';');
             sb.Append(member.SourceName).Append(':').Append(Plain(member.TypeName)).Append(':');
             if (member.Raw is { } raw)
-                sb.Append(raw.IsConstant ? "raw(" + raw.Expression + ")" : "raw");
+                sb.Append(raw.Layout);
             else
                 sb.Append(Plain(member.Formatter));
             if (m.Keyed && member.FormerKeys.Length != 0)

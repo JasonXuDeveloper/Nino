@@ -42,9 +42,13 @@ internal enum MemberAccess
 /// <summary>
 /// Size of a member written raw (as part of an unmanaged block). <see cref="Bytes"/> is the size when it is a
 /// compile-time constant (primitives, enums), else 0; <see cref="Expression"/> is the size as C# source either way.
+/// <see cref="Layout"/> is the bytes in the canonical layout, as the member's published layout shows them
+/// (<c>RawLayout.Describe</c>).
 /// </summary>
 internal sealed record RawSize(int Bytes, string Expression)
 {
+    public string Layout { get; init; } = "raw";
+
     /// <summary>Whether the size is a constant; otherwise the member is a struct (<c>NinoUnsafe.SizeOf&lt;T&gt;()</c>).</summary>
     public bool IsConstant => Bytes != 0;
 
@@ -176,9 +180,9 @@ internal sealed record TypeModel(
     bool FreshRead,
     // Unmanaged structs whose layout the runtime measures (LayoutTypes), for the registry's [DynamicDependency].
     EquatableArray<string> LayoutTypes,
-    // A raw struct's fields as entries of its published layout (LayoutEmitter); empty for any other type, whose
-    // layout is its members.
-    EquatableArray<string> RawFields)
+    // A raw struct's bytes in the canonical layout, its published layout (LayoutEmitter, RawLayout.Describe); empty
+    // for any other type, whose layout is its members.
+    string RawLayout)
 {
     public bool IsGeneric => TypeParameters.Length != 0;
 

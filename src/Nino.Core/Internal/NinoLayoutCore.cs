@@ -1,3 +1,4 @@
+#nullable enable
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
@@ -68,10 +69,12 @@ namespace Nino.Core.Internal
 
         /// <summary>
         /// Lays out <paramref name="type"/> at <paramref name="baseOffset"/> under a runtime model (alignment of 8-byte
-        /// primitives, of <c>decimal</c>, and the pointer size), collecting its leaves in field order.
+        /// primitives, of <c>decimal</c>, and the pointer size), collecting its leaves in field order, and the offsets
+        /// of its own fields in <paramref name="fieldOffsets"/> when given.
         /// </summary>
         public static bool Measure<TType, TView>(TView view, TType type, int longAlign, int decimalAlign,
-            int pointerSize, int baseOffset, List<Leaf> leaves, out int size, out int align)
+            int pointerSize, int baseOffset, List<Leaf> leaves, out int size, out int align,
+            List<int>? fieldOffsets = null)
             where TView : INinoLayoutView<TType>
         {
             switch (view.Leaf(type))
@@ -124,6 +127,8 @@ namespace Nino.Core.Internal
                 {
                     offset = (end + fieldAlign - 1) / fieldAlign * fieldAlign;
                 }
+
+                fieldOffsets?.Add(offset);
 
                 for (int i = start; i < leaves.Count; i++)
                 {

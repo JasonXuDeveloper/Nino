@@ -120,11 +120,13 @@ The serialized members are the type's fields and properties (its own and its `[N
   types, a hidden member that is serialized next to its hiding member has the key of `Base.X`.
 
 A `[NinoType]` struct is written as its **raw memory** (one copy, and arrays/lists of it as one block) when it
-is unmanaged, not version tolerant, uses the default sequential layout, has no custom member formatters, and
+is unmanaged, not version tolerant, has sequential layout (`Pack` and `Size` allowed), has no custom member formatters, and
 every instance field (including auto-property backing fields) is serialized. Nested `[NinoType]` struct fields
 must qualify as well. A struct of another assembly is judged the same whether it is referenced as source or as
 metadata: Roslyn links a metadata field only to events, so a backing field with no `AssociatedSymbol` is matched
-to its property by its name, `<Name>k__BackingField` (issue #200, `CrossAssemblyRawTests`). The bytes are the canonical (64-bit CoreCLR) layout with padding zeroed, converted on
+to its property by its name, `<Name>k__BackingField` (issue #200, `CrossAssemblyRawTests`). `[StructLayout]` and `[FieldOffset]` are
+not custom attributes in metadata, so for a type of a referenced assembly the generator reads them from its type and
+field tables (`RawLayout`, issue #202). The bytes are the canonical (64-bit CoreCLR) layout with padding zeroed, converted on
 runtimes that lay the type out differently (see `docs/pitfalls.md`), so reordering fields changes the format; give the struct `format: NinoFormat.VersionTolerant` (or ignore a field) to opt out. Otherwise structs are written
 member by member.
 
@@ -877,9 +879,12 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   deep hierarchies). The bytes are unchanged. Delegation is skipped when raw members on both sides of the
   boundary would otherwise be written as one block, since splitting that block costs an extra reservation.
 * `[assembly: NinoTypeLayout(typeof(T), format, header, trackReferences, raw, typeId, "members")]` publishes
-  what the formatter writes (issue #197): each member as `name:type:encoding`, where the encoding is `raw(n)`,
-  `raw` or the formatter's name. It comes from the same `TypeModel` as the formatter, so it changes exactly when
-  the bytes do, and is the same in every target framework (`LayoutMetadataTests`).
+  what the formatter writes (issue #197): each member as `name:type:encoding`, where the encoding is the
+  formatter's name or, for a value copied as raw memory, its canonical layout from `NinoLayoutCore`:
+  `raw(n)` for a primitive, `raw(n){name:type@offset:encoding,...}` for a struct (issue #202), so a field, `Pack`,
+  `Size` or explicit offset anywhere inside a raw value shows, `[NinoType]` or not. It comes from the same
+  `TypeModel` as the formatter, so it changes exactly when the bytes do, and is the same in every target framework
+  (`LayoutMetadataTests`).
 * Preprocessor-dependent choices (`WEAK_VERSION_TOLERANCE`, `NET8_0_OR_GREATER`) are resolved at
   generation time from the compilation's parse options, so generated code contains no `#if` branches.
 

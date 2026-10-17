@@ -14,7 +14,7 @@ namespace Nino.Generator.Generation;
 internal sealed class NinoSymbols
 {
     public readonly INamedTypeSymbol? NinoType, Member, Ignore, CustomFormatter, Utf8, FormerName,
-        Constructor, Factory, Created, Raw, Pooled, StructLayout, IFormatter, FormatterAttribute,
+        Constructor, Factory, Created, Raw, Pooled, IFormatter, FormatterAttribute,
         Serializer, Deserializer;
 
     public NinoSymbols(Compilation compilation)
@@ -35,7 +35,6 @@ internal sealed class NinoSymbols
         Pooled = Core("NinoPooledAttribute");
         Serializer = Core(NinoNames.Serializer);
         Deserializer = Core(NinoNames.Deserializer);
-        StructLayout = compilation.GetTypeByMetadataName("System.Runtime.InteropServices.StructLayoutAttribute");
     }
 
     /// <summary>

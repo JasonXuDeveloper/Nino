@@ -20,7 +20,8 @@ using Nino.Core;
 namespace Layout
 {
     [NinoType] public struct Move { public float VelocityX; public float VelocityY; }
-    [NinoType] public sealed class Player { public int Id; [NinoUtf8] public string Name; public List<Move> Path; }
+    public readonly record struct PlayerId(long Value);
+    [NinoType] public sealed class Player { public PlayerId Id; [NinoUtf8] public string Name; public List<Move> Path; }
     [NinoType] public class Animal { public string Name; }
     [NinoType(trackReferences: true)] public sealed class Node { public Node Next; }
     [NinoType(format: NinoFormat.Keyed)] public sealed class Saved { [NinoFormerName(""Hp"")] public int Health; }
@@ -49,12 +50,12 @@ namespace Layout
             Assert.AreEqual(NinoHeader.None, move.Header);
             Assert.IsTrue(move.Raw);
             Assert.AreEqual(NinoTypeId.Of(assembly.GetType("Layout.Move")), move.Id);
-            Assert.AreEqual("VelocityX:float:raw(4);VelocityY:float:raw(4)", move.Members);
+            Assert.AreEqual("raw(8){VelocityX:float@0:raw(4),VelocityY:float@4:raw(4)}", move.Members);
 
             var player = Layout(assembly, "Layout.Player");
             Assert.AreEqual(NinoHeader.NullFlag, player.Header);
             Assert.IsFalse(player.Raw);
-            Assert.AreEqual("Id:int:raw(4);Name:string:Nino.Core.Utf8StringFormatter;" +
+            Assert.AreEqual("Id:Layout.PlayerId:raw(8){Value:long@0:raw(8)};Name:string:Nino.Core.Utf8StringFormatter;" +
                             "Path:System.Collections.Generic.List<Layout.Move>:" +
                             "Nino.Core.UnmanagedListFormatter<System.Collections.Generic.List<Layout.Move>, " +
                             "Layout.Move>", player.Members);
@@ -85,11 +86,24 @@ namespace Layout
             // Each of these changes the bytes, and the layout.
             Assert.AreNotEqual(baseline, Of(Types.Replace("[NinoUtf8] public string Name", "public string Name"),
                 "Layout.Player"));
-            Assert.AreNotEqual(baseline, Of(Types.Replace("public int Id;", "public long Id;"), "Layout.Player"));
+            Assert.AreNotEqual(baseline, Of(Types.Replace("PlayerId Id;", "long Id;"), "Layout.Player"));
+            // A raw member's bytes are its own: a field of a struct that is not a [NinoType] (issue #202).
+            Assert.AreNotEqual(baseline, Of(Types.Replace("PlayerId(long Value)", "PlayerId(int Value)"),
+                "Layout.Player"));
             Assert.AreNotEqual(baseline, Of(Types.Replace("public sealed class Player", "public class Player"),
                 "Layout.Player"));
             Assert.AreNotEqual(baseline, Of(Types.Replace("[NinoType] public sealed class Player",
                 "[NinoType(format: NinoFormat.VersionTolerant)] public sealed class Player"), "Layout.Player"));
+            // [StructLayout] changes the bytes of a raw struct, and its layout (issue #202), when it moves a field or
+            // pads the end; Pack on a struct it does not change is not a change.
+            string move = Of(Types, "Layout.Move");
+            const string MoveDecl = "[NinoType] public struct Move";
+            Assert.AreEqual(move, Of(Types.Replace(MoveDecl,
+                "[NinoType, System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Pack = 1)] public struct Move"),
+                "Layout.Move"));
+            Assert.AreNotEqual(move, Of(Types.Replace(MoveDecl,
+                "[NinoType, System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Size = 12)] public struct Move"),
+                "Layout.Move"));
             // A member's nested type changes its own layout, not this one.
             Assert.AreNotEqual(Of(Types, "Layout.Move"),
                 Of(Types.Replace("public float VelocityY;", "public double VelocityY;"), "Layout.Move"));

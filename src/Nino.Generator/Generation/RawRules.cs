@@ -73,9 +73,7 @@ internal sealed class RawRules
         var attr = type.GetNinoTypeOptions();
         if (attr == null || attr.VersionTolerant || attr.Keyed)
             return false;
-        var layout = NinoSymbols.Get(type, _symbols.StructLayout);
-        if (layout != null && layout.ConstructorArguments.Length > 0 &&
-            layout.ConstructorArguments[0].Value is int kind && kind != 0 /* Sequential */)
+        if (RawLayout.KindOf(type) != System.Runtime.InteropServices.LayoutKind.Sequential)
             return false;
 
         var members = new HashSet<ISymbol>(_members.Of(type.OriginalDefinition, attr),

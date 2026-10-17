@@ -320,20 +320,8 @@ internal static class ModelBuilder
             !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
             !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type),
             LayoutTypes.ToArray(layoutTypes),
-            rawStruct ? RawFields(type) : EquatableArray<string>.Empty);
+            rawStruct ? RawLayout.Describe(type) : "");
     }
-
-    /// <summary>
-    /// The fields of a raw struct in memory order (sequential layout: declaration order), as
-    /// <c>name:type:raw(size)</c> entries of its published layout (<c>NinoTypeLayoutAttribute</c>).
-    /// </summary>
-    private static EquatableArray<string> RawFields(INamedTypeSymbol type) =>
-        new(type.GetMembers().OfType<IFieldSymbol>().Where(static f => !f.IsStatic && !f.IsConst).Select(static f =>
-        {
-            var size = FormatterResolver.RawSizeOf(f.Type);
-            return $"{(f.AssociatedMember() ?? f).Name}:{Global(f.Type).Replace("global::", "")}:" +
-                   (size.IsConstant ? "raw(" + size.Expression + ")" : "raw");
-        }));
 
     /// <summary>
     /// Whether instances of the type are compared by their members (a record, an override of GetHashCode, or
@@ -490,7 +478,7 @@ internal static class ModelBuilder
         // Members join unmanaged blocks when their layout is the same on every runtime; others (rare struct
         // shapes such as { int; long }) go through their formatter, which converts them where needed.
         var raw = custom == null && facts.Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType)
-            ? FormatterResolver.RawSizeOf(memberType)
+            ? FormatterResolver.RawSizeOf(memberType) with { Layout = RawLayout.Describe(memberType) }
             : null;
 
         // Only registered formatters: a member's custom formatter must not become the global one.

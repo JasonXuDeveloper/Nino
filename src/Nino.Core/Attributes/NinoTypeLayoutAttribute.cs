@@ -55,12 +55,21 @@ namespace Nino.Core
         /// <summary>
         /// The body, one entry per member in the order they are written, separated by <c>;</c>. An entry is
         /// <c>name:type:encoding</c>: the member's C# name, its type (fully qualified, without <c>global::</c>),
-        /// and how it is written: <c>raw(n)</c> for a member copied as <c>n</c> bytes (<c>raw</c> when the size is
-        /// that of a struct), otherwise the formatter that writes it (<c>Nino.Core.StringFormatter</c>,
-        /// <c>Nino.Core.Utf8StringFormatter</c>, a custom formatter, or the generated formatter of a nested
-        /// <c>[NinoType]</c>, whose own layout describes it). A keyed member read under former names too ends
-        /// with <c>:former=</c> and their keys. A <c>[NinoType]</c> collection starts with
-        /// <c>[elements]::formatter</c>, the formatter of the elements written before the members.
+        /// and how it is written: the raw encoding below for a member copied as raw memory, otherwise the formatter
+        /// that writes it (<c>Nino.Core.StringFormatter</c>, <c>Nino.Core.Utf8StringFormatter</c>, a custom
+        /// formatter, or the generated formatter of a nested <c>[NinoType]</c>, whose own layout describes it). A
+        /// keyed member read under former names too ends with <c>:former=</c> and their keys. A <c>[NinoType]</c>
+        /// collection starts with <c>[elements]::formatter</c>, the formatter of the elements written before the
+        /// members. A <see cref="Raw"/> type is one value copied as raw memory, so its body is just its raw encoding.
+        /// <para>
+        /// The raw encoding is the value's canonical layout: <c>raw(n)</c> for a primitive, enum, <c>decimal</c>,
+        /// <c>Guid</c>, <c>DateTime</c> or <c>TimeSpan</c> of <c>n</c> bytes, and
+        /// <c>raw(n){name:type@offset:encoding,...}</c> for a struct of <c>n</c> bytes, each field at its offset and
+        /// encoded the same way (<c>raw(8){Value:long@0:raw(8)}</c>). Fields, <c>[StructLayout]</c> <c>Pack</c> and
+        /// <c>Size</c>, and explicit offsets of the struct and of every struct inside it are all reflected, whether
+        /// or not those structs are <c>[NinoType]</c>s. <c>raw</c> alone means a size known only at run time (a
+        /// type parameter).
+        /// </para>
         /// </summary>
         public string Members { get; }
 
