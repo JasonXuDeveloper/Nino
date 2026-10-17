@@ -52,7 +52,7 @@ about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 classes in one session, v4 and MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org, running a port of
 the same `SimpleTest` (same data, same attributes) on the same runner directly before the v4 session; it has no
 polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks. These tables come from
-<!--bench:doc.source-->the performance report of [v4.0.0-rc.3](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.3): BenchmarkDotNet 0.15.8, .NET 10.0.13, AMD EPYC 7763 3.10 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
+<!--bench:doc.source-->the performance report of [v4.0.0-rc.4](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.4): BenchmarkDotNet 0.15.8, .NET 10.0.13, INTEL XEON PLATINUM 8573C 3.10 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
 
 Differences under 5% are reported as on par: MemoryPack runs in both sessions, and its two times show how much the
 runner moved. A time under 0.1 ns (a third of a clock cycle) cannot be told apart from an empty method: v4 under it
@@ -64,14 +64,14 @@ not measured there, or v4 is not ahead.
 <!--bench:doc.table.serialize-->
 | Case | v4 | MemoryPack | v3 | v4 vs MemoryPack | v4 vs v3 |
 |---|---:|---:|---:|---:|---:|
-| `SimpleClass` | 107 ns | 386 ns | 181 ns | **3.61× faster** | **1.69× faster** |
-| `SimpleClass[100]` | 12.5 µs | 38.6 µs | 23.6 µs | **3.09× faster** | **1.89× faster** |
-| Polymorphic class | 6.56 µs | 38.1 µs | — | **5.81× faster** | — |
-| Polymorphic class array | 76.7 µs | 348 µs | — | **4.54× faster** | — |
-| Polymorphic `Foo[]` | 6.66 µs | 32.5 µs | — | **4.89× faster** | — |
-| `SimpleStruct` (`int` + `DateTime`) | 4.71 ns | 4.93 ns | 3.51 ns | on par | — |
-| `SimpleStruct[100]` | 18.2 ns | 21.7 ns | 22.7 ns | **1.19× faster** | **1.25× faster** |
-| `Vector4[10000]` | 3.31 µs | 3.29 µs | 3.40 µs | on par | on par |
+| `SimpleClass` | 87.7 ns | 296 ns | 133 ns | **3.38× faster** | **1.51× faster** |
+| `SimpleClass[100]` | 9.97 µs | 31.4 µs | 19.3 µs | **3.15× faster** | **1.94× faster** |
+| Polymorphic class | 6.62 µs | 21.3 µs | — | **3.22× faster** | — |
+| Polymorphic class array | 59.5 µs | 229 µs | — | **3.86× faster** | — |
+| Polymorphic `Foo[]` | 5.69 µs | 21.5 µs | — | **3.78× faster** | — |
+| `SimpleStruct` (`int` + `DateTime`) | 0.82 ns | 2.78 ns | 1.46 ns | **3.39× faster** | **1.78× faster** |
+| `SimpleStruct[100]` | 14.2 ns | 14.6 ns | 13.6 ns | on par | on par |
+| `Vector4[10000]` | 3.90 µs | 3.91 µs | 3.90 µs | on par | on par |
 <!--/bench-->
 
 `SimpleStruct` is declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`: 12 bytes, no padding, so every
@@ -86,14 +86,14 @@ earlier run with the padded struct, that masked copy made `SimpleStruct[100]` se
 <!--bench:doc.table.deserialize-->
 | Case | v4 | MemoryPack | v3 | v4 vs MemoryPack | v4 vs v3 |
 |---|---:|---:|---:|---:|---:|
-| `SimpleClass` | 525 ns | 791 ns | 539 ns | **1.51× faster** | on par |
-| `SimpleClass[100]` | 55.0 µs | 75.5 µs | 63.0 µs | **1.37× faster** | **1.15× faster** |
-| Polymorphic class | 17.0 µs | 29.6 µs | — | **1.75× faster** | — |
-| Polymorphic class array | 259 µs | 387 µs | — | **1.49× faster** | — |
-| Polymorphic `Foo[]` | 15.3 µs | 28.4 µs | — | **1.86× faster** | — |
-| `SimpleStruct` (`int` + `DateTime`) | 0.72 ns | 1.46 ns | 0.77 ns | **2.04× faster** | **1.07× faster** |
-| `SimpleStruct[100]` | 86.9 ns | 98.4 ns | 87.6 ns | **1.13× faster** | on par |
-| `Vector4[10000]` | 123 µs | 119 µs | 125 µs | on par | on par |
+| `SimpleClass` | 444 ns | 577 ns | 474 ns | **1.30× faster** | **1.07× faster** |
+| `SimpleClass[100]` | 45.4 µs | 57.2 µs | 49.7 µs | **1.26× faster** | **1.10× faster** |
+| Polymorphic class | 17.6 µs | 24.9 µs | — | **1.41× faster** | — |
+| Polymorphic class array | 265 µs | 348 µs | — | **1.31× faster** | — |
+| Polymorphic `Foo[]` | 16.7 µs | 24.4 µs | — | **1.46× faster** | — |
+| `SimpleStruct` (`int` + `DateTime`) | 0.39 ns | 0.39 ns | 0.41 ns | on par | **1.06× faster** |
+| `SimpleStruct[100]` | 86.6 ns | 97.6 ns | 86.3 ns | **1.13× faster** | on par |
+| `Vector4[10000]` | 106 µs | 109 µs | 103 µs | on par | on par |
 <!--/bench-->
 
 
@@ -113,10 +113,10 @@ Nino can deserialize into an existing object graph (reuse deserialization) and t
 <!--bench:doc.table.reuse-->
 | Case | Nino new | Nino reusing | MemoryPack new | MemoryPack overwrite | Nino reusing vs overwrite |
 |---|---:|---:|---:|---:|---:|
-| Pooled node | 578 ns | **225 ns** (0 B) | 670 ns | 599 ns (1,024 B) | **2.66× faster** |
-| Pooled leaves, in place | 3.42 µs | **492 ns** (0 B) | 3.87 µs | 5.25 µs (12,800 B) | **10.69× faster** |
-| Pooled leaves, pooled elements | 3.42 µs | **3.09 µs** (856 B) | 3.87 µs | 5.25 µs (12,800 B) | **1.70× faster** |
-| Pooled class | 516 ns | **285 ns** (0 B) | 748 ns | 634 ns (1,080 B) | **2.22× faster** |
+| Pooled node | 536 ns | **185 ns** (0 B) | 548 ns | 427 ns (0 B) | **2.30× faster** |
+| Pooled leaves, in place | 3.29 µs | **468 ns** (0 B) | 3.33 µs | 3.75 µs (12,800 B) | **8.02× faster** |
+| Pooled leaves, pooled elements | 3.29 µs | **2.27 µs** (0 B) | 3.33 µs | 3.75 µs (12,800 B) | **1.65× faster** |
+| Pooled class | 447 ns | **220 ns** (0 B) | 578 ns | 487 ns (1,080 B) | **2.21× faster** |
 <!--/bench-->
 
 The "new" columns allocate the same bytes in both serializers. Reusing is where v4 pulls away: in-place reuse
@@ -134,12 +134,12 @@ and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 10
 <!--bench:doc.table.extra-->
 | Case | Serialize v4 | MemoryPack | v4 vs MemoryPack | Deserialize v4 | MemoryPack | v4 vs MemoryPack |
 |---|---:|---:|---:|---:|---:|---:|
-| Object graph, 200 tracked nodes | 5.63 µs | 30.8 µs | **5.47× faster** | 7.00 µs | 20.9 µs | **2.99× faster** |
-| `TolerantClass` | 130 ns | 507 ns | **3.91× faster** | 484 ns | 757 ns | **1.56× faster** |
-| `TolerantClass[100]` | 12.5 µs | 51.4 µs | **4.12× faster** | 50.1 µs | 81.6 µs | **1.63× faster** |
-| `FixedStruct` | 9.86 ns | 10.5 ns | **1.07× faster** | 0.29 ns | 1.25 ns | **4.32× faster** |
-| `FixedClass` | 11.4 ns | 27.0 ns | **2.36× faster** | 10.3 ns | 26.2 ns | **2.56× faster** |
-| `FixedClass[100]` | 825 ns | 1.92 µs | **2.32× faster** | 1.25 µs | 1.39 µs | **1.11× faster** |
+| Object graph, 200 tracked nodes | 4.47 µs | 23.3 µs | **5.22× faster** | 5.16 µs | 16.5 µs | **3.20× faster** |
+| `TolerantClass` | 85.9 ns | 376 ns | **4.37× faster** | 431 ns | 629 ns | **1.46× faster** |
+| `TolerantClass[100]` | 9.64 µs | 39.2 µs | **4.06× faster** | 46.0 µs | 64.4 µs | **1.40× faster** |
+| `FixedStruct` | 8.98 ns | 13.0 ns | **1.45× faster** | < 0.1 ns | 0.39 ns | **faster** (too fast to measure) |
+| `FixedClass` | 9.93 ns | 18.5 ns | **1.86× faster** | 7.87 ns | 18.6 ns | **2.36× faster** |
+| `FixedClass[100]` | 634 ns | 1.43 µs | **2.26× faster** | 1.04 µs | 1.16 µs | **1.12× faster** |
 <!--/bench-->
 
 Deserializing `FixedStruct` is one 40-byte copy, about a clock cycle in both. Serializing it is an allocation
