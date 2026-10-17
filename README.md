@@ -98,7 +98,7 @@ Order copy = NinoDeserializer.Deserialize<Order>(bytes);
 [NinoType] public sealed class Chat : Message { public string Text; }
 
 byte[] bytes = NinoSerializer.Serialize<Message>(new Chat { Text = "hi" }); // declared as the base: a type id is written
-Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // a Ping or a Chat
+Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // a Chat again: the type id picks the subclass
 ```
 
 Serialize and deserialize through the common `[NinoType]` base (not `object`): generated code dispatches on the type id,

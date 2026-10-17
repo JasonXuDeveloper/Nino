@@ -92,7 +92,7 @@ Order copy = NinoDeserializer.Deserialize<Order>(bytes);
 [NinoType] public sealed class Chat : Message { public string Text; }
 
 byte[] bytes = NinoSerializer.Serialize<Message>(new Chat { Text = "hi" }); // 以基类型声明：写入类型 ID
-Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // 得到 Ping 或 Chat
+Message msg = NinoDeserializer.Deserialize<Message>(bytes);               // 读回来仍是 Chat：由类型 ID 决定子类
 ```
 
 通过共同的 `[NinoType]` 基类型（而不是 `object`）序列化和反序列化：生成代码按类型 ID 分派，复用反序列化和对象池也都能用。
