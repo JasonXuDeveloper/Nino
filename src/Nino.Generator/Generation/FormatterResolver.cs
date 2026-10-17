@@ -99,6 +99,10 @@ internal sealed class FormatterResolver
     public ResolvedFormatter? Resolve(ITypeSymbol type, bool utf8)
     {
         type = type.WithNullableAnnotation(NullableAnnotation.NotAnnotated);
+        // Where the runtime has no numeric IntPtr (netstandard, Unity), nint and nuint are symbols of their own:
+        // resolve them as the IntPtr and UIntPtr they compile to.
+        if (type is INamedTypeSymbol { IsNativeIntegerType: true })
+            type = _compilation.GetSpecialType(type.SpecialType);
         var memo = utf8 ? _utf8 : _plain;
         if (memo.TryGetValue(type, out var formatter))
             return formatter;
