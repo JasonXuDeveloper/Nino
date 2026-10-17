@@ -4,7 +4,7 @@ namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023), features (014-017), pooling
+/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023), features (014-017, 024, 026), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -90,6 +90,10 @@ internal static class NinoDiagnostics
     public static readonly DiagnosticDescriptor FormerNameNotKeyed = Warning("NINO024",
         "[NinoFormerName] on a member has no effect in a positional type",
         "[NinoFormerName] on member '{0}' has no effect: '{1}' is not keyed, so member names are not written; remove it, or give the type NinoFormat.Keyed");
+
+    public static readonly DiagnosticDescriptor MultipleTypeFormerNames = Error("NINO026",
+        "A type takes one [NinoFormerName]",
+        "'{0}' has more than one [NinoFormerName]: a type keeps only one earlier name, which its type id is computed from; remove all but one");
 
     public static readonly DiagnosticDescriptor TrackReferencesOnStruct = Warning("NINO015",
         "trackReferences on a struct", "'{0}' is a struct; trackReferences only applies to classes and is ignored");

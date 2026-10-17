@@ -33,6 +33,7 @@ Severities can be changed per project in `.editorconfig`, e.g. `dotnet_diagnosti
 | [NINO023](#nino023) | Error | A struct serializes no member |
 | [NINO024](#nino024) | Warning | `[NinoFormerName]` on a member of a type that is not keyed |
 | [NINO025](#nino025) | Warning | `[NinoFactory]` on a type created through `[NinoConstructor]` |
+| [NINO026](#nino026) | Error | More than one `[NinoFormerName]` on a type |
 
 Besides these, `NinoSuppressor` hides the compiler's "field is never used / never assigned" (CS0169, CS0414,
 CS0649) and the IDE's "remove unused private member" / "make field readonly" (IDE0051, IDE0052, IDE0044) for
@@ -166,6 +167,12 @@ claims it second. A former name equal to the member's own name is ignored.
 Member-level `[NinoFormerName]` lets keyed types read data written before a member was renamed. Positional and
 version-tolerant types write no member names (members are matched by position), so there it has no effect. Remove
 it, or give the type `format: NinoFormat.Keyed`.
+
+### NINO026
+
+A type's `[NinoFormerName]` gives the earlier name its type id is computed from, so a type takes one. With two, the
+generator would use the first and `NinoTypeId.Of` would throw `AmbiguousMatchException`. Keep the name the type had
+when the data you still read was written. (Members of keyed types take several, one per earlier name.)
 
 ### NINO015
 

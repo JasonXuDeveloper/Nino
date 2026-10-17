@@ -1518,7 +1518,7 @@ public sealed class EmptyClass
 
     #endregion
 
-    #region Features (NINO014-NINO017, NINO024)
+    #region Features (NINO014-NINO017, NINO024, NINO026)
 
     [TestMethod]
     public async Task NINO014_KeyCollision()
@@ -1635,6 +1635,28 @@ public class Keyed
         await SetUpAnalyzerTest(code,
             Verify.Diagnostic("NINO024").WithLocation(0).WithArguments("Health", "Positional"),
             Verify.Diagnostic("NINO024").WithLocation(1).WithArguments("Health", "Tolerant")).RunAsync();
+    }
+
+    [TestMethod]
+    public async Task NINO026_MultipleTypeFormerNames()
+    {
+        // Issue #201: the generator took the first, NinoTypeId.Of threw AmbiguousMatchException.
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoFormerName(""A.Old""), {|#0:NinoFormerName(""B.Old"")|}]
+public partial struct Renamed { public int X; }
+
+[NinoFormerName(""Old.Single"")]
+[NinoType(format: NinoFormat.Keyed)]
+public class Single
+{
+    [NinoFormerName(""Hp""), NinoFormerName(""Life"")] public int Health;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO026").WithLocation(0).WithArguments("Renamed")).RunAsync();
     }
 
     [TestMethod]

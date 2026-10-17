@@ -49,7 +49,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   cycles. All are opt-in per type, so types that don't use them pay nothing.
 - **One format everywhere.** `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` write identical bytes,
   so a Unity client and a .NET server talk to each other directly.
-- **Mistakes caught while you type.** 25 analyzer diagnostics (NINO001–NINO025), many with a one-click fix.
+- **Mistakes caught while you type.** 26 analyzer diagnostics (NINO001–NINO026), many with a one-click fix.
 
 ## Built for
 

@@ -27,6 +27,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         NinoDiagnostics.RedundantMember,
         NinoDiagnostics.RedundantIgnore,
         NinoDiagnostics.FormerNameNotKeyed,
+        NinoDiagnostics.MultipleTypeFormerNames,
         NinoDiagnostics.AmbiguousMember,
         NinoDiagnostics.PrivateMember,
         NinoDiagnostics.DuplicateIndex,
@@ -117,6 +118,13 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 sink.Report(NinoDiagnostics.PoolHooksNotImplemented, type, type.ToDisplayString(),
                     string.Join(" and ", missing.Select(name => name + "()")));
         }
+
+        // Its type id comes from one former name: the generator would take the first, NinoTypeId.Of would throw.
+        var formerNames = type.GetAttributes()
+            .Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, facts.Symbols.FormerName)).ToList();
+        if (formerNames.Count > 1 && formerNames[1].ApplicationSyntaxReference is { } second)
+            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.MultipleTypeFormerNames,
+                Location.Create(second.SyntaxTree, second.Span), type.ToDisplayString()));
 
         foreach (var finding in findings)
             Report(sink, type, finding);
