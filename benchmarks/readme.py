@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Write the benchmark numbers of README.md / README.zh.md and the README chart from BenchmarkDotNet reports.
+"""Write the benchmark numbers of README.md / README.zh.md, the README chart and the runtime tables of
+docs/v4-benchmarks.md from BenchmarkDotNet reports.
 
-usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 report-github.md>]... [--png-html <file>]
+usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 report-github.md>]... [--tag <tag>]
+                                    [--png-html <file>]
 
   --v4        the joined report of src/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
               report.yml produce it
   --v3        a report of benchmarks/v3 (Nino 3.3.13, SimpleTest); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.
+  --tag       the release the reports belong to (report.yml); without it docs/v4-benchmarks.md names a local run
   --png-html  also write the chart wrapped in an HTML page, to render benchmark.png from it (report.yml does
               this with headless Chrome: README.md is packed into the NuGet packages, and nuget.org shows no SVG)
 
-The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->. Everything outside
-the markers (the build-time numbers among it) is written by hand. Ratios follow the docs site (nino.docs
+The README carries each generated number between markers: <!--bench:key-->5.1<!--/bench-->; docs/v4-benchmarks.md
+carries whole tables between such markers. Everything outside the markers (the build-time numbers among it) is
+written by hand. Ratios follow the docs site (nino.docs
 src/lib/benchmarks.ts): within 5% is "on par", and a case where v4 is slower is left out, never shown as slower.
 A time under FLOOR_NS is below what BenchmarkDotNet can tell apart from an empty method: v4 under it against a
 measurable v3 is "faster, too fast to measure" (no ratio: it would only reflect the floor); both under it is on par.
@@ -95,7 +99,7 @@ def environment(env):
     return bdn, runtime, cpu
 
 
-def numbers(v4_path, v3_paths):
+def numbers(v4_path, v3_paths, tag=None):
     env, v4 = parse(v4_path)
 
     def vs_memorypack(verb, key):
@@ -172,7 +176,95 @@ def numbers(v4_path, v3_paths):
                     en.append(f"**{r:.2f}× faster** ({label_en})")
                     zh.append(f"{label_zh}**快 {r:.2f} 倍**")
             out[f"v3.{op}"] = (", ".join(en), "，".join(zh))
+    out.update({f"doc.{k}": v for k, v in tables(v4, v3, env, tag).items()})
     return out, chart
+
+
+def time(ns):
+    """As the docs site writes times: 151 ns, 17.0 µs, 1.23 ms; under FLOOR_NS, "< 0.1 ns"."""
+    if ns < FLOOR_NS:
+        return f"< {FLOOR_NS} ns"
+    for unit, scale in (("ns", 1), ("µs", 1e3), ("ms", 1e6), ("s", 1e9)):
+        if ns < scale * 1e3 or unit == "s":
+            value = ns / scale
+            text = f"{value:,.0f}" if value >= 100 else f"{value:.1f}" if value >= 10 else f"{value:.2f}"
+            return f"{text} {unit}"
+
+
+def versus(other, v4):
+    """A table cell: v4 against another time, by the rules above ("—": v4 is not ahead)."""
+    r = against(other, v4)
+    if r == "unmeasurable":
+        return "**faster** (too fast to measure)"
+    if on_par(r):
+        return "on par"
+    return f"**{r:.2f}× faster**" if r > 1 else "—"
+
+
+SIMPLE_CASES = [("SimpleClass", "`SimpleClass`"), ("SimpleClasses", "`SimpleClass[100]`"),
+                ("PolymorphicClass", "Polymorphic class"), ("PolymorphicClassArray", "Polymorphic class array"),
+                ("PolymorphicFooArray", "Polymorphic `Foo[]`"), ("SimpleStruct", "`SimpleStruct` (`int` + `DateTime`)"),
+                ("SimpleStructs", "`SimpleStruct[100]`"), ("Vectors", "`Vector4[10000]`")]
+REUSE_CASES = [("Pooled node", "NinoNodeNew", "NinoNodePooled", "MemoryPackNodeNew", "MemoryPackNodeOverwrite"),
+               ("Pooled leaves, in place", "NinoLeavesNew", "NinoLeavesInPlace", "MemoryPackLeavesNew",
+                "MemoryPackLeavesOverwrite"),
+               ("Pooled leaves, pooled elements", "NinoLeavesNew", "NinoLeavesPooledElements", "MemoryPackLeavesNew",
+                "MemoryPackLeavesOverwrite"),
+               ("Pooled class", "NinoDeserializeNew", "NinoDeserializePooled", "MemoryPackDeserializeNew",
+                "MemoryPackDeserializeOverwrite")]
+EXTRA_CASES = [("Graph", "Object graph, 200 tracked nodes"), ("TolerantClass", "`TolerantClass`"),
+               ("TolerantClasses", "`TolerantClass[100]`"), ("FixedStruct", "`FixedStruct`"),
+               ("FixedClass", "`FixedClass`"), ("FixedClasses", "`FixedClass[100]`")]
+
+
+def table(head, rows):
+    """A Markdown table on lines of its own between its markers."""
+    return "\n" + "\n".join(["| " + " | ".join(head) + " |", "|---" + "|---:" * (len(head) - 1) + "|"] +
+                      ["| " + " | ".join(r) + " |" for r in rows]) + "\n"
+
+
+def tables(v4, v3, env, tag):
+    """The runtime section of docs/v4-benchmarks.md: one table per marker, and the line saying where they come from."""
+    def mean(method):
+        return v4[method]["mean"] if method in v4 else None
+
+    out = {}
+    for verb in ("Serialize", "Deserialize"):
+        rows = []
+        for key, label in SIMPLE_CASES:
+            nino, mp = mean(f"Nino{verb}{key}"), mean(f"MemoryPack{verb}{key}")
+            if nino is None or mp is None:
+                continue
+            old = v3.get(f"Nino{verb}{key}")
+            rows.append([label, time(nino), time(mp), time(old) if old is not None else "—", versus(mp, nino),
+                         versus(old, nino) if old is not None else "—"])
+        out[f"table.{verb.lower()}"] = table(["Case", "v4", "MemoryPack", "v3", "v4 vs MemoryPack", "v4 vs v3"], rows)
+
+    rows = []
+    for label, new, reuse, mp_new, overwrite in REUSE_CASES:
+        if all(m in v4 for m in (new, reuse, mp_new, overwrite)):
+            rows.append([label, time(mean(new)), f"**{time(mean(reuse))}** ({allocated(v4[reuse])})", time(mean(mp_new)),
+                         f"{time(mean(overwrite))} ({allocated(v4[overwrite])})", versus(mean(overwrite), mean(reuse))])
+    out["table.reuse"] = table(["Case", "Nino new", "Nino reusing", "MemoryPack new", "MemoryPack overwrite",
+                                "Nino reusing vs overwrite"], rows)
+
+    rows = []
+    for key, label in EXTRA_CASES:
+        cells = [label]
+        for verb in ("Serialize", "Deserialize"):
+            nino, mp = mean(f"Nino{verb}{key}"), mean(f"MemoryPack{verb}{key}")
+            cells += [time(nino), time(mp), versus(mp, nino)] if nino is not None and mp is not None else ["—"] * 3
+        if cells[1:] != ["—"] * 6:
+            rows.append(cells)
+    out["table.extra"] = table(["Case", "Serialize v4", "MemoryPack", "v4 vs MemoryPack", "Deserialize v4",
+                                "MemoryPack", "v4 vs MemoryPack"], rows)
+
+    bdn, runtime, cpu = environment(env)
+    source = f"the performance report of [{tag}](https://github.com/JasonXuDeveloper/Nino/releases/tag/{tag})" \
+        if tag else "a local `benchmarks/run.sh` run"
+    out["source"] = (f"{source}: BenchmarkDotNet {bdn}, {runtime}, {cpu}; v3 3.3.13 from NuGet ran "
+                     f"{'directly before v4' if v3 else 'not at all'} on the same machine")
+    return out
 
 
 def svg(chart):
@@ -215,7 +307,7 @@ def fill(path, values, zh):
             value = value[1] if zh else value[0]
         return f"<!--bench:{key}-->{value}<!--/bench-->"
 
-    text = re.sub(r"<!--bench:([\w.]+)-->.*?<!--/bench-->", replace, text)
+    text = re.sub(r"<!--bench:([\w.]+)-->.*?<!--/bench-->", replace, text, flags=re.S)
     path.write_text(text, encoding="utf-8")
     return seen
 
@@ -224,17 +316,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--v4", required=True)
     parser.add_argument("--v3", action="append", default=[])
+    parser.add_argument("--tag")
     parser.add_argument("--png-html")
     args = parser.parse_args()
 
-    values, chart = numbers(args.v4, args.v3)
+    values, chart = numbers(args.v4, args.v3, args.tag)
     image, height = svg(chart)
     (ROOT / "docs/assets/benchmark.svg").write_text(image, encoding="utf-8")
     if args.png_html:
         Path(args.png_html).write_text(
             f'<html><body style="margin:0;background:transparent">{image}</body></html>', encoding="utf-8")
-    for name, zh in (("README.md", False), ("README.zh.md", True)):
-        missing = set(values) - fill(ROOT / name, values, zh)
+    for name, zh in (("README.md", False), ("README.zh.md", True), ("docs/v4-benchmarks.md", False)):
+        keys = {k for k in values if k.startswith("doc.") == (name.startswith("docs/"))}
+        missing = keys - fill(ROOT / name, {k: values[k] for k in keys}, zh)
         if missing:
             print(f"warning: {name} has no marker for {', '.join(sorted(missing))}", file=sys.stderr)
     print(f"chart height {height}")

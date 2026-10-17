@@ -302,8 +302,9 @@ jobs:
         with:
           python-version: '3.12'
 
-      # README.md, README.zh.md and the README chart show the newest v4 release: regenerate their numbers
-      # (benchmarks/readme.py, between the <!--bench:...--> markers) from this run and push them to main.
+      # README.md, README.zh.md, the README chart and the runtime tables of docs/v4-benchmarks.md show the newest v4
+      # release: regenerate them (benchmarks/readme.py, between the <!--bench:...--> markers) from this run and push
+      # them to main.
       - name: Update the README benchmark numbers
         if: steps.check_benchmark.outputs.skip != 'true'
         env:
@@ -334,7 +335,7 @@ jobs:
           git checkout --detach origin/main
 
           if ! python3 benchmarks/readme.py --v4 "$RUNNER_TEMP/v4-report.md" ${V3_ARGS[@]+"${V3_ARGS[@]}"} \
-            --png-html "$RUNNER_TEMP/chart.html"; then
+            --tag "$tag_name" --png-html "$RUNNER_TEMP/chart.html"; then
             echo "::warning::benchmarks/readme.py could not read this run: README left as it is"
             exit 0
           fi
@@ -350,7 +351,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md README.zh.md docs/assets/benchmark.svg docs/assets/benchmark.png
+          git add README.md README.zh.md docs/v4-benchmarks.md docs/assets/benchmark.svg docs/assets/benchmark.png
           if git diff --cached --quiet; then
             echo "⏭️ README numbers unchanged"
             exit 0
