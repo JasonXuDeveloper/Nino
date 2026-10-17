@@ -310,7 +310,7 @@ jobs:
       # The chart crop below needs Pillow; the runner's system Python does not take pip installs.
       - name: Setup Python
         if: steps.check_benchmark.outputs.skip != 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
