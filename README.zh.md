@@ -23,7 +23,7 @@
 
 </div>
 
-| **5.1×** | **8.7×** | **0 GC** | **221×** |
+| **<!--bench:ser.polyarray-->5.1<!--/bench-->×** | **<!--bench:reuse.inplace-->8.7<!--/bench-->×** | **0 GC** | **221×** |
 |:---:|:---:|:---:|:---:|
 | 序列化比 MemoryPack 快<br>（多态数组） | 反序列化到已有对象<br>比 MemoryPack 覆盖写入快 | 序列化到缓冲区、复用池化对象反序列化<br>零 GC 分配 | 编译比 v3 快<br>（1,100 个类型：462 秒 → 2.1 秒） |
 
@@ -31,13 +31,13 @@
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
 </p>
 
-<sub>BenchmarkDotNet 0.15.2，.NET 10.0.13，服务器 GC，Intel Xeon 2.10 GHz；Nino v4 与 MemoryPack 1.21.4 在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上紧接其前后各跑一次。数据大小基本一致（`SimpleClass`：v4 1,150 字节，v3 1,152 字节，MemoryPack 1,148 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)；每个版本的发布说明里有该版本的实测数据。</sub>
+<sub>BenchmarkDotNet <!--bench:env.bdn-->0.15.2<!--/bench-->，<!--bench:env.runtime-->.NET 10.0.13<!--/bench-->，服务器 GC，<!--bench:env.cpu-->Intel Xeon 2.10 GHz<!--/bench-->；Nino v4 与 MemoryPack 1.21.4 在同一次运行中测得，NuGet 上的 Nino 3.3.13 在同一台机器上紧接其前后各跑一次。数据大小基本一致（`SimpleClass`：v4 <!--bench:payload.v4-->1,150<!--/bench--> 字节，v3 1,152 字节，MemoryPack <!--bench:payload.memorypack-->1,148<!--/bench--> 字节）。全部用例与测试方法见 [docs/v4-benchmarks.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-benchmarks.md)；每个版本的发布说明里有该版本的实测数据。</sub>
 
 ## 为什么选 Nino
 
-- **比 MemoryPack 更快。** 类和多态类型的序列化快 3.2–5.1 倍，反序列化快 1.3–1.5 倍；原始结构体数组两者都是整块拷贝，性能持平。
+- **比 MemoryPack 更快。** 类和多态类型的序列化快 <!--bench:ser.range-->3.2–5.1<!--/bench--> 倍，反序列化快 <!--bench:deser.range-->1.3–1.5<!--/bench--> 倍；原始结构体数组两者都是整块拷贝，性能持平。
 - **零分配。** 序列化到缓冲区（`IBufferWriter<byte>`）不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配（内容不变的字符串直接保留），
-  比 MemoryPack 的覆盖写入最多快 8.7 倍。
+  比 MemoryPack 的覆盖写入最多快 <!--bench:reuse.inplace-->8.7<!--/bench--> 倍。
 - **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
   因此 IL2CPP、NativeAOT 和 HybridCLR 热更都能直接用。使用 .NET 8 及以上 SDK 时，调用会被拦截到确切的格式化器，没有虚调用。
 - **编译快。** 生成器是真正增量的：每个类型一个文件，只重新生成你改动的类型。相比 v3，生成代码小 14 倍，编译快 51 倍（330 个类型）到 221 倍（1,100 个类型）。
@@ -138,10 +138,10 @@ public class Node { public string Name; public List<Node> Links; }
 
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
-| 序列化类和多态类型 | **快 3.2–5.1 倍** | |
-| 反序列化类和多态类型 | **快 1.3–1.5 倍** | |
+| 序列化类和多态类型 | **快 <!--bench:ser.range-->3.2–5.1<!--/bench--> 倍** | |
+| 反序列化类和多态类型 | **快 <!--bench:deser.range-->1.3–1.5<!--/bench--> 倍** | |
 | 原始结构体数组 | 持平（两者都是整块拷贝）；v4 会清零填充字节，热点结构体建议声明为无填充 | 原样复制填充字节 |
-| 反序列化到已有对象 | **0 B，最多快 8.7 倍**（原地复用） | 覆盖写入，有分配 |
+| 反序列化到已有对象 | **0 B，最多快 <!--bench:reuse.inplace-->8.7<!--/bench--> 倍**（原地复用） | 覆盖写入，有分配 |
 | 多态 | 自动类型 ID | 需要维护 `[MemoryPackUnion]` 标签 |
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
 | Unity | 2022.3+，`netstandard2.0` 和 `2.1`，HybridCLR | `netstandard2.1` |
@@ -159,8 +159,8 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 
 | v4 对比 v3（3.3.13） | |
 |---|---|
-| 序列化 | 类**快 1.54 倍**，类数组**快 2.05 倍**，结构体数组**快 1.29 倍** |
-| 反序列化 | 类**快 1.15 倍**，类数组**快 1.12 倍**，原始数组持平，同时多了引用追踪、复用反序列化和数据校验 |
+| 序列化 | <!--bench:v3.ser-->类**快 1.54 倍**，类数组**快 2.05 倍**，结构体数组**快 1.29 倍**<!--/bench--> |
+| 反序列化 | <!--bench:v3.deser-->类**快 1.15 倍**，类数组**快 1.12 倍**，结构体数组持平<!--/bench-->，同时多了引用追踪、复用反序列化和数据校验 |
 | 编译生成代码 | 330 个类型**快 51 倍**（42.9 秒 → 0.84 秒），1,100 个类型**快 221 倍**（462 秒 → 2.1 秒） |
 | 运行生成器 | **快 3.1 倍**；改动后只重新生成该类型（**快 8.3 倍**） |
 | 生成代码 | 源码**小 14 倍**，IL **小 5 倍** |

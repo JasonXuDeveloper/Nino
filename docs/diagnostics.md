@@ -203,7 +203,7 @@ Empty bodies are fine. 🔧 Implement pool hooks (adds empty bodies for the miss
 ### NINO020
 
 An `[assembly: NinoFormatter(typeof(F))]` registration Nino cannot use, so it is ignored. `F` must be a struct
-(not nested in a generic type) implementing `INinoFormatter<P>` exactly once, passed as an open generic definition
-(`typeof(F<,>)`). Every type parameter of `F` must be inferable: it occurs in `P`, in a type constraint of an
+(not nested in a generic type) implementing `INinoFormatter<P>` exactly once, passed as itself (`typeof(F)`) or, if
+it is generic, as its open generic definition (`typeof(F<,>)`). Every type parameter of `F` must be inferable: it occurs in `P`, in a type constraint of an
 inferable parameter (`where TList : List<T>`), or is constrained to `INinoFormatter<E>` for an inferable `E`.
 `targets` only apply when `P` is a bare type parameter.

@@ -30,6 +30,19 @@ before and after the v4 suite in the same job on the same runner with the same s
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag
 adds whichever section is missing.
 
+The README numbers and chart (`docs/assets/benchmark.svg` and `.png`) follow the newest v4 release too: for that
+release, `report.yml` runs [`readme.py`](readme.py) on its reports, which rewrites every number between the
+`<!--bench:...-->` markers of `README.md` and `README.zh.md` and the chart, then pushes them to `main`. After a full
+local run, the same script updates them from your reports (it writes the SVG; render the PNG from `--png-html`):
+
+```sh
+python3 benchmarks/readme.py --v4 out/v4/results/*-joined-*-report-github.md \
+  --v3 out/v3a/results/*-report-github.md --v3 out/v3b/results/*-report-github.md --png-html chart.html
+```
+
+Within 5% is written as "on par", and a case where v4 is slower than v3 is left out of the README's v3 sentence.
+Build-time numbers and everything outside the markers are edited by hand.
+
 ## Benchmark Classes
 
 `src/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with

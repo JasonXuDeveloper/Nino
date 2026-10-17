@@ -307,6 +307,78 @@ jobs:
           gh release edit "$TAG_NAME" --notes-file updated_notes.md
           echo "✅ Release notes updated with benchmark results"
       
+      # The chart crop below needs Pillow; the runner's system Python does not take pip installs.
+      - name: Setup Python
+        if: steps.check_benchmark.outputs.skip != 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # README.md, README.zh.md and the README chart show the newest v4 release: regenerate their numbers
+      # (benchmarks/readme.py, between the <!--bench:...--> markers) from this run and push them to main.
+      - name: Update the README benchmark numbers
+        if: steps.check_benchmark.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          LATEST=$(gh release list --limit 50 --json tagName,publishedAt \
+            --jq '[.[] | select(.tagName | startswith("v4."))] | sort_by(.publishedAt) | last | .tagName')
+          if [[ "$tag_name" != "$LATEST" ]]; then
+            echo "⏭️ $tag_name is not the newest v4 release ($LATEST): README left as it is"
+            exit 0
+          fi
+
+          # This run's reports, then main's README and script
+          REPORT=$(find src/Nino.Benchmark -path "*/BenchmarkDotNet.Artifacts/results/*-joined-*-report-github.md" | head -n1)
+          if [[ -z "$REPORT" ]]; then
+            echo "::warning::No joined benchmark report: README left as it is"
+            exit 0
+          fi
+          cp "$REPORT" "$RUNNER_TEMP/v4-report.md"
+          V3_ARGS=()
+          for RUN in before after; do
+            V3_REPORT=$(find "$V3_OUT/$RUN/results" -name '*-report-github.md' 2>/dev/null | head -n1 || true)
+            if [[ -n "$V3_REPORT" ]]; then
+              cp "$V3_REPORT" "$RUNNER_TEMP/v3-$RUN.md"
+              V3_ARGS+=(--v3 "$RUNNER_TEMP/v3-$RUN.md")
+            fi
+          done
+          git fetch origin main
+          git checkout --detach origin/main
+
+          if ! python3 benchmarks/readme.py --v4 "$RUNNER_TEMP/v4-report.md" ${V3_ARGS[@]+"${V3_ARGS[@]}"} \
+            --png-html "$RUNNER_TEMP/chart.html"; then
+            echo "::warning::benchmarks/readme.py could not read this run: README left as it is"
+            exit 0
+          fi
+          # README.md goes into the NuGet packages, and nuget.org shows no SVG: render the PNG with Chrome.
+          # Headless Chrome paints less than its window, so it gets a taller window and the image is cropped.
+          HEIGHT=$(grep -oE 'viewBox="0 0 820 [0-9]+"' docs/assets/benchmark.svg | grep -oE '[0-9]+"$' | tr -d '"')
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+            --default-background-color=00000000 --window-size=820,$((HEIGHT + 300)) \
+            --screenshot="$RUNNER_TEMP/chart.png" "file://$RUNNER_TEMP/chart.html"
+          python3 -m pip install --quiet pillow
+          python3 -c 'import sys; from PIL import Image; Image.open(sys.argv[1]).crop((0, 0, 1640, 2 * int(sys.argv[2]))).save(sys.argv[3])' \
+            "$RUNNER_TEMP/chart.png" "$HEIGHT" docs/assets/benchmark.png
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md README.zh.md docs/assets/benchmark.svg docs/assets/benchmark.png
+          if git diff --cached --quiet; then
+            echo "⏭️ README numbers unchanged"
+            exit 0
+          fi
+          git commit -m "Update README benchmark numbers for $tag_name"
+          for _ in 1 2 3; do
+            if git push origin HEAD:main; then
+              echo "✅ README benchmark numbers updated"
+              exit 0
+            fi
+            git pull --rebase origin main
+          done
+          echo "::warning::Could not push the README update to main"
+
       # The docs site reads the "Performance Report" and v3 sections of the latest v4 release at build time: rebuild it.
       - name: Rebuild the docs site
         if: steps.check_benchmark.outputs.skip != 'true'
