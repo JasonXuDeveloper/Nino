@@ -19,6 +19,6 @@
 
 
     <ItemGroup>
-      <PackageReference Include="UniTask" Version="2.5.10" />
+      <PackageReference Include="UniTask" Version="2.5.11" />
     </ItemGroup>
 </Project>

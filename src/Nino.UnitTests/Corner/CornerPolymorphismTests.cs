@@ -372,9 +372,9 @@ namespace Nino.UnitTests.Corner
             // An unmarked subtype does not inherit the attribute: the runtime rejects it through the base too,
             // rather than silently writing it as the base.
             var unmarked = new UnmarkedSubOfNoInheritance { A = 1, C = 3 };
-            var ex = Assert.ThrowsException<InvalidOperationException>(() => NinoSerializer.Serialize<NoInheritance>(unmarked));
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => NinoSerializer.Serialize<NoInheritance>(unmarked));
             StringAssert.Contains(ex.Message, nameof(UnmarkedSubOfNoInheritance));
-            Assert.ThrowsException<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<InvalidOperationException>(() =>
                 NinoSerializer.Serialize(new List<NoInheritance> { new NoInheritance(), unmarked }));
 
             Assert.AreEqual(5, Rt.RoundTrip(new NoInheritance { A = 5 }).A);
@@ -403,12 +403,12 @@ namespace Nino.UnitTests.Corner
         {
             var bytes = NinoSerializer.Serialize<AbstractShape>(new SquareShape { Side = 1 });
             BitConverter.GetBytes(NinoTypeId.Compute("No.Such.Type")).CopyTo(bytes, 0);
-            var ex = Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
+            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
             StringAssert.Contains(ex.Message, "type id");
 
             // An id of a real but unrelated type.
             BitConverter.GetBytes(NinoTypeId.Of(typeof(PlayerEntity))).CopyTo(bytes, 0);
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
         }
 
         [TestMethod]
@@ -417,12 +417,12 @@ namespace Nino.UnitTests.Corner
             // Crafted data naming the abstract base or the interface itself: nothing can be created.
             var bytes = NinoSerializer.Serialize<AbstractShape>(new SquareShape { Side = 1 });
             BitConverter.GetBytes(NinoTypeId.Of(typeof(AbstractShape))).CopyTo(bytes, 0);
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
 
             var entity = NinoSerializer.Serialize<IEntity>(new PlayerEntity { Uid = 1 });
             BitConverter.GetBytes(NinoTypeId.Of(typeof(IEntity))).CopyTo(entity, 0);
-            Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<IEntity>(entity));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<IEntity>(entity));
         }
 
         [TestMethod]

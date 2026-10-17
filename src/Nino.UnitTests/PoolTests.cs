@@ -111,7 +111,7 @@ public class PoolTests
     {
         var packet = NinoDeserializer.Deserialize<PooledPacket>(Packet(1));
         packet.ReturnToPool();
-        Assert.ThrowsException<InvalidOperationException>(() => packet.ReturnToPool());
+        Assert.ThrowsExactly<InvalidOperationException>(() => packet.ReturnToPool());
 
         // Once rented again it can be returned again.
         var again = NinoDeserializer.Deserialize<PooledPacket>(Packet(2));
@@ -211,8 +211,8 @@ public class PoolTests
     [TestMethod]
     public void SettingsRejectNegativePoolSizes()
     {
-        Assert.ThrowsException<ArgumentOutOfRangeException>(() => NinoSettings.DefaultPoolMaxRetained = -1);
-        Assert.ThrowsException<ArgumentOutOfRangeException>(() => NinoSettings.SetPoolMaxRetained<PooledChild>(-1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => NinoSettings.DefaultPoolMaxRetained = -1);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => NinoSettings.SetPoolMaxRetained<PooledChild>(-1));
         Assert.AreEqual(256, NinoSettings.DefaultPoolMaxRetained);
         Assert.AreEqual(256, NinoPool<PooledChild>.Shared.MaxRetained);
     }

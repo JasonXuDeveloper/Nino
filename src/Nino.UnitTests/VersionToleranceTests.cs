@@ -48,7 +48,7 @@ public class VersionToleranceTests
         Assert.AreEqual(default, result.NewField2);
 #else
         //should throw out of range exception
-        Assert.ThrowsException<ArgumentOutOfRangeException>(() =>
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
         {
             var _ = NinoDeserializer.Deserialize<SaveData>(oldData);
         });

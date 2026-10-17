@@ -120,7 +120,7 @@ public class TopLevelFastPathTests
         var reused = new int?[] { 9, 9, 9 };
         NinoDeserializer.Deserialize(bytes, ref reused);
         CollectionAssert.AreEqual(values, reused);
-        Assert.ThrowsException<System.InvalidOperationException>(() =>
+        Assert.ThrowsExactly<System.InvalidOperationException>(() =>
             NinoDeserializer.Deserialize<int?[]>(bytes.AsSpan(0, bytes.Length - 1).ToArray()));
         var dates = new System.DateTime?[] { null, System.DateTime.UtcNow };
         CollectionAssert.AreEqual(dates, NinoDeserializer.Deserialize<System.DateTime?[]>(NinoSerializer.Serialize(dates)));

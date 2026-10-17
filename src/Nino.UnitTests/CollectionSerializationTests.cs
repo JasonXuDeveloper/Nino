@@ -456,10 +456,10 @@ public class CollectionSerializationTests
         Assert.IsTrue(NinoDeserializer.Deserialize<ISet<string>>(NinoSerializer.Serialize(strings)).SetEquals(strings));
 
         var repeated = NinoSerializer.Serialize(new List<int> { 7, 7 });
-        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<HashSet<int>>(repeated));
-        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<ISet<int>>(repeated));
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<HashSet<int>>(repeated));
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ISet<int>>(repeated));
         repeated = NinoSerializer.Serialize(new List<string> { "s", "s" });
-        Assert.ThrowsException<InvalidOperationException>(() => NinoDeserializer.Deserialize<ISet<string>>(repeated));
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ISet<string>>(repeated));
 
         // An existing set is refilled in place.
         ISet<int> target = new HashSet<int> { 9 };
