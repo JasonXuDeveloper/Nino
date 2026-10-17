@@ -95,7 +95,7 @@ jobs:
           ${{ matrix.coverage && '--collect:"XPlat Code Coverage"' || '' }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-${{ strategy.job-index }}
@@ -198,7 +198,7 @@ jobs:
           unityVersion: '2022.3.51f1'
 
       - name: Upload Unity results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results-unity
@@ -216,7 +216,7 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Merge test results
-        uses: actions/upload-artifact/merge@v4
+        uses: actions/upload-artifact/merge@v7
         if: always()
         continue-on-error: true
         with:
@@ -296,7 +296,7 @@ jobs:
           fi
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: benchmark-results-pr-${{ github.event.pull_request.number }}
