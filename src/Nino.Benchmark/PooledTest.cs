@@ -44,7 +44,7 @@ public sealed partial class PooledSimpleClass
 
 [HideColumns("StdDev", "RatioSD", "Error")]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
-[ShortRunJob(RuntimeMoniker.Net10_0)]
+[NinoJob]
 [GcServer(true)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]

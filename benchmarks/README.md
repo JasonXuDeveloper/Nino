@@ -5,9 +5,16 @@
 release, so v4 can be compared with v3 on the same machine. It is not part of `src/Nino.sln`.
 
 ```sh
-benchmarks/run.sh                 # v3, then the full v4 suite, then v3 again; about 40 minutes
-benchmarks/run.sh /path/to/out    # write the results somewhere else
+benchmarks/run.sh                          # v3, then the full v4 suite, then v3 again; about 50 minutes
+benchmarks/run.sh /path/to/out             # write the results somewhere else
+QUICK=1 benchmarks/run.sh                  # development run, about 15 to 20 minutes (see below)
+FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest)
 ```
+
+`QUICK=1` is for trends and regressions while developing: it sets `NINO_BENCH_QUICK=1`, which switches every class's
+`[NinoJob]` from the published job to 250 ms iterations, 3 warm-up iterations and 6 to 10 measured ones that stop once
+the error is within 2% of the mean, and it runs v3 only once. Do not publish its numbers: the README, the docs site
+and the release notes use the full protocol, which is what supports "x× faster" and "on par" (within 5%).
 
 Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case for both v3 runs; the BenchmarkDotNet
 reports are in `<out>/v3a`, `<out>/v4` and `<out>/v3b`. `dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll

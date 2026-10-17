@@ -19,7 +19,7 @@ namespace Nino.Benchmark;
 [HideColumns("StdDev", "RatioSD", "Error")]
 [MinColumn, MaxColumn]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
-[ShortRunJob(RuntimeMoniker.Net10_0)]
+[NinoJob]
 [GcServer(true)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]

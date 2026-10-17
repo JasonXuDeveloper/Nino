@@ -4,12 +4,28 @@
 # averages out, and the two v3 runs show how much the machine moved.
 #
 # usage: benchmarks/run.sh [output directory]   (default: benchmarks/results)
+#   QUICK=1     development run: shorter iterations that stop at 2% error (NINO_BENCH_QUICK, see
+#               src/Nino.Benchmark/Program.cs) and v3 only once. For trends and regressions, not for publishing.
+#   FILTER=...  the v4 benchmarks to run, as BenchmarkDotNet's --filter (default '*', e.g. '*PooledTest*').
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/benchmarks/results}
 V3=$ROOT/benchmarks/v3
 V4=$ROOT/src/Nino.Benchmark
-ARGS=(--launchCount 1 --warmupCount 5 --iterationCount 15)
+FILTER=${FILTER:-*}
+if [[ "${QUICK:-0}" == 1 ]]; then
+  export NINO_BENCH_QUICK=1
+  ARGS=()
+  V3_RUNS=(v3a)
+else
+  ARGS=(--launchCount 1 --warmupCount 5 --iterationCount 15)
+  V3_RUNS=(v3a v3b)
+fi
+
+v3() {
+  (cd "$V3" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' ${ARGS[@]+"${ARGS[@]}"} \
+    --artifacts "$OUT/$1" > "$OUT/$1.log")
+}
 
 mkdir -p "$OUT"
 dotnet build -c Release "$V3" > "$OUT/build_v3.log"
@@ -18,15 +34,18 @@ git -C "$ROOT" rev-parse HEAD > "$OUT/v4-commit.txt"
 dotnet "$V3/bin/Release/net10.0/Nino.Benchmark.dll" --verify | tee "$OUT/verify_v3.txt"
 
 echo "v3 (before) $(date)"
-(cd "$V3" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' "${ARGS[@]}" --artifacts "$OUT/v3a" > "$OUT/v3a.log")
+v3 v3a
 echo "v4 $(date)"
-(cd "$V4" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*' "${ARGS[@]}" --artifacts "$OUT/v4" > "$OUT/v4.log")
-echo "v3 (after) $(date)"
-(cd "$V3" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' "${ARGS[@]}" --artifacts "$OUT/v3b" > "$OUT/v3b.log")
+(cd "$V4" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "$FILTER" ${ARGS[@]+"${ARGS[@]}"} \
+  --artifacts "$OUT/v4" > "$OUT/v4.log")
+if [[ ${#V3_RUNS[@]} -gt 1 ]]; then
+  echo "v3 (after) $(date)"
+  v3 v3b
+fi
 echo "done $(date)"
 
 V4_REPORT=$(ls "$OUT"/v4/results/*-report-github.md | head -n1)
-for run in v3a v3b; do
+for run in "${V3_RUNS[@]}"; do
   echo "== $run vs v4"
   python3 "$V3/compare.py" "$OUT/$run/results/Nino.Benchmark.SimpleTest-report-github.md" "$V4_REPORT"
 done

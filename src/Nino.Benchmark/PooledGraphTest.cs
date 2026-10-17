@@ -82,7 +82,7 @@ public sealed partial class PooledNode
 /// </summary>
 [HideColumns("StdDev", "RatioSD", "Error")]
 [GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory)]
-[ShortRunJob(RuntimeMoniker.Net10_0)]
+[NinoJob]
 [GcServer(true)]
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]
