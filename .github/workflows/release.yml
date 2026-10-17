@@ -76,7 +76,7 @@ jobs:
           grep -q "AssemblyVersion(\"$BASE\")" src/Version.cs
           grep -q "\"version\": \"$UNITY_VERSION\"" "$UNITY_PACKAGE/package.json"
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             10.0.x
@@ -125,7 +125,7 @@ jobs:
         with:
           ref: v${{ inputs.version }}
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             10.0.x

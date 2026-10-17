@@ -86,7 +86,7 @@ jobs:
       
       - name: Setup .NET
         if: steps.check_benchmark.outputs.skip != 'true'
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
