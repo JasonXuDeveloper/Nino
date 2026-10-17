@@ -132,7 +132,9 @@ jobs:
         working-directory: ./benchmarks/v3
         run: |
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
-          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' $BDN_ARGS --artifacts "$V3_OUT"
+          # Nino and MemoryPack only: nothing reads v3's MessagePack rows, and they were a third of this step.
+          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest.Nino*' '*SimpleTest.MemoryPack*' $BDN_ARGS \
+            --artifacts "$V3_OUT"
           find "$V3_OUT/results" -name '*-report-github.md' | grep -q .
 
       - name: Run benchmarks
@@ -249,7 +251,7 @@ jobs:
               echo "<summary>Nino v3 3.3.13 (NuGet) against ${TAG_NAME}, back to back on the same runner</summary>"
               echo ""
               # Never write the words "Performance Report" here: parsers find the v4 report by them.
-              echo "\`benchmarks/v3\` (the same \`SimpleTest\`, built against Nino 3.3.13 from nuget.org) ran directly before the v4"
+              echo "\`benchmarks/v3\` (the Nino and MemoryPack cases of the same \`SimpleTest\`, built against Nino 3.3.13 from nuget.org) ran directly before the v4"
               echo "run below, in the same job on the same runner, with the same BenchmarkDotNet settings"
               echo "(\`${BDN_ARGS}\`). MemoryPack runs in both, so its two columns show how much the runner moved."
               echo ""

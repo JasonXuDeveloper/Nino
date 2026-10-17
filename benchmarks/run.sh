@@ -26,7 +26,8 @@ git -C "$ROOT" rev-parse HEAD > "$OUT/v4-commit.txt"
 dotnet "$V3/bin/Release/net10.0/Nino.Benchmark.dll" --verify | tee "$OUT/verify_v3.txt"
 
 echo "v3 $(date)"
-(cd "$V3" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest*' ${ARGS[@]+"${ARGS[@]}"} \
+(cd "$V3" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest.Nino*' '*SimpleTest.MemoryPack*' \
+  ${ARGS[@]+"${ARGS[@]}"} \
   --artifacts "$OUT/v3" > "$OUT/v3.log")
 echo "v4 $(date)"
 (cd "$V4" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "$FILTER" ${ARGS[@]+"${ARGS[@]}"} \

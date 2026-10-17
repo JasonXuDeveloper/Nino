@@ -5,10 +5,10 @@
 release, so v4 can be compared with v3 on the same machine. It is not part of `src/Nino.sln`.
 
 ```sh
-benchmarks/run.sh                          # v3, then the full v4 suite; about 40 minutes
+benchmarks/run.sh                          # v3, then the full v4 suite; about 35 minutes
 benchmarks/run.sh /path/to/out             # write the results somewhere else
 QUICK=1 benchmarks/run.sh                  # development run, about 15 to 20 minutes (see below)
-FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest)
+FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest's Nino and MemoryPack cases)
 ```
 
 `QUICK=1` is for trends and regressions while developing: it sets `NINO_BENCH_QUICK=1`, which switches every class's
