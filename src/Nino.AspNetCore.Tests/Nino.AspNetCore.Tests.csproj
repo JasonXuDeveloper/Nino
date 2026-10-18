@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <IsPackable>false</IsPackable>
+        <OutputType>Library</OutputType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0"/>
+        <PackageReference Include="MSTest.TestAdapter" Version="4.5.1"/>
+        <PackageReference Include="MSTest.TestFramework" Version="4.5.1"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="8.0.32"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+        <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.13"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
+        <ProjectReference Include="..\Nino.AspNetCore\Nino.AspNetCore.csproj"/>
+        <ProjectReference Include="..\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <Import Project="..\Nino.Generator\build\Nino.Generator.props"/>
+</Project>

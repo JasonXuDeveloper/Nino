@@ -233,6 +233,33 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// Whether Nino can serialize and deserialize values of <paramref name="type"/>: a <c>[NinoType]</c>, a
+        /// built-in type, or a type with a registered formatter. For integrations that only have a
+        /// <see cref="Type"/> and must decide whether to handle it (an ASP.NET Core formatter, for example).
+        /// </summary>
+        public static bool IsSupported(Type type)
+        {
+            if (type == null)
+                throw new ArgumentNullException(nameof(type));
+            if (type.ContainsGenericParameters || type.IsByRef || type.IsPointer)
+                return false;
+            try
+            {
+                return BoxedFormatter.Get(type).HasFormatter;
+            }
+            catch (InvalidOperationException)
+            {
+                // Native AOT without a generated formatter for the type.
+                return false;
+            }
+            catch (ArgumentException)
+            {
+                // Not a valid type argument (a ref struct or void).
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Serializes a boxed value as <paramref name="type"/>, exactly as <c>Serialize&lt;T&gt;</c> with
         /// <c>T</c> = <paramref name="type"/> would (null included, for a type that can be null). Read it back with
         /// <see cref="NinoDeserializer.DeserializeBoxed(ReadOnlySpan{byte}, Type)"/> and the same type.

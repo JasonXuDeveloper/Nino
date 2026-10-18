@@ -46,6 +46,9 @@ namespace Nino.Core
         private static BoxedFormatter CreateDynamic(Type type) =>
             (BoxedFormatter)Activator.CreateInstance(typeof(BoxedFormatter<>).MakeGenericType(type));
 
+        /// <summary>Whether the type has a formatter (resolving one on first use).</summary>
+        public abstract bool HasFormatter { get; }
+
         public abstract byte[] Serialize(object value);
         public abstract void Serialize(object value, IBufferWriter<byte> bufferWriter);
         public abstract void Serialize(object value, ref Writer writer);
@@ -54,6 +57,8 @@ namespace Nino.Core
 
     internal sealed class BoxedFormatter<T> : BoxedFormatter
     {
+        public override bool HasFormatter => NinoTopFormatter<T>.Formatter != null;
+
         public override byte[] Serialize(object value) => NinoSerializer.Serialize((T)value);
 
         public override void Serialize(object value, IBufferWriter<byte> bufferWriter) =>

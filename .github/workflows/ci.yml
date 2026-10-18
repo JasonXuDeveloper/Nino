@@ -122,6 +122,13 @@ jobs:
           ${{ matrix.properties }} --logger trx --results-directory ./TestResults
           ${{ matrix.coverage && '--collect:"XPlat Code Coverage"' || '' }}
 
+      # The ASP.NET Core integration, on both of its frameworks (the solution build compiled them).
+      - name: Test integrations
+        if: ${{ matrix.project == '' }}
+        run: >
+          dotnet test Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
+          --logger trx --results-directory ./TestResults
+
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: always()
