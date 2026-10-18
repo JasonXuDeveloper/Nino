@@ -139,6 +139,28 @@ namespace Nino.Core
         void WriteFixed(T value, ref byte destination);
     }
 
+    /// <summary>
+    /// Formatters whose values take <see cref="BlockSize"/> bytes each when it is not -1 (a JIT-time constant: value
+    /// tuples and pairs of raw items). A collection of them reserves or bounds-checks its whole block once and writes
+    /// or reads each value at its position with no check of its own (<see cref="NinoBlock"/>).
+    /// </summary>
+    internal interface INinoBlockFormatter<T>
+    {
+        int BlockSize { get; }
+
+        /// <summary>
+        /// Where the items are, as (memory offset, block offset, size) triples, or null when an item has padding.
+        /// Called once.
+        /// </summary>
+        int[] BlockMap();
+
+        /// <summary>Writes <paramref name="value"/> into the <see cref="BlockSize"/> bytes at <paramref name="destination"/>.</summary>
+        void WriteBlock(ref byte destination, in T value);
+
+        /// <summary>Reads the value in the <see cref="BlockSize"/> bytes at <paramref name="source"/>.</summary>
+        void ReadBlock(ref byte source, ref T value);
+    }
+
     /// <summary>The formatter of a type, for code that only has a <see cref="Type"/>.</summary>
     internal abstract class NinoFormatter
     {

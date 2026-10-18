@@ -39,7 +39,18 @@ namespace Nino.Core
 
             var list = value;
             if (list == null)
+            {
+                // Fixed-size values are each read in full: a new list's backing array need not be cleared first.
+                if (NinoBlock.Size<T, TFormatter>() > 0)
+                {
+                    value = list = ListAccess.CreateOverwritten<TList, T>(length);
+                    NinoElements.Read<T, TFormatter>(ListAccess.AsSpan<T>(list), ref reader);
+                    return;
+                }
+
                 value = list = ListAccess.Create<TList, T>(length);
+            }
+
             // The dropped tail (a factory may hand out a pooled list that is not empty: treated the same way).
             if (list.Count > length)
                 NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length));

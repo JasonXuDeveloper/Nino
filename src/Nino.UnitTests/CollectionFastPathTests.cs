@@ -340,4 +340,37 @@ public class CollectionFastPathTests
         Assert.IsTrue(NinoDeserializer.Deserialize<ImmutableArray<int>>(NinoSerializer.Serialize(default(ImmutableArray<int>))).IsDefault);
         Assert.IsNull(NinoDeserializer.Deserialize<ImmutableList<int>>(NinoSerializer.Serialize((ImmutableList<int>)null)));
     }
+
+    private static void BlocksRoundTrip<T>(Func<int, T> make)
+    {
+        // Every length around the vector widths (16 and 64 bytes): the bytes are each value's own, after the count.
+        foreach (int n in Enumerable.Range(0, 70).Concat(new[] { 100, 1000 }))
+        {
+            var values = Enumerable.Range(0, n).Select(make).ToArray();
+            var expected = BitConverter.GetBytes(n).Concat(values.SelectMany(v => NinoSerializer.Serialize(v))).ToArray();
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values.ToList()));
+            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<T[]>(expected));
+            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<List<T>>(expected));
+            var reused = Enumerable.Repeat(make(7), n + 3).ToList();
+            NinoDeserializer.Deserialize(expected, ref reused);
+            CollectionAssert.AreEqual(values, reused);
+        }
+    }
+
+    [TestMethod]
+    public void TuplesAndPairsOfRawItemsAsBlocks()
+    {
+        // Copied as memory when it is the block ((int, int)), moved by byte shuffles when the runtime reorders or pads
+        // the items ((int, long) is a long, then an int and 4 padding bytes), or one at a time (over 16 bytes).
+        BlocksRoundTrip(i => (i, i * 3));
+        BlocksRoundTrip(i => (i, -7L * i));
+        BlocksRoundTrip(i => ((byte)i, i * 11, (short)-i));
+        BlocksRoundTrip(i => (long.MaxValue - i, i * 5L, i));
+        BlocksRoundTrip(i => (i % 2 == 0, (double)i / 3));
+        BlocksRoundTrip(i => new KeyValuePair<int, int>(i, -i));
+        BlocksRoundTrip(i => new KeyValuePair<int, long>(i, i * 1000L));
+        BlocksRoundTrip(i => new KeyValuePair<long, byte>(i * 3L, (byte)i));
+        BlocksRoundTrip(i => (i, i % 3 == 0 ? null : "t" + i));
+    }
 }

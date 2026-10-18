@@ -70,7 +70,7 @@ namespace Nino.CodeGen
         {
             string type = $"ValueTuple<{List(arity, "T{0}")}>";
             sb.Append($"    /// <summary><c>ValueTuple&lt;{List(arity, "T{0}")}&gt;</c>: the items in order.</summary>\n");
-            sb.Append($"    public struct ValueTupleFormatter<{TypeParameters(arity)}> : INinoFormatter<{type}>\n");
+            sb.Append($"    public struct ValueTupleFormatter<{TypeParameters(arity)}> : INinoFormatter<{type}>, INinoBlockFormatter<{type}>\n");
             AppendConstraints(sb, arity);
             sb.Append("    {\n");
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
@@ -110,6 +110,39 @@ namespace Nino.CodeGen
 
             foreach (int i in Items(arity))
                 sb.Append($"            default(TF{i}).Deserialize(ref value.Item{i}, ref reader);\n");
+            sb.Append("        }\n");
+            sb.Append("\n");
+            string allRaw = arity > 1 ? AllRaw(arity) : "RawFormatter.Is<T1, TF1>()";
+            sb.Append($"        int INinoBlockFormatter<{type}>.BlockSize\n");
+            sb.Append("        {\n");
+            sb.Append("            [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"            get => {allRaw} ? {Sum(arity, arity)} : -1;\n");
+            sb.Append("        }\n");
+            sb.Append("\n");
+            sb.Append($"        int[] INinoBlockFormatter<{type}>.BlockMap()\n");
+            sb.Append("        {\n");
+            sb.Append($"            if (!({allRaw}) || {string.Join(" || ", Items(arity).Select(i => $"NinoLayout<T{i}>.HasPadding"))})\n");
+            sb.Append("                return null;\n");
+            sb.Append($"            var value = default({type});\n");
+            sb.Append("            return new[]\n");
+            sb.Append("            {\n");
+            foreach (int i in Items(arity))
+                sb.Append($"                NinoBlock.Offset(ref value, ref value.Item{i}), {(i == 1 ? "0" : Sum(i - 1, i - 1))}, NinoLayout<T{i}>.Size,\n");
+            sb.Append("            };\n");
+            sb.Append("        }\n");
+            sb.Append("\n");
+            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"        void INinoBlockFormatter<{type}>.WriteBlock(ref byte destination, in {type} value)\n");
+            sb.Append("        {\n");
+            foreach (int i in Items(arity))
+                sb.Append($"            NinoLayout<T{i}>.Write(ref {At("destination", i)}, in value.Item{i});\n");
+            sb.Append("        }\n");
+            sb.Append("\n");
+            sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
+            sb.Append($"        void INinoBlockFormatter<{type}>.ReadBlock(ref byte source, ref {type} value)\n");
+            sb.Append("        {\n");
+            foreach (int i in Items(arity))
+                sb.Append($"            value.Item{i} = NinoLayout<T{i}>.Read(ref {At("source", i)});\n");
             sb.Append("        }\n");
             sb.Append("    }\n");
         }

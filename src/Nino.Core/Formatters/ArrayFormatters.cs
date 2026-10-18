@@ -51,6 +51,16 @@ namespace Nino.Core
                 return;
             }
 
+            // Fixed-size values (tuples of raw items): one capacity check for the block, no check per value.
+            int block = NinoBlock.Size<T, TFormatter>();
+            if (block > 0)
+            {
+                if (!values.IsEmpty)
+                    NinoBlock.WriteAll<T, TFormatter>(ref writer.Reserve(checked(values.Length * block)),
+                        ref MemoryMarshal.GetReference(values), values.Length, block);
+                return;
+            }
+
             foreach (var item in values)
                 default(TFormatter).Serialize(item, ref writer);
         }
@@ -81,6 +91,14 @@ namespace Nino.Core
                 DateTimeOffsetFormatter.ReadAll(
                     ref reader.ReadBlock(checked(values.Length * NinoWire.DateTimeOffsetSize)),
                     ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
+                return;
+            }
+
+            int block = NinoBlock.Size<T, TFormatter>();
+            if (block > 0)
+            {
+                NinoBlock.ReadAll<T, TFormatter>(ref reader.ReadBlock(checked(values.Length * block)),
+                    ref MemoryMarshal.GetReference(values), values.Length, block);
                 return;
             }
 
@@ -175,11 +193,12 @@ namespace Nino.Core
                 return;
             }
 
-            // Raw elements are all overwritten by one block copy, DateTimeOffsets each in full: a new array need not
+            // Raw elements are all overwritten by one block copy, DateTimeOffsets and blocks each in full: a new array need not
             // be zeroed first.
             NinoElements.Read<T, TFormatter>(
                 NinoElements.EnsureLength(ref value, length, uninitialized: RawFormatter.Is<T, TFormatter>() ||
-                                               typeof(TFormatter) == typeof(DateTimeOffsetFormatter)),
+                                               typeof(TFormatter) == typeof(DateTimeOffsetFormatter) ||
+                                               NinoBlock.Size<T, TFormatter>() > 0),
                 ref reader);
         }
     }

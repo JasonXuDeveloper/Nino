@@ -569,10 +569,50 @@ namespace Nino.Core
 
     /// <summary><c>KeyValuePair&lt;TKey, TValue&gt;</c>: key, then value.</summary>
     public struct KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>
-        : INinoFormatter<KeyValuePair<TKey, TValue>>
+        : INinoFormatter<KeyValuePair<TKey, TValue>>, INinoBlockFormatter<KeyValuePair<TKey, TValue>>
         where TKeyFormatter : struct, INinoFormatter<TKey>
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
+        private static bool Raw
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>();
+        }
+
+        int INinoBlockFormatter<KeyValuePair<TKey, TValue>>.BlockSize
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => Raw ? NinoLayout<TKey>.Size + NinoLayout<TValue>.Size : -1;
+        }
+
+        // Its fields are private: found by marking each item's bytes.
+        int[] INinoBlockFormatter<KeyValuePair<TKey, TValue>>.BlockMap()
+        {
+            if (!Raw || NinoLayout<TKey>.HasPadding || NinoLayout<TValue>.HasPadding)
+                return null;
+            int key = NinoBlock.Find(NinoLayout<TKey>.Size,
+                () => new KeyValuePair<TKey, TValue>(NinoBlock.Marked<TKey>(), default));
+            int value = NinoBlock.Find(NinoLayout<TValue>.Size,
+                () => new KeyValuePair<TKey, TValue>(default, NinoBlock.Marked<TValue>()));
+            if (key < 0 || value < 0)
+                return null;
+            return new[] { key, 0, NinoLayout<TKey>.Size, value, NinoLayout<TKey>.Size, NinoLayout<TValue>.Size };
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.WriteBlock(ref byte destination,
+            in KeyValuePair<TKey, TValue> value)
+        {
+            NinoLayout<TKey>.Write(ref destination, value.Key);
+            NinoLayout<TValue>.Write(ref Unsafe.Add(ref destination, NinoLayout<TKey>.Size), value.Value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref byte source,
+            ref KeyValuePair<TKey, TValue> value) =>
+            value = new KeyValuePair<TKey, TValue>(NinoLayout<TKey>.Read(ref source),
+                NinoLayout<TValue>.Read(ref Unsafe.Add(ref source, NinoLayout<TKey>.Size)));
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(KeyValuePair<TKey, TValue> value, ref Writer writer)
         {
