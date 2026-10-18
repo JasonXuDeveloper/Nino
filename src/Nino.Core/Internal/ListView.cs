@@ -45,6 +45,49 @@ namespace Nino.Core.Internal
         public int _size;
         public int _version;
     }
+
+    /// <summary>
+    /// Mirrors the fields of <see cref="SortedList{TKey,TValue}"/> (checked by
+    /// <see cref="CollectionViews.SortedList"/>; every field, since the runtime places the references first): the keys
+    /// in order in <c>keys[0.._size)</c>, their values at the same indices.
+    /// </summary>
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    internal sealed class SortedListView<TKey, TValue>
+    {
+        public TKey[] keys;
+        public TValue[] values;
+        public int _size;
+        public int version;
+        public IComparer<TKey> comparer;
+        public object keyList;
+        public object valueList;
+    }
+
+    /// <summary>
+    /// Mirrors the fields of <see cref="SortedSet{T}"/> (checked by <see cref="CollectionViews.SortedSet"/>): the
+    /// red-black tree's root node and the count (see <see cref="SortedTrees"/>).
+    /// </summary>
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    internal sealed class SortedSetView<T>
+    {
+        public object root;
+        public IComparer<T> comparer;
+        public int count;
+        public int version;
+        public object siInfo;
+    }
+
+    /// <summary>
+    /// Mirrors the fields of <see cref="SortedDictionary{TKey,TValue}"/> (checked by
+    /// <see cref="CollectionViews.SortedDictionary"/>): the sorted set of its pairs, ordered by key.
+    /// </summary>
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+    internal sealed class SortedDictionaryView<TKey, TValue>
+    {
+        public object _keys;
+        public object _values;
+        public SortedSet<KeyValuePair<TKey, TValue>> _set;
+    }
 #pragma warning restore CS0649
 
     /// <summary>
@@ -56,6 +99,67 @@ namespace Nino.Core.Internal
     {
         public static readonly bool Stack = CheckStack();
         public static readonly bool Queue = CheckQueue();
+        public static readonly bool SortedList = CheckSortedList();
+        public static readonly bool SortedSet = CheckSortedSet();
+        public static readonly bool SortedDictionary = SortedSet && CheckSortedDictionary();
+
+        private static bool CheckSortedDictionary()
+        {
+            try
+            {
+                var dictionary = new SortedDictionary<int, int> { { 9, 90 }, { 7, 70 } };
+                // Every field a reference: a wrong guess reads null or another of its objects.
+                var view = Unsafe.As<SortedDictionaryView<int, int>>(dictionary);
+                return view._keys == null && view._values == null &&
+                       view._set is { Count: 2 } set && set.Min.Key == 7 && set.Max.Value == 90;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Int fields and identities first: a reference read from where the runtime keeps an int is never dereferenced.
+        private static bool CheckSortedList()
+        {
+            try
+            {
+                var list = new SortedList<int, int>(4) { { 9, 90 }, { 7, 70 } };
+                var view = Unsafe.As<SortedListView<int, int>>(list);
+                return view._size == 2 && ReferenceEquals(view.comparer, list.Comparer) && view.keyList == null &&
+                       view.valueList == null && view.keys is { Length: 4 } keys && keys[0] == 7 && keys[1] == 9 &&
+                       view.values is { Length: 4 } values && values[0] == 70 && values[1] == 90;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool CheckSortedSet()
+        {
+            try
+            {
+                var source = new SortedSet<int> { 5, 1, 3 };
+                var view = Unsafe.As<SortedSetView<int>>(source);
+                if (view.count != 3 || !ReferenceEquals(view.comparer, source.Comparer) || view.siInfo != null ||
+                    view.root == null)
+                    return false;
+                // A tree moved into an empty set is that set's.
+                var target = new SortedSet<int>();
+                var moved = Unsafe.As<SortedSetView<int>>(target);
+                moved.root = view.root;
+                moved.count = view.count;
+                moved.version++;
+                using var e = target.GetEnumerator();
+                return e.MoveNext() && e.Current == 1 && e.MoveNext() && e.Current == 3 && e.MoveNext() &&
+                       e.Current == 5 && !e.MoveNext() && target.Contains(3) && !target.Contains(2) && target.Max == 5;
+            }
+            catch
+            {
+                return false;
+            }
+        }
 
         private static bool CheckStack()
         {

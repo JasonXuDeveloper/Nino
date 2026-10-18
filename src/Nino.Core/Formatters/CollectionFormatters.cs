@@ -24,6 +24,9 @@ namespace Nino.Core
                 return;
             }
 
+            if (BclCollections<T, TFormatter>.TryWrite(value, ref writer))
+                return;
+
             NinoCollections.WriteEnumerable<T, TFormatter>(value, ref writer);
         }
 
@@ -46,6 +49,9 @@ namespace Nino.Core
                 NinoRecycler.DiscardAll(collection);
                 collection.Clear();
             }
+
+            if (BclCollections<T, TFormatter>.TryRead(collection, length, ref reader))
+                return;
 
             for (int i = 0; i < length; i++)
             {

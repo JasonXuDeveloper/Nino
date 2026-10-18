@@ -66,6 +66,24 @@ public class CaseInsensitiveSortedList : SortedList<string, int>
     }
 }
 
+public class DescendingSortedSet : SortedSet<int>
+{
+    public DescendingSortedSet() : base(Comparer<int>.Create((a, b) => b.CompareTo(a)))
+    {
+    }
+}
+
+public class DescendingSortedList : SortedList<int, string>
+{
+    public DescendingSortedList() : base(Comparer<int>.Create((a, b) => b.CompareTo(a)))
+    {
+    }
+}
+
+public class NamedLinkedList : LinkedList<string>
+{
+}
+
 public class CaseInsensitiveConcurrentDictionary : ConcurrentDictionary<string, int>
 {
     public CaseInsensitiveConcurrentDictionary() : base(StringComparer.OrdinalIgnoreCase)
@@ -355,6 +373,114 @@ public class CollectionFastPathTests
             var reused = Enumerable.Repeat(make(7), n + 3).ToList();
             NinoDeserializer.Deserialize(expected, ref reused);
             CollectionAssert.AreEqual(values, reused);
+        }
+    }
+
+    [TestMethod]
+    public void SortedCollectionsAreBuiltInOnePass()
+    {
+        foreach (int n in Enumerable.Range(0, 70).Concat(new[] { 100, 1000 }))
+        {
+            var keys = Enumerable.Range(0, n).Select(i => i * 7 - 300).ToList();
+            var set = new SortedSet<int>(keys);
+            var readSet = NinoDeserializer.Deserialize<SortedSet<int>>(NinoSerializer.Serialize(set));
+            CollectionAssert.AreEqual(keys, readSet.ToList());
+            Assert.AreEqual(n, readSet.Count);
+            if (n > 0)
+            {
+                Assert.AreEqual(keys[0], readSet.Min);
+                Assert.AreEqual(keys[n - 1], readSet.Max);
+                Assert.IsTrue(readSet.Contains(keys[n / 2]));
+                Assert.IsFalse(readSet.Contains(keys[n / 2] + 1));
+            }
+
+            // The tree it holds is its own: it takes inserts and removals.
+            readSet.Add(-1000);
+            readSet.Remove(keys.FirstOrDefault());
+            Assert.AreEqual(n == 0 ? 1 : n, readSet.Count);
+
+            var strings = new SortedSet<string>(keys.Select(k => "s" + k), StringComparer.Ordinal);
+            var readStrings = NinoDeserializer.Deserialize<SortedSet<string>>(NinoSerializer.Serialize(strings));
+            CollectionAssert.AreEqual(strings.OrderBy(x => x, StringComparer.Ordinal).ToList(), readStrings.ToList());
+
+            var dictionary = new SortedDictionary<int, string>(keys.ToDictionary(k => k, k => k % 3 == 0 ? null : "v" + k));
+            var readDictionary =
+                NinoDeserializer.Deserialize<SortedDictionary<int, string>>(NinoSerializer.Serialize(dictionary));
+            CollectionAssert.AreEqual(dictionary.ToList(), readDictionary.ToList());
+            readDictionary[-1000] = "x";
+            Assert.AreEqual("x", readDictionary.First().Value);
+
+            var pairs = new SortedDictionary<int, long>(keys.ToDictionary(k => k, k => (long)k << 33));
+            CollectionAssert.AreEqual(pairs.ToList(),
+                NinoDeserializer.Deserialize<SortedDictionary<int, long>>(NinoSerializer.Serialize(pairs)).ToList());
+
+            var list = new SortedList<int, string>(dictionary);
+            var listBytes = NinoSerializer.Serialize(list);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionary), listBytes);
+            var readList = NinoDeserializer.Deserialize<SortedList<int, string>>(listBytes);
+            CollectionAssert.AreEqual(list.ToList(), readList.ToList());
+            readList.Add(-1000, "x");
+            Assert.AreEqual(0, readList.IndexOfKey(-1000));
+        }
+    }
+
+    [TestMethod]
+    public void SortedCollectionsReadPairsOutOfOrder()
+    {
+        // A SortedList, SortedSet or SortedDictionary with another comparer than the writer's: the pairs come out of
+        // order, and are sorted by the reader's.
+        var keys = Enumerable.Range(0, 50).ToList();
+        var ascending = NinoSerializer.Serialize(new SortedSet<int>(keys));
+        var descendingSet = NinoDeserializer.Deserialize<DescendingSortedSet>(ascending);
+        CollectionAssert.AreEqual(Enumerable.Reverse(keys).ToList(), descendingSet.ToList());
+        Assert.AreEqual(49, descendingSet.Min);
+
+        var pairs = NinoSerializer.Serialize(new SortedList<int, string>(keys.ToDictionary(k => k, k => "v" + k)));
+        var descendingList = NinoDeserializer.Deserialize<DescendingSortedList>(pairs);
+        CollectionAssert.AreEqual(Enumerable.Reverse(keys).ToList(), descendingList.Keys.ToList());
+        Assert.AreEqual("v49", descendingList.Values[0]);
+
+        // An existing list with larger arrays, read into from unsorted pairs.
+        var existing = new SortedList<int, string>(100) { [1] = "old" };
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(new Dictionary<int, string> { [9] = "a", [3] = "b" }),
+            ref existing);
+        CollectionAssert.AreEqual(new[] { 3, 9 }, existing.Keys.ToList());
+        CollectionAssert.AreEqual(new[] { "b", "a" }, existing.Values.ToList());
+
+        // Duplicates in a set are dropped, as Add drops them.
+        var sets = NinoSerializer.Serialize(new List<string> { "a", "B", "A", "b" });
+        var caseless = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        NinoDeserializer.Deserialize(sets, ref caseless);
+        Assert.AreEqual(2, caseless.Count);
+
+        // A null key is the indexer's error.
+        var nullKey = NinoSerializer.Serialize(new List<KeyValuePair<string, int>> { new("a", 1), new(null, 2) });
+        Assert.ThrowsExactly<ArgumentNullException>(() => NinoDeserializer.Deserialize<SortedList<string, int>>(nullKey));
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            NinoDeserializer.Deserialize<SortedDictionary<string, int>>(nullKey));
+    }
+
+    [TestMethod]
+    public void LinkedListsAreWalkedNodeByNode()
+    {
+        foreach (int n in new[] { 0, 1, 2, 17, 1000 })
+        {
+            var ints = new LinkedList<int>(Enumerable.Range(0, n).Select(i => i * 31));
+            var intBytes = NinoSerializer.Serialize(ints);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(ints.ToList()), intBytes);
+            CollectionAssert.AreEqual(ints.ToList(), NinoDeserializer.Deserialize<LinkedList<int>>(intBytes).ToList());
+
+            var padded = new LinkedList<PaddedItem>(Enumerable.Range(0, n)
+                .Select(i => new PaddedItem { Id = i, Count = (short)i, Bound = i % 2 == 0 }));
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(padded.ToArray()), NinoSerializer.Serialize(padded));
+
+            var names = new NamedLinkedList();
+            foreach (var i in Enumerable.Range(0, n))
+                names.AddLast(i % 4 == 0 ? null : "n" + i);
+            var read = NinoDeserializer.Deserialize<NamedLinkedList>(NinoSerializer.Serialize(names));
+            CollectionAssert.AreEqual(names.ToList(), read.ToList());
+            NinoDeserializer.Deserialize(intBytes, ref ints);
+            Assert.AreEqual(n, ints.Count);
         }
     }
 

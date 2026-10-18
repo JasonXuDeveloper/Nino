@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -403,22 +404,8 @@ namespace Nino.Core
                 return;
             }
 
-            // A SortedDictionary through its own struct enumerator, with the writer as a local: the interface would
-            // box an enumerator and make two interface calls per pair.
-            if (value is SortedDictionary<TKey, TValue> sorted)
-            {
-                Writer local = default;
-                writer.CopyTo(ref local);
-                local.WriteLength(sorted.Count);
-                foreach (var pair in sorted)
-                {
-                    default(TKeyFormatter).Serialize(pair.Key, ref local);
-                    default(TValueFormatter).Serialize(pair.Value, ref local);
-                }
-
-                local.CopyTo(ref writer);
+            if (BclDictionaries<TKey, TValue, TKeyFormatter, TValueFormatter>.TryWrite(value, ref writer))
                 return;
-            }
 
             NinoCollections.WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(value, ref writer);
         }
@@ -442,74 +429,8 @@ namespace Nino.Core
                 dictionary.Clear();
             }
 
-            // A SortedDictionary (or a type derived from it) through direct calls, with the reader as a local, and
-            // Add: its indexer walks the tree twice (a lookup, then the insert). Add throws ArgumentException on a
-            // duplicate key, reported as the indexer path reports it.
-            if (dictionary is SortedDictionary<TKey, TValue> sorted)
-            {
-                Reader local = default;
-                reader.CopyTo(ref local);
-                TKey key = default;
-                try
-                {
-                    for (int i = 0; i < length; i++)
-                    {
-                        key = default;
-                        TValue item = default;
-                        default(TKeyFormatter).Deserialize(ref key, ref local);
-                        default(TValueFormatter).Deserialize(ref item, ref local);
-                        sorted.Add(key, item);
-                    }
-                }
-                catch (ArgumentException) when (key != null && sorted.ContainsKey(key))
-                {
-                    NinoThrow.DuplicateKey(sorted.GetType());
-                }
-
-                local.CopyTo(ref reader);
+            if (BclDictionaries<TKey, TValue, TKeyFormatter, TValueFormatter>.TryRead(dictionary, length, ref reader))
                 return;
-            }
-
-            // A SortedList through direct calls (the pairs come sorted: each one is appended after a binary search).
-            if (dictionary is SortedList<TKey, TValue> list)
-            {
-                Reader local = default;
-                reader.CopyTo(ref local);
-                list.Capacity = Math.Max(list.Capacity, length);
-                for (int i = 0; i < length; i++)
-                {
-                    TKey key = default;
-                    TValue item = default;
-                    default(TKeyFormatter).Deserialize(ref key, ref local);
-                    default(TValueFormatter).Deserialize(ref item, ref local);
-                    list[key] = item;
-                    if (list.Count != i + 1)
-                        NinoThrow.DuplicateKey(list.GetType());
-                }
-
-                local.CopyTo(ref reader);
-                return;
-            }
-
-            // A ConcurrentDictionary through TryAdd: its Count takes every lock, and the indexer path below reads it
-            // per pair (27x slower than this for 1,000 pairs).
-            if (dictionary is ConcurrentDictionary<TKey, TValue> concurrent)
-            {
-                Reader local = default;
-                reader.CopyTo(ref local);
-                for (int i = 0; i < length; i++)
-                {
-                    TKey key = default;
-                    TValue item = default;
-                    default(TKeyFormatter).Deserialize(ref key, ref local);
-                    default(TValueFormatter).Deserialize(ref item, ref local);
-                    if (!concurrent.TryAdd(key, item))
-                        NinoThrow.DuplicateKey(concurrent.GetType());
-                }
-
-                local.CopyTo(ref reader);
-                return;
-            }
 
             for (int i = 0; i < length; i++)
             {
