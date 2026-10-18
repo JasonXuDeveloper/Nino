@@ -16,7 +16,7 @@ on:
         required: false
         type: string
       filter:
-        description: 'BenchmarkDotNet filter'
+        description: 'BenchmarkDotNet filters, separated by spaces'
         required: false
         default: '*'
         type: string
@@ -77,11 +77,13 @@ jobs:
       - name: Run
         run: |
           set -euo pipefail
+          set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
+          read -ra FILTERS <<< "$FILTER"
           for SIDE in base head; do
             [[ -d $SIDE ]] || continue
             echo "== $SIDE $(git -C $SIDE rev-parse --short HEAD)"
             # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
-            (cd $SIDE/src/Nino.Benchmark && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "$FILTER" $BDN_ARGS \
+            (cd $SIDE/src/Nino.Benchmark && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "${FILTERS[@]}" $BDN_ARGS \
               --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
           done
 
