@@ -209,6 +209,8 @@ jobs:
       # The third section: the same benchmarks on an Arm64 runner. The docs site (sync-benchmarks.ts) looks for this
       # heading; it must never contain the words "Performance Report", by which parsers find the x64 report.
       ARM64_HEADING: "## 📊 Arm64 benchmark"
+      # The release asset that holds the whole Arm64 section (the docs site reads it when the body has only a link).
+      ARM64_ASSET: arm64-benchmark.md
       # Every benchmark class of src/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
       BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest BclTypesTest
@@ -359,8 +361,8 @@ jobs:
 
           # The v3 section goes before the Performance Report: parsers that read every table from
           # "Performance Report" to the end of the body then never see the v3 tables.
-          python3 - <<'EOF'
-          import re
+          TAG_NAME="$TAG_NAME" python3 - <<'EOF'
+          import os, re
           body = open("current_notes.md", encoding="utf-8").read().rstrip("\n")
           v3 = open("v3_section.md", encoding="utf-8").read().strip("\n")
           arm64 = open("arm64_section.md", encoding="utf-8").read().strip("\n")
@@ -375,11 +377,21 @@ jobs:
           if len(text) > 125000:  # GitHub's limit for a release body: drop the raw v3 reports, keep the tables
               v3 = re.sub(r"\n### v3 3\.3\.13 report.*?(?=\n</details>)", "\n\n(The raw v3 reports are in the workflow artifacts.)", v3, flags=re.S)
               text = "\n\n".join(part for part in (head, v3, arm64, tail) if part) + "\n"
-          if len(text) > 125000:  # still too long: the Arm64 report stays in the workflow artifacts
-              print("::warning::release body too long: the Arm64 section is left out")
-              text = "\n\n".join(part for part in (head, v3, tail) if part) + "\n"
+          if len(text) > 125000 and arm64:  # still too long: the Arm64 section is attached as ARM64_ASSET instead
+              arm64 = "\n\n".join((os.environ["ARM64_HEADING"],
+                  f"The Arm64 report is attached to this release: [{os.environ['ARM64_ASSET']}]"
+                  f"(https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/"
+                  f"{os.environ['TAG_NAME']}/{os.environ['ARM64_ASSET']}) (the release notes have no room for it)."))
+              text = "\n\n".join(part for part in (head, v3, arm64, tail) if part) + "\n"
           open("updated_notes.md", "w", encoding="utf-8").write(text)
           EOF
+
+          # The whole Arm64 section is attached to the release too, where the docs site reads it when the body has
+          # only a link to it.
+          if [[ -s arm64_section.md ]]; then
+            cp arm64_section.md "$ARM64_ASSET"
+            gh release upload "$TAG_NAME" "$ARM64_ASSET" --clobber
+          fi
 
           # Update the release
           gh release edit "$TAG_NAME" --notes-file updated_notes.md
