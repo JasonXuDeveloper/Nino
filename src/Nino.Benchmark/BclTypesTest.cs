@@ -58,7 +58,6 @@ public class BclTypesTest
     private static readonly ImmutableSortedDictionary<int, int> ImmutableSortedDictionaryValue = ImmutableSortedDictionary.CreateRange(Enumerable.Range(0, N).Select(i => new KeyValuePair<int, int>(i, i * 7)));
 
     private static readonly byte[] NinoBigIntegerBytes = NinoSerializer.Serialize(BigIntegerValue);
-    private static readonly byte[] MemoryPackBigIntegerBytes = MemoryPackSerializer.Serialize(BigIntegerValue);
     private static readonly byte[] NinoUriBytes = NinoSerializer.Serialize(UriValue);
     private static readonly byte[] MemoryPackUriBytes = MemoryPackSerializer.Serialize(UriValue);
     private static readonly byte[] NinoVersionBytes = NinoSerializer.Serialize(VersionValue);
@@ -102,7 +101,6 @@ public class BclTypesTest
     static BclTypesTest()
     {
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeBigInteger), NinoBigIntegerBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeBigInteger), MemoryPackBigIntegerBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeUri), NinoUriBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeUri), MemoryPackUriBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeVersion), NinoVersionBytes.Length);
@@ -156,6 +154,8 @@ public class BclTypesTest
         _memoryPackBuffer = new ArrayBufferWriter<byte>(1 << 16);
     }
 
+    // No MemoryPack cases for BigInteger: MemoryPack 1.21.4 on .NET 10 writes bytes it reads back as another value
+    // (3^10 included), so its times would not measure a working round trip.
     [Benchmark(Baseline = true), BenchmarkCategory("BigIntegerSerialize")]
     public int NinoSerializeBigInteger()
     {
@@ -164,19 +164,10 @@ public class BclTypesTest
         return _ninoBuffer.WrittenCount;
     }
 
-    [Benchmark, BenchmarkCategory("BigIntegerSerialize")]
-    public int MemoryPackSerializeBigInteger()
-    {
-        _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, BigIntegerValue);
-        return _memoryPackBuffer.WrittenCount;
-    }
 
     [Benchmark(Baseline = true), BenchmarkCategory("BigIntegerDeserialize")]
     public object NinoDeserializeBigInteger() => NinoDeserializer.Deserialize<BigInteger>(NinoBigIntegerBytes);
 
-    [Benchmark, BenchmarkCategory("BigIntegerDeserialize")]
-    public object MemoryPackDeserializeBigInteger() => MemoryPackSerializer.Deserialize<BigInteger>(MemoryPackBigIntegerBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("UriSerialize")]
     public int NinoSerializeUri()

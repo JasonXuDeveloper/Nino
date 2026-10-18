@@ -35,6 +35,7 @@ jobs:
       skip: ${{ steps.check_benchmark.outputs.skip }}
     env:
       V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
+      ARM64_HEADING: "## 📊 Arm64 benchmark"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -65,10 +66,11 @@ jobs:
           TAG_NAME: ${{ steps.determine_target.outputs.target_ref }}
         run: |
           RELEASE_BODY=$(gh release view "$TAG_NAME" --json body --jq '.body')
-          # Skip only when both sections are there; otherwise run and add the missing one.
-          if [[ $RELEASE_BODY == *"Performance Report"* && $RELEASE_BODY == *"$V3_HEADING"* ]]; then
+          # Skip only when every section is there; otherwise run and add the missing ones.
+          if [[ $RELEASE_BODY == *"Performance Report"* && $RELEASE_BODY == *"$V3_HEADING"* &&
+                $RELEASE_BODY == *"$ARM64_HEADING"* ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "⏭️ Benchmark and v3 comparison already exist for this release"
+            echo "⏭️ Benchmark, v3 comparison and Arm64 benchmark already exist for this release"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
             echo "✅ A section is missing, will run"
@@ -77,26 +79,27 @@ jobs:
   # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), a class's
   # Nino and MemoryPack cases always on one runner; the publish job merges the reports into one table
   # (benchmarks/merge_reports.py). v3 runs on the SimpleTest runner, directly before its v4 run, as benchmarks/run.sh does.
+  # The same shards run on Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64
+  # never takes); an Arm64 failure leaves that section out and never blocks the x64 report.
   bench:
-    name: Benchmark (${{ matrix.shard }})
+    name: Benchmark (${{ matrix.arch }} ${{ matrix.shard }})
     needs: target
     if: needs.target.outputs.skip != 'true'
-    # A named image, not ubuntu-latest: the OS under the benchmark changes only when this line does.
-    runs-on: ubuntu-26.04
+    # Named images, not ubuntu-latest: the OS under the benchmark changes only when these lines do.
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         include:
-          - shard: a
-            classes: SimpleTest PooledTest
-            v3: true
-          - shard: b
-            classes: CommonTypesTest FixedSizeTest
-          - shard: c
-            classes: PolymorphicTest VersionTolerantTest BclTypesTest
-          - shard: d
-            classes: CollectionsTest ReferenceTest PooledGraphTest
+          - { arch: x64, shard: a, classes: SimpleTest PooledTest, v3: true }
+          - { arch: x64, shard: b, classes: CommonTypesTest FixedSizeTest }
+          - { arch: x64, shard: c, classes: PolymorphicTest VersionTolerantTest BclTypesTest }
+          - { arch: x64, shard: d, classes: CollectionsTest ReferenceTest PooledGraphTest }
+          - { arch: arm64, shard: a, classes: SimpleTest PooledTest }
+          - { arch: arm64, shard: b, classes: CommonTypesTest FixedSizeTest }
+          - { arch: arm64, shard: c, classes: PolymorphicTest VersionTolerantTest BclTypesTest }
+          - { arch: arm64, shard: d, classes: CollectionsTest ReferenceTest PooledGraphTest }
     env:
       # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few.
       BDN_ARGS: --launchCount 1 --warmupCount 5 --iterationCount 15
@@ -166,12 +169,13 @@ jobs:
             exit 1
           fi
           mkdir -p "$OUT"
-          cp "$REPORT" "$OUT/v4-${{ matrix.shard }}.md"
+          # x64 reports are v4-<shard>.md, Arm64 ones arm64-<shard>.md (the publish job tells them apart by name).
+          cp "$REPORT" "$OUT/${{ matrix.arch == 'arm64' && 'arm64' || 'v4' }}-${{ matrix.shard }}.md"
 
       - name: Upload the report
         uses: actions/upload-artifact@v7
         with:
-          name: report-${{ matrix.shard }}
+          name: report-${{ matrix.arch }}-${{ matrix.shard }}
           path: report
           retention-days: 1
 
@@ -179,7 +183,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: benchmark-results-${{ needs.target.outputs.tag }}-${{ matrix.shard }}
+          name: benchmark-results-${{ needs.target.outputs.tag }}-${{ matrix.arch }}-${{ matrix.shard }}
           path: |
             src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
             v3-results/results
@@ -188,6 +192,8 @@ jobs:
   publish:
     name: Publish the report
     needs: [ target, bench ]
+    # Also when an Arm64 shard failed: the x64 report is checked below, and a missing Arm64 one only drops its section.
+    if: ${{ !cancelled() && needs.target.outputs.skip != 'true' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 30
     env:
@@ -196,6 +202,9 @@ jobs:
       # The second section of the release body: Nino v3 3.3.13 against this release, on the SimpleTest runner.
       # The docs site (nino.docs scripts/sync-benchmarks.ts) looks for this heading.
       V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
+      # The third section: the same benchmarks on an Arm64 runner. The docs site (sync-benchmarks.ts) looks for this
+      # heading; it must never contain the words "Performance Report", by which parsers find the x64 report.
+      ARM64_HEADING: "## 📊 Arm64 benchmark"
       # Every benchmark class of src/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
       BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest BclTypesTest
@@ -219,7 +228,13 @@ jobs:
           set -euo pipefail
           DIR="$RUNNER_TEMP/reports"
           ls -la "$DIR"
-          python3 benchmarks/merge_reports.py "$DIR"/v4-*.md > "$RUNNER_TEMP/v4-report.md"
+          shopt -s nullglob
+          X64=("$DIR"/v4-*.md) ARM64=("$DIR"/arm64-*.md)
+          if (( ${#X64[@]} != 4 )); then
+            echo "❌ ${#X64[@]} of the 4 x64 reports: not publishing a partial Performance Report"
+            exit 1
+          fi
+          python3 benchmarks/merge_reports.py "${X64[@]}" > "$RUNNER_TEMP/v4-report.md"
           for CLASS in $BENCH_CLASSES; do
             if grep -qE "^\| *${CLASS} +\|" "$RUNNER_TEMP/v4-report.md"; then
               echo "  ✅ $CLASS"
@@ -228,6 +243,13 @@ jobs:
             fi
           done
           echo "BENCHMARK_FILE=$RUNNER_TEMP/v4-report.md" >> "$GITHUB_ENV"
+          # Arm64: all four shards or no section (a partial table would read as the whole suite).
+          if (( ${#ARM64[@]} == 4 )); then
+            python3 benchmarks/merge_reports.py "${ARM64[@]}" > "$RUNNER_TEMP/arm64-report.md"
+            echo "ARM64_REPORT=$RUNNER_TEMP/arm64-report.md" >> "$GITHUB_ENV"
+          else
+            echo "::warning::${#ARM64[@]} of the 4 Arm64 reports: the Arm64 section is left out"
+          fi
           if [[ -f "$DIR/v3.md" ]]; then
             echo "V3_REPORT=$DIR/v3.md" >> "$GITHUB_ENV"
           fi
@@ -242,15 +264,18 @@ jobs:
           
           # Get current release body
           gh release view "$TAG_NAME" --json body --jq '.body' > current_notes.md
-          HAS_PERF=false; HAS_V3=false
+          HAS_PERF=false; HAS_V3=false; HAS_ARM64=false
           grep -q "Performance Report" current_notes.md && HAS_PERF=true
           grep -qF "$V3_HEADING" current_notes.md && HAS_V3=true
+          grep -qF "$ARM64_HEADING" current_notes.md && HAS_ARM64=true
 
           # The Performance Report section, in the format the docs site has always parsed: keep it as it is.
           : > perf_section.md
           if [[ $HAS_PERF == true ]]; then
             echo "⏭️ Performance Report already exists in release notes"
           else
+            # The README numbers are regenerated only from the run the release body shows.
+            echo "NEW_REPORT=true" >> "$GITHUB_ENV"
             {
               echo "## 📊 Performance Report"
               echo ""
@@ -298,7 +323,32 @@ jobs:
             } > v3_section.md
           fi
 
-          if [[ ! -s perf_section.md && ! -s v3_section.md ]]; then
+          # The Arm64 section: the merged Arm64 report, in the format of the Performance Report's table.
+          : > arm64_section.md
+          ARM64_REPORT=${ARM64_REPORT:-}
+          if [[ $HAS_ARM64 == true ]]; then
+            echo "⏭️ Arm64 benchmark already exists in release notes"
+          elif [[ -z "$ARM64_REPORT" ]]; then
+            echo "⚠️ No Arm64 report (see the Arm64 jobs): the Arm64 section is left out"
+          else
+            {
+              echo "$ARM64_HEADING"
+              echo ""
+              echo "<details>"
+              echo "<summary>The same benchmarks of ${TAG_NAME} on an Arm64 runner</summary>"
+              echo ""
+              # Never write the words "Performance Report" here: parsers find the x64 report by them.
+              echo "The benchmark classes of the x64 report below, with the same BenchmarkDotNet settings"
+              echo "(\`${BDN_ARGS}\`), on GitHub's \`ubuntu-24.04-arm\` runners. Compare Nino with MemoryPack within"
+              echo "this table: the runners differ from the x64 ones, so times across the two tables say little."
+              echo ""
+              cat "$ARM64_REPORT"
+              echo ""
+              echo "</details>"
+            } > arm64_section.md
+          fi
+
+          if [[ ! -s perf_section.md && ! -s v3_section.md && ! -s arm64_section.md ]]; then
             echo "⏭️ Nothing to add"
             exit 0
           fi
@@ -309,16 +359,20 @@ jobs:
           import re
           body = open("current_notes.md", encoding="utf-8").read().rstrip("\n")
           v3 = open("v3_section.md", encoding="utf-8").read().strip("\n")
+          arm64 = open("arm64_section.md", encoding="utf-8").read().strip("\n")
           perf = open("perf_section.md", encoding="utf-8").read().strip("\n")
           match = re.search(r"^.*Performance Report", body, re.MULTILINE)
           if match:  # the report is already there: put the v3 section in front of its heading
               head, tail = body[:match.start()].rstrip("\n"), body[match.start():]
           else:
               head, tail = body, perf
-          parts = [part for part in (head, v3, tail) if part]
-          text = "\n\n".join(parts) + "\n"
+          # The Arm64 section goes before the Performance Report too, for the same reason.
+          text = "\n\n".join(part for part in (head, v3, arm64, tail) if part) + "\n"
           if len(text) > 125000:  # GitHub's limit for a release body: drop the raw v3 reports, keep the tables
               v3 = re.sub(r"\n### v3 3\.3\.13 report.*?(?=\n</details>)", "\n\n(The raw v3 reports are in the workflow artifacts.)", v3, flags=re.S)
+              text = "\n\n".join(part for part in (head, v3, arm64, tail) if part) + "\n"
+          if len(text) > 125000:  # still too long: the Arm64 report stays in the workflow artifacts
+              print("::warning::release body too long: the Arm64 section is left out")
               text = "\n\n".join(part for part in (head, v3, tail) if part) + "\n"
           open("updated_notes.md", "w", encoding="utf-8").write(text)
           EOF
@@ -345,6 +399,10 @@ jobs:
             --jq '[.[] | select(.tagName | startswith("v4."))] | sort_by(.publishedAt) | last | .tagName')
           if [[ "$tag_name" != "$LATEST" ]]; then
             echo "⏭️ $tag_name is not the newest v4 release ($LATEST): README left as it is"
+            exit 0
+          fi
+          if [[ "${NEW_REPORT:-}" != true ]]; then
+            echo "⏭️ The release already had its Performance Report: README left as it is"
             exit 0
           fi
 

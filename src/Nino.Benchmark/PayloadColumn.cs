@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -44,7 +45,16 @@ public class PayloadColumn : IColumn
         var declaringType = benchmarkCase.Descriptor.WorkloadMethod.DeclaringType;
         if (declaringType != null)
         {
-            RuntimeHelpers.RunClassConstructor(declaringType.TypeHandle);
+            // A class whose setup throws (e.g. built against an older library without a formatter it uses, as
+            // arm64-bench.yml does for its base ref) has no rows; it must not take the other classes' summary down.
+            try
+            {
+                RuntimeHelpers.RunClassConstructor(declaringType.TypeHandle);
+            }
+            catch (TypeInitializationException)
+            {
+                return "-";
+            }
         }
 
         if (BenchmarkPayloadRegistry.TryGet(methodName, out var size))
