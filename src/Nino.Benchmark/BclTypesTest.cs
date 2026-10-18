@@ -65,7 +65,6 @@ public class BclTypesTest
     private static readonly byte[] NinoStringBuilderBytes = NinoSerializer.Serialize(StringBuilderValue);
     private static readonly byte[] MemoryPackStringBuilderBytes = MemoryPackSerializer.Serialize(StringBuilderValue);
     private static readonly byte[] NinoBitArrayBytes = NinoSerializer.Serialize(BitArrayValue);
-    private static readonly byte[] MemoryPackBitArrayBytes = MemoryPackSerializer.Serialize(BitArrayValue);
     private static readonly byte[] NinoCultureInfoBytes = NinoSerializer.Serialize(CultureInfoValue);
     private static readonly byte[] MemoryPackCultureInfoBytes = MemoryPackSerializer.Serialize(CultureInfoValue);
     private static readonly byte[] NinoTimeZoneInfoBytes = NinoSerializer.Serialize(TimeZoneInfoValue);
@@ -108,7 +107,6 @@ public class BclTypesTest
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeStringBuilder), NinoStringBuilderBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeStringBuilder), MemoryPackStringBuilderBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeBitArray), NinoBitArrayBytes.Length);
-        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeBitArray), MemoryPackBitArrayBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeCultureInfo), NinoCultureInfoBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeCultureInfo), MemoryPackCultureInfoBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeTimeZoneInfo), NinoTimeZoneInfoBytes.Length);
@@ -154,8 +152,8 @@ public class BclTypesTest
         _memoryPackBuffer = new ArrayBufferWriter<byte>(1 << 16);
     }
 
-    // No MemoryPack cases for BigInteger: MemoryPack 1.21.4 on .NET 10 writes bytes it reads back as another value
-    // (3^10 included), so its times would not measure a working round trip.
+    // No MemoryPack cases for BigInteger: MemoryPack 1.21.4 writes the unused end of its 255-byte buffer
+    // (temp.Slice(written) for temp.Slice(0, written)), so a value of up to 255 bytes reads back as another one.
     [Benchmark(Baseline = true), BenchmarkCategory("BigIntegerSerialize")]
     public int NinoSerializeBigInteger()
     {
@@ -235,6 +233,9 @@ public class BclTypesTest
     [Benchmark, BenchmarkCategory("StringBuilderDeserialize")]
     public object MemoryPackDeserializeStringBuilder() => MemoryPackSerializer.Deserialize<StringBuilder>(MemoryPackStringBuilderBytes);
 
+    // No MemoryPack cases for BitArray: MemoryPack 1.21.4 reinterprets it as { int[] m_array; int m_length }, its
+    // layout on .NET 8; .NET 10's BitArray holds a byte[] _array, so it writes the wrong bytes and reading one
+    // corrupts the heap (a segmentation fault).
     [Benchmark(Baseline = true), BenchmarkCategory("BitArraySerialize")]
     public int NinoSerializeBitArray()
     {
@@ -243,18 +244,10 @@ public class BclTypesTest
         return _ninoBuffer.WrittenCount;
     }
 
-    [Benchmark, BenchmarkCategory("BitArraySerialize")]
-    public int MemoryPackSerializeBitArray()
-    {
-        _memoryPackBuffer.ResetWrittenCount();
-        MemoryPackSerializer.Serialize(_memoryPackBuffer, BitArrayValue);
-        return _memoryPackBuffer.WrittenCount;
-    }
 
     [Benchmark(Baseline = true), BenchmarkCategory("BitArrayDeserialize")]
     public object NinoDeserializeBitArray() => NinoDeserializer.Deserialize<BitArray>(NinoBitArrayBytes);
 
-    // No MemoryPack case: reading a BitArray, MemoryPack 1.21.4 crashes the process on .NET 10 (a segmentation fault).
 
     [Benchmark(Baseline = true), BenchmarkCategory("CultureInfoSerialize")]
     public int NinoSerializeCultureInfo()
