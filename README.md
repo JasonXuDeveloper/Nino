@@ -40,15 +40,20 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either (a string whose text is unchanged is kept),
   and is up to <!--bench:reuse.inplace-->8.0<!--/bench-->× faster than MemoryPack's overwrite mode.
 - **Everything happens at compile time.** A source generator writes each formatter. There is no reflection,
-  no IL emit, no registration and no init call, so it works on IL2CPP, NativeAOT and HybridCLR hot updates.
-  With the .NET 8 SDK or later, calls are intercepted to the exact formatter, with no virtual call.
+  no IL emit, no registration and no init call, so it works on IL2CPP, NativeAOT and HybridCLR hot updates;
+  Nino.Core is annotated for trimming and Native AOT. With the .NET 8 SDK or later, calls are intercepted to the
+  exact formatter, with no virtual call.
 - **Fast to build.** The generator is incremental: one file per type, and only the type you edit is
   re-generated. Compared with v3, the generated code is 14× smaller and compiles 51× (330 types) to 221× (1,100 types) faster.
 - **Thread-safe.** Serialize and deserialize from any number of threads, with no locks on the hot path.
 - **Data that evolves.** Version tolerance, keyed members, and reference tracking for shared references and
   cycles. All are opt-in per type, so types that don't use them pay nothing.
-- **One format everywhere.** `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` write identical bytes,
-  so a Unity client and a .NET server talk to each other directly.
+- **One format everywhere.** `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` write identical bytes on
+  CoreCLR, Mono and IL2CPP, 64-bit and 32-bit, x64 and Arm64, so a Unity client and a .NET server talk to each other directly.
+- **The types you already use.** Primitives, strings, tuples, every BCL collection, `BigInteger`, `Uri`, `Version`,
+  `Memory<T>`, `ILookup<,>`, `Lazy<T>` and more, every immutable collection (`Nino.Immutable`), Unity's `AnimationCurve`,
+  `Gradient` and `RectOffset`, your own collection types, and anything else through a pluggable formatter.
+  [Supported types](https://nino.xgamedev.net/en/docs/v4/types).
 - **Mistakes caught while you type.** 26 analyzer diagnostics (NINO001–NINO026), many with a one-click fix.
 
 ## Built for
@@ -70,8 +75,11 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 ```bash
 dotnet add package Nino --prerelease            # .NET, Godot
 dotnet add package Nino.Immutable --prerelease  # optional: System.Collections.Immutable types
-openupm add com.jasonxudeveloper.nino           # Unity
+openupm add com.jasonxudeveloper.nino           # Unity (generator and Unity class formatters included)
 ```
+
+`Nino` brings in the runtime (`Nino.Serialization`) and the source generator (`Nino.Generator`). Nino v4 is a
+prerelease, so `--prerelease` is required: without it NuGet installs 3.9.x, which cannot read or write v4 data.
 
 ## Quick start
 
@@ -176,9 +184,26 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 | Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |
 
-New in v4: interceptors, keyed members, reference tracking, `[NinoPooled]` pools, pluggable formatters
-(`[assembly: NinoFormatter(...)]`), user collection types, analyzers with code fixes, and identical bytes on every
-target framework. See [what's new](https://nino.xgamedev.net/en/docs/v4/whats-new) and the
+New in v4, through 4.0.0-rc.5:
+
+- **Formats**: version-tolerant and keyed types, reference tracking, and the wire layout of every type published as
+  `[assembly: NinoTypeLayout]` metadata, so a change in the bytes shows up between builds.
+- **Allocation**: reuse deserialization into existing objects, `[NinoPooled]` pools, `[NinoFactory]`, and
+  `NinoArrayBufferWriter`, which can rent from your own `ArrayPool<byte>`.
+- **Types**: pluggable formatters (`[assembly: NinoFormatter(...)]`), user collection types, `BigInteger`, `Uri`,
+  `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>`, `Memory<T>`, `ReadOnlySequence<T>`,
+  read-only and concurrent collections, `ILookup`, `BlockingCollection<T>`, `PriorityQueue` (.NET 8+), every immutable
+  collection (`Nino.Immutable`) and Unity's `AnimationCurve`, `Gradient` and `RectOffset` (`Nino.UnityTypes`, in the
+  Unity package).
+- **Speed**: interceptors, inlined struct formatters, block copies for arrays and collections of raw structs,
+  tuples and `KeyValuePair`s, and SIMD on AVX-512, AVX2, Arm64 and WebAssembly; releases are benchmarked on x64 and Arm64.
+- **Platforms**: identical bytes on every target framework, runtime and CPU, trimming and Native AOT annotations,
+  assemblies that unload with a collectible `AssemblyLoadContext` (`NinoRegistry.Remove` before .NET 8), and
+  HybridCLR without an init call.
+- **Tooling**: an incremental generator and 26 analyzers (NINO001–NINO026) with code fixes.
+
+See [what's new](https://nino.xgamedev.net/en/docs/v4/whats-new), the
+[changelog](https://nino.xgamedev.net/en/docs/v4/changelog) and the
 [migration guide](https://nino.xgamedev.net/en/docs/v4/migration); internals are in
 [docs/v4-design.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-design.md).
 
