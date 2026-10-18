@@ -149,6 +149,29 @@ namespace Nino.Core.Internal
         public static TList Create<TList, T>(int capacity) where TList : List<T> =>
             typeof(TList) == typeof(List<T>) ? (TList)new List<T>(capacity) : NinoActivator<TList>.Create();
 
+        /// <summary>
+        /// A new <typeparamref name="TList"/> of <paramref name="count"/> elements (not negative) that the caller
+        /// overwrites entirely. A plain <see cref="List{T}"/> gets a backing array of exactly that length, allocated
+        /// uninitialized when it is large (<see cref="NinoUnsafe.NewArray{T}"/>): <c>new List&lt;T&gt;(count)</c>
+        /// clears it first, which costs as much as filling it.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static TList CreateOverwritten<TList, T>(int count) where TList : List<T>
+        {
+            if (typeof(TList) != typeof(List<T>))
+            {
+                var list = NinoActivator<TList>.Create();
+                SetCount(list, count, overwritten: true);
+                return list;
+            }
+
+            var created = new List<T>();
+            var view = Unsafe.As<ListView<T>>(created);
+            view._items = NinoUnsafe.NewArray<T>(count, uninitialized: true);
+            view._size = count;
+            return (TList)created;
+        }
+
         /// <summary>The list's elements as a span. Do not add or remove items while using it.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Span<T> AsSpan<T>(List<T> list)

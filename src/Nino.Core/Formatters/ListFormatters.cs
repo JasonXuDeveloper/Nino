@@ -74,17 +74,19 @@ namespace Nino.Core
                 return;
             }
 
-            var list = value ??= ListAccess.Create<TList, T>(length);
+            ref T first = ref value == null
+                ? ref NinoUnsafe.GetArrayDataReference(
+                    Unsafe.As<ListView<T>>(value = ListAccess.CreateOverwritten<TList, T>(length))._items)
+                : ref ListAccess.SetCountOverwritten(value, length);
             if (!NinoLayout<T>.IsCanonical)
             {
-                reader.ReadUnmanagedRaw(ListAccess.SetCount<T>(list, length, overwritten: true));
+                reader.ReadUnmanagedRaw(ListAccess.AsSpan<T>(value));
                 return;
             }
 
             // The length was checked against the remaining bytes above: one block copy, no second bounds check.
             uint bytes = (uint)length * (uint)Unsafe.SizeOf<T>();
-            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref ListAccess.SetCountOverwritten(list, length)),
-                ref reader.UnsafeAdvance((int)bytes), bytes);
+            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref first), ref reader.UnsafeAdvance((int)bytes), bytes);
         }
     }
 
@@ -116,8 +118,10 @@ namespace Nino.Core
                 return;
             }
 
-            var list = value ??= ListAccess.Create<TList, T?>(length);
-            NinoNullables<T>.Read(ListAccess.SetCount<T?>(list, length, overwritten: true), ref reader);
+            var span = value == null
+                ? ListAccess.AsSpan<T?>(value = ListAccess.CreateOverwritten<TList, T?>(length))
+                : ListAccess.SetCount<T?>(value, length, overwritten: true);
+            NinoNullables<T>.Read(span, ref reader);
         }
     }
 
