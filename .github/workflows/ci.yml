@@ -35,14 +35,13 @@ jobs:
   # it tests instead of waiting on a shared build. "Build and Test" collects their results and fails if any failed.
   unit-tests:
     name: Unit tests (${{ matrix.name }})
-    runs-on: ubuntu-26.04
+    runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          # net8.0 and net10.0 builds of Nino.Core compile the same code (no NET10-only paths): run it once, on .NET 10,
-          # with the Roslyn 4.12 generator (interceptors on).
+          # The Roslyn 4.12 generator (interceptors on).
           - name: net10.0
             framework: net10.0
             properties: ''
@@ -62,6 +61,32 @@ jobs:
             properties: -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
             coverage: false
             project: Nino.UnitTests/Nino.UnitTests.csproj
+          # Arm64: its byte shuffle (tbl), 16-byte vectors only, and the net8.0 build's own shuffle path.
+          - name: net10.0 on Arm64
+            runner: ubuntu-24.04-arm
+            framework: net10.0
+            properties: ''
+            coverage: false
+            project: Nino.UnitTests/Nino.UnitTests.csproj
+          - name: net8.0 on Arm64
+            runner: ubuntu-24.04-arm
+            framework: net8.0
+            properties: ''
+            coverage: false
+            project: Nino.UnitTests/Nino.UnitTests.csproj
+          # x64 CPUs without AVX-512 (most desktops: 32-byte vectors, no byte permute), and without any SIMD.
+          - name: net10.0 without AVX-512
+            framework: net10.0
+            properties: ''
+            coverage: false
+            project: Nino.UnitTests/Nino.UnitTests.csproj
+            avx512: '0'
+          - name: net10.0 without SIMD
+            framework: net10.0
+            properties: ''
+            coverage: false
+            project: Nino.UnitTests/Nino.UnitTests.csproj
+            simd: '0'
 
     steps:
       - name: Checkout code
@@ -89,6 +114,9 @@ jobs:
           ${{ matrix.project && format('-f {0}', matrix.framework) || '' }} ${{ matrix.properties }}
 
       - name: Test
+        env:
+          DOTNET_EnableAVX512: ${{ matrix.avx512 || '1' }}
+          DOTNET_EnableHWIntrinsic: ${{ matrix.simd || '1' }}
         run: >
           dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f ${{ matrix.framework }}
           ${{ matrix.properties }} --logger trx --results-directory ./TestResults

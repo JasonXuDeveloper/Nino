@@ -3,6 +3,9 @@ using System.Runtime.CompilerServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.Arm;
+#if NET10_0_OR_GREATER
+using System.Runtime.Intrinsics.Wasm;
+#endif
 using System.Runtime.Intrinsics.X86;
 #endif
 using Nino.Core.Internal;
@@ -68,8 +71,8 @@ namespace Nino.Core
 
             int i = 0;
 #if NET8_0_OR_GREATER
-            // Several values as one 64-byte vector, their bytes moved to their places in the block by one byte
-            // permute (AVX-512 VBMI); the vector's tail is overwritten by the next one.
+            // Several values as 64 bytes, their bytes moved to their places in the block by one 64-byte byte permute
+            // (Permute64); the tail written is overwritten by the next one.
             if (NinoBlock<T, TFormatter>.Permutes)
             {
                 var toWire = NinoBlock<T, TFormatter>.ToWire64;
@@ -77,10 +80,8 @@ namespace Nino.Core
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 64);
                 ref byte source = ref Unsafe.As<T, byte>(ref first);
                 for (; i <= last; i += step)
-                    Vector512.StoreUnsafe(
-                        Avx512Vbmi.PermuteVar64x8(
-                            Vector512.LoadUnsafe(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>()), toWire),
-                        ref destination, (nuint)i * (nuint)size);
+                    Permute64(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination, (nuint)i * (nuint)size,
+                        toWire, default, keepAll: true);
             }
 
             // Then each value as one 16-byte vector, by one shuffle. The last values, whose vector would reach past
@@ -124,10 +125,8 @@ namespace Nino.Core
                 int step = NinoBlock<T, TFormatter>.PerVector;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 64);
                 for (; i <= last; i += step)
-                    Vector512.StoreUnsafe(
-                        Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, (nuint)i * (nuint)size), toMemory) &
-                        fields,
-                        ref destination, (nuint)i * (nuint)Unsafe.SizeOf<T>());
+                    Permute64(ref source, (nuint)i * (nuint)size, ref destination, (nuint)i * (nuint)Unsafe.SizeOf<T>(),
+                        toMemory, fields, keepAll: false);
             }
 
             if (NinoBlock<T, TFormatter>.Shuffles)
@@ -145,6 +144,35 @@ namespace Nino.Core
                 ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
                     ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// One 64-byte byte permute from <paramref name="source"/> + <paramref name="from"/> to
+        /// <paramref name="destination"/> + <paramref name="to"/>: each byte written is the source byte its index
+        /// names, zero for an index from 0x80 up. AVX-512 VBMI's permute (which reads only an index's low six bits:
+        /// <paramref name="keep"/> zeroes those bytes, unless <paramref name="keepAll"/>), or on Arm64 four
+        /// 4-register table lookups, one per 16 bytes written.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Permute64(ref byte source, nuint from, ref byte destination, nuint to,
+            Vector512<byte> indices, Vector512<byte> keep, bool keepAll)
+        {
+            if (Avx512Vbmi.IsSupported)
+            {
+                var permuted = Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, from), indices);
+                (keepAll ? permuted : permuted & keep).StoreUnsafe(ref destination, to);
+                return;
+            }
+
+            var table = (Vector128.LoadUnsafe(ref source, from), Vector128.LoadUnsafe(ref source, from + 16),
+                Vector128.LoadUnsafe(ref source, from + 32), Vector128.LoadUnsafe(ref source, from + 48));
+            ref var quarters = ref Unsafe.As<Vector512<byte>, Vector128<byte>>(ref indices);
+            AdvSimd.Arm64.VectorTableLookup(table, quarters).StoreUnsafe(ref destination, to);
+            AdvSimd.Arm64.VectorTableLookup(table, Unsafe.Add(ref quarters, 1)).StoreUnsafe(ref destination, to + 16);
+            AdvSimd.Arm64.VectorTableLookup(table, Unsafe.Add(ref quarters, 2)).StoreUnsafe(ref destination, to + 32);
+            AdvSimd.Arm64.VectorTableLookup(table, Unsafe.Add(ref quarters, 3)).StoreUnsafe(ref destination, to + 48);
+        }
+#endif
     }
 
     /// <summary>
@@ -173,11 +201,16 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
         /// <summary>
         /// Whether values are moved to and from their blocks by one 16-byte shuffle each: both fit in 16 bytes, and the
-        /// CPU shuffles bytes by a variable mask (SSSE3, or Arm64).
+        /// CPU shuffles bytes by a variable mask, an index from 0x80 up giving a zero (SSSE3, Arm64, or WebAssembly
+        /// SIMD on .NET 10).
         /// </summary>
         public static readonly bool Shuffles = Map != null && !IsMemory && Unsafe.SizeOf<T>() <= 16 &&
                                                NinoBlock.Size<T, TFormatter>() <= 16 &&
-                                               (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported);
+                                               (Ssse3.IsSupported || AdvSimd.Arm64.IsSupported
+#if NET10_0_OR_GREATER
+                                                || PackedSimd.IsSupported
+#endif
+                                               );
 
         /// <summary>For each block byte, the memory byte it comes from (0x80: none, a zero).</summary>
         public static readonly Vector128<byte> ToWire = Mask(toWire: true);
@@ -216,10 +249,14 @@ namespace Nino.Core
         public static readonly int PerVector = 64 / Unsafe.SizeOf<T>();
 
         /// <summary>
-        /// Whether several values at a time are moved by one 64-byte byte permute (AVX-512 VBMI): at least two fit, in
-        /// memory and as blocks.
+        /// Whether several values at a time are moved by one 64-byte byte permute (<see cref="NinoBlock"/>.Permute64):
+        /// at least two fit, in memory and as blocks, with AVX-512 VBMI; with Arm64's 4-register table lookups, eight
+        /// or more. A 4-register lookup issues at half the rate of a 1-register one (Arm's Neoverse optimization
+        /// guides), so the four per 64 bytes pay off over a shuffle and a store per value from eight values on.
         /// </summary>
-        public static readonly bool Permutes = Shuffles && Avx512Vbmi.IsSupported && PerVector >= 2;
+        public static readonly bool Permutes = Shuffles && PerVector >= 2 &&
+                                               (Avx512Vbmi.IsSupported ||
+                                                AdvSimd.Arm64.IsSupported && Unsafe.SizeOf<T>() <= 8);
 
         /// <summary><see cref="ToWire"/> for <see cref="PerVector"/> values.</summary>
         public static readonly Vector512<byte> ToWire64 = Mask64(toWire: true);
@@ -227,7 +264,7 @@ namespace Nino.Core
         /// <summary><see cref="ToMemory"/> for <see cref="PerVector"/> values.</summary>
         public static readonly Vector512<byte> ToMemory64 = Mask64(toWire: false);
 
-        /// <summary>0xFF for the memory bytes of fields, 0 for padding: the permute has no zeroing index.</summary>
+        /// <summary>0xFF for the memory bytes of fields, 0 for padding: VBMI's permute has no zeroing index.</summary>
         public static readonly Vector512<byte> Fields64 = Vector512.LessThan(ToMemory64, Vector512.Create((byte)0x80));
 
         private static Vector512<byte> Mask64(bool toWire)
@@ -253,7 +290,12 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector128<byte> Shuffle(Vector128<byte> value, Vector128<byte> mask) =>
+#if NET10_0_OR_GREATER
+            // pshufb, tbl or i8x16.swizzle: one instruction on each platform Shuffles is on for.
+            Vector128.ShuffleNative(value, mask);
+#else
             Ssse3.IsSupported ? Ssse3.Shuffle(value, mask) : AdvSimd.Arm64.VectorTableLookup(value, mask);
+#endif
 #endif
     }
 }

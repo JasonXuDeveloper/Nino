@@ -165,7 +165,8 @@ namespace Nino.Core
         /// <summary>
         /// Copies <paramref name="size"/> bytes. Up to 32 (most strings) inline, as two overlapping loads and stores of
         /// the largest width that fits: a block copy of a size that is not a constant calls Memmove. From 64 bytes to
-        /// 8 KB with 64-byte vectors where they are accelerated (<see cref="CopyVectors"/>), Memmove beyond.
+        /// 8 KB with 64-byte vectors where they are accelerated, else from 256 bytes to 4 KB with 32-byte ones
+        /// (<see cref="CopyVectors{TVector}"/>), Memmove beyond.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy(ref byte destination, ref byte source, uint size)
@@ -207,9 +208,17 @@ namespace Nino.Core
             }
 
 #if NET8_0_OR_GREATER
-            if (Vector512.IsHardwareAccelerated && size - 64 <= MaxVectorCopy - 64)
+            if (Vector512.IsHardwareAccelerated)
             {
-                CopyVectors(ref destination, ref source, size);
+                if (size - 64 <= MaxVectorCopy - 64)
+                {
+                    CopyVectors<Vector512<byte>>(ref destination, ref source, size);
+                    return;
+                }
+            }
+            else if (Vector256.IsHardwareAccelerated && size - 256 <= MaxVector256Copy - 256)
+            {
+                CopyVectors<Vector256<byte>>(ref destination, ref source, size);
                 return;
             }
 #endif
@@ -218,40 +227,53 @@ namespace Nino.Core
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// Largest copy done by <see cref="CopyVectors"/>. Memmove calls the C library's from 2 KB, which handles a
-        /// source and destination of different alignments better: from about 8 KB it is as fast or faster.
+        /// Largest copy done with 64-byte vectors by <see cref="CopyVectors{TVector}"/>. Memmove calls the C library's
+        /// from 2 KB, which handles a source and destination of different alignments better: from about 8 KB it is as
+        /// fast or faster.
         /// </summary>
         private const uint MaxVectorCopy = 8 * 1024;
 
         /// <summary>
-        /// Copies 64 bytes or more with 64-byte vectors: the first one unaligned, then four at a time with aligned
-        /// stores (an unaligned store straddles two cache lines), and the last one unaligned, overlapping. Measured
-        /// on an AVX-512 Xeon against Memmove (.NET 10), source and destination of different alignments: 256 bytes
+        /// The range copied with 32-byte vectors where 64-byte ones are not accelerated (AVX2 without AVX-512, most
+        /// desktop CPUs). Measured on a Xeon with AVX-512 turned off (.NET 10, source and destination of different
+        /// alignments) against Memmove: 256 bytes 3.9 ns instead of 6.3, 1,200 bytes 12.4 instead of 15.7, 4,000 bytes
+        /// 38.9 instead of 44.8; on par at 64 and 128 bytes, and slower at 8 KB.
+        /// </summary>
+        private const uint MaxVector256Copy = 4 * 1024;
+
+        /// <summary>
+        /// Copies at least one vector (<typeparamref name="TVector"/>, a <c>Vector256</c> or <c>Vector512</c> of bytes)
+        /// with vector loads and stores: the first one unaligned, then four at a time with aligned stores (an unaligned
+        /// store straddles two cache lines), and the last one unaligned, overlapping. Measured on an AVX-512 Xeon
+        /// against Memmove (.NET 10), source and destination of different alignments, with 64-byte vectors: 256 bytes
         /// 5.9 ns instead of 7.9 ns, 1,200 bytes 11.9 ns instead of 18.6 ns, 4,000 bytes 34 ns instead of 48 ns.
         /// </summary>
         // Fully optimized from the first call (see NinoMask.CopyVectors512).
         [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
-        private static unsafe void CopyVectors(ref byte destination, ref byte source, uint size)
+        private static unsafe void CopyVectors<TVector>(ref byte destination, ref byte source, uint size)
+            where TVector : struct
         {
-            const int width = 64;
-            Vector512.LoadUnsafe(ref source).StoreUnsafe(ref destination);
-            nuint i = (nuint)(width - (int)((nuint)Unsafe.AsPointer(ref destination) & (width - 1)));
-            nuint end = size - (nuint)width;
+            nuint width = (nuint)Unsafe.SizeOf<TVector>();
+            Unsafe.WriteUnaligned(ref destination, Unsafe.ReadUnaligned<TVector>(ref source));
+            nuint i = width - ((nuint)Unsafe.AsPointer(ref destination) & (width - 1));
+            nuint end = size - width;
             for (; i + 3 * width <= end; i += 4 * width)
             {
-                var a = Vector512.LoadUnsafe(ref source, i);
-                var b = Vector512.LoadUnsafe(ref source, i + width);
-                var c = Vector512.LoadUnsafe(ref source, i + 2 * width);
-                var d = Vector512.LoadUnsafe(ref source, i + 3 * width);
-                a.StoreUnsafe(ref destination, i);
-                b.StoreUnsafe(ref destination, i + width);
-                c.StoreUnsafe(ref destination, i + 2 * width);
-                d.StoreUnsafe(ref destination, i + 3 * width);
+                var a = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i));
+                var b = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i + width));
+                var c = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i + 2 * width));
+                var d = Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i + 3 * width));
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i), a);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + width), b);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + 2 * width), c);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + 3 * width), d);
             }
 
             for (; i <= end; i += width)
-                Vector512.LoadUnsafe(ref source, i).StoreUnsafe(ref destination, i);
-            Vector512.LoadUnsafe(ref source, end).StoreUnsafe(ref destination, end);
+                Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i),
+                    Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i)));
+            Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, end),
+                Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, end)));
         }
 #endif
 

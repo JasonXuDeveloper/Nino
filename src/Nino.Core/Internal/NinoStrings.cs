@@ -27,10 +27,25 @@ namespace Nino.Core
                     NinoUnsafe.Copy(ref destination, ref chars, size);
                 else if (size <= 64)
                 {
-                    var head = Vector256.LoadUnsafe(ref chars);
-                    var tail = Vector256.LoadUnsafe(ref chars, size - 32);
-                    head.StoreUnsafe(ref destination);
-                    tail.StoreUnsafe(ref destination, size - 32);
+                    // 32-byte vectors are emulated where they are not accelerated (Arm64): two 16-byte ones each.
+                    if (Vector256.IsHardwareAccelerated)
+                    {
+                        var head = Vector256.LoadUnsafe(ref chars);
+                        var tail = Vector256.LoadUnsafe(ref chars, size - 32);
+                        head.StoreUnsafe(ref destination);
+                        tail.StoreUnsafe(ref destination, size - 32);
+                    }
+                    else
+                    {
+                        var head = Vector128.LoadUnsafe(ref chars);
+                        var head2 = Vector128.LoadUnsafe(ref chars, 16);
+                        var tail = Vector128.LoadUnsafe(ref chars, size - 32);
+                        var tail2 = Vector128.LoadUnsafe(ref chars, size - 16);
+                        head.StoreUnsafe(ref destination);
+                        head2.StoreUnsafe(ref destination, 16);
+                        tail.StoreUnsafe(ref destination, size - 32);
+                        tail2.StoreUnsafe(ref destination, size - 16);
+                    }
                 }
                 else
                     Unsafe.CopyBlockUnaligned(ref destination, ref chars, size);
