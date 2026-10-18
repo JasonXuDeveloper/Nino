@@ -59,13 +59,20 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 | `bool` | 1 byte (0/1) |
 | `T?` (nullable value type) | 1 byte has-value flag, then the value if present |
 | Collection / array / string length | `int32`; `-1` means `null` |
-| `string` (default, UTF-16) | `int32` char count, then UTF-16 code units |
+| `string` (default) | `int32` header: `-1` = null, `0` = empty; `~n` (≤ -2) then `n` Latin-1 bytes when every char is at most U+00FF; else `n` then `n` UTF-16 code units (see below) |
 | `string` with `[NinoUtf8]` | `int32` char count (`-1` = null, `0` = empty; nothing follows either), then `int32` byte count and the UTF-8 bytes (see below) |
 | Array / list of unmanaged `T` | length, then one block copy of the elements |
 | `T?[]` / `List<T?>` of raw `T` | length, then each element in the canonical `Nullable<T>` layout (fixed stride: flag, padding, value); an `IList<T?>`/`IEnumerable<T?>` member writes each element as a single `T?` instead (see `docs/pitfalls.md`) |
 | Other collections | length, then each element |
 | Dictionary | length, then key/value pairs |
 | Multi-dimensional array `T[,..]` | `int32` rank-lengths (`-1` for null in the first slot), then elements in row-major order |
+
+A default string is written in one byte a char when it can be: English, digits, identifiers, JSON keys and Western
+European text are all Latin-1, and take half the bytes of UTF-16, while any other text keeps UTF-16 (never UTF-8,
+whose decoding is a branchy pass and whose length differs from the char count). Writing narrows the chars with SIMD
+and falls back to UTF-16 at the first char above U+00FF; reading widens the bytes with SIMD straight into the new
+string. A `StringBuilder` is always written with UTF-16 chars (positive header), read by the same reader: it cannot
+take chars without a copy, so widening would be a second pass on every read.
 
 A `[NinoUtf8]` string is written as:
 

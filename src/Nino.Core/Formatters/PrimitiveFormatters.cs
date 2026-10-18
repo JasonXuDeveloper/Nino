@@ -139,7 +139,7 @@ namespace Nino.Core
         private const long MaxOffsetTicks = MaxOffsetMinutes * TimeSpan.TicksPerMinute;
     }
 
-    /// <summary>Writes a string as UTF-16 (the default).</summary>
+    /// <summary>Writes a string: one byte per char for Latin-1 text, UTF-16 otherwise (the default).</summary>
     public struct StringFormatter : INinoFormatter<string>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

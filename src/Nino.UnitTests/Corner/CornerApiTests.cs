@@ -366,8 +366,12 @@ namespace Nino.UnitTests.Corner
                 var data = BitConverter.GetBytes(length).Concat(new byte[16]).ToArray();
                 ExpectFailure<List<int>>(data, "List<int> " + length);
                 ExpectFailure<int[]>(data, "int[] " + length);
-                ExpectFailure<string>(data, "string " + length);
-                ExpectFailure<List<string>>(data, "List<string> " + length);
+                // -2 is the header of a one-char Latin-1 string.
+                if (length != -2)
+                {
+                    ExpectFailure<string>(data, "string " + length);
+                    ExpectFailure<List<string>>(data, "List<string> " + length);
+                }
                 ExpectFailure<Dictionary<int, int>>(data, "Dictionary " + length);
                 ExpectFailure<RawPadded[]>(data, "raw array " + length);
                 ExpectFailure<HashSet<long>>(data, "HashSet " + length);

@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -101,33 +102,53 @@ namespace Nino.Core
                 return;
             }
 
-            writer.WriteLength(value.Length);
+            // The string encoding with UTF-16 chars (header: the length), which the reader of strings reads too: a
+            // copy of the builder's chunks. Narrowing Latin-1 text to one byte a char would halve the bytes but
+            // cost a widening pass on every read, where a StringBuilder cannot take chars without copying them.
+            int length = value.Length;
+            ref byte destination = ref writer.Ensure(NinoWire.LengthSize + length * sizeof(char));
+            NinoUnsafe.Write(ref destination, length);
+            ref byte body = ref Unsafe.Add(ref destination, NinoWire.LengthSize);
 #if NET8_0_OR_GREATER
-            // Chunk by chunk, without the string ToString would allocate.
             foreach (var chunk in value.GetChunks())
-                writer.WriteUnmanagedRaw(chunk.Span);
+            {
+                var chars = MemoryMarshal.AsBytes(chunk.Span);
+                NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(chars), (uint)chars.Length);
+                body = ref Unsafe.Add(ref body, chars.Length);
+            }
 #else
-            writer.WriteUnmanagedRaw(value.ToString().AsSpan());
+            var chars = MemoryMarshal.AsBytes(value.ToString().AsSpan());
+            NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(chars), (uint)chars.Length);
 #endif
+            writer.Commit(NinoWire.LengthSize + length * sizeof(char));
         }
 
-        public void Deserialize(ref StringBuilder value, ref Reader reader)
+        public unsafe void Deserialize(ref StringBuilder value, ref Reader reader)
         {
-            int length = reader.ReadLength(sizeof(char));
-            if (length < 0)
+            var source = reader.ReadRaw(NinoWire.LengthSize);
+            int header = NinoUnsafe.Read<int>(ref MemoryMarshal.GetReference(source));
+            if (header == NinoWire.NullLength)
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
+            // ~length for Latin-1 chars, one byte each; the length for UTF-16.
+            int length = header < 0 ? ~header : header;
             var builder = value ??= new StringBuilder(length);
             builder.Clear();
-            var chars = MemoryMarshal.Cast<byte, char>(reader.ReadRaw(length * sizeof(char)));
-#if NETSTANDARD2_0
-            builder.Append(chars.ToArray());
-#else
-            builder.Append(chars);
-#endif
+            if (header < 0)
+            {
+                var latin1 = reader.ReadRaw(length);
+                NinoStrings.AppendLatin1(builder, ref MemoryMarshal.GetReference(latin1), length);
+                return;
+            }
+
+            var chars = MemoryMarshal.Cast<byte, char>(reader.ReadRaw(checked(length * sizeof(char))));
+            fixed (char* p = chars)
+            {
+                builder.Append(p, chars.Length);
+            }
         }
     }
 

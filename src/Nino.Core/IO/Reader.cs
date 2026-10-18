@@ -693,7 +693,7 @@ namespace Nino.Core
             return null;
         }
 
-        /// <summary>Reads a UTF-16 string written by <see cref="Writer.Write(string)"/>.</summary>
+        /// <summary>Reads a string written by <see cref="Writer.Write(string)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Read(out string value) => value = ReadString();
 
@@ -701,32 +701,18 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void ReadUtf8(out string value) => value = ReadUtf8();
 
-        /// <summary>Reads a UTF-16 string written by <see cref="Writer.Write(string)"/>.</summary>
-        public unsafe string ReadString()
+        /// <summary>Reads a string written by <see cref="Writer.Write(string)"/>.</summary>
+        // The header and the chars with the position and the data loaded once and stored once. Not inlined: a
+        // formatter reading several strings stays small.
+        public string ReadString()
         {
-            // The length and the characters with the position and the data loaded once and stored once: through
-            // UnsafeRead and ReadBlockOf, the position is stored, reloaded and stored again.
-            int remaining = Avail;
-            if ((uint)remaining < sizeof(int))
-                NinoThrow.EndOfData();
-            ref byte start = ref Cur;
-            int length = NinoUnsafe.Read<int>(ref start);
-            if (length <= 0)
-            {
-                Skip(sizeof(int));
-                return EmptyOrNull(length);
-            }
-
-            // One bounds check: the string is only allocated after it.
-            ulong size = (ulong)(uint)length * sizeof(char);
-            if (size > (uint)(remaining - sizeof(int)))
-                NinoThrow.EndOfData();
-            Skip(sizeof(int) + (int)size);
-            return NinoStrings.New(ref Unsafe.Add(ref start, sizeof(int)), length);
+            string value = NinoStrings.Read(ref Cur, Avail, null, out int size);
+            Skip(size);
+            return value;
         }
 
         /// <summary>
-        /// Reads <paramref name="count"/> UTF-16 strings into the slots starting at <paramref name="first"/> (the
+        /// Reads <paramref name="count"/> strings into the slots starting at <paramref name="first"/> (the
         /// elements of a string collection): <see cref="ReadString"/> in one loop that keeps the position and the
         /// data in registers, where through the reader's reference they are loaded, and the position stored, for
         /// every string.
@@ -737,35 +723,16 @@ namespace Nino.Core
 
         // Static, the loop's state in five values (data, position, end, slot, last slot): as many as x64 has
         // callee-saved registers to keep them in across the string allocations. Returns the bytes read.
-        private static unsafe int ReadStrings(ref byte data, int end, ref string first, int count)
+        private static int ReadStrings(ref byte data, int end, ref string first, int count)
         {
             int pos = 0;
             ref string slot = ref first;
             ref string last = ref Unsafe.Add(ref first, count);
             while (Unsafe.IsAddressLessThan(ref slot, ref last))
             {
-                if ((uint)(end - pos) < sizeof(int))
-                    NinoThrow.EndOfData();
-                int length = NinoUnsafe.Read<int>(ref Unsafe.Add(ref data, pos));
-                pos += sizeof(int);
-                if (length <= 0)
-                {
-                    slot = EmptyOrNull(length);
-                }
-                else
-                {
-                    // One bounds check: the string is only allocated after it.
-                    ulong size = (ulong)(uint)length * sizeof(char);
-                    if (size > (uint)(end - pos))
-                        NinoThrow.EndOfData();
-                    ref byte src = ref Unsafe.Add(ref data, pos);
-                    pos += (int)size;
-                    // An element read in place keeps its string when the data holds the same chars.
-                    var current = slot;
-                    if (current == null || current.Length != length || !SameChars(ref src, current))
-                        slot = NinoStrings.New(ref src, length);
-                }
-
+                // An element read in place keeps its string when the data holds the same chars.
+                slot = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, slot, out int size);
+                pos += size;
                 slot = ref Unsafe.Add(ref slot, 1);
             }
 
@@ -773,7 +740,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reads <paramref name="count"/> pairs of a raw key (its memory is its wire layout) and a UTF-16 string into
+        /// Reads <paramref name="count"/> pairs of a raw key (its memory is its wire layout) and a string into
         /// <paramref name="dictionary"/>: <see cref="ReadStrings"/> for a <c>Dictionary&lt;TKey, string&gt;</c>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -781,39 +748,23 @@ namespace Nino.Core
             Skip(ReadStringPairs(dictionary, ref Cur, Avail, count));
 
         // Generic over the key only, so a value-type key makes this unshared code (the dictionary's methods inlined
-        // with no run-time lookups). The state is four values kept in registers across the string and dictionary
-        // allocations (dictionary, cursor, end, pairs left), with the key the fifth: x64 has five callee-saved
-        // registers. The key and the string's length are checked together.
+        // with no run-time lookups), with its state (dictionary, data, position, end, pairs left) kept in registers
+        // across the string and dictionary allocations.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe int ReadStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary,
+        private static int ReadStringPairs<TKey>(System.Collections.Generic.Dictionary<TKey, string> dictionary,
             ref byte data, int end, int count)
         {
             // Returns the bytes read.
-            int head = Unsafe.SizeOf<TKey>() + sizeof(int);
-            ref byte src = ref data;
-            ref byte last = ref Unsafe.Add(ref data, end);
+            int keySize = Unsafe.SizeOf<TKey>();
+            int pos = 0;
             while (count-- > 0)
             {
-                if ((nuint)(nint)Unsafe.ByteOffset(ref src, ref last) < (uint)head)
+                if ((uint)(end - pos) < (uint)keySize)
                     NinoThrow.EndOfData();
-                TKey key = NinoUnsafe.Read<TKey>(ref src);
-                int length = NinoUnsafe.Read<int>(ref Unsafe.Add(ref src, Unsafe.SizeOf<TKey>()));
-                src = ref Unsafe.Add(ref src, head);
-                string value;
-                if (length <= 0)
-                {
-                    value = EmptyOrNull(length);
-                }
-                else
-                {
-                    nuint size = (nuint)(uint)length * sizeof(char);
-                    if (size > (nuint)(nint)Unsafe.ByteOffset(ref src, ref last))
-                        NinoThrow.EndOfData();
-                    ref byte chars = ref src;
-                    src = ref Unsafe.Add(ref src, (nint)size);
-                    value = NinoStrings.New(ref chars, length);
-                }
-
+                TKey key = NinoUnsafe.Read<TKey>(ref Unsafe.Add(ref data, pos));
+                pos += keySize;
+                string value = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, null, out int size);
+                pos += size;
 #if NETSTANDARD2_0
                 int before = dictionary.Count;
                 dictionary[key] = value;
@@ -825,7 +776,7 @@ namespace Nino.Core
 #endif
             }
 
-            return end - (int)(nint)Unsafe.ByteOffset(ref src, ref last);
+            return pos;
         }
 
         /// <summary>Reads a UTF-8 string written by <see cref="Writer.WriteUtf8(string)"/>.</summary>
@@ -863,43 +814,17 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Reads a UTF-16 string like <see cref="ReadString()"/>, but returns <paramref name="current"/> when it holds
-        /// the same chars: reading into an existing object keeps an unchanged string instead of allocating a copy.
+        /// Reads a string like <see cref="ReadString()"/>, but returns <paramref name="current"/> when it holds the
+        /// same chars: reading into an existing object keeps an unchanged string instead of allocating a copy.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string ReadString(string current) => current == null ? ReadString() : ReadStringOver(current);
 
-        /// <summary>Whether the UTF-16 chars at <paramref name="src"/> are those of <paramref name="value"/> (as long).</summary>
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe bool SameChars(ref byte src, string value)
+        private string ReadStringOver(string current)
         {
-            fixed (byte* p = &src)
-            {
-                return new ReadOnlySpan<char>(p, value.Length).SequenceEqual(value.AsSpan());
-            }
-        }
-
-        private unsafe string ReadStringOver(string current)
-        {
-            int remaining = Avail;
-            if ((uint)remaining < sizeof(int))
-                NinoThrow.EndOfData();
-            ref byte start = ref Cur;
-            int length = NinoUnsafe.Read<int>(ref start);
-            if (length <= 0)
-            {
-                Skip(sizeof(int));
-                return EmptyOrNull(length);
-            }
-
-            ulong size = (ulong)(uint)length * sizeof(char);
-            if (size > (uint)(remaining - sizeof(int)))
-                NinoThrow.EndOfData();
-            Skip(sizeof(int) + (int)size);
-            ref byte src = ref Unsafe.Add(ref start, sizeof(int));
-            if (current.Length == length && SameChars(ref src, current))
-                return current;
-            return NinoStrings.New(ref src, length);
+            string value = NinoStrings.Read(ref Cur, Avail, current, out int size);
+            Skip(size);
+            return value;
         }
 
         /// <summary>

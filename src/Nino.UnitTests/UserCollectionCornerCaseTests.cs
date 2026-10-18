@@ -1081,7 +1081,7 @@ public class Holder
     [TestMethod]
     public void RawKeyStringDictionaryChecksItsData()
     {
-        // Raw keys and UTF-16 values are read by their own loop (Reader.ReadStringPairs), new or into an empty
+        // Raw keys and string values are read by their own loop (Reader.ReadStringPairs), new or into an empty
         // dictionary: the same results and checks as the general one.
         var value = new Dictionary<int, string> { [1] = "a", [2] = null, [3] = "", [4] = "bc" };
         var bytes = NinoSerializer.Serialize(value);
@@ -1090,10 +1090,10 @@ public class Holder
         NinoDeserializer.Deserialize(bytes, ref empty);
         CollectionAssert.AreEqual(value.ToList(), empty.ToList());
 
-        // Count, key 1, length 1, "a", then the second key: made 1 too.
+        // Count, key 1, the header of a one-char Latin-1 string, "a", then the second key: made 1 too.
         var repeated = (byte[])bytes.Clone();
-        Assert.AreEqual(2, BitConverter.ToInt32(repeated, 14));
-        BitConverter.GetBytes(1).CopyTo(repeated, 14);
+        Assert.AreEqual(2, BitConverter.ToInt32(repeated, 13));
+        BitConverter.GetBytes(1).CopyTo(repeated, 13);
         var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<Dictionary<int, string>>(repeated));
         StringAssert.Contains(e.Message, "twice");
 

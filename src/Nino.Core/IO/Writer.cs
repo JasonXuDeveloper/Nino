@@ -230,7 +230,7 @@ namespace Nino.Core
 
         /// <summary>Makes room for <paramref name="size"/> bytes and returns a reference to the first one.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private ref byte Ensure(int size)
+        internal ref byte Ensure(int size)
         {
             if ((uint)size > (uint)Avail)
                 Grow(size);
@@ -602,18 +602,13 @@ namespace Nino.Core
             Write((ReadOnlySpan<T>)values);
         }
 
-        /// <summary>Writes a string as UTF-16: char count (-1 for null), then the code units.</summary>
+        /// <summary>
+        /// Writes a string: one byte per char when all its chars are Latin-1 (ASCII included), UTF-16 otherwise
+        /// (see <see cref="NinoWire"/>).
+        /// </summary>
+        // Inlined, with the encoding out of line taking values (see WriteUtf8).
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write(string value)
-        {
-            if (value == null)
-            {
-                WriteNullLength();
-                return;
-            }
-
-            Write(value.AsSpan());
-        }
+        public void Write(string value) => Skip(NinoStrings.Write(ref Ensure(NinoStrings.MaxSize(value)), value));
 
         /// <summary>Longest string <see cref="WriteUtf8"/> reserves 3 bytes per char for.</summary>
         private const int Utf8WorstCaseMaxChars = 1024;

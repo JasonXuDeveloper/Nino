@@ -36,7 +36,7 @@ namespace Nino.Core
 
             if (RawFormatter.Is<TKey, TKeyFormatter>() && typeof(TValueFormatter) == typeof(StringFormatter))
             {
-                // Raw keys and UTF-16 strings: written into the free part of the buffer by value; only when they
+                // Raw keys and strings: written into the free part of the buffer by value; only when they
                 // do not fit does the buffer grow, through the general loop.
                 int written = WriteStringPairs(Unsafe.As<Dictionary<TKey, string>>(value),
                     ref writer.FreeSpace(out int available), available);
@@ -54,7 +54,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// The bytes of <see cref="WritePairs"/> for raw keys and UTF-16 strings, written into <paramref name="dst"/>
+        /// The bytes of <see cref="WritePairs"/> for raw keys and strings, written into <paramref name="dst"/>
         /// (<paramref name="available"/> bytes). Returns the number of bytes written, or -1 when they do not fit.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -73,19 +73,14 @@ namespace Nino.Core
                 if (++written > count)
                     NinoThrow.InvalidData("collection was modified during serialization");
                 string s = pair.Value;
-                int length = s == null ? NinoWire.NullLength : s.Length;
-                nuint chars = s == null ? 0 : (nuint)(uint)length * sizeof(char);
-                nuint size = (nuint)(uint)(keySize + NinoWire.LengthSize) + chars;
+                // Room for the longest form of the string; only what it takes is kept.
+                nuint size = (nuint)(uint)(keySize + NinoStrings.MaxSize(s));
                 if (size > end - pos)
                     return -1;
                 ref byte entry = ref Unsafe.Add(ref dst, (nint)pos);
                 NinoUnsafe.Write(ref entry, 0, pair.Key);
                 NinoLayout<TKey>.ClearPadding(ref entry);
-                NinoUnsafe.Write(ref entry, keySize, length);
-                if (chars != 0)
-                    Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref entry, keySize + NinoWire.LengthSize),
-                        ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(s.AsSpan())), (uint)chars);
-                pos += size;
+                pos += (nuint)(uint)(keySize + NinoStrings.Write(ref Unsafe.Add(ref entry, keySize), s));
             }
 
             return (int)pos;
@@ -277,7 +272,7 @@ namespace Nino.Core
 
             if (RawFormatter.Is<TKey, TKeyFormatter>() && typeof(TValueFormatter) == typeof(StringFormatter))
             {
-                // Raw keys and UTF-16 strings: one loop with the state in registers (see Reader.ReadStrings).
+                // Raw keys and strings: one loop with the state in registers (see Reader.ReadStrings).
                 reader.ReadStringPairs(Unsafe.As<Dictionary<TKey, string>>(dictionary), length);
                 return;
             }

@@ -53,6 +53,8 @@ public sealed class GoldenData
     public GoldenKind Kind;
     public int? NullableSet;
     public int? NullableNull;
+    public string Ascii;
+    public string Latin1;
     public string Utf16;
     [NinoUtf8] public string Utf8;
     public string NullString;
@@ -87,7 +89,9 @@ public class GoldenBytesTests
         Kind = GoldenKind.Second,
         NullableSet = 7,
         NullableNull = null,
-        Utf16 = "Nino",
+        Ascii = "Nino",
+        Latin1 = "Café",
+        Utf16 = "中文",
         Utf8 = "ニノ😀",
         NullString = null,
         Ints = new[] { 1, 2, 3 },
@@ -106,12 +110,13 @@ public class GoldenBytesTests
         Boxed = new GoldenPoint { X = 5, Y = 6 },
     };
 
-    // Generated once and checked in; regenerate only for an intentional format change (last: a [NinoUtf8] string
-    // carries its byte count after its char count; before that, a version-tolerant object carries one length for its
+    // Generated once and checked in; regenerate only for an intentional format change (last: a string of Latin-1
+    // chars is written one byte per char, under the header ~length; before that, a [NinoUtf8] string carries its
+    // byte count after its char count; before that, a version-tolerant object carries one length for its
     // whole body instead of one per inheritance level; this suite builds with WEAK_VERSION_TOLERANCE, so GoldenCircle
     // and GoldenRect are tolerant).
     private const string Expected =
-        "011501000001ABFEFF785634120000000000000080000000000000F83F0000020000000000D2040000000000002D4E02010700000000040000004E0069006E006F00040000000A000000E3838BE3838EF09F9880FFFFFFFF0300000001000000020000000300000003000000010000006100FFFFFFFF00000000020000000100000001000000780002000000010000007900020000000300000001000000020000000300000004000000050000000600000009000000010000007400010000006B00050000000300000099034A680A000000010000006300000000409B0A31BF1E00000001000000720008000000010000000200000008000000030000000400000000000000000000001F0A15F5080000000500000006000000";
+        "011A01000001ABFEFF785634120000000000000080000000000000F83F0000020000000000D2040000000000002D4E02010700000000FBFFFFFF4E696E6FFBFFFFFF436166E9020000002D4E8765040000000A000000E3838BE3838EF09F9880FFFFFFFF0300000001000000020000000300000003000000FEFFFFFF61FFFFFFFF000000000200000001000000FEFFFFFF7802000000FEFFFFFF79020000000300000001000000020000000300000004000000050000000600000009000000FEFFFFFF74FEFFFFFF6B050000000300000099034A6809000000FEFFFFFF63000000409B0A31BF1D000000FEFFFFFF7208000000010000000200000008000000030000000400000000000000000000001F0A15F5080000000500000006000000";
 
     private static string Hex(byte[] bytes) => BitConverter.ToString(bytes).Replace("-", "");
 
@@ -143,6 +148,8 @@ public class GoldenBytesTests
         Assert.AreEqual(expected.Kind, value.Kind);
         Assert.AreEqual(expected.NullableSet, value.NullableSet);
         Assert.IsNull(value.NullableNull);
+        Assert.AreEqual(expected.Ascii, value.Ascii);
+        Assert.AreEqual(expected.Latin1, value.Latin1);
         Assert.AreEqual(expected.Utf16, value.Utf16);
         Assert.AreEqual(expected.Utf8, value.Utf8);
         Assert.IsNull(value.NullString);

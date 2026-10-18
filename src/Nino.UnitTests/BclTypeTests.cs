@@ -91,7 +91,9 @@ public class BclTypeTests
         for (int i = 0; i < 2000; i++)
             text.Append(i); // several chunks
         var bytes = NinoSerializer.Serialize(text);
-        CollectionAssert.AreEqual(NinoSerializer.Serialize(text.ToString()), bytes);
+        // The string encoding with UTF-16 chars: read as a string too.
+        Assert.AreEqual(text.Length, BitConverter.ToInt32(bytes, 0));
+        Assert.AreEqual(text.ToString(), NinoDeserializer.Deserialize<string>(bytes));
         Assert.AreEqual(text.ToString(), NinoDeserializer.Deserialize<StringBuilder>(bytes).ToString());
 
         // An existing builder is refilled.
