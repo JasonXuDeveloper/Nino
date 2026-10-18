@@ -43,3 +43,7 @@ hive-mind-prompt-*.txt
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
+
+# TypeScript benchmark output
+benchmarks/typescript/out/
+benchmarks/typescript/gen/

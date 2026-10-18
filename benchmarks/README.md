@@ -108,3 +108,20 @@ python3 benchmarks/members/split-asm.py out.txt asm      # DOTNET_JitStdOutFile;
 `DISASM=1` on `members/run.sh` does this for the member cases. The cross JIT's code is never run, and the timings of
 a run with it are meaningless. Its ARM64 code is the generic Unix ABI; Apple's differs only in calls with stack
 arguments.
+
+## TypeScript
+
+`typescript/` measures the TypeScript that Nino.TypeScript generates against `JSON.stringify` and `JSON.parse`, in
+Node and in headless Chromium (Playwright):
+
+```sh
+benchmarks/typescript/run.sh           # every scenario
+benchmarks/typescript/run.sh lookup    # the scenarios whose data file starts with "lookup"
+```
+
+`Program.cs` declares the types and writes each scenario's values, serialized by Nino in .NET, to
+`typescript/out/data`; `nino-ts` generates their TypeScript into `typescript/gen`. Before a scenario is timed, every
+value is read and written back in TypeScript and must give exactly the bytes .NET wrote. JSON gets the same data as
+plain JSON (64-bit integers as strings, maps as objects) and is not converted back to `bigint` or `Map`, so it does
+less work than Nino. Each time is the median of 15 samples of at least 40 ms. It needs the .NET 10 SDK, Node 22.18+
+(which runs TypeScript directly), tsc 5.7+ and Playwright with Chromium.
