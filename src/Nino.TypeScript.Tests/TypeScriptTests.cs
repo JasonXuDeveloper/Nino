@@ -84,6 +84,25 @@ namespace Nino.TypeScript.Tests
             Tolerant = new Tolerant { A = 1, B = "tolerant" },
         };
 
+        private static Extras FullExtras() => new()
+        {
+            Padded = new Padded { A = 7, B = -8 },
+            PaddedArray = new[] { new Padded { A = 1, B = 2 }, new Padded { A = 255, B = int.MinValue } },
+            RawPair = (9, long.MaxValue),
+            Maybes = new int?[] { 1, null, -3 },
+            NullablePair = (null, "pair"),
+            Spots = new Dictionary<int, Vec2> { [1] = new() { X = 1, Y = 2 }, [-5] = new() { X = 0.5f, Y = -0.25f } },
+            Names = new Dictionary<int, string> { [1] = "one", [2] = null, [3] = "трёх" },
+            Ids = new HashSet<long> { 1, -1, long.MinValue },
+            Words = new List<string> { "a", null, "", "Grüße", "a longer ASCII text, longer than the short ones" },
+            Ranks = new[] { Rank.Gold, Rank.None },
+            // Latin-1 with chars in 0x80-0x9F (which a browser's "latin1" decoder reads as windows-1252).
+            Text = "\u0080\u0081\u009f text past the length read in JavaScript: ÿ é ñ ü and so on, to the end",
+            Ascii = "plain ASCII, as many bytes as chars",
+            Guids = new[] { Guid.Empty, new Guid("0f8fad5b-d9cb-469f-a165-70867728950e") },
+            Decimals = new[] { 0m, -0.0001m, 79228162514264337593543950335m, -1234567890.123456789m, 0.5m },
+        };
+
         private static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
 
         private static List<(string Hex, string Json)> RunNode(List<(string Codec, byte[] Bytes)> cases)
@@ -135,6 +154,9 @@ namespace Nino.TypeScript.Tests
                 // Strings: Latin-1, UTF-16 with a surrogate pair and an unpaired surrogate, long enough for chunks.
                 ("TagCodec", NinoSerializer.Serialize(new Tag { Name = new string('é', 5000) })),
                 ("TagCodec", NinoSerializer.Serialize(new Tag { Name = "a😀b\ud800c" + new string('中', 5000) })),
+                ("TagCodec", NinoSerializer.Serialize(new Tag { Name = "\ufeff中文" })),
+                ("ExtrasCodec", NinoSerializer.Serialize(FullExtras())),
+                ("ExtrasCodec", NinoSerializer.Serialize(new Extras())),
             };
 
             var results = RunNode(cases);
@@ -155,6 +177,17 @@ namespace Nino.TypeScript.Tests
                          "\"saved\":{\"health\":100,\"note\":\"keyed\"}",
                      })
                 StringAssert.Contains(full, expected);
+
+            string extras = results[^3].Json;
+            foreach (string expected in new[]
+                     {
+                         "\"padded\":{\"a\":7,\"b\":-8}", "\"rawPair\":[9,\"9223372036854775807\"]", "\"maybes\":[1,null,-3]",
+                         "\"nullablePair\":[null,\"pair\"]", "\"spots\":{\"1\":{\"x\":1,\"y\":2},\"-5\":{\"x\":0.5,\"y\":-0.25}}",
+                         "\"words\":[\"a\",null,\"\",\"Grüße\",", "\"text\":\"\u0080\u0081\u009f text past",
+                         "\"decimals\":[\"0\",\"-0.0001\",\"79228162514264337593543950335\",\"-1234567890.123456789\",\"0.5\"]",
+                         "\"guids\":[\"00000000-0000-0000-0000-000000000000\",\"0f8fad5b-d9cb-469f-a165-70867728950e\"]",
+                     })
+                StringAssert.Contains(extras, expected);
         }
 
         [TestMethod]

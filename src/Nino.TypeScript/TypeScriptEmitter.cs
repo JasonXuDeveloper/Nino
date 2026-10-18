@@ -53,18 +53,28 @@ namespace Nino.TypeScript
 
         /// <summary>
         /// How a value is written in TypeScript: its type, an expression reading it from a reader, a statement writing a
-        /// value to a writer and its default value.
+        /// value to a writer (which may evaluate the value's expression more than once) and its default value.
         /// </summary>
         private sealed record Shape(string Ts, Func<string, string> Read, Func<string, string, string> Write,
             string Default)
         {
-            /// <summary>A function that reads it, if there is one (else <see cref="ReadFn"/> writes one).</summary>
-            public string? Reader { get; init; }
-            public string? Writer { get; init; }
+            /// <summary>
+            /// The size of a value of fixed size (raw memory, or fixed-size values one after another), else -1. Such a
+            /// value is also read and written at an offset of the reader's or writer's view (<see cref="ReadAt"/>,
+            /// <see cref="WriteAt"/>), so a run of them takes its bytes at once.
+            /// </summary>
+            public int Size { get; init; } = -1;
 
-            /// <summary>The shape of the functions <paramref name="read"/> and <paramref name="write"/>.</summary>
-            public static Shape Of(string ts, string read, string write, string def) =>
-                new(ts, r => $"{read}({r})", (w, v) => $"{write}({w}, {v})", def) { Reader = read, Writer = write };
+            /// <summary>An expression reading the value at an offset (which it may use more than once).</summary>
+            public Func<string, string, string>? ReadAt { get; init; }
+
+            /// <summary>A statement writing the value at an offset.</summary>
+            public Func<string, string, string, string>? WriteAt { get; init; }
+
+            /// <summary>Whether <see cref="WriteAt"/> needs zeroed bytes: it skips padding, or absent values.</summary>
+            public bool Zeroed { get; init; }
+
+            public bool Fixed => Size >= 0;
         }
 
         /// <summary>The generated file for the types of the layouts.</summary>
@@ -87,8 +97,14 @@ namespace Nino.TypeScript
 
             // Every type that can be written behind a type id, once its class is declared.
             foreach (var layout in Registered(layouts.Select(l => l.Type)).Select(t => _layouts[t]))
-                body.Append("types.add(").Append(Int(layout.Id)).Append(", ").Append(Name(layout.Type)).Append(", read")
-                    .Append(Name(layout.Type)).Append(", write").Append(Name(layout.Type)).Append(");\n");
+            {
+                string name = Name(layout.Type);
+                body.Append("types.add(").Append(Int(layout.Id)).Append(", ").Append(name).Append(", ")
+                    .Append(layout.Raw
+                        ? $"(r) => {ReadBody(layout.Type, "r")}, (w, v) => {WriteBody(layout.Type, "w", "v")}"
+                        : $"read{name}, write{name}").Append(");\n");
+            }
+
             body.Append('\n');
             foreach (var layout in layouts.OrderBy(l => Name(l.Type), StringComparer.Ordinal))
                 EmitCodec(body, layout);
@@ -164,19 +180,44 @@ namespace Nino.TypeScript
 
         // ---------------------------------------------------------------- shapes
 
-        /// <summary>
-        /// A function reading a value of <paramref name="shape"/>, for the runtime to call per element: its own, or one
-        /// written once at module level (an inline arrow function would be created on every call).
-        /// </summary>
-        private string ReadFn(Shape shape) => shape.Reader ?? Helper($"read:{shape.Ts}:{shape.Read("r")}", n =>
-            $"function {n}(r: NinoReader): {shape.Ts} {{\n  return {shape.Read("r")};\n}}\n");
+        /// <summary>A value of fixed size, read and written alone by functions that take its bytes.</summary>
+        private Shape Fixed(string ts, int size, Func<string, string, string> readAt,
+            Func<string, string, string, string> writeAt, string def, bool zeroed) =>
+            new(ts,
+                r => Helper($"read:{ts}:{readAt("r", "at")}", n =>
+                    $"function {n}(r: NinoReader): {ts} {{\n  const at = r.take({Int(size)});\n" +
+                    $"  return {readAt("r", "at")};\n}}\n") + $"({r})",
+                (w, v) => Helper($"write:{ts}:{writeAt("w", "at", "v")}", n =>
+                    $"function {n}(w: NinoWriter, v: {ts}): void {{\n  const at = {Reserve("w", size, zeroed)};\n" +
+                    $"  {Statement(writeAt("w", "at", "v"))}\n}}\n") + $"({w}, {v})",
+                def) { Size = size, ReadAt = readAt, WriteAt = writeAt, Zeroed = zeroed };
 
-        private string WriteFn(Shape shape) => shape.Writer ?? Helper($"write:{shape.Ts}:{shape.Write("w", "v")}", n =>
-            $"function {n}(w: NinoWriter, v: {shape.Ts}): void {{\n  {shape.Write("w", "v")};\n}}\n");
+        /// <summary>Takes <paramref name="size"/> bytes of the writer, zeroed if <paramref name="zeroed"/>.</summary>
+        private static string Reserve(string w, int size, bool zeroed) => Reserve(w, Int(size), zeroed);
 
-        private Shape Nullable(Shape inner) =>
-            new($"{inner.Ts} | null", r => $"{r}.nullable({ReadFn(inner)})",
-                (w, v) => $"{w}.nullable({v}, {WriteFn(inner)})", "null");
+        private static string Reserve(string w, string size, bool zeroed) =>
+            $"{w}.{(zeroed ? "raw" : "reserve")}({size})";
+
+        /// <summary>The offset <paramref name="add"/> bytes after <paramref name="at"/> (<c>at + n</c>).</summary>
+        private static string Plus(string at, int add)
+        {
+            if (add == 0)
+                return at;
+            int plus = at.LastIndexOf(" + ", StringComparison.Ordinal);
+            if (plus >= 0 && int.TryParse(at.AsSpan(plus + 3), NumberStyles.None, CultureInfo.InvariantCulture,
+                    out int offset))
+                return $"{at.Substring(0, plus)} + {Int(offset + add)}";
+            return $"{at} + {Int(add)}";
+        }
+
+        /// <summary>A statement ending with <c>;</c> or a block.</summary>
+        private static string Statement(string code) => code.EndsWith('}') ? code : code + ";";
+
+        /// <summary>A presence byte, then the value if present (<c>T?</c>, <c>Tuple</c>, a sealed class).</summary>
+        private static Shape Nullable(Shape inner) =>
+            new($"{inner.Ts} | null", r => $"({r}.notNull() ? {inner.Read(r)} : null)",
+                (w, v) => $"if ({v} === null || {v} === undefined) {w}.u8(0); else {{ {w}.u8(1); " +
+                          $"{Statement(inner.Write(w, v))} }}", "null");
 
         private Shape ShapeOf(WireEncoding e, Type clr)
         {
@@ -218,11 +259,7 @@ namespace Nino.TypeScript
                     if (clr.IsArray && elementType.FullName == "System.Byte")
                         return new Shape("Uint8Array | null", r => $"{r}.bytes()", (w, v) => $"{w}.bytes({v})",
                             "null");
-                    if (Implements(clr, "System.Collections.Generic.ISet`1") != null)
-                        return new Shape($"Set<{element.Ts}> | null", r => $"{r}.set({ReadFn(element)})",
-                            (w, v) => $"{w}.set({v}, {WriteFn(element)})", "null");
-                    return new Shape($"{Parenthesize(element.Ts)}[] | null", r => $"{r}.array({ReadFn(element)})",
-                        (w, v) => $"{w}.array({v}, {WriteFn(element)})", "null");
+                    return Sequence(element, Implements(clr, "System.Collections.Generic.ISet`1") != null);
                 }
                 case "map":
                 {
@@ -230,11 +267,7 @@ namespace Nino.TypeScript
                                 Implements(clr, "System.Collections.Generic.IReadOnlyDictionary`2"))
                                ?.GetGenericArguments() ??
                                throw new UnsupportedException($"{clr.FullName} has no TypeScript form");
-                    var key = ShapeOf(e.Arguments[0], pair[0]);
-                    var value = ShapeOf(e.Arguments[1], pair[1]);
-                    return new Shape($"Map<{key.Ts}, {value.Ts}> | null",
-                        r => $"{r}.map({ReadFn(key)}, {ReadFn(value)})",
-                        (w, v) => $"{w}.map({v}, {WriteFn(key)}, {WriteFn(value)})", "null");
+                    return Map(ShapeOf(e.Arguments[0], pair[0]), ShapeOf(e.Arguments[1], pair[1]));
                 }
                 case "pair":
                 case "tuple":
@@ -242,23 +275,142 @@ namespace Nino.TypeScript
                     var args = clr.IsGenericType ? clr.GetGenericArguments() : Type.EmptyTypes;
                     if (args.Length != e.Arguments.Count || args.Length > 7)
                         throw new UnsupportedException($"{clr.FullName} ({e}) has no TypeScript form");
-                    return Tuple(e.Arguments.Select((a, i) => ShapeOf(a, args[i])).ToList());
+                    // The items one after another: at fixed offsets when they all have a fixed size.
+                    var items = e.Arguments.Select((a, i) => ShapeOf(a, args[i])).ToList();
+                    var offsets = new List<int>();
+                    int size = 0;
+                    foreach (var item in items)
+                    {
+                        offsets.Add(size);
+                        size += item.Size;
+                    }
+
+                    return Tuple(items, offsets, items.All(i => i.Fixed) ? size : -1, items.Any(i => i.Zeroed));
                 }
                 default:
                     throw new UnsupportedException($"{clr.FullName} ({e.Kind}) has no TypeScript form");
             }
         }
 
-        /// <summary>A tuple or pair: its items one after another, as a TypeScript tuple.</summary>
-        private static Shape Tuple(List<Shape> items) =>
-            new("[" + string.Join(", ", items.Select(i => i.Ts)) + "]",
-                r => "[" + string.Join(", ", items.Select(i => i.Read(r))) + "]",
-                (w, v) => string.Join("; ", items.Select((item, i) => item.Write(w, $"{v}[{Int(i)}]"))),
-                "[" + string.Join(", ", items.Select(i => i.Default)) + "]");
+        /// <summary>
+        /// A tuple or pair as a TypeScript tuple: its items at <paramref name="offsets"/> when they are all of fixed
+        /// size (<paramref name="size"/> bytes in all), else one after another.
+        /// </summary>
+        private Shape Tuple(List<Shape> items, List<int> offsets, int size, bool zeroed)
+        {
+            string ts = "[" + string.Join(", ", items.Select(i => i.Ts)) + "]";
+            string def = "[" + string.Join(", ", items.Select(i => i.Default)) + "]";
+            if (size >= 0)
+                return Fixed(ts, size,
+                    (r, at) => "[" + string.Join(", ",
+                        items.Select((item, i) => item.ReadAt!(r, Plus(at, offsets[i])))) + "]",
+                    (w, at, v) => string.Join(" ", items.Select((item, i) =>
+                        Statement(item.WriteAt!(w, Plus(at, offsets[i]), $"{v}[{Int(i)}]")))).TrimEnd(';'),
+                    def, zeroed);
+            return new Shape(ts, r => "[" + string.Join(", ", items.Select(i => i.Read(r))) + "]",
+                (w, v) => string.Join(" ", items.Select((item, i) => Statement(item.Write(w, $"{v}[{Int(i)}]"))))
+                    .TrimEnd(';'), def);
+        }
+
+        /// <summary>
+        /// An array, list or set (length, then each element), read and written by a loop of its own; the elements of
+        /// fixed size take their bytes at once.
+        /// </summary>
+        private Shape Sequence(Shape element, bool set)
+        {
+            string ts = set ? $"Set<{element.Ts}>" : $"{Parenthesize(element.Ts)}[]";
+            string input = set ? $"ReadonlySet<{element.Ts}>" : $"readonly {Parenthesize(element.Ts)}[]";
+            string Add(string value) => set ? $"values.add({value})" : $"values[i] = {value}";
+            // Keyed by the code of the elements too: two encodings can share a TypeScript type.
+            string ElementRead() => element.Fixed ? element.ReadAt!("r", "at") : element.Read("r");
+            string ElementWrite() => element.Fixed ? element.WriteAt!("w", "at", "value") : element.Write("w", "value");
+            return new Shape(ts + " | null", r => Helper($"read:{ts}:{ElementRead()}", n =>
+                {
+                    var sb = new StringBuilder();
+                    sb.Append("function ").Append(n).Append("(r: NinoReader): ").Append(ts).Append(" | null {\n")
+                        .Append("  const length = r.length();\n  if (length < 0) return null;\n")
+                        .Append(set ? $"  const values = new Set<{element.Ts}>();\n"
+                            : $"  const values = new Array<{element.Ts}>(length);\n");
+                    if (element.Fixed)
+                        sb.Append("  for (let i = 0, at = r.take(length * ").Append(Int(element.Size))
+                            .Append("); i < length; i++, at += ").Append(Int(element.Size)).Append(") ")
+                            .Append(Add(element.ReadAt!("r", "at"))).Append(";\n");
+                    else
+                        sb.Append("  for (let i = 0; i < length; i++) ").Append(Add(element.Read("r"))).Append(";\n");
+                    return sb.Append("  return values;\n}\n").ToString();
+                }) + $"({r})",
+                (w, v) => Helper($"write:{ts}:{ElementWrite()}", n =>
+                {
+                    var sb = new StringBuilder();
+                    sb.Append("function ").Append(n).Append("(w: NinoWriter, values: ").Append(input)
+                        .Append(" | null): void {\n")
+                        .Append("  if (values === null || values === undefined) {\n    w.i32(-1);\n    return;\n  }\n");
+                    string length = set ? "values.size" : "values.length";
+                    sb.Append("  w.i32(").Append(length).Append(");\n");
+                    if (element.Fixed)
+                    {
+                        sb.Append("  let at = ").Append(Reserve("w", $"{length} * {Int(element.Size)}", element.Zeroed))
+                            .Append(";\n  for (const value of values) {\n    ")
+                            .Append(Statement(element.WriteAt!("w", "at", "value"))).Append("\n    at += ")
+                            .Append(Int(element.Size)).Append(";\n  }\n");
+                    }
+                    else
+                        sb.Append("  for (const value of values) {\n    ")
+                            .Append(Statement(element.Write("w", "value"))).Append("\n  }\n");
+                    return sb.Append("}\n").ToString();
+                }) + $"({w}, {v})", "null");
+        }
+
+        /// <summary>A dictionary: length, then each key and value, read and written by a loop of its own.</summary>
+        private Shape Map(Shape key, Shape value)
+        {
+            string ts = $"Map<{key.Ts}, {value.Ts}>";
+            bool fixedPair = key.Fixed && value.Fixed;
+            int size = key.Size + value.Size;
+            string PairRead() => fixedPair ? key.ReadAt!("r", "at") + value.ReadAt!("r", "at")
+                : key.Read("r") + value.Read("r");
+            string PairWrite() => fixedPair ? key.WriteAt!("w", "at", "key") + value.WriteAt!("w", "at", "value")
+                : key.Write("w", "key") + value.Write("w", "value");
+            return new Shape(ts + " | null", r => Helper($"read:{ts}:{PairRead()}", n =>
+                {
+                    var sb = new StringBuilder();
+                    sb.Append("function ").Append(n).Append("(r: NinoReader): ").Append(ts).Append(" | null {\n")
+                        .Append("  const length = r.length();\n  if (length < 0) return null;\n")
+                        .Append("  const map = new ").Append(ts).Append("();\n");
+                    if (fixedPair)
+                        sb.Append("  for (let i = 0, at = r.take(length * ").Append(Int(size))
+                            .Append("); i < length; i++, at += ").Append(Int(size)).Append(") map.set(")
+                            .Append(key.ReadAt!("r", "at")).Append(", ")
+                            .Append(value.ReadAt!("r", Plus("at", key.Size))).Append(");\n");
+                    else
+                        sb.Append("  for (let i = 0; i < length; i++) {\n    const key = ").Append(key.Read("r"))
+                            .Append(";\n    map.set(key, ").Append(value.Read("r")).Append(");\n  }\n");
+                    return sb.Append("  return map;\n}\n").ToString();
+                }) + $"({r})",
+                (w, v) => Helper($"write:{ts}:{PairWrite()}", n =>
+                {
+                    var sb = new StringBuilder();
+                    sb.Append("function ").Append(n).Append("(w: NinoWriter, map: ReadonlyMap<").Append(key.Ts)
+                        .Append(", ").Append(value.Ts).Append("> | null): void {\n")
+                        .Append("  if (map === null || map === undefined) {\n    w.i32(-1);\n    return;\n  }\n")
+                        .Append("  w.i32(map.size);\n");
+                    if (fixedPair)
+                        sb.Append("  let at = ")
+                            .Append(Reserve("w", $"map.size * {Int(size)}", key.Zeroed || value.Zeroed))
+                            .Append(";\n  for (const [key, value] of map) {\n    ")
+                            .Append(Statement(key.WriteAt!("w", "at", "key"))).Append("\n    ")
+                            .Append(Statement(value.WriteAt!("w", Plus("at", key.Size), "value")))
+                            .Append("\n    at += ").Append(Int(size)).Append(";\n  }\n");
+                    else
+                        sb.Append("  for (const [key, value] of map) {\n    ").Append(Statement(key.Write("w", "key")))
+                            .Append("\n    ").Append(Statement(value.Write("w", "value"))).Append("\n  }\n");
+                    return sb.Append("}\n").ToString();
+                }) + $"({w}, {v})", "null");
+        }
 
         private static string Parenthesize(string ts) => ts.Contains(' ') ? $"({ts})" : ts;
 
-        /// <summary>A <c>[NinoType]</c> member: its codec, which writes the header of its kind.</summary>
+        /// <summary>A <c>[NinoType]</c> member, with the header of its kind.</summary>
         private Shape TypeShape(Type clr)
         {
             if (!_layouts.TryGetValue(clr, out var layout) || !_supported.Contains(clr))
@@ -266,9 +418,16 @@ namespace Nino.TypeScript
             if (layout.Raw)
                 return RawShape(layout.RawEncoding!, clr);
             string name = Name(clr);
-            bool nullable = layout.Header != TypeLayout.NoHeader;
-            return Shape.Of(nullable ? $"{name} | null" : name, $"{name}Codec.read", $"{name}Codec.write",
-                nullable ? "null" : $"new {name}()");
+            return layout.Header switch
+            {
+                TypeLayout.NoHeader => new Shape(name, r => $"read{name}({r})", (w, v) => $"write{name}({w}, {v})",
+                    $"new {name}()"),
+                TypeLayout.NullFlag => Nullable(new Shape(name, r => $"read{name}({r})",
+                    (w, v) => $"write{name}({w}, {v})", "null")),
+                // Any type assignable to it, by the type id in front of its body.
+                _ => new Shape($"{name} | null", r => $"{name}Codec.read({r})",
+                    (w, v) => $"{name}Codec.write({w}, {v})", "null"),
+            };
         }
 
         /// <summary>A value copied as raw memory: a primitive, an enum, or a struct in its canonical layout.</summary>
@@ -282,9 +441,14 @@ namespace Nino.TypeScript
                 string name = Name(clr);
                 bool zero = clr.GetFields(BindingFlags.Public | BindingFlags.Static)
                     .Any(f => Convert.ToString(f.GetRawConstantValue(), CultureInfo.InvariantCulture) == "0");
-                return new Shape(name, r => $"{underlying.Read(r)} as {name}", underlying.Write,
-                    zero || Flags(clr) ? $"{underlying.Default} as {name}"
-                        : $"{underlying.Default} as {underlying.Ts} as {name}");
+                return underlying with
+                {
+                    Ts = name,
+                    Read = r => $"{underlying.Read(r)} as {name}",
+                    ReadAt = (r, at) => $"{underlying.ReadAt!(r, at)} as {name}",
+                    Default = zero || Flags(clr) ? $"{underlying.Default} as {name}"
+                        : $"{underlying.Default} as {underlying.Ts} as {name}",
+                };
             }
 
             if (Primitive(clr) is { } primitive)
@@ -295,23 +459,16 @@ namespace Nino.TypeScript
             string definition = clr.IsGenericType ? clr.GetGenericTypeDefinition().FullName ?? "" : "";
             if (definition == "System.Nullable`1")
             {
-                // T? in the canonical Nullable<T> layout: the flag, then the value at its offset.
+                // T? in the canonical Nullable<T> layout: the flag, then the value at its offset (zeroed when absent).
                 var (flag, value) = (e.Fields[0], e.Fields[1]);
                 var inner = RawShape(value.Encoding, clr.GetGenericArguments()[0]);
-                string read = Helper($"read:{e}", n =>
-                    $"function {n}(r: NinoReader): {inner.Ts} | null {{\n" +
-                    $"  const s = r.raw({e.Size});\n" +
-                    $"  r.pos = s + {flag.Offset};\n  const has = r.bool();\n" +
-                    $"  r.pos = s + {value.Offset};\n  const value = {inner.Read("r")};\n" +
-                    $"  r.pos = s + {e.Size};\n  return has ? value : null;\n}}\n");
-                string write = Helper($"write:{e}", n =>
-                    $"function {n}(w: NinoWriter, v: {inner.Ts} | null): void {{\n" +
-                    $"  const s = w.raw({e.Size});\n" +
-                    "  if (v !== null && v !== undefined) {\n" +
-                    $"    w.pos = s + {flag.Offset};\n    w.bool(true);\n" +
-                    $"    w.pos = s + {value.Offset};\n    {inner.Write("w", "v")};\n  }}\n" +
-                    $"  w.pos = s + {e.Size};\n}}\n");
-                return Shape.Of($"{inner.Ts} | null", read, write, "null");
+                return Fixed($"{inner.Ts} | null", e.Size,
+                    (r, at) => $"({r}.view.getUint8({Plus(at, flag.Offset)}) !== 0 ? " +
+                               $"{inner.ReadAt!(r, Plus(at, value.Offset))} : null)",
+                    (w, at, v) => $"if ({v} !== null && {v} !== undefined) {{ " +
+                                  $"{w}.view.setUint8({Plus(at, flag.Offset)}, 1); " +
+                                  $"{Statement(inner.WriteAt!(w, Plus(at, value.Offset), v))} }}",
+                    "null", zeroed: true);
             }
 
             if (definition.StartsWith("System.ValueTuple`", StringComparison.Ordinal) ||
@@ -319,29 +476,26 @@ namespace Nino.TypeScript
             {
                 // Raw tuples and pairs are TypeScript tuples too: each item at its offset.
                 var items = e.Fields.Select(f => RawShape(f.Encoding, FieldType(clr, f.Name))).ToList();
-                var tuple = Tuple(items);
-                string read = Helper($"read:{e}", n =>
-                    $"function {n}(r: NinoReader): {tuple.Ts} {{\n  const s = r.raw({e.Size});\n" +
-                    string.Concat(e.Fields.Select((f, i) =>
-                        $"  r.pos = s + {f.Offset};\n  const item{Int(i)} = {items[i].Read("r")};\n")) +
-                    $"  r.pos = s + {e.Size};\n" +
-                    $"  return [{string.Join(", ", e.Fields.Select((_, i) => "item" + Int(i)))}];\n}}\n");
-                string write = Helper($"write:{e}", n =>
-                    $"function {n}(w: NinoWriter, v: {tuple.Ts}): void {{\n  const s = w.raw({e.Size});\n" +
-                    string.Concat(e.Fields.Select((f, i) =>
-                        $"  w.pos = s + {f.Offset};\n  {items[i].Write("w", $"v[{Int(i)}]")};\n")) +
-                    $"  w.pos = s + {e.Size};\n}}\n");
-                return Shape.Of(tuple.Ts, read, write, tuple.Default);
+                return Tuple(items, e.Fields.Select(f => f.Offset).ToList(), e.Size,
+                    !Packed(e) || items.Any(i => i.Zeroed));
             }
 
-            if (_rawStructs.TryAdd(clr, e))
-            {
-                foreach (var field in e.Fields)
-                    RawShape(field.Encoding, FieldType(clr, field.Name));
-            }
+            _rawStructs.TryAdd(clr, e);
+            // Also adds the enums and structs of its fields.
+            var fieldShapes = e.Fields.Select(f => RawShape(f.Encoding, FieldType(clr, f.Name))).ToList();
+            // Padding is zeroed (as Nino zeroes it), and so is anything its fields skip.
+            bool zeroed = !Packed(e) || fieldShapes.Any(f => f.Zeroed);
 
+            // Read and written by functions of its own, at the offset given.
             string structName = Name(clr);
-            return Shape.Of(structName, "read" + structName, "write" + structName, $"new {structName}()");
+            return new Shape(structName, r => $"read{structName}({r}, {r}.take({Int(e.Size)}))",
+                (w, v) => $"write{structName}({w}, {Reserve(w, e.Size, zeroed)}, {v})", $"new {structName}()")
+            {
+                Size = e.Size,
+                ReadAt = (r, at) => $"read{structName}({r}, {at})",
+                WriteAt = (w, at, v) => $"write{structName}({w}, {at}, {v})",
+                Zeroed = zeroed,
+            };
         }
 
         private static readonly long MinDateMilliseconds =
@@ -349,26 +503,42 @@ namespace Nino.TypeScript
 
         private static Shape? Primitive(Type clr)
         {
-            static Shape Of(string ts, string fn, string def) =>
-                new(ts, r => $"{r}.{fn}()", (w, v) => $"{w}.{fn}({v})", def);
+            // Read and written alone by the reader's and writer's methods; at an offset, from their views.
+            static Shape Of(string ts, string fn, string def, int size, string get, string set) =>
+                new(ts, r => $"{r}.{fn}()", (w, v) => $"{w}.{fn}({v})", def)
+                {
+                    Size = size,
+                    ReadAt = (r, at) => string.Format(CultureInfo.InvariantCulture, get, r, at),
+                    WriteAt = (w, at, v) => string.Format(CultureInfo.InvariantCulture, set, w, at, v),
+                };
+            static Shape View(string ts, string fn, string def, int size, string type) =>
+                Of(ts, fn, def, size, $"{{0}}.view.get{type}({{1}}{(size > 1 ? ", true" : "")})",
+                    $"{{0}}.view.set{type}({{1}}, {{2}}{(size > 1 ? ", true" : "")})");
             return clr.FullName switch
             {
-                "System.Boolean" => Of("boolean", "bool", "false"),
-                "System.Byte" => Of("number", "u8", "0"),
-                "System.SByte" => Of("number", "i8", "0"),
-                "System.Int16" => Of("number", "i16", "0"),
-                "System.UInt16" => Of("number", "u16", "0"),
-                "System.Int32" => Of("number", "i32", "0"),
-                "System.UInt32" => Of("number", "u32", "0"),
-                "System.Int64" or "System.IntPtr" => Of("bigint", "i64", "0n"),
-                "System.UInt64" or "System.UIntPtr" => Of("bigint", "u64", "0n"),
-                "System.Single" => Of("number", "f32", "0"),
-                "System.Double" => Of("number", "f64", "0"),
-                "System.Char" => Of("string", "char", "\"\\0\""),
-                "System.Decimal" => Of("string", "decimal", "\"0\""),
-                "System.Guid" => Of("string", "guid", "\"00000000-0000-0000-0000-000000000000\""),
-                "System.DateTime" => Of("Date", "dateTime", $"new Date({Long(MinDateMilliseconds)})"),
-                "System.TimeSpan" => Of("bigint", "timeSpan", "0n"),
+                "System.Boolean" => Of("boolean", "bool", "false", 1, "{0}.view.getUint8({1}) !== 0",
+                    "{0}.view.setUint8({1}, {2} ? 1 : 0)"),
+                "System.Byte" => View("number", "u8", "0", 1, "Uint8"),
+                "System.SByte" => View("number", "i8", "0", 1, "Int8"),
+                "System.Int16" => View("number", "i16", "0", 2, "Int16"),
+                "System.UInt16" => View("number", "u16", "0", 2, "Uint16"),
+                "System.Int32" => View("number", "i32", "0", 4, "Int32"),
+                "System.UInt32" => View("number", "u32", "0", 4, "Uint32"),
+                "System.Int64" or "System.IntPtr" => View("bigint", "i64", "0n", 8, "BigInt64"),
+                "System.UInt64" or "System.UIntPtr" => View("bigint", "u64", "0n", 8, "BigUint64"),
+                "System.Single" => View("number", "f32", "0", 4, "Float32"),
+                "System.Double" => View("number", "f64", "0", 8, "Float64"),
+                // "" has no char code (NaN), which a Uint16 converts to 0.
+                "System.Char" => Of("string", "char", "\"\\0\"", 2,
+                    "String.fromCharCode({0}.view.getUint16({1}, true))",
+                    "{0}.view.setUint16({1}, {2}.charCodeAt(0), true)"),
+                "System.Decimal" => Of("string", "decimal", "\"0\"", 16, "{0}.decimalAt({1})",
+                    "{0}.decimalAt({1}, {2})"),
+                "System.Guid" => Of("string", "guid", "\"00000000-0000-0000-0000-000000000000\"", 16, "{0}.guidAt({1})",
+                    "{0}.guidAt({1}, {2})"),
+                "System.DateTime" => Of("Date", "dateTime", $"new Date({Long(MinDateMilliseconds)})", 8,
+                    "{0}.dateTimeAt({1})", "{0}.dateTimeAt({1}, {2})"),
+                "System.TimeSpan" => View("bigint", "timeSpan", "0n", 8, "BigInt64"),
                 _ => null,
             };
         }
@@ -491,36 +661,19 @@ namespace Nino.TypeScript
                     .Append(";\n");
             sb.Append("}\n\n");
 
-            // Without padding the fields are read and written one after another; with it, each at its offset in
-            // the zeroed bytes of the struct.
-            bool packed = Packed(e);
-            sb.Append("function read").Append(name).Append("(r: NinoReader): ").Append(name).Append(" {\n")
+            // Each field at its offset of the bytes the caller took (zeroed, if the struct has padding).
+            sb.Append("function read").Append(name).Append("(r: NinoReader, at: number): ").Append(name).Append(" {\n")
                 .Append("  const v = new ").Append(name).Append("();\n");
-            if (!packed)
-                sb.Append("  const s = r.raw(").Append(e.Size).Append(");\n");
             foreach (var (f, member, shape) in fields)
-            {
-                if (!packed)
-                    sb.Append("  r.pos = s + ").Append(f.Offset).Append(";\n");
-                sb.Append("  v.").Append(member).Append(" = ").Append(shape.Read("r")).Append(";\n");
-            }
-
-            if (!packed)
-                sb.Append("  r.pos = s + ").Append(e.Size).Append(";\n");
+                sb.Append("  v.").Append(member).Append(" = ").Append(shape.ReadAt!("r", Plus("at", f.Offset)))
+                    .Append(";\n");
             sb.Append("  return v;\n}\n\n");
 
-            sb.Append("function write").Append(name).Append("(w: NinoWriter, v: ").Append(name).Append("): void {\n");
-            if (!packed)
-                sb.Append("  const s = w.raw(").Append(e.Size).Append(");\n");
+            sb.Append("function write").Append(name).Append("(w: NinoWriter, at: number, v: ").Append(name)
+                .Append("): void {\n");
             foreach (var (f, member, shape) in fields)
-            {
-                if (!packed)
-                    sb.Append("  w.pos = s + ").Append(f.Offset).Append(";\n");
-                sb.Append("  ").Append(shape.Write("w", "v." + member)).Append(";\n");
-            }
-
-            if (!packed)
-                sb.Append("  w.pos = s + ").Append(e.Size).Append(";\n");
+                sb.Append("  ").Append(Statement(shape.WriteAt!("w", Plus("at", f.Offset), "v." + member)))
+                    .Append('\n');
             sb.Append("}\n\n");
         }
 
@@ -586,7 +739,7 @@ namespace Nino.TypeScript
             var members = Members(layout);
             // The members of the base class (and its bases) are declared there.
             var own = members.Where(m => baseLayout == null || m.Member.DeclaringType == null ||
-                                         !m.Member.DeclaringType.IsAssignableFrom(baseLayout.Type));
+                                         !m.Member.DeclaringType.IsAssignableFrom(baseLayout.Type)).ToList();
             var interfaces = type.GetInterfaces()
                 .Where(i => _layouts.ContainsKey(i) && _supported.Contains(i)).Select(Name).ToList();
 
@@ -597,9 +750,26 @@ namespace Nino.TypeScript
             if (interfaces.Count != 0)
                 sb.Append(" implements ").Append(string.Join(", ", interfaces));
             sb.Append(" {\n");
-            foreach (var (_, member, shape) in own)
-                sb.Append("  ").Append(member).Append(": ").Append(shape.Ts).Append(" = ").Append(shape.Default)
-                    .Append(";\n");
+            // In a class hierarchy, V8 creates objects about twice as fast from constructors as from field
+            // initializers (one initializer per class), so the members are declared and set in the constructor there.
+            bool hierarchy = baseLayout != null || _layouts.Values.Any(l =>
+                !l.Type.IsInterface && _supported.Contains(l.Type) && BaseLayout(l.Type) == layout);
+            if (!hierarchy)
+            {
+                foreach (var (_, member, shape) in own)
+                    sb.Append("  ").Append(member).Append(": ").Append(shape.Ts).Append(" = ").Append(shape.Default)
+                        .Append(";\n");
+            }
+            else if (own.Count != 0)
+            {
+                foreach (var (_, member, shape) in own)
+                    sb.Append("  declare ").Append(member).Append(": ").Append(shape.Ts).Append(";\n");
+                sb.Append("\n  constructor() {\n").Append(baseLayout != null ? "    super();\n" : "");
+                foreach (var (_, member, shape) in own)
+                    sb.Append("    this.").Append(member).Append(" = ").Append(shape.Default).Append(";\n");
+                sb.Append("  }\n");
+            }
+
             sb.Append("}\n\n");
             if (!type.IsAbstract)
                 EmitBody(sb, layout, name, members);
@@ -639,9 +809,33 @@ namespace Nino.TypeScript
                     sb.Append("  r.endRegion(end);\n");
                     break;
                 default:
-                    foreach (var (_, member, shape) in members)
-                        sb.Append("  v.").Append(member).Append(" = ").Append(shape.Read("r")).Append(";\n");
+                {
+                    // Each run of fixed-size members takes its bytes at once and reads them at their offsets.
+                    var runs = Runs(members);
+                    string at = runs.Count(r => r.Count > 1) > 1 ? "let at" : "const at";
+                    foreach (var run in runs)
+                    {
+                        if (run.Count == 1)
+                        {
+                            sb.Append("  v.").Append(run[0].Name).Append(" = ").Append(run[0].Shape.Read("r"))
+                                .Append(";\n");
+                            continue;
+                        }
+
+                        sb.Append("  ").Append(at).Append(" = r.take(").Append(Int(run.Sum(m => m.Shape.Size)))
+                            .Append(");\n");
+                        at = "at";
+                        int offset = 0;
+                        foreach (var (_, member, shape) in run)
+                        {
+                            sb.Append("  v.").Append(member).Append(" = ")
+                                .Append(shape.ReadAt!("r", Plus("at", offset))).Append(";\n");
+                            offset += shape.Size;
+                        }
+                    }
+
                     break;
+                }
             }
 
             sb.Append("  return v;\n}\n\n");
@@ -649,19 +843,58 @@ namespace Nino.TypeScript
             sb.Append("function write").Append(name).Append("(w: NinoWriter, v: ").Append(name).Append("): void {\n");
             if (layout.Format != TypeLayout.Positional)
                 sb.Append("  const start = w.region();\n");
-            foreach (var (m, member, shape) in members)
+            if (layout.Format == TypeLayout.Keyed)
             {
-                if (layout.Format == TypeLayout.Keyed)
+                foreach (var (m, member, shape) in members)
                     sb.Append("  w.i32(").Append(Int(m.Key)).Append(");\n  const ").Append(member)
-                        .Append("$ = w.region();\n  ").Append(shape.Write("w", "v." + member)).Append(";\n  w.endRegion(")
-                        .Append(member).Append("$);\n");
-                else
-                    sb.Append("  ").Append(shape.Write("w", "v." + member)).Append(";\n");
+                        .Append("$ = w.region();\n  ").Append(Statement(shape.Write("w", "v." + member)))
+                        .Append("\n  w.endRegion(").Append(member).Append("$);\n");
+            }
+            else
+            {
+                // Each run of fixed-size members reserves its bytes at once and writes them at their offsets.
+                var runs = Runs(members);
+                string at = runs.Count(r => r.Count > 1) > 1 ? "let at" : "const at";
+                foreach (var run in runs)
+                {
+                    if (run.Count == 1)
+                    {
+                        sb.Append("  ").Append(Statement(run[0].Shape.Write("w", "v." + run[0].Name))).Append('\n');
+                        continue;
+                    }
+
+                    sb.Append("  ").Append(at).Append(" = ")
+                        .Append(Reserve("w", run.Sum(m => m.Shape.Size), run.Any(m => m.Shape.Zeroed))).Append(";\n");
+                    at = "at";
+                    int offset = 0;
+                    foreach (var (_, member, shape) in run)
+                    {
+                        sb.Append("  ").Append(Statement(shape.WriteAt!("w", Plus("at", offset), "v." + member)))
+                            .Append('\n');
+                        offset += shape.Size;
+                    }
+                }
             }
 
             if (layout.Format != TypeLayout.Positional)
                 sb.Append("  w.endRegion(start);\n");
             sb.Append("}\n\n");
+        }
+
+        /// <summary>The members in runs: fixed-size members next to one another together, the others alone.</summary>
+        private static List<List<(MemberLayout Member, string Name, Shape Shape)>> Runs(
+            List<(MemberLayout Member, string Name, Shape Shape)> members)
+        {
+            var runs = new List<List<(MemberLayout, string, Shape)>>();
+            foreach (var member in members)
+            {
+                if (member.Shape.Fixed && runs.Count != 0 && runs[^1][^1].Item3.Fixed)
+                    runs[^1].Add(member);
+                else
+                    runs.Add(new List<(MemberLayout, string, Shape)> { member });
+            }
+
+            return runs;
         }
 
         /// <summary><c>XCodec</c>: the type with its header, as a member of its type or <c>NinoSerializer</c> writes it.</summary>
@@ -671,24 +904,54 @@ namespace Nino.TypeScript
             sb.Append("export const ").Append(name).Append("Codec: NinoCodec<").Append(name);
             switch (layout.Header)
             {
+                case TypeLayout.NoHeader when layout.Raw:
+                {
+                    var shape = RawShape(layout.RawEncoding!, layout.Type);
+                    sb.Append("> = {\n  read: (r) => ").Append(shape.Read("r")).Append(",\n  write: (w, v) => ")
+                        .Append(shape.Write("w", "v")).Append(",\n};\n");
+                    break;
+                }
                 case TypeLayout.NoHeader:
                     sb.Append("> = { read: read").Append(name).Append(", write: write").Append(name).Append(" };\n");
                     break;
                 case TypeLayout.NullFlag:
-                    sb.Append(" | null> = {\n")
-                        .Append("  read: (r) => (r.notNull() ? read").Append(name).Append("(r) : null),\n")
-                        .Append("  write: (w, v) => w.nullable(v, write").Append(name).Append("),\n};\n");
+                {
+                    var shape = TypeShape(layout.Type);
+                    sb.Append(" | null> = {\n  read: (r) => ").Append(shape.Read("r"))
+                        .Append(",\n  write: (w, v) => {\n    ").Append(Statement(shape.Write("w", "v")))
+                        .Append("\n  },\n};\n");
                     break;
+                }
                 default:
                 {
-                    // Any type assignable to it, by the type id in front of its body.
-                    var ids = Registered(_supported.Where(t => layout.Type.IsAssignableFrom(t)))
-                        .Select(t => Int(_layouts[t].Id));
-                    sb.Append(" | null> = types.codec<").Append(name).Append(">([")
-                        .Append(string.Join(", ", ids)).Append("]);\n");
+                    // Any type assignable to it, by the type id in front of its body: by its class when written.
+                    var types = Registered(_supported.Where(t => layout.Type.IsAssignableFrom(t))).ToList();
+                    sb.Append(" | null> = {\n  read: (r) => {\n    const id = r.i32();\n    switch (id) {\n")
+                        .Append("      case 0:\n        return null;\n");
+                    foreach (var type in types)
+                        sb.Append("      case ").Append(Int(_layouts[type].Id)).Append(":\n        return ")
+                            .Append(ReadBody(type, "r")).Append(";\n");
+                    sb.Append("    }\n    throw types.unreadable(id);\n  },\n")
+                        .Append("  write: (w, v) => {\n    if (v === null || v === undefined) {\n      w.i32(0);\n")
+                        .Append("      return;\n    }\n    switch (v.constructor) {\n");
+                    foreach (var type in types)
+                        sb.Append("      case ").Append(Name(type)).Append(":\n        w.i32(")
+                            .Append(Int(_layouts[type].Id)).Append(");\n        ")
+                            .Append(Statement(WriteBody(type, "w", $"v as {Name(type)}")))
+                            .Append("\n        return;\n");
+                    sb.Append("    }\n    throw types.unwritable(v);\n  },\n};\n");
                     break;
                 }
             }
         }
+
+        /// <summary>An expression reading the body of a type written behind a type id (without its header).</summary>
+        private string ReadBody(Type type, string r) =>
+            _layouts[type].Raw ? RawShape(_layouts[type].RawEncoding!, type).Read(r) : $"read{Name(type)}({r})";
+
+        /// <summary>A statement writing the body of a type written behind a type id.</summary>
+        private string WriteBody(Type type, string w, string v) => _layouts[type].Raw
+            ? RawShape(_layouts[type].RawEncoding!, type).Write(w, v)
+            : $"write{Name(type)}({w}, {v})";
     }
 }

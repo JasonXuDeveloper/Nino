@@ -114,6 +114,34 @@ namespace Samples
         public string B;
     }
 
+    /// <summary>A raw struct with padding (3 bytes after A), which Nino writes zeroed.</summary>
+    [NinoType]
+    public struct Padded
+    {
+        public byte A;
+        public int B;
+    }
+
+    /// <summary>Members of the shapes Player has none of, each read and written its own way in TypeScript.</summary>
+    [NinoType]
+    public sealed class Extras
+    {
+        public Padded Padded;
+        public Padded[] PaddedArray;
+        public (byte, long) RawPair;
+        public int?[] Maybes;
+        public (int?, string) NullablePair;
+        public Dictionary<int, Vec2> Spots;
+        public Dictionary<int, string> Names;
+        public HashSet<long> Ids;
+        public List<string> Words;
+        public Rank[] Ranks;
+        public string Text;
+        [NinoUtf8] public string Ascii;
+        public Guid[] Guids;
+        public decimal[] Decimals;
+    }
+
     /// <summary>Left out of TypeScript (reference tracking), with a warning.</summary>
     [NinoType(trackReferences: true)]
     public sealed class Node
