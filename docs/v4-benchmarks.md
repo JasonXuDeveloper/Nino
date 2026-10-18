@@ -135,7 +135,9 @@ that of common applications (`src/Nino.Benchmark/CommonTypes.cs`): players with 
 bytes and strings; orders with `Guid`, `DateTimeOffset`, `decimal` and a list of classes; shapes through an abstract
 base; a tree; a padded struct array; and a string dictionary. `CollectionsTest` covers collections of the base
 class library: a list of tuples, an array of key-value pairs, and hashed, queued, linked, sorted and concurrent
-collections.
+collections. `BclTypesTest` covers the other base class library types both libraries have formatters for: `BigInteger`,
+`Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>`, memory and sequences, read-only,
+lookup and blocking collections, and the immutable collections.
 
 <!--bench:doc.table.extra-->
 | Case | Serialize v4 | MemoryPack | v4 vs MemoryPack | Deserialize v4 | MemoryPack | v4 vs MemoryPack |
@@ -237,8 +239,9 @@ pooling), `ReferenceTest` (a graph with shared references and cycles: `trackRefe
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`
 against MemoryPack's `GenerateType.VersionTolerant`, one and 100) and `FixedSizeTest` (types of fixed size serialized
 to a `byte[]` of exactly that size: an unmanaged struct, a sealed class of the same members and an array of 100 of
-them), `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary) and `CollectionsTest`
-(collections of the base class library).
+them), `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary), `CollectionsTest`
+(collections of the base class library) and `BclTypesTest` (other base class library types and the immutable
+collections).
 [benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from [`benchmarks/v3`](../benchmarks/v3), the same `SimpleTest` built against the `Nino` 3.3.13
