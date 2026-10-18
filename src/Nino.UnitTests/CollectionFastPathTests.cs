@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
@@ -271,5 +272,72 @@ public class CollectionFastPathTests
         CollectionAssert.AreEqual(items, NinoDeserializer.Deserialize<List<WideItem>>(bytes));
         CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(items.ToArray()));
         Assert.AreEqual(items[3], NinoDeserializer.Deserialize<WideItem>(NinoSerializer.Serialize(items[3])));
+    }
+
+    [TestMethod]
+    public void LargeRawListsRoundTrip()
+    {
+        // A new list of raw elements gets an uninitialized backing array from 6 KB on; a reused one, a derived list
+        // and a list of nullable values take their own paths.
+        foreach (int n in new[] { 0, 1, 1535, 1536, 5000 })
+        {
+            var ints = Enumerable.Range(0, n).Select(i => i * 7 - 3).ToList();
+            byte[] bytes = NinoSerializer.Serialize(ints);
+            var read = NinoDeserializer.Deserialize<List<int>>(bytes);
+            CollectionAssert.AreEqual(ints, read);
+            Assert.AreEqual(n, read.Capacity);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(ints.ToArray()));
+
+            var reused = Enumerable.Repeat(-1, 7000).ToList();
+            NinoDeserializer.Deserialize(bytes, ref reused);
+            CollectionAssert.AreEqual(ints, reused);
+
+            var derived = NinoDeserializer.Deserialize<DerivedIntList>(bytes);
+            CollectionAssert.AreEqual(ints, derived);
+
+            var nullable = Enumerable.Range(0, n).Select(i => i % 3 == 0 ? (long?)null : i * 11L).ToList();
+            CollectionAssert.AreEqual(nullable,
+                NinoDeserializer.Deserialize<List<long?>>(NinoSerializer.Serialize(nullable)));
+        }
+    }
+
+    [TestMethod]
+    public void ImmutableCollectionsWriteTheBytesOfArrays()
+    {
+        // ImmutableArray<T> is written and read through its array, ImmutableList<T> built from one: the bytes are
+        // those of T[], and a read never reuses the array of the old value.
+        foreach (int n in new[] { 0, 1, 3, 2000 })
+        {
+            var ints = Enumerable.Range(0, n).Select(i => i * 31).ToArray();
+            var strings = Enumerable.Range(0, n).Select(i => i % 5 == 0 ? null : "s" + i).ToArray();
+
+            var intArray = ImmutableArray.Create(ints);
+            byte[] bytes = NinoSerializer.Serialize(intArray);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(ints), bytes);
+            var old = ImmutableArray.Create(Enumerable.Repeat(9, n).ToArray());
+            var kept = old.ToArray();
+            var read = old;
+            NinoDeserializer.Deserialize(bytes, ref read);
+            CollectionAssert.AreEqual(ints, read.ToArray());
+            CollectionAssert.AreEqual(kept, old.ToArray());
+
+            var stringArray = ImmutableArray.Create(strings);
+            bytes = NinoSerializer.Serialize(stringArray);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(strings), bytes);
+            CollectionAssert.AreEqual(strings, NinoDeserializer.Deserialize<ImmutableArray<string>>(bytes).ToArray());
+
+            var intList = ImmutableList.Create(ints);
+            bytes = NinoSerializer.Serialize(intList);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(ints), bytes);
+            CollectionAssert.AreEqual(ints, NinoDeserializer.Deserialize<ImmutableList<int>>(bytes).ToArray());
+
+            var stringList = ImmutableList.Create(strings);
+            bytes = NinoSerializer.Serialize(stringList);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(strings), bytes);
+            CollectionAssert.AreEqual(strings, NinoDeserializer.Deserialize<ImmutableList<string>>(bytes).ToArray());
+        }
+
+        Assert.IsTrue(NinoDeserializer.Deserialize<ImmutableArray<int>>(NinoSerializer.Serialize(default(ImmutableArray<int>))).IsDefault);
+        Assert.IsNull(NinoDeserializer.Deserialize<ImmutableList<int>>(NinoSerializer.Serialize((ImmutableList<int>)null)));
     }
 }

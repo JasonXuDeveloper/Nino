@@ -1,4 +1,10 @@
+using System;
+using System.Buffers;
 using System.Collections.Immutable;
+#if !NETSTANDARD2_0
+using System.Runtime.CompilerServices;
+#endif
+using System.Runtime.InteropServices;
 using Nino.Core;
 using Nino.Immutable;
 
@@ -8,41 +14,42 @@ using Nino.Immutable;
 
 namespace Nino.Immutable
 {
-    /// <summary><c>ImmutableArray&lt;T&gt;</c>: length (-1 = default), then the elements.</summary>
+    /// <summary>
+    /// <c>ImmutableArray&lt;T&gt;</c>: length (-1 = default), then the elements, as <c>T[]</c> writes them. Its array
+    /// is written and read as a <c>T[]</c> (raw elements as one block) and wrapped without a copy
+    /// (<see cref="ImmutableCollectionsMarshal"/>); the array of the old value is never reused, since others may
+    /// hold it.
+    /// </summary>
     public struct ImmutableArrayFormatter<T, TFormatter> : INinoFormatter<ImmutableArray<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
         public void Serialize(ImmutableArray<T> value, ref Writer writer)
         {
-            if (value.IsDefault)
+            // References (strings, classes) element by element: the array formatter's loop is slower here, reached
+            // out of line with the writer behind a ref (100 strings: 290 ns against 264). Values as an array, raw
+            // ones as one block.
+            if (!typeof(T).IsValueType)
             {
-                writer.WriteNullLength();
+                if (value.IsDefault)
+                {
+                    writer.WriteNullLength();
+                    return;
+                }
+
+                writer.WriteLength(value.Length);
+                foreach (var item in value)
+                    default(TFormatter).Serialize(item, ref writer);
                 return;
             }
 
-            writer.WriteLength(value.Length);
-            foreach (var item in value)
-                default(TFormatter).Serialize(item, ref writer);
+            default(ArrayFormatter<T, TFormatter>).Serialize(ImmutableCollectionsMarshal.AsArray(value), ref writer);
         }
 
         public void Deserialize(ref ImmutableArray<T> value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                value = default;
-                return;
-            }
-
-            var builder = ImmutableArray.CreateBuilder<T>(length);
-            for (int i = 0; i < length; i++)
-            {
-                T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
-                builder.Add(item);
-            }
-
-            value = builder.MoveToImmutable();
+            T[] array = null;
+            default(ArrayFormatter<T, TFormatter>).Deserialize(ref array, ref reader);
+            value = ImmutableCollectionsMarshal.AsImmutableArray(array);
         }
     }
 
@@ -58,29 +65,26 @@ namespace Nino.Immutable
                 return;
             }
 
-            writer.WriteLength(value.Count);
-            foreach (var item in value)
-                default(TFormatter).Serialize(item, ref writer);
+            // Copied out by the tree's own recursive walk, then written as a T[] (raw elements as one block): its
+            // enumerator rents a stack and walks it node by node.
+            var array = ArrayPool<T>.Shared.Rent(value.Count);
+            value.CopyTo(array);
+            default(ArraySegmentFormatter<T, TFormatter>).Serialize(new ArraySegment<T>(array, 0, value.Count),
+                ref writer);
+#if NETSTANDARD2_0
+            ArrayPool<T>.Shared.Return(array, clearArray: true);
+#else
+            ArrayPool<T>.Shared.Return(array, RuntimeHelpers.IsReferenceOrContainsReferences<T>());
+#endif
         }
 
         public void Deserialize(ref ImmutableList<T> value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                value = null;
-                return;
-            }
-
-            var builder = ImmutableList.CreateBuilder<T>();
-            for (int i = 0; i < length; i++)
-            {
-                T item = default;
-                default(TFormatter).Deserialize(ref item, ref reader);
-                builder.Add(item);
-            }
-
-            value = builder.ToImmutable();
+            // Read as a T[] (raw elements as one block) and built from it in one pass: a builder would insert and
+            // rebalance its tree for every element.
+            T[] array = null;
+            default(ArrayFormatter<T, TFormatter>).Deserialize(ref array, ref reader);
+            value = array == null ? null : ImmutableList.CreateRange(array);
         }
     }
 }
