@@ -1,6 +1,7 @@
-name: Arm64 Benchmark
+name: A/B Benchmark
 
-# Runs the benchmarks on an Arm64 runner, for the Arm64 paths (AdvSimd, TBL) that x64 runners never take. It measures
+# Runs the benchmarks on a GitHub runner: Arm64 by default, for the Arm64 paths (AdvSimd, TBL) that x64 runners never
+# take, or x64, the runners (AMD EPYC, with or without AVX-512) the release reports run on. It measures
 # the ref chosen in "Use workflow from" (a branch or tag of this repository), and with "compare" also the release tag
 # before it, on the same runner, one after the other, with this ref's benchmark code against each ref's library; the
 # summary compares them. Numbers for development only: the published ones come from report.yml, which runs these
@@ -11,6 +12,14 @@ name: Arm64 Benchmark
 on:
   workflow_dispatch:
     inputs:
+      runner:
+        description: 'Runner'
+        required: false
+        default: ubuntu-24.04-arm
+        type: choice
+        options:
+          - ubuntu-24.04-arm
+          - ubuntu-24.04
       compare:
         description: 'Also measure the previous release tag, for an A/B comparison'
         required: false
@@ -32,8 +41,8 @@ permissions:
 
 jobs:
   bench:
-    name: Benchmark on Arm64
-    runs-on: ubuntu-24.04-arm
+    name: Benchmark on ${{ inputs.runner || 'ubuntu-24.04-arm' }}
+    runs-on: ${{ inputs.runner || 'ubuntu-24.04-arm' }}
     timeout-minutes: 240
     env:
       NINO_BENCH_QUICK: ${{ inputs.quick && '1' || '0' }}
@@ -93,11 +102,13 @@ jobs:
           done
 
       - name: Summary
+        env:
+          RUNNER: ${{ inputs.runner || 'ubuntu-24.04-arm' }}
         run: |
           set -euo pipefail
           HEAD_REPORT=$(find results/head/results -name '*-report-github.md' | sort | head -n1)
           {
-            echo "## Arm64 benchmark: $GITHUB_REF_NAME ($(git -C head rev-parse --short HEAD))"
+            echo "## Benchmark on $RUNNER: $GITHUB_REF_NAME ($(git -C head rev-parse --short HEAD))"
             echo ""
             if [[ -d base ]]; then
               BASE_REPORT=$(find results/base/results -name '*-report-github.md' | sort | head -n1)
@@ -119,6 +130,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: arm64-benchmark
+          name: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}
           path: results/*/results
           retention-days: 30
