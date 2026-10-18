@@ -214,7 +214,11 @@ REUSE_CASES = [("Pooled node", "NinoNodeNew", "NinoNodePooled", "MemoryPackNodeN
                 "MemoryPackDeserializeOverwrite")]
 EXTRA_CASES = [("Graph", "Object graph, 200 tracked nodes"), ("TolerantClass", "`TolerantClass`"),
                ("TolerantClasses", "`TolerantClass[100]`"), ("FixedStruct", "`FixedStruct`"),
-               ("FixedClass", "`FixedClass`"), ("FixedClasses", "`FixedClass[100]`")]
+               ("FixedClass", "`FixedClass`"), ("FixedClasses", "`FixedClass[100]`"),
+               ("Players", "`List<Player>`, 100"), ("Orders", "`List<Order>`, 100"),
+               ("Shapes", "`List<Shape>`, 1,000 (abstract base)"), ("Tree", "`TreeNode`, 1,365 nodes"),
+               ("Inventory", "`InventoryItem[1000]` (padded struct)"),
+               ("StringDictionary", "`Dictionary<string, string>`, 1,000")]
 
 
 def table(head, rows):

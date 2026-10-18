@@ -48,7 +48,7 @@ about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 
 ## Runtime
 
-`src/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, server GC), all seven benchmark
+`src/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, server GC), all eight benchmark
 classes in one session, v4 and MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org, running a port of
 the same `SimpleTest` (same data, same attributes) on the same runner directly before the v4 session; it has no
 polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks. These tables come from
@@ -123,13 +123,16 @@ The "new" columns allocate the same bytes in both serializers. Reusing is where 
 allocates nothing, pooled nodes come back without allocating, and strings whose text did not change are kept
 (the pooled class's strings were its 1,080 bytes per call before).
 
-### Reference tracking, version tolerance and fixed-size types
+### Reference tracking, version tolerance, fixed-size types and common data
 
 Each against the closest MemoryPack mode: `ReferenceTest` (a graph of 200 nodes with shared objects and cycles;
 `trackReferences: true` against `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members;
 `NinoFormat.VersionTolerant`, one length per object, against `GenerateType.VersionTolerant`, a length per member)
 and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 100 of the classes, through the
-`byte[]` APIs of both, so allocating the result is part of every call).
+`byte[]` APIs of both, so allocating the result is part of every call). `CommonTypesTest` adds data shaped like
+that of common applications (`src/Nino.Benchmark/CommonTypes.cs`): players with a struct list, a string dictionary,
+bytes and strings; orders with `Guid`, `DateTimeOffset`, `decimal` and a list of classes; shapes through an abstract
+base; a tree; a padded struct array; and a string dictionary.
 
 <!--bench:doc.table.extra-->
 | Case | Serialize v4 | MemoryPack | v4 vs MemoryPack | Deserialize v4 | MemoryPack | v4 vs MemoryPack |
@@ -225,13 +228,14 @@ dotnet run -c Release --project src/Nino.Benchmark -- --filter '*ReferenceTest*'
     --launchCount 1 --warmupCount 5 --iterationCount 15                                  # some classes only
 ```
 
-The suite has seven classes, all against MemoryPack 1.21.4 (the tables above come from the first four):
+The suite has eight classes, all against MemoryPack 1.21.4 (the tables above come from the first four):
 `SimpleTest` and `PolymorphicTest` (also against MessagePack), `PooledTest` and `PooledGraphTest` (reuse and
 pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`
 against MemoryPack's `GenerateType.VersionTolerant`, one and 100) and `FixedSizeTest` (types of fixed size serialized
 to a `byte[]` of exactly that size: an unmanaged struct, a sealed class of the same members and an array of 100 of
-them). [benchmarks/README.md](../benchmarks/README.md) lists their cases.
+them), and `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary).
+[benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from [`benchmarks/v3`](../benchmarks/v3), the same `SimpleTest` built against the `Nino` 3.3.13
 package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3, the full v4 suite,

@@ -41,7 +41,7 @@ jobs:
       V3_OUT: ${{ github.workspace }}/v3-results
       # Every benchmark class of src/Nino.Benchmark: one joined table (Program.cs, ConfigOptions.JoinSummary) in the
       # Performance Report, its Type column naming the class. A class missing from the table is reported as a warning.
-      BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest
+      BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest
 
     steps:
       - name: Determine target tag/ref
