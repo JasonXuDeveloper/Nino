@@ -25,10 +25,14 @@ API-compatible with v3 or earlier v4 betas.
 | Project | Targets |
 | --- | --- |
 | `Nino.Core` (NuGet package `Nino.Serialization`) | `netstandard2.0`, `netstandard2.1`, `net8.0`, `net10.0` |
+| `Nino.Immutable` | `netstandard2.0`, `net8.0` |
+| `Nino.UnityTypes` (Unity package only) | `netstandard2.1` |
+| `Nino.AspNetCore` | `net8.0`, `net10.0` |
+| `Nino.TypeScript` (`nino-ts`, a build tool) | `net8.0`, rolled forward to the SDK's runtime |
 | `Nino.Generator` | `netstandard2.0` (Roslyn 4.3+): generator, analyzer, suppressor |
 | `Nino.Generator.CodeFixes` | `netstandard2.0` (Roslyn 4.3+ Workspaces): code fixes, IDE only |
 
-Both ship in the `Nino.Generator` package, built three times from the same sources: against Roslyn 4.3
+The generator and the code fixes ship in the `Nino.Generator` package, built three times from the same sources: against Roslyn 4.3
 (`analyzers/dotnet/roslyn4.3/cs`), 4.8 and 4.12 (`roslyn4.8`, `roslyn4.12`). NuGet loads the newest build the
 compiler can run. Roslyn 4.3 is the oldest compiler Unity supports, so the 4.3 build, which is also what Unity
 uses, sticks to 4.3 APIs. The 4.8 and 4.12 builds add only call interceptors (see
@@ -37,6 +41,13 @@ uses, sticks to 4.3 APIs. The 4.8 and 4.12 builds add only call interceptors (se
 The `Nino` package references `Nino.Serialization` and `Nino.Generator`; `Nino.Immutable` (`netstandard2.0`, `net8.0`)
 adds formatters for the `System.Collections.Immutable` types (arrays, lists, sets, sorted sets, queues,
 stacks, dictionaries and sorted dictionaries).
+
+`Nino.AspNetCore` adds MVC input and output formatters (`application/x-nino`) and Minimal API bodies and results,
+reading request bodies from the request's `PipeReader` and serializing responses into its `PipeWriter`;
+it asks `NinoSerializer.IsSupported(Type)` which types to claim. `Nino.TypeScript` is a build package: after
+`CoreCompile` its targets run `nino-ts` out of process, which reads the `[assembly: NinoTypeLayout]`s of the built
+assembly and its references with `MetadataLoadContext` (see [Generated code per type](#generated-code-per-type)) and
+writes `<Assembly>.ts` and the `nino.ts` runtime, each only when its text changes.
 
 Generated code is compiled in the user's project, which may be Unity (C# 9). Generated code therefore only
 uses C# 9 features: no static abstract interface members, no ref fields, no raw string literals, no
@@ -58,7 +69,7 @@ hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`
 | Unmanaged value (`int`, `Guid`, unmanaged structs, enums) | raw bytes, `Unsafe.SizeOf<T>()` |
 | `bool` | 1 byte (0/1) |
 | `T?` (nullable value type) | 1 byte has-value flag, then the value if present |
-| Collection / array / string length | `int32`; `-1` means `null` |
+| Collection / array length | `int32`; `-1` means `null` |
 | `string` (default) | `int32` header: `-1` = null, `0` = empty; `~n` (≤ -2) then `n` Latin-1 bytes when every char is at most U+00FF; else `n` then `n` UTF-16 code units (see below) |
 | `string` with `[NinoUtf8]` | `int32` char count (`-1` = null, `0` = empty; nothing follows either), then `int32` byte count and the UTF-8 bytes (see below) |
 | Array / list of unmanaged `T` | length, then one block copy of the elements |

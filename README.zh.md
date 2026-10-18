@@ -38,11 +38,14 @@
 - **零分配。** 序列化到缓冲区（`IBufferWriter<byte>`）不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配（内容不变的字符串直接保留），
   比 MemoryPack 的覆盖写入最多快 <!--bench:reuse.inplace-->7.9<!--/bench--> 倍。
 - **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
-  因此 IL2CPP、NativeAOT 和 HybridCLR 热更都能直接用。使用 .NET 8 及以上 SDK 时，调用会被拦截到确切的格式化器，没有虚调用。
+  因此 IL2CPP、NativeAOT 和 HybridCLR 热更都能直接用；Nino.Core 带有裁剪与 Native AOT 标注。使用 .NET 8 及以上 SDK 时，调用会被拦截到确切的格式化器，没有虚调用。
 - **编译快。** 生成器是真正增量的：每个类型一个文件，只重新生成你改动的类型。相比 v3，生成代码小 14 倍，编译快 51 倍（330 个类型）到 221 倍（1,100 个类型）。
 - **线程安全。** 任意多个线程同时序列化、反序列化，热路径上没有锁。
 - **数据可以演进。** 版本兼容、keyed 成员、引用追踪（共享引用和循环引用），都按类型按需开启，不用的类型零开销。
-- **处处同一格式。** `netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 写出的字节完全一致，Unity 客户端和 .NET 服务端可以直接互通。
+- **处处同一格式。** `netstandard2.0`、`netstandard2.1`、`net8.0`、`net10.0` 在 CoreCLR、Mono 和 IL2CPP 上，64 位和 32 位、x64 和 Arm64 上写出的字节完全一致，Unity 客户端和 .NET 服务端可以直接互通。
+- **你已在用的类型。** 基元类型、字符串、元组、所有 BCL 集合、`BigInteger`、`Uri`、`Version`、`Memory<T>`、`ILookup<,>`、`Lazy<T>` 等，
+  所有不可变集合（`Nino.Immutable`），Unity 的 `AnimationCurve`、`Gradient` 和 `RectOffset`，你自己的集合类型，其他类型则通过可插拔的格式化器支持。
+  [支持的类型](https://nino.xgamedev.net/zh/docs/v4/types)。
 - **写代码时就发现错误。** 26 条分析器诊断（NINO001–NINO026），许多带一键修复。
 
 ## 适用场景
@@ -55,7 +58,7 @@
 | 📨 **[消息队列与事件流](https://nino.xgamedev.net/zh/docs/v4/advanced/message-queues)** | 多态事件类型共用一个基类型，数据小巧，生产者和消费者可以在不同时间升级。 |
 | 🗄️ **[缓存](https://nino.xgamedev.net/zh/docs/v4/advanced/caching)** | 作为 Redis、`IDistributedCache`/`HybridCache` 或进程内缓存的值格式，跨部署修改结构也没问题。 |
 | 💾 **[持久化与存储](https://nino.xgamedev.net/zh/docs/v4/advanced/persistence)** | 版本兼容和 keyed 成员让你在版本之间增加、调整顺序、删除字段；引用追踪保留共享引用和循环引用的对象图。 |
-| 🎮 **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)** | Unity 2022.3+，Mono 和 IL2CPP，HybridCLR 热更程序集。`Vector3`、`Quaternion`、`Color32` 等非托管结构体按原始内存直接拷贝。通过 OpenUPM 安装。 |
+| 🎮 **[Unity](https://nino.xgamedev.net/zh/docs/v4/advanced/unity)** | Unity 2022.3+，Mono 和 IL2CPP，HybridCLR 热更程序集。`Vector3`、`Quaternion`、`Color32` 等非托管结构体按原始内存直接拷贝；`AnimationCurve`、`Gradient` 和 `RectOffset` 已内置。通过 OpenUPM 安装。 |
 | 👾 **[Godot 4（.NET）](https://nino.xgamedev.net/zh/docs/v4/platforms)** | Godot 的 .NET 项目直接引用 NuGet 包。Godot 的数学结构体（`Vector3`、`Transform3D` 等）是非托管类型，按原始内存直接拷贝。 |
 
 ## 安装
@@ -67,8 +70,11 @@ dotnet add package Nino --prerelease            # .NET、Godot
 dotnet add package Nino.Immutable --prerelease  # 可选：System.Collections.Immutable 的类型
 dotnet add package Nino.AspNetCore --prerelease # 可选：ASP.NET Core MVC 格式化器与 Minimal API 请求体
 dotnet add package Nino.TypeScript --prerelease # 可选：每次构建后生成供浏览器和 Node 使用的 TypeScript 编解码器
-openupm add com.jasonxudeveloper.nino           # Unity
+openupm add com.jasonxudeveloper.nino           # Unity（已包含生成器和 Unity 类的格式化器）
 ```
+
+`Nino` 包会引入运行时（`Nino.Serialization`）和源生成器（`Nino.Generator`）。Nino v4 是预发行版，所以必须加
+`--prerelease`：不加时 NuGet 会安装 3.9.x，它读写不了 v4 的数据。
 
 ## 快速开始
 
@@ -133,7 +139,7 @@ public class Profile { [NinoFormerName("Mail")] public string Email; public stri
 public class Node { public string Name; public List<Node> Links; }
 ```
 
-**[在官网 nino.xgamedev.net 阅读文档 →](https://nino.xgamedev.net/zh/docs/v4/start)**，包括高性能序列化、网络层、消息队列、缓存、持久化和 Unity 的
+**[在官网 nino.xgamedev.net 阅读文档 →](https://nino.xgamedev.net/zh/docs/v4/start)**，包括高性能序列化、网络层、ASP.NET Core、TypeScript 客户端、消息队列、缓存、持久化和 Unity 的
 [高级用法](https://nino.xgamedev.net/zh/docs/v4/advanced)。
 
 ## Nino 与 MemoryPack
@@ -167,9 +173,29 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 | 运行生成器 | **快 3.1 倍**；改动后只重新生成该类型（**快 8.3 倍**） |
 | 生成代码 | 源码**小 14 倍**，IL **小 5 倍** |
 
-v4 新增：拦截器、keyed 成员、引用追踪、`[NinoPooled]` 对象池、可插拔格式化器（`[assembly: NinoFormatter(...)]`）、
-自定义集合类型、所有字符都不超过 U+00FF 时每个字符一个字节的字符串、Nino.AspNetCore 与 Nino.TypeScript、分析器与代码修复，以及所有目标框架字节一致。详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)
-和[迁移指南](https://nino.xgamedev.net/zh/docs/v4/migration)；内部设计见 [docs/v4-design.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-design.md)。
+v4 新增（截至 4.0.0-rc.6）：
+
+- **格式**：版本容错类型和 keyed 类型、引用追踪，以及每个类型的线上布局以 `[assembly: NinoTypeLayout]` 元数据发布，
+  构建之间字节一有变化就能发现。
+- **分配**：复用反序列化到已有对象、`[NinoPooled]` 对象池、`[NinoFactory]`，以及可以从你自己的 `ArrayPool<byte>`
+  租用数组的 `NinoArrayBufferWriter`。
+- **类型**：可插拔格式化器（`[assembly: NinoFormatter(...)]`）、自定义集合类型、`BigInteger`、`Uri`、`Version`、
+  `StringBuilder`、`BitArray`、`CultureInfo`、`TimeZoneInfo`、`Lazy<T>`、`Memory<T>`、`ReadOnlySequence<T>`、只读和并发集合、
+  `ILookup`、`BlockingCollection<T>`、`PriorityQueue`（.NET 8+）、所有不可变集合（`Nino.Immutable`），以及 Unity 的
+  `AnimationCurve`、`Gradient` 和 `RectOffset`（`Nino.UnityTypes`，包含在 Unity 包中）。
+- **速度**：拦截器、内联的结构体格式化器、原始结构体的数组和集合、元组和 `KeyValuePair` 整块拷贝，以及 AVX-512、AVX2、
+  Arm64 和 WebAssembly 上的 SIMD；每个版本都在 x64 和 Arm64 上跑基准测试。
+- **平台**：所有目标框架、运行时和 CPU 字节一致，裁剪与 Native AOT 标注，程序集可随可回收的 `AssemblyLoadContext`
+  卸载（.NET 8 之前调用 `NinoRegistry.Remove`），HybridCLR 无需初始化调用。
+- **字符串**：所有字符都不超过 U+00FF（ASCII、Latin-1）的文本每个字符写一个字节，其他文本按 UTF-16 写出，
+  `[NinoUtf8]` 可按成员写成 UTF-8。
+- **集成**：Nino.AspNetCore（MVC 格式化器，Minimal API 的 `NinoBody<T>` 和 `NinoResults`）和 Nino.TypeScript
+  （每次构建后生成供浏览器和 Node 使用的 TypeScript 类和编解码器）。
+- **工具**：增量生成器，以及 26 条带代码修复的分析器（NINO001–NINO026）。
+
+详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)、
+[更新日志](https://nino.xgamedev.net/zh/docs/v4/changelog)和
+[迁移指南](https://nino.xgamedev.net/zh/docs/v4/migration)；内部设计见 [docs/v4-design.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-design.md)。
 
 ## 参与贡献
 

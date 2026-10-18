@@ -214,8 +214,9 @@ the result objects.
 * **Pools without contention.** `NinoPool<T>` keeps a per-thread stack and a shared overflow; its hot fields
   sit on their own 64-byte cache line (an explicit-layout base class), so threads renting different types
   never share a line.
-* **UTF-16 strings by default** (one block copy); `[NinoUtf8]` members use the vectorized UTF-8 transcoder
-  of the runtime.
+* **Strings in one pass.** Text whose chars are all at most U+00FF is narrowed to one byte a char with SIMD when
+  written and widened straight into the new string when read; other text is one block copy of its UTF-16 chars.
+  `[NinoUtf8]` members use the vectorized UTF-8 transcoder of the runtime.
 
 ## Reproducing
 
