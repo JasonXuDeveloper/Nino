@@ -114,11 +114,17 @@ internal sealed class BodyEmitter
 
         if (!OutOfLine)
             return $"public void {name}({parameters})";
-        string args = name == "WriteBody" ? "value, ref writer" : "ref value, ref reader";
+        // A struct reaches the out-of-line body by reference: passed by value, every call copies it to the stack
+        // (an element of a list of structs of 48 bytes: one rep movsq per element). Not `in`: reading a property of a
+        // struct that is not readonly through an `in` parameter copies the struct first.
+        bool byRef = name == "WriteBody" && _m.Kind == FormatterKind.Struct;
+        string args = name == "WriteBody" ? (byRef ? "ref value, ref writer" : "value, ref writer") : "ref value, ref reader";
         // A one-call forwarder: small enough for the JIT to inline without the attribute, which only costs compile time.
         _w.Line($"public void {name}({parameters}) => __{name}{(_m.InlineBody ? "Inline" : "")}({args});");
         _w.Line();
         _w.Line(_names.NoInline);
+        if (byRef)
+            parameters = "ref " + parameters;
         bool localWriter = name == "WriteBody" && LocalWriter;
         if (!_m.InlineBody && !localWriter && !(name == "ReadBody" && ReadTop))
             return $"private static void __{name}({parameters})";
@@ -137,7 +143,7 @@ internal sealed class BodyEmitter
             _w.Block($"private static void __{name}({parameters})", () =>
             {
                 _w.Line("var __w = writer;");
-                _w.Line($"__{name}Inline(value, ref __w);");
+                _w.Line($"__{name}Inline({(byRef ? "ref " : "")}value, ref __w);");
                 _w.Line("writer = __w;");
             });
         }
