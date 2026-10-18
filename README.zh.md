@@ -49,7 +49,8 @@
 
 | | |
 |---|---|
-| ⚙️ **[服务与进程间通信](https://nino.xgamedev.net/zh/docs/v4/advanced/high-performance)** | 紧凑的二进制数据、每次调用零分配，可在 ASP.NET Core、后台任务和 Actor 中安全并发使用。 |
+| ⚙️ **[服务与进程间通信](https://nino.xgamedev.net/zh/docs/v4/advanced/high-performance)** | 紧凑的二进制数据、每次调用零分配，可在 ASP.NET Core、后台任务和 Actor 中安全并发使用。[Nino.AspNetCore](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 在 MVC 和 Minimal API 中读写 `application/x-nino` 请求体与响应。 |
+| 🧩 **[网页与 Node 客户端](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript)** | [Nino.TypeScript](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript) 在每次构建后为你的 `[NinoType]` 生成 TypeScript 类和编解码器，浏览器和 Node 读写的字节与 .NET 相同。 |
 | 🌐 **[RPC 与网络层](https://nino.xgamedev.net/zh/docs/v4/advanced/networking)** | 直接序列化进 `IBufferWriter<byte>`（`PipeWriter`、池化缓冲区），从 `ReadOnlySpan<byte>` 反序列化，复用池化的消息对象。多态消息无需手写标签。 |
 | 📨 **[消息队列与事件流](https://nino.xgamedev.net/zh/docs/v4/advanced/message-queues)** | 多态事件类型共用一个基类型，数据小巧，生产者和消费者可以在不同时间升级。 |
 | 🗄️ **[缓存](https://nino.xgamedev.net/zh/docs/v4/advanced/caching)** | 作为 Redis、`IDistributedCache`/`HybridCache` 或进程内缓存的值格式，跨部署修改结构也没问题。 |
@@ -63,7 +64,9 @@
 
 ```bash
 dotnet add package Nino --prerelease            # .NET、Godot
-dotnet add package Nino.Immutable --prerelease  # 可选：ImmutableArray<T> / ImmutableList<T>
+dotnet add package Nino.Immutable --prerelease  # 可选：System.Collections.Immutable 的类型
+dotnet add package Nino.AspNetCore --prerelease # 可选：ASP.NET Core MVC 格式化器与 Minimal API 请求体
+dotnet add package Nino.TypeScript --prerelease # 可选：每次构建后生成供浏览器和 Node 使用的 TypeScript 编解码器
 openupm add com.jasonxudeveloper.nino           # Unity
 ```
 
@@ -145,9 +148,9 @@ public class Node { public string Name; public List<Node> Links; }
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
 | Unity | 2022.3+，`netstandard2.0` 和 `2.1`，HybridCLR | `netstandard2.1` |
 
-MemoryPack 内置支持的类型更多（`BigInteger`、`Uri`、全部不可变集合、`AnimationCurve` 等 Unity 类），还有 TypeScript 生成和
-ASP.NET Core 格式化器。Nino 不生成 TypeScript：浏览器客户端在 .NET WebAssembly 上运行同一套 C# 类型（构建成 `browser-wasm`
-应用，通过 `[JSExport]` 供 JavaScript 调用，字节与服务端相同；[指南](https://nino.xgamedev.net/zh/docs/v4/advanced/browser)）。流、异步读写、多段 `ReadOnlySequence<byte>` 输入、回调和压缩，只需在 Nino 的 `IBufferWriter<byte>`
+MemoryPack 还支持 `System.Type`（Nino 有意不支持：由数据指定要创建的类型是一种攻击手段）。Nino.TypeScript 在每次构建后，
+依据生成格式化器所用的布局生成 TypeScript，支持结构体和版本容错类型（[与 MemoryPack 的对比](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript#compared-with-memorypack)），
+Nino.AspNetCore 提供 MVC 格式化器和 Minimal API 请求体；浏览器客户端也可以在 [.NET WebAssembly](https://nino.xgamedev.net/zh/docs/v4/advanced/browser) 上运行同一套 C# 类型。流、异步读写、多段 `ReadOnlySequence<byte>` 输入、回调和压缩，只需在 Nino 的 `IBufferWriter<byte>`
 和 `ReadOnlySpan<byte>` API 外包几行代码，[完整对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack)里有示例。
 MemoryPack 的 Union 标签是 1 字节，Nino 的类型 ID 是 4 字节，这是有意的取舍：类型 ID 由类型本身算出，子类不用打标签，
 可以定义在任何程序集里（插件、HybridCLR 热更程序集），也不会因为增删子类而重新编号；MemoryPack 的每个 Union 都要手动列出或注册子类。
@@ -165,7 +168,7 @@ v4 重写了运行时和生成器。**二进制格式与 v3 不兼容。**
 | 生成代码 | 源码**小 14 倍**，IL **小 5 倍** |
 
 v4 新增：拦截器、keyed 成员、引用追踪、`[NinoPooled]` 对象池、可插拔格式化器（`[assembly: NinoFormatter(...)]`）、
-自定义集合类型、分析器与代码修复，以及所有目标框架字节一致。详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)
+自定义集合类型、所有字符都不超过 U+00FF 时每个字符一个字节的字符串、Nino.AspNetCore 与 Nino.TypeScript、分析器与代码修复，以及所有目标框架字节一致。详见 [v4 新特性](https://nino.xgamedev.net/zh/docs/v4/whats-new)
 和[迁移指南](https://nino.xgamedev.net/zh/docs/v4/migration)；内部设计见 [docs/v4-design.md](https://github.com/JasonXuDeveloper/Nino/blob/main/docs/v4-design.md)。
 
 ## 参与贡献
