@@ -127,7 +127,7 @@ namespace Nino.Core
                 return true;
             }
 
-            if (n >= 4)
+            if (n - 4 < 4)
             {
                 // 4 to 7 chars: the first four and the last four.
                 ulong head = NinoUnsafe.Read<ulong>(ref Unsafe.As<char, byte>(ref source));
@@ -138,7 +138,8 @@ namespace Nino.Core
                 NinoUnsafe.Write(ref Unsafe.Add(ref destination, (nint)(n - 4)), Pack4(tail));
                 return true;
             }
-#else
+#endif
+            // Without vectors: four chars at a time.
             for (; i + 4 <= n; i += 4)
             {
                 ulong four = NinoUnsafe.Read<ulong>(ref Unsafe.As<char, byte>(ref Unsafe.Add(ref source, (nint)i)));
@@ -146,7 +147,7 @@ namespace Nino.Core
                     return false;
                 NinoUnsafe.Write(ref Unsafe.Add(ref destination, (nint)i), Pack4(four));
             }
-#endif
+
             for (; i < n; i++)
             {
                 char c = Unsafe.Add(ref source, (nint)i);
@@ -305,7 +306,7 @@ namespace Nino.Core
                 return;
             }
 
-            if (n >= 4)
+            if (n - 4 < 4)
             {
                 // 4 to 7 chars: the first four and the last four.
                 NinoUnsafe.Write(ref Unsafe.As<ushort, byte>(ref destination),
@@ -314,13 +315,14 @@ namespace Nino.Core
                     Spread4(NinoUnsafe.Read<uint>(ref Unsafe.Add(ref source, (nint)(n - 4)))));
                 return;
             }
-#else
+#endif
+            // Without vectors: four chars at a time.
             for (; i + 4 <= n; i += 4)
             {
                 NinoUnsafe.Write(ref Unsafe.As<ushort, byte>(ref Unsafe.Add(ref destination, (nint)i)),
                     Spread4(NinoUnsafe.Read<uint>(ref Unsafe.Add(ref source, (nint)i))));
             }
-#endif
+
             for (; i < n; i++)
                 Unsafe.Add(ref destination, (nint)i) = Unsafe.Add(ref source, (nint)i);
         }
