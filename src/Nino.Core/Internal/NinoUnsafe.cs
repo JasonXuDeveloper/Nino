@@ -159,6 +159,60 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// Copies <paramref name="size"/> bytes. Up to 32 (most strings) inline, as two overlapping loads and stores of
+        /// the largest width that fits: a block copy of a size that is not a constant calls Memmove.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CopySmall(ref byte destination, ref byte source, uint size)
+        {
+            if (Is64Bit && size <= 32)
+            {
+                if (size >= 16)
+                {
+                    var head = Unsafe.ReadUnaligned<Bytes16>(ref source);
+                    var tail = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 16));
+                    Unsafe.WriteUnaligned(ref destination, head);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 16), tail);
+                }
+                else if (size >= 8)
+                {
+                    ulong head = Unsafe.ReadUnaligned<ulong>(ref source);
+                    ulong tail = Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref source, (nint)size - 8));
+                    Unsafe.WriteUnaligned(ref destination, head);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 8), tail);
+                }
+                else if (size >= 4)
+                {
+                    uint head = Unsafe.ReadUnaligned<uint>(ref source);
+                    uint tail = Unsafe.ReadUnaligned<uint>(ref Unsafe.Add(ref source, (nint)size - 4));
+                    Unsafe.WriteUnaligned(ref destination, head);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 4), tail);
+                }
+                else if (size != 0)
+                {
+                    // 1 to 3 bytes: the first, the middle and the last (some the same).
+                    byte first = source, middle = Unsafe.Add(ref source, (nint)(size >> 1)),
+                        last = Unsafe.Add(ref source, (nint)size - 1);
+                    destination = first;
+                    Unsafe.Add(ref destination, (nint)(size >> 1)) = middle;
+                    Unsafe.Add(ref destination, (nint)size - 1) = last;
+                }
+
+                return;
+            }
+
+            Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
+        }
+
+        /// <summary>16 bytes, moved with one load and one store.</summary>
+        private struct Bytes16
+        {
+#pragma warning disable CS0649
+            public ulong A, B;
+#pragma warning restore CS0649
+        }
+
+        /// <summary>
         /// Allocates an array whose contents are not zeroed when the runtime supports it.
         /// Only use when every element is overwritten before being read.
         /// </summary>

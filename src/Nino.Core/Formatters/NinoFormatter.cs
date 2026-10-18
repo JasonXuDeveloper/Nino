@@ -147,6 +147,12 @@ namespace Nino.Core
         /// by closing <see cref="BoxedFormatter{T}"/> at run time (which NativeAOT cannot do).
         /// </summary>
         internal abstract BoxedFormatter CreateBoxed();
+
+        /// <summary>
+        /// The struct formatter this one calls, or null: the resolver uses it as an element or member formatter
+        /// directly (inlined, and raw where it is), rather than through <see cref="CachedFormatter{T}"/>.
+        /// </summary>
+        internal virtual Type StructType => null;
     }
 
     /// <summary>
@@ -269,6 +275,8 @@ namespace Nino.Core
     internal sealed class StructFormatter<T, TFormatter> : NinoFormatter<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        internal override Type StructType => typeof(TFormatter);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
 
@@ -295,6 +303,8 @@ namespace Nino.Core
     internal sealed class FixedStructFormatter<T, TFormatter> : NinoFormatter<T>
         where TFormatter : struct, INinoFixedSizeFormatter<T>
     {
+        internal override Type StructType => typeof(TFormatter);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
 
@@ -323,6 +333,8 @@ namespace Nino.Core
         where TFormatter : struct, INinoFormatter<T>
         where TTop : struct, INinoTopFormatter<T>
     {
+        internal override Type StructType => typeof(TFormatter);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
 

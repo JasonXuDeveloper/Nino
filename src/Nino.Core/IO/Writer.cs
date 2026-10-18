@@ -541,7 +541,7 @@ namespace Nino.Core
             if (NinoLayout<T>.HasPadding)
                 NinoLayout<T>.CopyToWire(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, count);
             else
-                Unsafe.CopyBlockUnaligned(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, (uint)size);
+                NinoUnsafe.CopySmall(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, (uint)size);
         }
 
         /// <summary><see cref="Reserve"/> for a size that may not fit in an int (rejected when it does not).</summary>

@@ -133,7 +133,12 @@ namespace Nino.Core
         private static Type ElementFormatter(Type type)
         {
             NinoRegistry.RegisterType(type);
-            if (NinoFormatterCache.IsRegistered(type) || IsNinoType(type))
+            // A registered struct formatter (generated for a [NinoType]) directly: calls inlined per element, raw
+            // elements copied as one block, where CachedFormatter<T> makes a virtual call per element.
+            var registered = NinoFormatterCache.Get(type);
+            if (registered?.StructType != null)
+                return registered.StructType;
+            if (registered != null || IsNinoType(type))
                 return typeof(CachedFormatter<>).MakeGenericType(type);
             return GetFormatterType(type) ?? typeof(CachedFormatter<>).MakeGenericType(type);
         }
