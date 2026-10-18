@@ -143,10 +143,14 @@ namespace Nino.UnitTests
 
             var back = default(X86Memory);
             NinoLayout.Convert(info, ref Unsafe.As<X86Memory, byte>(ref back), ref wire[0], false);
-            Assert.AreEqual(memory, back);
+            // Compared as bytes: Equals would read the decimal at offset 12, which faults on Arm64 (SIGBUS).
+            CollectionAssert.AreEqual(Bytes(ref memory), Bytes(ref back));
 
             Assert.IsTrue(NinoLayout.Compute(typeof(Natural), Unsafe.SizeOf<Natural>(), 8, 8).Canonical);
         }
+
+        private static byte[] Bytes(ref X86Memory value) =>
+            MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref value, 1)).ToArray();
 
         [TestMethod]
         public void NullableSequencesUseTheCanonicalLayout()
