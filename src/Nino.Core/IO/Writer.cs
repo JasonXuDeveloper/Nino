@@ -498,7 +498,7 @@ namespace Nino.Core
         {
             if (bytes.IsEmpty)
                 return;
-            Unsafe.CopyBlockUnaligned(ref Reserve(bytes.Length), ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
+            NinoUnsafe.Copy(ref Reserve(bytes.Length), ref MemoryMarshal.GetReference(bytes), (uint)bytes.Length);
         }
 
         /// <summary>Writes the elements of an unmanaged span as one block, without a length prefix.</summary>
@@ -541,7 +541,7 @@ namespace Nino.Core
             if (NinoLayout<T>.HasPadding)
                 NinoLayout<T>.CopyToWire(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, count);
             else
-                NinoUnsafe.CopySmall(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, (uint)size);
+                NinoUnsafe.Copy(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, (uint)size);
         }
 
         /// <summary><see cref="Reserve"/> for a size that may not fit in an int (rejected when it does not).</summary>

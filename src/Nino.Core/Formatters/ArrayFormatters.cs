@@ -378,7 +378,7 @@ namespace Nino.Core
                 if (Mask != null)
                     Mask.Copy(ref dst, ref src, values.Length);
                 else
-                    Unsafe.CopyBlockUnaligned(ref dst, ref src, (uint)(values.Length * Stride));
+                    NinoUnsafe.Copy(ref dst, ref src, (uint)(values.Length * Stride));
                 return;
             }
 
