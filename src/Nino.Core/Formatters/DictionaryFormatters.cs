@@ -419,6 +419,14 @@ namespace Nino.Core
                 return;
             }
 
+            if (value == null)
+            {
+                value = BclDictionaries<TKey, TValue, TKeyFormatter, TValueFormatter>.TryCreate<TDictionary>(length,
+                    ref reader);
+                if (value != null)
+                    return;
+            }
+
             var dictionary = value ??= NinoActivator<TDictionary>.Create();
             if (dictionary.IsReadOnly)
                 NinoThrow.ReadOnlyCollection(dictionary.GetType());

@@ -187,6 +187,15 @@ public class CollectionFastPathTests
         Assert.ThrowsExactly<InvalidOperationException>(() =>
             NinoDeserializer.Deserialize<CaseInsensitiveConcurrentDictionary>(bytes));
 
+        // A ConcurrentDictionary itself is built by its constructor from the pairs read.
+        var pairs = NinoSerializer.Serialize(new[] { new KeyValuePair<int, int>(1, 1), new KeyValuePair<int, int>(1, 2) });
+        e = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<ConcurrentDictionary<int, int>>(pairs));
+        StringAssert.Contains(e.Message, "twice");
+        var nullKey = NinoSerializer.Serialize(new[] { new KeyValuePair<string, int>(null, 1) });
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            NinoDeserializer.Deserialize<ConcurrentDictionary<string, int>>(nullKey));
+
         // Derived types read the rest normally.
         var fine = NinoSerializer.Serialize(new Dictionary<string, int> { ["a"] = 1, ["b"] = 2 });
         var derived = NinoDeserializer.Deserialize<CaseInsensitiveSortedDictionary>(fine);

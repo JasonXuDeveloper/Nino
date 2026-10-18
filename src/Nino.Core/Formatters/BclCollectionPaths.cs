@@ -176,6 +176,39 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>
+        /// A new <typeparamref name="TDictionary"/> of the <paramref name="length"/> pairs that follow, if it is one the
+        /// runtime builds faster from a collection than pair by pair; otherwise null, and nothing is read.
+        /// </summary>
+        public static TDictionary TryCreate<TDictionary>(int length, ref Reader reader) where TDictionary : class =>
+            typeof(TDictionary) == typeof(ConcurrentDictionary<TKey, TValue>)
+                ? (TDictionary)(object)CreateConcurrent(length, ref reader)
+                : null;
+
+        /// <summary>
+        /// From the pairs read as an array: its constructor sizes the table for them and adds them without the locks,
+        /// where TryAdd takes a lock per pair and grows the table as it fills.
+        /// </summary>
+        private static ConcurrentDictionary<TKey, TValue> CreateConcurrent(int length, ref Reader reader)
+        {
+            var pairs = NinoCollections.ReadPairsRented<TKey, TValue, TKeyFormatter, TValueFormatter>(length,
+                ref reader);
+            try
+            {
+                return new ConcurrentDictionary<TKey, TValue>(
+                    new ArraySegment<KeyValuePair<TKey, TValue>>(pairs, 0, length));
+            }
+            catch (ArgumentException e) when (!(e is ArgumentNullException))
+            {
+                NinoThrow.DuplicateKey(typeof(ConcurrentDictionary<TKey, TValue>));
+                throw;
+            }
+            finally
+            {
+                NinoCollections.ReturnRented(pairs);
+            }
+        }
+
         /// <summary>From its two arrays.</summary>
         private static void WriteSortedList(SortedList<TKey, TValue> list, ref Writer writer)
         {
