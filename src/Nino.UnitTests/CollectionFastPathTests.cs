@@ -24,6 +24,14 @@ public struct NamedItem
 }
 
 [NinoType]
+public struct WideItem
+{
+    public long A, B, C, D;
+    public string Name { get; set; }
+    public int E;
+}
+
+[NinoType]
 public class InlineNote
 {
     public int Id;
@@ -249,5 +257,17 @@ public class CollectionFastPathTests
 
         CollectionAssert.AreEqual(NinoSerializer.Serialize(book.Notes),
             NinoSerializer.Serialize(result[0].Notes));
+    }
+
+    [TestMethod]
+    public void WideStructsWrittenByReferenceRoundTrip()
+    {
+        // Structs with a member that is not raw are passed to their out-of-line body by reference.
+        var items = Enumerable.Range(0, 100).Select(i => new WideItem
+            { A = i, B = -i, C = i * 3L, D = long.MaxValue - i, Name = i % 7 == 0 ? null : "w" + i, E = i * 5 }).ToList();
+        byte[] bytes = NinoSerializer.Serialize(items);
+        CollectionAssert.AreEqual(items, NinoDeserializer.Deserialize<List<WideItem>>(bytes));
+        CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(items.ToArray()));
+        Assert.AreEqual(items[3], NinoDeserializer.Deserialize<WideItem>(NinoSerializer.Serialize(items[3])));
     }
 }
