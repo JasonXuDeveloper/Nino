@@ -46,9 +46,10 @@ namespace Nino.Core
                 }
             }
 
-            var copy = writer;
+            Writer copy = default;
+            writer.CopyTo(ref copy);
             WritePairs(value, ref copy);
-            writer = copy;
+            copy.CopyTo(ref writer);
         }
 
         /// <summary>
@@ -113,7 +114,8 @@ namespace Nino.Core
         private static void WritePairs(Dictionary<TKey, TValue> value, ref Writer target)
         {
             // A local writer, so its fields stay in registers inside the loop.
-            var writer = target;
+            Writer writer = default;
+            target.CopyTo(ref writer);
             writer.WriteLength(value.Count);
             foreach (var pair in value)
             {
@@ -121,7 +123,7 @@ namespace Nino.Core
                 default(TValueFormatter).Serialize(pair.Value, ref writer);
             }
 
-            target = writer;
+            writer.CopyTo(ref target);
         }
 
         /// <summary>Reads the pair count, validated against the remaining bytes; false for null.</summary>
@@ -280,16 +282,18 @@ namespace Nino.Core
             }
 
             // Out of line, through a copy of the reader (see AddRaw).
-            var copy = reader;
+            Reader copy = default;
+            reader.CopyTo(ref copy);
             ReadPairs(dictionary, length, ref copy);
-            reader = copy;
+            copy.CopyTo(ref reader);
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReadPairs(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
         {
             // A local reader, so its fields stay in registers inside the loop.
-            var reader = source;
+            Reader reader = default;
+            source.CopyTo(ref reader);
             for (int i = 0; i < length; i++)
             {
                 TKey key = default;
@@ -299,7 +303,7 @@ namespace Nino.Core
                 Add(dictionary, key, item);
             }
 
-            source = reader;
+            reader.CopyTo(ref source);
         }
     }
 
@@ -338,9 +342,10 @@ namespace Nino.Core
             {
                 // Through a copy: the reader's own address must not reach a call that is not inlined (see
                 // NinoObject.ReadBody), or none of its fields stay in registers in the caller.
-                var copy = reader;
+                Reader copy = default;
+                reader.CopyTo(ref copy);
                 NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref copy);
-                reader = copy;
+                copy.CopyTo(ref reader);
             }
         }
     }
@@ -373,9 +378,10 @@ namespace Nino.Core
             }
 
             value ??= NinoActivator<TDictionary>.Create();
-            var copy = reader;
+            Reader copy = default;
+            reader.CopyTo(ref copy);
             NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref copy);
-            reader = copy;
+            copy.CopyTo(ref reader);
         }
     }
 
@@ -401,7 +407,8 @@ namespace Nino.Core
             // box an enumerator and make two interface calls per pair.
             if (value is SortedDictionary<TKey, TValue> sorted)
             {
-                var local = writer;
+                Writer local = default;
+                writer.CopyTo(ref local);
                 local.WriteLength(sorted.Count);
                 foreach (var pair in sorted)
                 {
@@ -409,7 +416,7 @@ namespace Nino.Core
                     default(TValueFormatter).Serialize(pair.Value, ref local);
                 }
 
-                writer = local;
+                local.CopyTo(ref writer);
                 return;
             }
 
@@ -440,7 +447,8 @@ namespace Nino.Core
             // duplicate key, reported as the indexer path reports it.
             if (dictionary is SortedDictionary<TKey, TValue> sorted)
             {
-                var local = reader;
+                Reader local = default;
+                reader.CopyTo(ref local);
                 TKey key = default;
                 try
                 {
@@ -458,14 +466,15 @@ namespace Nino.Core
                     NinoThrow.DuplicateKey(sorted.GetType());
                 }
 
-                reader = local;
+                local.CopyTo(ref reader);
                 return;
             }
 
             // A SortedList through direct calls (the pairs come sorted: each one is appended after a binary search).
             if (dictionary is SortedList<TKey, TValue> list)
             {
-                var local = reader;
+                Reader local = default;
+                reader.CopyTo(ref local);
                 list.Capacity = Math.Max(list.Capacity, length);
                 for (int i = 0; i < length; i++)
                 {
@@ -478,7 +487,7 @@ namespace Nino.Core
                         NinoThrow.DuplicateKey(list.GetType());
                 }
 
-                reader = local;
+                local.CopyTo(ref reader);
                 return;
             }
 
@@ -486,7 +495,8 @@ namespace Nino.Core
             // per pair (27x slower than this for 1,000 pairs).
             if (dictionary is ConcurrentDictionary<TKey, TValue> concurrent)
             {
-                var local = reader;
+                Reader local = default;
+                reader.CopyTo(ref local);
                 for (int i = 0; i < length; i++)
                 {
                     TKey key = default;
@@ -497,7 +507,7 @@ namespace Nino.Core
                         NinoThrow.DuplicateKey(concurrent.GetType());
                 }
 
-                reader = local;
+                local.CopyTo(ref reader);
                 return;
             }
 

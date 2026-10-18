@@ -85,11 +85,13 @@ namespace Nino.Core
             }
 
             // The reader as a local for the loop: its cursor stays in registers, where through the ref parameter every
-            // element would store it and load it back (List<(int, long)>: 2x faster).
-            var local = reader;
+            // element would store it and load it back (List<(int, long)>: 2x faster). Copied a field at a time
+            // (Reader.CopyTo).
+            Reader local = default;
+            reader.CopyTo(ref local);
             for (int i = 0; i < values.Length; i++)
                 default(TFormatter).Deserialize(ref values[i], ref local);
-            reader = local;
+            local.CopyTo(ref reader);
         }
 
         /// <summary>

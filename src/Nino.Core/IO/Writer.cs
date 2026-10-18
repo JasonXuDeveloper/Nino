@@ -16,7 +16,7 @@ namespace Nino.Core
     /// </summary>
     public ref struct Writer
     {
-        private readonly NinoArrayBufferWriter _owner;
+        private NinoArrayBufferWriter _owner; // not readonly: CopyTo
 
         // The buffer and the position, per target (see Reader): .NET 8+ keeps a cursor (ref fields: the next byte,
         // the end of the buffer and its start), netstandard the buffer and a position. Only the "Cursor" section
@@ -69,6 +69,29 @@ namespace Nino.Core
             _buffer = buffer;
             _pos = pos;
 #endif
+        }
+
+        /// <summary>
+        /// Copies this writer into <paramref name="target"/> one field at a time, for a local copy in a loop and back
+        /// (see <see cref="Reader.CopyTo"/>: a struct assignment loads it as one vector right after its fields were
+        /// stored one at a time, which the CPU cannot forward). For generated code.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public readonly void CopyTo(ref Writer target)
+        {
+            target._owner = _owner;
+#if NET8_0_OR_GREATER
+            target._cur = ref _cur;
+            target._avail = _avail;
+            target._start = ref _start;
+#else
+            target._buffer = _buffer;
+            target._pos = _pos;
+#endif
+            target.Depth = Depth;
+            target._regions = _regions;
+            target._context = _context;
         }
 
         /// <summary>The next byte.</summary>

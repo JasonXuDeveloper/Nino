@@ -167,9 +167,10 @@ internal static class FormatterEmitter
         {
             w.Line(names.NoInline);
             w.Open($"private static void __SerializeTop({t} value, ref {Core}Writer writer)");
-            w.Line("var __w = writer;");
+            w.Line($"{Core}Writer __w = default;");
+            w.Line("writer.CopyTo(ref __w);");
             EmitTopWrite(w, t);
-            w.Line("writer = __w;");
+            w.Line("__w.CopyTo(ref writer);");
             w.Close();
             w.Line();
             w.Line(names.NoInline);

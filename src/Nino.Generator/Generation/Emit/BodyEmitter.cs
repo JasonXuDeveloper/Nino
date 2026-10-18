@@ -132,9 +132,10 @@ internal sealed class BodyEmitter
         {
             _w.Block($"private static void __{name}({parameters})", () =>
             {
-                _w.Line("var __r = reader;");
+                _w.Line($"{Core}Reader __r = default;");
+                _w.Line("reader.CopyTo(ref __r);");
                 _w.Line($"__{name}Inline(ref value, ref __r);");
-                _w.Line("reader = __r;");
+                _w.Line("__r.CopyTo(ref reader);");
             });
         }
         else if (localWriter)
@@ -142,9 +143,10 @@ internal sealed class BodyEmitter
             // The members are written by the inlinable twin (__Top's, or one made for this), through the local.
             _w.Block($"private static void __{name}({parameters})", () =>
             {
-                _w.Line("var __w = writer;");
+                _w.Line($"{Core}Writer __w = default;");
+                _w.Line("writer.CopyTo(ref __w);");
                 _w.Line($"__{name}Inline({(byRef ? "ref " : "")}value, ref __w);");
-                _w.Line("writer = __w;");
+                _w.Line("__w.CopyTo(ref writer);");
             });
         }
         else
@@ -482,7 +484,8 @@ internal sealed class BodyEmitter
         string r = "reader";
         if (local)
         {
-            _w.Line("var __r = reader;");
+            _w.Line($"{Core}Reader __r = default;");
+            _w.Line("reader.CopyTo(ref __r);");
             r = "__r";
         }
 
@@ -506,7 +509,7 @@ internal sealed class BodyEmitter
         else
             EmitInPlaceRead(r);
         if (local)
-            _w.Line("reader = __r;");
+            _w.Line("__r.CopyTo(ref reader);");
     }
 
     /// <summary>
@@ -570,9 +573,10 @@ internal sealed class BodyEmitter
             // The new-instance read is also __ReadTop's: inlinable, called here on a local copy of the reader.
             _w.Block($"internal static void {body}Fresh({parameters})", () =>
             {
-                _w.Line("var __r = reader;");
+                _w.Line($"{Core}Reader __r = default;");
+                _w.Line("reader.CopyTo(ref __r);");
                 _w.Line($"{body}FreshInline(ref value, ref __r);");
-                _w.Line("reader = __r;");
+                _w.Line("__r.CopyTo(ref reader);");
             });
             _w.Line();
             _w.Line(_names.Inline);
@@ -603,13 +607,14 @@ internal sealed class BodyEmitter
         string r = "reader";
         if (LocalReader)
         {
-            _w.Line("var __r = reader;");
+            _w.Line($"{Core}Reader __r = default;");
+            _w.Line("reader.CopyTo(ref __r);");
             r = "__r";
         }
 
         EmitInPlaceRead(r);
         if (LocalReader)
-            _w.Line("reader = __r;");
+            _w.Line("__r.CopyTo(ref reader);");
         _w.Close();
         _w.Line();
         _w.Line(_names.Inline);

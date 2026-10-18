@@ -26,9 +26,9 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
         private ref byte _cur;
         private int _avail;
-        private readonly ref byte _origin;
+        private ref byte _origin; // not readonly: CopyTo
 #else
-        private readonly ReadOnlySpan<byte> _data;
+        private ReadOnlySpan<byte> _data;
         private int _pos;
 #endif
 
@@ -94,6 +94,30 @@ namespace Nino.Core
             _context = context;
         }
 #endif
+
+        /// <summary>
+        /// Copies this reader into <paramref name="target"/> one field at a time: a loop reads through a local copy
+        /// (its position stays in registers) and copies it back. A struct assignment copies the reader as one 32-byte
+        /// vector and one 8-byte value, loaded right after its fields were stored one at a time (the position and the
+        /// depth, by the code before it): the CPU cannot forward a load from several smaller stores and waits for them
+        /// to reach the cache, about 15 cycles for each copy. For generated code.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+        public readonly void CopyTo(ref Reader target)
+        {
+#if NET8_0_OR_GREATER
+            target._cur = ref _cur;
+            target._avail = _avail;
+            target._origin = ref _origin;
+#else
+            target._data = _data;
+            target._pos = _pos;
+#endif
+            target.Depth = Depth;
+            target._regions = _regions;
+            target._context = _context;
+        }
 
         /// <summary>The next byte.</summary>
         private ref byte Cur
