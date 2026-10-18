@@ -23,8 +23,10 @@ reports are in `<out>/v3` and `<out>/v4`. `dotnet benchmarks/v3/bin/Release/net1
 The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come from an earlier local run (that one ran v3
 before and after v4); the release notes of each release carry its current numbers.
 
-Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) builds `v3/`, runs it
-directly before the v4 suite in the same job on the same runner with the same settings, and adds a
+Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) runs the benchmark
+classes in parallel on four runners, a class's Nino and MemoryPack cases always on one, and
+[`merge_reports.py`](merge_reports.py) merges their reports into one table, naming each class's runner under it.
+The `SimpleTest` runner builds `v3/` and runs it directly before its v4 run with the same settings; the workflow adds a
 **📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
 `compare.py` table, then the v3 report. The documentation site takes its v4-vs-v3 ratios from that
 section of the newest v4 release. A v3 failure only leaves the section out; re-running the workflow for the tag

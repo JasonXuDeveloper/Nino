@@ -5,7 +5,8 @@ v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github
 
 The build-time numbers were measured on one machine, an Intel Xeon 2.10 GHz (4 cores, AVX-512, .NET SDK 10.0.402);
 generated code sizes do not depend on the machine. The runtime tables are those of the newest release: its CI run
-(`report.yml`) benchmarks v4 against MemoryPack and v3 3.3.13 on one runner, puts the report in the release notes,
+(`report.yml`) benchmarks v4 against MemoryPack, each class on one runner (v3 3.3.13 on the `SimpleTest` runner),
+puts the report in the release notes,
 and writes these tables from it (`benchmarks/readme.py`), as it does for the README and the documentation site.
 Absolute times vary between machines; the ratios are what to look at.
 
