@@ -36,23 +36,24 @@ internal static class LayoutEmitter
         if (m.RawStruct)
             sb.Append(m.RawLayout);
         if (m.CollectionFormatter.Length != 0)
-            sb.Append("[elements]::").Append(Plain(m.CollectionFormatter));
+            sb.Append("[elements]::").Append(m.CollectionEncoding);
         foreach (var member in m.Members)
         {
             if (sb.Length != 0)
                 sb.Append(';');
-            sb.Append(member.SourceName).Append(':').Append(Plain(member.TypeName)).Append(':');
-            if (member.Raw is { } raw)
-                sb.Append(raw.Layout);
-            else
-                sb.Append(Plain(member.Formatter));
+            sb.Append(member.SourceName).Append(':').Append(Plain(member.TypeName)).Append(':')
+                .Append(member.Encoding);
+            if (m.Keyed)
+                sb.Append(":key=").Append(Hex(member.Key));
             if (m.Keyed && member.FormerKeys.Length != 0)
                 sb.Append(":former=").Append(string.Join(",",
-                    member.FormerKeys.Select(k => "0x" + k.ToString("X8", CultureInfo.InvariantCulture))));
+                    member.FormerKeys.Select(Hex)));
         }
 
         return sb.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
+
+    private static string Hex(int key) => "0x" + key.ToString("X8", CultureInfo.InvariantCulture);
 
     /// <summary>A type or formatter as C# source without <c>global::</c>.</summary>
     private static string Plain(string name) => name.Replace("global::", "");

@@ -26,6 +26,12 @@ namespace Layout
     [NinoType(trackReferences: true)] public sealed class Node { public Node Next; }
     [NinoType(format: NinoFormat.Keyed)] public sealed class Saved { [NinoFormerName(""Hp"")] public int Health; }
     [NinoType(format: NinoFormat.VersionTolerant)] public sealed class Box<T> { public T Value; }
+    [NinoType] public sealed class Shapes
+    {
+        public List<string> Names; public Dictionary<string, int[]> Index; public int? Maybe; public long?[] Gaps;
+        public (int, string) Pair; public System.Tuple<int> Boxed; public int[,] Grid; public Animal[] Animals;
+        public object Any; public KeyValuePair<int, Box<int>> Entry; public System.DateTimeOffset At;
+    }
 }";
 
         private static NinoTypeLayoutAttribute Layout(Assembly assembly, string type) =>
@@ -43,7 +49,7 @@ namespace Layout
         public void DescribesEachType()
         {
             var assembly = Compile(Types);
-            Assert.AreEqual(6, assembly.GetCustomAttributes<NinoTypeLayoutAttribute>().Count());
+            Assert.AreEqual(7, assembly.GetCustomAttributes<NinoTypeLayoutAttribute>().Count());
 
             var move = Layout(assembly, "Layout.Move");
             Assert.AreEqual(NinoFormat.Positional, move.Format);
@@ -55,23 +61,37 @@ namespace Layout
             var player = Layout(assembly, "Layout.Player");
             Assert.AreEqual(NinoHeader.NullFlag, player.Header);
             Assert.IsFalse(player.Raw);
-            Assert.AreEqual("Id:Layout.PlayerId:raw(8){Value:long@0:raw(8)};Name:string:Nino.Core.Utf8StringFormatter;" +
+            Assert.AreEqual("Id:Layout.PlayerId:raw(8){Value:long@0:raw(8)};Name:string:utf8;" +
                             "Path:System.Collections.Generic.List<Layout.Move>:" +
-                            "Nino.Core.UnmanagedListFormatter<System.Collections.Generic.List<Layout.Move>, " +
-                            "Layout.Move>", player.Members);
+                            "seq(raw(8){VelocityX:float@0:raw(4),VelocityY:float@4:raw(4)})", player.Members);
 
             Assert.AreEqual(NinoHeader.TypeId, Layout(assembly, "Layout.Animal").Header);
             Assert.IsTrue(Layout(assembly, "Layout.Node").TrackReferences);
 
             var saved = Layout(assembly, "Layout.Saved");
             Assert.AreEqual(NinoFormat.Keyed, saved.Format);
-            StringAssert.StartsWith(saved.Members, "Health:int:raw(4):former=0x");
+            Assert.AreEqual($"Health:int:raw(4):key=0x{NinoTypeId.Compute("Health"):X8}:former=0x{NinoTypeId.Compute("Hp"):X8}",
+                saved.Members);
 
             var box = Layout(assembly, "Layout.Box`1");
             Assert.IsTrue(box.Type.IsGenericTypeDefinition);
             Assert.AreEqual(NinoFormat.VersionTolerant, box.Format);
             Assert.AreEqual(0, box.Id);
-            Assert.AreEqual("Value:T:Nino.Core.CachedFormatter<T>", box.Members);
+            Assert.AreEqual("Value:T:type(T)", box.Members);
+
+            // Members are described by their bytes, not by the formatters that write them.
+            Assert.AreEqual(string.Join(";",
+                "Names:System.Collections.Generic.List<string>:seq(string)",
+                "Index:System.Collections.Generic.Dictionary<string, int[]>:map(string,seq(raw(4)))",
+                "Maybe:System.Nullable<int>:nullable(raw(4))",
+                "Gaps:System.Nullable<long>[]:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)})",
+                "Pair:System.ValueTuple<int, string>:tuple(raw(4),string)",
+                "Boxed:System.Tuple<int>:nullable(tuple(raw(4)))",
+                "Grid:int[,]:grid(2,raw(4))",
+                "Animals:Layout.Animal[]:seq(type(Layout.Animal))",
+                "Any:object:object",
+                "Entry:System.Collections.Generic.KeyValuePair<int, Layout.Box<int>>:pair(raw(4),type(Layout.Box<int>))",
+                "At:System.DateTimeOffset:datetimeoffset"), Layout(assembly, "Layout.Shapes").Members);
         }
 
         [TestMethod]

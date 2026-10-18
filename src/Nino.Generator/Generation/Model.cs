@@ -68,6 +68,8 @@ internal sealed record MemberModel(
     EquatableArray<int> FormerKeys,
     string TypeName,
     string Formatter,
+    // How the member is written, for its published layout (ResolvedFormatter.Encoding, WireEncoding).
+    string Encoding,
     // Set when the member is written raw as part of an unmanaged block, otherwise null.
     RawSize? Raw,
     bool IsProperty,
@@ -128,8 +130,9 @@ internal sealed record TypeModel(
     bool TrackReferences,
     // Unmanaged struct written as its raw memory.
     bool RawStruct,
-    // For [NinoType] collections: the formatter of the elements, written before the members.
+    // For [NinoType] collections: the formatter of the elements, written before the members, and how it writes them.
     string CollectionFormatter,
+    string CollectionEncoding,
     // Whether static WriteMembers/ReadMembers are emitted so derived types can reuse them (classes whose
     // members are all directly accessible).
     bool EmitMembers,

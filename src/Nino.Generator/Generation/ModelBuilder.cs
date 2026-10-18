@@ -287,6 +287,7 @@ internal static class ModelBuilder
             trackReferences,
             rawStruct,
             collectionFormatter,
+            collection?.Encoding ?? "",
             emitMembers,
             baseFormatter,
             baseMemberCount,
@@ -413,6 +414,7 @@ internal static class ModelBuilder
         var known = facts.Symbols;
 
         string? formatter;
+        string encoding = "";
         string? shallowFormatter = null;
         bool registered = false;
         bool opensBodies = true;
@@ -423,6 +425,7 @@ internal static class ModelBuilder
             if (!known.IsCustomFormatterOf(customType, memberType))
                 return null; // NINO008, reported by the analyzer
             formatter = Global(customType);
+            encoding = WireEncoding.Formatter(formatter);
         }
         else
         {
@@ -432,6 +435,7 @@ internal static class ModelBuilder
             registered = resolved?.Registered == true;
             if (resolved is { } r)
             {
+                encoding = r.Encoding;
                 factories.AddRange(r.Factories);
                 opensBodies = r.OpensBodies;
                 shallowFormatter = facts.ShallowFormatter(r.Code, r, utf8);
@@ -495,7 +499,8 @@ internal static class ModelBuilder
                 .Distinct());
         }
 
-        return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter, raw,
+        return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter,
+            raw?.Layout ?? encoding, raw,
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
             Visibility.IsConstructionOnly(symbol), false, typeId, opensBodies, shallowFormatter ?? formatter,
             custom == null && memberType.IsReferenceType && formatter.StartsWith(Core, System.StringComparison.Ordinal) &&

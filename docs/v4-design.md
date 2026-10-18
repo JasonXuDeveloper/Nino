@@ -880,10 +880,15 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   deep hierarchies). The bytes are unchanged. Delegation is skipped when raw members on both sides of the
   boundary would otherwise be written as one block, since splitting that block costs an extra reservation.
 * `[assembly: NinoTypeLayout(typeof(T), format, header, trackReferences, raw, typeId, "members")]` publishes
-  what the formatter writes (issue #197): each member as `name:type:encoding`, where the encoding is the
-  formatter's name or, for a value copied as raw memory, its canonical layout from `NinoLayoutCore`:
-  `raw(n)` for a primitive, `raw(n){name:type@offset:encoding,...}` for a struct (issue #202), so a field, `Pack`,
-  `Size` or explicit offset anywhere inside a raw value shows, `[NinoType]` or not. It comes from the same
+  what the formatter writes (issue #197): each member as `name:type:encoding` (keyed members add `:key=0x...`).
+  The encoding describes the bytes, not the formatter class (`WireEncoding`, computed by `FormatterResolver` next
+  to each formatter): `string`, `utf8`, `object`, `type(T)` for a `[NinoType]`, `nullable(E)`, `seq(E)`,
+  `map(K,V)`, `pair(K,V)`, `tuple(E,...)`, `grid(rank,E)`, a few named BCL encodings (`datetimeoffset`, `bigint`,
+  ...) and `formatter(F)` for a custom or third-party formatter, so a tool such as the TypeScript generator reads
+  and writes the bytes without knowing Nino.Core's formatters. A value copied as raw memory is its canonical layout
+  from `NinoLayoutCore`: `raw(n)` for a primitive, `raw(n){name:type@offset:encoding,...}` for a struct
+  (issue #202), so a field, `Pack`, `Size` or explicit offset anywhere inside a raw value shows, `[NinoType]` or
+  not. It comes from the same
   `TypeModel` as the formatter, so it changes exactly when the bytes do, and is the same in every target framework
   (`LayoutMetadataTests`).
 * Preprocessor-dependent choices (`WEAK_VERSION_TOLERANCE`, `NET8_0_OR_GREATER`) are resolved at

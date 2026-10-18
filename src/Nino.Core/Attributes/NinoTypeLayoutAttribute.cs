@@ -55,21 +55,35 @@ namespace Nino.Core
         /// <summary>
         /// The body, one entry per member in the order they are written, separated by <c>;</c>. An entry is
         /// <c>name:type:encoding</c>: the member's C# name, its type (fully qualified, without <c>global::</c>),
-        /// and how it is written: the raw encoding below for a member copied as raw memory, otherwise the formatter
-        /// that writes it (<c>Nino.Core.StringFormatter</c>, <c>Nino.Core.Utf8StringFormatter</c>, a custom
-        /// formatter, or the generated formatter of a nested <c>[NinoType]</c>, whose own layout describes it). A
-        /// keyed member read under former names too ends with <c>:former=</c> and their keys. A <c>[NinoType]</c>
-        /// collection starts with <c>[elements]::formatter</c>, the formatter of the elements written before the
-        /// members. A <see cref="Raw"/> type is one value copied as raw memory, so its body is just its raw encoding.
-        /// <para>
-        /// The raw encoding is the value's canonical layout: <c>raw(n)</c> for a primitive, enum, <c>decimal</c>,
-        /// <c>Guid</c>, <c>DateTime</c> or <c>TimeSpan</c> of <c>n</c> bytes, and
-        /// <c>raw(n){name:type@offset:encoding,...}</c> for a struct of <c>n</c> bytes, each field at its offset and
-        /// encoded the same way (<c>raw(8){Value:long@0:raw(8)}</c>). Fields, <c>[StructLayout]</c> <c>Pack</c> and
-        /// <c>Size</c>, and explicit offsets of the struct and of every struct inside it are all reflected, whether
-        /// or not those structs are <c>[NinoType]</c>s. <c>raw</c> alone means a size known only at run time (a
-        /// type parameter).
-        /// </para>
+        /// and the bytes it is written as (below). In a <see cref="NinoFormat.Keyed"/> body it ends with
+        /// <c>:key=0x...</c>, the member's key, and <c>:former=0x...,0x...</c> for the keys of its former names, which
+        /// are read too. A <c>[NinoType]</c> collection starts with <c>[elements]::encoding</c>, its elements
+        /// written before the members. A <see cref="Raw"/> type is one value copied as raw memory, so its body is
+        /// just its raw encoding.
+        /// <para>Encodings describe bytes, not the formatters that write them:</para>
+        /// <list type="bullet">
+        /// <item><c>raw(n)</c>: a primitive, enum, <c>decimal</c>, <c>Guid</c>, <c>DateTime</c>, <c>TimeSpan</c> or
+        /// pointer-sized integer of <c>n</c> bytes; <c>raw(n){name:type@offset:encoding,...}</c>: a struct of
+        /// <c>n</c> bytes in the canonical layout, each field at its offset and encoded the same way
+        /// (<c>raw(8){Value:long@0:raw(8)}</c>). Fields, <c>[StructLayout]</c> <c>Pack</c> and <c>Size</c>, and
+        /// explicit offsets of the struct and of every struct inside it are all reflected. <c>raw</c> alone: a size
+        /// known only at run time.</item>
+        /// <item><c>string</c>: a string as <c>NinoWire</c> describes it; <c>utf8</c>: a <c>[NinoUtf8]</c> string
+        /// (int32 char count, -1 = null; for a non-empty string an int32 byte count, then UTF-8).</item>
+        /// <item><c>object</c>: a <c>[NinoType]</c> value by its 4-byte type id (0 = null), then its body.</item>
+        /// <item><c>type(T)</c>: a <c>[NinoType]</c> (or a type parameter), as its own layout describes it.</item>
+        /// <item><c>nullable(E)</c>: a byte, 0 for null, 1 followed by <c>E</c>.</item>
+        /// <item><c>seq(E)</c>: an int32 count (-1 = null), then the elements; <c>map(K,V)</c>: a count, then the
+        /// key and value of each entry; <c>grid(rank,E)</c>: the length of each dimension (the first -1 = null),
+        /// then the elements in row-major order.</item>
+        /// <item><c>pair(K,V)</c>, <c>tuple(E,...)</c>: the items in order; <c>group(K,E)</c>: an element count
+        /// (-1 = null), the key, then the elements.</item>
+        /// <item><c>datetimeoffset</c> (int64 UTC ticks, then int16 offset minutes), <c>bigint</c>
+        /// (int32 length, then two's complement little-endian bytes), <c>version</c> (four int32s, major -1 = null),
+        /// <c>bits</c> (int32 bit count, -1 = null, then the bits in bytes), <c>timezone</c> (id string, then a
+        /// serialized-form string for a custom zone).</item>
+        /// <item><c>formatter(F)</c>: written by formatter <c>F</c> (a custom or another library's formatter).</item>
+        /// </list>
         /// </summary>
         public string Members { get; }
 
