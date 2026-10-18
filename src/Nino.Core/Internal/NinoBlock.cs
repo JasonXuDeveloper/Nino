@@ -60,7 +60,7 @@ namespace Nino.Core
 
         /// <summary>Writes <paramref name="count"/> values at <paramref name="destination"/>, <paramref name="size"/> bytes apart.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteAll<T, TFormatter>(ref byte destination, ref T first, int count, int size)
+        public static unsafe void WriteAll<T, TFormatter>(ref byte destination, ref T first, int count, int size)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (NinoBlock<T, TFormatter>.IsMemory)
@@ -71,6 +71,50 @@ namespace Nino.Core
 
             int i = 0;
 #if NET8_0_OR_GREATER
+            // A group of values at a time, as full vectors of blocks: one two-source permute and one store each, none
+            // overlapping (Groups).
+            if (NinoBlock<T, TFormatter>.Groups)
+            {
+                int group = NinoBlock<T, TFormatter>.Group;
+                int last = NinoBlock<T, TFormatter>.LastGroup(count);
+                ref byte source = ref Unsafe.As<T, byte>(ref first);
+                // First the values before the first vector boundary of the blocks, one at a time: the blocks
+                // usually follow a 4-byte length, and a store across two cache lines costs two (measured on an
+                // AVX-512 Xeon, 1,000 12-byte blocks: 230 ns unaligned, 150 to 170 aligned). None when no value
+                // starts on a boundary.
+                if (last >= group)
+                {
+                    nuint mask = (nuint)NinoBlock<T, TFormatter>.GroupWidth - 1;
+                    nuint at = (nuint)Unsafe.AsPointer(ref destination);
+                    int skip = 0;
+                    while (skip < group && ((at + (nuint)(skip * size)) & mask) != 0)
+                        skip++;
+                    if (skip < group)
+                        for (; i < skip; i++)
+                            ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(
+                                ref Unsafe.Add(ref destination, (nint)i * size), in Unsafe.Add(ref first, i));
+                }
+
+                if (Avx512Vbmi.IsSupported)
+                {
+                    for (; i <= last; i += group)
+                        Permute64x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
+                            (nuint)i * (nuint)size);
+                }
+                else if (Avx2.IsSupported)
+                {
+                    for (; i <= last; i += group)
+                        Permute32x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
+                            (nuint)i * (nuint)size);
+                }
+                else
+                {
+                    for (; i <= last; i += group)
+                        Lookup16x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
+                            (nuint)i * (nuint)size);
+                }
+            }
+
             // Several values as 64 bytes, their bytes moved to their places in the block by one 64-byte byte permute
             // (Permute64); the tail written is overwritten by the next one.
             if (NinoBlock<T, TFormatter>.Permutes)
@@ -146,6 +190,100 @@ namespace Nino.Core
         }
 
 #if NET8_0_OR_GREATER
+        /// <summary>
+        /// One group of values (<see cref="NinoBlock{T, TFormatter}.Groups"/>) with AVX-512 VBMI: vector k of blocks is
+        /// one two-source permute of memory vectors k and k + 1, each memory vector loaded once.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Permute64x2<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int vectors = NinoBlock<T, TFormatter>.GroupVectors;
+            var a = Vector512.LoadUnsafe(ref source, from);
+            var b = Vector512.LoadUnsafe(ref source, from + 64);
+            Avx512Vbmi.PermuteVar64x8x2(a, NinoBlock<T, TFormatter>.Group0, b).StoreUnsafe(ref destination, to);
+            if (vectors < 2)
+                return;
+            var c = Vector512.LoadUnsafe(ref source, from + 128);
+            Avx512Vbmi.PermuteVar64x8x2(b, NinoBlock<T, TFormatter>.Group1, c).StoreUnsafe(ref destination, to + 64);
+            if (vectors < 3)
+                return;
+            var d = Vector512.LoadUnsafe(ref source, from + 192);
+            Avx512Vbmi.PermuteVar64x8x2(c, NinoBlock<T, TFormatter>.Group2, d).StoreUnsafe(ref destination, to + 128);
+            if (vectors < 4)
+                return;
+            var e = Vector512.LoadUnsafe(ref source, from + 256);
+            Avx512Vbmi.PermuteVar64x8x2(d, NinoBlock<T, TFormatter>.Group3, e).StoreUnsafe(ref destination, to + 192);
+        }
+
+        /// <summary>
+        /// <see cref="Permute64x2{T, TFormatter}"/> with AVX2: 32-byte vectors of 4-byte words, each word permuted from
+        /// both memory vectors (vpermd reads an index's low three bits) and taken from the second where its index has
+        /// the sign bit set (vblendvps).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Permute32x2<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int vectors = NinoBlock<T, TFormatter>.GroupVectors;
+            var a = Vector256.LoadUnsafe(ref source, from).AsInt32();
+            var b = Vector256.LoadUnsafe(ref source, from + 32).AsInt32();
+            Words(a, b, NinoBlock<T, TFormatter>.Group0.GetLower().AsInt32()).StoreUnsafe(ref destination, to);
+            if (vectors < 2)
+                return;
+            var c = Vector256.LoadUnsafe(ref source, from + 64).AsInt32();
+            Words(b, c, NinoBlock<T, TFormatter>.Group1.GetLower().AsInt32()).StoreUnsafe(ref destination, to + 32);
+            if (vectors < 3)
+                return;
+            var d = Vector256.LoadUnsafe(ref source, from + 96).AsInt32();
+            Words(c, d, NinoBlock<T, TFormatter>.Group2.GetLower().AsInt32()).StoreUnsafe(ref destination, to + 64);
+            if (vectors < 4)
+                return;
+            var e = Vector256.LoadUnsafe(ref source, from + 128).AsInt32();
+            Words(d, e, NinoBlock<T, TFormatter>.Group3.GetLower().AsInt32()).StoreUnsafe(ref destination, to + 96);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Words(Vector256<int> low, Vector256<int> high, Vector256<int> indices) =>
+            Avx.BlendVariable(Avx2.PermuteVar8x32(low, indices).AsSingle(),
+                Avx2.PermuteVar8x32(high, indices).AsSingle(), indices.AsSingle()).AsByte();
+
+        /// <summary>
+        /// <see cref="Permute64x2{T, TFormatter}"/> with 16-byte vectors: a two-register table lookup on Arm64, or on
+        /// WebAssembly (.NET 10) two swizzles ORed, the second taking indices 16 to 31 (any other index swizzles to 0).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Lookup16x2<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int vectors = NinoBlock<T, TFormatter>.GroupVectors;
+            var a = Vector128.LoadUnsafe(ref source, from);
+            var b = Vector128.LoadUnsafe(ref source, from + 16);
+            Lookup(a, b, NinoBlock<T, TFormatter>.Group0.GetLower().GetLower()).StoreUnsafe(ref destination, to);
+            if (vectors < 2)
+                return;
+            var c = Vector128.LoadUnsafe(ref source, from + 32);
+            Lookup(b, c, NinoBlock<T, TFormatter>.Group1.GetLower().GetLower()).StoreUnsafe(ref destination, to + 16);
+            if (vectors < 3)
+                return;
+            var d = Vector128.LoadUnsafe(ref source, from + 48);
+            Lookup(c, d, NinoBlock<T, TFormatter>.Group2.GetLower().GetLower()).StoreUnsafe(ref destination, to + 32);
+            if (vectors < 4)
+                return;
+            var e = Vector128.LoadUnsafe(ref source, from + 64);
+            Lookup(d, e, NinoBlock<T, TFormatter>.Group3.GetLower().GetLower()).StoreUnsafe(ref destination, to + 48);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Lookup(Vector128<byte> low, Vector128<byte> high, Vector128<byte> indices)
+        {
+#if NET10_0_OR_GREATER
+            if (PackedSimd.IsSupported)
+                return PackedSimd.Swizzle(low, indices) | PackedSimd.Swizzle(high, indices - Vector128.Create((byte)16));
+#endif
+            return AdvSimd.Arm64.VectorTableLookup((low, high), indices);
+        }
+
         /// <summary>
         /// One 64-byte byte permute from <paramref name="source"/> + <paramref name="from"/> to
         /// <paramref name="destination"/> + <paramref name="to"/>: each byte written is the source byte its index
@@ -244,6 +382,106 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int LastVector(int count, int size, int width) =>
             count - Math.Max((width + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>(), (width + size - 1) / size);
+
+        /// <summary>
+        /// The vector width of <see cref="Groups"/>: 64 bytes with AVX-512 VBMI (a two-source byte permute), 32 with
+        /// AVX2 (4-byte words only), 16 on Arm64 (a two-register table lookup) and WebAssembly on .NET 10 (two
+        /// swizzles); 0 without any.
+        /// </summary>
+        public static readonly int GroupWidth = Avx512Vbmi.IsSupported ? 64 : Avx2.IsSupported ? 32 :
+            AdvSimd.Arm64.IsSupported
+#if NET10_0_OR_GREATER
+            || PackedSimd.IsSupported
+#endif
+                ? 16
+                : 0;
+
+        /// <summary>
+        /// Whether values are written <see cref="Group"/> at a time as <see cref="GroupVectors"/> full vectors of
+        /// blocks, each one two-source permute of two consecutive vectors of their memory: blocks are smaller than
+        /// values (padding left out), so a value at a time stores a vector for fewer bytes, while a group stores each
+        /// vector once (a quarter fewer stores than a copy of the values' memory for 12-byte blocks of 16-byte values).
+        /// Only where each vector of blocks k draws on memory vectors k and k + 1, with up to four vectors a group.
+        /// </summary>
+        public static readonly bool Groups = Map != null && !IsMemory && GroupWidth != 0 &&
+                                             NinoBlock.Size<T, TFormatter>() < Unsafe.SizeOf<T>() &&
+                                             GroupMasks() != null;
+
+        /// <summary>Values per group: the fewest whose blocks fill whole vectors.</summary>
+        public static readonly int Group = Groups ? GroupWidth / Gcd(NinoBlock.Size<T, TFormatter>(), GroupWidth) : 0;
+
+        /// <summary>Vectors of blocks per group (1 to 4); one memory vector more is read.</summary>
+        public static readonly int GroupVectors = Groups ? Group * NinoBlock.Size<T, TFormatter>() / GroupWidth : 0;
+
+        /// <summary>
+        /// The permute indices of each vector of blocks in a group: bytes (Arm64: the low 16), or with AVX2 the low 32
+        /// bytes as one int per word, the sign bit set for a word of the second memory vector.
+        /// </summary>
+        public static readonly Vector512<byte> Group0 = GroupMask(0), Group1 = GroupMask(1), Group2 = GroupMask(2),
+            Group3 = GroupMask(3);
+
+        /// <summary>The last of <paramref name="count"/> values a group may start at: its reads stay inside the values.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int LastGroup(int count) =>
+            count - Math.Max(Group, ((GroupVectors + 1) * GroupWidth + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>());
+
+        private static int Gcd(int a, int b) => b == 0 ? a : Gcd(b, a % b);
+
+        private static Vector512<byte> GroupMask(int vector)
+        {
+            if (!Groups || vector >= GroupVectors)
+                return default;
+            var masks = GroupMasks();
+            var mask = new byte[64];
+            if (GroupWidth == 32)
+            {
+                // Words: the byte index of a word's first byte, over 4; the sign bit for the second vector.
+                for (int word = 0; word < 8; word++)
+                {
+                    int index = masks[vector * 32 + word * 4] / 4;
+                    Unsafe.WriteUnaligned(ref mask[word * 4], index | (index >= 8 ? int.MinValue : 0));
+                }
+            }
+            else
+            {
+                Array.Copy(masks, vector * GroupWidth, mask, 0, GroupWidth);
+            }
+
+            return Vector512.Create(mask);
+        }
+
+        /// <summary>
+        /// For each byte of each vector of blocks in a group, the byte of memory vectors k and k + 1 it comes from;
+        /// null when a group would take more than four vectors or a vector of blocks draws on other memory vectors.
+        /// </summary>
+        private static byte[] GroupMasks()
+        {
+            int width = GroupWidth, size = NinoBlock.Size<T, TFormatter>();
+            int group = width / Gcd(size, width), vectors = group * size / width;
+            if (vectors > 4)
+                return null;
+            var masks = new byte[vectors * width];
+            for (int wire = 0; wire < vectors * width; wire++)
+            {
+                int value = wire / size, offset = wire % size, memory = -1;
+                for (int i = 0; i < Map.Length; i += 3)
+                    if (offset >= Map[i + 1] && offset < Map[i + 1] + Map[i + 2])
+                        memory = value * Unsafe.SizeOf<T>() + Map[i] + offset - Map[i + 1];
+                // Every block byte belongs to a field; vector k reads memory vectors k and k + 1.
+                int index = memory - wire / width * width;
+                if (memory < 0 || index < 0 || index >= 2 * width)
+                    return null;
+                masks[wire] = (byte)index;
+            }
+
+            // AVX2 moves 4-byte words: each word of blocks is one whole word of memory.
+            if (width == 32)
+                for (int word = 0; word < masks.Length; word += 4)
+                    if (masks[word] % 4 != 0 || masks[word + 1] != masks[word] + 1 || masks[word + 2] != masks[word] + 2 ||
+                        masks[word + 3] != masks[word] + 3)
+                        return null;
+            return masks;
+        }
 
         /// <summary>Values per 64-byte vector (at least 2).</summary>
         public static readonly int PerVector = 64 / Unsafe.SizeOf<T>();
