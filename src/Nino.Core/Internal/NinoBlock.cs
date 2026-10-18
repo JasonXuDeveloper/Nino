@@ -84,6 +84,12 @@ namespace Nino.Core
                         Permute64x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
                             (nuint)i * (nuint)size);
                 }
+                else if (Avx2.IsSupported)
+                {
+                    for (; i <= last; i += group)
+                        Permute32x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
+                            (nuint)i * (nuint)size);
+                }
                 else
                 {
                     for (; i <= last; i += group)
@@ -192,6 +198,38 @@ namespace Nino.Core
             var e = Vector512.LoadUnsafe(ref source, from + 256);
             Avx512Vbmi.PermuteVar64x8x2(d, NinoBlock<T, TFormatter>.Group3, e).StoreUnsafe(ref destination, to + 192);
         }
+
+        /// <summary>
+        /// <see cref="Permute64x2{T, TFormatter}"/> with AVX2: 32-byte vectors of 4-byte words, each word permuted from
+        /// both memory vectors (vpermd reads an index's low three bits) and taken from the second where its index has
+        /// the sign bit set (vblendvps).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Permute32x2<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            int vectors = NinoBlock<T, TFormatter>.GroupVectors;
+            var a = Vector256.LoadUnsafe(ref source, from).AsInt32();
+            var b = Vector256.LoadUnsafe(ref source, from + 32).AsInt32();
+            Words(a, b, NinoBlock<T, TFormatter>.Group0.GetLower().AsInt32()).StoreUnsafe(ref destination, to);
+            if (vectors < 2)
+                return;
+            var c = Vector256.LoadUnsafe(ref source, from + 64).AsInt32();
+            Words(b, c, NinoBlock<T, TFormatter>.Group1.GetLower().AsInt32()).StoreUnsafe(ref destination, to + 32);
+            if (vectors < 3)
+                return;
+            var d = Vector256.LoadUnsafe(ref source, from + 96).AsInt32();
+            Words(c, d, NinoBlock<T, TFormatter>.Group2.GetLower().AsInt32()).StoreUnsafe(ref destination, to + 64);
+            if (vectors < 4)
+                return;
+            var e = Vector256.LoadUnsafe(ref source, from + 128).AsInt32();
+            Words(d, e, NinoBlock<T, TFormatter>.Group3.GetLower().AsInt32()).StoreUnsafe(ref destination, to + 96);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector256<byte> Words(Vector256<int> low, Vector256<int> high, Vector256<int> indices) =>
+            Avx.BlendVariable(Avx2.PermuteVar8x32(low, indices).AsSingle(),
+                Avx2.PermuteVar8x32(high, indices).AsSingle(), indices.AsSingle()).AsByte();
 
         /// <summary><see cref="Permute64x2{T, TFormatter}"/> on Arm64: 16-byte vectors, two-register table lookups.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -320,10 +358,11 @@ namespace Nino.Core
             count - Math.Max((width + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>(), (width + size - 1) / size);
 
         /// <summary>
-        /// The vector width of <see cref="Groups"/>: 64 bytes with AVX-512 VBMI (a two-source permute), 16 on Arm64 (a
-        /// two-register table lookup); 0 without either.
+        /// The vector width of <see cref="Groups"/>: 64 bytes with AVX-512 VBMI (a two-source byte permute), 32 with
+        /// AVX2 (4-byte words only), 16 on Arm64 (a two-register table lookup); 0 without any.
         /// </summary>
-        private static readonly int GroupWidth = Avx512Vbmi.IsSupported ? 64 : AdvSimd.Arm64.IsSupported ? 16 : 0;
+        private static readonly int GroupWidth = Avx512Vbmi.IsSupported ? 64 : Avx2.IsSupported ? 32 :
+            AdvSimd.Arm64.IsSupported ? 16 : 0;
 
         /// <summary>
         /// Whether values are written <see cref="Group"/> at a time as <see cref="GroupVectors"/> full vectors of
@@ -342,7 +381,10 @@ namespace Nino.Core
         /// <summary>Vectors of blocks per group (1 to 4); one memory vector more is read.</summary>
         public static readonly int GroupVectors = Groups ? Group * NinoBlock.Size<T, TFormatter>() / GroupWidth : 0;
 
-        /// <summary>The permute indices of each vector of blocks in a group (Arm64: the low 16 bytes).</summary>
+        /// <summary>
+        /// The permute indices of each vector of blocks in a group: bytes (Arm64: the low 16), or with AVX2 the low 32
+        /// bytes as one int per word, the sign bit set for a word of the second memory vector.
+        /// </summary>
         public static readonly Vector512<byte> Group0 = GroupMask(0), Group1 = GroupMask(1), Group2 = GroupMask(2),
             Group3 = GroupMask(3);
 
@@ -359,7 +401,20 @@ namespace Nino.Core
                 return default;
             var masks = GroupMasks();
             var mask = new byte[64];
-            Array.Copy(masks, vector * GroupWidth, mask, 0, GroupWidth);
+            if (GroupWidth == 32)
+            {
+                // Words: the byte index of a word's first byte, over 4; the sign bit for the second vector.
+                for (int word = 0; word < 8; word++)
+                {
+                    int index = masks[vector * 32 + word * 4] / 4;
+                    Unsafe.WriteUnaligned(ref mask[word * 4], index | (index >= 8 ? int.MinValue : 0));
+                }
+            }
+            else
+            {
+                Array.Copy(masks, vector * GroupWidth, mask, 0, GroupWidth);
+            }
+
             return Vector512.Create(mask);
         }
 
@@ -387,6 +442,12 @@ namespace Nino.Core
                 masks[wire] = (byte)index;
             }
 
+            // AVX2 moves 4-byte words: each word of blocks is one whole word of memory.
+            if (width == 32)
+                for (int word = 0; word < masks.Length; word += 4)
+                    if (masks[word] % 4 != 0 || masks[word + 1] != masks[word] + 1 || masks[word + 2] != masks[word] + 2 ||
+                        masks[word + 3] != masks[word] + 3)
+                        return null;
             return masks;
         }
 
