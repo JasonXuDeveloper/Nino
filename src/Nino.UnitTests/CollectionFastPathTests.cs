@@ -23,6 +23,26 @@ public struct NamedItem
     public string Name;
 }
 
+[NinoType]
+public class InlineNote
+{
+    public int Id;
+    public string Text;
+}
+
+[NinoType]
+public class TaggedNote : InlineNote
+{
+    public string Tag;
+}
+
+[NinoType]
+public class NoteBook
+{
+    public string Title;
+    public List<InlineNote> Notes;
+}
+
 public class CaseInsensitiveSortedDictionary : SortedDictionary<string, int>
 {
     public CaseInsensitiveSortedDictionary() : base(StringComparer.OrdinalIgnoreCase)
@@ -167,5 +187,67 @@ public class CollectionFastPathTests
             var words = new[] { text, null, text + "é" };
             CollectionAssert.AreEqual(words, NinoDeserializer.Deserialize<string[]>(NinoSerializer.Serialize(words)));
         }
+    }
+
+    [TestMethod]
+    public void BlocksUpToTheVectorLimitRoundTrip()
+    {
+        // Writes of 64 bytes to 8 KB use 64-byte vectors where the CPU has them, padded structs a masked copy:
+        // every size around the vector widths, then sizes past the limit.
+        var sizes = Enumerable.Range(0, 300).Concat(Enumerable.Range(0, 60).Select(i => 300 + i * 151))
+            .Concat(new[] { 8191, 8192, 8193, 9000 });
+        foreach (int n in sizes)
+        {
+            var block = Enumerable.Range(0, n).Select(i => (byte)(i * 31 + n)).ToArray();
+            CollectionAssert.AreEqual(block, NinoDeserializer.Deserialize<byte[]>(NinoSerializer.Serialize(block)));
+        }
+
+        foreach (int n in Enumerable.Range(0, 40).Concat(new[] { 63, 64, 65, 150, 999, 1024, 1025, 1200 }))
+        {
+            var items = Enumerable.Range(0, n).Select(i => new PaddedItem
+                { Id = i * 7, Count = (short)i, Bound = i % 3 == 0 }).ToArray();
+            byte[] bytes = NinoSerializer.Serialize(items);
+            CollectionAssert.AreEqual(items, NinoDeserializer.Deserialize<PaddedItem[]>(bytes));
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(items.ToList()));
+        }
+    }
+
+    [TestMethod]
+    public void SmallClassBodiesInCollectionsKeepTheirSubtypes()
+    {
+        // A small non-sealed class body is inlined into the collection's loop; its subtypes and nulls still go
+        // through the polymorphic path.
+        var book = new NoteBook
+        {
+            Title = "book",
+            Notes = Enumerable.Range(0, 50).Select(i => i % 5 == 0 ? null
+                : i % 3 == 0 ? new TaggedNote { Id = i, Text = "t" + i, Tag = "#" + i }
+                : new InlineNote { Id = i, Text = i % 4 == 0 ? null : "n" + i }).ToList()
+        };
+        var books = new[] { book, null, new NoteBook { Title = "empty", Notes = new List<InlineNote>() } };
+        var result = NinoDeserializer.Deserialize<NoteBook[]>(NinoSerializer.Serialize(books));
+
+        Assert.AreEqual(3, result.Length);
+        Assert.IsNull(result[1]);
+        Assert.AreEqual(0, result[2].Notes.Count);
+        Assert.AreEqual("book", result[0].Title);
+        for (int i = 0; i < book.Notes.Count; i++)
+        {
+            InlineNote expected = book.Notes[i], actual = result[0].Notes[i];
+            if (expected == null)
+            {
+                Assert.IsNull(actual);
+                continue;
+            }
+
+            Assert.AreEqual(expected.GetType(), actual.GetType());
+            Assert.AreEqual(expected.Id, actual.Id);
+            Assert.AreEqual(expected.Text, actual.Text);
+            if (expected is TaggedNote tagged)
+                Assert.AreEqual(tagged.Tag, ((TaggedNote)actual).Tag);
+        }
+
+        CollectionAssert.AreEqual(NinoSerializer.Serialize(book.Notes),
+            NinoSerializer.Serialize(result[0].Notes));
     }
 }
