@@ -149,7 +149,7 @@ namespace Nino.Core
 
         /// <summary>Reads <paramref name="count"/> values from <paramref name="source"/>, <paramref name="size"/> bytes apart.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void ReadAll<T, TFormatter>(ref byte source, ref T first, int count, int size)
+        public static unsafe void ReadAll<T, TFormatter>(ref byte source, ref T first, int count, int size)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (NinoBlock<T, TFormatter>.IsMemory)
@@ -168,6 +168,23 @@ namespace Nino.Core
                 var fields = NinoBlock<T, TFormatter>.Fields64;
                 int step = NinoBlock<T, TFormatter>.PerVector;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 64);
+                // Where the values fill whole vectors (64 bytes a multiple of their size), the stores do not overlap:
+                // first the values before the destination's first boundary (64 bytes with AVX-512, 16 for the four
+                // Arm64 stores), one at a time, so that none straddles two cache lines. None when no value starts on
+                // a boundary.
+                if (64 % Unsafe.SizeOf<T>() == 0 && last >= step)
+                {
+                    nuint mask = Avx512Vbmi.IsSupported ? 63u : 15u;
+                    nuint at = (nuint)Unsafe.AsPointer(ref destination);
+                    int skip = 0;
+                    while (skip < step && ((at + (nuint)(skip * Unsafe.SizeOf<T>())) & mask) != 0)
+                        skip++;
+                    if (skip < step)
+                        for (; i < skip; i++)
+                            ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
+                                ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
+                }
+
                 for (; i <= last; i += step)
                     Permute64(ref source, (nuint)i * (nuint)size, ref destination, (nuint)i * (nuint)Unsafe.SizeOf<T>(),
                         toMemory, fields, keepAll: false);

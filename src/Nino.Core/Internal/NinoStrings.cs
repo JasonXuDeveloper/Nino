@@ -162,7 +162,7 @@ namespace Nino.Core
 #if NET8_0_OR_GREATER
         // n > 16. Whole vectors, then the last one again overlapping the previous (the chars are the same).
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static bool NarrowVector(ref ushort source, ref byte destination, nuint n)
+        private static unsafe bool NarrowVector(ref ushort source, ref byte destination, nuint n)
         {
             // ASCII through the runtime's own narrowing (512-bit and unrolled where it can be): 1,000 chars in 22 ns
             // against 40 for the loop below. It stops at the first char above U+007F; Latin-1 text with such chars
@@ -184,7 +184,10 @@ namespace Nino.Core
                     Vector256.Narrow(a, b).StoreUnsafe(ref destination, i);
                     if (i + 32 == n)
                         return true;
-                    i = i + 64 <= n ? i + 32 : n - 32;
+                    // After the first vector, on to the destination's next 32-byte boundary (overlapping it): the
+                    // bytes follow a 4-byte length, and a store across two cache lines costs two.
+                    nuint next = i == 0 ? 32 - ((nuint)Unsafe.AsPointer(ref destination) & 31) : i + 32;
+                    i = next + 32 <= n ? next : n - 32;
                 }
             }
 
@@ -265,7 +268,7 @@ namespace Nino.Core
             return (chars | (chars << 8)) & 0x00FF00FF00FF00FF;
         }
 
-        private static void Widen(ref byte source, ref ushort destination, nuint n)
+        private static unsafe void Widen(ref byte source, ref ushort destination, nuint n)
         {
             nuint i = 0;
 #if NET8_0_OR_GREATER
@@ -280,7 +283,10 @@ namespace Nino.Core
                         upper.StoreUnsafe(ref destination, i + 16);
                         if (i + 32 == n)
                             return;
-                        i = i + 64 <= n ? i + 32 : n - 32;
+                        // After the first 32 chars, on to the next 32-byte boundary of the string's chars (an
+                        // even address, so a whole number of chars away), as in NarrowVector.
+                        nuint next = i == 0 ? (32 - ((nuint)Unsafe.AsPointer(ref destination) & 31)) / 2 : i + 32;
+                        i = next + 32 <= n ? next : n - 32;
                     }
                 }
 
