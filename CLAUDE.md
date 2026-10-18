@@ -16,11 +16,14 @@ Guidance for Claude Code when working in this repository.
 
 ## Commit messages and release notes
 
-- "Area: summary" plus a body that says why.
+- Conventional Commits: `type(scope): summary`, plus a body that says why. Types: `feat`, `fix`, `perf`,
+  `refactor`, `docs`, `test`, `ci`, `build`, `chore`; the scope is the area (`core`, `generator`, `collections`,
+  `benchmarks`, ...). The release notes group commits by type (`.github/scripts/release_notes.py`, `classify`).
 - Release notes are generated (`.github/scripts/release_notes.py`): the commit list, and highlights from trailers in
   the message's last paragraph, next to `Co-Authored-By`. Give a user-facing change one:
   - `Wire-Format:` anything that changes the bytes Nino writes, and for which types;
   - `Added:` a new API, attribute or behavior;
+  - `Performance:` what got faster, for which types, and by how much (measured);
   - `Fixed:` a user-visible bug.
   Write each as one sentence or two for users, in Markdown, continuing over indented lines if needed. Put
   `Closes #N` in the body above the trailers; the issue is appended to the entry. Leave tests, CI, docs and

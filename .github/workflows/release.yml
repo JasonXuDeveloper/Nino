@@ -7,7 +7,7 @@ name: Release
 #            token, no stored secret), create the GitHub release with the notes of .github/scripts/release_notes.py
 #            (every commit since the previous release, grouped, and every contributor; a stable release starts at
 #            the previous stable one, so 4.0.0 covers everything since 3.3.13), then start the benchmark report.
-#            The highlights at the top come from Wire-Format/Added/Fixed commit trailers (see release_notes.py).
+#            The highlights at the top come from Wire-Format/Added/Performance/Fixed commit trailers (see release_notes.py).
 #            If it fails, fix the cause and use "Re-run failed jobs": the tag stays, NuGet skips a version it
 #            already has, the release is created once. To change an input (notes_since), run the
 #            workflow again with the same version: for an existing tag it skips straight to publishing.

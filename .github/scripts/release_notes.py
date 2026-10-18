@@ -17,6 +17,7 @@ Put them in the message's last paragraph (the trailer block, next to Co-Authored
 indented lines:
   Wire-Format: what now writes different bytes, and since when   -> "Wire format"
   Added: a new API, attribute or behavior users can rely on       -> "New"
+  Performance: what got faster, for which types, and by how much  -> "Performance"
   Fixed: a user-visible bug that is fixed                         -> "Fixes"
 Each entry gets the issues the commit closes ("Closes #202" in its body, outside the trailer block) unless it names
 them already. A release without such trailers has no highlights.
@@ -31,7 +32,7 @@ RESERVED = 45_000             # left for report.yml's v3 section and Performance
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$")
 LABEL_RANK = {"alpha": 0, "beta": 1, "rc": 2, None: 3}
 # Commit trailer -> highlights section, in this order.
-HIGHLIGHTS = [("Wire-Format", "Wire format"), ("Added", "New"), ("Fixed", "Fixes")]
+HIGHLIGHTS = [("Wire-Format", "Wire format"), ("Added", "New"), ("Performance", "Performance"), ("Fixed", "Fixes")]
 CHANGELOG = "https://nino.xgamedev.net/en/docs/v4/changelog"
 CLOSES = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)", re.I)
 
@@ -58,7 +59,7 @@ GROUPS = [
     ("Other changes", r"", None),  # catch-all
 ]
 # "Area:" prefixes of the library's own code (the rest of a subject there rarely starts with a verb).
-LIBRARY = re.compile(r"^(core|runtime|generator|analy[sz]er|immutable|interceptors?|serializer|deserializer)$", re.I)
+LIBRARY = re.compile(r"^(core|runtime|generator|analy[sz]er|immutable|interceptors?|serializer|deserializer|collections|formatters?)$", re.I)
 AI_OR_BOT = re.compile(r"\[bot\]|^(claude|copilot|codex|gemini)$|noreply@anthropic\.com|@openai\.com|gemini@google\.com", re.I)
 
 
@@ -108,7 +109,7 @@ def commits(rng):
 
 
 def highlights(all_commits, since):
-    """The Wire format / New / Fixes sections from the commits' trailers; empty when there are none."""
+    """The Wire format / New / Performance / Fixes sections from the commits' trailers; empty when there are none."""
     sections = []
     for key, title in HIGHLIGHTS:
         entries = []
