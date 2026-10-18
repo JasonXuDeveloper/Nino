@@ -188,13 +188,18 @@ namespace Nino.TypeScript.Tests
             {
                 "--strict", "--noEmit", "--noUnusedLocals", "--noUnusedParameters", "--target", "es2022",
                 "--module", "nodenext", "--allowImportingTsExtensions", "--skipLibCheck",
-                "nino.ts", "Nino.TypeScript.Tests.ts",
+                "nino.ts", "Nino.TypeScript.Tests.ts", "fetch.ts",
             })
             {
                 WorkingDirectory = _directory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
             };
+            // The bytes serialize returns are a fetch body as they are (TypeScript 5.7+ types the buffer).
+            File.WriteAllText(Path.Combine(_directory, "fetch.ts"),
+                "import { serialize } from \"./nino.ts\";\n" +
+                "import { Player, PlayerCodec } from \"./Nino.TypeScript.Tests.ts\";\n" +
+                "export const body: BodyInit = serialize(PlayerCodec, new Player());\n");
             Process tsc;
             try
             {

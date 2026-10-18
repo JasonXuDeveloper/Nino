@@ -1,4 +1,4 @@
-// Nino runtime for TypeScript, written by Nino.TypeScript next to the generated types: reads and writes the bytes
+// Nino runtime for TypeScript (5.7 or later, for the typed arrays' buffer types), written by Nino.TypeScript next to the generated types: reads and writes the bytes
 // Nino writes in .NET. Little-endian and unaligned; lengths are int32, -1 = null. Do not edit: it is overwritten on
 // every build.
 
@@ -20,7 +20,7 @@ let slabUsed = 0;
  * Serializes `value` with `codec` (what `NinoSerializer.Serialize<T>` writes in .NET) into a new array. The bytes
  * are written into one buffer kept between calls, so each call allocates only the array it returns.
  */
-export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array {
+export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuffer> {
   // A codec that serializes (a custom one) while this runs gets a writer of its own.
   const writer = shared ?? new NinoWriter();
   shared = null;
@@ -176,7 +176,7 @@ export class NinoReader {
   }
 
   /** A `byte[]`: length, then the bytes (a copy). */
-  bytes(): Uint8Array | null {
+  bytes(): Uint8Array<ArrayBuffer> | null {
     const length = this.length();
     if (length < 0) return null;
     const at = this.take(length);
@@ -239,7 +239,7 @@ export class NinoReader {
 
 /** Writes values in Nino's format. */
 export class NinoWriter {
-  private buffer = new Uint8Array(256);
+  private buffer: Uint8Array<ArrayBuffer> = new Uint8Array(256);
   private view = new DataView(this.buffer.buffer);
   /** The number of bytes written. */
   pos = 0;
@@ -262,7 +262,7 @@ export class NinoWriter {
    * backing store for every result costs more than the serialization, so read them by `byteOffset` and `length`,
    * not through `.buffer`.
    */
-  toBytes(): Uint8Array {
+  toBytes(): Uint8Array<ArrayBuffer> {
     const length = this.pos;
     if (length > slabSize >> 3) return this.buffer.slice(0, length);
     if (length > slabSize - slabUsed) {
