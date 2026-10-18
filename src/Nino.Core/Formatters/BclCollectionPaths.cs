@@ -51,6 +51,33 @@ namespace Nino.Core
             }
         }
 
+        /// <summary>
+        /// A new <typeparamref name="TCollection"/> of the <paramref name="length"/> elements that follow, if it is a
+        /// concurrent stack or queue, which the runtime builds faster from an array than element by element;
+        /// otherwise null, and nothing is read.
+        /// </summary>
+        public static TCollection TryCreate<TCollection>(int length, ref Reader reader) where TCollection : class
+        {
+            if (typeof(TCollection) != typeof(ConcurrentStack<T>) && typeof(TCollection) != typeof(ConcurrentQueue<T>))
+                return null;
+            var items = NinoCollections.ReadRented<T, TFormatter>(length, ref reader);
+            try
+            {
+                if (typeof(TCollection) == typeof(ConcurrentQueue<T>))
+                    // Its first segment sized for them, filled without contention.
+                    return (TCollection)(object)new ConcurrentQueue<T>(new ArraySegment<T>(items, 0, length));
+                // One linked chain swapped in at once, where a push per element swaps the top each time (2x faster).
+                var stack = new ConcurrentStack<T>();
+                if (length != 0)
+                    stack.PushRange(items, 0, length);
+                return (TCollection)(object)stack;
+            }
+            finally
+            {
+                NinoCollections.ReturnRented(items);
+            }
+        }
+
         /// <summary>Node by node, with the writer as a local; raw elements into one reserved block.</summary>
         private static void WriteLinked(LinkedList<T> linked, ref Writer writer)
         {

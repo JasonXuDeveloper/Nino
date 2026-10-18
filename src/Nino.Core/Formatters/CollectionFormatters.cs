@@ -390,6 +390,13 @@ namespace Nino.Core
                 return;
             }
 
+            if (value == null)
+            {
+                value = BclCollections<T, TFormatter>.TryCreate<TCollection>(length, ref reader);
+                if (value != null)
+                    return;
+            }
+
             // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
             var collection = value ??= NinoActivator<TCollection>.Create();
             NinoRecycler.DrainAndDiscard(collection);
