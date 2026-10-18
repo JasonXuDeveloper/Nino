@@ -17,13 +17,13 @@ namespace Nino.AspNetCore
 
         protected override bool CanWriteType(Type? type) => type is not null && NinoBodyReader.IsSupported(type);
 
-        public override async Task WriteResponseBodyAsync(OutputFormatterWriteContext context)
+        public override Task WriteResponseBodyAsync(OutputFormatterWriteContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
             var response = context.HttpContext.Response;
             var type = context.ObjectType ?? context.Object?.GetType() ?? typeof(object);
             NinoSerializer.SerializeBoxed(context.Object, response.BodyWriter, type);
-            await response.BodyWriter.FlushAsync(context.HttpContext.RequestAborted).ConfigureAwait(false);
+            return NinoBodyReader.FlushAsync(response.BodyWriter, context.HttpContext.RequestAborted);
         }
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Net.Http.Headers;
 
 namespace Nino.AspNetCore
 {
@@ -17,8 +16,20 @@ namespace Nino.AspNetCore
         public static bool HasNinoContentType(this HttpRequest request)
         {
             ArgumentNullException.ThrowIfNull(request);
-            return MediaTypeHeaderValue.TryParse(request.ContentType, out var contentType) &&
-                   contentType.MediaType.Equals(Application, StringComparison.OrdinalIgnoreCase);
+            return IsNino(request.ContentType);
+        }
+
+        /// <summary>
+        /// Whether a <c>Content-Type</c> value is <see cref="Application"/>, ignoring case, whitespace and parameters,
+        /// without parsing it into objects (it is checked on every request).
+        /// </summary>
+        internal static bool IsNino(string? contentType)
+        {
+            var value = contentType.AsSpan();
+            int semicolon = value.IndexOf(';');
+            if (semicolon >= 0)
+                value = value.Slice(0, semicolon);
+            return value.Trim().Equals(Application, StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -15,6 +16,7 @@ namespace Nino.AspNetCore
         /// </summary>
         /// <exception cref="InvalidOperationException">The request's content type is not <see cref="NinoMediaTypes.Application"/>.</exception>
         /// <exception cref="BadHttpRequestException">The body is not a valid <typeparamref name="T"/> (status 400).</exception>
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
         public static async ValueTask<T> ReadFromNinoAsync<T>(this HttpRequest request,
             CancellationToken cancellationToken = default)
         {
@@ -44,8 +46,7 @@ namespace Nino.AspNetCore
             ArgumentNullException.ThrowIfNull(response);
             response.ContentType = NinoMediaTypes.Application;
             NinoSerializer.Serialize(value, response.BodyWriter);
-            var flush = response.BodyWriter.FlushAsync(cancellationToken);
-            return flush.IsCompletedSuccessfully ? Task.CompletedTask : flush.AsTask();
+            return NinoBodyReader.FlushAsync(response.BodyWriter, cancellationToken);
         }
     }
 }

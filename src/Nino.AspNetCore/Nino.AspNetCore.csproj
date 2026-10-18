@@ -38,6 +38,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="Nino.AspNetCore.Tests"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
         <None Include="..\..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
     </ItemGroup>

@@ -1,5 +1,6 @@
 using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -24,6 +25,7 @@ namespace Nino.AspNetCore
         /// nothing, which Minimal APIs answer with a 400 (and log); another content type never reaches it, since
         /// routing answers it with a 415 from the parameter's accepts metadata.
         /// </summary>
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
         public static async ValueTask<NinoBody<T>?> BindAsync(HttpContext context, ParameterInfo parameter)
         {
             ArgumentNullException.ThrowIfNull(context);

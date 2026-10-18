@@ -28,4 +28,12 @@ namespace Nino.AspNetCore.Tests
     {
         public double Side;
     }
+
+    /// <summary>A body that deserializes without allocating, so the tests see only what the integration allocates.</summary>
+    [NinoType]
+    public struct Point
+    {
+        public int X;
+        public int Y;
+    }
 }

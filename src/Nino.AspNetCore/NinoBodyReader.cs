@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Nino.Core;
@@ -25,6 +26,9 @@ namespace Nino.AspNetCore
         public static bool IsInvalidData(Exception exception) =>
             exception is InvalidOperationException or OverflowException or IndexOutOfRangeException;
 
+        // The async methods take their state machines from a pool: a body that has not fully arrived when the
+        // request is read allocates nothing either.
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
         public static async ValueTask<T> ReadAsync<T>(PipeReader reader, long? length, CancellationToken cancellationToken)
         {
             var body = await ReadToEndAsync(reader, length, cancellationToken).ConfigureAwait(false);
@@ -38,6 +42,7 @@ namespace Nino.AspNetCore
             }
         }
 
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
         public static async ValueTask<object> ReadBoxedAsync(PipeReader reader, long? length, Type type,
             CancellationToken cancellationToken)
         {
@@ -56,6 +61,7 @@ namespace Nino.AspNetCore
         /// Buffers the body in the pipe until it is complete; the caller advances past it. With a
         /// <c>Content-Length</c> it waits for that many bytes at once instead of waking on every segment.
         /// </summary>
+        [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
         private static async ValueTask<ReadOnlySequence<byte>> ReadToEndAsync(PipeReader reader, long? length,
             CancellationToken cancellationToken)
         {
@@ -72,6 +78,16 @@ namespace Nino.AspNetCore
                 reader.AdvanceTo(buffer.Start, buffer.End);
                 result = await reader.ReadAsync(cancellationToken).ConfigureAwait(false);
             }
+        }
+
+        /// <summary>Flushes a response pipe, allocating a task only when the flush does not finish at once.</summary>
+        public static Task FlushAsync(PipeWriter writer, CancellationToken cancellationToken)
+        {
+            var flush = writer.FlushAsync(cancellationToken);
+            if (!flush.IsCompletedSuccessfully)
+                return flush.AsTask();
+            flush.GetAwaiter().GetResult();
+            return Task.CompletedTask;
         }
 
         // A body that arrived in one segment is read where it is; only a body split across segments is copied, into
