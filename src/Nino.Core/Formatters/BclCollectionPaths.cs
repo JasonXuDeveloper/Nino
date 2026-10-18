@@ -179,10 +179,9 @@ namespace Nino.Core
         /// <summary>From its two arrays.</summary>
         private static void WriteSortedList(SortedList<TKey, TValue> list, ref Writer writer)
         {
-            var view = Unsafe.As<SortedListView<TKey, TValue>>(list);
-            int count = view._size;
-            TKey[] keys = view.keys;
-            TValue[] values = view.values;
+            int count = CollectionFields.Size(list);
+            TKey[] keys = CollectionFields.Keys(list);
+            TValue[] values = CollectionFields.Values(list);
             if ((uint)count > (uint)keys.Length || (uint)count > (uint)values.Length)
                 NinoThrow.InvalidData("collection was modified during serialization");
             Writer local = default;
@@ -252,7 +251,7 @@ namespace Nino.Core
             {
                 if (CollectionViews.SortedDictionary && !HasNullKey(pairs, length))
                 {
-                    var set = Unsafe.As<SortedDictionaryView<TKey, TValue>>(dictionary)._set;
+                    var set = CollectionFields.Set(dictionary);
                     if (SortedTrees.Fill(set, pairs, length) == length)
                         return;
                     set.Clear();
@@ -287,22 +286,24 @@ namespace Nino.Core
 
         private static bool TryAdopt(SortedList<TKey, TValue> list, KeyValuePair<TKey, TValue>[] pairs, int length)
         {
-            var view = Unsafe.As<SortedListView<TKey, TValue>>(list);
-            if (length == 0 || !InOrder(pairs, length, view.comparer))
+            if (length == 0 || !InOrder(pairs, length, CollectionFields.Comparer(list)))
                 return false;
             // Its own arrays when they are large enough (Clear cleared them), otherwise new ones.
-            TKey[] keys = view.keys.Length >= length ? view.keys : new TKey[length];
-            TValue[] values = view.values.Length >= length ? view.values : new TValue[length];
+            // Plain locals: a store through a ref to the field could alias the array stores below.
+            TKey[] keys = CollectionFields.Keys(list);
+            TValue[] values = CollectionFields.Values(list);
+            if (keys.Length < length)
+                CollectionFields.Keys(list) = keys = new TKey[length];
+            if (values.Length < length)
+                CollectionFields.Values(list) = values = new TValue[length];
             for (int i = 0; i < length; i++)
             {
                 keys[i] = pairs[i].Key;
                 values[i] = pairs[i].Value;
             }
 
-            view.keys = keys;
-            view.values = values;
-            view._size = length;
-            view.version++;
+            CollectionFields.Size(list) = length;
+            CollectionFields.Version(list)++;
             return true;
         }
 
@@ -355,7 +356,7 @@ namespace Nino.Core
     /// <see cref="SortedSet{T}"/> trees built in one pass: the set's constructor sorts the elements (found in order,
     /// as Nino writes them), drops duplicates and builds a balanced tree from the array, where Add would insert and
     /// rebalance per element. Its nodes do not point back to the set, so the tree is moved into the set being read
-    /// (<see cref="SortedSetView{T}"/>; also the set under a <see cref="SortedDictionary{TKey,TValue}"/>).
+    /// (<see cref="CollectionFields"/>; also the set under a <see cref="SortedDictionary{TKey,TValue}"/>).
     /// </summary>
     internal static class SortedTrees
     {
@@ -373,13 +374,11 @@ namespace Nino.Core
         /// </summary>
         public static int Fill<T>(SortedSet<T> set, T[] items, int count)
         {
-            var built = Unsafe.As<SortedSetView<T>>(
-                new SortedSet<T>(new ArraySegment<T>(items, 0, count), set.Comparer));
-            var view = Unsafe.As<SortedSetView<T>>(set);
-            view.root = built.root;
-            view.count = built.count;
-            view.version++;
-            return built.count;
+            var built = new SortedSet<T>(new ArraySegment<T>(items, 0, count), set.Comparer);
+            CollectionFields.Root(set) = CollectionFields.Root(built);
+            CollectionFields.Count(set) = built.Count;
+            CollectionFields.Version(set)++;
+            return built.Count;
         }
     }
 

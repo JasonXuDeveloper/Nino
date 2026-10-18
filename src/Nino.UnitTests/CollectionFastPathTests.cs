@@ -499,4 +499,18 @@ public class CollectionFastPathTests
         BlocksRoundTrip(i => new KeyValuePair<long, byte>(i * 3L, (byte)i));
         BlocksRoundTrip(i => (i, i % 3 == 0 ? null : "t" + i));
     }
+
+    [TestMethod]
+    public void CollectionLayoutsAreRecognized()
+    {
+        // Each collection Nino reads and writes through its fields is checked against the runtime's layout at
+        // startup, and its public API is used when the check fails. On .NET every check must pass, or the fast
+        // paths are silently off.
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.List, "List<T>");
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.Stack, "Stack<T>");
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.Queue, "Queue<T>");
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.SortedList, "SortedList<TKey, TValue>");
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.SortedSet, "SortedSet<T>");
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.SortedDictionary, "SortedDictionary<TKey, TValue>");
+    }
 }

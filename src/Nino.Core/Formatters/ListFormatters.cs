@@ -38,24 +38,22 @@ namespace Nino.Core
             }
 
             var list = value;
+            // Fixed-size values are each read in full: a new list's backing array need not be cleared first.
+            bool overwritten = false;
             if (list == null)
             {
-                // Fixed-size values are each read in full: a new list's backing array need not be cleared first.
-                if (NinoBlock.Size<T, TFormatter>() > 0)
-                {
-                    value = list = ListAccess.CreateOverwritten<TList, T>(length);
-                    NinoElements.Read<T, TFormatter>(ListAccess.AsSpan<T>(list), ref reader);
-                    return;
-                }
-
-                value = list = ListAccess.Create<TList, T>(length);
+                overwritten = NinoBlock.Size<T, TFormatter>() > 0;
+                value = list = overwritten
+                    ? ListAccess.CreateOverwritten<TList, T>(length)
+                    : ListAccess.Create<TList, T>(length);
             }
-
             // The dropped tail (a factory may hand out a pooled list that is not empty: treated the same way).
-            if (list.Count > length)
+            else if (list.Count > length)
                 NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length));
 
-            NinoElements.Read<T, TFormatter>(ListAccess.SetCount<T>(list, length), ref reader);
+            var span = ListAccess.Open(list, length, overwritten, out var buffer);
+            NinoElements.Read<T, TFormatter>(span, ref reader);
+            ListAccess.Close(list, length, buffer);
         }
     }
 
@@ -85,15 +83,20 @@ namespace Nino.Core
                 return;
             }
 
-            ref T first = ref value == null
-                ? ref NinoUnsafe.GetArrayDataReference(
-                    Unsafe.As<ListView<T>>(value = ListAccess.CreateOverwritten<TList, T>(length))._items)
-                : ref ListAccess.SetCountOverwritten(value, length);
-            if (!NinoLayout<T>.IsCanonical)
+            if (!ListAccess.Direct || !NinoLayout<T>.IsCanonical)
             {
-                reader.ReadUnmanagedRaw(ListAccess.AsSpan<T>(value));
+                var list = value ??= ListAccess.CreateOverwritten<TList, T>(length);
+                var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
+                reader.ReadUnmanagedRaw(span);
+                ListAccess.Close(list, length, buffer);
                 return;
             }
+
+            // A new list's backing array straight from its field (no count to set again).
+            ref T first = ref value == null && CollectionViews.List
+                ? ref NinoUnsafe.GetArrayDataReference(
+                    CollectionFields.Items<T>(value = ListAccess.CreateOverwritten<TList, T>(length)))
+                : ref ListAccess.SetCountOverwritten(value ??= ListAccess.Create<TList, T>(length), length);
 
             // The length was checked against the remaining bytes above: one block copy, no second bounds check.
             uint bytes = (uint)length * (uint)Unsafe.SizeOf<T>();
@@ -129,10 +132,10 @@ namespace Nino.Core
                 return;
             }
 
-            var span = value == null
-                ? ListAccess.AsSpan<T?>(value = ListAccess.CreateOverwritten<TList, T?>(length))
-                : ListAccess.SetCount<T?>(value, length, overwritten: true);
+            var list = value ??= ListAccess.CreateOverwritten<TList, T?>(length);
+            var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
             NinoNullables<T>.Read(span, ref reader);
+            ListAccess.Close(list, length, buffer);
         }
     }
 

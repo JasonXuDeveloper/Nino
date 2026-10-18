@@ -142,6 +142,38 @@ jobs:
           ./aot-tests/aot/Nino.AotTests | tee aot.txt
           [ "$(grep 'payload sha256' trim.txt)" = "$(grep 'payload sha256' aot.txt)" ]
 
+  # The netstandard2.0 build of Nino.Core on Mono, whose class libraries (like .NET Framework's) give List<T> and the
+  # other collections Nino reads directly a field more than .NET's: Nino.RuntimeTests must write the same bytes there
+  # as on .NET.
+  mono:
+    name: Mono
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
+
+      - name: Install Mono
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mono-complete
+
+      - name: Build
+        run: dotnet build Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
+
+      - name: Run on .NET and Mono
+        run: |
+          dotnet Nino.RuntimeTests/bin/Release/net10.0/Nino.RuntimeTests.dll | tee dotnet.txt
+          mono Nino.RuntimeTests/bin/Release/net472/Nino.RuntimeTests.exe | tee mono.txt
+          diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
+          grep -qx 'ALL OK' mono.txt
+
   unity-tests:
     name: Unity tests
     runs-on: ubuntu-26.04
@@ -218,7 +250,7 @@ jobs:
   build-test:
     name: Build and Test
     runs-on: ubuntu-26.04
-    needs: [ unit-tests, trim-aot, unity-tests ]
+    needs: [ unit-tests, trim-aot, mono, unity-tests ]
     # Not when the run itself was cancelled (a newer push supersedes it): its cancelled jobs are not failures.
     if: ${{ !cancelled() }}
     steps:
@@ -235,9 +267,10 @@ jobs:
       - name: Check results
         working-directory: .
         run: |
-          echo "unit tests: ${{ needs.unit-tests.result }}, trim/AOT: ${{ needs.trim-aot.result }}, Unity tests: ${{ needs.unity-tests.result }}"
+          echo "unit tests: ${{ needs.unit-tests.result }}, trim/AOT: ${{ needs.trim-aot.result }}, Mono: ${{ needs.mono.result }}, Unity tests: ${{ needs.unity-tests.result }}"
           [ "${{ needs.unit-tests.result }}" = success ] || exit 1
           [ "${{ needs.trim-aot.result }}" = success ] || exit 1
+          [ "${{ needs.mono.result }}" = success ] || exit 1
           case "${{ needs.unity-tests.result }}" in success|skipped) ;; *) exit 1 ;; esac
 
   # Run benchmarks on PRs only

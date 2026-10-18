@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The same bytes on every runtime: run on .NET (net10.0) and on Mono (net472, the netstandard2.0 build of
+         Nino.Core, with the class libraries of .NET Framework and Mono, whose collections have other fields than
+         .NET's), it prints a hash of what each case writes; CI compares the two outputs (see
+         .github/workflows/ci.yml). -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net10.0;net472</TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(TargetFramework)' != 'net472'"/>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(TargetFramework)' == 'net472'"
+                          SetTargetFramework="TargetFramework=netstandard2.0"/>
+        <ProjectReference Include="..\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <Import Project="..\Nino.Generator\build\Nino.Generator.props"/>
+</Project>

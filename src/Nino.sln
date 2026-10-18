@@ -24,6 +24,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.Generator.Roslyn4.8", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.AotTests", "Nino.AotTests\Nino.AotTests.csproj", "{55A0C4B2-99B7-42C1-A3FC-6B54A54C795D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nino.RuntimeTests", "Nino.RuntimeTests\Nino.RuntimeTests.csproj", "{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -178,6 +180,18 @@ Global
 		{55A0C4B2-99B7-42C1-A3FC-6B54A54C795D}.Release|x64.Build.0 = Release|Any CPU
 		{55A0C4B2-99B7-42C1-A3FC-6B54A54C795D}.Release|x86.ActiveCfg = Release|Any CPU
 		{55A0C4B2-99B7-42C1-A3FC-6B54A54C795D}.Release|x86.Build.0 = Release|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Debug|x64.Build.0 = Debug|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Debug|x86.Build.0 = Debug|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Release|x64.ActiveCfg = Release|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Release|x64.Build.0 = Release|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Release|x86.ActiveCfg = Release|Any CPU
+		{A21ED8B4-0C45-4ED9-9678-E768D758FC0D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

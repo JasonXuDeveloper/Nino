@@ -168,7 +168,7 @@ namespace Nino.Core
 
         /// <summary>Discards elements a collection drops (the tail it shrinks by): each is recycled once.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static void DiscardAll<T>(Span<T> values)
+        internal static void DiscardAll<T>(ReadOnlySpan<T> values)
         {
             if (!NinoRecycler<T>.MayRecycle)
                 return;

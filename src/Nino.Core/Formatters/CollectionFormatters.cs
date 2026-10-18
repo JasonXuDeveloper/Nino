@@ -179,12 +179,12 @@ namespace Nino.Core
             if (CollectionViews.Queue)
             {
                 // Head to tail: the backing ring as at most two spans (a block each for raw elements).
-                var view = Unsafe.As<QueueView<T>>(value);
-                var ring = view._array;
-                int count = view._size;
-                int first = Math.Min(count, ring.Length - view._head);
+                var ring = CollectionFields.Array<T>(value);
+                int count = CollectionFields.Size<T>(value);
+                int head = CollectionFields.Head<T>(value);
+                int first = Math.Min(count, ring.Length - head);
                 writer.WriteLength(count);
-                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, view._head, first), ref writer);
+                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, head, first), ref writer);
                 NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(ring, 0, count - first), ref writer);
                 return;
             }
@@ -217,12 +217,12 @@ namespace Nino.Core
             {
                 // Read in place from the start of the backing array (a block for raw elements), then the ring set
                 // around them: no capacity check and version bump per element.
-                var view = Unsafe.As<QueueView<T>>(queue);
-                var ring = NinoCollectionViews.ReadInto<T, TFormatter>(ref view._array, length, ref reader);
-                view._head = 0;
-                view._tail = length == ring.Length ? 0 : length;
-                view._size = length;
-                view._version++;
+                var ring = NinoCollectionViews.ReadInto<T, TFormatter>(ref CollectionFields.Array<T>(queue), length,
+                    ref reader);
+                CollectionFields.Head<T>(queue) = 0;
+                CollectionFields.Tail<T>(queue) = length == ring.Length ? 0 : length;
+                CollectionFields.Size<T>(queue) = length;
+                CollectionFields.Version<T>(queue)++;
                 return;
             }
 
@@ -270,8 +270,8 @@ namespace Nino.Core
             if (CollectionViews.Stack)
             {
                 // The backing array is bottom to top already (a block for raw elements).
-                NinoElements.Write<T, TFormatter>(
-                    new ReadOnlySpan<T>(Unsafe.As<StackView<T>>(value)._array, 0, count), ref writer);
+                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(CollectionFields.Array<T>(value), 0, count),
+                    ref writer);
                 return;
             }
 
@@ -311,10 +311,9 @@ namespace Nino.Core
             if (CollectionViews.Stack)
             {
                 // Bottom to top is the backing array's order: read in place, then set the count.
-                var view = Unsafe.As<StackView<T>>(stack);
-                NinoCollectionViews.ReadInto<T, TFormatter>(ref view._array, length, ref reader);
-                view._size = length;
-                view._version++;
+                NinoCollectionViews.ReadInto<T, TFormatter>(ref CollectionFields.Array<T>(stack), length, ref reader);
+                CollectionFields.Size<T>(stack) = length;
+                CollectionFields.Version<T>(stack)++;
                 return;
             }
 
@@ -331,7 +330,7 @@ namespace Nino.Core
     {
         /// <summary>
         /// Reads <paramref name="length"/> elements into the start of the backing array of an empty Stack or Queue
-        /// (<see cref="StackView{T}"/>, <see cref="QueueView{T}"/>), replacing it with a new one when it is too
+        /// (<see cref="CollectionFields"/>), replacing it with a new one when it is too
         /// small, and returns the array. Each element is read as a new value, as Push and Enqueue of a default
         /// one would: slots of references are already default in an empty collection, unmanaged ones may hold
         /// what was removed and are cleared first, unless a block copy overwrites them.
