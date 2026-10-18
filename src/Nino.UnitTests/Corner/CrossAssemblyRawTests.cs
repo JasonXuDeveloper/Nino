@@ -76,17 +76,16 @@ namespace Messages
         {
             var (source, metadata) = BothWays("Messages.Player");
 
-            // A nested [NinoType] from another assembly is called through CachedFormatter, so compare by member.
-            foreach (var layout in new[] { source, metadata })
-            {
-                StringAssert.Contains(layout, "\"Id:Contracts.PlayerId:raw(8){Value:long@0:raw(8)};" +
-                    "P:Contracts.Packed:raw(10){A:byte@0:raw(1),B:long@2:raw(8)};" +
-                    "O:Contracts.Overlay:raw(12){A:int@4:raw(4)};" +
-                    // 16 bytes on 64-bit runtimes, 12 where longs align to 4: not a raw block, its formatter converts it.
-                    "S:Contracts.Shifted:Nino.Core.UnmanagedFormatter<Contracts.Shifted>;");
+            // Encodings describe bytes, so a nested [NinoType] reads the same whether it is generated here or not.
+            Assert.AreEqual(source, metadata);
+            StringAssert.Contains(source, "\"Id:Contracts.PlayerId:raw(8){Value:long@0:raw(8)};" +
+                "P:Contracts.Packed:raw(10){A:byte@0:raw(1),B:long@2:raw(8)};" +
+                "O:Contracts.Overlay:raw(12){A:int@4:raw(4)};" +
+                // 16 bytes on 64-bit runtimes, 12 where longs align to 4: not a raw block, its formatter converts
+                // it to this canonical layout.
+                "S:Contracts.Shifted:raw(16){A:long@4:raw(8)};" +
                 // An explicit-layout [NinoType] is written member by member.
-                StringAssert.DoesNotMatch(layout, new System.Text.RegularExpressions.Regex("U:Contracts.Union:raw"));
-            }
+                "U:Contracts.Union:type(Contracts.Union)\"");
         }
     }
 }
