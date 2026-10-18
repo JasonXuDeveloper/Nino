@@ -12,22 +12,23 @@ export interface NinoCodec<T> {
 }
 
 let shared: NinoWriter | null = null;
+/** The size of the buffers `serialize` writes its results into. */
 const slabSize = 64 * 1024;
-let slab = new ArrayBuffer(slabSize);
-let slabUsed = 0;
 
 /**
- * Serializes `value` with `codec` (what `NinoSerializer.Serialize<T>` writes in .NET) into a new array. The bytes
- * are written into one buffer kept between calls, so each call allocates only the array it returns.
+ * Serializes `value` with `codec` (what `NinoSerializer.Serialize<T>` writes in .NET) into a new array. Results are
+ * written one after another into a shared buffer and returned as views of it, never copied or overwritten (as
+ * msgpackr does, and as Node's `Buffer`s share a pool): a new `ArrayBuffer` for every result costs more than most
+ * serializations. Read a result by its `byteOffset` and `length`, not through `.buffer`.
  */
 export function serialize<T>(codec: NinoCodec<T>, value: T): Uint8Array<ArrayBuffer> {
   // A codec that serializes (a custom one) while this runs gets a writer of its own.
   const writer = shared ?? new NinoWriter();
   shared = null;
   try {
-    writer.pos = 0;
+    writer.next();
     codec.write(writer, value);
-    return writer.toBytes();
+    return writer.detach();
   } finally {
     if (writer.capacity <= 1 << 20) shared = writer;
   }
@@ -71,6 +72,18 @@ const chunk = 4096;
 const shortText = 8;
 /** Without Node's methods, the longest text read and written in JavaScript: TextDecoder and TextEncoder cost more. */
 const mediumText = 32;
+/**
+ * Without Node's methods, the longest text written in JavaScript: a `TextEncoder.encodeInto` call costs about as
+ * much as writing 300 chars in Chromium.
+ */
+const loopText = 256;
+/**
+ * With Node's methods, the longest text sliced from the reader's decoded window. V8 copies a substring this short
+ * into a plain string; a longer one would be a slice of the window, slower to write or test with a regex later.
+ */
+const textSlice = 12;
+/** The window's largest size. */
+const textWindow = 4096;
 /** The char codes of a text being read, passed to `String.fromCharCode` at once. */
 const codes: number[] = [];
 
@@ -106,9 +119,9 @@ function fromCodes(codes: ArrayLike<number>): string {
   return text;
 }
 
-/** The text of up to 8 Latin-1 bytes at `at`, in one call. */
-function decodeShortLatin1(data: Uint8Array, at: number, length: number): string {
-  const c = String.fromCharCode, d = data;
+/** The text of up to 16 Latin-1 bytes at `at`, in one call (a flat string, faster than any native decoder). */
+function decodeShortLatin1(d: Uint8Array, at: number, length: number): string {
+  const c = String.fromCharCode;
   switch (length) {
     case 0: return "";
     case 1: return c(d[at]);
@@ -118,15 +131,34 @@ function decodeShortLatin1(data: Uint8Array, at: number, length: number): string
     case 5: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4]);
     case 6: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5]);
     case 7: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6]);
-    default: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7]);
+    case 8: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7]);
+    case 9: return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8]);
+    case 10:
+      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9]);
+    case 11:
+      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
+        d[at + 10]);
+    case 12:
+      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
+        d[at + 10], d[at + 11]);
+    case 13:
+      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
+        d[at + 10], d[at + 11], d[at + 12]);
+    case 14:
+      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
+        d[at + 10], d[at + 11], d[at + 12], d[at + 13]);
+    case 15:
+      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
+        d[at + 10], d[at + 11], d[at + 12], d[at + 13], d[at + 14]);
+    default:
+      return c(d[at], d[at + 1], d[at + 2], d[at + 3], d[at + 4], d[at + 5], d[at + 6], d[at + 7], d[at + 8], d[at + 9],
+        d[at + 10], d[at + 11], d[at + 12], d[at + 13], d[at + 14], d[at + 15]);
   }
 }
 
 /** The text of `length` Latin-1 bytes at `at`. */
 function decodeLatin1(data: Uint8Array, at: number, length: number): string {
-  if (length <= shortText) return decodeShortLatin1(data, at, length);
-  // V8 copies a concatenation shorter than 13 chars into a flat string.
-  if (length < 13) return decodeShortLatin1(data, at, 8) + decodeShortLatin1(data, at + 8, length - 8);
+  if (length <= 16) return decodeShortLatin1(data, at, length);
   if (nodeText !== null) return nodeText.latin1Slice.call(data, at, at + length);
   if (length <= mediumText) {
     // In one call: concatenating the text would leave a string to flatten on first use.
@@ -134,7 +166,7 @@ function decodeLatin1(data: Uint8Array, at: number, length: number): string {
     for (let i = 0; i < length; i++) codes[i] = data[at + i];
     return String.fromCharCode.apply(null, codes);
   }
-  const bytes = data.subarray(at, at + length), text = latin1Decoder.decode(bytes);
+  const bytes = new Uint8Array(data.buffer, data.byteOffset + at, length), text = latin1Decoder.decode(bytes);
   // windows-1252 reads most of 0x80-0x9F as wider chars; those are read one by one instead.
   return wide.test(text) ? fromCodes(bytes) : text;
 }
@@ -153,7 +185,7 @@ function decodeUtf16(data: Uint8Array, at: number, length: number): string {
     return String.fromCharCode.apply(null, codes);
   }
   // The decoder writes U+FFFD for an unpaired surrogate: text with one is read code by code instead.
-  const text = utf16Decoder.decode(data.subarray(at, at + 2 * length));
+  const text = utf16Decoder.decode(new Uint8Array(data.buffer, data.byteOffset + at, 2 * length));
   if (!text.includes("\ufffd")) return text;
   const units = new Uint16Array(length);
   for (let i = 0; i < length; i++) units[i] = data[at + 2 * i] | (data[at + 2 * i + 1] << 8);
@@ -172,6 +204,13 @@ export class NinoReader {
   pos = 0;
   // data.length, as a field: a typed array's length costs more to read.
   private readonly end: number;
+  // With Node's methods: the data from textStart to textEnd as Latin-1 text, decoded in one native call. Short
+  // strings are sliced from it, which costs less than a call each (as msgpackr slices its strings from one decode).
+  // It grows to textWindow bytes, so a payload with few strings decodes little.
+  private text = "";
+  private textStart = 0;
+  private textEnd = 0;
+  private textSize = 256;
 
   constructor(data: Uint8Array) {
     this.data = data;
@@ -256,11 +295,24 @@ export class NinoReader {
     if (header < 0) {
       if (header === -1) return null;
       const length = ~header;
-      return decodeLatin1(this.data, this.take(length), length);
+      return this.latin1(this.take(length), length);
     }
     if (header === 0) return "";
     if (header > (this.end - this.pos) >> 1) throw new NinoError(`invalid length ${header}.`);
     return decodeUtf16(this.data, this.take(header * 2), header);
+  }
+
+  /** The text of `length` Latin-1 bytes at `at`. */
+  private latin1(at: number, length: number): string {
+    if (nodeText === null || length > textSlice) return decodeLatin1(this.data, at, length);
+    if (at < this.textStart || at + length > this.textEnd) {
+      const end = Math.min(this.end, at + this.textSize);
+      if (this.textSize < textWindow) this.textSize *= 2;
+      this.text = nodeText.latin1Slice.call(this.data, at, end);
+      this.textStart = at;
+      this.textEnd = end;
+    }
+    return this.text.substring(at - this.textStart, at - this.textStart + length);
   }
 
   /** A string written as UTF-8 (`[NinoUtf8]`): char count, then (if not empty) byte count and bytes. */
@@ -274,10 +326,10 @@ export class NinoReader {
     const at = this.take(bytes);
     // As many bytes as chars: ASCII, the same as Latin-1 (if it is valid UTF-8).
     if (bytes === chars) {
-      const text = decodeLatin1(this.data, at, bytes);
+      const text = this.latin1(at, bytes);
       if (!nonAscii.test(text)) return text;
     }
-    const value = utf8Decoder.decode(this.data.subarray(at, at + bytes));
+    const value = utf8Decoder.decode(new Uint8Array(this.data.buffer, this.data.byteOffset + at, bytes));
     if (value.length !== chars) throw new NinoError("invalid UTF-8 string.");
     return value;
   }
@@ -352,17 +404,20 @@ export class NinoWriter {
   private buffer: Uint8Array<ArrayBuffer> = new Uint8Array(256);
   /** The buffer as a DataView. Growing replaces it, so read it after `reserve`. */
   view = new DataView(this.buffer.buffer);
-  /** The number of bytes written. */
+  /** The offset of the next byte: the number of bytes written, unless `serialize` uses the writer. */
   pos = 0;
   // buffer.length, as a field: a typed array's length costs more to read.
   private end = 256;
+  // Where the value being written starts: 0, unless `serialize` uses the writer (see `next`).
+  private start = 0;
 
   /** Moves past `size` bytes, growing the buffer if needed: returns where they start. */
   reserve(size: number): number {
     const at = this.pos;
     if (size > this.end - at) {
+      // Offsets handed out stay valid: the value's bytes keep their place in the new buffer.
       const grown = new Uint8Array(Math.max(this.end * 2, at + size));
-      grown.set(this.buffer.subarray(0, at));
+      grown.set(this.buffer.subarray(this.start, at), this.start);
       this.buffer = grown;
       this.view = new DataView(grown.buffer);
       this.end = grown.length;
@@ -371,27 +426,29 @@ export class NinoWriter {
     return at;
   }
 
+  /** The bytes written so far, copied. */
+  toBytes(): Uint8Array<ArrayBuffer> { return this.buffer.slice(this.start, this.pos); }
+
   /**
-   * The bytes written so far, copied. Small results share a pooled `ArrayBuffer` (as Node's `Buffer`s do): a new
-   * backing store for every result costs more than the serialization, so read them by `byteOffset` and `length`,
-   * not through `.buffer`.
+   * Starts a value after the last one `detach` returned, 8-byte aligned (so it can be viewed as wider typed arrays),
+   * in a new buffer when little room is left.
    */
-  toBytes(): Uint8Array<ArrayBuffer> {
-    const length = this.pos;
-    if (length > slabSize >> 3) return this.buffer.slice(0, length);
-    if (length > slabSize - slabUsed) {
-      slab = new ArrayBuffer(slabSize);
-      slabUsed = 0;
+  next(): void {
+    let at = (this.pos + 7) & ~7;
+    if (this.end - at < slabSize >> 4) {
+      this.buffer = new Uint8Array(slabSize);
+      this.view = new DataView(this.buffer.buffer);
+      this.end = slabSize;
+      at = 0;
     }
-    const bytes = new Uint8Array(slab, slabUsed, length);
-    bytes.set(this.buffer.subarray(0, length));
-    // Each result starts 8-byte aligned, so it can be viewed as wider typed arrays.
-    slabUsed = (slabUsed + length + 7) & ~7;
-    return bytes;
+    this.start = this.pos = at;
   }
 
+  /** The value started by `next`, as a view of the buffer, which the writer does not write to again. */
+  detach(): Uint8Array<ArrayBuffer> { return new Uint8Array(this.buffer.buffer, this.start, this.pos - this.start); }
+
   /** The bytes written so far, without a copy: valid until the writer writes again. */
-  written(): Uint8Array { return this.buffer.subarray(0, this.pos); }
+  written(): Uint8Array { return this.buffer.subarray(this.start, this.pos); }
 
   /** The size of the buffer. */
   get capacity(): number { return this.end; }
@@ -487,7 +544,7 @@ export class NinoWriter {
   string(value: string | null): void {
     if (value === null || value === undefined) { this.i32(-1); return; }
     const length = value.length;
-    if (length <= (nodeText === null ? mediumText : shortText)) {
+    if (length <= (nodeText === null ? loopText : shortText)) {
       // Narrowed in one pass while every char fits in a byte; from the first wider char on, UTF-16 instead.
       const at = this.reserve(4 + length), buffer = this.buffer;
       let i = 0;
@@ -532,7 +589,7 @@ export class NinoWriter {
     }
     // At most 3 bytes per UTF-16 code unit; the bytes not written are given back.
     const at = this.reserve(8 + 3 * length);
-    const { written } = utf8Encoder.encodeInto(value, this.buffer.subarray(at + 8, at + 8 + 3 * length));
+    const { written } = utf8Encoder.encodeInto(value, new Uint8Array(this.buffer.buffer, at + 8, 3 * length));
     this.view.setInt32(at, length, true);
     this.view.setInt32(at + 4, written, true);
     this.pos = at + 8 + written;
@@ -545,9 +602,9 @@ export class NinoWriter {
       nodeText.latin1Write.call(buffer, value, at, length);
       return;
     }
-    if (length > mediumText) {
+    if (length > loopText) {
       // ASCII is the same in UTF-8, written in one native call; other text char by char below.
-      const { read, written } = utf8Encoder.encodeInto(value, buffer.subarray(at, at + length));
+      const { read, written } = utf8Encoder.encodeInto(value, new Uint8Array(buffer.buffer, at, length));
       if (read === length && written === length) return;
     }
     for (let i = 0; i < length; i++) buffer[at + i] = value.charCodeAt(i);
