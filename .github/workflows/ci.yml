@@ -129,6 +129,18 @@ jobs:
           dotnet test Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
           --logger trx --results-directory ./TestResults
 
+      # The TypeScript generator: Node runs the generated code (type stripping, Node 22.18+), tsc checks it.
+      - uses: actions/setup-node@v4
+        if: ${{ matrix.project == '' }}
+        with:
+          node-version: 22
+
+      - name: Test TypeScript
+        if: ${{ matrix.project == '' }}
+        run: |
+          npm install -g typescript@5
+          dotnet test Nino.TypeScript.Tests/Nino.TypeScript.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
+
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: always()

@@ -1,0 +1,49 @@
+<Project>
+
+    <!--
+        Nino.TypeScript: after each compile, writes TypeScript for the project's [NinoType]s (from the layouts the Nino
+        generator publishes in the assembly) and the nino.ts runtime into $(NinoTypeScriptOutput).
+
+          NinoTypeScriptOutput           where the .ts files go (default: ts/ next to the project)
+          NinoTypeScriptImportExtension  the extension of the generated file's import of nino.ts: empty (default, for
+                                         bundlers), .js (Node ESM with tsc) or .ts (Deno, Node type stripping)
+          NinoTypeScriptNames            camel (default: camelCase member names) or keep (as in C#)
+          NinoTypeScriptTargetFramework  the target framework whose build writes them, when there are several (default:
+                                         the first)
+          NinoTypeScriptEnabled          false to turn it off
+    -->
+    <PropertyGroup>
+        <NinoTypeScriptEnabled Condition="'$(NinoTypeScriptEnabled)' == ''">true</NinoTypeScriptEnabled>
+        <NinoTypeScriptOutput Condition="'$(NinoTypeScriptOutput)' == ''">$(MSBuildProjectDirectory)/ts/</NinoTypeScriptOutput>
+        <NinoTypeScriptNames Condition="'$(NinoTypeScriptNames)' == ''">camel</NinoTypeScriptNames>
+        <_NinoTypeScriptTool>$(MSBuildThisFileDirectory)../tools/nino-ts.dll</_NinoTypeScriptTool>
+        <_NinoTypeScriptHost Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</_NinoTypeScriptHost>
+        <_NinoTypeScriptHost Condition="'$(DOTNET_HOST_PATH)' == ''">dotnet</_NinoTypeScriptHost>
+    </PropertyGroup>
+
+    <Target Name="_NinoTypeScriptPrepare" AfterTargets="CoreCompile"
+            Condition="'$(NinoTypeScriptEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(BuildingProject)' != 'false'">
+        <PropertyGroup>
+            <_NinoTypeScriptFramework>$(NinoTypeScriptTargetFramework)</_NinoTypeScriptFramework>
+            <_NinoTypeScriptFramework Condition="'$(_NinoTypeScriptFramework)' == '' and '$(TargetFrameworks)' != ''">$([System.String]::Copy('$(TargetFrameworks)').Split(';')[0].Trim())</_NinoTypeScriptFramework>
+            <_NinoTypeScriptRun Condition="'$(_NinoTypeScriptFramework)' == '' or '$(_NinoTypeScriptFramework)' == '$(TargetFramework)'">true</_NinoTypeScriptRun>
+            <_NinoTypeScriptReferences>$(IntermediateOutputPath)nino-ts.references</_NinoTypeScriptReferences>
+            <_NinoTypeScriptStamp>$(IntermediateOutputPath)nino-ts.stamp</_NinoTypeScriptStamp>
+        </PropertyGroup>
+        <WriteLinesToFile Condition="'$(_NinoTypeScriptRun)' == 'true'" File="$(_NinoTypeScriptReferences)"
+                          Lines="@(ReferencePath->'%(FullPath)')" Overwrite="true" WriteOnlyWhenDifferent="true"/>
+        <ItemGroup Condition="'$(_NinoTypeScriptRun)' == 'true'">
+            <FileWrites Include="$(_NinoTypeScriptReferences);$(_NinoTypeScriptStamp)"/>
+        </ItemGroup>
+    </Target>
+
+    <!-- Runs again only when the assembly, its references, the tool or the options change. -->
+    <Target Name="NinoTypeScript" AfterTargets="_NinoTypeScriptPrepare"
+            Condition="'$(_NinoTypeScriptRun)' == 'true'"
+            Inputs="@(IntermediateAssembly);$(_NinoTypeScriptReferences);$(_NinoTypeScriptTool);$(MSBuildProjectFullPath)"
+            Outputs="$(_NinoTypeScriptStamp)">
+        <Exec Command="&quot;$(_NinoTypeScriptHost)&quot; &quot;$(_NinoTypeScriptTool)&quot; --assembly &quot;@(IntermediateAssembly->'%(FullPath)')&quot; --references &quot;$(_NinoTypeScriptReferences)&quot; --out &quot;$(NinoTypeScriptOutput.TrimEnd('/').TrimEnd('\'))&quot; --import-extension &quot;$(NinoTypeScriptImportExtension)&quot; --names $(NinoTypeScriptNames)"/>
+        <Touch Files="$(_NinoTypeScriptStamp)" AlwaysCreate="true"/>
+    </Target>
+
+</Project>

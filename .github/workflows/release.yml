@@ -153,11 +153,11 @@ jobs:
         working-directory: src
         run: |
           dotnet build --configuration Release
-          for proj in Nino.Core Nino.Generator Nino.Immutable Nino.AspNetCore Nino; do
+          for proj in Nino.Core Nino.Generator Nino.Immutable Nino.AspNetCore Nino.TypeScript Nino; do
             dotnet pack "$proj/$proj.csproj" --no-build --configuration Release --output ../artifacts
           done
           ls ../artifacts
-          for id in Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino; do
+          for id in Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.TypeScript Nino; do
             test -f "../artifacts/$id.$VERSION.nupkg"
           done
 
@@ -171,7 +171,7 @@ jobs:
         env:
           NUGET_API_KEY: ${{ steps.nuget.outputs.NUGET_API_KEY }}
         run: |
-          for id in Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino; do
+          for id in Nino.Serialization Nino.Generator Nino.Immutable Nino.AspNetCore Nino.TypeScript Nino; do
             dotnet nuget push "artifacts/$id.$VERSION.nupkg" --api-key "$NUGET_API_KEY" \
               --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
           done
