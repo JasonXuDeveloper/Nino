@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- Formatters for Unity classes. Ships only inside the Unity package (Runtime/Nino.UnityTypes.dll), where it binds
+         to Unity's own UnityEngine.CoreModule; here it compiles against UnityEngineStub, a reference assembly with the
+         same name and version. -->
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <AnalysisLevel>latest-recommended</AnalysisLevel>
+        <IsPackable>false</IsPackable>
+        <DebugType>embedded</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Remove="UnityEngineStub\**"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
+        <!-- Compile-time only: Unity provides UnityEngine.CoreModule. -->
+        <ProjectReference Include="UnityEngineStub\UnityEngine.CoreModule.csproj" Private="false"/>
+    </ItemGroup>
+
+</Project>

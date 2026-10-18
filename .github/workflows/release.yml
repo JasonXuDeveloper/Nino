@@ -107,6 +107,8 @@ jobs:
           cp src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll "$UNITY_PACKAGE/Runtime/Nino.Core.dll"
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
           cp src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.dll"
+          # The Unity class formatters, compiled against UnityEngineStub; in Unity they bind to Unity's CoreModule.
+          cp src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll "$UNITY_PACKAGE/Runtime/Nino.UnityTypes.dll"
 
       - name: Commit and tag
         if: steps.version.outputs.exists != 'true'

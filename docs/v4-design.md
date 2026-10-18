@@ -400,8 +400,8 @@ raw unmanaged values, `[NinoType]`s), every formatter is declared on its assembl
 ```
 
 Nino.Core declares its BCL formatters this way (`Formatters/BuiltInFormatters.cs`; `PriorityQueue<,>` only in its .NET 6+
-builds, since netstandard and Unity have none), the `Nino.Immutable` package declares `ImmutableArray<T>` and
-`ImmutableList<T>`, generated code declares the formatter definition of each generic `[NinoType]`
+builds, since netstandard and Unity have none), the `Nino.Immutable` package declares the immutable
+collections, `Nino.UnityTypes` (in the Unity package only) Unity's `AnimationCurve`, `Gradient` and `RectOffset`, generated code declares the formatter definition of each generic `[NinoType]`
 (`[assembly: NinoFormatter(typeof(NinoGen.Box_1Formatter<>))]`, which implements `INinoFormatter<Box<T>>` in exactly
 the type's parameters), and any library or application can declare formatters for its own or third-party types. The generator (`FormatterRules`, `FormatterResolver`) and the runtime
 (`NinoFormatterResolver`, for type parameters of generic `[NinoType]`s) apply the same registrations with the same

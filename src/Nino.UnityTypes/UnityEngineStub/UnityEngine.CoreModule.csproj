@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- A reference assembly for compiling Nino.UnityTypes outside Unity: the name, version (0.0.0.0) and public API
+         of the UnityEngine.CoreModule types it uses, so the compiled references bind to Unity's own assembly. Never
+         shipped: Unity provides the real one. -->
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <AssemblyName>UnityEngine.CoreModule</AssemblyName>
+        <RootNamespace>UnityEngine</RootNamespace>
+        <Version>0.0.0.0</Version>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <IsPackable>false</IsPackable>
+        <NoWarn>$(NoWarn);CA1051;CA1716;CA1720;CA1815;CA1819;CA2225;IDE1006</NoWarn>
+    </PropertyGroup>
+
+</Project>

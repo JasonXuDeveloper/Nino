@@ -232,9 +232,11 @@ jobs:
         run: |
           dotnet build Nino.Core/Nino.Core.csproj -c Debug -f netstandard2.1
           dotnet build Nino.Generator/Nino.Generator.csproj -c Debug
+          dotnet build Nino.UnityTypes/Nino.UnityTypes.csproj -c Debug
           cp ./Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
           cp ./Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          cp ./Nino.UnityTypes/bin/Debug/netstandard2.1/Nino.UnityTypes.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
 
       - name: Cache Unity Library
         uses: actions/cache@v6
