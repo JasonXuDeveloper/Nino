@@ -101,7 +101,7 @@ jobs:
             echo ""
             if [[ -d base ]]; then
               BASE_REPORT=$(find results/base/results -name '*-report-github.md' | sort | head -n1)
-              echo "Against $(git -C base describe --tags) ($(git -C base rev-parse --short HEAD)), on the same runner."
+              echo "Against $(git -C base describe --tags --exclude '*-preview.*') ($(git -C base rev-parse --short HEAD)), on the same runner."
               echo ""
               python3 head/benchmarks/ab.py "$BASE_REPORT" "$HEAD_REPORT"
             else
