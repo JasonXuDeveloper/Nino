@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using Nino.Core.Internal;
 
 namespace Nino.Core
 {
@@ -48,28 +49,94 @@ namespace Nino.Core
 
     /// <summary>
     /// <c>DateTimeOffset</c>: UTC ticks (int64) and offset minutes (int16). Its raw memory has padding and a
-    /// different size on x86, so it is never copied raw.
+    /// different size on x86, so it is never copied raw. Its two fields are read and written directly where their
+    /// positions are known (<see cref="ValueViews.DateTimeOffsetTicks"/>): the public API converts the offset to and
+    /// from a <c>TimeSpan</c>, and the constructor validates through several calls.
     /// </summary>
     public struct DateTimeOffsetFormatter : INinoFormatter<DateTimeOffset>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(DateTimeOffset value, ref Writer writer)
+        public void Serialize(DateTimeOffset value, ref Writer writer) =>
+            Write(ref writer.Reserve(NinoWire.DateTimeOffsetSize), ref value);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref DateTimeOffset value, ref Reader reader) =>
+            Read(ref reader.ReadBlock(NinoWire.DateTimeOffsetSize), ref value);
+
+        /// <summary>Writes <paramref name="count"/> values into one reserved block.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void WriteAll(ref byte dst, ref DateTimeOffset first, int count)
         {
-            ref byte dst = ref writer.Reserve(NinoWire.DateTimeOffsetSize);
+            ref byte src = ref Unsafe.As<DateTimeOffset, byte>(ref first);
+            for (int i = 0; i < count; i++)
+            {
+                Write(ref dst, ref Unsafe.As<byte, DateTimeOffset>(ref src));
+                src = ref Unsafe.Add(ref src, Unsafe.SizeOf<DateTimeOffset>());
+                dst = ref Unsafe.Add(ref dst, NinoWire.DateTimeOffsetSize);
+            }
+        }
+
+        /// <summary>Reads <paramref name="count"/> values from one block (into slots that need not be zeroed).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void ReadAll(ref byte src, ref DateTimeOffset first, int count)
+        {
+            ref byte dst = ref Unsafe.As<DateTimeOffset, byte>(ref first);
+            for (int i = 0; i < count; i++)
+            {
+                Read(ref src, ref Unsafe.As<byte, DateTimeOffset>(ref dst));
+                src = ref Unsafe.Add(ref src, NinoWire.DateTimeOffsetSize);
+                dst = ref Unsafe.Add(ref dst, Unsafe.SizeOf<DateTimeOffset>());
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Write(ref byte dst, ref DateTimeOffset value)
+        {
+            int ticksAt = ValueViews.DateTimeOffsetTicks;
+            if (ticksAt >= 0)
+            {
+                ref byte fields = ref Unsafe.As<DateTimeOffset, byte>(ref value);
+                NinoUnsafe.Write(ref dst, NinoUnsafe.Read<long>(ref fields, ticksAt));
+                NinoUnsafe.Write(ref dst, NinoWire.DateTimeOffsetMinutesPosition,
+                    NinoUnsafe.Read<short>(ref fields, 8 - ticksAt));
+                return;
+            }
+
             NinoUnsafe.Write(ref dst, value.UtcTicks);
             NinoUnsafe.Write(ref dst, NinoWire.DateTimeOffsetMinutesPosition,
                 (short)(value.Offset.Ticks / TimeSpan.TicksPerMinute));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Deserialize(ref DateTimeOffset value, ref Reader reader)
+        private static void Read(ref byte src, ref DateTimeOffset value)
         {
-            ref byte src = ref reader.ReadBlock(NinoWire.DateTimeOffsetSize);
             long utc = NinoUnsafe.Read<long>(ref src);
-            long offset = NinoUnsafe.Read<short>(ref src, NinoWire.DateTimeOffsetMinutesPosition) *
-                          TimeSpan.TicksPerMinute;
+            short minutes = NinoUnsafe.Read<short>(ref src, NinoWire.DateTimeOffsetMinutesPosition);
+            // The constructor's checks, as two unsigned compares: the UTC time is a valid date at least 14 hours
+            // from either end (so the local time is one too), the offset is at most 14 hours. The ends of the range
+            // and anything invalid take the constructor, which checks exactly and throws as before.
+            int ticksAt = ValueViews.DateTimeOffsetTicks;
+            if (ticksAt >= 0 && (ulong)(utc - MaxOffsetTicks) <= MaxTicks - 2 * MaxOffsetTicks &&
+                (uint)(minutes + MaxOffsetMinutes) <= 2 * MaxOffsetMinutes)
+            {
+                ref byte fields = ref Unsafe.As<DateTimeOffset, byte>(ref value);
+                NinoUnsafe.Write(ref fields, ticksAt, utc);
+                // The minutes as an int (the whole field where it is one, the padding after it where it is a
+                // short); as 8 bytes, which also clear the padding, where the value is 16.
+                if (Unsafe.SizeOf<DateTimeOffset>() == 16)
+                    NinoUnsafe.Write(ref fields, 8 - ticksAt, (long)(uint)minutes);
+                else
+                    NinoUnsafe.Write(ref fields, 8 - ticksAt, (int)minutes);
+                return;
+            }
+
+            long offset = minutes * TimeSpan.TicksPerMinute;
             value = new DateTimeOffset(utc + offset, new TimeSpan(offset));
         }
+
+        private const ulong MaxTicks = 3_155_378_975_999_999_999; // DateTime.MaxValue.Ticks
+        private const int MaxOffsetMinutes = 14 * 60;
+        private const long MaxOffsetTicks = MaxOffsetMinutes * TimeSpan.TicksPerMinute;
     }
 
     /// <summary>Writes a string as UTF-16 (the default).</summary>

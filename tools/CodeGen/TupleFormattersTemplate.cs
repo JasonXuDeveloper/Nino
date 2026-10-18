@@ -49,6 +49,17 @@ namespace Nino.CodeGen
         /// <summary><c>T1, T2, TF1, TF2</c>: the item types, then their formatters.</summary>
         private static string TypeParameters(int arity) => List(arity, "T{0}") + ", " + List(arity, "TF{0}");
 
+        /// <summary><c>RawFormatter.Is&lt;T1, TF1&gt;() &amp;&amp; ...</c>: whether every item is written as its raw memory.</summary>
+        private static string AllRaw(int arity) => string.Join(" && ", Items(arity).Select(i => $"RawFormatter.Is<T{i}, TF{i}>()"));
+
+        /// <summary>The wire size of the first <paramref name="count"/> items (the tuple's, for all of them).</summary>
+        private static string Sum(int arity, int count) =>
+            string.Join(" + ", Items(count).Select(i => $"NinoLayout<T{i}>.Size"));
+
+        /// <summary>The position of item <paramref name="item"/> inside a block of raw items starting at <paramref name="block"/>.</summary>
+        private static string At(string block, int item) =>
+            item == 1 ? block : $"Unsafe.Add(ref {block}, {Sum(item - 1, item - 1)})";
+
         private static void AppendConstraints(StringBuilder sb, int arity)
         {
             foreach (int i in Items(arity))
@@ -65,6 +76,19 @@ namespace Nino.CodeGen
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
             sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
             sb.Append("        {\n");
+            if (arity > 1)
+            {
+                sb.Append("            // Raw items (a constant check): one capacity check for the tuple, the items at constant positions.\n");
+                sb.Append($"            if ({AllRaw(arity)})\n");
+                sb.Append("            {\n");
+                sb.Append($"                ref byte dst = ref writer.Reserve({Sum(arity, arity)});\n");
+                foreach (int i in Items(arity))
+                    sb.Append($"                NinoLayout<T{i}>.Write(ref {At("dst", i)}, in value.Item{i});\n");
+                sb.Append("                return;\n");
+                sb.Append("            }\n");
+                sb.Append("\n");
+            }
+
             foreach (int i in Items(arity))
                 sb.Append($"            default(TF{i}).Serialize(value.Item{i}, ref writer);\n");
             sb.Append("        }\n");
@@ -72,6 +96,18 @@ namespace Nino.CodeGen
             sb.Append("        [MethodImpl(MethodImplOptions.AggressiveInlining)]\n");
             sb.Append($"        public void Deserialize(ref {type} value, ref Reader reader)\n");
             sb.Append("        {\n");
+            if (arity > 1)
+            {
+                sb.Append($"            if ({AllRaw(arity)})\n");
+                sb.Append("            {\n");
+                sb.Append($"                ref byte src = ref reader.ReadBlock({Sum(arity, arity)});\n");
+                foreach (int i in Items(arity))
+                    sb.Append($"                value.Item{i} = NinoLayout<T{i}>.Read(ref {At("src", i)});\n");
+                sb.Append("                return;\n");
+                sb.Append("            }\n");
+                sb.Append("\n");
+            }
+
             foreach (int i in Items(arity))
                 sb.Append($"            default(TF{i}).Deserialize(ref value.Item{i}, ref reader);\n");
             sb.Append("        }\n");

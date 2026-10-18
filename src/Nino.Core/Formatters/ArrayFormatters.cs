@@ -41,6 +41,16 @@ namespace Nino.Core
                 return;
             }
 
+            // Fixed-size values: one capacity check for the block.
+            if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
+            {
+                if (!values.IsEmpty)
+                    DateTimeOffsetFormatter.WriteAll(
+                        ref writer.Reserve(checked(values.Length * NinoWire.DateTimeOffsetSize)),
+                        ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
+                return;
+            }
+
             foreach (var item in values)
                 default(TFormatter).Serialize(item, ref writer);
         }
@@ -66,8 +76,20 @@ namespace Nino.Core
                 return;
             }
 
+            if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
+            {
+                DateTimeOffsetFormatter.ReadAll(
+                    ref reader.ReadBlock(checked(values.Length * NinoWire.DateTimeOffsetSize)),
+                    ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
+                return;
+            }
+
+            // The reader as a local for the loop: its cursor stays in registers, where through the ref parameter every
+            // element would store it and load it back (List<(int, long)>: 2x faster).
+            var local = reader;
             for (int i = 0; i < values.Length; i++)
-                default(TFormatter).Deserialize(ref values[i], ref reader);
+                default(TFormatter).Deserialize(ref values[i], ref local);
+            reader = local;
         }
 
         /// <summary>
@@ -151,9 +173,11 @@ namespace Nino.Core
                 return;
             }
 
-            // Raw elements are all overwritten by one block copy: a new array need not be zeroed first.
+            // Raw elements are all overwritten by one block copy, DateTimeOffsets each in full: a new array need not
+            // be zeroed first.
             NinoElements.Read<T, TFormatter>(
-                NinoElements.EnsureLength(ref value, length, uninitialized: RawFormatter.Is<T, TFormatter>()),
+                NinoElements.EnsureLength(ref value, length, uninitialized: RawFormatter.Is<T, TFormatter>() ||
+                                               typeof(TFormatter) == typeof(DateTimeOffsetFormatter)),
                 ref reader);
         }
     }
