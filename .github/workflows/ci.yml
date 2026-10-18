@@ -97,6 +97,8 @@ jobs:
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: always()
+        # A storage timeout is not a test result.
+        continue-on-error: true
         with:
           name: test-results-${{ strategy.job-index }}
           path: ./src/TestResults
@@ -194,7 +196,8 @@ jobs:
         with:
           projectPath: ./src/Nino.Unity
           testMode: editmode
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          # No githubToken: posting the results as a check run calls the GitHub API, and a timeout there failed a run
+          # whose tests had all passed. The results are uploaded below, and a failed test still fails this step.
           unityVersion: '2022.3.51f1'
           # A fixed release: "latest" asks the GitHub API for it on every run, and a 403 from its rate limit failed the job.
           cliVersion: 'v0.1.72'
@@ -202,6 +205,8 @@ jobs:
       - name: Upload Unity results
         uses: actions/upload-artifact@v7
         if: always()
+        # A storage timeout is not a test result.
+        continue-on-error: true
         with:
           name: test-results-unity
           path: |
