@@ -179,7 +179,7 @@ public class CollectionFastPathTests
     [TestMethod]
     public void SmallBlocksOfEverySizeRoundTrip()
     {
-        // Raw element blocks of 0 to 40 bytes (copied inline up to 32), and strings of 0 to 20 chars.
+        // Raw element blocks of 0 to 40 bytes (copied inline up to 32), and strings.
         for (int n = 0; n <= 40; n++)
         {
             var block = Enumerable.Range(0, n).Select(i => (byte)(i * 7 + n)).ToArray();
@@ -188,9 +188,11 @@ public class CollectionFastPathTests
             CollectionAssert.AreEqual(shorts, NinoDeserializer.Deserialize<List<short>>(NinoSerializer.Serialize(shorts)));
         }
 
-        for (int n = 0; n <= 20; n++)
+        // Strings are allocated by the runtime's FastAllocateString on .NET 8 and later and filled inline up to 32
+        // chars: every length around 16 and 32 chars and some past them.
+        foreach (int n in Enumerable.Range(0, 70).Concat(new[] { 100, 257, 1000 }))
         {
-            var text = new string(Enumerable.Range(0, n).Select(i => (char)('a' + i)).ToArray());
+            var text = new string(Enumerable.Range(0, n).Select(i => (char)('a' + i % 26 + (i % 7 == 0 ? 0x400 : 0))).ToArray());
             Assert.AreEqual(text, NinoDeserializer.Deserialize<string>(NinoSerializer.Serialize(text)));
             var words = new[] { text, null, text + "é" };
             CollectionAssert.AreEqual(words, NinoDeserializer.Deserialize<string[]>(NinoSerializer.Serialize(words)));

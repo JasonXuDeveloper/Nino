@@ -698,15 +698,7 @@ namespace Nino.Core
             if (size > (uint)(remaining - sizeof(int)))
                 NinoThrow.EndOfData();
             Skip(sizeof(int) + (int)size);
-            ref byte src = ref Unsafe.Add(ref start, sizeof(int));
-#if NETSTANDARD2_0
-            fixed (byte* p = &src)
-            {
-                return new string((char*)p, 0, length);
-            }
-#else
-            return new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref src), length));
-#endif
+            return NinoStrings.New(ref Unsafe.Add(ref start, sizeof(int)), length);
         }
 
         /// <summary>
@@ -747,16 +739,7 @@ namespace Nino.Core
                     // An element read in place keeps its string when the data holds the same chars.
                     var current = slot;
                     if (current == null || current.Length != length || !SameChars(ref src, current))
-                    {
-#if NETSTANDARD2_0
-                        fixed (byte* p = &src)
-                        {
-                            slot = new string((char*)p, 0, length);
-                        }
-#else
-                        slot = new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref src), length));
-#endif
-                    }
+                        slot = NinoStrings.New(ref src, length);
                 }
 
                 slot = ref Unsafe.Add(ref slot, 1);
@@ -804,14 +787,7 @@ namespace Nino.Core
                         NinoThrow.EndOfData();
                     ref byte chars = ref src;
                     src = ref Unsafe.Add(ref src, (nint)size);
-#if NETSTANDARD2_0
-                    fixed (byte* p = &chars)
-                    {
-                        value = new string((char*)p, 0, length);
-                    }
-#else
-                    value = new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref chars), length));
-#endif
+                    value = NinoStrings.New(ref chars, length);
                 }
 
 #if NETSTANDARD2_0
@@ -899,10 +875,7 @@ namespace Nino.Core
             ref byte src = ref Unsafe.Add(ref start, sizeof(int));
             if (current.Length == length && SameChars(ref src, current))
                 return current;
-            fixed (byte* p = &src)
-            {
-                return new string((char*)p, 0, length);
-            }
+            return NinoStrings.New(ref src, length);
         }
 
         /// <summary>
