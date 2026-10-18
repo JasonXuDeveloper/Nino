@@ -1,0 +1,117 @@
+name: Arm64 Benchmark
+
+# Runs the benchmarks on an Arm64 runner, for the Arm64 paths (AdvSimd, TBL) that x64 runners never take. With a base
+# ref, both refs run on the same runner, one after the other, with head's benchmark code against each ref's library,
+# and the summary compares them. Numbers for development only: the published ones come from report.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Ref to measure'
+        required: false
+        default: main
+        type: string
+      base:
+        description: 'Ref to compare with (optional)'
+        required: false
+        type: string
+      filter:
+        description: 'BenchmarkDotNet filter'
+        required: false
+        default: '*'
+        type: string
+      quick:
+        description: 'Quick mode (NINO_BENCH_QUICK): shorter iterations, stopping at 2% error'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: Benchmark on Arm64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    env:
+      NINO_BENCH_QUICK: ${{ inputs.quick && '1' || '0' }}
+      # The settings of report.yml when not in quick mode.
+      BDN_ARGS: ${{ !inputs.quick && '--launchCount 1 --warmupCount 5 --iterationCount 15' || '' }}
+      FILTER: ${{ inputs.filter || '*' }}
+
+    steps:
+      - name: Checkout ${{ inputs.ref }}
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          path: head
+
+      - name: Checkout ${{ inputs.base }}
+        if: inputs.base != ''
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.base }}
+          path: base
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
+            8.0.x
+
+      # The same benchmarks for both refs: head's benchmark project, built against base's library.
+      - name: Build
+        run: |
+          set -euo pipefail
+          if [[ -d base ]]; then
+            rm -rf base/src/Nino.Benchmark
+            cp -r head/src/Nino.Benchmark base/src/Nino.Benchmark
+            dotnet build -c Release base/src/Nino.Benchmark
+          fi
+          dotnet build -c Release head/src/Nino.Benchmark
+          lscpu | grep -E 'Model name|Flags' || true
+
+      - name: Run
+        run: |
+          set -euo pipefail
+          for SIDE in base head; do
+            [[ -d $SIDE ]] || continue
+            echo "== $SIDE $(git -C $SIDE rev-parse --short HEAD)"
+            # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
+            (cd $SIDE/src/Nino.Benchmark && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "$FILTER" $BDN_ARGS \
+              --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
+          done
+
+      - name: Summary
+        run: |
+          set -euo pipefail
+          HEAD_REPORT=$(find results/head/results -name '*-report-github.md' | sort | head -n1)
+          {
+            echo "## Arm64 benchmark: ${{ inputs.ref }} ($(git -C head rev-parse --short HEAD))"
+            echo ""
+            if [[ -d base ]]; then
+              BASE_REPORT=$(find results/base/results -name '*-report-github.md' | sort | head -n1)
+              echo "Against ${{ inputs.base }} ($(git -C base rev-parse --short HEAD)), on the same runner."
+              echo ""
+              python3 head/benchmarks/ab.py "$BASE_REPORT" "$HEAD_REPORT"
+            else
+              python3 head/benchmarks/ab.py "$HEAD_REPORT" "$HEAD_REPORT"
+            fi
+            echo ""
+            echo "<details><summary>Report</summary>"
+            echo ""
+            cat "$HEAD_REPORT"
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: arm64-benchmark
+          path: results/*/results
+          retention-days: 30

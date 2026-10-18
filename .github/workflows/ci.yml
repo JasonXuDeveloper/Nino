@@ -312,7 +312,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        classes: [ SimpleTest PooledTest, CommonTypesTest ReferenceTest, PolymorphicTest VersionTolerantTest, FixedSizeTest PooledGraphTest ]
+        classes: [ SimpleTest PooledTest, CommonTypesTest FixedSizeTest, PolymorphicTest VersionTolerantTest, CollectionsTest ReferenceTest PooledGraphTest ]
     permissions:
       contents: read
       pull-requests: write

@@ -133,7 +133,9 @@ and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 10
 `byte[]` APIs of both, so allocating the result is part of every call). `CommonTypesTest` adds data shaped like
 that of common applications (`src/Nino.Benchmark/CommonTypes.cs`): players with a struct list, a string dictionary,
 bytes and strings; orders with `Guid`, `DateTimeOffset`, `decimal` and a list of classes; shapes through an abstract
-base; a tree; a padded struct array; and a string dictionary.
+base; a tree; a padded struct array; and a string dictionary. `CollectionsTest` covers collections of the base
+class library: a list of tuples, an array of key-value pairs, and hashed, queued, linked, sorted and concurrent
+collections.
 
 <!--bench:doc.table.extra-->
 | Case | Serialize v4 | MemoryPack | v4 vs MemoryPack | Deserialize v4 | MemoryPack | v4 vs MemoryPack |
@@ -229,13 +231,14 @@ dotnet run -c Release --project src/Nino.Benchmark -- --filter '*ReferenceTest*'
     --launchCount 1 --warmupCount 5 --iterationCount 15                                  # some classes only
 ```
 
-The suite has eight classes, all against MemoryPack 1.21.4 (the tables above come from the first four):
+The suite has nine classes, all against MemoryPack 1.21.4 (the tables above come from the first four):
 `SimpleTest` and `PolymorphicTest` (also against MessagePack), `PooledTest` and `PooledGraphTest` (reuse and
 pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`
 against MemoryPack's `GenerateType.VersionTolerant`, one and 100) and `FixedSizeTest` (types of fixed size serialized
 to a `byte[]` of exactly that size: an unmanaged struct, a sealed class of the same members and an array of 100 of
-them), and `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary).
+them), `CommonTypesTest` (players, orders, shapes, a tree, padded structs and a string dictionary) and `CollectionsTest`
+(collections of the base class library).
 [benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from [`benchmarks/v3`](../benchmarks/v3), the same `SimpleTest` built against the `Nino` 3.3.13

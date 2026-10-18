@@ -92,11 +92,11 @@ jobs:
             classes: SimpleTest PooledTest
             v3: true
           - shard: b
-            classes: CommonTypesTest ReferenceTest
+            classes: CommonTypesTest FixedSizeTest
           - shard: c
             classes: PolymorphicTest VersionTolerantTest
           - shard: d
-            classes: FixedSizeTest PooledGraphTest
+            classes: CollectionsTest ReferenceTest PooledGraphTest
     env:
       # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few.
       BDN_ARGS: --launchCount 1 --warmupCount 5 --iterationCount 15
@@ -198,7 +198,7 @@ jobs:
       V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
       # Every benchmark class of src/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
-      BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest
+      BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest
 
     steps:
       # This workflow's commit, for its scripts (merge_reports.py, compare.py, readme.py), whichever tag was measured.
