@@ -60,7 +60,7 @@ namespace Nino.Core
 
         /// <summary>Writes <paramref name="count"/> values at <paramref name="destination"/>, <paramref name="size"/> bytes apart.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void WriteAll<T, TFormatter>(ref byte destination, ref T first, int count, int size)
+        public static unsafe void WriteAll<T, TFormatter>(ref byte destination, ref T first, int count, int size)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (NinoBlock<T, TFormatter>.IsMemory)
@@ -78,6 +78,23 @@ namespace Nino.Core
                 int group = NinoBlock<T, TFormatter>.Group;
                 int last = NinoBlock<T, TFormatter>.LastGroup(count);
                 ref byte source = ref Unsafe.As<T, byte>(ref first);
+                // First the values before the first vector boundary of the blocks, one at a time: the blocks
+                // usually follow a 4-byte length, and a store across two cache lines costs two (measured on an
+                // AVX-512 Xeon, 1,000 12-byte blocks: 230 ns unaligned, 150 to 170 aligned). None when no value
+                // starts on a boundary.
+                if (last >= group)
+                {
+                    nuint mask = (nuint)NinoBlock<T, TFormatter>.GroupWidth - 1;
+                    nuint at = (nuint)Unsafe.AsPointer(ref destination);
+                    int skip = 0;
+                    while (skip < group && ((at + (nuint)(skip * size)) & mask) != 0)
+                        skip++;
+                    if (skip < group)
+                        for (; i < skip; i++)
+                            ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(
+                                ref Unsafe.Add(ref destination, (nint)i * size), in Unsafe.Add(ref first, i));
+                }
+
                 if (Avx512Vbmi.IsSupported)
                 {
                     for (; i <= last; i += group)
@@ -231,7 +248,10 @@ namespace Nino.Core
             Avx.BlendVariable(Avx2.PermuteVar8x32(low, indices).AsSingle(),
                 Avx2.PermuteVar8x32(high, indices).AsSingle(), indices.AsSingle()).AsByte();
 
-        /// <summary><see cref="Permute64x2{T, TFormatter}"/> on Arm64: 16-byte vectors, two-register table lookups.</summary>
+        /// <summary>
+        /// <see cref="Permute64x2{T, TFormatter}"/> with 16-byte vectors: a two-register table lookup on Arm64, or on
+        /// WebAssembly (.NET 10) two swizzles ORed, the second taking indices 16 to 31 (any other index swizzles to 0).
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Lookup16x2<T, TFormatter>(ref byte source, nuint from, ref byte destination, nuint to)
             where TFormatter : struct, INinoFormatter<T>
@@ -239,23 +259,29 @@ namespace Nino.Core
             int vectors = NinoBlock<T, TFormatter>.GroupVectors;
             var a = Vector128.LoadUnsafe(ref source, from);
             var b = Vector128.LoadUnsafe(ref source, from + 16);
-            AdvSimd.Arm64.VectorTableLookup((a, b), NinoBlock<T, TFormatter>.Group0.GetLower().GetLower())
-                .StoreUnsafe(ref destination, to);
+            Lookup(a, b, NinoBlock<T, TFormatter>.Group0.GetLower().GetLower()).StoreUnsafe(ref destination, to);
             if (vectors < 2)
                 return;
             var c = Vector128.LoadUnsafe(ref source, from + 32);
-            AdvSimd.Arm64.VectorTableLookup((b, c), NinoBlock<T, TFormatter>.Group1.GetLower().GetLower())
-                .StoreUnsafe(ref destination, to + 16);
+            Lookup(b, c, NinoBlock<T, TFormatter>.Group1.GetLower().GetLower()).StoreUnsafe(ref destination, to + 16);
             if (vectors < 3)
                 return;
             var d = Vector128.LoadUnsafe(ref source, from + 48);
-            AdvSimd.Arm64.VectorTableLookup((c, d), NinoBlock<T, TFormatter>.Group2.GetLower().GetLower())
-                .StoreUnsafe(ref destination, to + 32);
+            Lookup(c, d, NinoBlock<T, TFormatter>.Group2.GetLower().GetLower()).StoreUnsafe(ref destination, to + 32);
             if (vectors < 4)
                 return;
             var e = Vector128.LoadUnsafe(ref source, from + 64);
-            AdvSimd.Arm64.VectorTableLookup((d, e), NinoBlock<T, TFormatter>.Group3.GetLower().GetLower())
-                .StoreUnsafe(ref destination, to + 48);
+            Lookup(d, e, NinoBlock<T, TFormatter>.Group3.GetLower().GetLower()).StoreUnsafe(ref destination, to + 48);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Lookup(Vector128<byte> low, Vector128<byte> high, Vector128<byte> indices)
+        {
+#if NET10_0_OR_GREATER
+            if (PackedSimd.IsSupported)
+                return PackedSimd.Swizzle(low, indices) | PackedSimd.Swizzle(high, indices - Vector128.Create((byte)16));
+#endif
+            return AdvSimd.Arm64.VectorTableLookup((low, high), indices);
         }
 
         /// <summary>
@@ -359,10 +385,16 @@ namespace Nino.Core
 
         /// <summary>
         /// The vector width of <see cref="Groups"/>: 64 bytes with AVX-512 VBMI (a two-source byte permute), 32 with
-        /// AVX2 (4-byte words only), 16 on Arm64 (a two-register table lookup); 0 without any.
+        /// AVX2 (4-byte words only), 16 on Arm64 (a two-register table lookup) and WebAssembly on .NET 10 (two
+        /// swizzles); 0 without any.
         /// </summary>
-        private static readonly int GroupWidth = Avx512Vbmi.IsSupported ? 64 : Avx2.IsSupported ? 32 :
-            AdvSimd.Arm64.IsSupported ? 16 : 0;
+        public static readonly int GroupWidth = Avx512Vbmi.IsSupported ? 64 : Avx2.IsSupported ? 32 :
+            AdvSimd.Arm64.IsSupported
+#if NET10_0_OR_GREATER
+            || PackedSimd.IsSupported
+#endif
+                ? 16
+                : 0;
 
         /// <summary>
         /// Whether values are written <see cref="Group"/> at a time as <see cref="GroupVectors"/> full vectors of
