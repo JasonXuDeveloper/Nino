@@ -131,6 +131,14 @@ public class BclTypeTests
         Assert.AreEqual(custom.BaseUtcOffset, back.BaseUtcOffset);
         Assert.AreEqual(TimeZoneInfo.Utc.BaseUtcOffset, RoundTrip(TimeZoneInfo.Utc).BaseUtcOffset);
         Assert.IsNull(RoundTrip((TimeZoneInfo)null));
+
+        // A system zone is written as its id alone and read back as the reader's zone of that id (the runtime cannot
+        // read back the serialized form of many IANA zones).
+        var system = TimeZoneInfo.FindSystemTimeZoneById(System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) ? "Eastern Standard Time" : "America/New_York");
+        CollectionAssert.AreEqual(NinoSerializer.Serialize(system.Id).Concat(NinoSerializer.Serialize((string)null)).ToArray(),
+            NinoSerializer.Serialize(system));
+        Assert.AreSame(system, RoundTrip(system));
+        Assert.AreSame(TimeZoneInfo.Utc, RoundTrip(TimeZoneInfo.Utc));
     }
 
     [TestMethod]
@@ -157,6 +165,13 @@ public class BclTypeTests
         var slice = new Memory<int>(ints, 10, 50);
         CollectionAssert.AreEqual(NinoSerializer.Serialize(ints.Skip(10).Take(50).ToArray()), NinoSerializer.Serialize(slice));
         CollectionAssert.AreEqual(slice.ToArray(), RoundTrip(slice).ToArray());
+
+        // Read into the current memory when the length matches, as an array is.
+        var target = new int[50];
+        Memory<int> current = target;
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(slice), ref current);
+        Assert.IsTrue(current.Span == target.AsSpan());
+        CollectionAssert.AreEqual(slice.ToArray(), target);
 
         ReadOnlyMemory<string> names = new[] { "a", null, "c" };
         CollectionAssert.AreEqual(names.ToArray(), RoundTrip(names).ToArray());
@@ -215,6 +230,16 @@ public class BclTypeTests
         var groupBack = RoundTrip(grouping);
         Assert.AreEqual(1, groupBack.Key);
         CollectionAssert.AreEqual(grouping.ToArray(), groupBack.ToArray());
+
+        Assert.IsFalse(back.Contains("z"));
+        Assert.AreEqual(0, back["z"].Count());
+        CollectionAssert.AreEqual(lookup[null].ToArray(), back[null].ToArray());
+
+        // The same key in two groupings is the data's fault, as for a dictionary.
+        var groupings = new[] { new[] { 1 }.GroupBy(i => 0).Single(), new[] { 2 }.GroupBy(i => 0).Single() };
+        var twice = NinoSerializer.Serialize(groupings.Length).Concat(groupings.SelectMany(g =>
+            NinoSerializer.Serialize(g).AsEnumerable())).ToArray();
+        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ILookup<int, int>>(twice));
 
         Assert.IsNull(RoundTrip((ILookup<int, int>)null));
         Assert.IsNull(RoundTrip((IGrouping<int, int>)null));

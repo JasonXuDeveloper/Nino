@@ -142,11 +142,12 @@ namespace Nino.Core
                 return;
             }
 
-            int count = value.Length;
-            var bytes = new byte[(count + 7) / 8];
+            int count = value.Length, size = (count + 7) / 8;
+            var bytes = ArrayPool<byte>.Shared.Rent(size);
             value.CopyTo(bytes, 0);
             writer.WriteLength(count);
-            writer.WriteRaw(bytes);
+            writer.WriteRaw(bytes.AsSpan(0, size));
+            ArrayPool<byte>.Shared.Return(bytes);
         }
 
         public void Deserialize(ref BitArray value, ref Reader reader)
@@ -177,17 +178,58 @@ namespace Nino.Core
     }
 
     /// <summary>
-    /// <c>TimeZoneInfo</c>: its serialized form (<c>ToSerializedString</c>: id, offsets and adjustment rules), so a
-    /// zone reads back the same on a machine whose time zone data lacks or differs from it.
+    /// <c>TimeZoneInfo</c>: its id (null for null), then, for a zone that is not one of this machine's system zones
+    /// (a custom zone), its serialized form (<c>ToSerializedString</c>), else null. A system zone reads back as the
+    /// reader's system zone of that id (Windows and IANA ids are converted where the runtime can); a custom one from
+    /// its serialized form. System zones are not read from their serialized form: the runtime cannot read back that
+    /// of many IANA zones, whose adjustment rules overlap.
     /// </summary>
     public struct TimeZoneInfoFormatter : INinoFormatter<TimeZoneInfo>
     {
-        public void Serialize(TimeZoneInfo value, ref Writer writer) => writer.Write(value?.ToSerializedString());
+        public void Serialize(TimeZoneInfo value, ref Writer writer)
+        {
+            if (value == null)
+            {
+                writer.WriteNullLength();
+                return;
+            }
+
+            writer.Write(value.Id);
+            writer.Write(IsSystemZone(value) ? null : value.ToSerializedString());
+        }
 
         public void Deserialize(ref TimeZoneInfo value, ref Reader reader)
         {
-            string text = reader.ReadString();
-            value = text == null ? null : TimeZoneInfo.FromSerializedString(text);
+            string id = reader.ReadString();
+            if (id == null)
+            {
+                value = null;
+                return;
+            }
+
+            string rules = reader.ReadString();
+            value = rules == null ? TimeZoneInfo.FindSystemTimeZoneById(id) : TimeZoneInfo.FromSerializedString(rules);
+        }
+
+        private static bool IsSystemZone(TimeZoneInfo zone)
+        {
+            if (ReferenceEquals(zone, TimeZoneInfo.Utc))
+                return true;
+            try
+            {
+                // Cached by the runtime: the same instance for a system zone, else one with the same rules.
+                var system = TimeZoneInfo.FindSystemTimeZoneById(zone.Id);
+                return ReferenceEquals(system, zone) ||
+                       (system.BaseUtcOffset == zone.BaseUtcOffset && system.HasSameRules(zone));
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                return false;
+            }
+            catch (InvalidTimeZoneException)
+            {
+                return false;
+            }
         }
     }
 
@@ -233,7 +275,8 @@ namespace Nino.Core
 
     /// <summary>
     /// <c>Memory&lt;T&gt;</c>: the bytes of a <c>T[]</c> of its elements (length, then the elements; raw ones as one
-    /// block). Read into a new array; an array's null reads as empty memory.
+    /// block). Read into the current memory when its length matches, as an array is, else into a new array; an
+    /// array's null reads as empty memory.
     /// </summary>
     public struct MemoryFormatter<T, TFormatter> : INinoFormatter<Memory<T>>
         where TFormatter : struct, INinoFormatter<T>
@@ -241,11 +284,24 @@ namespace Nino.Core
         public void Serialize(Memory<T> value, ref Writer writer) =>
             NinoCollections.WriteSpan<T, TFormatter>(value.Span, ref writer);
 
-        public void Deserialize(ref Memory<T> value, ref Reader reader) =>
-            value = NinoCollections.ReadArray<T, TFormatter>(ref reader);
+        public void Deserialize(ref Memory<T> value, ref Reader reader)
+        {
+            if (!reader.TryReadLength(1, out int length))
+            {
+                value = default;
+                return;
+            }
+
+            if (value.Length != length)
+                value = new T[length];
+            NinoElements.Read<T, TFormatter>(value.Span, ref reader);
+        }
     }
 
-    /// <summary><c>ReadOnlyMemory&lt;T&gt;</c>: as <see cref="MemoryFormatter{T,TFormatter}"/>.</summary>
+    /// <summary>
+    /// <c>ReadOnlyMemory&lt;T&gt;</c>: as <see cref="MemoryFormatter{T,TFormatter}"/>, always read into a new array
+    /// (its memory is not the reader's to overwrite).
+    /// </summary>
     public struct ReadOnlyMemoryFormatter<T, TFormatter> : INinoFormatter<ReadOnlyMemory<T>>
         where TFormatter : struct, INinoFormatter<T>
     {
@@ -322,18 +378,24 @@ namespace Nino.Core
                 return;
             }
 
+            value = Read(count, ref reader);
+        }
+
+        /// <summary>Reads a grouping of <paramref name="count"/> elements: the key, then the elements.</summary>
+        internal static NinoGrouping<TKey, TElement> Read(int count, ref Reader reader)
+        {
             TKey key = default;
             default(TKeyFormatter).Deserialize(ref key, ref reader);
             var elements = new TElement[count];
             NinoElements.Read<TElement, TElementFormatter>(elements, ref reader);
-            value = new NinoGrouping<TKey, TElement>(key, elements);
+            return new NinoGrouping<TKey, TElement>(key, elements);
         }
     }
 
     /// <summary>
     /// <c>ILookup&lt;TKey, TElement&gt;</c>: grouping count (-1 = null), then each grouping as
-    /// <see cref="GroupingFormatter{TKey,TElement,TKeyFormatter,TElementFormatter}"/> writes it. Read back as
-    /// <c>ToLookup</c> builds one, with the default comparer.
+    /// <see cref="GroupingFormatter{TKey,TElement,TKeyFormatter,TElementFormatter}"/> writes it. Read into a lookup
+    /// that keeps the groupings in order and finds them with the default comparer, as <c>ToLookup</c> does.
     /// </summary>
     public struct LookupFormatter<TKey, TElement, TKeyFormatter, TElementFormatter>
         : INinoFormatter<ILookup<TKey, TElement>>
@@ -363,12 +425,16 @@ namespace Nino.Core
                 return;
             }
 
-            var groupings = new IGrouping<TKey, TElement>[count];
+            var lookup = new NinoLookup<TKey, TElement>(count);
             for (int i = 0; i < count; i++)
-                default(GroupingFormatter<TKey, TElement, TKeyFormatter, TElementFormatter>).Deserialize(
-                    ref groupings[i], ref reader);
-            value = groupings.SelectMany(g => g, (g, element) => new KeyValuePair<TKey, TElement>(g.Key, element))
-                .ToLookup(pair => pair.Key, pair => pair.Value);
+            {
+                int length = reader.ReadLength();
+                if (length < 0)
+                    NinoThrow.InvalidLength(length);
+                lookup.Add(GroupingFormatter<TKey, TElement, TKeyFormatter, TElementFormatter>.Read(length, ref reader));
+            }
+
+            value = lookup;
         }
     }
 
@@ -421,6 +487,63 @@ namespace Nino.Core
         public IEnumerator<TElement> GetEnumerator() => ((IEnumerable<TElement>)_elements).GetEnumerator();
 
         IEnumerator IEnumerable.GetEnumerator() => _elements.GetEnumerator();
+    }
+
+    /// <summary>The lookup <see cref="LookupFormatter{TKey,TElement,TKeyFormatter,TElementFormatter}"/> reads.</summary>
+    internal sealed class NinoLookup<TKey, TElement> : ILookup<TKey, TElement>
+    {
+        private readonly NinoGrouping<TKey, TElement>[] _groupings;
+        private readonly Dictionary<TKey, NinoGrouping<TKey, TElement>> _byKey;
+        private NinoGrouping<TKey, TElement> _nullKey; // a Dictionary takes no null key; a lookup does
+        private int _count;
+
+        public NinoLookup(int capacity)
+        {
+            _groupings = new NinoGrouping<TKey, TElement>[capacity];
+            _byKey = new Dictionary<TKey, NinoGrouping<TKey, TElement>>(capacity);
+        }
+
+        public void Add(NinoGrouping<TKey, TElement> grouping)
+        {
+            bool added;
+            if (grouping.Key == null)
+            {
+                added = _nullKey == null;
+                _nullKey = grouping;
+            }
+            else
+            {
+#if NETSTANDARD2_0
+                added = !_byKey.ContainsKey(grouping.Key);
+                if (added)
+                    _byKey.Add(grouping.Key, grouping);
+#else
+                added = _byKey.TryAdd(grouping.Key, grouping);
+#endif
+            }
+
+            if (!added)
+                NinoThrow.DuplicateKey(typeof(ILookup<TKey, TElement>));
+            _groupings[_count++] = grouping;
+        }
+
+        public int Count => _count;
+
+        public IEnumerable<TElement> this[TKey key] =>
+            Find(key) ?? (IEnumerable<TElement>)Array.Empty<TElement>();
+
+        public bool Contains(TKey key) => Find(key) != null;
+
+        private NinoGrouping<TKey, TElement> Find(TKey key) =>
+            key == null ? _nullKey : _byKey.TryGetValue(key, out var grouping) ? grouping : null;
+
+        public IEnumerator<IGrouping<TKey, TElement>> GetEnumerator()
+        {
+            for (int i = 0; i < _count; i++)
+                yield return _groupings[i];
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     internal static partial class NinoCollections
