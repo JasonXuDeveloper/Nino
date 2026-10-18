@@ -116,11 +116,11 @@ internal sealed class BodyEmitter
             return $"public void {name}({parameters})";
         string args = name == "WriteBody" ? "value, ref writer" : "ref value, ref reader";
         // A one-call forwarder: small enough for the JIT to inline without the attribute, which only costs compile time.
-        _w.Line($"public void {name}({parameters}) => __{name}({args});");
+        _w.Line($"public void {name}({parameters}) => __{name}{(_m.InlineBody ? "Inline" : "")}({args});");
         _w.Line();
         _w.Line(_names.NoInline);
         bool localWriter = name == "WriteBody" && LocalWriter;
-        if (!_m.TopInline && !localWriter && !(name == "ReadBody" && ReadTop))
+        if (!_m.InlineBody && !localWriter && !(name == "ReadBody" && ReadTop))
             return $"private static void __{name}({parameters})";
         if (name == "ReadBody" && LocalReader)
         {
@@ -459,7 +459,7 @@ internal sealed class BodyEmitter
             return;
         }
 
-        if (_m.FreshRead && _m.TopInline && OutOfLine && !_shallow)
+        if (_m.FreshRead && _m.InlineBody && OutOfLine && !_shallow)
         {
             EmitTopSplitReadBody();
             return;
@@ -467,7 +467,7 @@ internal sealed class BodyEmitter
 
         _w.Open(BodySignature("ReadBody", $"ref {T} value, ref {Core}Reader reader"));
         // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
-        EmitReadBodyContents(fresh: false, local: LocalReader && !_m.TopInline && !_shallow && !ReadTop);
+        EmitReadBodyContents(fresh: false, local: LocalReader && !_m.InlineBody && !_shallow && !ReadTop);
         _w.Close();
     }
 
@@ -510,7 +510,7 @@ internal sealed class BodyEmitter
     /// top-level calls (<see cref="TypeModel.TopInline"/>) hold both copies in one method instead
     /// (<see cref="EmitTopSplitReadBody"/>).
     /// </summary>
-    public bool SplitFresh => _m.FreshRead && OutOfLine && !_m.TopInline;
+    public bool SplitFresh => _m.FreshRead && OutOfLine && !_m.InlineBody;
 
     /// <summary>
     /// The statements of the inlined <c>ReadBody</c> of a <see cref="SplitFresh"/> body (named
@@ -590,7 +590,7 @@ internal sealed class BodyEmitter
     private void EmitTopSplitReadBody()
     {
         string parameters = $"ref {T} value, ref {Core}Reader reader";
-        _w.Line($"public void ReadBody({parameters}) => __ReadBody(ref value, ref reader);");
+        _w.Line($"public void ReadBody({parameters}) => __ReadBodyInline(ref value, ref reader);");
         _w.Line();
         _w.Line(_names.NoInline);
         _w.Open($"private static void __ReadBody({parameters})");

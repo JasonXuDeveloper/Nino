@@ -219,9 +219,16 @@ internal sealed record TypeModel(
     /// body (one that does passes the reader to that body's call anyway): a large body inlined into every call site
     /// would use up the JIT's inlining budget there.
     /// </summary>
-    public bool TopInline => HasTop && !Keyed && !Tolerant &&
-                             BaseFormatter.Length == 0 && CollectionFormatter.Length == 0 &&
-                             Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
+    public bool TopInline => HasTop && InlineBody;
+
+    /// <summary>
+    /// Whether the body is small enough to be inlined wherever the formatter is used (at most two members that call
+    /// formatters, of at most eight), for a class whose body opens no class body.
+    /// </summary>
+    public bool InlineBody => !IsGeneric && !TrackReferences && !RawStruct && !Nests &&
+                              Kind is FormatterKind.Class or FormatterKind.SealedClass && !Keyed && !Tolerant &&
+                              BaseFormatter.Length == 0 && CollectionFormatter.Length == 0 &&
+                              Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
 
     /// <summary>
     /// Whether the formatter has a <c>__Top</c> twin: sealed classes whose body opens no class body. With no body
