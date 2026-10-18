@@ -46,6 +46,9 @@
 - **你已在用的类型。** 基元类型、字符串、元组、所有 BCL 集合、`BigInteger`、`Uri`、`Version`、`Memory<T>`、`ILookup<,>`、`Lazy<T>` 等，
   所有不可变集合（`Nino.Immutable`），Unity 的 `AnimationCurve`、`Gradient` 和 `RectOffset`，你自己的集合类型，其他类型则通过可插拔的格式化器支持。
   [支持的类型](https://nino.xgamedev.net/zh/docs/v4/types)。
+- **ASP.NET Core 与 TypeScript。** [Nino.AspNetCore](https://nino.xgamedev.net/zh/docs/v4/advanced/aspnetcore) 为 `application/x-nino`
+  提供 MVC 格式化器以及 Minimal API 的请求体和结果；[Nino.TypeScript](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript)
+  在每次构建后为你的类型生成 TypeScript 编解码器，浏览器和 Node 读写的字节与 .NET 相同。
 - **写代码时就发现错误。** 26 条分析器诊断（NINO001–NINO026），许多带一键修复。
 
 ## 适用场景

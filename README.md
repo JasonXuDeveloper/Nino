@@ -54,6 +54,10 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
   `Memory<T>`, `ILookup<,>`, `Lazy<T>` and more, every immutable collection (`Nino.Immutable`), Unity's `AnimationCurve`,
   `Gradient` and `RectOffset`, your own collection types, and anything else through a pluggable formatter.
   [Supported types](https://nino.xgamedev.net/en/docs/v4/types).
+- **ASP.NET Core and TypeScript.** [Nino.AspNetCore](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore) adds MVC
+  formatters and Minimal API bodies and results for `application/x-nino`;
+  [Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) generates TypeScript codecs for your types
+  after each build, so browsers and Node read and write the same bytes as .NET.
 - **Mistakes caught while you type.** 26 analyzer diagnostics (NINO001–NINO026), many with a one-click fix.
 
 ## Built for
