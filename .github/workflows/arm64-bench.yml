@@ -1,20 +1,21 @@
 name: Arm64 Benchmark
 
-# Runs the benchmarks on an Arm64 runner, for the Arm64 paths (AdvSimd, TBL) that x64 runners never take. With a base
-# ref, both refs run on the same runner, one after the other, with head's benchmark code against each ref's library,
-# and the summary compares them. Numbers for development only: the published ones come from report.yml.
+# Runs the benchmarks on an Arm64 runner, for the Arm64 paths (AdvSimd, TBL) that x64 runners never take. It measures
+# the ref chosen in "Use workflow from" (a branch or tag of this repository), and with "compare" also the release tag
+# before it, on the same runner, one after the other, with this ref's benchmark code against each ref's library; the
+# summary compares them. Numbers for development only: the published ones come from report.yml, which runs these
+# benchmarks on Arm64 for every release.
+#
+# No ref is taken from an input: an input ref would run code that is not the workflow's own in its cache scope (cache
+# poisoning). The compared tag is a release tag found in this ref's own history.
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Ref to measure'
+      compare:
+        description: 'Also measure the previous release tag, for an A/B comparison'
         required: false
-        default: main
-        type: string
-      base:
-        description: 'Ref to compare with (optional)'
-        required: false
-        type: string
+        default: false
+        type: boolean
       filter:
         description: 'BenchmarkDotNet filters, separated by spaces'
         required: false
@@ -41,18 +42,22 @@ jobs:
       FILTER: ${{ inputs.filter || '*' }}
 
     steps:
-      - name: Checkout ${{ inputs.ref }}
+      - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref }}
           path: head
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Checkout ${{ inputs.base }}
-        if: inputs.base != ''
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.base }}
-          path: base
+      # The newest release tag before this ref (not the Unity package's -preview.N alias of it), from its own history:
+      # a release, never a ref named by whoever dispatched.
+      - name: Check out the previous release
+        if: inputs.compare
+        run: |
+          set -euo pipefail
+          BASE=$(git -C head describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-preview.*' HEAD^)
+          echo "Comparing with $BASE"
+          git -C head worktree add --detach ../base "refs/tags/$BASE"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -92,11 +97,11 @@ jobs:
           set -euo pipefail
           HEAD_REPORT=$(find results/head/results -name '*-report-github.md' | sort | head -n1)
           {
-            echo "## Arm64 benchmark: ${{ inputs.ref }} ($(git -C head rev-parse --short HEAD))"
+            echo "## Arm64 benchmark: $GITHUB_REF_NAME ($(git -C head rev-parse --short HEAD))"
             echo ""
             if [[ -d base ]]; then
               BASE_REPORT=$(find results/base/results -name '*-report-github.md' | sort | head -n1)
-              echo "Against ${{ inputs.base }} ($(git -C base rev-parse --short HEAD)), on the same runner."
+              echo "Against $(git -C base describe --tags) ($(git -C base rev-parse --short HEAD)), on the same runner."
               echo ""
               python3 head/benchmarks/ab.py "$BASE_REPORT" "$HEAD_REPORT"
             else

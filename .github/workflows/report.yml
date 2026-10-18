@@ -42,21 +42,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine target tag/ref
+      # Only a release tag of this repository whose commit is on main is benchmarked: the tag's code then runs in this
+      # workflow's (main's) cache scope, so it must be code that was merged and released, never an arbitrary ref.
+      # Values from the event and inputs reach the script through the environment, never pasted into it.
+      - name: Determine target tag
         id: determine_target
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag_name }}
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            TAG_NAME="${{ github.event.release.tag_name }}"
-            echo "Using release tag: $TAG_NAME"
-          elif [[ -n "${{ inputs.tag_name }}" ]]; then
-            TAG_NAME="${{ inputs.tag_name }}"
-            echo "Using input tag: $TAG_NAME"
-          else
-            # Get latest tag
-            TAG_NAME=$(git describe --tags $(git rev-list --tags --max-count=1) 2>/dev/null || echo "main")
-            echo "Using latest tag: $TAG_NAME"
+          set -euo pipefail
+          TAG_NAME=${RELEASE_TAG:-${INPUT_TAG:-}}
+          if [[ -z "$TAG_NAME" ]]; then
+            TAG_NAME=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-preview.*' origin/main)
           fi
-          echo "target_ref=$TAG_NAME" >> $GITHUB_OUTPUT
+          if [[ ! "$TAG_NAME" =~ ^v[0-9][0-9A-Za-z.+-]*$ ]] || ! git rev-parse -q --verify "refs/tags/$TAG_NAME^{commit}" >/dev/null; then
+            echo "::error::$TAG_NAME is not a release tag of this repository"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "refs/tags/$TAG_NAME" origin/main; then
+            echo "::error::$TAG_NAME is not on main: only released code is benchmarked here"
+            exit 1
+          fi
+          echo "Benchmarking $TAG_NAME"
+          echo "target_ref=$TAG_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Check if benchmark already exists
         id: check_benchmark
@@ -112,6 +121,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ needs.target.outputs.tag }}
+          persist-credentials: false
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -120,12 +130,6 @@ jobs:
             ${{ vars.DOTNET_VERSION || '10.0.x' }}
             10.0.x
             8.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: ${{ runner.os }}-nuget-benchmark-${{ hashFiles('**/*.csproj') }}
 
       - name: Build benchmark project
         working-directory: ./src/Nino.Benchmark
