@@ -35,7 +35,8 @@ uses, sticks to 4.3 APIs. The 4.8 and 4.12 builds add only call interceptors (se
 [Top-level calls and interceptors](#top-level-calls-and-interceptors)); everything else is shared.
 
 The `Nino` package references `Nino.Serialization` and `Nino.Generator`; `Nino.Immutable` (`netstandard2.0`, `net8.0`)
-adds formatters for `ImmutableArray<T>` and `ImmutableList<T>`.
+adds formatters for the `System.Collections.Immutable` types (arrays, lists, sets, sorted sets, queues,
+stacks, dictionaries and sorted dictionaries).
 
 Generated code is compiled in the user's project, which may be Unity (C# 9). Generated code therefore only
 uses C# 9 features: no static abstract interface members, no ref fields, no raw string literals, no
@@ -163,7 +164,7 @@ Nino creates a collection only when the slot is `null`, through `NinoActivator<T
   `new` (ET's `SyncList`) are not called.
 * What is not supported is reported, never guessed: a collection Nino cannot create (abstract, constructor with
   required arguments, non-public constructor, required members not set), a struct collection, a non-generic
-  collection (`ArrayList`), `ReadOnlyCollection<T>`, and a type implementing `ICollection<T>` for two different
+  collection (`ArrayList`) and a type implementing `ICollection<T>` for two different
   `T` (ambiguous in both resolvers, whatever the interface order) have no formatter: the member is skipped with
   NINO007, and the runtime resolver finds no formatter either. A collection whose `IsReadOnly` is true is a clear
   `InvalidOperationException` when deserialized into. The same key (or set element) twice in the data, under the

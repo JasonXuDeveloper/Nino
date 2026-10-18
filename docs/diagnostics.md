@@ -105,7 +105,7 @@ Nino has no formatter for the member type (delegates, `Task`, pointers...). The 
 User collections end up here when Nino cannot create or fill them: an abstract collection, one without a public
 constructor callable without arguments (and no public static `[NinoFactory]` factory), one whose C# 11
 `required` members that constructor does not set, a struct implementing `ICollection<T>`, a non-generic collection
-(`ArrayList`), `ReadOnlyCollection<T>`, or a type implementing `ICollection<T>` for two different `T`.
+(`ArrayList`) or a type implementing `ICollection<T>` for two different `T`.
 
 ### NINO008
 

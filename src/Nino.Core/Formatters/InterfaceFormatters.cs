@@ -1,11 +1,13 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace Nino.Core
 {
     /// <summary>
     /// List-like collection interfaces (<c>IEnumerable&lt;T&gt;</c>, <c>IList&lt;T&gt;</c>, <c>ICollection&lt;T&gt;</c>,
     /// <c>IReadOnlyList&lt;T&gt;</c>, <c>IReadOnlyCollection&lt;T&gt;</c>): count (-1 = null), then the elements.
-    /// Read into a <c>List&lt;T&gt;</c> (an existing one is reused).
+    /// Read into a <c>List&lt;T&gt;</c> (an existing one is reused). <c>ReadOnlyCollection&lt;T&gt;</c> and
+    /// <c>ReadOnlyObservableCollection&lt;T&gt;</c> are written the same way and read as a new wrapper around that list.
     /// </summary>
     public struct InterfaceListFormatter<TInterface, T, TFormatter> : INinoFormatter<TInterface>
         where TInterface : class, IEnumerable<T>
@@ -19,7 +21,14 @@ namespace Nino.Core
             // A List<T> is handed to its formatter (which reuses or drops it); another collection is recycled here.
             var list = NinoRecycler.Reuse<TInterface, List<T>>(ref value);
             default(ListFormatter<List<T>, T, TFormatter>).Deserialize(ref list, ref reader);
-            value = (TInterface)(object)list;
+            if (list == null)
+                value = null;
+            else if (typeof(TInterface) == typeof(ReadOnlyCollection<T>))
+                value = (TInterface)(object)new ReadOnlyCollection<T>(list);
+            else if (typeof(TInterface) == typeof(ReadOnlyObservableCollection<T>))
+                value = (TInterface)(object)new ReadOnlyObservableCollection<T>(new ObservableCollection<T>(list));
+            else
+                value = (TInterface)(object)list;
         }
     }
 

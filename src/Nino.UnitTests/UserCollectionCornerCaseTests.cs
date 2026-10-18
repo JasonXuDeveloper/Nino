@@ -634,7 +634,7 @@ public class UserCollectionCornerCaseTests
         Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new InternalCtorList()));
         Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly<AbstractList>(new ConcreteList()));
         Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new TwoWayCollection()));
-        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new ReadOnlyCollection<int>(new[] { 1 })));
+        Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new WrappedInts(new[] { 1 })));
         Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new LegacyList()));
         Assert.ThrowsExactly<InvalidOperationException>(() => RuntimeOnly(new StructCollection()));
         Assert.ThrowsExactly<InvalidOperationException>(() => NinoActivator<InternalCtorList>.Create());
@@ -683,6 +683,7 @@ public struct StructCollection : ICollection<int>
     IEnumerator IEnumerable.GetEnumerator() => null;
 }
 public class RequiredArgumentList : List<int> { public RequiredArgumentList(int capacity) { } }
+public class WrappedInts : ReadOnlyCollection<int> { public WrappedInts(IList<int> list) : base(list) { } }
 
 [NinoType]
 public class Holder
@@ -691,7 +692,7 @@ public class Holder
     public AbstractList {|#1:Abstract|};
     public LegacyList {|#2:Legacy|};
     public TwoWay {|#3:Ambiguous|};
-    public ReadOnlyCollection<int> {|#4:ReadOnly|};
+    public WrappedInts {|#4:ReadOnly|};
     public StructCollection {|#5:Struct|};
     public RequiredArgumentList {|#6:NoConstructor|};
 }
@@ -702,7 +703,7 @@ public class Holder
         string[] types =
         {
             "InternalCtorList", "AbstractList", "LegacyList", "TwoWay",
-            "System.Collections.ObjectModel.ReadOnlyCollection<int>", "StructCollection", "RequiredArgumentList",
+            "WrappedInts", "StructCollection", "RequiredArgumentList",
         };
         for (int i = 0; i < names.Length; i++)
             test.TestState.ExpectedDiagnostics.Add(Verify.Diagnostic("NINO007").WithLocation(i)
@@ -1148,6 +1149,14 @@ public class ConcreteList : AbstractList
 
 public class LegacyList : ArrayList
 {
+}
+
+/// <summary>A read-only collection that only a list can create: no formatter (unlike ReadOnlyCollection itself).</summary>
+public class WrappedInts : ReadOnlyCollection<int>
+{
+    public WrappedInts(IList<int> list) : base(list)
+    {
+    }
 }
 
 /// <summary>A struct collection with state: no collection formatter (they need a class), and not raw memory.</summary>

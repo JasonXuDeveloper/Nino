@@ -69,7 +69,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 
 ```bash
 dotnet add package Nino --prerelease            # .NET, Godot
-dotnet add package Nino.Immutable --prerelease  # optional: ImmutableArray<T> / ImmutableList<T>
+dotnet add package Nino.Immutable --prerelease  # optional: System.Collections.Immutable types
 openupm add com.jasonxudeveloper.nino           # Unity
 ```
 
@@ -153,15 +153,15 @@ networking, message queues, caching, persistence and Unity.
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | 2022.3+, `netstandard2.0` and `2.1`, HybridCLR | `netstandard2.1` |
 
-MemoryPack still has more built-in types (`BigInteger`, `Uri`, every immutable collection, Unity classes such as
-`AnimationCurve`), TypeScript generation and ASP.NET Core formatters. Nino generates no TypeScript: browser clients
-run the same C# types on .NET WebAssembly (a `browser-wasm` app called from JavaScript through `[JSExport]`, same bytes
-as the server; [guide](https://nino.xgamedev.net/en/docs/v4/advanced/browser)). Streams, async I/O, multi-segment
+MemoryPack still has Unity classes such as `AnimationCurve` built in, TypeScript generation and ASP.NET Core
+formatters. Nino generates no TypeScript: browser clients run the same C# types on .NET WebAssembly (a `browser-wasm`
+app called from JavaScript through `[JSExport]`, same bytes as the server;
+[guide](https://nino.xgamedev.net/en/docs/v4/advanced/browser)). Streams, async I/O, multi-segment
 `ReadOnlySequence<byte>` input, callbacks and compression are a few lines around Nino's `IBufferWriter<byte>` and
 `ReadOnlySpan<byte>` APIs; the [full comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) has examples.
 MemoryPack's union tag is 1 byte where Nino writes a 4-byte type id, and that is a trade: the id is derived from the
-type, so subtypes need no tags, can be added in any assembly (a plugin or a HybridCLR hot update) and never
-renumber, while every MemoryPack union lists or registers its subtypes by hand.
+type, so subtypes need no tags, can be added in any assembly (a plugin or a HybridCLR hot update) and never renumber,
+while every MemoryPack union lists or registers its subtypes by hand.
 
 ## v4
 

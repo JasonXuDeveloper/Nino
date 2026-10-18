@@ -21,6 +21,19 @@ using Nino.Core;
 [assembly: NinoFormatter(typeof(DateTimeOffsetFormatter))]
 [assembly: NinoFormatter(typeof(NullableFormatter<,>))]
 [assembly: NinoFormatter(typeof(KeyValuePairFormatter<,,,>))]
+[assembly: NinoFormatter(typeof(BigIntegerFormatter))]
+[assembly: NinoFormatter(typeof(LazyFormatter<,>))]
+[assembly: NinoFormatter(typeof(MemoryFormatter<,>))]
+[assembly: NinoFormatter(typeof(ReadOnlyMemoryFormatter<,>))]
+[assembly: NinoFormatter(typeof(ReadOnlySequenceFormatter<,>))]
+
+// Classes with their own format.
+[assembly: NinoFormatter(typeof(UriFormatter))]
+[assembly: NinoFormatter(typeof(VersionFormatter))]
+[assembly: NinoFormatter(typeof(StringBuilderFormatter))]
+[assembly: NinoFormatter(typeof(BitArrayFormatter))]
+[assembly: NinoFormatter(typeof(CultureInfoFormatter))]
+[assembly: NinoFormatter(typeof(TimeZoneInfoFormatter))]
 
 // Collections of a specific definition.
 [assembly: NinoFormatter(typeof(DictionaryFormatter<,,,>))]
@@ -29,10 +42,14 @@ using Nino.Core;
 #if NET6_0_OR_GREATER
 [assembly: NinoFormatter(typeof(PriorityQueueFormatter<,,,>))]
 #endif
+[assembly: NinoFormatter(typeof(BlockingCollectionFormatter<,>))]
+[assembly: NinoFormatter(typeof(GroupingFormatter<,,,>))]
+[assembly: NinoFormatter(typeof(LookupFormatter<,,,>))]
 
-// Collection interfaces, read into List<T>, HashSet<T> or Dictionary<TKey, TValue>.
+// Collection interfaces, read into List<T>, HashSet<T> or Dictionary<TKey, TValue> (read-only wrappers around them).
 [assembly: NinoFormatter(typeof(InterfaceListFormatter<,,>), typeof(IEnumerable<>), typeof(ICollection<>),
-    typeof(IList<>), typeof(IReadOnlyCollection<>), typeof(IReadOnlyList<>))]
+    typeof(IList<>), typeof(IReadOnlyCollection<>), typeof(IReadOnlyList<>), typeof(ReadOnlyCollection<>),
+    typeof(ReadOnlyObservableCollection<>))]
 [assembly: NinoFormatter(typeof(InterfaceSetFormatter<,,>), typeof(ISet<>)
 #if NET8_0_OR_GREATER
     , typeof(IReadOnlySet<>)

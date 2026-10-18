@@ -10,7 +10,7 @@
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <Title>Nino.Immutable</Title>
         <Authors>JasonXuDeveloper</Authors>
-        <Description>Nino formatters for System.Collections.Immutable (ImmutableArray&lt;T&gt;, ImmutableList&lt;T&gt;).</Description>
+        <Description>Nino formatters for System.Collections.Immutable (ImmutableArray, ImmutableList, ImmutableHashSet, ImmutableSortedSet, ImmutableQueue, ImmutableStack, ImmutableDictionary, ImmutableSortedDictionary).</Description>
         <Copyright>JasonXuDeveloper</Copyright>
         <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
