@@ -27,6 +27,9 @@ internal sealed class RawBlock
     /// <summary>Total size expression.</summary>
     public string Total => Sum(0);
 
+    /// <summary>Size expression of the block followed by <paramref name="extra"/> more bytes.</summary>
+    public string Plus(int extra) => Sum(extra);
+
     /// <param name="run">The members.</param>
     /// <param name="headers">Whether each value is preceded by an 8-byte (key, length) header (keyed bodies).</param>
     /// <param name="start">Bytes in front of the first member (a region's length).</param>
