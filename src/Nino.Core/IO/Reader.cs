@@ -879,8 +879,7 @@ namespace Nino.Core
             // transcoder reports (DestinationTooSmall).
             if (size < length)
                 NinoThrow.InvalidData("invalid UTF-8 string.");
-            // Freshly allocated and not yet published, so it is written in place.
-            var value = new string('\0', length);
+            var value = NinoStrings.Allocate(length);
 #if NET8_0_OR_GREATER
             // Done means every byte was decoded; the chars must then fill the string exactly.
             var status = System.Text.Unicode.Utf8.ToUtf16(MemoryMarshal.CreateReadOnlySpan(ref src, size),
