@@ -20,17 +20,17 @@ internal static class AccessorEmitter
             if (member.IsProperty)
             {
                 w.Line($"[{attr}({kind}.Method, Name = \"get_{member.SourceName}\")]");
-                w.Line($"private static extern {member.TypeName} __G_{member.Name}({self});");
+                w.Line($"private static extern {member.TypeName} {Getter(member)}({self});");
                 // No setter for a member that is read and dropped (get-only, no matching constructor parameter).
                 if (member.Unassignable)
                     continue;
                 w.Line($"[{attr}({kind}.Method, Name = \"set_{member.SourceName}\")]");
-                w.Line($"private static extern void __S_{member.Name}({self}, {member.TypeName} value);");
+                w.Line($"private static extern void {Setter(member)}({self}, {member.TypeName} value);");
             }
             else
             {
                 w.Line($"[{attr}({kind}.Field, Name = \"{member.SourceName}\")]");
-                w.Line($"private static extern ref {member.TypeName} __F_{member.Name}({self});");
+                w.Line($"private static extern ref {member.TypeName} {FieldRef(member)}({self});");
             }
         }
     }
@@ -75,13 +75,13 @@ internal static class AccessorEmitter
             string o = (member.DeclaringTypeIsValueType ? "ref " : "") + m.TypeName + " o";
             string name = Identifier(member.SourceName);
             w.Line(InlineAttribute);
-            w.Line($"internal static {member.TypeName} G_{member.Name}({o}) => o.{name};");
+            w.Line($"internal static {member.TypeName} {Getter(member)}({o}) => o.{name};");
             if (member.ConstructionOnly)
                 continue;
             w.Line(InlineAttribute);
             w.Line(member.IsProperty
-                ? $"internal static void S_{member.Name}({o}, {member.TypeName} value) => o.{name} = value;"
-                : $"internal static ref {member.TypeName} F_{member.Name}({o}) => ref o.{name};");
+                ? $"internal static void {Setter(member)}({o}, {member.TypeName} value) => o.{name} = value;"
+                : $"internal static ref {member.TypeName} {FieldRef(member)}({o}) => ref o.{name};");
         }
 
         w.Close();

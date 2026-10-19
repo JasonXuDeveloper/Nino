@@ -187,7 +187,7 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Collect()
             .Select(static (x, _) => new EquatableArray<InterceptedCall>(x.Distinct()
                 .OrderBy(c => c.Signature, StringComparer.Ordinal).ThenBy(c => c.Call, StringComparer.Ordinal)
-                .ThenBy(c => c.Attribute, StringComparer.Ordinal)));
+                .ThenBy(c => c.Location, StringComparer.Ordinal)));
         var fileLocal = context.ParseOptionsProvider.Select(static (o, _) =>
             o is CSharpParseOptions { LanguageVersion: >= LanguageVersion.CSharp11 });
         // Formatters with a __Top twin for these calls (see TypeModel.HasTop).

@@ -117,4 +117,44 @@ namespace Top
         var api = Compile().GetType("Top.Api")!;
         Assert.AreEqual("", api.GetMethod("Run")!.Invoke(null, null));
     }
+
+    [TestMethod]
+    public void TopLevelCallsOfThisAssemblyAreIntercepted()
+    {
+        // The interceptors name their (file-local) [InterceptsLocation] through an alias: the calls of this assembly
+        // must still be redirected to them, which shows as calls in the IL.
+        var assembly = typeof(TopLevelInlineTests).Assembly;
+        var interceptors = assembly.GetTypes().FirstOrDefault(t => t.Name.EndsWith("NinoInterceptors"));
+        if (interceptors == null)
+            return; // built with -p:NinoRegularCalls=true
+        const BindingFlags all = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static |
+                                 BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        int calls = 0;
+        foreach (var type in assembly.GetTypes())
+        {
+            foreach (var method in type.GetMethods(all))
+            {
+                var il = method.GetMethodBody()?.GetILAsByteArray();
+                if (il == null)
+                    continue;
+                for (int i = 0; i + 4 < il.Length; i++)
+                {
+                    // call <MethodDef token>
+                    if (il[i] != 0x28 || il[i + 4] != 0x06)
+                        continue;
+                    try
+                    {
+                        if (method.Module.ResolveMethod(BitConverter.ToInt32(il, i + 1))?.DeclaringType == interceptors)
+                            calls++;
+                    }
+                    catch (ArgumentException)
+                    {
+                        // not an instruction boundary
+                    }
+                }
+            }
+        }
+
+        Assert.IsTrue(calls > 100, $"{calls} intercepted calls");
+    }
 }

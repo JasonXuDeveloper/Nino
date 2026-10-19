@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using static Nino.Generator.Generation.Emit.MemberCode;
@@ -84,10 +85,10 @@ internal sealed class BodyEmitter
     {
         _w.Line("// Unmanaged and every field serialized: the struct is written as its raw memory.");
         _w.Line(_names.Inline);
-        _w.Line($"public void WriteBody({T} value, ref {Core}Writer writer) => writer.WriteValue(value);");
+        _w.Line($"{Signature.WriteBody(T)} => writer.WriteValue(value);");
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Line($"public void ReadBody(ref {T} value, ref {Core}Reader reader) => value = reader.ReadValue<{T}>();");
+        _w.Line($"{Signature.ReadBody(T)} => value = reader.ReadValue<{T}>();");
     }
 
     /// <summary>
@@ -130,24 +131,14 @@ internal sealed class BodyEmitter
             return $"private static void __{name}({parameters})";
         if (name == "ReadBody" && LocalReader)
         {
-            _w.Block($"private static void __{name}({parameters})", () =>
-            {
-                _w.Line($"{Core}Reader __r = default;");
-                _w.Line("reader.CopyTo(ref __r);");
-                _w.Line($"__{name}Inline(ref value, ref __r);");
-                _w.Line("__r.CopyTo(ref reader);");
-            });
+            _w.Block($"private static void __{name}({parameters})",
+                () => OnLocalCopy(_w, reader: true, () => _w.Line($"__{name}Inline(ref value, ref __r);")));
         }
         else if (localWriter)
         {
             // The members are written by the inlinable twin (__Top's, or one made for this), through the local.
-            _w.Block($"private static void __{name}({parameters})", () =>
-            {
-                _w.Line($"{Core}Writer __w = default;");
-                _w.Line("writer.CopyTo(ref __w);");
-                _w.Line($"__{name}Inline({(byRef ? "ref " : "")}value, ref __w);");
-                _w.Line("__w.CopyTo(ref writer);");
-            });
+            _w.Block($"private static void __{name}({parameters})", () => OnLocalCopy(_w, reader: false,
+                () => _w.Line($"__{name}Inline({(byRef ? "ref " : "")}value, ref __w);")));
         }
         else
             _w.Line($"private static void __{name}({parameters}) => __{name}Inline({args});");
@@ -164,7 +155,7 @@ internal sealed class BodyEmitter
             return;
         }
 
-        string signature = BodySignature("WriteBody", $"{T} value, ref {Core}Writer writer");
+        string signature = BodySignature("WriteBody", Signature.WriteParameters(T));
         if (_m.EmitMembers && !_shallow && !Region && _m.CollectionFormatter.Length == 0)
         {
             _w.Line($"{signature} => WriteMembers(value, ref writer);");
@@ -218,12 +209,12 @@ internal sealed class BodyEmitter
         });
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Line($"public void WriteBody({T} value, ref {Core}Writer writer) => WriteRawBody(value, ref writer.Reserve(BodySize), 0);");
+        _w.Line($"{Signature.WriteBody(T)} => WriteRawBody(value, ref writer.Reserve(BodySize), 0);");
         if (!_m.EmitMembers)
             return;
         _w.Line();
         _w.Line(_names.Inline);
-        _w.Line($"internal static void WriteMembers({T} value, ref {Core}Writer writer) => default({self}).WriteBody(value, ref writer);");
+        _w.Line($"internal static void WriteMembers({Signature.WriteParameters(T)}) => default({self}).WriteBody(value, ref writer);");
         _w.Line();
         _w.Line(_names.Inline);
         _w.Block($"internal static void ReadMembers({T} value, ref {Core}Reader reader)",
@@ -235,7 +226,7 @@ internal sealed class BodyEmitter
     {
         // Inlined so the writer/reader state stays in registers across levels, as if the members were written inline.
         _w.Line(_names.Inline);
-        _w.Block($"internal static void WriteMembers({T} value, ref {Core}Writer writer)", EmitMemberWrites);
+        _w.Block($"internal static void WriteMembers({Signature.WriteParameters(T)})", EmitMemberWrites);
         _w.Line();
         _w.Line(_names.Inline);
         // Version tolerant: reading the region of the type that called it, which may end before any member.
@@ -447,22 +438,23 @@ internal sealed class BodyEmitter
             return;
         }
 
-        _w.Open(BodySignature("ReadBody", $"ref {T} value, ref {Core}Reader reader"));
+        _w.Open(BodySignature("ReadBody", Signature.ReadParameters(T)));
         // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
         EmitReadBodyContents(fresh: false, local: LocalReader && !_m.InlineBody && !_shallow && !ReadTop);
         _w.Close();
     }
 
+    /// <summary>The reads of a body, on a local copy of the reader when <paramref name="local"/>.</summary>
     private void EmitReadBodyContents(bool fresh, bool local)
     {
-        string r = "reader";
         if (local)
-        {
-            _w.Line($"{Core}Reader __r = default;");
-            _w.Line("reader.CopyTo(ref __r);");
-            r = "__r";
-        }
+            OnLocalCopy(_w, reader: true, () => EmitReads(fresh, "__r"));
+        else
+            EmitReads(fresh, "reader");
+    }
 
+    private void EmitReads(bool fresh, string r)
+    {
         if (fresh)
         {
             // The slot held null and the pool, if any, had nothing: a new instance, whose members are null.
@@ -470,10 +462,7 @@ internal sealed class BodyEmitter
             // without a branch gets no profile from tiered PGO, and without one the JIT stops inlining the
             // collection constructors of the member reads. An instance passed in anyway is still read correctly
             // (its members are replaced, not reused).
-            _target = "__v";
-            _w.Line("var __v = value;");
-            _w.Line("if (__v == null)");
-            _w.Indented(() => _w.Line($"value = __v = {_m.Construction.Creator}();"));
+            ReadIntoLocal(_m.Construction.Creator + "()");
             _fresh = true;
             EmitInPlaceMembers(r);
             _fresh = false;
@@ -482,8 +471,31 @@ internal sealed class BodyEmitter
             EmitRecreatingRead(r);
         else
             EmitInPlaceRead(r);
-        if (local)
-            _w.Line("__r.CopyTo(ref reader);");
+    }
+
+    /// <summary>
+    /// <paramref name="body"/> on a local copy of the reader (<c>__r</c>) or writer (<c>__w</c>), copied from the
+    /// parameter before and written back after (see <see cref="TypeModel.LocalReader"/>).
+    /// </summary>
+    internal static void OnLocalCopy(CodeWriter w, bool reader, Action body)
+    {
+        var (type, parameter, local) = reader ? ("Reader", "reader", "__r") : ("Writer", "writer", "__w");
+        w.Line($"{Core}{type} {local} = default;");
+        w.Line($"{parameter}.CopyTo(ref {local});");
+        body();
+        w.Line($"{local}.CopyTo(ref {parameter});");
+    }
+
+    /// <summary>
+    /// Reads go to the local <c>__v</c>: the instance in <c>value</c>, or when null a new one (<paramref name="create"/>)
+    /// stored in both.
+    /// </summary>
+    private void ReadIntoLocal(string create)
+    {
+        _target = "__v";
+        _w.Line("var __v = value;");
+        _w.Line("if (__v == null)");
+        _w.Indented(() => _w.Line($"value = __v = {create};"));
     }
 
     /// <summary>
@@ -515,7 +527,7 @@ internal sealed class BodyEmitter
 
     private void EmitSplitReadBody()
     {
-        string parameters = $"ref {T} value, ref {Core}Reader reader";
+        string parameters = Signature.ReadParameters(T);
         string body = _shallow ? "__ReadBodyShallow" : "__ReadBody";
         if (!_shallow)
         {
@@ -536,13 +548,8 @@ internal sealed class BodyEmitter
         if (ReadTop)
         {
             // The new-instance read is also __ReadTop's: inlinable, called here on a local copy of the reader.
-            _w.Block($"internal static void {body}Fresh({parameters})", () =>
-            {
-                _w.Line($"{Core}Reader __r = default;");
-                _w.Line("reader.CopyTo(ref __r);");
-                _w.Line($"{body}FreshInline(ref value, ref __r);");
-                _w.Line("__r.CopyTo(ref reader);");
-            });
+            _w.Block($"internal static void {body}Fresh({parameters})",
+                () => OnLocalCopy(_w, reader: true, () => _w.Line($"{body}FreshInline(ref value, ref __r);")));
             _w.Line();
             _w.Line(_names.Inline);
             _w.Open($"private static void {body}FreshInline({parameters})");
@@ -564,22 +571,15 @@ internal sealed class BodyEmitter
     /// </summary>
     private void EmitTopSplitReadBody()
     {
-        string parameters = $"ref {T} value, ref {Core}Reader reader";
-        _w.Line($"public void ReadBody({parameters}) => __ReadBodyInline(ref value, ref reader);");
+        string parameters = Signature.ReadParameters(T);
+        _w.Line($"{Signature.ReadBody(T)} => __ReadBodyInline(ref value, ref reader);");
         _w.Line();
         _w.Line(_names.NoInline);
         _w.Open($"private static void __ReadBody({parameters})");
-        string r = "reader";
         if (LocalReader)
-        {
-            _w.Line($"{Core}Reader __r = default;");
-            _w.Line("reader.CopyTo(ref __r);");
-            r = "__r";
-        }
-
-        EmitInPlaceRead(r);
-        if (LocalReader)
-            _w.Line("__r.CopyTo(ref reader);");
+            OnLocalCopy(_w, reader: true, () => EmitInPlaceRead("__r"));
+        else
+            EmitInPlaceRead("reader");
         _w.Close();
         _w.Line();
         _w.Line(_names.Inline);
@@ -609,9 +609,7 @@ internal sealed class BodyEmitter
                 _target = "__v";
             if (_target == "__v")
             {
-                _w.Line("var __v = value;");
-                _w.Line("if (__v == null)");
-                _w.Indented(() => _w.Line($"value = __v = {create};"));
+                ReadIntoLocal(create);
             }
             else
             {
