@@ -288,7 +288,8 @@ namespace Nino.Core
         /// (<see cref="CollectionFields"/>), replacing it with a new one when it is too
         /// small, and returns the array. Each element is read as a new value, as Push and Enqueue of a default
         /// one would: slots of references are already default in an empty collection, unmanaged ones may hold
-        /// what was removed and are cleared first, unless a block copy overwrites them.
+        /// what was removed and are cleared first, unless the read overwrites them
+        /// (<see cref="NinoCollections.ReadOverwrites{T,TFormatter}"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T[] ReadInto<T, TFormatter>(ref T[] array, int length, ref Reader reader)
@@ -298,7 +299,7 @@ namespace Nino.Core
             if (items.Length < length)
                 array = items = new T[length];
             var span = new Span<T>(items, 0, length);
-            if (!RawFormatter.Is<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            if (!NinoCollections.ReadOverwrites<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 span.Clear();
             NinoElements.Read<T, TFormatter>(span, ref reader);
             return items;
