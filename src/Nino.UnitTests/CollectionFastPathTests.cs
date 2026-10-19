@@ -423,6 +423,48 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void BlocksWriteAsEachValue()
+    {
+        // Groups of values move as vectors (AVX-512, AVX2, SSSE3, Arm64 and WebAssembly each their own plan), with
+        // loads before and after a group's values: every count, every destination alignment, every layout below.
+        WritesAsEachValue(i => (i, -7L * i));
+        WritesAsEachValue(i => new KeyValuePair<int, long>(i, i * 1000L));
+        WritesAsEachValue(i => (i * 3L, (byte)i));
+        WritesAsEachValue(i => ((byte)i, i * 3L));
+        WritesAsEachValue(i => ((short)i, (double)i / 3));
+        WritesAsEachValue(i => ((short)i, i * 5));
+        WritesAsEachValue(i => ((byte)i, i * 5));
+        WritesAsEachValue(i => (i, (short)i, i * 9L));
+        WritesAsEachValue(i => ((double)i, i, (byte)i));
+    }
+
+    private static void WritesAsEachValue<T>(Func<int, T> make) where T : unmanaged
+    {
+        foreach (int n in Enumerable.Range(0, 80).Concat(new[] { 255, 1000, 1001 }))
+        {
+            var values = Enumerable.Range(0, n).Select(make).ToArray();
+            var expected = new List<byte>(BitConverter.GetBytes(n));
+            foreach (var value in values)
+                expected.AddRange(NinoSerializer.Serialize(value));
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values), $"{typeof(T)}[] n={n}");
+            CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values.ToList()), $"List<{typeof(T)}> n={n}");
+            for (int shift = 1; shift < 8; shift++)
+            {
+                var buffer = new NinoArrayBufferWriter();
+                buffer.GetSpan(shift);
+                buffer.Advance(shift);
+                NinoSerializer.Serialize(values.ToList(), buffer);
+                CollectionAssert.AreEqual(expected, buffer.WrittenSpan.Slice(shift).ToArray(), $"{typeof(T)} n={n} shift={shift}");
+            }
+
+            CollectionAssert.AreEqual(values, NinoDeserializer.Deserialize<List<T>>(NinoSerializer.Serialize(values)));
+        }
+
+        Assert.AreEqual(4, NinoSerializer.Serialize((List<T>)null).Length);
+        Assert.IsNull(NinoDeserializer.Deserialize<List<T>>(NinoSerializer.Serialize((T[])null)));
+    }
+
+    [TestMethod]
     public void SortedCollectionsAreBuiltInOnePass()
     {
         foreach (int n in Enumerable.Range(0, 70).Concat(new[] { 100, 1000 }))
