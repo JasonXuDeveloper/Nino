@@ -13,6 +13,8 @@ Each report must have a Type column (a joined summary of two or more classes).
 import re
 import sys
 
+from bdn import cells
+
 
 def read(path):
     """-> (text before the table, header cells, alignment cells, rows of cells, CPU line)."""
@@ -21,9 +23,6 @@ def read(path):
     if first is None:
         sys.exit(f"{path}: no table")
     end = next((i for i in range(first, len(lines)) if not lines[i].startswith("|")), len(lines))
-
-    def cells(line):
-        return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
     header, align = cells(lines[first]), cells(lines[first + 1])
     if "Type" not in header:
