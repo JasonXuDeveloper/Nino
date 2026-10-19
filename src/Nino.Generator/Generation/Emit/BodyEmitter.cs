@@ -38,9 +38,6 @@ internal sealed class BodyEmitter
     /// <summary>Whether the reads being emitted are of a new instance (<see cref="TypeModel.FreshRead"/>).</summary>
     private bool _fresh;
 
-    /// <summary>Whether a <see cref="TypeModel.FreshRead"/> body is emitted without its fresh copy (see <see cref="EmitTopSplitReadBody"/>).</summary>
-    private bool _reuseOnly;
-
     public BodyEmitter(TypeModel model, CodeWriter writer, FormatterNames names)
     {
         _m = model;
@@ -102,8 +99,11 @@ internal sealed class BodyEmitter
     /// <summary>
     /// The signature of a body method. An out-of-line body is a static method behind an inlined instance forwarder:
     /// a call to an instance method of the (empty) formatter struct stores a dummy byte on the caller's stack and
-    /// passes its address as <c>this</c>. With a <c>__Top</c> twin (<see cref="TypeModel.TopInline"/>), the body is
-    /// an inlinable static method (<c>__ReadBodyInline</c>) that the out-of-line one and <c>__Top</c> call.
+    /// passes its address as <c>this</c>. A body inlined wherever the formatter is used
+    /// (<see cref="TypeModel.InlineBody"/>) is an inlinable static method (<c>__ReadBodyInline</c>) that the forwarder
+    /// and the <c>__Top</c> twin call, with no out-of-line copy. An out-of-line body on a local copy of the writer
+    /// (<see cref="TypeModel.LocalWriter"/>), or whose new-instance read the <c>__Top</c> twin shares
+    /// (<see cref="TypeModel.ReadTop"/>), calls an inlinable one on that copy.
     /// </summary>
     private string BodySignature(string name, string parameters)
     {
@@ -115,36 +115,35 @@ internal sealed class BodyEmitter
 
         if (!OutOfLine)
             return $"public void {name}({parameters})";
+        bool write = name == "WriteBody";
+        string body = "__" + name;
+        if (_m.InlineBody)
+        {
+            // A class: passed by value. A one-call forwarder, which the JIT inlines without being told to.
+            _w.Line($"public void {name}({parameters}) => {body}Inline({(write ? "value, ref writer" : "ref value, ref reader")});");
+            _w.Line();
+            _w.Line(_names.Inline);
+            return $"private static void {body}Inline({parameters})";
+        }
+
         // A struct reaches the out-of-line body by reference: passed by value, every call copies it to the stack
         // (an element of a list of structs of 48 bytes: one rep movsq per element). Not `in`: reading a property of a
         // struct that is not readonly through an `in` parameter copies the struct first.
-        bool byRef = name == "WriteBody" && _m.Kind == FormatterKind.Struct;
-        string args = name == "WriteBody" ? (byRef ? "ref value, ref writer" : "value, ref writer") : "ref value, ref reader";
-        // A one-call forwarder: small enough for the JIT to inline without the attribute, which only costs compile time.
-        _w.Line($"public void {name}({parameters}) => __{name}{(_m.InlineBody ? "Inline" : "")}({args});");
+        bool byRef = write && _m.Kind == FormatterKind.Struct;
+        string value = write && !byRef ? "value" : "ref value";
+        _w.Line($"public void {name}({parameters}) => {body}({value}, ref {(write ? "writer" : "reader")});");
         _w.Line();
         _w.Line(_names.NoInline);
         if (byRef)
             parameters = "ref " + parameters;
-        bool localWriter = name == "WriteBody" && LocalWriter;
-        if (!_m.InlineBody && !localWriter && !(name == "ReadBody" && ReadTop))
-            return $"private static void __{name}({parameters})";
-        if (name == "ReadBody" && LocalReader)
-        {
-            _w.Block($"private static void __{name}({parameters})",
-                () => OnLocalCopy(_w, reader: true, () => _w.Line($"__{name}Inline(ref value, ref __r);")));
-        }
-        else if (localWriter)
-        {
-            // The members are written by the inlinable twin (__Top's, or one made for this), through the local.
-            _w.Block($"private static void __{name}({parameters})", () => OnLocalCopy(_w, reader: false,
-                () => _w.Line($"__{name}Inline({(byRef ? "ref " : "")}value, ref __w);")));
-        }
-        else
-            _w.Line($"private static void __{name}({parameters}) => __{name}Inline({args});");
+        if (write ? !LocalWriter : !ReadTop)
+            return $"private static void {body}({parameters})";
+        // The members are written or read by the inlinable twin (__Top's, or one made for this), through the local.
+        _w.Block($"private static void {body}({parameters})", () => OnLocalCopy(_w, reader: !write,
+            () => _w.Line($"{body}Inline({value}, ref {(write ? "__w" : "__r")});")));
         _w.Line();
         _w.Line(_names.Inline);
-        return $"private static void __{name}Inline({parameters})";
+        return $"private static void {body}Inline({parameters})";
     }
 
     public void EmitWriteBody()
@@ -432,12 +431,6 @@ internal sealed class BodyEmitter
             return;
         }
 
-        if (_m.FreshRead && _m.InlineBody && OutOfLine && !_shallow)
-        {
-            EmitTopSplitReadBody();
-            return;
-        }
-
         _w.Open(BodySignature("ReadBody", Signature.ReadParameters(T)));
         // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
         EmitReadBodyContents(fresh: false, local: LocalReader && !_m.InlineBody && !_shallow && !ReadTop);
@@ -563,51 +556,16 @@ internal sealed class BodyEmitter
         _w.Close();
     }
 
-    /// <summary>
-    /// The read body of a <see cref="TypeModel.FreshRead"/> type with a <c>__Top</c> twin: the out-of-line body
-    /// (elements and members) holds both copies of the member reads (<see cref="EmitFreshSplit"/>), while the body
-    /// inlined into the top-level calls, where the JIT already knows whether the slot is null, holds the reuse copy
-    /// only (a second copy there only adds locals for the JIT to keep apart).
-    /// </summary>
-    private void EmitTopSplitReadBody()
-    {
-        string parameters = Signature.ReadParameters(T);
-        _w.Line($"{Signature.ReadBody(T)} => __ReadBodyInline(ref value, ref reader);");
-        _w.Line();
-        _w.Line(_names.NoInline);
-        _w.Open($"private static void __ReadBody({parameters})");
-        if (LocalReader)
-            OnLocalCopy(_w, reader: true, () => EmitInPlaceRead("__r"));
-        else
-            EmitInPlaceRead("reader");
-        _w.Close();
-        _w.Line();
-        _w.Line(_names.Inline);
-        _w.Open($"private static void __ReadBodyInline({parameters})");
-        _reuseOnly = true;
-        EmitInPlaceRead("reader");
-        _reuseOnly = false;
-        _w.Close();
-    }
-
     private void EmitInPlaceRead(string r)
     {
         var c = _m.Construction;
         if (_m.Kind != FormatterKind.Struct)
         {
             string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
-            if (_m.FreshRead && !SplitFresh && !_reuseOnly)
-            {
-                EmitFreshSplit(r, c.Creator + "()");
-                return;
-            }
-
             if (_m.Pooled)
                 create = T + ".RentFromNinoPool() ?? " + create;
             // The instance in a local (a collection formatter may replace value, so not for collections).
             if (_m.CollectionFormatter.Length == 0)
-                _target = "__v";
-            if (_target == "__v")
             {
                 ReadIntoLocal(create);
             }
@@ -619,40 +577,6 @@ internal sealed class BodyEmitter
         }
 
         EmitInPlaceMembers(r);
-    }
-
-    /// <summary>
-    /// <see cref="TypeModel.FreshRead"/>: a new instance (the slot held null and the pool, if any, had none) is
-    /// read by a copy of the member reads that knows its members are null (<see cref="MemberModel.Fresh"/>); an
-    /// existing or pooled one by the reads that reuse what it holds.
-    /// </summary>
-    private void EmitFreshSplit(string r, string create)
-    {
-        _target = "__v";
-        _w.Line("var __v = value;");
-        _w.Open("if (__v == null)");
-        if (_m.Pooled)
-        {
-            _w.Line($"__v = {T}.RentFromNinoPool();");
-            _w.Open("if (__v != null)");
-            _w.Line("value = __v;");
-            _w.Line("goto __reuse;");
-            _w.Close();
-        }
-
-        _w.Line($"value = __v = {create};");
-        _fresh = true;
-        EmitInPlaceMembers(r);
-        _fresh = false;
-        _w.Line("goto __done;");
-        _w.Close();
-        if (_m.Pooled)
-            _w.Line("__reuse:");
-        _target = "__v";
-        _w.Open();
-        EmitInPlaceMembers(r);
-        _w.Close();
-        _w.Line("__done: ;");
     }
 
     /// <summary>The reads of an instance in <see cref="_target"/> (or of a struct in place), in its regions.</summary>

@@ -306,8 +306,9 @@ internal sealed record TypeModel(
     /// <summary>
     /// Whether an out-of-line body reads a new instance in a method of its own (<c>__ReadBodyFresh</c>, see
     /// <see cref="FreshRead"/>), chosen by the inlined <c>ReadBody</c>: one method holding both copies of the member
-    /// reads would keep more values live at once (spilled in loops). Small bodies inlined into the top-level calls
-    /// (<see cref="TopInline"/>) hold both copies in one method instead.
+    /// reads would keep more values live at once (spilled in loops). Bodies inlined wherever the formatter is used
+    /// (<see cref="InlineBody"/>) have the reuse copy only: a second copy there only adds locals for the JIT to keep
+    /// apart.
     /// </summary>
     public bool SplitFresh => FreshRead && OutOfLineBody && !InlineBody;
 
