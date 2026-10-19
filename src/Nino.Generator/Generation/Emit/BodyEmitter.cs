@@ -708,35 +708,49 @@ internal sealed class BodyEmitter
             return;
         }
 
-        if (Tolerant)
-        {
-            // Data written by an older version may end before any member (the rest keep their current or default
-            // value); members appended by a newer one are skipped with the region.
-            foreach (var member in members)
-            {
-                _w.Line($"if ({r}.Eof) {eof}");
-                EmitMemberRead(member, r, inPlace);
-            }
-
-            return;
-        }
-
         foreach (var group in RawBlock.Groups(members))
         {
             if (group.Count == 1)
             {
+                if (Tolerant)
+                    _w.Line($"if ({r}.Eof) {eof}");
                 EmitMemberRead(group[0], r, inPlace);
                 continue;
             }
 
             var block = new RawBlock(group);
-            string p = "__p" + _blocks++;
-            _w.Line($"ref byte {p} = ref {r}.ReadBlock({block.Total});");
-            for (int i = 0; i < group.Count; i++)
+            if (!Tolerant)
             {
-                _w.Line(Store(_m, group[i], inPlace,
-                    $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})", _target));
+                EmitRawBlockRead(group, block, r, inPlace);
+                continue;
             }
+
+            // Data written by an older version may end before any member (the rest keep their current or default
+            // value); members appended by a newer one are skipped with the region. A run of raw members that is
+            // all there (always, but for older data) is read as one block, under one check.
+            _w.Open($"if ((uint){r}.Remaining >= (uint)({block.Total}))");
+            EmitRawBlockRead(group, block, r, inPlace);
+            _w.Close();
+            _w.Open("else");
+            foreach (var member in group)
+            {
+                _w.Line($"if ({r}.Eof) {eof}");
+                EmitMemberRead(member, r, inPlace);
+            }
+
+            _w.Close();
+        }
+    }
+
+    /// <summary>The raw members of <paramref name="group"/>, read from one block of <paramref name="r"/>.</summary>
+    private void EmitRawBlockRead(List<MemberModel> group, RawBlock block, string r, bool inPlace)
+    {
+        string p = "__p" + _blocks++;
+        _w.Line($"ref byte {p} = ref {r}.ReadBlock({block.Total});");
+        for (int i = 0; i < group.Count; i++)
+        {
+            _w.Line(Store(_m, group[i], inPlace,
+                $"{Core}NinoUnsafe.Read<{group[i].TypeName}>(ref {p}, {block.Offsets[i]})", _target));
         }
     }
 
