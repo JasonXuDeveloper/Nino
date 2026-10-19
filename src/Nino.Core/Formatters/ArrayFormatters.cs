@@ -41,7 +41,7 @@ namespace Nino.Core
             // No span over a reference: raw elements as one block, the others one by one.
             if (RawFormatter.Is<T, TFormatter>())
             {
-                NinoLayout<T>.CopyToWire(ref writer.Reserve(checked(count * Unsafe.SizeOf<T>())),
+                NinoLayout<T>.CopyToWire(ref writer.ReserveElements(count, Unsafe.SizeOf<T>()),
                     ref Unsafe.As<T, byte>(ref first), count);
                 return;
             }
@@ -64,8 +64,8 @@ namespace Nino.Core
 #if NETSTANDARD2_0
             if (RawFormatter.Is<T, TFormatter>())
             {
-                int size = checked(count * Unsafe.SizeOf<T>());
-                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first), ref reader.ReadBlock(size), (uint)size);
+                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first),
+                    ref reader.ReadElements(count, Unsafe.SizeOf<T>()), (uint)count * (uint)Unsafe.SizeOf<T>());
                 return;
             }
 
@@ -88,7 +88,7 @@ namespace Nino.Core
             if (block > 0)
             {
                 if (!values.IsEmpty)
-                    WriteBlock<T, TFormatter>(ref writer.Reserve(checked(values.Length * block)), values);
+                    WriteBlock<T, TFormatter>(ref writer.ReserveElements(values.Length, block), values);
                 return;
             }
 
@@ -169,16 +169,16 @@ namespace Nino.Core
             // Raw elements: one bounds check and one block copy (see Write).
             if (RawFormatter.Is<T, TFormatter>())
             {
-                int size = checked(values.Length * Unsafe.SizeOf<T>());
                 NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
-                    ref reader.ReadBlock(size), (uint)size);
+                    ref reader.ReadElements(values.Length, Unsafe.SizeOf<T>()),
+                    (uint)values.Length * (uint)Unsafe.SizeOf<T>());
                 return;
             }
 
             if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
             {
                 DateTimeOffsetFormatter.ReadAll(
-                    ref reader.ReadBlock(checked(values.Length * NinoWire.DateTimeOffsetSize)),
+                    ref reader.ReadElements(values.Length, NinoWire.DateTimeOffsetSize),
                     ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
                 return;
             }
@@ -186,7 +186,7 @@ namespace Nino.Core
             int block = NinoBlock.Size<T, TFormatter>();
             if (block > 0)
             {
-                NinoBlock.ReadAll<T, TFormatter>(ref reader.ReadBlock(checked(values.Length * block)),
+                NinoBlock.ReadAll<T, TFormatter>(ref reader.ReadElements(values.Length, block),
                     ref MemoryMarshal.GetReference(values), values.Length, block);
                 return;
             }
@@ -464,9 +464,7 @@ namespace Nino.Core
         /// <summary>Writes the count and the elements.</summary>
         public static void Write(ReadOnlySpan<T?> values, ref Writer writer)
         {
-            ref byte dst = ref writer.Reserve(checked(NinoWire.LengthSize + values.Length * Stride));
-            NinoUnsafe.Write(ref dst, values.Length);
-            dst = ref Unsafe.Add(ref dst, NinoWire.LengthSize);
+            ref byte dst = ref writer.ReserveCounted(values.Length, Stride);
             if (values.IsEmpty)
                 return;
             ref T? item = ref MemoryMarshal.GetReference(values);
@@ -495,7 +493,7 @@ namespace Nino.Core
         /// <summary>Reads <c>destination.Length</c> elements (the count has been read).</summary>
         public static void Read(Span<T?> destination, ref Reader reader)
         {
-            ref byte src = ref reader.ReadBlock(checked(destination.Length * Stride));
+            ref byte src = ref reader.ReadElements(destination.Length, Stride);
             if (destination.IsEmpty)
                 return;
             ref T? item = ref MemoryMarshal.GetReference(destination);

@@ -251,7 +251,7 @@ namespace Nino.Core
             {
                 // The block is taken here and the pairs added out of line: the reader's address never leaves the
                 // caller, and the caller stays small enough for the JIT to inline the rest of its path.
-                ref byte src = ref reader.ReadBlock(length * (Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()));
+                ref byte src = ref reader.ReadElements(length, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
                 AddRaw(dictionary, ref src, length);
                 return;
             }

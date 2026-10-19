@@ -536,7 +536,8 @@ namespace Nino.Core
 
         /// <summary>
         /// Copies <paramref name="count"/> canonical values to the wire, padding cleared in the same pass (masking
-        /// after a block copy would reload freshly stored bytes and stall on store forwarding).
+        /// after a block copy would reload freshly stored bytes and stall on store forwarding). The destination is
+        /// reserved by the caller, so the size fits an int: not checked again.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void CopyToWire(ref byte destination, ref byte source, int count)
@@ -544,7 +545,7 @@ namespace Nino.Core
             if (HasPadding)
                 Mask!.Copy(ref destination, ref source, count);
             else
-                NinoUnsafe.Copy(ref destination, ref source, (uint)checked(count * Unsafe.SizeOf<T>()));
+                NinoUnsafe.Copy(ref destination, ref source, (uint)count * (uint)Unsafe.SizeOf<T>());
         }
 
         /// <summary>Writes <paramref name="count"/> as an <c>int32</c>, then <see cref="CopyToWire"/>s the values.</summary>
