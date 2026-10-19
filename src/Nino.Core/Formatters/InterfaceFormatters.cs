@@ -76,11 +76,8 @@ namespace Nino.Core
         public static void WriteInterface<T, TFormatter>(IEnumerable<T> value, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             if (value is List<T> list)
             {

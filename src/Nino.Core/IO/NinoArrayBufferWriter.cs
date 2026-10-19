@@ -13,7 +13,6 @@ namespace Nino.Core
     public sealed class NinoArrayBufferWriter : IBufferWriter<byte>, IDisposable
     {
         private const int DefaultCapacity = 256;
-        private const int MaxArrayLength = 0x7FFFFFC7;
 
         // Fields rather than properties: Writer reads both when it is created, reloads Buffer after growing it and
         // stores Index on every flush; a property is only free where the JIT inlines it (not under Mono's interpreter).
@@ -152,8 +151,8 @@ namespace Nino.Core
             int current = Buffer.Length;
             int needed = checked(Index + sizeHint);
             int newSize = Math.Max(needed, current < DefaultCapacity ? DefaultCapacity : current * 2);
-            if ((uint)newSize > MaxArrayLength)
-                newSize = Math.Max(needed, MaxArrayLength);
+            if ((uint)newSize > NinoUnsafe.MaxArrayLength)
+                newSize = Math.Max(needed, NinoUnsafe.MaxArrayLength);
 
             var newBuffer = _pool.Rent(newSize);
             System.Buffer.BlockCopy(Buffer, 0, newBuffer, 0, Index);

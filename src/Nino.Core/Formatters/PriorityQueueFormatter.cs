@@ -15,11 +15,8 @@ namespace Nino.Core
     {
         public void Serialize(PriorityQueue<TElement, TPriority> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             writer.WriteLength(value.Count);
             foreach (var (element, priority) in value.UnorderedItems)
@@ -31,12 +28,8 @@ namespace Nino.Core
 
         public void Deserialize(ref PriorityQueue<TElement, TPriority> value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
-            }
 
             var queue = value;
             if (queue == null)

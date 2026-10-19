@@ -12,6 +12,14 @@ namespace Nino.Core
         public static void Write<T, TFormatter>(ref T first, int count, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // Raw elements (unmanaged values and raw [NinoType] structs) are copied as one block.
+            if (RawFormatter.Is<T, TFormatter>())
+            {
+                NinoLayout<T>.CopyToWire(ref writer.Reserve(checked(count * Unsafe.SizeOf<T>())),
+                    ref Unsafe.As<T, byte>(ref first), count);
+                return;
+            }
+
             for (int i = 0; i < count; i++)
                 default(TFormatter).Serialize(Unsafe.Add(ref first, i), ref writer);
         }
@@ -21,6 +29,14 @@ namespace Nino.Core
         public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // Raw elements: one bounds check and one block copy.
+            if (RawFormatter.Is<T, TFormatter>())
+            {
+                int size = checked(count * Unsafe.SizeOf<T>());
+                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref first), ref reader.ReadBlock(size), (uint)size);
+                return;
+            }
+
             for (int i = 0; i < count; i++)
                 default(TFormatter).Deserialize(ref Unsafe.Add(ref first, i), ref reader);
         }
@@ -215,24 +231,15 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T[] value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
-                return;
-            }
-
-            writer.WriteLength(value.Length);
-            NinoElements.Write<T, TFormatter>(value, ref writer);
+            if (!writer.TryWriteNullLength(value))
+                NinoCollections.WriteSpan<T, TFormatter>(value, ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T[] value, ref Reader reader)
         {
-            if (!reader.TryReadLength(1, out int length))
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
-            }
 
             // Raw elements are all overwritten by one block copy, DateTimeOffsets and blocks each in full: a new array need not
             // be zeroed first.
@@ -351,12 +358,8 @@ namespace Nino.Core
 
         private static void DeserializeConverted(ref T[] value, ref Reader reader)
         {
-            int length = reader.ReadLength(NinoLayout<T>.Size);
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoLayout<T>.Size, out int length))
                 return;
-            }
 
             reader.ReadUnmanagedRaw(NinoElements.EnsureLength(ref value, length, uninitialized: true).AsSpan());
         }
@@ -373,23 +376,16 @@ namespace Nino.Core
     {
         public void Serialize(T?[] value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             NinoNullables<T>.Write(value, ref writer);
         }
 
         public void Deserialize(ref T?[] value, ref Reader reader)
         {
-            int length = NinoNullables<T>.ReadCount(ref reader);
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
-            }
 
             NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, uninitialized: true), ref reader);
         }
@@ -456,9 +452,6 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>Reads the element count, validated against the remaining bytes (-1 for null).</summary>
-        public static int ReadCount(ref Reader reader) => reader.ReadLength(Stride);
-
         /// <summary>Reads <c>destination.Length</c> elements (the count has been read).</summary>
         public static void Read(Span<T?> destination, ref Reader reader)
         {
@@ -511,65 +504,47 @@ namespace Nino.Core
     {
         public void Serialize(ArraySegment<T> value, ref Writer writer)
         {
-            if (value.Array == null)
-            {
-                writer.WriteNullLength();
-                return;
-            }
-
-            writer.WriteLength(value.Count);
-            NinoElements.Write<T, TFormatter>(value.AsSpan(), ref writer);
+            if (!writer.TryWriteNullLength(value.Array))
+                NinoCollections.WriteSpan<T, TFormatter>(value.AsSpan(), ref writer);
         }
 
         public void Deserialize(ref ArraySegment<T> value, ref Reader reader)
         {
-            T[] array = null;
-            default(ArrayFormatter<T, TFormatter>).Deserialize(ref array, ref reader);
+            var array = NinoCollections.ReadArray<T, TFormatter>(ref reader);
             value = array == null ? default : new ArraySegment<T>(array);
         }
     }
 
-    /// <summary>
-    /// <c>T[,]</c>: both lengths (first is -1 for null), then the elements in row-major order.
-    /// </summary>
+    /// <summary><c>T[,]</c>: both lengths (first is -1 for null), then the elements in row-major order.</summary>
     public struct Array2DFormatter<T, TFormatter> : INinoFormatter<T[,]> where TFormatter : struct, INinoFormatter<T>
     {
         public void Serialize(T[,] value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
-            int a = value.GetLength(0), b = value.GetLength(1);
-            ref byte p = ref writer.Reserve(2 * NinoWire.LengthSize);
-            NinoUnsafe.Write(ref p, 0, a);
-            NinoUnsafe.Write(ref p, NinoWire.LengthSize, b);
+            MultiDim.WriteLengths(value, ref writer);
             if (value.Length != 0)
-                MultiDim.Write<T, TFormatter>(ref value[0, 0], value.Length, ref writer);
+                NinoElements.Write<T, TFormatter>(ref value[0, 0], value.Length, ref writer);
         }
 
         public void Deserialize(ref T[,] value, ref Reader reader)
         {
-            int a = MultiDim.ReadLength(ref reader);
-            if (a < 0)
+            if (!MultiDim.TryReadShape(ref reader, 2, out var shape))
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
-            int b = reader.UnsafeRead<int>();
-            int total = MultiDim.CheckedTotal(a, b, 1, 1, ref reader);
             var array = value;
-            if (array == null || array.GetLength(0) != a || array.GetLength(1) != b)
+            if (!MultiDim.SameShape(array, in shape))
             {
-                array = new T[a, b];
+                array = new T[shape.A, shape.B];
                 NinoRecycler.Replace(ref value, array);
             }
 
-            if (total != 0)
-                MultiDim.Read<T, TFormatter>(ref array[0, 0], total, ref reader);
+            if (shape.Total != 0)
+                NinoElements.Read<T, TFormatter>(ref array[0, 0], shape.Total, ref reader);
         }
     }
 
@@ -578,41 +553,31 @@ namespace Nino.Core
     {
         public void Serialize(T[,,] value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
-            ref byte p = ref writer.Reserve(3 * NinoWire.LengthSize);
-            NinoUnsafe.Write(ref p, 0, value.GetLength(0));
-            NinoUnsafe.Write(ref p, NinoWire.LengthSize, value.GetLength(1));
-            NinoUnsafe.Write(ref p, 2 * NinoWire.LengthSize, value.GetLength(2));
+            MultiDim.WriteLengths(value, ref writer);
             if (value.Length != 0)
-                MultiDim.Write<T, TFormatter>(ref value[0, 0, 0], value.Length, ref writer);
+                NinoElements.Write<T, TFormatter>(ref value[0, 0, 0], value.Length, ref writer);
         }
 
         public void Deserialize(ref T[,,] value, ref Reader reader)
         {
-            int a = MultiDim.ReadLength(ref reader);
-            if (a < 0)
+            if (!MultiDim.TryReadShape(ref reader, 3, out var shape))
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
-            int b = reader.UnsafeRead<int>();
-            int c = reader.UnsafeRead<int>();
-            int total = MultiDim.CheckedTotal(a, b, c, 1, ref reader);
             var array = value;
-            if (array == null || array.GetLength(0) != a || array.GetLength(1) != b || array.GetLength(2) != c)
+            if (!MultiDim.SameShape(array, in shape))
             {
-                array = new T[a, b, c];
+                array = new T[shape.A, shape.B, shape.C];
                 NinoRecycler.Replace(ref value, array);
             }
 
-            if (total != 0)
-                MultiDim.Read<T, TFormatter>(ref array[0, 0, 0], total, ref reader);
+            if (shape.Total != 0)
+                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0], shape.Total, ref reader);
         }
     }
 
@@ -621,103 +586,89 @@ namespace Nino.Core
     {
         public void Serialize(T[,,,] value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
-            ref byte p = ref writer.Reserve(4 * NinoWire.LengthSize);
-            NinoUnsafe.Write(ref p, 0, value.GetLength(0));
-            NinoUnsafe.Write(ref p, NinoWire.LengthSize, value.GetLength(1));
-            NinoUnsafe.Write(ref p, 2 * NinoWire.LengthSize, value.GetLength(2));
-            NinoUnsafe.Write(ref p, 3 * NinoWire.LengthSize, value.GetLength(3));
+            MultiDim.WriteLengths(value, ref writer);
             if (value.Length != 0)
-                MultiDim.Write<T, TFormatter>(ref value[0, 0, 0, 0], value.Length, ref writer);
+                NinoElements.Write<T, TFormatter>(ref value[0, 0, 0, 0], value.Length, ref writer);
         }
 
         public void Deserialize(ref T[,,,] value, ref Reader reader)
         {
-            int a = MultiDim.ReadLength(ref reader);
-            if (a < 0)
+            if (!MultiDim.TryReadShape(ref reader, 4, out var shape))
             {
                 NinoRecycler.Discard(ref value);
                 return;
             }
 
-            int b = reader.UnsafeRead<int>();
-            int c = reader.UnsafeRead<int>();
-            int d = reader.UnsafeRead<int>();
-            int total = MultiDim.CheckedTotal(a, b, c, d, ref reader);
             var array = value;
-            if (array == null || array.GetLength(0) != a || array.GetLength(1) != b || array.GetLength(2) != c ||
-                array.GetLength(3) != d)
+            if (!MultiDim.SameShape(array, in shape))
             {
-                array = new T[a, b, c, d];
+                array = new T[shape.A, shape.B, shape.C, shape.D];
                 NinoRecycler.Replace(ref value, array);
             }
 
-            if (total != 0)
-                MultiDim.Read<T, TFormatter>(ref array[0, 0, 0, 0], total, ref reader);
+            if (shape.Total != 0)
+                NinoElements.Read<T, TFormatter>(ref array[0, 0, 0, 0], shape.Total, ref reader);
         }
     }
 
+    /// <summary>The lengths of a multidimensional array (1 past its rank) and its element count.</summary>
+    internal struct ArrayShape
+    {
+        public int A, B, C, D, Total;
+    }
+
+    /// <summary>The lengths of the multidimensional array formatters.</summary>
     internal static class MultiDim
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Write<T, TFormatter>(ref T first, int count, ref Writer writer)
-            where TFormatter : struct, INinoFormatter<T>
+        /// <summary>Writes the length of each dimension of <paramref name="value"/> (not null).</summary>
+        public static void WriteLengths(Array value, ref Writer writer)
         {
-            // Raw elements (unmanaged values and raw [NinoType] structs) are copied as one block.
-            if (RawFormatter.Is<T, TFormatter>())
-            {
-                int size = checked(count * Unsafe.SizeOf<T>());
-                NinoLayout<T>.CopyToWire(ref writer.Reserve(size), ref Unsafe.As<T, byte>(ref first), count);
-                return;
-            }
-
-            NinoElements.Write<T, TFormatter>(ref first, count, ref writer);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader)
-            where TFormatter : struct, INinoFormatter<T>
-        {
-            // Raw elements (unmanaged values and raw [NinoType] structs) are copied as one block.
-            if (RawFormatter.Is<T, TFormatter>())
-            {
-                int size = checked(count * Unsafe.SizeOf<T>());
-                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref first), ref reader.ReadBlock(size), (uint)size);
-                return;
-            }
-
-            NinoElements.Read<T, TFormatter>(ref first, count, ref reader);
+            int rank = value.Rank;
+            ref byte p = ref writer.Reserve(rank * NinoWire.LengthSize);
+            for (int i = 0; i < rank; i++)
+                NinoUnsafe.Write(ref p, i * NinoWire.LengthSize, value.GetLength(i));
         }
 
         /// <summary>
-        /// The first length (-1 for null). Not checked against the remaining bytes: another dimension may be 0, so
-        /// a single length says nothing about the payload; <see cref="CheckedTotal"/> checks the product.
+        /// Reads the <paramref name="rank"/> lengths (false when the first is -1, for null) and checks them: rejects
+        /// negative lengths, lengths no array can have and more elements than bytes left (every element takes at
+        /// least one byte). The first length alone is not checked against the remaining bytes: another dimension
+        /// may be 0, so a single length says nothing about the payload.
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int ReadLength(ref Reader reader) => reader.ReadLength(minElementSize: 0);
-
-        /// <summary>Longest dimension the runtime can allocate, also when the array is empty.</summary>
-        private const int MaxLength = 0x7FFFFFC7;
-
-        /// <summary>
-        /// The element count of the other lengths read raw: rejects negative lengths, lengths no array can have and
-        /// more elements than bytes left (every element takes at least one byte).
-        /// </summary>
-        public static int CheckedTotal(int a, int b, int c, int d, ref Reader reader)
+        public static bool TryReadShape(ref Reader reader, int rank, out ArrayShape shape)
         {
+            shape = new ArrayShape { B = 1, C = 1, D = 1 };
+            if (!reader.TryReadLength(0, out shape.A))
+                return false;
+            shape.B = reader.UnsafeRead<int>();
+            if (rank > 2)
+                shape.C = reader.UnsafeRead<int>();
+            if (rank > 3)
+                shape.D = reader.UnsafeRead<int>();
+            int a = shape.A, b = shape.B, c = shape.C, d = shape.D;
             if (b < 0 || c < 0 || d < 0)
                 NinoThrow.InvalidLength(Math.Min(b, Math.Min(c, d)));
-            if (a > MaxLength || b > MaxLength || c > MaxLength || d > MaxLength)
+            // Longest dimension the runtime can allocate, also when the array is empty.
+            const int max = NinoUnsafe.MaxArrayLength;
+            if (a > max || b > max || c > max || d > max)
                 NinoThrow.InvalidLength(Math.Max(Math.Max(a, b), Math.Max(c, d)));
             long total = (long)a * b * c * d;
             if (total > reader.Remaining)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));
-            return (int)total;
+            shape.Total = (int)total;
+            return true;
+        }
+
+        /// <summary>Whether <paramref name="array"/> is not null and of <paramref name="shape"/>.</summary>
+        public static bool SameShape(Array array, in ArrayShape shape)
+        {
+            if (array == null || array.GetLength(0) != shape.A || array.GetLength(1) != shape.B)
+                return false;
+            int rank = array.Rank;
+            return (rank < 3 || array.GetLength(2) == shape.C) && (rank < 4 || array.GetLength(3) == shape.D);
         }
     }
 }
