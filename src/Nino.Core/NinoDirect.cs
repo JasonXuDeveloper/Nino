@@ -18,7 +18,9 @@ namespace Nino.Core
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static byte[] Serialize<T, TFormatter>(in T value) where TFormatter : struct, INinoFormatter<T> =>
-            SerializeToArray<T, TFormatter>(value);
+            NinoSized.Is<T, TFormatter>() && NinoSized.Serialize<T, TFormatter>(value) is { } sized
+                ? sized
+                : SerializeToArray<T, TFormatter>(value);
 
         /// <summary>
         /// <see cref="NinoSerializer.Serialize{T}(in T)"/> of a value whose size is fixed: the result is allocated at

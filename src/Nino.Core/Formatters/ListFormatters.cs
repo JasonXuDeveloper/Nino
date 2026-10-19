@@ -10,10 +10,17 @@ namespace Nino.Core
     /// <c>List&lt;T&gt;</c> (or a type derived from it): count (-1 = null), then the elements.
     /// An existing list is reused, and its elements are reused by index.
     /// </summary>
-    public struct ListFormatter<[NinoCreated] TList, T, TFormatter> : INinoFormatter<TList>
+    public struct ListFormatter<[NinoCreated] TList, T, TFormatter> : INinoFormatter<TList>, INinoSizedFormatter<TList>
         where TList : List<T>
         where TFormatter : struct, INinoFormatter<T>
     {
+        int INinoSizedFormatter<TList>.Size(TList value) =>
+            NinoElements.SizedBytes<T, TFormatter>(value == null ? -1 : value.Count);
+
+        void INinoSizedFormatter<TList>.WriteSized(TList value, ref byte destination) =>
+            NinoElements.WriteSized<T, TFormatter>(ref destination,
+                value == null ? default : (ReadOnlySpan<T>)ListAccess.AsSpan<T>(value), value == null);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TList value, ref Writer writer)
         {
@@ -58,10 +65,28 @@ namespace Nino.Core
     }
 
     /// <summary>Unmanaged <c>List&lt;T&gt;</c>: count (-1 = null), then one block copy.</summary>
-    public struct UnmanagedListFormatter<[NinoCreated] TList, [NinoRaw] T> : INinoFormatter<TList>
+    public struct UnmanagedListFormatter<[NinoCreated] TList, [NinoRaw] T> : INinoFormatter<TList>,
+        INinoSizedFormatter<TList>
         where TList : List<T>
         where T : unmanaged
     {
+        // The layout of Writer.Write(ReadOnlySpan<T>) where T's memory is its wire layout.
+        int INinoSizedFormatter<TList>.Size(TList value) =>
+            !NinoLayout<T>.IsCanonical ? -1
+            : value == null ? NinoWire.LengthSize
+            : (long)value.Count * Unsafe.SizeOf<T>() + NinoWire.LengthSize is var size && size <= int.MaxValue
+                ? (int)size
+                : -1;
+
+        void INinoSizedFormatter<TList>.WriteSized(TList value, ref byte destination)
+        {
+            if (value == null)
+                NinoUnsafe.Write(ref destination, NinoWire.NullLength);
+            else
+                NinoLayout<T>.WriteLengthPrefixed(ref destination,
+                    ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(ListAccess.AsSpan<T>(value))), value.Count);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TList value, ref Writer writer)
         {
