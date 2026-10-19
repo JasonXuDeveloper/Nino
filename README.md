@@ -21,7 +21,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 [**vs MemoryPack**](https://nino.xgamedev.net/en/docs/v4/vs-memorypack) ·
 [**中文**](https://github.com/JasonXuDeveloper/Nino/blob/main/README.zh.md)
 
-**Up to <!--bench:ser.max-->5.6<!--/bench-->× faster** serialization and **<!--bench:reuse.inplace-->11.5<!--/bench-->× faster** in-place deserialization than MemoryPack<br>
+**Up to <!--bench:ser.max-->5.6<!--/bench-->× faster** serialization and **up to <!--bench:reuse.inplace-->11.5<!--/bench-->× faster** in-place deserialization than MemoryPack<br>
 **Zero GC** allocations on hot paths · **221× faster** builds than v3
 
 </div>

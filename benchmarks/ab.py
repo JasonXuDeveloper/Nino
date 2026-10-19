@@ -9,7 +9,7 @@ against MemoryPack's case of the same name in head. Times may be in any unit Ben
 import re
 import sys
 
-UNITS = {"ns": 1, "μs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
+UNITS = {"ns": 1, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
 
 
 def means(path):
@@ -22,7 +22,7 @@ def means(path):
                 break
             header = None
             continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        cells = [cell.strip().strip("*") for cell in line.strip().strip("|").split("|")]
         if header is None:
             header = cells if "Method" in cells and "Mean" in cells else []
             continue
@@ -43,7 +43,7 @@ def show(ns):
 
 
 def ratio(slow, fast):
-    if fast < 0.1 or slow < 0.1:  # too fast to measure (readme.py's FLOOR_NS)
+    if fast < 1.0 or slow < 1.0:  # too fast to tell apart (readme.py's FLOOR_NS)
         return "-"
     return f"{slow / fast:.2f}x"
 

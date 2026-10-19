@@ -18,7 +18,12 @@ and the release notes use the full protocol, which is what supports "x× faster"
 
 Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
 reports are in `<out>/v3` and `<out>/v4`. `dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll
---verify` checks that both versions round-trip the benchmark data and prints the payload sizes.
+--verify` checks that v3 round-trips the benchmark data and prints the payload sizes; `--verify` on v4's
+`Nino.Benchmark.dll` (`src/Nino.Benchmark/Verify.cs`, run by `run.sh`, `report.yml` and the PR benchmark job) checks
+every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
+same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
+serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`: each to the
+writer it writes in place.
 
 The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come from an earlier local run (that one ran v3
 before and after v4); the release notes of each release carry its current numbers.
@@ -45,8 +50,8 @@ python3 benchmarks/readme.py --v4 out/v4/results/*-joined-*-report-github.md \
 ```
 
 Within 5% is written as "on par", and a case where v4 is slower is left out of the README's v3 sentence and is a
-dash in the tables. A v4 time under 0.1 ns against a measurable one is "faster (too fast to measure)", with no
-ratio.
+dash in the tables. A time under 1 ns (about three clock cycles) cannot be told apart from another: a v4 time under
+it against a measurable one is "faster (too fast to measure)", with no ratio, and both under it are on par.
 Build-time numbers and everything outside the markers are edited by hand.
 
 ## Benchmark Classes

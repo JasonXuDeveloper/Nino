@@ -56,9 +56,17 @@ polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks. Thes
 <!--bench:doc.source-->the performance report of [v4.0.0-rc.6](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.6): BenchmarkDotNet 0.15.8, .NET 10.0.13, AMD EPYC 7763 2.59 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
 
 Differences under 5% are reported as on par: MemoryPack runs in both sessions, and its two times show how much the
-runner moved. A time under 0.1 ns (a third of a clock cycle) cannot be told apart from an empty method: v4 under it
-against a measurable time is faster, too fast to measure, with no ratio. A dash in a "vs" column means the case was
-not measured there, or v4 is not ahead.
+runner moved. A time under 1 ns (about three clock cycles) cannot be told apart from another: reading a 40-byte struct
+measures anywhere from 0.05 to 0.8 ns in both libraries, once BenchmarkDotNet subtracts its empty-method overhead.
+v4 under 1 ns against a measurable time is faster, too fast to measure, with no ratio; both under it is on par. A dash
+in a "vs" column means the case was not measured there, or v4 is not ahead.
+
+Each library serializes to its own buffer writer: Nino to `NinoArrayBufferWriter`, MemoryPack and MessagePack to
+`ArrayBufferWriter<byte>`. Nino writes in place only into its own; into any other `IBufferWriter<byte>` it writes a
+pooled buffer and then copies it over, one copy more than these tables measure.
+Before the benchmarks run, `--verify` (`src/Nino.Benchmark/Verify.cs`) checks every case: each serialize case writes
+its payload's bytes, and every deserialize case of a category reads back the same value, deep-compared. The data is
+seeded, so every run serializes the same values.
 
 ### Serialize (to a reused buffer writer)
 
@@ -137,7 +145,9 @@ base; a tree; a padded struct array; and a string dictionary. `CollectionsTest` 
 class library: a list of tuples, an array of key-value pairs, and hashed, queued, linked, sorted and concurrent
 collections. `BclTypesTest` covers the other base class library types both libraries have formatters for: `BigInteger`,
 `Uri`, `Version`, `StringBuilder`, `BitArray`, `CultureInfo`, `TimeZoneInfo`, `Lazy<T>`, memory and sequences, read-only,
-lookup and blocking collections, and the immutable collections.
+lookup and blocking collections, and the immutable collections. Its `TimeZoneInfo` case measures a design difference
+more than speed: Nino writes a system time zone by its id and reads it back from the system's cached zones, while
+MemoryPack writes and parses the zone's whole serialized string on every call.
 
 <!--bench:doc.table.extra-->
 | Case | Serialize v4 | MemoryPack | v4 vs MemoryPack | Deserialize v4 | MemoryPack | v4 vs MemoryPack |
