@@ -120,9 +120,9 @@ internal static class AccessorEmitter
             w.Line("s_ninoPool.Add(this, ref t_ninoPool);");
         });
         w.Line();
-        // Inlined into the reads (a take from this thread's stack); the warmup, run once, is out of line.
+        // Left to the JIT's own heuristics: forced inline into every read of the type, the take (still a call) only
+        // grew those reads. The warmup, run once, is out of line.
         w.Line(HiddenAttribute);
-        w.Line(InlineAttribute);
         w.Block($"internal static {t} RentFromNinoPool()", () =>
         {
             w.Line("if (s_ninoPool.BeginWarmup())");
