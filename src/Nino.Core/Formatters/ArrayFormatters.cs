@@ -19,12 +19,26 @@ namespace Nino.Core
         public static bool CopiedWhole<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             RawFormatter.Is<T, TFormatter>() || NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory;
 
-        /// <summary>Writes <paramref name="count"/> elements starting at <paramref name="first"/>.</summary>
+        /// <summary>
+        /// Whether <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> overwrites every element
+        /// whatever it held (raw elements, DateTimeOffsets and blocks are each read in full), so the slots need not
+        /// be cleared or zeroed first. A JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool ReadOverwrites<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            RawFormatter.Is<T, TFormatter>() || typeof(TFormatter) == typeof(DateTimeOffsetFormatter) ||
+            NinoBlock.Size<T, TFormatter>() > 0;
+
+        /// <summary>
+        /// Writes <paramref name="count"/> elements starting at <paramref name="first"/> (a multi-dimensional array's),
+        /// as <see cref="Write{T,TFormatter}(ReadOnlySpan{T}, ref Writer)"/> writes a span of them.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write<T, TFormatter>(ref T first, int count, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // Raw elements (unmanaged values and raw [NinoType] structs) are copied as one block.
+#if NETSTANDARD2_0
+            // No span over a reference: raw elements as one block, the others one by one.
             if (RawFormatter.Is<T, TFormatter>())
             {
                 NinoLayout<T>.CopyToWire(ref writer.Reserve(checked(count * Unsafe.SizeOf<T>())),
@@ -34,14 +48,20 @@ namespace Nino.Core
 
             for (int i = 0; i < count; i++)
                 default(TFormatter).Serialize(Unsafe.Add(ref first, i), ref writer);
+#else
+            Write<T, TFormatter>(MemoryMarshal.CreateReadOnlySpan(ref first, count), ref writer);
+#endif
         }
 
-        /// <summary>Reads <paramref name="count"/> elements into the slots starting at <paramref name="first"/>.</summary>
+        /// <summary>
+        /// Reads <paramref name="count"/> elements into the slots starting at <paramref name="first"/> (a
+        /// multi-dimensional array's), as <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> reads a span of them.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Read<T, TFormatter>(ref T first, int count, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // Raw elements: one bounds check and one block copy.
+#if NETSTANDARD2_0
             if (RawFormatter.Is<T, TFormatter>())
             {
                 int size = checked(count * Unsafe.SizeOf<T>());
@@ -51,6 +71,9 @@ namespace Nino.Core
 
             for (int i = 0; i < count; i++)
                 default(TFormatter).Deserialize(ref Unsafe.Add(ref first, i), ref reader);
+#else
+            Read<T, TFormatter>(MemoryMarshal.CreateSpan(ref first, count), ref reader);
+#endif
         }
 
         /// <summary>Writes the elements of a span.</summary>
@@ -176,11 +199,14 @@ namespace Nino.Core
 
         /// <summary>
         /// Returns <paramref name="array"/> when it has <paramref name="length"/> elements; otherwise replaces it with
-        /// an array of that length, moving over the elements that fit (unless <paramref name="uninitialized"/>: the
-        /// caller overwrites every element) and recycling the rest (and the old array).
+        /// an array of that length (allocated uninitialized when <paramref name="uninitialized"/>, see
+        /// <see cref="NinoUnsafe.NewArray{T}"/>), moving over the elements that fit (unless the caller overwrites every
+        /// element: <paramref name="overwritten"/>, or <paramref name="uninitialized"/>) and recycling the rest (and
+        /// the old array).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T[] EnsureLength<T>(ref T[] array, int length, bool uninitialized = false)
+        public static T[] EnsureLength<T>(ref T[] array, int length, bool uninitialized = false,
+            bool overwritten = false)
         {
             var current = array;
             if (current == null)
@@ -197,7 +223,7 @@ namespace Nino.Core
             // Resize takes the old array by value and the slot is stored here: the slot's address reaching a call
             // would keep it in memory when it is a local (the value of a property, read into a local and stored back
             // after), with a store and a reload around the call, and zeroed in the prolog.
-            var resized = Resize(current, length, uninitialized);
+            var resized = Resize(current, length, uninitialized, overwritten | uninitialized);
             array = resized;
             // As NinoRecycler.Replace: the old array is recycled once the new one took the slot (the shared empty
             // array never is).
@@ -208,20 +234,20 @@ namespace Nino.Core
 
         /// <summary>
         /// A new array of <paramref name="length"/> elements for <paramref name="old"/> (null, or of another length):
-        /// moves over the elements that fit (unless <paramref name="uninitialized"/>), recycles the rest and clears
+        /// moves over the elements that fit (unless <paramref name="overwritten"/>), recycles the rest and clears
         /// the old array. The caller stores the result and recycles the old array.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static T[] Resize<T>(T[] old, int length, bool uninitialized)
+        private static T[] Resize<T>(T[] old, int length, bool uninitialized, bool overwritten)
         {
             var result = NinoUnsafe.NewArray<T>(length, uninitialized);
             // Nothing to move or drop (the shared empty array is never recycled).
             if (old == null || old.Length == 0)
                 return result;
 
-            // The elements that fit move to the new array (which now owns them; an uninitialized one is about to be
-            // overwritten, so they are dropped too), the rest are dropped, and the emptied old array is replaced.
-            int keep = uninitialized ? 0 : Math.Min(old.Length, length);
+            // The elements that fit move to the new array (which now owns them; one about to be overwritten drops
+            // them too), the rest are dropped, and the emptied old array is replaced.
+            int keep = overwritten ? 0 : Math.Min(old.Length, length);
             Array.Copy(old, result, keep);
             NinoRecycler.DiscardAll(old.AsSpan(keep));
             if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
@@ -254,7 +280,8 @@ namespace Nino.Core
                 return;
 
             NinoElements.Read<T, TFormatter>(
-                NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>()), ref reader);
+                NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>(),
+                    NinoElements.ReadOverwrites<T, TFormatter>()), ref reader);
         }
     }
 
@@ -395,7 +422,8 @@ namespace Nino.Core
                 return;
 
             // Uninitialized only for a block copy (NinoElements.CopiedWhole).
-            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, NinoNullables<T>.Raw), ref reader);
+            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, NinoNullables<T>.Raw, overwritten: true),
+                ref reader);
         }
     }
 

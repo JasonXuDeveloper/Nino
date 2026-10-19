@@ -35,11 +35,11 @@ namespace Nino.Core
                 return;
 
             var list = value;
-            // Fixed-size values are each read in full: a new list's backing array need not be cleared first.
-            bool overwritten = false;
+            // Values each read in full: neither a new list's backing array nor an existing one's new slots need be
+            // cleared first.
+            bool overwritten = NinoElements.ReadOverwrites<T, TFormatter>();
             if (list == null)
             {
-                overwritten = NinoBlock.Size<T, TFormatter>() > 0;
                 value = list = overwritten
                     ? ListAccess.CreateOverwritten<TList, T>(length, NinoElements.CopiedWhole<T, TFormatter>())
                     : ListAccess.Create<TList, T>(length);

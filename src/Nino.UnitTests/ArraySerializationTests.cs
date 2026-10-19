@@ -57,6 +57,36 @@ public class ArraySerializationTests
     }
 
     [TestMethod]
+    public void MultiDimensionalArraysOfBlocksWriteTheElementsOfAFlatArray()
+    {
+        // Fixed-size elements that are not raw (tuples with padding, DateTimeOffsets) go through the block paths of
+        // flat arrays: the elements, after the shape, are the bytes of the same elements in a flat array.
+        var tuples = new (int, long)[2, 3];
+        var times = new DateTimeOffset[3, 2];
+        var flatTuples = new (int, long)[6];
+        var flatTimes = new DateTimeOffset[6];
+        for (int i = 0; i < 6; i++)
+        {
+            tuples[i / 3, i % 3] = flatTuples[i] = (i - 3, (long)i << 40);
+            times[i / 2, i % 2] = flatTimes[i] =
+                new DateTimeOffset(2020 + i, 1 + i, 1, 0, 0, 0, TimeSpan.FromMinutes(30 * i - 60));
+        }
+
+        AssertElements(NinoSerializer.Serialize(tuples), NinoSerializer.Serialize(flatTuples));
+        AssertElements(NinoSerializer.Serialize(times), NinoSerializer.Serialize(flatTimes));
+        CollectionAssert.AreEqual(tuples, NinoDeserializer.Deserialize<(int, long)[,]>(NinoSerializer.Serialize(tuples)));
+        CollectionAssert.AreEqual(times, NinoDeserializer.Deserialize<DateTimeOffset[,]>(NinoSerializer.Serialize(times)));
+
+        // Read into an existing array of the same shape, reused.
+        var existing = new (int, long)[2, 3];
+        NinoDeserializer.Deserialize(NinoSerializer.Serialize(tuples), ref existing);
+        CollectionAssert.AreEqual(tuples, existing);
+
+        static void AssertElements(byte[] shaped, byte[] flat) =>
+            CollectionAssert.AreEqual(flat[4..], shaped[^(flat.Length - 4)..]);
+    }
+
+    [TestMethod]
     public void TestMultiDimensionalArrays()
     {
         // Test 1: 2D array of primitive type (int)
