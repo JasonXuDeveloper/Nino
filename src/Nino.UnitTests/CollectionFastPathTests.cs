@@ -386,6 +386,43 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void BlocksReadAtEveryAlignment()
+    {
+        // Arrays are 8-byte aligned: 16-byte values start on a 64-byte boundary in some and 8 bytes past one in the
+        // others, read with different plans (AVX-512). Both, into memory full of garbage first.
+        ReadsAtEveryAlignment(i => (i, -7L * i));
+        ReadsAtEveryAlignment(i => new KeyValuePair<int, long>(i, i * 1000L));
+        ReadsAtEveryAlignment(i => (i * 3L, (byte)i));
+        ReadsAtEveryAlignment(i => ((short)i, (double)i / 3));
+    }
+
+    private static void ReadsAtEveryAlignment<T>(Func<int, T> make) where T : unmanaged
+    {
+        var seen = new HashSet<long>();
+        var keep = new List<object>();
+        foreach (int n in new[] { 33, 64, 100, 1000, 1001 })
+        {
+            var values = Enumerable.Range(0, n).Select(make).ToArray();
+            var bytes = NinoSerializer.Serialize(values);
+            for (int shift = 0; shift < 8; shift++)
+            {
+                keep.Add(new byte[shift * 8 + 1]);
+                var read = new T[n];
+                System.Runtime.InteropServices.MemoryMarshal.AsBytes(read.AsSpan()).Fill(0xFF);
+                var pin = System.Runtime.InteropServices.GCHandle.Alloc(read, System.Runtime.InteropServices.GCHandleType.Pinned);
+                seen.Add((long)pin.AddrOfPinnedObject() % 16);
+                pin.Free();
+                NinoDeserializer.Deserialize(bytes, ref read);
+                CollectionAssert.AreEqual(values, read, $"{typeof(T)} n={n} shift={shift}");
+            }
+        }
+
+        GC.KeepAlive(keep);
+        if (System.Runtime.CompilerServices.Unsafe.SizeOf<T>() % 16 == 0)
+            Assert.IsTrue(seen.Contains(0) && seen.Contains(8), $"{typeof(T)}: both alignments read ({string.Join(",", seen)})");
+    }
+
+    [TestMethod]
     public void SortedCollectionsAreBuiltInOnePass()
     {
         foreach (int n in Enumerable.Range(0, 70).Concat(new[] { 100, 1000 }))

@@ -86,7 +86,7 @@ namespace Nino.Core
                 ref byte source = ref Unsafe.As<T, byte>(ref first);
                 for (; i <= last; i += step)
                     Permute64(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination, (nuint)i * (nuint)size,
-                        toWire, default, keepAll: true);
+                        toWire);
             }
 
             // Then each value as one 16-byte vector, by one shuffle. The last values, whose vector would reach past
@@ -179,12 +179,15 @@ namespace Nino.Core
 
             int i = 0;
 #if NET8_0_OR_GREATER
-            // As WriteAll, the other way: padding bytes come out zero.
+            // As WriteAll, the other way. Padding is unspecified, as when a value is read a field at a time.
             ref byte destination = ref Unsafe.As<T, byte>(ref first);
+            if (NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled &&
+                NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >= NinoBlock<T, TFormatter>.Group)
+                i = ReadGroups<T, TFormatter>(ref source, ref first, count, size);
+
             if (NinoBlock<T, TFormatter>.Permutes)
             {
                 var toMemory = NinoBlock<T, TFormatter>.ToMemory64;
-                var fields = NinoBlock<T, TFormatter>.Fields64;
                 int step = NinoBlock<T, TFormatter>.PerVector;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 64);
                 // Where the values fill whole vectors (64 bytes a multiple of their size), the stores do not overlap:
@@ -206,7 +209,7 @@ namespace Nino.Core
 
                 for (; i <= last; i += step)
                     Permute64(ref source, (nuint)i * (nuint)size, ref destination, (nuint)i * (nuint)Unsafe.SizeOf<T>(),
-                        toMemory, fields, keepAll: false);
+                        toMemory);
             }
 
             if (NinoBlock<T, TFormatter>.Shuffles)
@@ -226,6 +229,104 @@ namespace Nino.Core
         }
 
 #if NET8_0_OR_GREATER
+        /// <summary>
+        /// The read groups of <see cref="ReadAll{T, TFormatter}"/>, two or more: returns the values read. Not inlined,
+        /// as <see cref="WriteGroups{T, TFormatter}"/>. Stores are aligned: the plan whose vectors start on a 64-byte
+        /// boundary at a value, or 8 bytes into one.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe int ReadGroups<T, TFormatter>(ref byte source, ref T first, int count, int size)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            nuint at = (nuint)Unsafe.AsPointer(ref first);
+            if (NinoBlock<T, TFormatter>.ReadPlan<NinoPhase8>.Enabled && at % 16 == 8)
+                return ReadGroups<T, TFormatter, NinoPhase8>(ref source, ref first, count, size, at);
+            return ReadGroups<T, TFormatter, NinoPhase0>(ref source, ref first, count, size, at);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ReadGroups<T, TFormatter, TPhase>(ref byte source, ref T first, int count, int size,
+            nuint at)
+            where TFormatter : struct, INinoFormatter<T>
+            where TPhase : struct, INinoPhase
+        {
+            int i = 0, phase = default(TPhase).Bytes;
+            int group = NinoBlock<T, TFormatter>.Group;
+            int last = NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Last(count);
+            ref byte destination = ref Unsafe.As<T, byte>(ref first);
+            // First the values before the first one whose vectors start on a 64-byte boundary, one at a time (from
+            // the first value, unaligned, when none does). With a phase, that value is read whole too: the group's
+            // vectors start past its first bytes, and each group's last vector writes those of the next.
+            int skip = 0;
+            while (skip < group && ((at + (nuint)(skip * Unsafe.SizeOf<T>() + phase)) & 63) != 0)
+                skip++;
+            if (skip == group)
+                skip = 0;
+            for (; i < skip + (phase > 0 ? 1 : 0); i++)
+                ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
+                    ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
+            i = skip;
+
+            // The indices from an array, not constants, so they stay in registers: the JIT reloads a vector
+            // constant at every use (1,000 (int, long) into an array: 135 to 150 ns, against 115 to 130 with them in
+            // registers).
+            var masks = NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Masks;
+            Vector512<byte> m0 = masks[0], m1 = masks[1], m2 = masks[2], m3 = masks[3];
+            for (; i <= last; i += group)
+                ReadGroup<T, TFormatter, TPhase>(ref source, (nuint)i * (nuint)size, ref destination,
+                    (nuint)i * (nuint)Unsafe.SizeOf<T>() + (nuint)phase, m0, m1, m2, m3);
+            return i;
+        }
+
+        /// <summary>One read group: the vectors of blocks loaded once, each memory vector one permute of two.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void ReadGroup<T, TFormatter, TPhase>(ref byte source, nuint from, ref byte destination,
+            nuint to, Vector512<byte> m0, Vector512<byte> m1, Vector512<byte> m2, Vector512<byte> m3)
+            where TFormatter : struct, INinoFormatter<T>
+            where TPhase : struct, INinoPhase
+        {
+            int loads = NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Loads;
+            int vectors = NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Vectors;
+            var w0 = Vector512.LoadUnsafe(ref source, from);
+            var w1 = loads > 1 ? Vector512.LoadUnsafe(ref source, from + 64) : default;
+            var w2 = loads > 2 ? Vector512.LoadUnsafe(ref source, from + 128) : default;
+            var w3 = loads > 3 ? Vector512.LoadUnsafe(ref source, from + 192) : default;
+            var w4 = loads > 4 ? Vector512.LoadUnsafe(ref source, from + 256) : default;
+            ReadVector<T, TFormatter, TPhase>(NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Base0, w0, w1, w2, w3, w4, m0)
+                .StoreUnsafe(ref destination, to);
+            if (vectors < 2)
+                return;
+            ReadVector<T, TFormatter, TPhase>(NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Base1, w0, w1, w2, w3, w4, m1)
+                .StoreUnsafe(ref destination, to + 64);
+            if (vectors < 3)
+                return;
+            ReadVector<T, TFormatter, TPhase>(NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Base2, w0, w1, w2, w3, w4, m2)
+                .StoreUnsafe(ref destination, to + 128);
+            if (vectors < 4)
+                return;
+            ReadVector<T, TFormatter, TPhase>(NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Base3, w0, w1, w2, w3, w4, m3)
+                .StoreUnsafe(ref destination, to + 192);
+        }
+
+        /// <summary>
+        /// A memory vector from vectors of blocks <paramref name="pair"/> and the next (a constant); the next is not
+        /// loaded (default) when the vector draws on <paramref name="pair"/> alone.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector512<byte> ReadVector<T, TFormatter, TPhase>(int pair, Vector512<byte> w0,
+            Vector512<byte> w1, Vector512<byte> w2, Vector512<byte> w3, Vector512<byte> w4, Vector512<byte> mask)
+            where TFormatter : struct, INinoFormatter<T>
+            where TPhase : struct, INinoPhase
+        {
+            var low = pair == 0 ? w0 : pair == 1 ? w1 : pair == 2 ? w2 : w3;
+            var high = pair == 0 ? w1 : pair == 1 ? w2 : pair == 2 ? w3 : w4;
+            // Padding takes whatever its index points at: as in a value read a field at a time, it is unspecified,
+            // and clearing it would take an instruction a vector (vpermt2d cannot zero by itself here).
+            return NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Words
+                ? Avx512F.PermuteVar16x32x2(low.AsInt32(), mask.AsInt32(), high.AsInt32()).AsByte()
+                : Avx512Vbmi.PermuteVar64x8x2(low, mask, high);
+        }
+
         /// <summary>
         /// One group of values (<see cref="NinoBlock{T, TFormatter}.Groups"/>) with AVX-512 VBMI, for blocks that do not
         /// move whole words: vector k of blocks is
@@ -351,18 +452,18 @@ namespace Nino.Core
         /// <summary>
         /// One 64-byte byte permute from <paramref name="source"/> + <paramref name="from"/> to
         /// <paramref name="destination"/> + <paramref name="to"/>: each byte written is the source byte its index
-        /// names, zero for an index from 0x80 up. AVX-512 VBMI's permute (which reads only an index's low six bits:
-        /// <paramref name="keep"/> zeroes those bytes, unless <paramref name="keepAll"/>), or on Arm64 four
-        /// 4-register table lookups, one per 16 bytes written.
+        /// names. AVX-512 VBMI's permute, which reads only an index's low six bits (so a padding byte, index 0x80, takes
+        /// some byte: unspecified, as when a value is read a field at a time), or on Arm64 four 4-register table
+        /// lookups, one per 16 bytes written.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Permute64(ref byte source, nuint from, ref byte destination, nuint to,
-            Vector512<byte> indices, Vector512<byte> keep, bool keepAll)
+            Vector512<byte> indices)
         {
             if (Avx512Vbmi.IsSupported)
             {
-                var permuted = Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, from), indices);
-                (keepAll ? permuted : permuted & keep).StoreUnsafe(ref destination, to);
+                Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, from), indices)
+                    .StoreUnsafe(ref destination, to);
                 return;
             }
 
@@ -376,6 +477,24 @@ namespace Nino.Core
         }
 #endif
     }
+
+#if NET8_0_OR_GREATER
+    /// <summary>A constant number of bytes, as a type argument (<see cref="NinoBlock{T, TFormatter}.ReadPlan{TPhase}"/>).</summary>
+    internal interface INinoPhase
+    {
+        int Bytes { get; }
+    }
+
+    internal struct NinoPhase0 : INinoPhase
+    {
+        public int Bytes => 0;
+    }
+
+    internal struct NinoPhase8 : INinoPhase
+    {
+        public int Bytes => 8;
+    }
+#endif
 
     /// <summary>
     /// How values of <typeparamref name="T"/> map to their blocks (<see cref="INinoBlockFormatter{T}.BlockMap"/>),
@@ -570,6 +689,133 @@ namespace Nino.Core
             return true;
         }
 
+        /// <summary>
+        /// Values read a group at a time (<see cref="Groups"/> the other way, with AVX-512): each 64-byte vector of
+        /// memory is one two-source permute of the two vectors of blocks it draws on, stored at an aligned address.
+        /// Its vectors start <typeparamref name="TPhase"/> bytes into a value: arrays are only 8-byte aligned, so
+        /// 16-byte values start on a 64-byte boundary in half of them and 8 bytes past one in the other half, where
+        /// 64-byte stores at value boundaries would each straddle two cache lines (1,000 12-byte
+        /// blocks into a list of 16-byte values on an AVX-512 Xeon: 260 to 275 ns, against 175 to 180 aligned).
+        /// </summary>
+        internal static class ReadPlan<TPhase> where TPhase : struct, INinoPhase
+        {
+            // Before the constants read from it (static fields initialize in order).
+            private static readonly GroupReads Plan = new GroupReads(default(TPhase).Bytes);
+
+            /// <summary>Whether values are read this way.</summary>
+            public static readonly bool Enabled = Plan.Masks != null;
+
+            /// <summary>Whether it moves whole 4-byte words (vpermt2d), else bytes (VBMI).</summary>
+            public static readonly bool Words = Plan.Words;
+
+            /// <summary>Memory vectors per group (<see cref="Group"/> values), and vectors of blocks loaded for them.</summary>
+            public static readonly int Vectors = Plan.Vectors, Loads = Plan.Loads;
+
+            /// <summary>For memory vector k of a group, the vector of blocks it draws on (with the next).</summary>
+            public static readonly int Base0 = Plan.Base(0), Base1 = Plan.Base(1), Base2 = Plan.Base(2),
+                Base3 = Plan.Base(3);
+
+            /// <summary>The permute indices of memory vector k (one int per word for <see cref="Words"/>).</summary>
+            public static readonly Vector512<byte>[] Masks = { Plan.Mask(0), Plan.Mask(1), Plan.Mask(2), Plan.Mask(3) };
+
+            /// <summary>
+            /// The last of <paramref name="count"/> values a group may start at: its loads stay inside the blocks,
+            /// and its stores (past the group by the phase) inside the values.
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static int Last(int count) =>
+                count - Math.Max(Group + (default(TPhase).Bytes > 0 ? 1 : 0),
+                    (Loads * 64 + NinoBlock.Size<T, TFormatter>() - 1) / NinoBlock.Size<T, TFormatter>());
+        }
+
+        /// <summary>How <see cref="ReadPlan{TPhase}"/> moves a group: worked out once, read into its constants.</summary>
+        private sealed class GroupReads
+        {
+            public readonly byte[] Masks;
+            public readonly int[] Bases = new int[4];
+            public readonly bool Words;
+            public readonly int Vectors, Loads;
+
+            public GroupReads(int phase)
+            {
+                int size = NinoBlock.Size<T, TFormatter>(), memorySize = Unsafe.SizeOf<T>();
+                if (Map == null || IsMemory || size >= memorySize || !Avx512F.IsSupported)
+                    return;
+                int group = 64 / Gcd(size, 64), vectors = group * memorySize / 64;
+                // A phase only where values can start that far past a boundary (8-byte aligned arrays).
+                if (group * memorySize % 64 != 0 || vectors > 4 || phase >= Gcd(memorySize, 64))
+                    return;
+                var masks = new byte[vectors * 64];
+                for (int k = 0; k < vectors; k++)
+                {
+                    // The block byte of each memory byte (-1: padding), and the vector of blocks the lowest is in.
+                    var wires = new int[64];
+                    int low = int.MaxValue;
+                    for (int b = 0; b < 64; b++)
+                    {
+                        int memory = phase + k * 64 + b, value = memory / memorySize, offset = memory % memorySize;
+                        int wire = -1;
+                        for (int i = 0; i < Map.Length; i += 3)
+                            if (offset >= Map[i] && offset < Map[i] + Map[i + 2])
+                                wire = value * size + Map[i + 1] + offset - Map[i];
+                        wires[b] = wire;
+                        if (wire >= 0)
+                            low = Math.Min(low, wire);
+                    }
+
+                    int first = low == int.MaxValue ? 0 : low / 64, high = 0;
+                    Bases[k] = first;
+                    for (int b = 0; b < 64; b++)
+                    {
+                        int index = wires[b] < 0 ? 0xFF : wires[b] - first * 64;
+                        if (wires[b] >= 0 && index >= 128)
+                            return;
+                        if (wires[b] >= 0)
+                            high = Math.Max(high, index);
+                        masks[k * 64 + b] = (byte)index;
+                    }
+
+                    // The next vector of blocks only when this one reaches into it.
+                    Loads = Math.Max(Loads, first + (high >= 64 ? 2 : 1));
+                }
+
+                // Words: each memory word padding only, or one whole aligned word of blocks.
+                bool words = true;
+                for (int w = 0; w < masks.Length && words; w += 4)
+                {
+                    bool padding = masks[w] == 0xFF && masks[w + 1] == 0xFF && masks[w + 2] == 0xFF &&
+                                   masks[w + 3] == 0xFF;
+                    words = padding || (masks[w] % 4 == 0 && masks[w + 1] == masks[w] + 1 &&
+                                        masks[w + 2] == masks[w] + 2 && masks[w + 3] == masks[w] + 3);
+                }
+
+                if (!words && !Avx512Vbmi.IsSupported)
+                    return;
+                Masks = masks;
+                Words = words;
+                Vectors = vectors;
+            }
+
+            public int Base(int k) => Masks != null && k < Vectors ? Bases[k] : 0;
+
+            public Vector512<byte> Mask(int k)
+            {
+                if (Masks == null || k >= Vectors)
+                    return default;
+                var mask = new byte[64];
+                for (int b = 0; b < 64; b++)
+                {
+                    int index = Masks[k * 64 + b] == 0xFF ? 0 : Masks[k * 64 + b];
+                    if (!Words)
+                        mask[b] = (byte)index;
+                    else if (b % 4 == 0)
+                        Unsafe.WriteUnaligned(ref mask[b], index / 4);
+                }
+
+                return Vector512.Create(mask);
+            }
+        }
+
         /// <summary>Values per 64-byte vector (at least 2).</summary>
         public static readonly int PerVector = 64 / Unsafe.SizeOf<T>();
 
@@ -588,9 +834,6 @@ namespace Nino.Core
 
         /// <summary><see cref="ToMemory"/> for <see cref="PerVector"/> values.</summary>
         public static readonly Vector512<byte> ToMemory64 = Mask64(toWire: false);
-
-        /// <summary>0xFF for the memory bytes of fields, 0 for padding: VBMI's permute has no zeroing index.</summary>
-        public static readonly Vector512<byte> Fields64 = Vector512.LessThan(ToMemory64, Vector512.Create((byte)0x80));
 
         private static Vector512<byte> Mask64(bool toWire)
         {
