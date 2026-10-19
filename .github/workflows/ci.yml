@@ -81,6 +81,13 @@ jobs:
             coverage: false
             project: Nino.UnitTests/Nino.UnitTests.csproj
             avx512: '0'
+          # Older x64 CPUs (SSSE3, no AVX2): 16-byte vectors, two shuffles a vector where Arm64 has one table lookup.
+          - name: net10.0 without AVX2
+            framework: net10.0
+            properties: ''
+            coverage: false
+            project: Nino.UnitTests/Nino.UnitTests.csproj
+            avx2: '0'
           - name: net10.0 without SIMD
             framework: net10.0
             properties: ''
@@ -116,6 +123,7 @@ jobs:
       - name: Test
         env:
           DOTNET_EnableAVX512: ${{ matrix.avx512 || '1' }}
+          DOTNET_EnableAVX2: ${{ matrix.avx2 || '1' }}
           DOTNET_EnableHWIntrinsic: ${{ matrix.simd || '1' }}
         run: >
           dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f ${{ matrix.framework }}

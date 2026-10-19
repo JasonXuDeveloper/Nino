@@ -465,6 +465,32 @@ public class CollectionFastPathTests
     }
 
     [TestMethod]
+    public void SizedCollectionsWriteTheWritersBytes()
+    {
+        // Collections whose size is known up front are written straight into an array of that size: the same bytes
+        // as through a writer, for null, empty and full ones of every kind of block.
+        var at = new DateTimeOffset(2026, 10, 19, 1, 2, 3, TimeSpan.FromHours(8));
+        SameBytes(new[] { 1, 2, 3 });
+        SameBytes(new List<int> { 1, 2, 3 });
+        SameBytes(new List<int>());
+        SameBytes((List<int>)null);
+        SameBytes(Array.Empty<(int, long)>());
+        SameBytes(((int, long)[])null);
+        SameBytes(Enumerable.Range(0, 100).Select(i => (i, i * 3L)).ToList());
+        SameBytes(Enumerable.Range(0, 100).Select(i => at.AddMinutes(i)).ToArray());
+        SameBytes(Enumerable.Range(0, 100).Select(i => at.AddMinutes(i)).ToList());
+        SameBytes(Enumerable.Range(0, 100).Select(i => new PaddedItem { Id = i, Count = (short)i, Bound = i % 2 == 0 })
+            .ToList());
+    }
+
+    private static void SameBytes<T>(T value)
+    {
+        var buffer = new NinoArrayBufferWriter();
+        NinoSerializer.Serialize(value, buffer);
+        CollectionAssert.AreEqual(buffer.WrittenSpan.ToArray(), NinoSerializer.Serialize(value), typeof(T).ToString());
+    }
+
+    [TestMethod]
     public void SortedCollectionsAreBuiltInOnePass()
     {
         foreach (int n in Enumerable.Range(0, 70).Concat(new[] { 100, 1000 }))
