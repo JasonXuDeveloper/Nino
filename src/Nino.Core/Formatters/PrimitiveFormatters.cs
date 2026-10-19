@@ -187,14 +187,18 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T? value, ref Reader reader)
         {
-            if (!reader.TryReadPresent(ref value))
-                return;
-
             if (RawFormatter.Is<T, TFormatter>())
             {
-                value = reader.UnsafeRead<T>();
+                // Flag and value under one bounds check; a value replaced by null is discarded, as TryReadPresent does.
+                T? read = reader.ReadNullableRaw<T>();
+                if (!read.HasValue)
+                    NinoRecycler.Discard(ref value);
+                value = read;
                 return;
             }
+
+            if (!reader.TryReadPresent(ref value))
+                return;
 
             T item = value.GetValueOrDefault();
             default(TFormatter).Deserialize(ref item, ref reader);
