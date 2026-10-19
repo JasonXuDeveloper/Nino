@@ -7,6 +7,18 @@ namespace Nino.Core
     /// <summary>Shared element loops for array-like formatters.</summary>
     internal static class NinoElements
     {
+        /// <summary>
+        /// Whether elements read into a new array are copied into it as one block (memmove), which overwrites it all:
+        /// only then is it allocated uninitialized. An array filled by vector or per-value stores is allocated zeroed:
+        /// the clearing brings its lines into the cache, where such stores into fresh lines first read each one
+        /// (workstation GC, AVX-512 Xeon: 1,000 (int, long) into a new list in 1.5 to 1.7 µs zeroed, 2.7 to 2.9
+        /// uninitialized; 1,000 DateTimeOffsets in 3.7 to 3.8 µs against 5.0 to 5.6; server GC on par or faster
+        /// zeroed). A JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool CopiedWhole<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            RawFormatter.Is<T, TFormatter>() || NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory;
+
         /// <summary>Writes <paramref name="count"/> elements starting at <paramref name="first"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Write<T, TFormatter>(ref T first, int count, ref Writer writer)
@@ -241,13 +253,8 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
 
-            // Raw elements are all overwritten by one block copy, DateTimeOffsets and blocks each in full: a new array need not
-            // be zeroed first.
             NinoElements.Read<T, TFormatter>(
-                NinoElements.EnsureLength(ref value, length, uninitialized: RawFormatter.Is<T, TFormatter>() ||
-                                               typeof(TFormatter) == typeof(DateTimeOffsetFormatter) ||
-                                               NinoBlock.Size<T, TFormatter>() > 0),
-                ref reader);
+                NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>()), ref reader);
         }
     }
 
@@ -387,7 +394,8 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
 
-            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, uninitialized: true), ref reader);
+            // Uninitialized only for a block copy (NinoElements.CopiedWhole).
+            NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, NinoNullables<T>.Raw), ref reader);
         }
     }
 
@@ -405,7 +413,7 @@ namespace Nino.Core
         public static readonly int Stride = Offset + NinoLayout<T>.WireSize;
 
         /// <summary>Whether <c>T?</c> memory equals its wire layout on this runtime.</summary>
-        private static readonly bool Raw = NinoLayout<T>.IsCanonical && NullableLayout<T>.HasValueOffset == 0 &&
+        internal static readonly bool Raw = NinoLayout<T>.IsCanonical && NullableLayout<T>.HasValueOffset == 0 &&
                                            NullableLayout<T>.ValueOffset == Offset &&
                                            Unsafe.SizeOf<T?>() == Stride;
 

@@ -40,16 +40,16 @@ namespace Nino.Core.Internal
         /// A new <typeparamref name="TList"/> that the caller fills with <paramref name="count"/> elements (not
         /// negative), overwriting each one; it has them already when <see cref="Direct"/>, otherwise the caller adds
         /// them through <see cref="Open{T}"/>. A plain <see cref="List{T}"/> whose fields are known gets a backing
-        /// array of exactly that length, allocated uninitialized when it is large (<see cref="NinoUnsafe.NewArray{T}"/>):
-        /// <c>new List&lt;T&gt;(count)</c> clears it first, which costs as much as filling it.
+        /// array of exactly that length, allocated uninitialized when it is large and <paramref name="uninitialized"/>
+        /// (<see cref="NinoUnsafe.NewArray{T}"/>, <see cref="NinoElements.CopiedWhole{T, TFormatter}"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static TList CreateOverwritten<TList, T>(int count) where TList : List<T>
+        public static TList CreateOverwritten<TList, T>(int count, bool uninitialized) where TList : List<T>
         {
             if (typeof(TList) == typeof(List<T>) && CollectionViews.List)
             {
                 var created = new List<T>();
-                CollectionFields.Items(created) = NinoUnsafe.NewArray<T>(count, uninitialized: true);
+                CollectionFields.Items(created) = NinoUnsafe.NewArray<T>(count, uninitialized);
                 CollectionFields.Size(created) = count;
                 return (TList)created;
             }
@@ -152,7 +152,7 @@ namespace Nino.Core.Internal
         public static ref T OverwriteAll<TList, T>(ref TList list, int count) where TList : List<T> =>
             ref list == null && CollectionViews.List
                 ? ref NinoUnsafe.GetArrayDataReference(
-                    CollectionFields.Items<T>(list = CreateOverwritten<TList, T>(count)))
+                    CollectionFields.Items<T>(list = CreateOverwritten<TList, T>(count, uninitialized: true)))
                 : ref SetCountOverwritten(list ??= Create<TList, T>(count), count);
 
         private static Span<T> OpenCopy<T>(List<T> list, int count, out T[] buffer)
