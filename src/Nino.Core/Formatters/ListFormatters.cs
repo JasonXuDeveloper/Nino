@@ -167,7 +167,6 @@ namespace Nino.Core
             local.CopyTo(ref writer);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
