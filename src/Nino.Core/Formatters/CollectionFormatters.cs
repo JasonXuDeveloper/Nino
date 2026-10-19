@@ -81,6 +81,14 @@ namespace Nino.Core
                 return;
             }
 
+            if (!NinoElements.WritesOnLocal<T>())
+            {
+                writer.WriteLength(value.Count);
+                foreach (var item in value)
+                    default(TFormatter).Serialize(item, ref writer);
+                return;
+            }
+
             // The writer as a local for the loop, its cursor in registers (HashSet<int?> of 1,000: 5 to 10% faster).
             Writer local = default;
             writer.CopyTo(ref local);

@@ -20,6 +20,16 @@ namespace Nino.Core
             RawFormatter.Is<T, TFormatter>() || NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory;
 
         /// <summary>
+        /// Whether a loop that writes elements one at a time goes through a local copy of the writer, whose cursor then
+        /// stays in registers: only for elements without references, whose formatters are small and inlined. The
+        /// formatter of a string or a class is a call that takes the local's address anyway, and recursing through
+        /// one copies the writer in and out at every level (a tree of classes holding lists of their own type
+        /// serialized 30 to 40% slower, on x64 and Arm64). A JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool WritesOnLocal<T>() => !NinoUnsafe.IsReferenceOrContainsReferences<T>();
+
+        /// <summary>
         /// Whether <see cref="Read{T,TFormatter}(Span{T}, ref Reader)"/> overwrites every element
         /// whatever it held (raw elements, DateTimeOffsets and blocks are each read in full), so the slots need not
         /// be cleared or zeroed first. A JIT-time constant.
@@ -89,6 +99,13 @@ namespace Nino.Core
             {
                 if (!values.IsEmpty)
                     WriteBlock<T, TFormatter>(ref writer.ReserveElements(values.Length, block), values);
+                return;
+            }
+
+            if (!WritesOnLocal<T>())
+            {
+                foreach (var item in values)
+                    default(TFormatter).Serialize(item, ref writer);
                 return;
             }
 

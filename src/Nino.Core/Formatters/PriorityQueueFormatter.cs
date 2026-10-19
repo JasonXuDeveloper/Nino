@@ -18,6 +18,18 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
+            if (!NinoElements.WritesOnLocal<TElement>() || !NinoElements.WritesOnLocal<TPriority>())
+            {
+                writer.WriteLength(value.Count);
+                foreach (var (element, priority) in value.UnorderedItems)
+                {
+                    default(TElementFormatter).Serialize(element, ref writer);
+                    default(TPriorityFormatter).Serialize(priority, ref writer);
+                }
+
+                return;
+            }
+
             // The writer and reader as locals for the loops, their cursors in registers.
             Writer local = default;
             writer.CopyTo(ref local);
