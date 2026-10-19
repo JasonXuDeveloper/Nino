@@ -109,7 +109,7 @@ namespace Nino.Core
             if (raw)
             {
                 int size = Unsafe.SizeOf<T>();
-                ref byte src = ref reader.ReadBlock(length * size);
+                ref byte src = ref reader.ReadElements(length, size);
                 for (int i = 0; i < length; i++)
                 {
                     if (!set.Add(NinoUnsafe.Read<T>(ref src)))

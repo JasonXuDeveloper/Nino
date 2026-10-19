@@ -575,8 +575,7 @@ namespace Nino.Core
 
             if (values.IsEmpty)
                 return;
-            // The size in 64 bits (see ReserveCounted): an int product past 4 GB would wrap to a small size.
-            NinoLayout<T>.CopyToWire(ref ReserveLarge((ulong)(uint)values.Length * (uint)Unsafe.SizeOf<T>()),
+            NinoLayout<T>.CopyToWire(ref ReserveElements(values.Length, Unsafe.SizeOf<T>()),
                 ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), values.Length);
         }
 
@@ -591,7 +590,7 @@ namespace Nino.Core
                 return;
             }
 
-            // AsBytes would check the multiplication with imul/jo, CopyToWire once more (see ReserveCounted).
+            // AsBytes would check the multiplication with imul/jo (see ReserveCounted).
             int count = values.Length;
             ref byte dst = ref ReserveCounted(count, Unsafe.SizeOf<T>());
             if (count == 0)
@@ -616,6 +615,14 @@ namespace Nino.Core
             NinoUnsafe.Write(ref dst, count);
             return ref Unsafe.Add(ref dst, NinoWire.LengthSize);
         }
+
+        /// <summary>
+        /// Reserves <paramref name="count"/> (not negative) elements of <paramref name="elementSize"/> bytes each and
+        /// returns a reference to the first one; the size in 64 bits, as in <see cref="ReserveCounted"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte ReserveElements(int count, int elementSize) =>
+            ref ReserveLarge((ulong)(uint)count * (uint)elementSize);
 
         /// <summary><see cref="Reserve"/> for a size that may not fit in an int (rejected when it does not).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

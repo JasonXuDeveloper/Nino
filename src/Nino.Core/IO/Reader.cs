@@ -491,6 +491,22 @@ namespace Nino.Core
             return ref block;
         }
 
+        /// <summary>
+        /// Consumes <paramref name="count"/> (not negative) elements of <paramref name="elementSize"/> bytes each and
+        /// returns a reference to the first one. The size in 64 bits, so it cannot overflow: one compare, where a
+        /// checked int product would test the multiplication too.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte ReadElements(int count, int elementSize)
+        {
+            ulong size = (ulong)(uint)count * (uint)elementSize;
+            ref byte block = ref Cur;
+            if (size > (uint)Avail)
+                NinoThrow.EndOfData();
+            Skip((int)size);
+            return ref block;
+        }
+
         /// <summary>Consumes <paramref name="size"/> bytes the caller already checked are there.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref byte UnsafeAdvance(int size)
@@ -688,12 +704,9 @@ namespace Nino.Core
 
             // One bounds check and a block copy (NinoUnsafe.CopyToNew): AsBytes, Slice and CopyTo would add an overflow
             // check, two more bounds checks and a call through SpanHelpers.Memmove's indirection cell.
-            ulong size = (ulong)(uint)destination.Length * (uint)Unsafe.SizeOf<T>();
-            ref byte src = ref Cur;
-            if (size > (uint)Avail)
-                NinoThrow.EndOfData();
-            Skip((int)size);
-            NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), ref src, (uint)size);
+            int count = destination.Length;
+            NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)),
+                ref ReadElements(count, Unsafe.SizeOf<T>()), (uint)count * (uint)Unsafe.SizeOf<T>());
         }
 
         /// <summary>Reads a length-prefixed unmanaged array written by <see cref="Writer.Write{T}(T[])"/>.</summary>
