@@ -273,9 +273,11 @@ namespace Nino.Core
         /// its lines from memory first (Memmove's rep movsb writes whole lines without reading them). Below, where a new
         /// array was zeroed into the cache, as <see cref="Copy"/>. Measured on an AVX-512 Xeon (.NET 10): 1,000 ints
         /// read into a new array in 470 to 710 ns with Memmove, 760 to 830 with vector stores; into an existing
-        /// array of 250, 14 ns instead of 23 with vector stores.
+        /// array of 250, 14 ns instead of 23 with vector stores. Out of line: a size that is not a constant takes every
+        /// branch of Copy, and inlined into each raw list and array read that code slowed the reads around it (a list
+        /// of 8 classes holding a List&lt;int&gt; each, read in place: 680 to 710 ns inline, 570 to 610 out of line).
         /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static void CopyToNew(ref byte destination, ref byte source, uint size)
         {
 #if NET5_0_OR_GREATER
