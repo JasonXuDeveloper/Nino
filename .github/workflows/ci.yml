@@ -377,6 +377,8 @@ jobs:
         run: |
           cd Nino.Benchmark
           dotnet build -c Release
+          # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
+          dotnet run -c Release --no-build -- --verify
 
       - name: Run benchmarks
         run: |

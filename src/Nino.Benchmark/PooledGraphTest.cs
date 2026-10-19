@@ -66,7 +66,7 @@ public sealed partial class PooledNode
     public static PooledNode Create(Random r) => new()
     {
         Id = r.Next(), Ticks = r.NextInt64(), X = r.NextDouble(), Y = r.NextDouble(), Flag = true,
-        Guid = Guid.NewGuid(),
+        Guid = BenchmarkRandom.NewGuid(),
         Data = Enumerable.Range(0, 32).Select(_ => r.Next()).ToArray(),
         Values = Enumerable.Range(0, 16).Select(_ => r.NextInt64()).ToList(),
         Map = Enumerable.Range(0, 16).ToDictionary(i => i, _ => r.Next()),

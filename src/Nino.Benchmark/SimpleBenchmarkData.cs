@@ -10,6 +10,25 @@ namespace Nino.Benchmark;
 
 #nullable disable
 
+/// <summary>
+/// The source of the benchmark data: seeded, with a fixed date, so every benchmark process, and the v3 and v4 runs,
+/// serialize the same values (MessagePack's integers vary in size with them).
+/// </summary>
+internal static class BenchmarkRandom
+{
+    public static readonly Random Shared = new Random(20240607);
+
+    // Local, as BenchmarkRandom.Now was: MessagePack converts local times to UTC when it writes them.
+    public static readonly DateTime Now = new DateTime(2025, 1, 1, 12, 0, 0, DateTimeKind.Local);
+
+    public static Guid NewGuid()
+    {
+        var bytes = new byte[16];
+        Shared.NextBytes(bytes);
+        return new Guid(bytes);
+    }
+}
+
 [NinoType]
 [MemoryPackable]
 [MessagePackObject]
@@ -37,17 +56,17 @@ public sealed partial class SimpleClass : SimpleClassBase
 
     public static SimpleClass Create()
     {
-        Random random = new Random();
+        Random random = BenchmarkRandom.Shared;
         return new SimpleClass
         {
             Id = random.Next(),
             Tag = random.Next() % 2 == 0,
-            Guid = Guid.NewGuid(),
-            CreateTime = DateTime.Now,
-            Name = Guid.NewGuid().ToString(),
-            Desc = Enumerable.Range(0, 10).Select(_ => Guid.NewGuid().ToString()).Aggregate((a, b) => a + b),
+            Guid = BenchmarkRandom.NewGuid(),
+            CreateTime = BenchmarkRandom.Now,
+            Name = BenchmarkRandom.NewGuid().ToString(),
+            Desc = Enumerable.Range(0, 10).Select(_ => BenchmarkRandom.NewGuid().ToString()).Aggregate((a, b) => a + b),
             Numbers = Enumerable.Range(0, 100).Select(_ => random.Next()).ToArray(),
-            Dates = Enumerable.Range(0, 10).Select(_ => DateTime.Now.AddSeconds(random.Next())).ToList(),
+            Dates = Enumerable.Range(0, 10).Select(_ => BenchmarkRandom.Now.AddSeconds(random.Next())).ToList(),
             Map1 = Enumerable.Range(0, 10).ToDictionary(n => n, n => n.ToString()),
             Map2 = Enumerable.Range(0, 10).ToDictionary(n => n, n => n * 2)
         };
@@ -65,11 +84,11 @@ public partial struct SimpleStruct
 
     public static SimpleStruct Create()
     {
-        Random random = new Random();
+        Random random = BenchmarkRandom.Shared;
         return new SimpleStruct
         {
             Id = random.Next(),
-            CreateTime = DateTime.Now.AddSeconds(random.Next())
+            CreateTime = BenchmarkRandom.Now.AddSeconds(random.Next())
         };
     }
 }

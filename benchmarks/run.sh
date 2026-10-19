@@ -24,6 +24,7 @@ dotnet build -c Release "$V3" > "$OUT/build_v3.log"
 dotnet build -c Release "$V4" > "$OUT/build_v4.log"
 git -C "$ROOT" rev-parse HEAD > "$OUT/v4-commit.txt"
 dotnet "$V3/bin/Release/net10.0/Nino.Benchmark.dll" --verify | tee "$OUT/verify_v3.txt"
+dotnet "$V4/bin/Release/net10.0/Nino.Benchmark.dll" --verify | tee "$OUT/verify_v4.txt"
 
 echo "v3 $(date)"
 (cd "$V3" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest.Nino*' '*SimpleTest.MemoryPack*' \
