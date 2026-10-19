@@ -34,8 +34,8 @@ internal static class LayoutTypes
             case INamedTypeSymbol named:
                 foreach (var arg in TypeNames.AllTypeArguments(named))
                     Walk(arg, facts, into, visited, depth);
-                if (named.TypeKind != TypeKind.Struct || !named.IsUnmanagedType || IsLeaf(named) ||
-                    ClosedGenerics.ContainsTypeParameter(named) || !ClosedGenerics.IsNameable(named, facts))
+                if (named.TypeKind != TypeKind.Struct || !named.IsUnmanagedType || RawLayout.Leaf(named) != NinoLeaf.None ||
+                    !facts.Visibility.CanName(named))
                     return;
                 into.Add(TypeNames.Global(named));
                 foreach (var member in named.GetMembers())
@@ -47,12 +47,6 @@ internal static class LayoutTypes
                 return;
         }
     }
-
-    /// <summary>Types NinoLayout measures without reading fields (primitives, decimal, DateTime, TimeSpan, Guid...).</summary>
-    private static bool IsLeaf(INamedTypeSymbol type) =>
-        type.SpecialType != SpecialType.None ||
-        TypeNames.HasMetadataName(type.OriginalDefinition, "System.TimeSpan") ||
-        TypeNames.HasMetadataName(type.OriginalDefinition, "System.Guid");
 
     /// <summary>
     /// Whether generated code can name <c>DynamicDependencyAttribute</c> and <c>DynamicallyAccessedMemberTypes</c>

@@ -31,21 +31,15 @@ internal enum MemberFindingKind
 
 /// <summary>
 /// A finding about a member declared by the collected type. <see cref="Formatter"/> is set for
-/// <see cref="MemberFindingKind.InvalidCustomFormatter"/>, <see cref="Other"/> and <see cref="Index"/> for
+/// <see cref="MemberFindingKind.InvalidCustomFormatter"/>, <see cref="Other"/> for
 /// <see cref="MemberFindingKind.DuplicateIndex"/>.
 /// </summary>
 internal readonly record struct MemberFinding(
     MemberFindingKind Kind,
     ISymbol Member,
     INamedTypeSymbol? Formatter = null,
-    ISymbol? Other = null,
-    int Index = 0);
+    ISymbol? Other = null);
 
-/// <summary>
-/// Finds the serialized members of a <c>[NinoType]</c>, in wire order, and on request what is wrong with the
-/// annotations of the members it declares, in the same pass and by the same rules. Use <see cref="MemberCache"/>,
-/// which memoizes both per compilation.
-/// </summary>
 /// <summary>
 /// The serialized members of a type, root level first. A level is the type itself or one of its [NinoType] base
 /// classes, led by the members of the [NinoType] interfaces it implements first.
@@ -54,6 +48,11 @@ internal sealed class MemberList : List<ISymbol>
 {
 }
 
+/// <summary>
+/// Finds the serialized members of a <c>[NinoType]</c>, in wire order, and on request what is wrong with the
+/// annotations of the members it declares, in the same pass and by the same rules. Use <see cref="MemberCache"/>,
+/// which memoizes both per compilation.
+/// </summary>
 internal static class MemberCollector
 {
     /// <param name="findings">
@@ -217,7 +216,7 @@ internal static class MemberCollector
             if (!indices!.TryGetValue(i, out var existing))
                 indices[i] = member;
             else if ((duplicated ??= new HashSet<int>()).Add(i))
-                findings.Add(new MemberFinding(MemberFindingKind.DuplicateIndex, member, Other: existing, Index: i));
+                findings.Add(new MemberFinding(MemberFindingKind.DuplicateIndex, member, Other: existing));
         }
     }
 
@@ -262,15 +261,8 @@ internal static class MemberCollector
             var marked = NinoSymbols.Get(method, known.Constructor);
             if (method.IsStatic && marked == null)
                 continue;
-            if (marked is { ConstructorArguments: { Length: > 0 } a } && a[0].Kind == TypedConstantKind.Array &&
-                a[0].Values.Length > 0)
-            {
-                foreach (var v in a[0].Values)
-                {
-                    if (v.Value is string s)
-                        names.Add(s);
-                }
-            }
+            if (marked != null && NinoSymbols.ConstructorNames(marked) is { } listed)
+                names.UnionWith(listed);
             else if (method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal
                      or Accessibility.ProtectedOrInternal)
             {

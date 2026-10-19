@@ -46,7 +46,6 @@ internal sealed class TypeFacts
 
     private TypeFacts(Compilation compilation, ParseOptions? options)
     {
-        Compilation = compilation;
         _options = options;
         _computeDelegatable = s => ComputeIsDelegatable((INamedTypeSymbol)s);
         _computeFixedSize = s => ComputeIsFixedSize((INamedTypeSymbol)s);
@@ -59,8 +58,6 @@ internal sealed class TypeFacts
         Raw = new RawRules(Symbols, Members, compilation.Assembly, WeakTolerance);
         Resolver = new FormatterResolver(compilation, Symbols, Raw, Visibility);
     }
-
-    public Compilation Compilation { get; }
 
     /// <summary>The Nino attribute types of this compilation.</summary>
     public NinoSymbols Symbols { get; }
@@ -86,6 +83,20 @@ internal sealed class TypeFacts
     /// <summary>Runtime type id (hash of the runtime name): many members share a type such as <c>List&lt;int&gt;</c>.</summary>
     public int TypeId(ITypeSymbol type) =>
         _typeIds.GetOrAdd(type, static t => TypeNames.ComputeId(TypeNames.RuntimeName(t)));
+
+    /// <summary>
+    /// The ids of a <c>[NinoType]</c>: <c>Id</c>, its wire id (the hash of its <c>[NinoFormerName]</c>, else of its
+    /// runtime name), and <c>NameId</c>, the hash of its runtime name, which a by-type lookup computes without
+    /// reflection (the same unless the type was renamed).
+    /// </summary>
+    public (int Id, int NameId) Ids(INamedTypeSymbol type)
+    {
+        int nameId = TypeId(type);
+        return NinoSymbols.Get(type.OriginalDefinition, Symbols.FormerName)?.ConstructorArguments
+            .FirstOrDefault().Value is string formerName
+            ? (TypeNames.ComputeId(formerName), nameId)
+            : (nameId, nameId);
+    }
 
     /// <summary>
     /// Whether a class's formatter emits static <c>WriteMembers</c>/<c>ReadMembers</c> that subtypes can call: a

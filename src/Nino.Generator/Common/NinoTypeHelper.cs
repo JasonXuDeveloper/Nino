@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Common;
@@ -13,11 +15,39 @@ internal static class NinoTypeHelper
         return GetNinoTypeOptions(typeSymbol) != null;
     }
 
+    // The options of a type depend on its symbol alone, and every model build, raw check and member collection asks
+    // for those of the same types (each walks the bases and interfaces): memoized per symbol instance.
+    private sealed class Options
+    {
+        public NinoTypeOptions? Value;
+    }
+
+    private static readonly ConditionalWeakTable<ITypeSymbol, Options> Memo = new();
+
     /// <summary>
     /// The NinoType attribute that applies to the type: its own, then the nearest base class's (if it allows
     /// inheritance), then an interface's (if it allows inheritance).
     /// </summary>
-    public static NinoTypeOptions? GetNinoTypeOptions(this ITypeSymbol typeSymbol)
+    public static NinoTypeOptions? GetNinoTypeOptions(this ITypeSymbol typeSymbol) =>
+        Memo.GetValue(typeSymbol, static t => new Options { Value = ComputeOptions(t) }).Value;
+
+    /// <summary>The <c>[NinoType]</c> base classes of the type (nearest first), then its <c>[NinoType]</c> interfaces.</summary>
+    public static IEnumerable<INamedTypeSymbol> NinoAncestors(this ITypeSymbol type)
+    {
+        for (var b = type.BaseType; b != null; b = b.BaseType)
+        {
+            if (b.IsNinoType())
+                yield return b;
+        }
+
+        foreach (var i in type.AllInterfaces)
+        {
+            if (i.IsNinoType())
+                yield return i;
+        }
+    }
+
+    private static NinoTypeOptions? ComputeOptions(ITypeSymbol typeSymbol)
     {
         // BCL types are never NinoTypes; skip walking their (substituted) interfaces.
         if (IsSystemNamespace(typeSymbol.ContainingNamespace) || typeSymbol.TypeKind is TypeKind.Array or

@@ -53,7 +53,7 @@ internal static class RawLayout
                 new List<NinoLayoutCore.Leaf>(), out int size, out _, offsets))
             return false;
         sb.Append("raw(").Append(size.ToString(CultureInfo.InvariantCulture)).Append(')');
-        if (default(SymbolView).Leaf(type) != NinoLeaf.None)
+        if (Leaf(type) != NinoLeaf.None)
             return true;
 
         var fields = Fields(type);
@@ -64,7 +64,7 @@ internal static class RawLayout
                 sb.Append(',');
             var field = fields[i];
             sb.Append((field.AssociatedMember() ?? field).Name).Append(':')
-                .Append(TypeNames.Global(field.Type).Replace("global::", "")).Append('@')
+                .Append(TypeNames.Plain(TypeNames.Global(field.Type))).Append('@')
                 .Append(offsets[i].ToString(CultureInfo.InvariantCulture)).Append(':');
             if (!Describe(field.Type, sb))
                 return false;
@@ -72,6 +72,73 @@ internal static class RawLayout
 
         sb.Append('}');
         return true;
+    }
+
+    /// <summary>
+    /// How a raw value of <paramref name="type"/> is laid out when it is not a struct of its own fields: primitives,
+    /// enums (as their underlying type), <c>decimal</c>, <c>DateTime</c>, <c>TimeSpan</c> and <c>Guid</c> are leaves,
+    /// pointer-sized and reference types are not supported. The one table of the primitive sizes the generator uses
+    /// (<see cref="SizeOf"/>, <c>LayoutTypes</c>), as <c>NinoLayout</c>'s is the runtime's.
+    /// </summary>
+    public static NinoLeaf Leaf(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: { } underlying })
+            type = underlying;
+        switch (type.SpecialType)
+        {
+            case SpecialType.System_Boolean:
+            case SpecialType.System_Byte:
+            case SpecialType.System_SByte:
+                return NinoLeaf.Size1;
+            case SpecialType.System_Char:
+            case SpecialType.System_Int16:
+            case SpecialType.System_UInt16:
+                return NinoLeaf.Size2;
+            case SpecialType.System_Int32:
+            case SpecialType.System_UInt32:
+            case SpecialType.System_Single:
+                return NinoLeaf.Size4;
+            case SpecialType.System_Int64:
+            case SpecialType.System_UInt64:
+            case SpecialType.System_Double:
+            case SpecialType.System_DateTime:
+                return NinoLeaf.Size8;
+            case SpecialType.System_Decimal:
+                return NinoLeaf.Decimal;
+            case SpecialType.System_IntPtr:
+            case SpecialType.System_UIntPtr:
+                return NinoLeaf.Unsupported;
+        }
+
+        if (type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } named)
+            return NinoLeaf.Unsupported;
+        var definition = named.OriginalDefinition;
+        if (TypeNames.HasMetadataName(definition, "System.TimeSpan"))
+            return NinoLeaf.Size8;
+        if (TypeNames.HasMetadataName(definition, "System.Guid"))
+            return NinoLeaf.Guid;
+        return NinoLeaf.None;
+    }
+
+    /// <summary>
+    /// Size of a raw unmanaged type: a constant for the leaves (<see cref="Leaf"/>: primitives, enums and the BCL
+    /// structs whose size and layout are the same on every runtime), symbolic for other structs. A constant saves
+    /// interpreted code (HybridCLR, Mono's interpreter) a <c>SizeOf</c> call per member.
+    /// </summary>
+    public static RawSize SizeOf(ITypeSymbol type)
+    {
+        int bytes = Leaf(type) switch
+        {
+            NinoLeaf.Size1 => 1,
+            NinoLeaf.Size2 => 2,
+            NinoLeaf.Size4 => 4,
+            NinoLeaf.Size8 => 8,
+            NinoLeaf.Decimal or NinoLeaf.Guid => 16,
+            _ => 0,
+        };
+        return bytes != 0
+            ? RawSize.Constant(bytes)
+            : new RawSize(0, $"{TypeNames.Core}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
     }
 
     /// <summary>The instance fields of a struct, in declaration (metadata) order.</summary>
@@ -156,45 +223,7 @@ internal static class RawLayout
     /// <summary>The generator's view of a type: pointer-sized fields are never portable.</summary>
     private struct SymbolView : INinoLayoutView<ITypeSymbol>
     {
-        public NinoLeaf Leaf(ITypeSymbol type)
-        {
-            if (type is INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: { } underlying })
-                type = underlying;
-            switch (type.SpecialType)
-            {
-                case SpecialType.System_Boolean:
-                case SpecialType.System_Byte:
-                case SpecialType.System_SByte:
-                    return NinoLeaf.Size1;
-                case SpecialType.System_Char:
-                case SpecialType.System_Int16:
-                case SpecialType.System_UInt16:
-                    return NinoLeaf.Size2;
-                case SpecialType.System_Int32:
-                case SpecialType.System_UInt32:
-                case SpecialType.System_Single:
-                    return NinoLeaf.Size4;
-                case SpecialType.System_Int64:
-                case SpecialType.System_UInt64:
-                case SpecialType.System_Double:
-                case SpecialType.System_DateTime:
-                    return NinoLeaf.Size8;
-                case SpecialType.System_Decimal:
-                    return NinoLeaf.Decimal;
-                case SpecialType.System_IntPtr:
-                case SpecialType.System_UIntPtr:
-                    return NinoLeaf.Unsupported;
-            }
-
-            if (type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } named)
-                return NinoLeaf.Unsupported;
-            var definition = named.OriginalDefinition;
-            if (TypeNames.HasMetadataName(definition, "System.TimeSpan"))
-                return NinoLeaf.Size8;
-            if (TypeNames.HasMetadataName(definition, "System.Guid"))
-                return NinoLeaf.Guid;
-            return NinoLeaf.None;
-        }
+        public NinoLeaf Leaf(ITypeSymbol type) => RawLayout.Leaf(type);
 
         public bool Struct(ITypeSymbol type, List<KeyValuePair<ITypeSymbol, int>> fields, out LayoutKind kind,
             out int pack, out int minSize)

@@ -47,6 +47,36 @@ internal sealed class Visibility
         _ => false,
     };
 
+    /// <summary>
+    /// Whether generated code in this assembly can name <paramref name="type"/> outside of any type (the registry, the
+    /// interceptors): it and its containing types are visible (<see cref="IsVisible"/>), and so are its element type and
+    /// all type arguments; type parameters, pointers and anonymous types cannot be named.
+    /// </summary>
+    public bool CanName(ITypeSymbol type)
+    {
+        switch (type)
+        {
+            case IArrayTypeSymbol array:
+                return CanName(array.ElementType);
+            case INamedTypeSymbol { IsAnonymousType: false } named:
+                for (var t = named; t != null; t = t.ContainingType)
+                {
+                    if (!IsVisible(t))
+                        return false;
+                }
+
+                foreach (var argument in TypeNames.AllTypeArguments(named))
+                {
+                    if (!CanName(argument))
+                        return false;
+                }
+
+                return true;
+            default:
+                return false;
+        }
+    }
+
     /// <summary>Whether generated code can read and assign the member directly (<c>value.Member</c>).</summary>
     public bool IsDirectlyAccessible(ISymbol member) =>
         IsVisible(member) && (member is not IPropertySymbol property ||

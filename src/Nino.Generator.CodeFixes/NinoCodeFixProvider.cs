@@ -57,7 +57,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         {
             RemoveAttributeFix(NinoMember),
             new Fix("Update type to allow non-public members", "AllowNonPublic",
-                (e, n) => SetTypeArgument(e, n, "containNonPublicMembers", 1, true)),
+                (e, n) => SetTypeArgument(e, n, "containNonPublicMembers", true)),
         },
         [NinoDiagnostics.RedundantMember.Id] = new[] { RemoveAttributeFix(NinoMember) },
         [NinoDiagnostics.RedundantIgnore.Id] = new[] { RemoveAttributeFix(NinoIgnore) },
@@ -74,7 +74,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         [NinoDiagnostics.TrackReferencesOnStruct.Id] = new[]
         {
             new Fix("Remove trackReferences", "RemoveTrackReferences",
-                (e, n) => SetTypeArgument(e, n, "trackReferences", 4, false)),
+                (e, n) => SetTypeArgument(e, n, "trackReferences", false)),
         },
         [NinoDiagnostics.InvalidPooledType.Id] = new[]
         {
@@ -228,11 +228,22 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         }
     }
 
-    /// <summary>Sets a <c>[NinoType]</c> argument to true, or removes it (false is its default).</summary>
-    private static void SetTypeArgument(DocumentEditor editor, SyntaxNode node, string name, int position, bool value)
+    /// <summary>
+    /// Sets a <c>[NinoType]</c> argument to true, or removes it (false is its default). A positional argument is
+    /// matched by the position of the constructor parameter of that name.
+    /// </summary>
+    private static void SetTypeArgument(DocumentEditor editor, SyntaxNode node, string name, bool value)
     {
-        if (FindAttribute(editor, Type(node), NinoType) is not { } attribute)
+        if (FindAttribute(editor, Type(node), NinoType) is not { } attribute ||
+            editor.SemanticModel.GetSymbolInfo(attribute).Symbol is not IMethodSymbol constructor)
             return;
+        int position = -1;
+        for (int i = 0; i < constructor.Parameters.Length; i++)
+        {
+            if (constructor.Parameters[i].Name == name)
+                position = i;
+        }
+
         var arguments = attribute.ArgumentList?.Arguments ?? default;
         int index = -1;
         for (int i = 0; i < arguments.Count; i++)

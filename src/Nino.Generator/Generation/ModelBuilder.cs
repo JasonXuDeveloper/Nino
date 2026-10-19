@@ -36,9 +36,7 @@ internal static class ModelBuilder
         var typeParameters = AllTypeParameters(type);
         bool generic = typeParameters.Count != 0;
 
-        var formerName = NinoSymbols.Get(type, known.FormerName)?.ConstructorArguments.FirstOrDefault().Value as string;
-        string idName = formerName ?? RuntimeName(type);
-        int typeId = generic ? 0 : ComputeId(idName);
+        var (typeId, nameId) = generic ? (0, 0) : facts.Ids(type);
 
         var members = new List<MemberModel>();
         var memberSymbols = new List<ISymbol>();
@@ -76,8 +74,8 @@ internal static class ModelBuilder
             var memberDiagnostics = kind == FormatterKind.Polymorphic ? null : diagnostics;
             for (int i = 0; i < symbols.Count; i++)
             {
-                var member = BuildMember(type, symbols, i, facts, memberDiagnostics, ref needsPartialAccessor,
-                    factories);
+                var member = BuildMember(type, attr.Keyed, symbols, i, facts, memberDiagnostics,
+                    ref needsPartialAccessor, factories);
                 if (member == null)
                     continue;
                 members.Add(member);
@@ -140,11 +138,8 @@ internal static class ModelBuilder
                 if (member.FormerKeys.Length == 0)
                     continue;
                 var claimed = new HashSet<int> { member.Key };
-                foreach (var former in NinoSymbols.StringArguments(memberSymbols[i], known.FormerName))
+                foreach (var (former, formerKey) in FormerKeys(memberSymbols[i], member.Name != member.SourceName, known))
                 {
-                    int formerKey = ComputeId(member.Name == member.SourceName
-                        ? former
-                        : $"{memberSymbols[i].ContainingType.Name}.{former}");
                     if (!claimed.Add(formerKey))
                         continue;
                     string label = $"{member.Name} (former name '{former}')";
@@ -245,11 +240,12 @@ internal static class ModelBuilder
         // The topmost base class of this assembly whose formatter dispatches subtypes: this type's subtypes are
         // dispatched there, so each subtype is listed once per hierarchy rather than once per ancestor.
         string dispatchRoot = "", dispatchRootFormatter = "";
+        var ancestors = type.NinoAncestors().ToList();
         if (type.TypeKind == TypeKind.Class && !generic && !trackReferences)
         {
-            for (var b = type.BaseType; b != null; b = b.BaseType)
+            foreach (var b in ancestors)
             {
-                if (b.IsNinoType() && !b.IsSealed && !b.IsGenericType && Visibility.IsEligible(b) &&
+                if (b.TypeKind == TypeKind.Class && !b.IsSealed && !b.IsGenericType && Visibility.IsEligible(b) &&
                     SymbolEqualityComparer.Default.Equals(b.ContainingAssembly, type.ContainingAssembly) &&
                     !IsTracked(b))
                 {
@@ -259,69 +255,57 @@ internal static class ModelBuilder
             }
         }
 
-        var baseClasses = new List<string>();
-        for (var b = type.BaseType; b != null; b = b.BaseType)
-        {
-            if (b.IsNinoType())
-                baseClasses.Add(Global(b));
-        }
-
-        var interfaces = new List<string>();
-        foreach (var i in type.AllInterfaces)
-        {
-            if (i.IsNinoType())
-                interfaces.Add(Global(i));
-        }
-
+        bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
         return new TypeModel(
-            Global(type),
-            FormatterName(type),
-            new EquatableArray<string>(typeParameters.Select(p => p.Name)),
-            Constraints(typeParameters),
-            kind,
-            typeId,
-            idName,
-            generic ? 0 : formerName == null ? typeId : ComputeId(RuntimeName(type)),
-            tolerant,
-            attr.Keyed,
-            trackReferences,
-            rawStruct,
-            collectionFormatter,
-            collection?.Encoding ?? "",
-            emitMembers,
-            baseFormatter,
-            baseMemberCount,
-            new EquatableArray<MemberModel>(members),
-            construction,
-            new EquatableArray<FormatterRegistration>(used),
+            TypeName: Global(type),
+            FormatterName: FormatterName(type),
+            TypeParameters: new EquatableArray<string>(typeParameters.Select(p => p.Name)),
+            Constraints: Constraints(typeParameters),
+            Kind: kind,
+            TypeId: typeId,
+            NameId: nameId,
+            VersionTolerant: tolerant,
+            Keyed: attr.Keyed,
+            TrackReferences: trackReferences,
+            RawStruct: rawStruct,
+            CollectionFormatter: collectionFormatter,
+            CollectionEncoding: collection?.Encoding ?? "",
+            EmitMembers: emitMembers,
+            BaseFormatter: baseFormatter,
+            BaseMemberCount: baseMemberCount,
+            Members: new EquatableArray<MemberModel>(members),
+            Construction: construction,
+            UsedFormatters: new EquatableArray<FormatterRegistration>(used),
             // Generic types name no closed collection types; their formatters resolve creators at runtime.
-            generic || kind == FormatterKind.Polymorphic
+            UsedFactories: generic || kind == FormatterKind.Polymorphic
                 ? EquatableArray<FactoryRegistration>.Empty
                 : new EquatableArray<FactoryRegistration>(factories.Distinct()
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
-            new EquatableArray<ClosedTypeRegistration>(genericTypes.Distinct()
+            UsedGenericTypes: new EquatableArray<ClosedTypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
-            dispatchRoot,
-            dispatchRootFormatter,
-            new EquatableArray<string>(baseClasses),
-            new EquatableArray<string>(interfaces),
-            pooled,
-            partialNamespace,
-            new EquatableArray<string>(partialDeclarations),
-            kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate &&
-            (construction.Factory.Length != 0 || construction.Creator.Length != 0) && !ComparesByValue(type),
-            kind is not (FormatterKind.Class or FormatterKind.SealedClass) ||
-            collection is { OpensBodies: true } || members.Any(m => m.OpensBodies),
-            !rawStruct && facts.IsFixedSize(type),
-            bound,
-            shallow,
-            collection is { } sc ? facts.ShallowFormatter(sc.Code, sc, false) : "",
-            kind == FormatterKind.SealedClass && !construction.Recreate &&
-            construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
-            !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
-            !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type),
-            LayoutTypes.ToArray(layoutTypes),
-            rawStruct ? RawLayout.Describe(type) : "");
+            DispatchRoot: dispatchRoot,
+            DispatchRootFormatter: dispatchRootFormatter,
+            NinoBaseClasses: new EquatableArray<string>(ancestors
+                .Where(static a => a.TypeKind != TypeKind.Interface).Select(Global)),
+            NinoInterfaces: new EquatableArray<string>(ancestors
+                .Where(static a => a.TypeKind == TypeKind.Interface).Select(Global)),
+            Pooled: pooled,
+            PartialNamespace: partialNamespace,
+            PartialDeclarations: new EquatableArray<string>(partialDeclarations),
+            Deferrable: instantiable && !construction.Recreate &&
+                        (construction.Factory.Length != 0 || construction.Creator.Length != 0) &&
+                        !ComparesByValue(type),
+            Nests: !instantiable || collection is { OpensBodies: true } || members.Any(m => m.OpensBodies),
+            FixedSize: !rawStruct && facts.IsFixedSize(type),
+            DepthBound: bound,
+            Shallow: shallow,
+            ShallowCollectionFormatter: collection is { } sc ? facts.ShallowFormatter(sc.Code, sc, false) : "",
+            FreshRead: kind == FormatterKind.SealedClass && !construction.Recreate &&
+                       construction.Factory.Length == 0 && construction.Creator.Length != 0 && collection == null &&
+                       !attr.Keyed && members.Skip(baseMemberCount).Any(static m => m.Fresh) &&
+                       !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type),
+            LayoutTypes: LayoutTypes.ToArray(layoutTypes),
+            RawLayout: rawStruct ? RawLayout.Describe(type) : "");
     }
 
     /// <summary>
@@ -335,7 +319,8 @@ internal static class ModelBuilder
             return true;
         foreach (var i in type.AllInterfaces)
         {
-            if (i.ContainingNamespace?.ToDisplayString() == "System" && i.Name == "IComparable")
+            if (HasMetadataName(i.OriginalDefinition, "System.IComparable") ||
+                HasMetadataName(i.OriginalDefinition, "System.IComparable`1"))
                 return true;
         }
 
@@ -356,22 +341,9 @@ internal static class ModelBuilder
         type.GetNinoTypeOptions() is { TrackReferences: true } || InheritsTracking(type);
 
     /// <summary>Whether a base class or interface asks for reference tracking.</summary>
-    private static bool InheritsTracking(INamedTypeSymbol type)
-    {
-        for (var b = type.BaseType; b != null; b = b.BaseType)
-        {
-            if (b.GetDirectNinoTypeAttribute() is { } a && NinoTypeOptions.From(a).TrackReferences)
-                return true;
-        }
-
-        foreach (var i in type.AllInterfaces)
-        {
-            if (i.GetDirectNinoTypeAttribute() is { } a && NinoTypeOptions.From(a).TrackReferences)
-                return true;
-        }
-
-        return false;
-    }
+    private static bool InheritsTracking(INamedTypeSymbol type) =>
+        type.NinoAncestors().Any(static a =>
+            a.GetDirectNinoTypeAttribute() is { } attribute && NinoTypeOptions.From(attribute).TrackReferences);
 
     private static string Declaration(INamedTypeSymbol type)
     {
@@ -403,7 +375,7 @@ internal static class ModelBuilder
         return true;
     }
 
-    private static MemberModel? BuildMember(INamedTypeSymbol type, MemberList symbols, int index,
+    private static MemberModel? BuildMember(INamedTypeSymbol type, bool keyed, MemberList symbols, int index,
         TypeFacts facts, DiagnosticSink? diagnostics, ref bool needsPartialAccessor,
         List<FactoryRegistration> factories)
     {
@@ -482,22 +454,18 @@ internal static class ModelBuilder
         // Members join unmanaged blocks when their layout is the same on every runtime; others (rare struct
         // shapes such as { int; long }) go through their formatter, which converts them where needed.
         var raw = custom == null && facts.Raw.IsRawUnmanaged(memberType) && RawLayout.IsPortable(memberType)
-            ? FormatterResolver.RawSizeOf(memberType) with { Layout = RawLayout.Describe(memberType) }
+            ? RawLayout.SizeOf(memberType) with { Layout = RawLayout.Describe(memberType) }
             : null;
 
         // Only registered formatters: a member's custom formatter must not become the global one.
         int typeId = registered && raw == null ? facts.TypeId(memberType) : 0;
         string name = renamed == 0 ? symbol.Name : $"{symbol.Name}__{renamed}";
         // Keyed: a renamed member's key is its declaring type's name with its own.
-        int key = ComputeId(KeyName(symbol.Name, renamed, declaring));
-        var formerKeys = EquatableArray<int>.Empty;
-        if (type.GetNinoTypeOptions()?.Keyed == true)
-        {
-            formerKeys = new EquatableArray<int>(NinoSymbols.StringArguments(symbol, known.FormerName)
-                .Select(former => ComputeId(KeyName(former, renamed, declaring)))
-                .Where(former => former != key)
-                .Distinct());
-        }
+        int key = ComputeId(KeyName(symbol.Name, renamed != 0, declaring));
+        var formerKeys = keyed
+            ? new EquatableArray<int>(FormerKeys(symbol, renamed != 0, known).Select(static f => f.Key)
+                .Where(former => former != key).Distinct())
+            : EquatableArray<int>.Empty;
 
         return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter,
             raw?.Layout ?? encoding, raw,
@@ -566,8 +534,16 @@ internal static class ModelBuilder
         return true;
     }
 
-    private static string KeyName(string name, int renamed, INamedTypeSymbol declaring) =>
-        renamed == 0 ? name : $"{declaring.Name}.{name}";
+    private static string KeyName(string name, bool renamed, INamedTypeSymbol declaring) =>
+        renamed ? $"{declaring.Name}.{name}" : name;
+
+    /// <summary>
+    /// The <c>[NinoFormerName]</c>s of a member and the keys they hash to (keyed bodies; a renamed member's former
+    /// names are qualified by its declaring type, as its own name is).
+    /// </summary>
+    private static IEnumerable<(string Former, int Key)> FormerKeys(ISymbol member, bool renamed, NinoSymbols known) =>
+        NinoSymbols.StringArguments(member, known.FormerName)
+            .Select(former => (former, ComputeId(KeyName(former, renamed, member.ContainingType))));
 
     /// <summary>How many more derived members of the same name are serialized after <c>symbols[index]</c>.</summary>
     private static int DerivedSameNamed(MemberList symbols, int index)

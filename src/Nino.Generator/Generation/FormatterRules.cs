@@ -161,23 +161,10 @@ internal sealed class FormatterRules
         yield return compilation.Assembly;
         foreach (var reference in compilation.SourceModule.ReferencedAssemblySymbols)
         {
-            if (SymbolEqualityComparer.Default.Equals(reference, core) || References(reference, core))
+            if (SymbolEqualityComparer.Default.Equals(reference, core) ||
+                AssemblyReferences.Of(reference).Contains(core.Name))
                 yield return reference;
         }
-    }
-
-    private static bool References(IAssemblySymbol assembly, IAssemblySymbol core)
-    {
-        foreach (var module in assembly.Modules)
-        {
-            foreach (var referenced in module.ReferencedAssemblies)
-            {
-                if (referenced.Name == core.Name)
-                    return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>

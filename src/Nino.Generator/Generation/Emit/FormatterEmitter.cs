@@ -299,7 +299,7 @@ internal static class FormatterEmitter
             return;
         }
 
-        w.Line($"public const int Id = {m.TypeId}; // FNV-1a of \"{EscapeString(m.IdName)}\"");
+        w.Line($"public const int Id = {m.TypeId};");
         w.Line("public int TypeId => Id;");
     }
 
