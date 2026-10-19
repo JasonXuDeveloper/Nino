@@ -398,6 +398,21 @@ namespace Nino.Core
             return ref Reserve(size);
         }
 
+        /// <summary>
+        /// Generated code: <see cref="BeginRegion()"/> after <paramref name="prefix"/> bytes (a keyed member's key, and
+        /// the raw members before it), in one reservation of <paramref name="prefix"/> + 4 bytes that ends with the
+        /// region's length. Returns that reservation, and in <paramref name="lengthPosition"/> the position for
+        /// <see cref="EndRegion"/>.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref byte BeginRegionAfter(int prefix, out int lengthPosition)
+        {
+            _regions++;
+            lengthPosition = Pos + prefix;
+            return ref Reserve(prefix + NinoWire.LengthSize);
+        }
+
         /// <summary>Generated code: ends the region <see cref="BeginRegion"/> started.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

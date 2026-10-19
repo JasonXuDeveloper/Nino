@@ -334,7 +334,7 @@ internal sealed class BodyEmitter
     /// The raw members of <paramref name="block"/> (keyed: each after its key and length) in the reservation that
     /// <paramref name="reserve"/> returns.
     /// </summary>
-    private void EmitRawBlock(List<MemberModel> group, RawBlock block, string reserve)
+    private string EmitRawBlock(List<MemberModel> group, RawBlock block, string reserve)
     {
         string p = "__p" + _blocks++;
         _w.Line($"ref byte {p} = ref {reserve};");
@@ -349,6 +349,8 @@ internal sealed class BodyEmitter
 
             _w.Line(RawWrite(group[i], p, block.Offsets[i]));
         }
+
+        return p;
     }
 
     private void EmitPositionalWrites(IEnumerable<MemberModel> members)
@@ -406,25 +408,39 @@ internal sealed class BodyEmitter
             ? MemberCode.Ref(_m, member, "value")
             : null;
 
-    /// <summary>Each member as (key, length, value); consecutive raw members share one reservation.</summary>
+    /// <summary>
+    /// Each member as (key, length, value). Consecutive raw members share one reservation, which also holds the key
+    /// and length of the member after them; any other member's key and length are one reservation.
+    /// </summary>
     private void EmitKeyedWrites(IEnumerable<List<MemberModel>> groups)
     {
         int lengths = 0;
+        List<MemberModel>? run = null;
         foreach (var group in groups)
         {
             var first = group[0];
-            if (first.Raw == null)
+            if (first.Raw != null)
             {
-                string l = "__l" + lengths++;
-                _w.Line($"writer.UnsafeWrite<int>({first.Key});");
-                _w.Line($"int {l} = writer.BeginRegion();");
-                EmitFormatterWrite(first);
-                _w.Line($"writer.EndRegion({l});");
+                run = group;
                 continue;
             }
 
-            var block = new RawBlock(group, headers: true);
-            EmitRawBlock(group, block, $"writer.Reserve({block.Total})");
+            string l = "__l" + lengths++;
+            var block = new RawBlock(run ?? new List<MemberModel>(), headers: true);
+            string reserve = $"writer.BeginRegionAfter({block.Plus(NinoWire.KeySize)}, out int {l})";
+            string p = run != null ? EmitRawBlock(run, block, reserve) : "__p" + _blocks++;
+            if (run == null)
+                _w.Line($"ref byte {p} = ref {reserve};");
+            _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.Total}, {first.Key});");
+            run = null;
+            EmitFormatterWrite(first);
+            _w.Line($"writer.EndRegion({l});");
+        }
+
+        if (run != null)
+        {
+            var block = new RawBlock(run, headers: true);
+            EmitRawBlock(run, block, $"writer.Reserve({block.Total})");
         }
     }
 
