@@ -75,13 +75,13 @@ internal static class Interceptors
             return null;
         // Only the formatters known here: a cached one is what the regular call uses anyway.
         if (facts.Resolver.Resolve(type, false) is not { } formatter ||
-            formatter.Code.StartsWith(TypeNames.Core + "CachedFormatter<", StringComparison.Ordinal))
+            (formatter.Traits & FormatterTraits.Cached) != 0)
             return null;
         // A value of fixed size serialized into a new array: allocated at that size and written straight into.
         if (SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) && method.Name == "Serialize" &&
             method.Parameters.Length == 1 && method.ReturnType is IArrayTypeSymbol &&
             type is INamedTypeSymbol named && facts.IsFixedSize(named) &&
-            formatter.Code == FormatterResolver.GeneratedFormatter(named))
+            (formatter.Traits & FormatterTraits.Generated) != 0)
             return Intercept(ctx, invocation, method, type,
                 $"{TypeNames.Core}NinoDirect.SerializeFixed<{TypeNames.Global(type)}, {formatter.Code}>(a0)", "", ct);
         return Intercept(ctx, invocation, method, type, null, formatter.Code, ct);

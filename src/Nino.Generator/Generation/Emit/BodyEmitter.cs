@@ -424,40 +424,14 @@ internal sealed class BodyEmitter
 
     // ----- reads ---------------------------------------------------------------------------------------------
 
-    /// <summary>
-    /// Whether the out-of-line read body works on a local copy of the reader, written back at its end: through the
-    /// <c>ref</c> parameter, the position is stored after every member and loaded again by the next one (a store to
-    /// load forwarding on the critical path of each member, and a load, an operation and a store on ARM64), where
-    /// a local the JIT keeps in registers. Only for bodies that open no class body (<see cref="TypeModel.Nests"/>
-    /// false): a nested body takes the reader's address, which would keep the local in memory too.
-    /// </summary>
-    private bool LocalReader => OutOfLine && !_m.Nests && !_m.Keyed && !_m.TrackReferences;
+    private bool LocalReader => _m.LocalReader;
 
-    /// <summary>
-    /// Whether the <c>__Top</c> twin reads a new value with a reader of its own (<c>__ReadTop</c>, see
-    /// <c>INinoTopFormatter.Read</c>), for the reasons of <see cref="LocalWriter"/>'s <c>__WriteTop</c>: the body that
-    /// reads a new instance (<c>__ReadBodyInline</c>, or <c>__ReadBodyFreshInline</c> when <see cref="SplitFresh"/>) is
-    /// then an inlinable method that the out-of-line one calls on its local copy. Not for pooled types, whose new
-    /// value comes from the pool first.
-    /// </summary>
-    public bool ReadTop => !_shallow && _m.HasTop && !_m.TopInline && LocalReader && !_m.Pooled;
+    private bool LocalWriter => _m.LocalWriter;
 
-    /// <summary>
-    /// Whether the out-of-line write body works on a local copy of the writer, written back at its end, for the
-    /// reasons of <see cref="LocalReader"/> (the position, the buffer and its length are otherwise loaded, and the
-    /// position stored, for every member). The formatters keep the writer's address from calls that are not inlined
-    /// (or pass a copy), so the local stays in registers.
-    /// </summary>
-    public bool LocalWriter => OutOfLine && !_m.Nests && !_m.Keyed && !_m.TrackReferences &&
-                                _m.CollectionFormatter.Length == 0 &&
-                                _m.Members.All(static x => x.Raw != null || WritesInRegisters(x.Formatter));
+    /// <summary><see cref="TypeModel.ReadTop"/>, for the body of the type's own formatter.</summary>
+    private bool ReadTop => !_shallow && _m.ReadTop;
 
-    /// <summary>
-    /// Formatters whose writes never pass the writer's address to a call that is not inlined (<see cref="IsFlat"/>).
-    /// Any other member would take the address of the local writer (keeping it in memory) or need a copy of it
-    /// around the call, which costs more than the loads and stores the local saves.
-    /// </summary>
-    private static bool WritesInRegisters(string formatter) => IsFlat(formatter);
+    private bool SplitFresh => _m.SplitFresh;
 
     public void EmitReadBody()
     {
@@ -513,16 +487,7 @@ internal sealed class BodyEmitter
     }
 
     /// <summary>
-    /// Whether an out-of-line body reads a new instance in a method of its own (<c>__ReadBodyFresh</c>, see
-    /// <see cref="TypeModel.FreshRead"/>), chosen by the inlined <c>ReadBody</c>: one method holding both copies of
-    /// the member reads would keep more values live at once (spilled in loops). Small bodies inlined into the
-    /// top-level calls (<see cref="TypeModel.TopInline"/>) hold both copies in one method instead
-    /// (<see cref="EmitTopSplitReadBody"/>).
-    /// </summary>
-    public bool SplitFresh => _m.FreshRead && OutOfLine && !_m.InlineBody;
-
-    /// <summary>
-    /// The statements of the inlined <c>ReadBody</c> of a <see cref="SplitFresh"/> body (named
+    /// The statements of the inlined <c>ReadBody</c> of a <see cref="TypeModel.SplitFresh"/> body (named
     /// <paramref name="body"/>): a null slot is read as a new instance (a pooled type takes one from its pool
     /// first, read as an existing one).
     /// </summary>

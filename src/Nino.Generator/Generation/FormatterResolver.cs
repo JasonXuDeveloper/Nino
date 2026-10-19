@@ -19,10 +19,12 @@ namespace Nino.Generator.Generation;
 /// writes through their own formatters (default when unknown: another library's formatter, <c>object</c>, a cached
 /// formatter). Neither is part of a model.
 /// <see cref="Encoding"/>: the bytes it writes, as the published layout shows them (<see cref="WireEncoding"/>).
+/// <see cref="Traits"/>: which formatter it is, for the emitters (<see cref="FormatterTraits"/>).
 /// </summary>
 internal readonly record struct ResolvedFormatter(string Code, bool Registered, string Encoding,
     EquatableArray<FactoryRegistration> Factories = default, bool OpensBodies = true,
-    INamedTypeSymbol? Body = null, ImmutableArray<ITypeSymbol> Elements = default);
+    INamedTypeSymbol? Body = null, ImmutableArray<ITypeSymbol> Elements = default,
+    FormatterTraits Traits = FormatterTraits.None);
 
 /// <summary>
 /// Chooses the formatter (as C# source) for a member type. Built in: strings, <c>object</c>, raw unmanaged values,
@@ -59,7 +61,7 @@ internal sealed class FormatterResolver
     public static string Cached(ITypeSymbol type) => $"{Core}CachedFormatter<{TypeNames.Global(type)}>";
 
     private static ResolvedFormatter CachedFormatter(ITypeSymbol type) =>
-        new(Cached(type), false, WireEncoding.Type(type));
+        new(Cached(type), false, WireEncoding.Type(type), Traits: FormatterTraitsOf.Of("CachedFormatter"));
 
     public static string GeneratedFormatter(INamedTypeSymbol type)
     {
@@ -104,12 +106,7 @@ internal sealed class FormatterResolver
     /// The collection formatter of a <c>[NinoType]</c> class that is also a collection (derived from
     /// <c>List&lt;T&gt;</c>, implementing <c>ICollection&lt;T&gt;</c>...), used for its elements; null if none.
     /// </summary>
-    public ResolvedFormatter? ResolveCollection(INamedTypeSymbol type)
-    {
-        var factories = new List<FactoryRegistration>();
-        return Registered(FirstMatch(_rules.Open, type, false, factories, out bool opens, out var elements,
-            out string encoding), factories, opens, elements, encoding);
-    }
+    public ResolvedFormatter? ResolveCollection(INamedTypeSymbol type) => FirstMatch(_rules.Open, type, false);
 
     private ResolvedFormatter? ResolveCore(ITypeSymbol type, bool utf8)
     {
@@ -118,11 +115,7 @@ internal sealed class FormatterResolver
             case ITypeParameterSymbol:
                 return CachedFormatter(type);
             case IArrayTypeSymbol array:
-            {
-                var factories = new List<FactoryRegistration>();
-                return Registered(FirstMatch(_rules.ForArray(array.IsSZArray ? 1 : -array.Rank), type, utf8, factories,
-                    out bool opens, out var elements, out string encoding), factories, opens, elements, encoding);
-            }
+                return FirstMatch(_rules.ForArray(array.IsSZArray ? 1 : -array.Rank), type, utf8);
             case INamedTypeSymbol named:
                 return ResolveNamed(named, utf8);
             default:
@@ -137,64 +130,48 @@ internal sealed class FormatterResolver
         switch (type.SpecialType)
         {
             case SpecialType.System_String:
-                return new ResolvedFormatter(utf8 ? $"{Core}Utf8StringFormatter" : $"{Core}StringFormatter", true,
-                    utf8 ? WireEncoding.Utf8 : WireEncoding.String, OpensBodies: false,
-                    Elements: ImmutableArray<ITypeSymbol>.Empty);
+            {
+                string name = utf8 ? "Utf8StringFormatter" : "StringFormatter";
+                return new ResolvedFormatter(Core + name, true, utf8 ? WireEncoding.Utf8 : WireEncoding.String,
+                    OpensBodies: false, Elements: ImmutableArray<ITypeSymbol>.Empty,
+                    Traits: FormatterTraitsOf.Of(name));
+            }
             case SpecialType.System_Object:
-                return new ResolvedFormatter($"{Core}ObjectFormatter", true, WireEncoding.Object);
+                return new ResolvedFormatter($"{Core}ObjectFormatter", true, WireEncoding.Object,
+                    Traits: FormatterTraitsOf.Of("ObjectFormatter"));
         }
 
         if (type.IsTupleType && type.TupleUnderlyingType is { } underlying)
             type = underlying;
 
         // Registrations of this very definition first (a library can override how a raw struct is written).
-        var definition = type.OriginalDefinition;
-        var factories = new List<FactoryRegistration>();
-        if (FirstMatch(_rules.ForDefinition(definition), type, utf8, factories, out bool opens, out var elements,
-                out string encoding) is { } registered)
-            return Registered(registered, factories, opens, elements, encoding);
+        if (FirstMatch(_rules.ForDefinition(type.OriginalDefinition), type, utf8) is { } registered)
+            return registered;
         if (_raw.IsRawUnmanaged(type))
             return new ResolvedFormatter($"{Core}UnmanagedFormatter<{TypeNames.Global(type)}>", true,
-                RawLayout.Describe(type), OpensBodies: false, Elements: ImmutableArray<ITypeSymbol>.Empty);
+                RawLayout.Describe(type), OpensBodies: false, Elements: ImmutableArray<ITypeSymbol>.Empty,
+                Traits: FormatterTraitsOf.Of("UnmanagedFormatter"));
 
         // Checked before the open registrations: walking the base types and interfaces of a type is the most
         // expensive part of a model build.
         if (type.IsNinoType())
             return _visibility.IsGeneratedHere(type)
-                ? new ResolvedFormatter(GeneratedFormatter(type), false, WireEncoding.Type(type), Body: type)
+                ? new ResolvedFormatter(GeneratedFormatter(type), false, WireEncoding.Type(type), Body: type,
+                    Traits: FormatterTraits.Generated)
                 : CachedFormatter(type);
 
-        return Registered(FirstMatch(_rules.Open, type, utf8, factories, out opens, out elements, out encoding),
-            factories, opens, elements, encoding);
+        return FirstMatch(_rules.Open, type, utf8);
     }
 
-    private static ResolvedFormatter? Registered(string? code, List<FactoryRegistration>? factories, bool opens,
-        ImmutableArray<ITypeSymbol> elements, string encoding) =>
-        code == null
-            ? null
-            : new ResolvedFormatter(code, true, encoding, factories is { Count: > 0 }
-                ? new EquatableArray<FactoryRegistration>(factories.Distinct())
-                : EquatableArray<FactoryRegistration>.Empty, opens, Elements: elements);
-
-    /// <summary>
-    /// The first rule that binds; adds the creators it needs to <paramref name="factories"/>. <paramref name="opens"/>:
-    /// whether the bound formatter may open class bodies (see <see cref="ResolvedFormatter.OpensBodies"/>);
-    /// <paramref name="elements"/>: see <see cref="ResolvedFormatter.Elements"/>; <paramref name="encoding"/>: see
-    /// <see cref="ResolvedFormatter.Encoding"/>.
-    /// </summary>
-    private string? FirstMatch(IReadOnlyList<FormatterRule> rules, ITypeSymbol type, bool utf8,
-        List<FactoryRegistration> factories, out bool opens, out ImmutableArray<ITypeSymbol> elements,
-        out string encoding)
+    /// <summary>The formatter of the first rule that binds.</summary>
+    private ResolvedFormatter? FirstMatch(IReadOnlyList<FormatterRule> rules, ITypeSymbol type, bool utf8)
     {
         foreach (var rule in rules)
         {
-            if (Bind(rule, type, utf8, factories, out opens, out elements, out encoding) is { } code)
-                return code;
+            if (Bind(rule, type, utf8) is { } bound)
+                return bound;
         }
 
-        opens = true;
-        elements = default;
-        encoding = "";
         return null;
     }
 
@@ -202,28 +179,28 @@ internal sealed class FormatterResolver
     /// Binds the formatter's type parameters for <paramref name="target"/> (see <c>NinoFormatterAttribute</c>), with
     /// the binding the runtime uses too (<see cref="NinoFormatterBinding"/>).
     /// </summary>
-    private string? Bind(FormatterRule rule, ITypeSymbol target, bool utf8, List<FactoryRegistration> factories,
-        out bool opens, out ImmutableArray<ITypeSymbol> elements, out string encoding)
+    private ResolvedFormatter? Bind(FormatterRule rule, ITypeSymbol target, bool utf8)
     {
         var parameters = new Parameters(this, rule.Formatter.TypeParameters, utf8);
-        opens = true;
-        elements = default;
-        encoding = "";
         if (!NinoFormatterBinding.Bind<ITypeSymbol, string, SymbolTypeSystem, Parameters>(
                 new SymbolTypeSystem(_compilation), parameters, rule.Pattern, target, out var types,
                 out var formatters))
             return null;
         string code = Code(rule, types, formatters, parameters);
-        factories.AddRange(parameters.Created);
+        var factories = parameters.Created.Count == 0
+            ? EquatableArray<FactoryRegistration>.Empty
+            : new EquatableArray<FactoryRegistration>(parameters.Created.Distinct());
         // Nino.Core's formatters open no class body themselves (object is ObjectFormatter's, resolved above), only
         // through their element formatters; any other library's formatter may.
-        bool core = rule.Formatter.ContainingAssembly?.Name == NinoNames.CoreAssembly;
-        opens = !core || parameters.ElementsOpenBodies[0];
-        if (core)
-            elements = parameters.ElementTypes.ToImmutableArray();
-        encoding = (core ? WireEncoding.OfCore(rule.Formatter.Name, types, formatters.Select(f =>
-            f == null ? null : parameters.Encodings[f]).ToArray(), _compilation) : null) ?? WireEncoding.Formatter(code);
-        return code;
+        if (!FormatterTraitsOf.IsCore(rule.Formatter))
+            return new ResolvedFormatter(code, true, WireEncoding.Formatter(code), factories);
+        string encoding = WireEncoding.OfCore(rule.Formatter.Name, types,
+            formatters.Select(f => f == null ? null : parameters.Encodings[f]).ToArray(), _compilation) ??
+                          WireEncoding.Formatter(code);
+        var traits = FormatterTraitsOf.Of(rule.Formatter.Name,
+            formatters.Select(f => f == null ? FormatterTraits.None : parameters.Traits[f]).ToArray());
+        return new ResolvedFormatter(code, true, encoding, factories, parameters.ElementsOpenBodies[0],
+            Elements: parameters.ElementTypes.ToImmutableArray(), Traits: traits);
     }
 
     /// <summary>The bound formatter as C# source; adds the creators of its <c>[NinoCreated]</c> types.</summary>
@@ -275,6 +252,9 @@ internal sealed class FormatterResolver
         /// <summary>The encodings of the element formatters bound so far, by formatter.</summary>
         public Dictionary<string, string> Encodings { get; } = new();
 
+        /// <summary>The traits of the element formatters bound so far, by formatter.</summary>
+        public Dictionary<string, FormatterTraits> Traits { get; } = new();
+
         public int Count => _parameters.Length;
 
         public IEnumerable<ITypeSymbol> Constraints(int index) => _parameters[index].ConstraintTypes;
@@ -293,6 +273,7 @@ internal sealed class FormatterResolver
 
             formatter = resolved.Code;
             Encodings[formatter] = resolved.Encoding;
+            Traits[formatter] = resolved.Traits;
             Created.AddRange(resolved.Factories);
             ElementTypes.Add(element);
             ElementsOpenBodies[0] |= resolved.OpensBodies;

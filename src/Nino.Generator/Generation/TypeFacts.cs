@@ -165,7 +165,8 @@ internal sealed class TypeFacts
                 continue;
             // A struct of fixed size, written by its generated formatter.
             if (memberType is not INamedTypeSymbol { TypeKind: TypeKind.Struct } nested || !IsFixedSize(nested) ||
-                Resolver.Resolve(nested, false)?.Code != FormatterResolver.GeneratedFormatter(nested))
+                Resolver.Resolve(nested, false) is not { Traits: var traits } ||
+                (traits & FormatterTraits.Generated) == 0)
                 return false;
         }
 
