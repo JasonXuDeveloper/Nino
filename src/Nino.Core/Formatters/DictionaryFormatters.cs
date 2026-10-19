@@ -28,8 +28,7 @@ namespace Nino.Core
             {
                 // Raw keys and values: one reservation for the whole dictionary, no per-element bounds checks.
                 int count = value.Count;
-                WriteRaw(value, ref writer.Reserve(checked(NinoWire.LengthSize +
-                                                           count * (Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()))),
+                WriteRaw(value, ref writer.ReserveCounted(count, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()),
                     count);
                 return;
             }
@@ -86,13 +85,12 @@ namespace Nino.Core
             return (int)pos;
         }
 
+        /// <summary>Writes the <paramref name="count"/> raw pairs at <paramref name="pairs"/> (after the count).</summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteRaw(Dictionary<TKey, TValue> value, ref byte dst, int count)
+        private static void WriteRaw(Dictionary<TKey, TValue> value, ref byte pairs, int count)
         {
             int keySize = Unsafe.SizeOf<TKey>();
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
-            NinoUnsafe.Write(ref dst, count);
-            ref byte pairs = ref Unsafe.Add(ref dst, NinoWire.LengthSize);
             int written = 0;
             foreach (var pair in value)
             {

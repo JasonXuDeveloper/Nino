@@ -65,10 +65,9 @@ namespace Nino.Core
             {
                 int size = Unsafe.SizeOf<T>();
                 int count = value.Count;
-                ref byte dst = ref writer.Reserve(checked(NinoWire.LengthSize + count * size));
-                NinoUnsafe.Write(ref dst, count);
+                ref byte elements = ref writer.ReserveCounted(count, size);
                 // A cursor rather than an int offset, which every store would sign-extend.
-                ref byte next = ref Unsafe.Add(ref dst, NinoWire.LengthSize);
+                ref byte next = ref elements;
                 int written = 0;
                 foreach (var item in value)
                 {
@@ -78,8 +77,7 @@ namespace Nino.Core
                     next = ref Unsafe.Add(ref next, size);
                 }
 
-                NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref dst, NinoWire.LengthSize), count);
-
+                NinoLayout<T>.ClearPadding(ref elements, count);
                 return;
             }
 
