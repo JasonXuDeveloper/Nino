@@ -492,21 +492,35 @@ namespace Nino.Core
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.WriteBlock(ref byte destination,
-            in KeyValuePair<TKey, TValue> value)
+            in KeyValuePair<TKey, TValue> value) => WriteRaw(ref destination, in value);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref byte source,
+            ref KeyValuePair<TKey, TValue> value) => value = ReadRaw(ref source);
+
+        /// <summary>The key and the value of a pair of raw items, at <paramref name="destination"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteRaw(ref byte destination, in KeyValuePair<TKey, TValue> value)
         {
             NinoLayout<TKey>.Write(ref destination, value.Key);
             NinoLayout<TValue>.Write(ref Unsafe.Add(ref destination, NinoLayout<TKey>.Size), value.Value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        void INinoBlockFormatter<KeyValuePair<TKey, TValue>>.ReadBlock(ref byte source,
-            ref KeyValuePair<TKey, TValue> value) =>
-            value = new KeyValuePair<TKey, TValue>(NinoLayout<TKey>.Read(ref source),
+        private static KeyValuePair<TKey, TValue> ReadRaw(ref byte source) =>
+            new KeyValuePair<TKey, TValue>(NinoLayout<TKey>.Read(ref source),
                 NinoLayout<TValue>.Read(ref Unsafe.Add(ref source, NinoLayout<TKey>.Size)));
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(KeyValuePair<TKey, TValue> value, ref Writer writer)
         {
+            // Raw items (a constant check): one capacity check for the pair, as for a tuple of them.
+            if (Raw)
+            {
+                WriteRaw(ref writer.Reserve(NinoLayout<TKey>.Size + NinoLayout<TValue>.Size), in value);
+                return;
+            }
+
             default(TKeyFormatter).Serialize(value.Key, ref writer);
             default(TValueFormatter).Serialize(value.Value, ref writer);
         }
@@ -514,6 +528,12 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref KeyValuePair<TKey, TValue> value, ref Reader reader)
         {
+            if (Raw)
+            {
+                value = ReadRaw(ref reader.ReadBlock(NinoLayout<TKey>.Size + NinoLayout<TValue>.Size));
+                return;
+            }
+
             TKey key = value.Key;
             TValue item = value.Value;
             default(TKeyFormatter).Deserialize(ref key, ref reader);
