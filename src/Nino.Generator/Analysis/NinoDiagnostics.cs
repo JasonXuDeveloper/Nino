@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using System.Linq;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 
 namespace Nino.Generator.Analysis;
@@ -115,4 +118,11 @@ internal static class NinoDiagnostics
 
     public static readonly DiagnosticDescriptor InvalidFormatterRegistration = Error("NINO020",
         "Invalid formatter registration", "[assembly: NinoFormatter(typeof({0}))] is ignored: {1}");
+
+    /// <summary>Every descriptor above, which the analyzer reports. Last: static fields initialize in order.</summary>
+    public static readonly ImmutableArray<DiagnosticDescriptor> All = typeof(NinoDiagnostics)
+        .GetFields(BindingFlags.Public | BindingFlags.Static)
+        .Where(static f => f.FieldType == typeof(DiagnosticDescriptor))
+        .Select(static f => (DiagnosticDescriptor)f.GetValue(null)!)
+        .ToImmutableArray();
 }

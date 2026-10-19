@@ -60,7 +60,7 @@ internal static class MemberCode
     }
 
     /// <summary>Stores a read value: into the instance (in place) or into the member's local.</summary>
-    public static string Store(TypeModel m, MemberModel member, bool inPlace, string expr, string v = "value") =>
+    public static string Store(TypeModel m, MemberModel member, bool inPlace, string expr, string v) =>
         inPlace ? Set(m, member, v, expr) : $"{Local(member)} = {expr};";
 
     /// <summary>
@@ -85,7 +85,4 @@ internal static class MemberCode
         Core + "Utf8StringFormatter" => $"writer.WriteUtf8({value});",
         _ => null,
     };
-
-    /// <summary>The contents of a C# string literal for <paramref name="s"/>.</summary>
-    public static string EscapeString(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 }

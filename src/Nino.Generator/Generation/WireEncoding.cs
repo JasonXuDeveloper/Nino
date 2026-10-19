@@ -15,10 +15,10 @@ internal static class WireEncoding
     public const string Object = "object";
 
     /// <summary>A <c>[NinoType]</c> or a type resolved at run time (a type parameter): its own layout describes it.</summary>
-    public static string Type(ITypeSymbol type) => $"type({TypeNames.Global(type).Replace("global::", "")})";
+    public static string Type(ITypeSymbol type) => $"type({TypeNames.Plain(TypeNames.Global(type))})";
 
     /// <summary>A formatter whose bytes are not described: another library's or a custom one.</summary>
-    public static string Formatter(string code) => $"formatter({code.Replace("global::", "")})";
+    public static string Formatter(string code) => $"formatter({TypeNames.Plain(code)})";
 
     /// <summary>
     /// The encoding of a Nino.Core formatter bound to <paramref name="types"/> (bound type arguments) and

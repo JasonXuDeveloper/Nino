@@ -233,6 +233,24 @@ internal static class TypeNames
         return result;
     }
 
+    /// <summary>
+    /// Whether <paramref name="type"/> names a type parameter anywhere: in its type arguments, its element type, or
+    /// those of its containing types (<c>Outer&lt;T&gt;.Inner</c>).
+    /// </summary>
+    public static bool ContainsTypeParameter(ITypeSymbol type) => type switch
+    {
+        ITypeParameterSymbol => true,
+        IArrayTypeSymbol a => ContainsTypeParameter(a.ElementType),
+        INamedTypeSymbol n => AllTypeArguments(n).Any(ContainsTypeParameter),
+        _ => false,
+    };
+
+    /// <summary>A type or formatter as C# source without <c>global::</c>, as published layouts show it.</summary>
+    public static string Plain(string name) => name.Replace("global::", "");
+
+    /// <summary>The contents of a C# string literal for <paramref name="s"/>.</summary>
+    public static string EscapeString(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
     /// <summary>All type parameters of a type definition, outermost containing type first.</summary>
     public static List<ITypeParameterSymbol> AllTypeParameters(INamedTypeSymbol type)
     {

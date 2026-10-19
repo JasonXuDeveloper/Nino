@@ -146,6 +146,53 @@ public class Hidden
     }
 
     [TestMethod]
+    public void TopLevelCallsOnTypesNestedInOpenGenericsCompile()
+    {
+        // Outer<T>.Items names T through its containing type only: the registry and the interceptors cannot name it.
+        var parse = new CSharpParseOptions(LanguageVersion.Latest).WithFeatures(new[]
+        {
+            new System.Collections.Generic.KeyValuePair<string, string>("InterceptorsNamespaces", "NinoGen"),
+        });
+        var compilation = Create(("Open.cs", Usings + @"
+public class Outer<T>
+{
+    public class Items : System.Collections.Generic.List<int> { }
+    public static byte[] Write(Items items) => NinoSerializer.Serialize(items);
+    public static Items Read(byte[] data) => NinoDeserializer.Deserialize<Items>(data);
+}
+}"));
+        compilation = compilation.RemoveAllSyntaxTrees()
+            .AddSyntaxTrees(compilation.SyntaxTrees.Select(t => t.WithRootAndOptions(t.GetRoot(), parse)));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
+            parseOptions: parse);
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+    }
+
+    [TestMethod]
+    public void GenericFactoriesAreNotCalled()
+    {
+        // NINO017: a generic [NinoFactory] cannot be called as T.Create(); the formatter creates `new T()` instead,
+        // as the formatters of collections holding it do.
+        var compilation = Create(("Factory.cs", Usings + @"
+[NinoType]
+public class Made
+{
+    public int A;
+    [NinoFactory] public static Made Create<T>() => new Made();
+}
+public class MadeList : System.Collections.Generic.List<Made> { }
+[NinoType] public class Holder { public MadeList Items; }
+}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        var errors = output.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToArray();
+        Assert.AreEqual(0, errors.Length, string.Join("\n", errors.Select(e => e.ToString())));
+        Assert.IsFalse(Output(driver, "Made").Contains("Inc.Made.Create"));
+    }
+
+    [TestMethod]
     public void MovingCodeReusesEveryOutput()
     {
         var compilation = Create(

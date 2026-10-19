@@ -301,14 +301,15 @@ public sealed class NinoGenerator : IIncrementalGenerator
             !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
             return null;
         var type = method.TypeArguments[0];
-        if (ContainsTypeParameter(type))
+        if (TypeNames.ContainsTypeParameter(type))
             return null;
         var generics = new List<ClosedTypeRegistration>();
         ClosedGenerics.Collect(type, facts, generics);
         var layouts = new List<string>();
         LayoutTypes.Collect(type, facts, layouts);
         var formatter = facts.Resolver.Resolve(type, false);
-        bool registered = formatter is { Registered: true } && !facts.Raw.IsRawUnmanaged(type);
+        bool registered = formatter is { Registered: true } && !facts.Raw.IsRawUnmanaged(type) &&
+                          facts.Visibility.CanName(type);
         if (!registered && generics.Count == 0 && layouts.Count == 0)
             return null;
         return new UsageRegistration(
@@ -319,14 +320,6 @@ public sealed class NinoGenerator : IIncrementalGenerator
             new EquatableArray<ClosedTypeRegistration>(generics.Distinct()),
             LayoutTypes.ToArray(layouts));
     }
-
-    private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
-    {
-        ITypeParameterSymbol => true,
-        IArrayTypeSymbol a => ContainsTypeParameter(a.ElementType),
-        INamedTypeSymbol n => n.TypeArguments.Any(ContainsTypeParameter),
-        _ => false,
-    };
 
     private static RegistryEntry ToEntry(TypeModel model) =>
         new(model.FormatterName, model.TypeParameters.Length, model.TypeId, model.NameId,

@@ -1871,6 +1871,27 @@ public class TestClass
     }
 
     [TestMethod]
+    public async Task NINO017_Generic()
+    {
+        // Generated code calls the factory without type arguments, which cannot be inferred.
+        var code = @"
+using Nino.Core;
+
+[NinoType]
+public class TestClass
+{
+    [NinoFactory]
+    public static TestClass {|#0:GetInstance|}<T>() => new TestClass();
+
+    public int Value;
+}
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO017").WithLocation(0).WithArguments("GetInstance", "must not be generic")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO017_MultipleErrors()
     {
         var code = @"

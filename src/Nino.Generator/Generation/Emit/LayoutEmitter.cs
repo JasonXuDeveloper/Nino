@@ -50,13 +50,10 @@ internal static class LayoutEmitter
                     member.FormerKeys.Select(Hex)));
         }
 
-        return sb.ToString().Replace("\\", "\\\\").Replace("\"", "\\\"");
+        return EscapeString(sb.ToString());
     }
 
     private static string Hex(int key) => "0x" + key.ToString("X8", CultureInfo.InvariantCulture);
-
-    /// <summary>A type or formatter as C# source without <c>global::</c>.</summary>
-    private static string Plain(string name) => name.Replace("global::", "");
 
     /// <summary>The type for <c>typeof</c>: generic types as their open definition (<c>Box&lt;&gt;</c>).</summary>
     private static string OpenType(TypeModel m)

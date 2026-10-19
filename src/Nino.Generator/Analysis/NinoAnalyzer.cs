@@ -17,35 +17,7 @@ namespace Nino.Generator.Analysis;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class NinoAnalyzer : DiagnosticAnalyzer
 {
-    private static readonly ImmutableArray<DiagnosticDescriptor> Supported = ImmutableArray.Create(
-        NinoDiagnostics.MissingConstructorMember,
-        NinoDiagnostics.NoUsableConstructor,
-        NinoDiagnostics.InaccessibleConstructor,
-        NinoDiagnostics.FactoryIgnored,
-        NinoDiagnostics.InaccessibleType,
-        NinoDiagnostics.SubTypeWithoutNinoType,
-        NinoDiagnostics.RedundantMember,
-        NinoDiagnostics.RedundantIgnore,
-        NinoDiagnostics.FormerNameNotKeyed,
-        NinoDiagnostics.MultipleTypeFormerNames,
-        NinoDiagnostics.AmbiguousMember,
-        NinoDiagnostics.PrivateMember,
-        NinoDiagnostics.DuplicateIndex,
-        NinoDiagnostics.HiddenMember,
-        NinoDiagnostics.EmptyStruct,
-        NinoDiagnostics.InvalidCustomFormatter,
-        NinoDiagnostics.InvalidFactory,
-        NinoDiagnostics.UnserializableMember,
-        NinoDiagnostics.NotPartial,
-        NinoDiagnostics.ReadOnlyMember,
-        NinoDiagnostics.KeyCollision,
-        NinoDiagnostics.TrackReferencesOnStruct,
-        NinoDiagnostics.TrackReferencesNeedsAssignableMembers,
-        NinoDiagnostics.InvalidPooledType,
-        NinoDiagnostics.PoolHooksNotImplemented,
-        NinoDiagnostics.InvalidFormatterRegistration);
-
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => Supported;
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => NinoDiagnostics.All;
 
     public override void Initialize(AnalysisContext context)
     {
@@ -163,25 +135,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     /// <summary>A type deriving from a NinoType that does not pass its attribute on must declare its own.</summary>
     private static void ReportMissingNinoType(DiagnosticSink sink, INamedTypeSymbol type)
     {
-        if (type.TypeKind is not (TypeKind.Class or TypeKind.Struct or TypeKind.Interface))
-            return;
-        for (var baseType = type.BaseType; baseType != null; baseType = baseType.BaseType)
-        {
-            if (baseType.IsNinoType())
-            {
-                sink.Report(NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, baseType.Name);
-                return;
-            }
-        }
-
-        foreach (var interfaceType in type.AllInterfaces)
-        {
-            if (interfaceType.IsNinoType())
-            {
-                sink.Report(NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, interfaceType.Name);
-                return;
-            }
-        }
+        if (type.TypeKind is TypeKind.Class or TypeKind.Struct or TypeKind.Interface &&
+            type.NinoAncestors().FirstOrDefault() is { } ancestor)
+            sink.Report(NinoDiagnostics.SubTypeWithoutNinoType, type, type.Name, ancestor.Name);
     }
 
     private static void AnalyzeMethod(SymbolAnalysisContext context, INamedTypeSymbol attribute)
@@ -190,15 +146,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
         if (!NinoSymbols.Has(method, attribute))
             return;
 
-        var errors = new List<string>();
-        if (method.DeclaredAccessibility != Accessibility.Public)
-            errors.Add("must be public");
-        if (!method.IsStatic)
-            errors.Add("must be static");
-        if (!ConstructionPlanner.CallableWithoutArguments(method))
-            errors.Add("must be callable without arguments (parameterless, or every parameter optional)");
-        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
-            errors.Add($"must return {method.ContainingType.ToDisplayString()}");
+        var errors = NinoSymbols.FactoryErrors(method);
         if (errors.Count > 0)
             context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.InvalidFactory,
                 method.Locations.FirstOrDefault(), method.Name, string.Join(", ", errors)));

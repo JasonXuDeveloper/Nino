@@ -126,9 +126,6 @@ internal static class InheritedCandidates
     /// <summary>What a referenced assembly contributes; computed once per assembly symbol.</summary>
     private sealed class AssemblyInfo
     {
-        /// <summary>Names of the assemblies it references.</summary>
-        public readonly HashSet<string> References = new();
-
         /// <summary>Simple names of its NinoTypes (including inherited ones), once collected.</summary>
         public string[]? NinoTypes;
     }
@@ -144,7 +141,7 @@ internal static class InheritedCandidates
         foreach (var reference in compilation.References)
         {
             if (compilation.GetAssemblyOrModuleSymbol(reference) is IAssemblySymbol assembly)
-                assemblies.Add((assembly, Assemblies.GetValue(assembly, Describe)));
+                assemblies.Add((assembly, Assemblies.GetValue(assembly, static _ => new AssemblyInfo())));
         }
 
         // Only assemblies that reference Nino.Core, directly or through another such assembly, can declare or
@@ -156,7 +153,7 @@ internal static class InheritedCandidates
             grew = false;
             foreach (var (assembly, info) in assemblies)
             {
-                if (ninoAware.Contains(assembly.Name) || !info.References.Overlaps(ninoAware))
+                if (ninoAware.Contains(assembly.Name) || !AssemblyReferences.Of(assembly).Overlaps(ninoAware))
                     continue;
                 ninoAware.Add(assembly.Name);
                 grew = true;
@@ -191,18 +188,6 @@ internal static class InheritedCandidates
 
         names.RemoveRange(count, names.Count - count);
         return new EquatableArray<string>(names);
-    }
-
-    private static AssemblyInfo Describe(IAssemblySymbol assembly)
-    {
-        var info = new AssemblyInfo();
-        foreach (var module in assembly.Modules)
-        {
-            foreach (var referenced in module.ReferencedAssemblies)
-                info.References.Add(referenced.Name);
-        }
-
-        return info;
     }
 
     private static void Collect(INamespaceOrTypeSymbol container, HashSet<string> names, CancellationToken ct)

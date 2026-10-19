@@ -12,21 +12,6 @@ internal static class ConstructionPlanner
 {
     private static readonly ConstructionModel Unconstructible = new(true, "", EquatableArray<string>.Empty, "");
 
-    /// <summary>
-    /// Whether generated code can call <paramref name="method"/> as <c>M()</c>: every parameter is optional (or
-    /// <c>params</c>), as in ET's <c>static T Create(bool isFromPool = false)</c> or <c>MultiMap(int maxPoolCount = 0)</c>.
-    /// </summary>
-    public static bool CallableWithoutArguments(IMethodSymbol method)
-    {
-        foreach (var parameter in method.Parameters)
-        {
-            if (!parameter.IsOptional && !parameter.IsParams)
-                return false;
-        }
-
-        return true;
-    }
-
     public static ConstructionModel Plan(INamedTypeSymbol type, List<MemberModel> members, TypeFacts facts,
         DiagnosticSink? diagnostics)
     {
@@ -37,9 +22,7 @@ internal static class ConstructionPlanner
         var factories = type.GetMembers().OfType<IMethodSymbol>().Where(m =>
             m.IsStatic && m.MethodKind == MethodKind.Ordinary &&
             SymbolEqualityComparer.Default.Equals(m.ReturnType, type)).ToList();
-        var factory = factories.FirstOrDefault(m => CallableWithoutArguments(m) &&
-                                                       m.DeclaredAccessibility == Accessibility.Public &&
-                                                       NinoSymbols.Has(m, known.Factory));
+        var factory = known.FindFactory(type);
         string factoryName = factory == null ? "" : $"{typeName}.{factory.Name}";
 
         var constructors = type.InstanceConstructors.Where(facts.Visibility.IsVisible).ToList();
@@ -54,7 +37,7 @@ internal static class ConstructionPlanner
         // A [NinoFactory] replaces the parameterless constructor, which may then be private (or absent).
         if (marked == null && !members.Any(m => m.ConstructionOnly) &&
             (type.IsValueType || factory != null ||
-             constructors.Any(c => CallableWithoutArguments(c) && SetsRequired(c))))
+             constructors.Any(c => NinoSymbols.CallableWithoutArguments(c) && SetsRequired(c))))
             return new ConstructionModel(false, $"new {typeName}", EquatableArray<string>.Empty, factoryName);
 
         string Creator(IMethodSymbol m) => m.MethodKind == MethodKind.Constructor
@@ -98,11 +81,8 @@ internal static class ConstructionPlanner
                 return Unconstructible;
             }
 
-            var attr = NinoSymbols.Get(marked, known.Constructor)!;
-            var names = attr.ConstructorArguments is { Length: > 0 } a && a[0].Kind == TypedConstantKind.Array &&
-                        a[0].Values.Length > 0
-                ? a[0].Values.Select(v => v.Value as string ?? "").ToList()
-                : marked.Parameters.Select(p => p.Name).ToList();
+            var names = NinoSymbols.ConstructorNames(NinoSymbols.Get(marked, known.Constructor)!) ??
+                        marked.Parameters.Select(p => p.Name).ToList();
             var args = Match(names, out var missing);
             if (args == null)
             {

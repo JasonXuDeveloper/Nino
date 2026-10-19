@@ -69,33 +69,6 @@ internal sealed class FormatterResolver
     }
 
     /// <summary>
-    /// Size of a raw unmanaged type: a constant for primitives, enums and the BCL structs whose size and layout
-    /// are the same on every runtime (<c>DateTime</c>, <c>TimeSpan</c>, <c>Guid</c>), symbolic for other structs.
-    /// A constant saves interpreted code (HybridCLR, Mono's interpreter) a <c>SizeOf</c> call per member.
-    /// </summary>
-    public static RawSize RawSizeOf(ITypeSymbol type)
-    {
-        var t = type is INamedTypeSymbol { TypeKind: TypeKind.Enum, EnumUnderlyingType: { } underlying }
-            ? underlying
-            : type;
-        int bytes = t.SpecialType switch
-        {
-            SpecialType.System_Boolean or SpecialType.System_Byte or SpecialType.System_SByte => 1,
-            SpecialType.System_Char or SpecialType.System_Int16 or SpecialType.System_UInt16 => 2,
-            SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Single => 4,
-            SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_Double => 8,
-            SpecialType.System_Decimal => 16,
-            SpecialType.System_DateTime => 8,
-            _ when t is INamedTypeSymbol named && TypeNames.HasMetadataName(named, "System.TimeSpan") => 8,
-            _ when t is INamedTypeSymbol named && TypeNames.HasMetadataName(named, "System.Guid") => 16,
-            _ => 0,
-        };
-        return bytes != 0
-            ? RawSize.Constant(bytes)
-            : new RawSize(0, $"{Core}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
-    }
-
-    /// <summary>
     /// Returns the formatter for <paramref name="type"/>, or null if Nino cannot serialize it at all.
     /// Type parameters (and <c>[NinoType]</c>s generated elsewhere) are resolved at runtime through
     /// <c>CachedFormatter&lt;T&gt;</c>.
@@ -343,14 +316,14 @@ internal sealed class FormatterResolver
     /// </summary>
     private FactoryRegistration? Factory(ITypeSymbol type)
     {
-        if (type is not INamedTypeSymbol named || ContainsTypeParameter(named))
+        if (type is not INamedTypeSymbol named || TypeNames.ContainsTypeParameter(named))
             return null;
         // A plain List<T> is created directly, with its capacity (ListAccess.Create in Nino.Core).
         _list ??= _compilation.GetTypeByMetadataName("System.Collections.Generic.List`1");
         if (SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, _list))
             return null;
         string name = TypeNames.Global(named);
-        string creator = FindFactory(named) is { } factory
+        string creator = _symbols.FindFactory(named) is { } factory
             ? $"static () => {name}.{factory.Name}()"
             : $"static () => new {name}()";
         return new FactoryRegistration(name, creator, TypeNames.ComputeId(TypeNames.RuntimeName(named)));
@@ -358,42 +331,15 @@ internal sealed class FormatterResolver
 
     private INamedTypeSymbol? _list;
 
-    private IMethodSymbol? FindFactory(INamedTypeSymbol type)
-    {
-        foreach (var member in type.GetMembers())
-        {
-            if (member is IMethodSymbol
-                {
-                    IsStatic: true, MethodKind: MethodKind.Ordinary, DeclaredAccessibility: Accessibility.Public,
-                    IsGenericMethod: false,
-                } method &&
-                SymbolEqualityComparer.Default.Equals(method.ReturnType, type) &&
-                ConstructionPlanner.CallableWithoutArguments(method) &&
-                NinoSymbols.Has(method, _symbols.Factory))
-                return method;
-        }
-
-        return null;
-    }
-
     /// <summary>
     /// What <c>[NinoCreated]</c> requires (see <c>NinoCreatedAttribute</c>): a non-abstract class with a public static
     /// <c>[NinoFactory]</c> factory or a public constructor callable without arguments.
     /// </summary>
     private bool IsCreatable(ITypeSymbol type) =>
         type is INamedTypeSymbol { TypeKind: TypeKind.Class, IsAbstract: false, IsStatic: false } named &&
-        (FindFactory(named) != null || named.InstanceConstructors.Any(c =>
-            c.DeclaredAccessibility == Accessibility.Public && ConstructionPlanner.CallableWithoutArguments(c) &&
+        (_symbols.FindFactory(named) != null || named.InstanceConstructors.Any(c =>
+            c.DeclaredAccessibility == Accessibility.Public && NinoSymbols.CallableWithoutArguments(c) &&
             (NinoSymbols.SetsRequiredMembers(c) || !NinoSymbols.HasRequiredMembers(named))));
-
-    private static bool ContainsTypeParameter(ITypeSymbol type) => type switch
-    {
-        ITypeParameterSymbol => true,
-        IArrayTypeSymbol a => ContainsTypeParameter(a.ElementType),
-        INamedTypeSymbol n => n.TypeArguments.Any(ContainsTypeParameter) ||
-                              (n.ContainingType != null && ContainsTypeParameter(n.ContainingType)),
-        _ => false,
-    };
 
     private bool Satisfies(ITypeParameterSymbol parameter, ITypeSymbol type, ITypeSymbol[] types)
     {

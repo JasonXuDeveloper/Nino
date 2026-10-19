@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using static Nino.Generator.Generation.Emit.MemberCode;
 using static Nino.Generator.Generation.TypeNames;
 
 namespace Nino.Generator.Generation.Emit;

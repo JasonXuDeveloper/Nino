@@ -62,7 +62,7 @@ internal static class Interceptors
             return null;
 
         var type = method.TypeArguments[0];
-        if (!IsNameable(type))
+        if (!facts.Visibility.CanName(type))
             return null;
         // Raw values and arrays of raw elements are copied directly by the regular calls already, except a raw value
         // read into a new one, which NinoDirect.DeserializeRaw returns without a stack temporary.
@@ -179,15 +179,6 @@ internal static class Interceptors
             return TypeNames.Core + "NinoDirect.DeserializeTop<" + call.Substring(deserialize.Length);
         return call;
     }
-
-    /// <summary>Whether generated code in this assembly can name the type (no private or protected parts).</summary>
-    private static bool IsNameable(ITypeSymbol type) => type switch
-    {
-        IArrayTypeSymbol a => IsNameable(a.ElementType),
-        INamedTypeSymbol n => !n.IsAnonymousType && Visibility.IsAccessibleChain(n) &&
-                              n.TypeArguments.All(IsNameable),
-        _ => false,
-    };
 
     /// <summary>
     /// <paramref name="fileLocal"/>: C# 11 or later, where the attribute and the interceptors are file-local, so

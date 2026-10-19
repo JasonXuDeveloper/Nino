@@ -13,14 +13,13 @@ namespace Nino.Generator.Generation;
 /// </summary>
 internal sealed class NinoSymbols
 {
-    public readonly INamedTypeSymbol? NinoType, Member, Ignore, CustomFormatter, Utf8, FormerName,
+    public readonly INamedTypeSymbol? Member, Ignore, CustomFormatter, Utf8, FormerName,
         Constructor, Factory, Created, Raw, Pooled, IFormatter, FormatterAttribute,
         Serializer, Deserializer;
 
     public NinoSymbols(Compilation compilation)
     {
         INamedTypeSymbol? Core(string name) => compilation.GetTypeByMetadataName(NinoNames.Core(name));
-        NinoType = Core(NinoNames.NinoTypeAttribute);
         Member = Core("NinoMemberAttribute");
         Ignore = Core("NinoIgnoreAttribute");
         CustomFormatter = Core("NinoCustomFormatterAttribute");
@@ -91,6 +90,67 @@ internal sealed class NinoSymbols
     }
 
     /// <summary>
+    /// The member names a <c>[NinoConstructor]</c> lists (a missing name reads as ""), or null when it lists none:
+    /// its parameter names are then the member names.
+    /// </summary>
+    public static List<string>? ConstructorNames(AttributeData constructor) =>
+        constructor.ConstructorArguments is { Length: > 0 } a && a[0].Kind == TypedConstantKind.Array &&
+        a[0].Values.Length > 0
+            ? a[0].Values.Select(v => v.Value as string ?? "").ToList()
+            : null;
+
+    /// <summary>
+    /// Whether generated code can call <paramref name="method"/> as <c>M()</c>: every parameter is optional (or
+    /// <c>params</c>), as in ET's <c>static T Create(bool isFromPool = false)</c> or <c>MultiMap(int maxPoolCount = 0)</c>.
+    /// </summary>
+    public static bool CallableWithoutArguments(IMethodSymbol method)
+    {
+        foreach (var parameter in method.Parameters)
+        {
+            if (!parameter.IsOptional && !parameter.IsParams)
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// What is wrong with <paramref name="method"/> as a <c>[NinoFactory]</c> (NINO017), empty if nothing: generated
+    /// code calls it as <c>T.Factory()</c>, so it must be a public static non-generic method of the type, callable
+    /// without arguments and returning the type.
+    /// </summary>
+    public static List<string> FactoryErrors(IMethodSymbol method)
+    {
+        var errors = new List<string>();
+        if (method.DeclaredAccessibility != Accessibility.Public)
+            errors.Add("must be public");
+        if (!method.IsStatic)
+            errors.Add("must be static");
+        if (method.IsGenericMethod)
+            errors.Add("must not be generic");
+        if (!CallableWithoutArguments(method))
+            errors.Add("must be callable without arguments (parameterless, or every parameter optional)");
+        if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
+            errors.Add($"must return {method.ContainingType.ToDisplayString()}");
+        return errors;
+    }
+
+    /// <summary>The valid <c>[NinoFactory]</c> of <paramref name="type"/> (see <see cref="FactoryErrors"/>), or null.</summary>
+    public IMethodSymbol? FindFactory(INamedTypeSymbol type)
+    {
+        if (Factory == null)
+            return null;
+        foreach (var member in type.GetMembers())
+        {
+            if (member is IMethodSymbol { MethodKind: MethodKind.Ordinary } method && Has(method, Factory) &&
+                FactoryErrors(method).Count == 0)
+                return method;
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// The C# 11 <c>required</c> members the type and its bases declare, which <c>new T()</c> must set in its object
     /// initializer unless the constructor is <c>[SetsRequiredMembers]</c>. <c>IsRequired</c> is read by reflection:
     /// Roslyn 4.3, which the generator is built against, predates it (and the language feature).
@@ -117,7 +177,8 @@ internal sealed class NinoSymbols
 
     /// <summary>Whether the constructor is <c>[SetsRequiredMembers]</c>: <c>new T()</c> needs no initializer.</summary>
     public static bool SetsRequiredMembers(IMethodSymbol constructor) => constructor.GetAttributes().Any(a =>
-        a.AttributeClass?.ToDisplayString() == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute");
+        a.AttributeClass is { } type &&
+        TypeNames.HasMetadataName(type, "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute"));
 
     private static bool IsRequired(ISymbol member)
     {

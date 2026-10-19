@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 
 namespace Nino.Generator.Common;
@@ -83,21 +82,6 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IEnu
     public static bool operator !=(EquatableArray<T> left, EquatableArray<T> right)
     {
         return !left.Equals(right);
-    }
-
-    public static implicit operator EquatableArray<T>(T[] array)
-    {
-        return new EquatableArray<T>(array);
-    }
-
-    public static implicit operator EquatableArray<T>(ImmutableArray<T> array)
-    {
-        return new EquatableArray<T>(array);
-    }
-
-    public ImmutableArray<T> ToImmutableArray()
-    {
-        return ImmutableArray.Create(Items);
     }
 
     public T[] ToArray()

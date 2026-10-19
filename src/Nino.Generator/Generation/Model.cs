@@ -119,7 +119,6 @@ internal sealed record TypeModel(
     FormatterKind Kind,
     // Type id, or 0 for generic types (computed at runtime).
     int TypeId,
-    string IdName,
     // Hash of the runtime name ignoring [NinoFormerName]: the key a by-type lookup computes without reflection.
     int NameId,
     // NinoFormat.VersionTolerant, or WEAK_VERSION_TOLERANCE (which also sets it on keyed types: see Tolerant).
