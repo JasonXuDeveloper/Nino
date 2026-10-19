@@ -76,7 +76,7 @@ namespace Nino.Core
             // overlapping (Groups).
             if (NinoBlock<T, TFormatter>.Groups && NinoBlock<T, TFormatter>.LastGroup(count) >= NinoBlock<T, TFormatter>.Group)
                 i = WriteGroups<T, TFormatter>(ref destination, ref first, count, size);
-            // Without AVX-512, a vector of blocks at a time, each 16-byte lane shuffled from one or two loads (Lanes).
+            // Without AVX-512, a group of values at a time, each 16-byte lane shuffled from one or two loads (Lanes).
             else if (NinoBlock<T, TFormatter>.LanePlan<NinoWrites>.Worth(count))
                 i = Lanes<T, TFormatter, NinoWrites>(ref Unsafe.As<T, byte>(ref first), ref destination, count, size);
 
@@ -131,15 +131,10 @@ namespace Nino.Core
             // AVX-512 Xeon, 1,000 12-byte blocks: 230 ns unaligned, 150 to 170 aligned). None when no value
             // starts on a boundary.
             {
-                nuint mask = (nuint)NinoBlock<T, TFormatter>.GroupWidth - 1;
-                nuint at = (nuint)Unsafe.AsPointer(ref destination);
-                int skip = 0;
-                while (skip < group && ((at + (nuint)(skip * size)) & mask) != 0)
-                    skip++;
-                if (skip < group)
-                    for (; i < skip; i++)
-                        ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(
-                            ref Unsafe.Add(ref destination, (nint)i * size), in Unsafe.Add(ref first, i));
+                int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), size, 0, group, 63);
+                for (; i < skip; i++)
+                    ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(
+                        ref Unsafe.Add(ref destination, (nint)i * size), in Unsafe.Add(ref first, i));
             }
 
             if (Avx512F.IsSupported && NinoBlock<T, TFormatter>.GroupWords)
@@ -176,8 +171,8 @@ namespace Nino.Core
             if (NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled &&
                 NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >= NinoBlock<T, TFormatter>.Group)
                 i = ReadGroups<T, TFormatter>(ref source, ref first, count, size);
-            else if (NinoBlock<T, TFormatter>.LanePlan<NinoPhase0>.Worth(count))
-                i = Lanes<T, TFormatter, NinoPhase0>(ref source, ref destination, count, size);
+            else if (NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Worth(count))
+                i = Lanes<T, TFormatter, NinoReads>(ref source, ref destination, count, size);
 
             if (NinoBlock<T, TFormatter>.Permutes)
             {
@@ -190,15 +185,11 @@ namespace Nino.Core
                 // a boundary.
                 if (64 % Unsafe.SizeOf<T>() == 0 && last >= step)
                 {
-                    nuint mask = Avx512Vbmi.IsSupported ? 63u : 15u;
-                    nuint at = (nuint)Unsafe.AsPointer(ref destination);
-                    int skip = 0;
-                    while (skip < step && ((at + (nuint)(skip * Unsafe.SizeOf<T>())) & mask) != 0)
-                        skip++;
-                    if (skip < step)
-                        for (; i < skip; i++)
-                            ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
-                                ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
+                    int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), Unsafe.SizeOf<T>(), 0, step,
+                        Avx512Vbmi.IsSupported ? 63u : 15u);
+                    for (; i < skip; i++)
+                        ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
+                            ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
                 }
 
                 for (; i <= last; i += step)
@@ -251,11 +242,7 @@ namespace Nino.Core
             // First the values before the first one whose vectors start on a 64-byte boundary, one at a time (from
             // the first value, unaligned, when none does). With a phase, that value is read whole too: the group's
             // vectors start past its first bytes, and each group's last vector writes those of the next.
-            int skip = 0;
-            while (skip < group && ((at + (nuint)(skip * Unsafe.SizeOf<T>() + phase)) & 63) != 0)
-                skip++;
-            if (skip == group)
-                skip = 0;
+            int skip = FirstAligned(at + (nuint)phase, Unsafe.SizeOf<T>(), 0, group, 63);
             for (; i < skip + (phase > 0 ? 1 : 0); i++)
                 ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
                     ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
@@ -376,66 +363,75 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Moves values a group at a time as <see cref="NinoBlock{T, TFormatter}.LanePlan{TPhase}"/> describes, from
+        /// The first of the <paramref name="count"/> values from <paramref name="from"/>, <paramref name="stride"/>
+        /// bytes apart from <paramref name="at"/>, that starts on a boundary of <paramref name="mask"/> + 1 bytes;
+        /// <paramref name="from"/> when none does.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int FirstAligned(nuint at, int stride, int from, int count, nuint mask)
+        {
+            for (int i = from; i < from + count; i++)
+                if (((at + (nuint)(i * stride)) & mask) == 0)
+                    return i;
+            return from;
+        }
+
+        /// <summary>
+        /// Moves values a group at a time as <see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}"/> describes, from
         /// their memory to their blocks (<see cref="NinoWrites"/>) or back: returns the values moved. Not inlined, as
         /// <see cref="WriteGroups{T, TFormatter}"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe int Lanes<T, TFormatter, TPhase>(ref byte source, ref byte destination, int count,
+        private static unsafe int Lanes<T, TFormatter, TDirection>(ref byte source, ref byte destination, int count,
             int size)
             where TFormatter : struct, INinoFormatter<T>
-            where TPhase : struct, INinoPhase
+            where TDirection : struct, INinoDirection
         {
-            bool writes = typeof(TPhase) == typeof(NinoWrites);
+            bool writes = typeof(TDirection) == typeof(NinoWrites);
             int from = writes ? Unsafe.SizeOf<T>() : size, to = writes ? size : Unsafe.SizeOf<T>();
-            int group = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Group;
-            int width = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Width;
-            int last = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Last(count, from, to);
+            int group = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Group;
+            int width = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Width;
+            int last = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Last(count, from, to);
             // The first value whose loads start inside the source (a window may start before the group's values),
             // then the first from there whose vectors start on a boundary of their width, so that no store straddles
             // two cache lines (when one does); the values before it one at a time.
-            int start = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Start;
-            int skip = start;
-            nuint at = (nuint)Unsafe.AsPointer(ref destination);
-            while (skip < start + group && ((at + (nuint)(skip * to)) & (nuint)(width - 1)) != 0)
-                skip++;
-            if (skip == start + group)
-                skip = start;
+            int start = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Start;
+            int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), to, start, group, (nuint)(width - 1));
             int i = 0;
             for (; i < skip; i++)
-                Move<T, TFormatter, TPhase>(ref source, ref destination, i, size);
+                Move<T, TFormatter, TDirection>(ref source, ref destination, i, size);
             i = skip;
 
             // The indices from an array, so they stay in registers (see ReadGroups).
             if (width == 32)
             {
-                var masks = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Masks32;
+                var masks = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Masks32;
                 Vector256<byte> a0 = masks[0], b0 = masks[1], a1 = masks[2], b1 = masks[3], a2 = masks[4],
                     b2 = masks[5], a3 = masks[6], b3 = masks[7];
                 for (; i <= last; i += group)
-                    Lanes32<T, TFormatter, TPhase>(ref Unsafe.Add(ref source, (nint)i * from),
+                    Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)i * from),
                         ref Unsafe.Add(ref destination, (nint)i * to), a0, b0, a1, b1, a2, b2, a3, b3);
             }
             else
             {
-                var masks = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Masks16;
+                var masks = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Masks16;
                 Vector128<byte> a0 = masks[0], b0 = masks[1], a1 = masks[2], b1 = masks[3], a2 = masks[4],
                     b2 = masks[5], a3 = masks[6], b3 = masks[7];
                 for (; i <= last; i += group)
-                    Lanes16<T, TFormatter, TPhase>(ref Unsafe.Add(ref source, (nint)i * from),
+                    Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)i * from),
                         ref Unsafe.Add(ref destination, (nint)i * to), a0, b0, a1, b1, a2, b2, a3, b3);
             }
 
             return i;
         }
 
-        /// <summary>Value <paramref name="i"/> moved alone, in the direction of <typeparamref name="TPhase"/>.</summary>
+        /// <summary>Value <paramref name="i"/> moved alone, in the direction of <typeparamref name="TDirection"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Move<T, TFormatter, TPhase>(ref byte source, ref byte destination, int i, int size)
+        private static void Move<T, TFormatter, TDirection>(ref byte source, ref byte destination, int i, int size)
             where TFormatter : struct, INinoFormatter<T>
-            where TPhase : struct, INinoPhase
+            where TDirection : struct, INinoDirection
         {
-            if (typeof(TPhase) == typeof(NinoWrites))
+            if (typeof(TDirection) == typeof(NinoWrites))
                 ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(ref Unsafe.Add(ref destination, (nint)i * size),
                     in Unsafe.Add(ref Unsafe.As<byte, T>(ref source), i));
             else
@@ -449,17 +445,17 @@ namespace Nino.Core
         /// out before any is stored, so that a load repeated across them is one (no store in between).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Lanes32<T, TFormatter, TPhase>(ref byte source, ref byte destination,
+        private static void Lanes32<T, TFormatter, TDirection>(ref byte source, ref byte destination,
             Vector256<byte> a0, Vector256<byte> b0, Vector256<byte> a1, Vector256<byte> b1, Vector256<byte> a2,
             Vector256<byte> b2, Vector256<byte> a3, Vector256<byte> b3)
             where TFormatter : struct, INinoFormatter<T>
-            where TPhase : struct, INinoPhase
+            where TDirection : struct, INinoDirection
         {
-            int vectors = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Vectors;
-            var v0 = Lane32<T, TFormatter, TPhase>(ref source, 0, a0, b0);
-            var v1 = vectors > 1 ? Lane32<T, TFormatter, TPhase>(ref source, 1, a1, b1) : default;
-            var v2 = vectors > 2 ? Lane32<T, TFormatter, TPhase>(ref source, 2, a2, b2) : default;
-            var v3 = vectors > 3 ? Lane32<T, TFormatter, TPhase>(ref source, 3, a3, b3) : default;
+            int vectors = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Vectors;
+            var v0 = Lane32<T, TFormatter, TDirection>(ref source, 0, a0, b0);
+            var v1 = vectors > 1 ? Lane32<T, TFormatter, TDirection>(ref source, 1, a1, b1) : default;
+            var v2 = vectors > 2 ? Lane32<T, TFormatter, TDirection>(ref source, 2, a2, b2) : default;
+            var v3 = vectors > 3 ? Lane32<T, TFormatter, TDirection>(ref source, 3, a3, b3) : default;
             v0.StoreUnsafe(ref destination);
             if (vectors > 1)
                 v1.StoreUnsafe(ref destination, 32);
@@ -470,17 +466,17 @@ namespace Nino.Core
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector256<byte> Lane32<T, TFormatter, TPhase>(ref byte source, int vector, Vector256<byte> a,
+        private static Vector256<byte> Lane32<T, TFormatter, TDirection>(ref byte source, int vector, Vector256<byte> a,
             Vector256<byte> b)
             where TFormatter : struct, INinoFormatter<T>
-            where TPhase : struct, INinoPhase
+            where TDirection : struct, INinoDirection
         {
-            var result = Avx2.Shuffle(Load32(ref source, NinoBlock<T, TFormatter>.LanePlan<TPhase>.Window(vector, 0, 0),
-                NinoBlock<T, TFormatter>.LanePlan<TPhase>.Window(vector, 0, 1)), a);
-            if (NinoBlock<T, TFormatter>.LanePlan<TPhase>.Window(vector, 1, 0) == NinoLanes.None)
+            var result = Avx2.Shuffle(Load32(ref source, NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 0, 0),
+                NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 0, 1)), a);
+            if (NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 1, 0) == NinoLanes.None)
                 return result;
-            return result | Avx2.Shuffle(Load32(ref source, NinoBlock<T, TFormatter>.LanePlan<TPhase>.Window(vector, 1, 0),
-                NinoBlock<T, TFormatter>.LanePlan<TPhase>.Window(vector, 1, 1)), b);
+            return result | Avx2.Shuffle(Load32(ref source, NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 1, 0),
+                NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 1, 1)), b);
         }
 
         /// <summary>
@@ -517,23 +513,23 @@ namespace Nino.Core
         /// Arm64 (the second's indices from 16), or each load shuffled (an index from 0x80 giving a zero) and ORed.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Lanes16<T, TFormatter, TPhase>(ref byte source, ref byte destination,
+        private static void Lanes16<T, TFormatter, TDirection>(ref byte source, ref byte destination,
             Vector128<byte> a0, Vector128<byte> b0, Vector128<byte> a1, Vector128<byte> b1, Vector128<byte> a2,
             Vector128<byte> b2, Vector128<byte> a3, Vector128<byte> b3)
             where TFormatter : struct, INinoFormatter<T>
-            where TPhase : struct, INinoPhase
+            where TDirection : struct, INinoDirection
         {
-            int vectors = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Vectors;
-            Lane16<T, TFormatter, TPhase>(ref source, 0, a0, b0).StoreUnsafe(ref destination);
+            int vectors = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Vectors;
+            Lane16<T, TFormatter, TDirection>(ref source, 0, a0, b0).StoreUnsafe(ref destination);
             if (vectors < 2)
                 return;
-            Lane16<T, TFormatter, TPhase>(ref source, 1, a1, b1).StoreUnsafe(ref destination, 16);
+            Lane16<T, TFormatter, TDirection>(ref source, 1, a1, b1).StoreUnsafe(ref destination, 16);
             if (vectors < 3)
                 return;
-            Lane16<T, TFormatter, TPhase>(ref source, 2, a2, b2).StoreUnsafe(ref destination, 32);
+            Lane16<T, TFormatter, TDirection>(ref source, 2, a2, b2).StoreUnsafe(ref destination, 32);
             if (vectors < 4)
                 return;
-            Lane16<T, TFormatter, TPhase>(ref source, 3, a3, b3).StoreUnsafe(ref destination, 48);
+            Lane16<T, TFormatter, TDirection>(ref source, 3, a3, b3).StoreUnsafe(ref destination, 48);
         }
 
         /// <summary>
@@ -541,14 +537,14 @@ namespace Nino.Core
         /// <paramref name="a"/> and <paramref name="b"/> those into each.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static Vector128<byte> Lane16<T, TFormatter, TPhase>(ref byte source, int vector, Vector128<byte> a,
+        private static Vector128<byte> Lane16<T, TFormatter, TDirection>(ref byte source, int vector, Vector128<byte> a,
             Vector128<byte> b)
             where TFormatter : struct, INinoFormatter<T>
-            where TPhase : struct, INinoPhase
+            where TDirection : struct, INinoDirection
         {
             var low = Vector128.LoadUnsafe(
-                ref Unsafe.Add(ref source, NinoBlock<T, TFormatter>.LanePlan<TPhase>.Window(vector, 0, 0)));
-            int second = NinoBlock<T, TFormatter>.LanePlan<TPhase>.Window(vector, 1, 0);
+                ref Unsafe.Add(ref source, NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 0, 0)));
+            int second = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 1, 0);
             if (second == NinoLanes.None)
                 return NinoBlock<T, TFormatter>.Shuffle(low, a);
             var high = Vector128.LoadUnsafe(ref Unsafe.Add(ref source, second));
@@ -603,14 +599,23 @@ namespace Nino.Core
         public int Bytes => 8;
     }
 
-    /// <summary>Values moved to their blocks (<see cref="NinoBlock{T, TFormatter}.LanePlan{TPhase}"/>), rather than read.</summary>
-    internal struct NinoWrites : INinoPhase
+    /// <summary>A direction values move in, as a type argument (<see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}"/>).</summary>
+    internal interface INinoDirection
     {
-        public int Bytes => 0;
+    }
+
+    /// <summary>From their blocks to memory.</summary>
+    internal struct NinoReads : INinoDirection
+    {
+    }
+
+    /// <summary>From memory to their blocks.</summary>
+    internal struct NinoWrites : INinoDirection
+    {
     }
 
     /// <summary>
-    /// How <see cref="NinoBlock{T, TFormatter}.LanePlan{TPhase}"/> moves a group: worked out once, read into its
+    /// How <see cref="NinoBlock{T, TFormatter}.LanePlan{TDirection}"/> moves a group: worked out once, read into its
     /// constants. Each vector is the bytes of one or two loads, each load two 16-byte windows of the source (one per
     /// lane of a 32-byte vector; one window for 16-byte vectors), shuffled within each lane.
     /// </summary>
@@ -883,7 +888,7 @@ namespace Nino.Core
             return masks;
         }
 
-        private static int Gcd(int a, int b) => b == 0 ? a : Gcd(b, a % b);
+        internal static int Gcd(int a, int b) => b == 0 ? a : Gcd(b, a % b);
     }
 #endif
 
@@ -958,32 +963,31 @@ namespace Nino.Core
             count - Math.Max((width + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>(), (width + size - 1) / size);
 
         /// <summary>
-        /// The vector width of <see cref="Groups"/>: 64 bytes with AVX-512 (a two-source permute of 4-byte words, or
-        /// with VBMI of bytes); 0 when it does not apply (other CPUs use <see cref="LanePlan{TPhase}"/>).
-        /// </summary>
-        public static readonly int GroupWidth = ChooseGroupWidth();
-
-        /// <summary>
-        /// Whether the 64-byte vectors of blocks move whole 4-byte words (vpermt2d): one micro-op at one a cycle on
-        /// Intel, where vpermt2b takes three and issues every other cycle (1,000 12-byte blocks of 16-byte values on an
-        /// AVX-512 Xeon: 121 ns with words, 150 to 190 with bytes, 123 for a copy of their memory).
-        /// </summary>
-        public static readonly bool GroupWords = GroupWidth == 64 && Words(GroupMasks(64));
-
-        /// <summary>
         /// Whether values are written <see cref="Group"/> at a time as <see cref="GroupVectors"/> full vectors of
         /// blocks, each one two-source permute of two consecutive vectors of their memory: blocks are smaller than
         /// values (padding left out), so a value at a time stores a vector for fewer bytes, while a group stores each
         /// vector once (a quarter fewer stores than a copy of the values' memory for 12-byte blocks of 16-byte values).
         /// Only where each vector of blocks k draws on memory vectors k and k + 1, with up to four vectors a group.
         /// </summary>
-        public static readonly bool Groups = GroupWidth != 0;
+        /// AVX-512 only (a two-source permute of 4-byte words, or with VBMI of bytes); other CPUs use
+        /// <see cref="LanePlan{TDirection}"/>.
+        public static readonly bool Groups = Map != null && !IsMemory &&
+                                             NinoBlock.Size<T, TFormatter>() < Unsafe.SizeOf<T>() &&
+                                             Avx512F.IsSupported && GroupMasks() is { } masks &&
+                                             (Avx512Vbmi.IsSupported || Words(masks));
+
+        /// <summary>
+        /// Whether the 64-byte vectors of blocks move whole 4-byte words (vpermt2d): one micro-op at one a cycle on
+        /// Intel, where vpermt2b takes three and issues every other cycle (1,000 12-byte blocks of 16-byte values on an
+        /// AVX-512 Xeon: 121 ns with words, 150 to 190 with bytes, 123 for a copy of their memory).
+        /// </summary>
+        public static readonly bool GroupWords = Groups && Words(GroupMasks());
 
         /// <summary>Values per group: the fewest whose blocks fill whole vectors.</summary>
-        public static readonly int Group = Groups ? GroupWidth / Gcd(NinoBlock.Size<T, TFormatter>(), GroupWidth) : 0;
+        public static readonly int Group = Groups ? 64 / NinoLanes.Gcd(NinoBlock.Size<T, TFormatter>(), 64) : 0;
 
         /// <summary>Vectors of blocks per group (1 to 4); one memory vector more is read.</summary>
-        public static readonly int GroupVectors = Groups ? Group * NinoBlock.Size<T, TFormatter>() / GroupWidth : 0;
+        public static readonly int GroupVectors = Groups ? Group * NinoBlock.Size<T, TFormatter>() / 64 : 0;
 
         /// <summary>
         /// The permute indices of each vector of blocks in a group: bytes, or for <see cref="GroupWords"/> one int per
@@ -995,48 +999,38 @@ namespace Nino.Core
         /// <summary>The last of <paramref name="count"/> values a group may start at: its reads stay inside the values.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int LastGroup(int count) =>
-            count - Math.Max(Group, ((GroupVectors + 1) * GroupWidth + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>());
-
-        private static int Gcd(int a, int b) => b == 0 ? a : Gcd(b, a % b);
-
-        private static int ChooseGroupWidth()
-        {
-            if (Map == null || IsMemory || NinoBlock.Size<T, TFormatter>() >= Unsafe.SizeOf<T>())
-                return 0;
-            return Avx512F.IsSupported && GroupMasks(64) is { } masks && (Avx512Vbmi.IsSupported || Words(masks))
-                ? 64
-                : 0;
-        }
+            count - Math.Max(Group, ((GroupVectors + 1) * 64 + Unsafe.SizeOf<T>() - 1) / Unsafe.SizeOf<T>());
 
         private static Vector512<byte> GroupMask(int vector)
         {
             if (!Groups || vector >= GroupVectors)
                 return default;
-            var masks = GroupMasks(GroupWidth);
+            var masks = GroupMasks();
             var mask = new byte[64];
             if (GroupWords)
             {
                 // Words: the byte index of a word's first byte, over 4.
-                for (int word = 0; word < GroupWidth / 4; word++)
-                    Unsafe.WriteUnaligned(ref mask[word * 4], masks[vector * GroupWidth + word * 4] / 4);
+                for (int word = 0; word < 16; word++)
+                    Unsafe.WriteUnaligned(ref mask[word * 4], masks[vector * 64 + word * 4] / 4);
             }
             else
             {
-                Array.Copy(masks, vector * GroupWidth, mask, 0, GroupWidth);
+                Array.Copy(masks, vector * 64, mask, 0, 64);
             }
 
             return Vector512.Create(mask);
         }
 
         /// <summary>
-        /// For each byte of each vector of blocks in a group of <paramref name="width"/>-byte vectors, the byte of
+        /// For each byte of each 64-byte vector of blocks in a group, the byte of
         /// memory vectors k and k + 1 it comes from; null when a group would take more than four vectors or a vector of
         /// blocks draws on other memory vectors.
         /// </summary>
-        private static byte[] GroupMasks(int width)
+        private static byte[] GroupMasks()
         {
+            const int width = 64;
             int size = NinoBlock.Size<T, TFormatter>();
-            int group = width / Gcd(size, width), vectors = group * size / width;
+            int group = width / NinoLanes.Gcd(size, width), vectors = group * size / width;
             if (vectors > 4)
                 return null;
             var masks = new byte[vectors * width];
@@ -1120,9 +1114,9 @@ namespace Nino.Core
                 int size = NinoBlock.Size<T, TFormatter>(), memorySize = Unsafe.SizeOf<T>();
                 if (Map == null || IsMemory || size >= memorySize || !Avx512F.IsSupported)
                     return;
-                int group = 64 / Gcd(size, 64), vectors = group * memorySize / 64;
+                int group = 64 / NinoLanes.Gcd(size, 64), vectors = group * memorySize / 64;
                 // A phase only where values can start that far past a boundary (8-byte aligned arrays).
-                if (group * memorySize % 64 != 0 || vectors > 4 || phase >= Gcd(memorySize, 64))
+                if (group * memorySize % 64 != 0 || vectors > 4 || phase >= NinoLanes.Gcd(memorySize, 64))
                     return;
                 var masks = new byte[vectors * 64];
                 for (int k = 0; k < vectors; k++)
@@ -1196,16 +1190,14 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Values moved a group at a time without AVX-512, in the direction of <typeparamref name="TPhase"/>
-        /// (<see cref="NinoWrites"/>, or <see cref="NinoPhase0"/> for reads): each vector written (32 bytes with AVX2, else 16: SSSE3, Arm64, WebAssembly on .NET 10) is made of
-        /// 16-byte lanes, each the bytes of at most two 16-byte windows of the source shuffled within the lane. The
-        /// windows are at fixed offsets from the group's first value, so a load can start before it or reach past it.
-        /// AVX2's cross-lane permute (vpermd) takes two micro-ops on the FP0/FP1 pipes of AMD's Zen 3, which also run
-        /// its blends, while vpshufb issues twice a cycle on Zen 3 and Intel since Ice Lake. Reads store unaligned
-        /// where values do not start on a 32-byte boundary: one load a vector, where vectors starting 8 bytes into a
-        /// value (aligned stores) took four, and ran 1.7 times as long.
+        /// Values moved a group at a time without AVX-512, in the direction of <typeparamref name="TDirection"/>:
+        /// each vector written (32 bytes with AVX2, else 16: SSSE3, Arm64, WebAssembly on .NET 10) is made of 16-byte
+        /// lanes, each the bytes of at most two 16-byte windows of the source shuffled within the lane (vpshufb issues
+        /// twice a cycle on Zen 3 and Intel since Ice Lake, where cross-lane permutes issue once). The windows are at
+        /// fixed offsets from the group's first value, so a load can start before it or reach past it. Stores start
+        /// on a vector boundary where values allow it, else are unaligned.
         /// </summary>
-        internal static class LanePlan<TPhase> where TPhase : struct, INinoPhase
+        internal static class LanePlan<TDirection> where TDirection : struct, INinoDirection
         {
             // Before the constants read from it (static fields initialize in order).
             private static readonly NinoLanes Plan = Solve();
@@ -1249,7 +1241,10 @@ namespace Nino.Core
                 };
             }
 
-            /// <summary>Whether <paramref name="count"/> values hold two groups past the first that may start one.</summary>
+            /// <summary>
+            /// Whether <paramref name="count"/> values hold three groups past <see cref="Start"/> (and the values moved
+            /// alone to align the stores): fewer are moved one at a time.
+            /// </summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public static bool Worth(int count) => Enabled && count >= Start + 3 * Group + 2;
 
@@ -1277,7 +1272,7 @@ namespace Nino.Core
                 if (width == 0)
                     return null;
                 var plan = NinoLanes.Solve(width, Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>(),
-                    typeof(TPhase) == typeof(NinoWrites), AdvSimd.Arm64.IsSupported);
+                    typeof(TDirection) == typeof(NinoWrites), AdvSimd.Arm64.IsSupported);
                 // A value a group is what Shuffles does already, without the group loop around it.
                 return plan is { Group: 1 } && Shuffles ? null : plan;
             }
