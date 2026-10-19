@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Nino.Core;
 using Nino.UnityTypes;
 using UnityEngine;
@@ -25,46 +26,54 @@ namespace Nino.UnityTypes
                 return;
             }
 
+            // The count, the keys and the wrap modes in one reservation.
             var keys = value.keys;
-            writer.WriteLength(keys.Length);
+            ref byte next = ref writer.Reserve(checked(sizeof(int) + keys.Length * KeySize + 2 * sizeof(int)));
+            next = ref UnityBytes.Put(ref next, keys.Length);
             foreach (var key in keys)
             {
-                writer.Write(key.time);
-                writer.Write(key.value);
-                writer.Write(key.inTangent);
-                writer.Write(key.outTangent);
-                writer.Write(key.inWeight);
-                writer.Write(key.outWeight);
-                writer.Write((int)key.weightedMode);
+                next = ref UnityBytes.Put(ref next, key.time);
+                next = ref UnityBytes.Put(ref next, key.value);
+                next = ref UnityBytes.Put(ref next, key.inTangent);
+                next = ref UnityBytes.Put(ref next, key.outTangent);
+                next = ref UnityBytes.Put(ref next, key.inWeight);
+                next = ref UnityBytes.Put(ref next, key.outWeight);
+                next = ref UnityBytes.Put(ref next, (int)key.weightedMode);
             }
 
-            writer.Write((int)value.preWrapMode);
-            writer.Write((int)value.postWrapMode);
+            next = ref UnityBytes.Put(ref next, (int)value.preWrapMode);
+            UnityBytes.Put(ref next, (int)value.postWrapMode);
         }
+
+        private const int KeySize = 7 * sizeof(float);
 
         public void Deserialize(ref AnimationCurve value, ref Reader reader)
         {
-            int count = reader.ReadLength(7 * sizeof(float));
+            int count = reader.ReadLength(KeySize);
             if (count < 0)
             {
                 value = null;
                 return;
             }
 
+            // The keys and the wrap modes under one bounds check.
+            ref byte next = ref reader.ReadBlock(count * KeySize + 2 * sizeof(int));
             var keys = new Keyframe[count];
             for (int i = 0; i < keys.Length; i++)
             {
-                keys[i] = new Keyframe(reader.Read<float>(), reader.Read<float>(), reader.Read<float>(),
-                    reader.Read<float>(), reader.Read<float>(), reader.Read<float>())
+                keys[i] = new Keyframe(UnityBytes.Get<float>(ref next, 0), UnityBytes.Get<float>(ref next, 4),
+                    UnityBytes.Get<float>(ref next, 8), UnityBytes.Get<float>(ref next, 12),
+                    UnityBytes.Get<float>(ref next, 16), UnityBytes.Get<float>(ref next, 20))
                 {
-                    weightedMode = (WeightedMode)reader.Read<int>(),
+                    weightedMode = (WeightedMode)UnityBytes.Get<int>(ref next, 24),
                 };
+                next = ref Unsafe.Add(ref next, KeySize);
             }
 
             var curve = value ??= new AnimationCurve();
             curve.keys = keys;
-            curve.preWrapMode = (WrapMode)reader.Read<int>();
-            curve.postWrapMode = (WrapMode)reader.Read<int>();
+            curve.preWrapMode = (WrapMode)UnityBytes.Get<int>(ref next, 0);
+            curve.postWrapMode = (WrapMode)UnityBytes.Get<int>(ref next, 4);
         }
     }
 
@@ -83,53 +92,67 @@ namespace Nino.UnityTypes
                 return;
             }
 
+            // Both counts, the keys and the mode in one reservation.
             var colorKeys = value.colorKeys;
-            writer.WriteLength(colorKeys.Length);
+            var alphaKeys = value.alphaKeys;
+            ref byte next = ref writer.Reserve(checked(sizeof(int) + colorKeys.Length * ColorKeySize + sizeof(int) +
+                                                       alphaKeys.Length * AlphaKeySize + sizeof(int)));
+            next = ref UnityBytes.Put(ref next, colorKeys.Length);
             foreach (var key in colorKeys)
             {
-                writer.Write(key.color.r);
-                writer.Write(key.color.g);
-                writer.Write(key.color.b);
-                writer.Write(key.color.a);
-                writer.Write(key.time);
+                next = ref UnityBytes.Put(ref next, key.color.r);
+                next = ref UnityBytes.Put(ref next, key.color.g);
+                next = ref UnityBytes.Put(ref next, key.color.b);
+                next = ref UnityBytes.Put(ref next, key.color.a);
+                next = ref UnityBytes.Put(ref next, key.time);
             }
 
-            var alphaKeys = value.alphaKeys;
-            writer.WriteLength(alphaKeys.Length);
+            next = ref UnityBytes.Put(ref next, alphaKeys.Length);
             foreach (var key in alphaKeys)
             {
-                writer.Write(key.alpha);
-                writer.Write(key.time);
+                next = ref UnityBytes.Put(ref next, key.alpha);
+                next = ref UnityBytes.Put(ref next, key.time);
             }
 
-            writer.Write((int)value.mode);
+            UnityBytes.Put(ref next, (int)value.mode);
         }
+
+        private const int ColorKeySize = 5 * sizeof(float);
+        private const int AlphaKeySize = 2 * sizeof(float);
 
         public void Deserialize(ref Gradient value, ref Reader reader)
         {
-            int colorCount = reader.ReadLength(5 * sizeof(float));
+            int colorCount = reader.ReadLength(ColorKeySize);
             if (colorCount < 0)
             {
                 value = null;
                 return;
             }
 
+            // Each run of keys under one bounds check.
+            ref byte next = ref reader.ReadBlock(colorCount * ColorKeySize);
             var colorKeys = new GradientColorKey[colorCount];
             for (int i = 0; i < colorKeys.Length; i++)
             {
-                var color = new Color(reader.Read<float>(), reader.Read<float>(), reader.Read<float>(),
-                    reader.Read<float>());
-                colorKeys[i] = new GradientColorKey(color, reader.Read<float>());
+                var color = new Color(UnityBytes.Get<float>(ref next, 0), UnityBytes.Get<float>(ref next, 4),
+                    UnityBytes.Get<float>(ref next, 8), UnityBytes.Get<float>(ref next, 12));
+                colorKeys[i] = new GradientColorKey(color, UnityBytes.Get<float>(ref next, 16));
+                next = ref Unsafe.Add(ref next, ColorKeySize);
             }
 
-            var alphaKeys = new GradientAlphaKey[reader.ReadLength(2 * sizeof(float))];
+            var alphaKeys = new GradientAlphaKey[reader.ReadLength(AlphaKeySize)];
+            next = ref reader.ReadBlock(alphaKeys.Length * AlphaKeySize + sizeof(int));
             for (int i = 0; i < alphaKeys.Length; i++)
-                alphaKeys[i] = new GradientAlphaKey(reader.Read<float>(), reader.Read<float>());
+            {
+                alphaKeys[i] =
+                    new GradientAlphaKey(UnityBytes.Get<float>(ref next, 0), UnityBytes.Get<float>(ref next, 4));
+                next = ref Unsafe.Add(ref next, AlphaKeySize);
+            }
 
             var gradient = value ??= new Gradient();
             gradient.colorKeys = colorKeys;
             gradient.alphaKeys = alphaKeys;
-            gradient.mode = (GradientMode)reader.Read<int>();
+            gradient.mode = (GradientMode)UnityBytes.Get<int>(ref next, 0);
         }
     }
 
@@ -147,11 +170,12 @@ namespace Nino.UnityTypes
                 return;
             }
 
-            writer.Write(true);
-            writer.Write(value.left);
-            writer.Write(value.right);
-            writer.Write(value.top);
-            writer.Write(value.bottom);
+            ref byte next = ref writer.Reserve(1 + 4 * sizeof(int));
+            next = 1;
+            next = ref UnityBytes.Put(ref Unsafe.Add(ref next, 1), value.left);
+            next = ref UnityBytes.Put(ref next, value.right);
+            next = ref UnityBytes.Put(ref next, value.top);
+            UnityBytes.Put(ref next, value.bottom);
         }
 
         public void Deserialize(ref RectOffset value, ref Reader reader)
@@ -162,11 +186,32 @@ namespace Nino.UnityTypes
                 return;
             }
 
+            ref byte sides = ref reader.ReadBlock(4 * sizeof(int));
             var offset = value ??= new RectOffset();
-            offset.left = reader.Read<int>();
-            offset.right = reader.Read<int>();
-            offset.top = reader.Read<int>();
-            offset.bottom = reader.Read<int>();
+            offset.left = UnityBytes.Get<int>(ref sides, 0);
+            offset.right = UnityBytes.Get<int>(ref sides, 4);
+            offset.top = UnityBytes.Get<int>(ref sides, 8);
+            offset.bottom = UnityBytes.Get<int>(ref sides, 12);
         }
+    }
+
+    /// <summary>
+    /// Values at a cursor in a block reserved or read as a whole, in the byte order Nino writes them (the machine's,
+    /// little-endian).
+    /// </summary>
+    internal static class UnityBytes
+    {
+        /// <summary>Stores <paramref name="value"/> at <paramref name="at"/> and returns the byte after it.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref byte Put<T>(ref byte at, T value) where T : unmanaged
+        {
+            Unsafe.WriteUnaligned(ref at, value);
+            return ref Unsafe.Add(ref at, Unsafe.SizeOf<T>());
+        }
+
+        /// <summary>The value at <paramref name="at"/> + <paramref name="offset"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T Get<T>(ref byte at, int offset) where T : unmanaged =>
+            Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref at, offset));
     }
 }

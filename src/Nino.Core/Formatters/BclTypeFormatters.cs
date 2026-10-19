@@ -64,10 +64,12 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            writer.UnsafeWrite(value.Major);
-            writer.UnsafeWrite(value.Minor);
-            writer.UnsafeWrite(value.Build);
-            writer.UnsafeWrite(value.Revision);
+            // The four parts in one reservation.
+            ref byte parts = ref writer.Reserve(4 * sizeof(int));
+            NinoUnsafe.Write(ref parts, value.Major);
+            NinoUnsafe.Write(ref parts, sizeof(int), value.Minor);
+            NinoUnsafe.Write(ref parts, 2 * sizeof(int), value.Build);
+            NinoUnsafe.Write(ref parts, 3 * sizeof(int), value.Revision);
         }
 
         public void Deserialize(ref Version value, ref Reader reader)
@@ -79,7 +81,9 @@ namespace Nino.Core
                 return;
             }
 
-            int minor = reader.UnsafeRead<int>(), build = reader.UnsafeRead<int>(), revision = reader.UnsafeRead<int>();
+            ref byte parts = ref reader.ReadBlock(3 * sizeof(int));
+            int minor = NinoUnsafe.Read<int>(ref parts, 0), build = NinoUnsafe.Read<int>(ref parts, sizeof(int)),
+                revision = NinoUnsafe.Read<int>(ref parts, 2 * sizeof(int));
             value = build < 0 ? new Version(major, minor)
                 : revision < 0 ? new Version(major, minor, build)
                 : new Version(major, minor, build, revision);
