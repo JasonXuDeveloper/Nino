@@ -156,13 +156,13 @@ internal static class FormatterEmitter
     {
         string t = m.TypeName;
         string top = m.FormatterName + ".__Top";
-        // An out-of-line body on a local writer (BodyEmitter.LocalWriter, not inlined at the top): the presence
+        // An out-of-line body on a local writer (TypeModel.LocalWriter, not inlined at the top): the presence
         // byte is written there too, on the local, rather than by the caller on a writer whose address the call
         // takes (each write a load and store of its cursor in memory). The top-level calls that create their writer
         // have it created in a method of its own (__WriteTop, see INinoTopFormatter), where the JIT keeps it in
         // registers and knows it starts empty (no region open, no context) instead of loading it from the caller's
         // memory and storing it back.
-        bool serializeTop = !m.TopInline && body.LocalWriter;
+        bool serializeTop = !m.TopInline && m.LocalWriter;
         if (serializeTop)
         {
             w.Line(names.NoInline);
@@ -183,15 +183,15 @@ internal static class FormatterEmitter
             w.Line();
         }
 
-        // The same for the top-level reads of a new value (BodyEmitter.ReadTop): the reader is created in __ReadTop.
-        if (body.ReadTop)
+        // The same for the top-level reads of a new value (TypeModel.ReadTop): the reader is created in __ReadTop.
+        if (m.ReadTop)
         {
             w.Line(names.NoInline);
             w.Open($"private static {t} __ReadTop(global::System.ReadOnlySpan<byte> data)");
             w.Line($"var __r = new {Core}Reader(data);");
             w.Line($"{t} value = null;");
             w.Line($"if (__r.UnsafeRead<byte>() != (byte){NinoWire.Null})");
-            w.Indented(() => w.Line($"{(body.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref value, ref __r);"));
+            w.Indented(() => w.Line($"{(m.SplitFresh ? "__ReadBodyFreshInline" : "__ReadBodyInline")}(ref value, ref __r);"));
             w.Line("__r.ReleaseReferences();");
             w.Line("return value;");
             w.Close();
@@ -211,7 +211,7 @@ internal static class FormatterEmitter
             ? $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => __WriteTop(value, buffer);"
             : $"public void Write({t} value, {Core}NinoArrayBufferWriter buffer) => {Core}NinoDirect.Write<{t}, {top}>(value, buffer);");
         w.Line($"public void Deserialize(ref {t} value, ref {Core}Reader reader) => {Core}NinoObject.DeserializeTop<{t}, {top}>(ref value, ref reader);");
-        w.Line(body.ReadTop
+        w.Line(m.ReadTop
             ? $"public {t} Read(global::System.ReadOnlySpan<byte> data) => __ReadTop(data);"
             : $"public {t} Read(global::System.ReadOnlySpan<byte> data) => {Core}NinoDirect.Deserialize<{t}, {top}>(data);");
 
@@ -271,7 +271,7 @@ internal static class FormatterEmitter
             ? $"public void WriteBody({t} value, ref {Core}Writer writer) => __WriteBodyShallow(value, ref writer);"
             : $"public void WriteBody({t} value, ref {Core}Writer writer) => default({self}).WriteBody(value, ref writer);");
         w.Line(names.Inline);
-        if (m.ShallowBodies && body.SplitFresh)
+        if (m.ShallowBodies && m.SplitFresh)
         {
             w.Open($"public void ReadBody(ref {t} value, ref {Core}Reader reader)");
             body.EmitFreshForwarder("__ReadBodyShallow");

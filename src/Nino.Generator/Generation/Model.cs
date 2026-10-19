@@ -68,6 +68,8 @@ internal sealed record MemberModel(
     EquatableArray<int> FormerKeys,
     string TypeName,
     string Formatter,
+    // Which formatter it is (FormatterTraits): strings are read and written directly, flat ones on local copies.
+    FormatterTraits Traits,
     // How the member is written, for its published layout (ResolvedFormatter.Encoding, WireEncoding).
     string Encoding,
     // Set when the member is written raw as part of an unmanaged block, otherwise null.
@@ -94,7 +96,7 @@ internal sealed record MemberModel(
     bool Fresh,
     // Whether the member's Nino.Core formatter reads its elements in a loop inlined into the body (any collection
     // but strings, raw arrays and lists, and dictionaries of raw keys and raw or string values; see
-    // TypeNames.IsFlat).
+    // FormatterTraits.Flat).
     bool ReadsLoop);
 
 internal sealed record ConstructionModel(
@@ -271,6 +273,43 @@ internal sealed record TypeModel(
     public bool RawBody => Kind is FormatterKind.Class or FormatterKind.SealedClass && !RawStruct && !VersionTolerant &&
                            !Keyed && !TrackReferences && CollectionFormatter.Length == 0 && Members.Length != 0 &&
                            Members.All(static x => x.Raw != null);
+
+    /// <summary>
+    /// Whether the out-of-line read body works on a local copy of the reader, written back at its end: through the
+    /// <c>ref</c> parameter, the position is stored after every member and loaded again by the next one (a store to
+    /// load forwarding on the critical path of each member, and a load, an operation and a store on ARM64), where
+    /// a local the JIT keeps in registers. Only for bodies that open no class body (<see cref="Nests"/> false): a
+    /// nested body takes the reader's address, which would keep the local in memory too.
+    /// </summary>
+    public bool LocalReader => OutOfLineBody && !Nests && !Keyed && !TrackReferences;
+
+    /// <summary>
+    /// Whether the out-of-line write body works on a local copy of the writer, written back at its end, for the
+    /// reasons of <see cref="LocalReader"/> (the position, the buffer and its length are otherwise loaded, and the
+    /// position stored, for every member). Every member is raw or written by a <see cref="FormatterTraits.Flat"/>
+    /// formatter, which keeps the writer's address from calls that are not inlined, so the local stays in registers;
+    /// any other member would take its address or need a copy of it around the call, which costs more than the loads
+    /// and stores the local saves.
+    /// </summary>
+    public bool LocalWriter => LocalReader && CollectionFormatter.Length == 0 &&
+                               Members.All(static x => x.Raw != null || (x.Traits & FormatterTraits.Flat) != 0);
+
+    /// <summary>
+    /// Whether the <c>__Top</c> twin reads a new value with a reader of its own (<c>__ReadTop</c>, see
+    /// <c>INinoTopFormatter.Read</c>), for the reasons of <see cref="LocalWriter"/>'s <c>__WriteTop</c>: the body that
+    /// reads a new instance (<c>__ReadBodyInline</c>, or <c>__ReadBodyFreshInline</c> when <see cref="SplitFresh"/>) is
+    /// then an inlinable method that the out-of-line one calls on its local copy. Not for pooled types, whose new
+    /// value comes from the pool first.
+    /// </summary>
+    public bool ReadTop => HasTop && !TopInline && LocalReader && !Pooled;
+
+    /// <summary>
+    /// Whether an out-of-line body reads a new instance in a method of its own (<c>__ReadBodyFresh</c>, see
+    /// <see cref="FreshRead"/>), chosen by the inlined <c>ReadBody</c>: one method holding both copies of the member
+    /// reads would keep more values live at once (spilled in loops). Small bodies inlined into the top-level calls
+    /// (<see cref="TopInline"/>) hold both copies in one method instead.
+    /// </summary>
+    public bool SplitFresh => FreshRead && OutOfLineBody && !InlineBody;
 
     /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
     public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";

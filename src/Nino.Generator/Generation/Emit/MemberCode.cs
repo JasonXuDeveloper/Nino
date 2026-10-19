@@ -67,22 +67,14 @@ internal static class MemberCode
     /// For strings, the read expression that replaces the formatter call; <paramref name="current"/>, the member's
     /// value in an existing instance, is kept when the data holds the same string (null: a new instance).
     /// </summary>
-    public static string? DirectRead(MemberModel member, string r, string? current = null)
-    {
-        string arg = current ?? "";
-        return member.Formatter switch
-        {
-            Core + "StringFormatter" => $"{r}.ReadString({arg})",
-            Core + "Utf8StringFormatter" => $"{r}.ReadUtf8({arg})",
-            _ => null,
-        };
-    }
+    public static string? DirectRead(MemberModel member, string r, string? current = null) =>
+        (member.Traits & FormatterTraits.String) != 0 ? $"{r}.ReadString({current})"
+        : (member.Traits & FormatterTraits.Utf8String) != 0 ? $"{r}.ReadUtf8({current})"
+        : null;
 
     /// <summary>The write statement that replaces the formatter call for strings, or null.</summary>
-    public static string? DirectWrite(MemberModel member, string value) => member.Formatter switch
-    {
-        Core + "StringFormatter" => $"writer.Write({value});",
-        Core + "Utf8StringFormatter" => $"writer.WriteUtf8({value});",
-        _ => null,
-    };
+    public static string? DirectWrite(MemberModel member, string value) =>
+        (member.Traits & FormatterTraits.String) != 0 ? $"writer.Write({value});"
+        : (member.Traits & FormatterTraits.Utf8String) != 0 ? $"writer.WriteUtf8({value});"
+        : null;
 }

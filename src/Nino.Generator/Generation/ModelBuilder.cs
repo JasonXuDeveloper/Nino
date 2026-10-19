@@ -391,6 +391,7 @@ internal static class ModelBuilder
         bool registered = false;
         bool opensBodies = true;
         bool readsLoop = false;
+        FormatterTraits traits;
         var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
         if (custom is { ConstructorArguments: { Length: > 0 } args } && args[0].Value is INamedTypeSymbol customType)
         {
@@ -398,6 +399,7 @@ internal static class ModelBuilder
                 return null; // NINO008, reported by the analyzer
             formatter = Global(customType);
             encoding = WireEncoding.Formatter(formatter);
+            traits = FormatterTraitsOf.Of(customType);
         }
         else
         {
@@ -405,13 +407,14 @@ internal static class ModelBuilder
             var resolved = facts.Resolver.Resolve(memberType, utf8);
             formatter = resolved?.Code;
             registered = resolved?.Registered == true;
+            traits = resolved?.Traits ?? FormatterTraits.None;
             if (resolved is { } r)
             {
                 encoding = r.Encoding;
                 factories.AddRange(r.Factories);
                 opensBodies = r.OpensBodies;
                 shallowFormatter = facts.ShallowFormatter(r.Code, r, utf8);
-                readsLoop = r.Elements is { IsDefault: false, Length: > 0 } && !TypeNames.IsFlat(r.Code);
+                readsLoop = r.Elements is { IsDefault: false, Length: > 0 } && (r.Traits & FormatterTraits.Flat) == 0;
             }
         }
 
@@ -467,14 +470,15 @@ internal static class ModelBuilder
                 .Where(former => former != key).Distinct())
             : EquatableArray<int>.Empty;
 
-        return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter,
+        // Fresh: a Nino.Core formatter that reads into an existing value (not a string, object or cached one).
+        const FormatterTraits replaces = FormatterTraits.Cached | FormatterTraits.Object | FormatterTraits.String |
+                                         FormatterTraits.Utf8String;
+        return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter, traits,
             raw?.Layout ?? encoding, raw,
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
             Visibility.IsConstructionOnly(symbol), false, typeId, opensBodies, shallowFormatter ?? formatter,
-            custom == null && memberType.IsReferenceType && formatter.StartsWith(Core, System.StringComparison.Ordinal) &&
-            !formatter.StartsWith(Core + "CachedFormatter<", System.StringComparison.Ordinal) &&
-            formatter != Core + "ObjectFormatter" && formatter != Core + "StringFormatter" &&
-            formatter != Core + "Utf8StringFormatter" && StartsDefault(symbol),
+            custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
+            (traits & replaces) == 0 && StartsDefault(symbol),
             raw == null && readsLoop);
     }
 

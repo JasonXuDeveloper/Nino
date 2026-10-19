@@ -407,32 +407,4 @@ internal static class TypeNames
 
         return result.Append(formatter, i, formatter.Length - i).ToString();
     }
-
-    /// <summary>
-    /// Nino.Core formatters that read and write without a loop over elements in the generated body, and never pass
-    /// the reader's or writer's address to a call that is not inlined: strings, raw arrays and lists, and
-    /// dictionaries of raw keys and raw or UTF-16 string values.
-    /// </summary>
-    internal static bool IsFlat(string formatter)
-    {
-        if (formatter == Core + "StringFormatter" || formatter == Core + "Utf8StringFormatter" ||
-            formatter.StartsWith(Core + "UnmanagedArrayFormatter<", System.StringComparison.Ordinal) ||
-            formatter.StartsWith(Core + "UnmanagedListFormatter<", System.StringComparison.Ordinal))
-            return true;
-        if (!formatter.StartsWith(Core + "DictionaryFormatter<", System.StringComparison.Ordinal))
-            return false;
-        // DictionaryFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>: the last two arguments.
-        string args = formatter.Substring(Core.Length + "DictionaryFormatter<".Length);
-        int value = args.LastIndexOf(", " + Core, System.StringComparison.Ordinal);
-        if (value < 0)
-            return false;
-        int key = args.LastIndexOf(", " + Core, value - 1, System.StringComparison.Ordinal);
-        if (key < 0)
-            return false;
-        string keyFormatter = args.Substring(key + 2, value - key - 2);
-        string valueFormatter = args.Substring(value + 2, args.Length - value - 3);
-        return keyFormatter.StartsWith(Core + "UnmanagedFormatter<", System.StringComparison.Ordinal) &&
-               (valueFormatter == Core + "StringFormatter" ||
-                valueFormatter.StartsWith(Core + "UnmanagedFormatter<", System.StringComparison.Ordinal));
-    }
 }
