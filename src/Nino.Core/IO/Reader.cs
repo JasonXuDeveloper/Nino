@@ -539,15 +539,32 @@ namespace Nino.Core
 
         /// <summary>Reads a nullable unmanaged value written by <see cref="Writer.Write{T}(T?)"/>.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Read<T>(out T? value) where T : unmanaged
+        public void Read<T>(out T? value) where T : unmanaged => value = ReadNullableRaw<T>();
+
+        /// <summary>
+        /// Reads what <see cref="Writer.WriteNullableRaw{T}"/> wrote: the has-value byte and the value with one bounds
+        /// check where both fit in the remaining bytes, else (near the end, where a null takes only its byte) one each.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal T? ReadNullableRaw<T>() where T : struct
         {
-            if (UnsafeRead<byte>() == NinoWire.Null)
+            int size = NinoLayout<T>.Size;
+            ref byte block = ref Cur;
+            if ((uint)size < (uint)Avail)
             {
-                value = null;
-                return;
+                if (block == NinoWire.Null)
+                {
+                    Skip(1);
+                    return null;
+                }
+
+                Skip(1 + size);
+                return NinoLayout<T>.Read(ref Unsafe.Add(ref block, 1));
             }
 
-            value = ReadValue<T>();
+            if (UnsafeRead<byte>() == NinoWire.Null)
+                return null;
+            return ReadValue<T>();
         }
 
         /// <summary>Consumes 4 bytes if they equal <paramref name="expected"/>; otherwise consumes nothing.</summary>
