@@ -99,10 +99,9 @@ namespace Nino.Core
             // The string encoding with UTF-16 chars (header: the length), which the reader of strings reads too: a
             // copy of the builder's chunks. Narrowing Latin-1 text to one byte a char would halve the bytes but
             // cost a widening pass on every read, where a StringBuilder cannot take chars without copying them.
+            // Its length, then its chars: up to 4 GB of them, which ReserveCounted rejects past 2 GB.
             int length = value.Length;
-            ref byte destination = ref writer.Reserve(NinoWire.LengthSize + length * sizeof(char));
-            NinoUnsafe.Write(ref destination, length);
-            ref byte body = ref Unsafe.Add(ref destination, NinoWire.LengthSize);
+            ref byte body = ref writer.ReserveCounted(length, sizeof(char));
 #if NET8_0_OR_GREATER
             foreach (var chunk in value.GetChunks())
             {

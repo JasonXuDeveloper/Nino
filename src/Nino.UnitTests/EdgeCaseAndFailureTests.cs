@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Nino.Core;
 
@@ -171,5 +172,41 @@ public class EdgeCaseAndFailureTests
         }, "Generic<object> with int array should fail");
 
         Console.WriteLine("All boxed serialization failure tests passed - non-polymorphic types correctly rejected");
+    }
+
+    [TestMethod]
+    public void SizesThatOverflowAnIntAreRejected()
+    {
+        var element = new Guid[1];
+        using var buffer = new NinoArrayBufferWriter();
+        var writer = new Writer(buffer);
+
+        // 2^28 + 1 Guids are 4 GB + 16 bytes, which an int product wraps to 16: rejected before anything is copied
+        // (the span covers no such memory).
+        bool threw = false;
+        try
+        {
+            writer.WriteUnmanagedRaw(MemoryMarshal.CreateReadOnlySpan(ref element[0], (1 << 28) + 1));
+        }
+        catch (OverflowException)
+        {
+            threw = true;
+        }
+
+        Assert.IsTrue(threw, "a block past 4 GB is rejected");
+
+        // A size that overflowed to a negative int is rejected, not taken as room for it.
+        threw = false;
+        try
+        {
+            writer.Reserve(-8);
+        }
+        catch (OverflowException)
+        {
+            threw = true;
+        }
+
+        Assert.IsTrue(threw, "a negative size is rejected");
+        Assert.AreEqual(0, writer.Position);
     }
 }

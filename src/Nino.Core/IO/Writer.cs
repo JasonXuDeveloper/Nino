@@ -211,6 +211,10 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static byte[] Grow(NinoArrayBufferWriter owner, int pos, int size)
         {
+            // A negative size is one that overflowed an int (a string builder or UTF-8 text past 2 GB): rejected
+            // here, on the cold path, rather than taken as room for it.
+            if (size < 0)
+                NinoThrow.TooLarge();
             owner.Index = pos;
             owner.Grow(size);
             return owner.Buffer;
@@ -571,7 +575,8 @@ namespace Nino.Core
 
             if (values.IsEmpty)
                 return;
-            NinoLayout<T>.CopyToWire(ref Reserve(values.Length * Unsafe.SizeOf<T>()),
+            // The size in 64 bits (see ReserveCounted): an int product past 4 GB would wrap to a small size.
+            NinoLayout<T>.CopyToWire(ref ReserveLarge((ulong)(uint)values.Length * (uint)Unsafe.SizeOf<T>()),
                 ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), values.Length);
         }
 
