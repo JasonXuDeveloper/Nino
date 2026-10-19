@@ -254,38 +254,29 @@ namespace Nino.Core
             }
 
             _gaps = gaps.ToArray();
-            var words = Repeat(mask, 8);
+            var words = Repeat(mask, 8, 0, out _);
             _words = new ulong[words.Length / 8];
             for (int i = 0; i < _words.Length; i++)
                 _words[i] = Unsafe.ReadUnaligned<ulong>(ref words[i * 8]);
             if (Vector.IsHardwareAccelerated)
-            {
-                int width = Vector<byte>.Count;
-                var bytes = Repeat(mask, width);
-                _vectorPeriod = bytes.Length;
-                _vectorMask = new byte[bytes.Length + width];
-                for (int i = 0; i < _vectorMask.Length; i++)
-                    _vectorMask[i] = bytes[i % bytes.Length];
-            }
+                _vectorMask = Repeat(mask, Vector<byte>.Count, Vector<byte>.Count, out _vectorPeriod);
 #if NET8_0_OR_GREATER
             if (Vector512.IsHardwareAccelerated)
-            {
-                var bytes = Repeat(mask, Vector512<byte>.Count);
-                _period512 = bytes.Length;
-                _mask512 = new byte[bytes.Length + Vector512<byte>.Count];
-                for (int i = 0; i < _mask512.Length; i++)
-                    _mask512[i] = bytes[i % bytes.Length];
-            }
+                _mask512 = Repeat(mask, Vector512<byte>.Count, Vector512<byte>.Count, out _period512);
 #endif
         }
 
-        private static byte[] Repeat(byte[] mask, int multiple)
+        /// <summary>
+        /// <paramref name="mask"/> repeated over its <paramref name="period"/>, the least multiple of its length that
+        /// is a multiple of <paramref name="multiple"/>, and <paramref name="extra"/> bytes more.
+        /// </summary>
+        private static byte[] Repeat(byte[] mask, int multiple, int extra, out int period)
         {
-            int period = mask.Length;
+            period = mask.Length;
             while (period % multiple != 0)
                 period += mask.Length;
-            var bytes = new byte[period];
-            for (int i = 0; i < period; i++)
+            var bytes = new byte[period + extra];
+            for (int i = 0; i < bytes.Length; i++)
                 bytes[i] = mask[i % mask.Length];
             return bytes;
         }
