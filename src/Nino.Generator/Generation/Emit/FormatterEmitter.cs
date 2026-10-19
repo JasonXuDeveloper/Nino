@@ -380,23 +380,4 @@ internal static class FormatterEmitter
             ? $"{{ int id = reader.UnsafeRead<int>(); if (!{Core}NinoObject.TryReadOwn<{t}, {self}>(id, ref value, ref reader)) {{ {read} }} }}"
             : $"{{ int id = reader.UnsafeRead<int>(); {read} }}"));
     }
-
-    /// <summary>
-    /// The statements that register the formatter (non-generic types), emitted into the registry's dispatch
-    /// (<see cref="RegistryEmitter"/>) rather than as a method of the formatter: one method less per type.
-    /// </summary>
-    public static EquatableArray<string> RegisterStatements(TypeModel m)
-    {
-        if (m.IsGeneric)
-            return new EquatableArray<string>(System.Array.Empty<string>());
-        var code = new System.Collections.Generic.List<string>(2);
-        // A __Top twin writes the regular top-level calls too (a formatter of fixed size writes them inline).
-        if (m.HasTop && !m.FixedSize)
-            code.Add($"{Core}NinoFormatterCache<{m.TypeName}>.TryRegisterTop<{m.FormatterName}, {m.FormatterName}.__Top>();");
-        else
-            code.Add($"{Core}NinoFormatterCache<{m.TypeName}>.{(m.FixedSize ? "TryRegisterFixed" : "TryRegister")}<{m.FormatterName}>();");
-        if (m.Kind != FormatterKind.Polymorphic)
-            code.Add($"{Core}NinoPolymorphic.{(m.TrackReferences ? "RegisterTracked" : "Register")}<{m.TypeName}, {m.FormatterName}>({m.TypeId});");
-        return new EquatableArray<string>(code.ToArray());
-    }
 }

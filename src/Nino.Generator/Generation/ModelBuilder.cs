@@ -100,7 +100,7 @@ internal static class ModelBuilder
             diagnostics?.Report(NinoDiagnostics.EmptyStruct, type, type.ToDisplayString());
 
         // Closed generic [NinoType]s named by the members and base types, for the registry (not needed by the analyzer).
-        var genericTypes = new List<ClosedTypeRegistration>();
+        var genericTypes = new List<TypeRegistration>();
         // Structs whose layout the runtime measures, for the same registry (LayoutTypes).
         var layoutTypes = new List<string>();
         if (diagnostics == null)
@@ -281,7 +281,7 @@ internal static class ModelBuilder
                 ? EquatableArray<FactoryRegistration>.Empty
                 : new EquatableArray<FactoryRegistration>(factories.Distinct()
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
-            UsedGenericTypes: new EquatableArray<ClosedTypeRegistration>(genericTypes.Distinct()
+            UsedGenericTypes: new EquatableArray<TypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
             DispatchRoot: dispatchRoot,
             DispatchRootFormatter: dispatchRootFormatter,

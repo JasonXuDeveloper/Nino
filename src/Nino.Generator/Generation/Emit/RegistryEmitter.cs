@@ -17,6 +17,7 @@ internal static class RegistryEmitter
     /// <summary>Upper bound on bucket methods (a power of two, so a bucket is selected with a mask).</summary>
     private const int MaxBuckets = 256;
 
+    /// <summary>The registry of <paramref name="entries"/> (sorted by formatter name).</summary>
     public static string EmitRegistry(GeneratorOptions options, IEnumerable<RegistryEntry> entries)
     {
         string name = "NinoGenRegistry_" + new string(options.AssemblyName
@@ -24,7 +25,7 @@ internal static class RegistryEmitter
         var w = new CodeWriter();
         w.Raw(FormatterEmitter.Header);
         w.Line($"[assembly: {Core}NinoGenerated(typeof({Gen}{name}))]");
-        var list = entries.OrderBy(e => e.FormatterName, System.StringComparer.Ordinal).ToList();
+        var list = entries.ToList();
         // Generic [NinoType]s are closed at runtime: their formatter definitions are ordinary formatter
         // registrations (each implements INinoFormatter<Box<T>> in exactly the type's own parameters).
         foreach (var entry in list.Where(e => e.Arity != 0))
@@ -47,15 +48,7 @@ internal static class RegistryEmitter
         });
         w.Line();
         EmitIdDispatch(w, "public", $"{Gen}{UsagesClass}.Register(id);",
-            // Keyed by wire id (polymorphic reads) and, for [NinoFormerName] types, also by name id (by-type lookups).
-            list.Where(e => e.Arity == 0)
-                .SelectMany(e => e.NameId == e.TypeId
-                    ? new[] { (Id: e.TypeId, Entry: e) }
-                    : new[] { (Id: e.TypeId, Entry: e), (Id: e.NameId, Entry: e) })
-                .GroupBy(x => x.Id, x => x.Entry).OrderBy(g => g.Key)
-                .Select(g => new KeyValuePair<int, List<string>>(g.Key,
-                    g.SelectMany(e => e.Registration).ToList()))
-                .ToList());
+            ById(list.Where(e => e.Arity == 0 && e.Registration != null).SelectMany(e => Statements(e.Registration!))));
         w.Line();
         w.Line("/// <summary>Runs the registration (once).</summary>");
         w.Block("public static void Init()", () => { });
@@ -86,7 +79,7 @@ internal static class RegistryEmitter
     }
 
     public static string EmitUsages(IEnumerable<FormatterRegistration> usages, IEnumerable<FactoryRegistration> factories,
-        IEnumerable<ClosedTypeRegistration> generics, IEnumerable<string> layoutTypes)
+        IEnumerable<TypeRegistration> generics, IEnumerable<string> layoutTypes)
     {
         var w = new CodeWriter();
         w.Raw(FormatterEmitter.Header);
@@ -112,49 +105,63 @@ internal static class RegistryEmitter
         var statements = usages
             .Select(u => (u.Id, Code: $"{Core}NinoFormatterCache<{u.TypeName}>.TryRegister<{u.Formatter}>();"))
             .Concat(factories.Select(f => (f.Id, Code: $"{Core}NinoActivator<{f.TypeName}>.TryRegister({f.Creator});")))
-            .Concat(generics.SelectMany(GenericStatements));
+            .Concat(generics.SelectMany(Statements));
         // The registry calls Register, so these stay with it: NativeAOT keeps the fields NinoLayout measures.
         foreach (var type in kept)
             w.Line($"[__NinoDynamicDependency(__Fields, typeof({type}))]");
-        EmitIdDispatch(w, "internal static", "",
-            statements.GroupBy(u => u.Id).OrderBy(g => g.Key)
-                .Select(g => new KeyValuePair<int, List<string>>(g.Key, g.Select(u => u.Code).ToList()))
-                .ToList());
+        EmitIdDispatch(w, "internal static", "", ById(statements));
         w.Close();
         w.Close();
         return w.ToString();
     }
 
+    /// <summary>How the registry registers the formatter of <paramref name="m"/>; null for generic types.</summary>
+    public static TypeRegistration? Registration(TypeModel m) => m.IsGeneric
+        ? null
+        : new TypeRegistration(m.TypeName, m.FormatterName, m.TypeId, m.NameId,
+            Polymorphic: m.Kind != FormatterKind.Polymorphic, Tracked: m.TrackReferences,
+            // A __Top twin writes the regular top-level calls too (a formatter of fixed size writes them inline).
+            Top: m.HasTop && !m.FixedSize, Fixed: m.FixedSize);
+
     /// <summary>
-    /// The registration of a closed generic <c>[NinoType]</c>, under its wire id (polymorphic reads) and, when
-    /// <c>[NinoFormerName]</c> makes it differ, its name id (by-type lookups), like a non-generic type's.
+    /// The statements registering a <c>[NinoType]</c>'s formatter, under its wire id (polymorphic reads) and, when
+    /// <c>[NinoFormerName]</c> makes it differ, its name id (by-type lookups).
     /// </summary>
-    private static IEnumerable<(int Id, string Code)> GenericStatements(ClosedTypeRegistration g)
+    private static IEnumerable<(int Id, string Code)> Statements(TypeRegistration r)
     {
-        var code = new List<string>();
-        if (g.Formatter.Length == 0)
+        var code = new List<string>(2);
+        if (r.Formatter.Length == 0)
         {
             // Generated by another assembly, whose formatter is internal: closed by reflection.
-            if (g.Polymorphic)
-                code.Add($"{Core}NinoPolymorphic.Register(typeof({g.TypeName}));");
+            if (r.Polymorphic)
+                code.Add($"{Core}NinoPolymorphic.Register(typeof({r.TypeName}));");
         }
         else
         {
-            code.Add($"{Core}NinoFormatterCache<{g.TypeName}>.TryRegister<{g.Formatter}>();");
-            if (g.Polymorphic)
+            string cache = $"{Core}NinoFormatterCache<{r.TypeName}>";
+            code.Add(r.Top
+                ? $"{cache}.TryRegisterTop<{r.Formatter}, {r.Formatter}.__Top>();"
+                : $"{cache}.{(r.Fixed ? "TryRegisterFixed" : "TryRegister")}<{r.Formatter}>();");
+            if (r.Polymorphic)
             {
-                string register = g.Tracked ? "RegisterTracked" : "Register";
-                code.Add($"{Core}NinoPolymorphic.{register}<{g.TypeName}, {g.Formatter}>({g.Id});");
+                string register = r.Tracked ? "RegisterTracked" : "Register";
+                code.Add($"{Core}NinoPolymorphic.{register}<{r.TypeName}, {r.Formatter}>({r.Id});");
             }
         }
 
         foreach (var statement in code)
         {
-            yield return (g.Id, statement);
-            if (g.NameId != g.Id)
-                yield return (g.NameId, statement);
+            yield return (r.Id, statement);
+            if (r.NameId != r.Id)
+                yield return (r.NameId, statement);
         }
     }
+
+    /// <summary>The statements by id, in the order of the ids, each id's in the order given.</summary>
+    private static List<KeyValuePair<int, List<string>>> ById(IEnumerable<(int Id, string Code)> statements) =>
+        statements.GroupBy(s => s.Id).OrderBy(g => g.Key)
+            .Select(g => new KeyValuePair<int, List<string>>(g.Key, g.Select(s => s.Code).ToList()))
+            .ToList();
 
     /// <summary>
     /// Emits <c>Register(int id)</c> as a switch over small bucket methods: the JIT resolves every call in a method
