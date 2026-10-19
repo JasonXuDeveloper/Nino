@@ -143,6 +143,18 @@ namespace Nino.Core.Internal
 #endif
         }
 
+        /// <summary>
+        /// The first element of <paramref name="list"/> (a new one when null) holding <paramref name="count"/>
+        /// unmanaged elements that the caller then overwrites entirely; only when <see cref="Direct"/>. A new list's
+        /// backing array comes straight from its field (no count to set again).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref T OverwriteAll<TList, T>(ref TList list, int count) where TList : List<T> =>
+            ref list == null && CollectionViews.List
+                ? ref NinoUnsafe.GetArrayDataReference(
+                    CollectionFields.Items<T>(list = CreateOverwritten<TList, T>(count)))
+                : ref SetCountOverwritten(list ??= Create<TList, T>(count), count);
+
         private static Span<T> OpenCopy<T>(List<T> list, int count, out T[] buffer)
         {
             buffer = ArrayPool<T>.Shared.Rent(count);
@@ -156,7 +168,7 @@ namespace Nino.Core.Internal
         {
             list.Clear();
             list.AddRange(new ArraySegment<T>(buffer, 0, count));
-            ArrayPool<T>.Shared.Return(buffer, NinoUnsafe.IsReferenceOrContainsReferences<T>());
+            NinoCollections.ReturnRented(buffer);
         }
     }
 }

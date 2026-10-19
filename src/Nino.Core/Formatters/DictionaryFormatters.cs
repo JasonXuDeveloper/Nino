@@ -122,12 +122,14 @@ namespace Nino.Core
             writer.CopyTo(ref target);
         }
 
-        /// <summary>Reads the pair count, validated against the remaining bytes; false for null.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool TryReadLength(ref Reader reader, out int length) =>
-            reader.TryReadLength(RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>()
+        /// <summary>The fewest bytes a pair takes, which the pair count is validated with.</summary>
+        public static int MinPairSize
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>()
                 ? Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()
-                : 1, out length);
+                : 1;
+        }
 
         /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/> pairs.</summary>
         public static void Reset(Dictionary<TKey, TValue> dictionary, int length)
@@ -155,7 +157,7 @@ namespace Nino.Core
                 return;
             }
 
-            var seen = System.Buffers.ArrayPool<TKey>.Shared.Rent(length == 0 ? 1 : length);
+            var seen = System.Buffers.ArrayPool<TKey>.Shared.Rent(length);
             try
             {
                 int matched = 0;
@@ -186,7 +188,7 @@ namespace Nino.Core
             }
             finally
             {
-                System.Buffers.ArrayPool<TKey>.Shared.Return(seen, !typeof(TKey).IsValueType);
+                NinoCollections.ReturnRented(seen);
             }
         }
 
@@ -229,21 +231,6 @@ namespace Nino.Core
             NinoRecycler.DiscardPairs<TKey, TValue>(stale);
         }
 
-        /// <summary>Adds a pair; a key the data repeats (under the dictionary's comparer) is invalid data.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Add(Dictionary<TKey, TValue> dictionary, TKey key, TValue value)
-        {
-#if NETSTANDARD2_0
-            int before = dictionary.Count;
-            dictionary[key] = value;
-            if (dictionary.Count == before)
-                NinoThrow.DuplicateKey(dictionary.GetType());
-#else
-            if (!dictionary.TryAdd(key, value))
-                NinoThrow.DuplicateKey(dictionary.GetType());
-#endif
-        }
-
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void AddRaw(Dictionary<TKey, TValue> dictionary, ref byte src, int length)
         {
@@ -252,7 +239,8 @@ namespace Nino.Core
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
             for (int i = 0; i < length; i++)
             {
-                Add(dictionary, NinoUnsafe.Read<TKey>(ref src), NinoUnsafe.Read<TValue>(ref src, keySize));
+                NinoCollections.AddUnique(dictionary, NinoUnsafe.Read<TKey>(ref src),
+                    NinoUnsafe.Read<TValue>(ref src, keySize));
                 src = ref Unsafe.Add(ref src, pairSize);
             }
         }
@@ -296,7 +284,7 @@ namespace Nino.Core
                 TValue item = default;
                 default(TKeyFormatter).Deserialize(ref key, ref reader);
                 default(TValueFormatter).Deserialize(ref item, ref reader);
-                Add(dictionary, key, item);
+                NinoCollections.AddUnique(dictionary, key, item);
             }
 
             reader.CopyTo(ref source);
@@ -313,42 +301,20 @@ namespace Nino.Core
         where TValueFormatter : struct, INinoFormatter<TValue>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Serialize(Dictionary<TKey, TValue> value, ref Writer writer)
-        {
-            if (value == null)
-                writer.WriteNullLength();
-            else
-                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Write(value, ref writer);
-        }
+        public void Serialize(Dictionary<TKey, TValue> value, ref Writer writer) =>
+            default(DictionaryFormatter<Dictionary<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter>)
+                .Serialize(value, ref writer);
 
-        public void Deserialize(ref Dictionary<TKey, TValue> value, ref Reader reader)
-        {
-            if (!NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.TryReadLength(ref reader, out int length))
-            {
-                NinoRecycler.Discard(ref value);
-                return;
-            }
-
-            if (value == null)
-            {
-                value = new Dictionary<TKey, TValue>(length);
-                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(value, length, ref reader);
-            }
-            else
-            {
-                // Through a copy: the reader's own address must not reach a call that is not inlined (see
-                // NinoObject.ReadBody), or none of its fields stay in registers in the caller.
-                Reader copy = default;
-                reader.CopyTo(ref copy);
-                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref copy);
-                copy.CopyTo(ref reader);
-            }
-        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Deserialize(ref Dictionary<TKey, TValue> value, ref Reader reader) =>
+            default(DictionaryFormatter<Dictionary<TKey, TValue>, TKey, TValue, TKeyFormatter, TValueFormatter>)
+                .Deserialize(ref value, ref reader);
     }
 
     /// <summary>
-    /// A type derived from <c>Dictionary&lt;TKey, TValue&gt;</c>: count (-1 = null), then key/value pairs. An existing
-    /// dictionary is refilled in place (merged by key), keeping its comparer.
+    /// A type derived from <c>Dictionary&lt;TKey, TValue&gt;</c> (and <c>Dictionary&lt;TKey, TValue&gt;</c> itself):
+    /// count (-1 = null), then key/value pairs. An existing dictionary is refilled in place (merged by key), keeping
+    /// its comparer.
     /// </summary>
     public struct DictionaryFormatter<[NinoCreated] TDictionary, TKey, TValue, TKeyFormatter, TValueFormatter>
         : INinoFormatter<TDictionary>
@@ -359,21 +325,28 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TDictionary value, ref Writer writer)
         {
-            if (value == null)
-                writer.WriteNullLength();
-            else
+            if (!writer.TryWriteNullLength(value))
                 NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Write(value, ref writer);
         }
 
         public void Deserialize(ref TDictionary value, ref Reader reader)
         {
-            if (!NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.TryReadLength(ref reader, out int length))
+            if (!reader.TryReadLengthOrDiscard(ref value,
+                    NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.MinPairSize, out int length))
+                return;
+
+            if (value == null && typeof(TDictionary) == typeof(Dictionary<TKey, TValue>))
             {
-                NinoRecycler.Discard(ref value);
+                // A new plain dictionary, sized for the pairs: filled without the merge of Refill.
+                var created = new Dictionary<TKey, TValue>(length);
+                value = Unsafe.As<TDictionary>(created);
+                NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(created, length, ref reader);
                 return;
             }
 
             value ??= NinoActivator<TDictionary>.Create();
+            // Through a copy: the reader's own address must not reach a call that is not inlined (see
+            // NinoObject.ReadBody), or none of its fields stay in registers in the caller.
             Reader copy = default;
             reader.CopyTo(ref copy);
             NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Refill(value, length, ref copy);
@@ -393,26 +366,20 @@ namespace Nino.Core
     {
         public void Serialize(TDictionary value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             if (BclDictionaries<TKey, TValue, TKeyFormatter, TValueFormatter>.TryWrite(value, ref writer))
                 return;
 
-            NinoCollections.WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(value, ref writer);
+            NinoCollections.WriteEnumerable<KeyValuePair<TKey, TValue>,
+                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(value, ref writer);
         }
 
         public void Deserialize(ref TDictionary value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
-            }
 
             if (value == null)
             {
@@ -441,9 +408,7 @@ namespace Nino.Core
                 TValue item = default;
                 default(TKeyFormatter).Deserialize(ref key, ref reader);
                 default(TValueFormatter).Deserialize(ref item, ref reader);
-                dictionary[key] = item;
-                if (dictionary.Count != i + 1)
-                    NinoThrow.DuplicateKey(dictionary.GetType());
+                NinoCollections.AddUnique(dictionary, key, item, i);
             }
         }
     }
@@ -461,11 +426,8 @@ namespace Nino.Core
     {
         public void Serialize(TInterface value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             if (value is Dictionary<TKey, TValue> dictionary)
             {
@@ -473,7 +435,14 @@ namespace Nino.Core
                 return;
             }
 
-            NinoCollections.WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(value, ref writer);
+            // The runtime's other dictionaries through their own paths (a ConcurrentDictionary without reading its
+            // count, which takes every lock and may not match the pairs enumerated after it).
+            if (value is IDictionary<TKey, TValue> other &&
+                BclDictionaries<TKey, TValue, TKeyFormatter, TValueFormatter>.TryWrite(other, ref writer))
+                return;
+
+            NinoCollections.WriteEnumerable<KeyValuePair<TKey, TValue>,
+                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(value, ref writer);
         }
 
         public void Deserialize(ref TInterface value, ref Reader reader)
@@ -557,22 +526,38 @@ namespace Nino.Core
 
     internal static partial class NinoCollections
     {
-        /// <summary>Writes the count of <paramref name="pairs"/>, then each key and value.</summary>
-        public static void WritePairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
-            IEnumerable<KeyValuePair<TKey, TValue>> pairs, ref Writer writer)
-            where TKeyFormatter : struct, INinoFormatter<TKey>
-            where TValueFormatter : struct, INinoFormatter<TValue>
+        /// <summary><c>Dictionary.TryAdd</c>, which netstandard2.0 lacks.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryAdd<TKey, TValue>(Dictionary<TKey, TValue> dictionary, TKey key, TValue value)
         {
-            int countPos = writer.ReserveInt32();
-            int written = 0;
-            foreach (var pair in pairs)
-            {
-                default(TKeyFormatter).Serialize(pair.Key, ref writer);
-                default(TValueFormatter).Serialize(pair.Value, ref writer);
-                written++;
-            }
+#if NETSTANDARD2_0
+            int before = dictionary.Count;
+            dictionary[key] = value;
+            return dictionary.Count != before;
+#else
+            return dictionary.TryAdd(key, value);
+#endif
+        }
 
-            writer.PatchInt32(countPos, written);
+        /// <summary>Adds a pair; a key the data repeats (under the dictionary's comparer) is invalid data.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void AddUnique<TKey, TValue>(Dictionary<TKey, TValue> dictionary, TKey key, TValue value)
+        {
+            if (!TryAdd(dictionary, key, value))
+                NinoThrow.DuplicateKey(dictionary.GetType());
+        }
+
+        /// <summary>
+        /// Adds a pair to a dictionary that held <paramref name="count"/> pairs, through its indexer (which throws
+        /// for a null key); a key the data repeats is invalid data.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void AddUnique<TKey, TValue>(IDictionary<TKey, TValue> dictionary, TKey key, TValue value,
+            int count)
+        {
+            dictionary[key] = value;
+            if (dictionary.Count != count + 1)
+                NinoThrow.DuplicateKey(dictionary.GetType());
         }
     }
 }

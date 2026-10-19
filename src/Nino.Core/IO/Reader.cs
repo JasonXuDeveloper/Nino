@@ -769,15 +769,7 @@ namespace Nino.Core
                 pos += keySize;
                 string value = NinoStrings.Read(ref Unsafe.Add(ref data, pos), end - pos, null, out int size);
                 pos += size;
-#if NETSTANDARD2_0
-                int before = dictionary.Count;
-                dictionary[key] = value;
-                if (dictionary.Count == before)
-                    NinoThrow.DuplicateKey(dictionary.GetType());
-#else
-                if (!dictionary.TryAdd(key, value))
-                    NinoThrow.DuplicateKey(dictionary.GetType());
-#endif
+                NinoCollections.AddUnique(dictionary, key, value);
             }
 
             return pos;

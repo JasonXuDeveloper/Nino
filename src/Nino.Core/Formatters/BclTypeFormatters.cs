@@ -61,11 +61,8 @@ namespace Nino.Core
     {
         public void Serialize(Version value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             writer.UnsafeWrite(value.Major);
             writer.UnsafeWrite(value.Minor);
@@ -96,17 +93,14 @@ namespace Nino.Core
     {
         public void Serialize(StringBuilder value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             // The string encoding with UTF-16 chars (header: the length), which the reader of strings reads too: a
             // copy of the builder's chunks. Narrowing Latin-1 text to one byte a char would halve the bytes but
             // cost a widening pass on every read, where a StringBuilder cannot take chars without copying them.
             int length = value.Length;
-            ref byte destination = ref writer.Ensure(NinoWire.LengthSize + length * sizeof(char));
+            ref byte destination = ref writer.Reserve(NinoWire.LengthSize + length * sizeof(char));
             NinoUnsafe.Write(ref destination, length);
             ref byte body = ref Unsafe.Add(ref destination, NinoWire.LengthSize);
 #if NET8_0_OR_GREATER
@@ -120,7 +114,6 @@ namespace Nino.Core
             var chars = MemoryMarshal.AsBytes(value.ToString().AsSpan());
             NinoUnsafe.Copy(ref body, ref MemoryMarshal.GetReference(chars), (uint)chars.Length);
 #endif
-            writer.Commit(NinoWire.LengthSize + length * sizeof(char));
         }
 
         public unsafe void Deserialize(ref StringBuilder value, ref Reader reader)
@@ -157,11 +150,8 @@ namespace Nino.Core
     {
         public void Serialize(BitArray value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             int count = value.Length, size = (count + 7) / 8;
             var bytes = ArrayPool<byte>.Shared.Rent(size);
@@ -173,12 +163,8 @@ namespace Nino.Core
 
         public void Deserialize(ref BitArray value, ref Reader reader)
         {
-            int count = reader.ReadLength(minElementSize: 0);
-            if (count < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 0, out int count))
                 return;
-            }
 
             var bytes = reader.ReadRaw((int)(((uint)count + 7) / 8)).ToArray();
             // The last byte may hold bits past the count: Length cuts them off.
@@ -209,11 +195,8 @@ namespace Nino.Core
     {
         public void Serialize(TimeZoneInfo value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             writer.Write(value.Id);
             writer.Write(IsSystemZone(value) ? null : value.ToSerializedString());
@@ -371,11 +354,8 @@ namespace Nino.Core
     {
         public void Serialize(IGrouping<TKey, TElement> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             // The count first, patched after the elements: a grouping need not know its count.
             int countPos = writer.ReserveInt32();
@@ -425,11 +405,8 @@ namespace Nino.Core
     {
         public void Serialize(ILookup<TKey, TElement> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             writer.WriteLength(value.Count);
             foreach (var grouping in value)
@@ -468,11 +445,8 @@ namespace Nino.Core
     {
         public void Serialize(BlockingCollection<T> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             NinoCollections.WriteSpan<T, TFormatter>(value.ToArray(), ref writer);
         }
@@ -534,13 +508,7 @@ namespace Nino.Core
             }
             else
             {
-#if NETSTANDARD2_0
-                added = !_byKey.ContainsKey(grouping.Key);
-                if (added)
-                    _byKey.Add(grouping.Key, grouping);
-#else
-                added = _byKey.TryAdd(grouping.Key, grouping);
-#endif
+                added = NinoCollections.TryAdd(_byKey, grouping.Key, grouping);
             }
 
             if (!added)
@@ -570,6 +538,7 @@ namespace Nino.Core
     internal static partial class NinoCollections
     {
         /// <summary>Writes a span as a <c>T[]</c> of its elements is written: length, then the elements.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteSpan<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {

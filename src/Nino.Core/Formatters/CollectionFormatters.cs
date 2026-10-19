@@ -18,11 +18,8 @@ namespace Nino.Core
     {
         public void Serialize(TCollection value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             if (BclCollections<T, TFormatter>.TryWrite(value, ref writer))
                 return;
@@ -32,23 +29,15 @@ namespace Nino.Core
 
         public void Deserialize(ref TCollection value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
-            }
 
             var collection = value ??= NinoActivator<TCollection>.Create();
 
             if (collection.IsReadOnly)
                 NinoThrow.ReadOnlyCollection(collection.GetType());
-            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
-            if (collection.Count != 0)
-            {
-                NinoRecycler.DiscardAll(collection);
+            if (NinoRecycler.DiscardAll(collection, collection.Count))
                 collection.Clear();
-            }
 
             if (BclCollections<T, TFormatter>.TryRead(collection, length, ref reader))
                 return;
@@ -69,11 +58,8 @@ namespace Nino.Core
     {
         public void Serialize(TSet value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             if (RawFormatter.Is<T, TFormatter>())
             {
@@ -105,22 +91,15 @@ namespace Nino.Core
         public void Deserialize(ref TSet value, ref Reader reader)
         {
             bool raw = RawFormatter.Is<T, TFormatter>();
-            if (!reader.TryReadLength(raw ? Unsafe.SizeOf<T>() : 1, out int length))
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, raw ? Unsafe.SizeOf<T>() : 1, out int length))
                 return;
-            }
 
             // InterfaceSetFormatter reads into a plain HashSet<T>, which no generated code registers a creator for.
             var set = value ??= typeof(TSet) == typeof(HashSet<T>)
                 ? (TSet)new HashSet<T>()
                 : NinoActivator<TSet>.Create();
-            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
-            if (set.Count != 0)
-            {
-                NinoRecycler.DiscardAll(set);
+            if (NinoRecycler.DiscardAll(set, set.Count))
                 set.Clear();
-            }
 
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
             set.EnsureCapacity(length);
@@ -170,11 +149,8 @@ namespace Nino.Core
     {
         public void Serialize(TQueue value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             if (CollectionViews.Queue)
             {
@@ -196,22 +172,14 @@ namespace Nino.Core
 
         public void Deserialize(ref TQueue value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
-            }
 
             var queue = value ??= typeof(TQueue) == typeof(Queue<T>)
                 ? (TQueue)new Queue<T>(length)
                 : NinoActivator<TQueue>.Create();
-            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
-            if (queue.Count != 0)
-            {
-                NinoRecycler.DiscardAll(queue);
+            if (NinoRecycler.DiscardAll(queue, queue.Count))
                 queue.Clear();
-            }
 
             if (CollectionViews.Queue)
             {
@@ -256,11 +224,8 @@ namespace Nino.Core
     {
         public void Serialize(TStack value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             int count = value.Count;
             writer.WriteLength(count);
@@ -285,28 +250,20 @@ namespace Nino.Core
             }
             finally
             {
-                ArrayPool<T>.Shared.Return(buffer, NinoUnsafe.IsReferenceOrContainsReferences<T>());
+                NinoCollections.ReturnRented(buffer);
             }
         }
 
         public void Deserialize(ref TStack value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
-            }
 
             var stack = value ??= typeof(TStack) == typeof(Stack<T>)
                 ? (TStack)new Stack<T>(length)
                 : NinoActivator<TStack>.Create();
-            // Existing contents, also of a created instance (a factory may hand out a pooled one that is not empty).
-            if (stack.Count != 0)
-            {
-                NinoRecycler.DiscardAll(stack);
+            if (NinoRecycler.DiscardAll(stack, stack.Count))
                 stack.Clear();
-            }
 
             if (CollectionViews.Stack)
             {
@@ -361,11 +318,8 @@ namespace Nino.Core
     {
         public void Serialize(TCollection value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             var items = value.ToArray(); // snapshot, safe against concurrent modification
             writer.WriteLength(items.Length);
@@ -383,12 +337,8 @@ namespace Nino.Core
 
         public void Deserialize(ref TCollection value, ref Reader reader)
         {
-            int length = reader.ReadLength();
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
-            }
 
             if (value == null)
             {

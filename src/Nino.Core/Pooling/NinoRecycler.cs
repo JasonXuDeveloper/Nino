@@ -191,6 +191,20 @@ namespace Nino.Core
                 NinoRecycler<T>.Recycle(item);
         }
 
+        /// <summary>
+        /// Discards the existing elements (<paramref name="count"/>) of a collection about to be refilled, also of a
+        /// created instance (a factory may hand out a pooled one that is not empty); true when there were any, for
+        /// the caller to clear it.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool DiscardAll<T>(IEnumerable<T> items, int count)
+        {
+            if (count == 0)
+                return false;
+            DiscardAll(items);
+            return true;
+        }
+
         /// <summary>Empties a producer/consumer collection, recycling each element once.</summary>
         internal static void DrainAndDiscard<T>(IProducerConsumerCollection<T> items)
         {

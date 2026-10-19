@@ -15,6 +15,8 @@ namespace Nino.Core
     [EditorBrowsable(EditorBrowsableState.Never)]
     public static class NinoUnsafe
     {
+        /// <summary>The most elements an array (of bytes, or a dimension of any array) can have.</summary>
+        internal const int MaxArrayLength = 0x7FFFFFC7;
 
 #if NET5_0_OR_GREATER
         /// <summary>

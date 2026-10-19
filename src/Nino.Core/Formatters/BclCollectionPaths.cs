@@ -258,9 +258,9 @@ namespace Nino.Core
 
         /// <summary>
         /// Through its own enumerator, typed here rather than left to the shared loop of
-        /// <see cref="NinoCollections.WritePairs{TKey,TValue,TKeyFormatter,TValueFormatter}"/>, whose guess at the
-        /// dictionary type is made once for every dictionary with these keys and values (4x slower when a Dictionary
-        /// was seen first).
+        /// <see cref="NinoCollections.WriteEnumerable{T,TFormatter}"/>, whose guess at the dictionary type is made
+        /// once for every dictionary with these keys and values (4x slower when a Dictionary was seen first), and
+        /// without its count (which takes every lock, and may not match the pairs enumerated after it).
         /// </summary>
         private static void WriteConcurrent(ConcurrentDictionary<TKey, TValue> concurrent, ref Writer writer)
         {
@@ -404,11 +404,7 @@ namespace Nino.Core
             int length)
         {
             for (int i = 0; i < length; i++)
-            {
-                dictionary[pairs[i].Key] = pairs[i].Value;
-                if (dictionary.Count != i + 1)
-                    NinoThrow.DuplicateKey(dictionary.GetType());
-            }
+                NinoCollections.AddUnique(dictionary, pairs[i].Key, pairs[i].Value, i);
         }
     }
 
@@ -456,8 +452,7 @@ namespace Nino.Core
             try
             {
                 source.CopyTo(array, 0);
-                writer.WriteLength(count);
-                NinoElements.Write<T, TFormatter>(new ReadOnlySpan<T>(array, 0, count), ref writer);
+                WriteSpan<T, TFormatter>(new ReadOnlySpan<T>(array, 0, count), ref writer);
             }
             finally
             {

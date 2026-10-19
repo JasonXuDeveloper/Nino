@@ -24,25 +24,15 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TList value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
-                return;
-            }
-
-            ReadOnlySpan<T> span = ListAccess.AsSpan<T>(value);
-            writer.WriteLength(span.Length);
-            NinoElements.Write<T, TFormatter>(span, ref writer);
+            if (!writer.TryWriteNullLength(value))
+                NinoCollections.WriteSpan<T, TFormatter>(ListAccess.AsSpan<T>(value), ref writer);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            if (!reader.TryReadLength(1, out int length))
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
-            }
 
             var list = value;
             // Fixed-size values are each read in full: a new list's backing array need not be cleared first.
@@ -90,11 +80,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(TList value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             writer.Write((ReadOnlySpan<T>)ListAccess.AsSpan<T>(value));
         }
@@ -102,11 +89,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            if (!reader.TryReadLength(NinoLayout<T>.Size, out int length))
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoLayout<T>.Size, out int length))
                 return;
-            }
 
             if (!ListAccess.Direct || !NinoLayout<T>.IsCanonical)
             {
@@ -117,11 +101,7 @@ namespace Nino.Core
                 return;
             }
 
-            // A new list's backing array straight from its field (no count to set again).
-            ref T first = ref value == null && CollectionViews.List
-                ? ref NinoUnsafe.GetArrayDataReference(
-                    CollectionFields.Items<T>(value = ListAccess.CreateOverwritten<TList, T>(length)))
-                : ref ListAccess.SetCountOverwritten(value ??= ListAccess.Create<TList, T>(length), length);
+            ref T first = ref ListAccess.OverwriteAll<TList, T>(ref value, length);
 
             // The length was checked against the remaining bytes above: one block copy, no second bounds check.
             uint bytes = (uint)length * (uint)Unsafe.SizeOf<T>();
@@ -139,23 +119,16 @@ namespace Nino.Core
     {
         public void Serialize(TList value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.WriteNullLength();
+            if (writer.TryWriteNullLength(value))
                 return;
-            }
 
             NinoNullables<T>.Write(ListAccess.AsSpan<T?>(value), ref writer);
         }
 
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            int length = NinoNullables<T>.ReadCount(ref reader);
-            if (length < 0)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
-            }
 
             var list = value ??= ListAccess.CreateOverwritten<TList, T?>(length);
             var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
