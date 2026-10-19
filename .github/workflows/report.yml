@@ -26,6 +26,17 @@ concurrency:
   group: benchmark-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few, and one process a
+  # case leaves its layout to chance (a 12 ns case moved by 13% between processes); the mean of three does not.
+  BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
+  # The second section of the release body: Nino v3 3.3.13 against this release, on the SimpleTest runner.
+  # The docs site (nino.docs scripts/sync-benchmarks.ts) looks for this heading.
+  V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
+  # The third section: the same benchmarks on an Arm64 runner. The docs site (sync-benchmarks.ts) looks for this
+  # heading; it must never contain the words "Performance Report", by which parsers find the x64 report.
+  ARM64_HEADING: "## 📊 Arm64 benchmark"
+
 jobs:
   target:
     name: Pick the release
@@ -33,9 +44,6 @@ jobs:
     outputs:
       tag: ${{ steps.determine_target.outputs.target_ref }}
       skip: ${{ steps.check_benchmark.outputs.skip }}
-    env:
-      V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
-      ARM64_HEADING: "## 📊 Arm64 benchmark"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -114,9 +122,6 @@ jobs:
           - { arch: arm64, shard: d, filters: "'*.VersionTolerantTest.*' '*.ReferenceTest.*' '*.BclTypesTest.*Deserialize*'" }
           - { arch: arm64, shard: e, filters: "'*.CollectionsTest.*' '*.PooledGraphTest.*'" }
     env:
-      # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few, and one process a
-      # case leaves its layout to chance (a 12 ns case moved by 13% between processes); the mean of three does not.
-      BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
       V3_OUT: ${{ github.workspace }}/v3-results
       OUT: ${{ github.workspace }}/report
       FILTERS: ${{ matrix.filters }}
@@ -220,13 +225,6 @@ jobs:
     timeout-minutes: 30
     env:
       tag_name: ${{ needs.target.outputs.tag }}
-      BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
-      # The second section of the release body: Nino v3 3.3.13 against this release, on the SimpleTest runner.
-      # The docs site (nino.docs scripts/sync-benchmarks.ts) looks for this heading.
-      V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
-      # The third section: the same benchmarks on an Arm64 runner. The docs site (sync-benchmarks.ts) looks for this
-      # heading; it must never contain the words "Performance Report", by which parsers find the x64 report.
-      ARM64_HEADING: "## 📊 Arm64 benchmark"
       # The release asset that holds the whole Arm64 section (the docs site reads it when the body has only a link).
       ARM64_ASSET: arm64-benchmark.md
       # Every benchmark class of src/Nino.Benchmark: one table in the Performance Report, its Type column naming the
