@@ -1,5 +1,4 @@
 #if ROSLYN4_8
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -55,7 +54,7 @@ internal static class Interceptors
         if (raw && SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer) &&
             method.Name == "Deserialize" && method.Parameters.Length == 1 &&
             method.Parameters[0].Type is INamedTypeSymbol { Name: "ReadOnlySpan" })
-            return Intercept(ctx, invocation, method, type, $"{TypeNames.Core}NinoDirect.DeserializeRaw<{TypeNames.Global(type)}>(a0)", "", ct);
+            return Intercept(ctx, invocation, method, type, "DeserializeRaw", "", ct);
         if (raw || type is IArrayTypeSymbol { ElementType: var element } && facts.Raw.IsRawUnmanaged(element))
             return null;
         // Only the formatters known here: a cached one is what the regular call uses anyway.
@@ -67,17 +66,17 @@ internal static class Interceptors
             method.Parameters.Length == 1 && method.ReturnType is IArrayTypeSymbol &&
             type is INamedTypeSymbol named && facts.IsFixedSize(named) &&
             (formatter.Traits & FormatterTraits.Generated) != 0)
-            return Intercept(ctx, invocation, method, type,
-                $"{TypeNames.Core}NinoDirect.SerializeFixed<{TypeNames.Global(type)}, {formatter.Code}>(a0)", "", ct);
-        return Intercept(ctx, invocation, method, type, null, formatter.Code, ct);
+            return Intercept(ctx, invocation, method, type, "SerializeFixed", formatter.Code, ct);
+        return Intercept(ctx, invocation, method, type, method.Name, formatter.Code, ct);
     }
 
     /// <summary>
-    /// The interceptor of <paramref name="invocation"/>: a call to <paramref name="call"/>, or (null) to the
-    /// <c>NinoDirect</c> method of the same name with <paramref name="formatter"/>.
+    /// The interceptor of <paramref name="invocation"/>: a call to the <c>NinoDirect</c> method
+    /// <paramref name="target"/> with <paramref name="formatter"/> (none when empty), passing the arguments on. Only
+    /// a call to the method of the same name may use the <c>__Top</c> twins (<see cref="InterceptedCall.Inlinable"/>).
     /// </summary>
     private static InterceptedCall? Intercept(GeneratorSyntaxContext ctx, InvocationExpressionSyntax invocation,
-        IMethodSymbol method, ITypeSymbol type, string? call, string formatter, CancellationToken ct)
+        IMethodSymbol method, ITypeSymbol type, string target, string formatter, CancellationToken ct)
     {
 #if ROSLYN4_12
         if (ctx.SemanticModel.GetInterceptableLocation(invocation, ct) is not { } location)
@@ -92,7 +91,6 @@ internal static class Interceptors
         string attribute = "@\"" + path.Replace("\"", "\"\"") + $"\", {position.Line + 1}, {position.Character + 1}";
 #endif
 
-        var name = TypeNames.Global(type);
         var signature = new StringBuilder();
         var arguments = new StringBuilder();
         signature.Append(method.ReturnsVoid ? "void" : TypeNames.Global(method.ReturnType))
@@ -123,12 +121,10 @@ internal static class Interceptors
 
         signature.Append(')');
         // Overloads given a reader or writer leave its fields in the caller's memory: nothing to gain there.
-        bool inlinable = !method.Parameters.Any(p => p.RefKind == RefKind.Ref && p.Type.Name is "Reader" or "Writer");
-        if (call != null)
-            return new InterceptedCall(signature.ToString(), call, attribute);
-        return new InterceptedCall(signature.ToString(),
-            $"{TypeNames.Core}NinoDirect.{method.Name}<{name}, {formatter}>({arguments})", attribute,
-            formatter, inlinable);
+        bool inlinable = target == method.Name &&
+                         !method.Parameters.Any(p => p.RefKind == RefKind.Ref && p.Type.Name is "Reader" or "Writer");
+        return new InterceptedCall(signature.ToString(), target, TypeNames.Global(type), formatter,
+            arguments.ToString(), attribute, inlinable);
     }
 
     /// <summary>
@@ -151,17 +147,14 @@ internal static class Interceptors
     /// </summary>
     private static string WithTopCall(InterceptedCall c, HashSet<string> tops, HashSet<string> shallow)
     {
-        string call = c.Call.Replace(", " + c.Formatter + ">(", ", " + WithTop(c.Formatter, tops, shallow) + ">(");
-        const string serialize = TypeNames.Core + "NinoDirect.Serialize<";
-        const string deserialize = TypeNames.Core + "NinoDirect.Deserialize<";
-        if (!tops.Contains(c.Formatter))
-            return call;
-        if (call.StartsWith(serialize, StringComparison.Ordinal))
-            return TypeNames.Core + "NinoDirect.SerializeTop<" + call.Substring(serialize.Length);
-        // Deserialize(data) returning a new value; not Deserialize(data, ref value), which reads into an instance.
-        if (call.StartsWith(deserialize, StringComparison.Ordinal) && call.EndsWith(">(a0)", StringComparison.Ordinal))
-            return TypeNames.Core + "NinoDirect.DeserializeTop<" + call.Substring(deserialize.Length);
-        return call;
+        string method = !tops.Contains(c.Formatter) ? c.Method : c.Method switch
+        {
+            "Serialize" => "SerializeTop",
+            // Deserialize(data) returning a new value; not Deserialize(data, ref value), which reads into an instance.
+            "Deserialize" when c.Arguments == "a0" => "DeserializeTop",
+            _ => c.Method,
+        };
+        return c.CallWith(method, WithTop(c.Formatter, tops, shallow));
     }
 
     /// <summary>
@@ -174,7 +167,6 @@ internal static class Interceptors
         var tops = new HashSet<string>(top.Select(n => TypeNames.Gen + n));
         var shallow = new HashSet<string>(shallowTwins.Select(n => TypeNames.Gen + n));
         string scope = fileLocal ? "file" : "internal";
-        const string direct = TypeNames.Core + "NinoDirect.";
         var w = new CodeWriter(calls.Length * 384);
         w.Raw(FormatterEmitter.Header);
         w.Open("namespace System.Runtime.CompilerServices");
@@ -193,7 +185,7 @@ internal static class Interceptors
         w.Line($"using __NinoIntercepts = {TypeNames.CompilerServices}InterceptsLocationAttribute;");
         w.Line($"using __NinoInline = {TypeNames.CompilerServices}MethodImplAttribute;");
         w.Line($"using __NinoInlineOptions = {TypeNames.CompilerServices}MethodImplOptions;");
-        w.Line($"using __NinoDirect = {direct.Substring(0, direct.Length - 1)};");
+        w.Line($"using __NinoDirect = {TypeNames.Core}NinoDirect;");
         w.Line();
         w.Open($"{scope} static class NinoInterceptors");
         int n = 0;
@@ -207,10 +199,7 @@ internal static class Interceptors
             // "R Name(params)" becomes "public static R NameN(params) => call;"
             var signature = group.Key.Signature;
             int paren = signature.IndexOf('(');
-            string target = group.Key.Call.StartsWith(direct, StringComparison.Ordinal)
-                ? "__NinoDirect." + group.Key.Call.Substring(direct.Length)
-                : group.Key.Call;
-            w.Line($"public static {signature.Substring(0, paren)}{n++}{signature.Substring(paren)} => {target};");
+            w.Line($"public static {signature.Substring(0, paren)}{n++}{signature.Substring(paren)} => __NinoDirect.{group.Key.Call};");
         }
 
         w.Close();

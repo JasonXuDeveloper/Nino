@@ -345,15 +345,24 @@ internal sealed record TopLevelCall(UsageRegistration? Usage, InterceptedCall? I
 
 /// <summary>
 /// One intercepted top-level call. <see cref="Signature"/> is the interceptor's parameter list and return type,
-/// <see cref="Call"/> the <c>NinoDirect</c> call it makes, <see cref="Location"/> the arguments of its
-/// <c>[InterceptsLocation]</c>. Calls with the same signature and call share one interceptor. <see cref="Inlinable"/>:
-/// the call creates its own reader or writer, so no class body is open around <see cref="Formatter"/>: the call then
-/// uses the <c>__Top</c> twin (<see cref="TypeModel.HasTop"/>) of the formatter, or of the element formatters of a
-/// built-in collection (<c>List&lt;Small&gt;</c>, <c>Dictionary&lt;int, Small&gt;</c>), whose elements are read and
-/// written there too.
+/// <see cref="Location"/> the arguments of its <c>[InterceptsLocation]</c>; it calls the <c>NinoDirect</c> method
+/// <see cref="Method"/> with the type arguments <see cref="TypeName"/> and, unless empty, <see cref="Formatter"/>,
+/// and the arguments <see cref="Arguments"/> (<see cref="Call"/>). Calls with the same signature and call share one
+/// interceptor. <see cref="Inlinable"/>: the call creates its own reader or writer, so no class body is open around
+/// <see cref="Formatter"/>: the call then uses the <c>__Top</c> twin (<see cref="TypeModel.HasTop"/>) of the
+/// formatter, or of the element formatters of a built-in collection (<c>List&lt;Small&gt;</c>,
+/// <c>Dictionary&lt;int, Small&gt;</c>), whose elements are read and written there too.
 /// </summary>
-internal sealed record InterceptedCall(string Signature, string Call, string Location, string Formatter = "",
-    bool Inlinable = false);
+internal sealed record InterceptedCall(string Signature, string Method, string TypeName, string Formatter,
+    string Arguments, string Location, bool Inlinable = false)
+{
+    /// <summary>A call of the <c>NinoDirect</c> method <paramref name="method"/> with <paramref name="formatter"/>, and this call's type and arguments.</summary>
+    public string CallWith(string method, string formatter) =>
+        $"{method}<{TypeName}{(formatter.Length != 0 ? ", " + formatter : "")}>({Arguments})";
+
+    /// <summary>The <c>NinoDirect</c> call, without the class name.</summary>
+    public string Call => CallWith(Method, Formatter);
+}
 
 // A type in the per-assembly subtype dispatch: a base (DispatchesSubtypes), a target (IsDispatchTarget), or both.
 // RawBody: the target's body is one raw block (TypeModel.RawBody), written with its type id in one reservation.
