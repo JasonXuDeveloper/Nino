@@ -171,8 +171,23 @@ the result objects.
   element serialization into the collection loop. Members call `default(TFormatter).Serialize(...)`: a
   direct call, no virtual dispatch.
 * **Blocks instead of fields.** Consecutive unmanaged members are reserved and written as one block (one
-  bounds check), unmanaged arrays, lists and raw `[NinoType]` structs are single block copies, and arrays of
-  raw elements are written to `byte[]` results allocated at their exact size, without zero-initialization.
+  bounds check), unmanaged arrays, lists and raw `[NinoType]` structs are single block copies, and arrays and
+  lists of fixed-size elements are written straight into a `byte[]` of their exact size, without a scratch buffer.
+  A raw nullable reads its has-value byte and its value under one bounds check, and multi-dimensional arrays take
+  the block paths of flat ones.
+* **Copies sized to the CPU.** Up to 128 bytes are copied inline, as overlapping loads and stores of the widest
+  vector that fits; up to 8 KB (64-byte vectors) or 4 KB (32-byte vectors, from 256 bytes) as vectors with aligned
+  stores; beyond, with `memmove`. Reads into a new array of 2 KB or more use `memmove`, whose `rep movsb` writes
+  fresh cache lines without reading them first.
+* **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 2 KB.
+  One filled by vector shuffles or value by value (padded tuples, `DateTimeOffset`s) is allocated zeroed: the
+  clearing brings its lines into the cache, where each store into an uninitialized line first reads it from
+  memory (1,000 `(int, long)` into a new list in 1.5 µs instead of 2.7 µs). Slots a read overwrites are not cleared
+  first, in new or existing lists and arrays.
+* **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values
+  are written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each
+  16-byte lane is shuffled from at most two 16-byte windows (`vpshufb` on AVX2 and SSSE3, `TBL` on Arm64, swizzle
+  on WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type.
 * **Layout flags folded by the JIT.** Whether a type's memory layout equals the wire layout, and whether it
   has padding, are `static readonly` values, which tiered compilation turns into constants: on 64-bit
   runtimes a raw struct costs a plain copy. Other runtimes (32-bit, old Mono) convert field by field into
@@ -197,7 +212,8 @@ the result objects.
   and lets the array formatter, compiled for the element type, do the write.
 * **Writer and reader.** `Writer` writes into one contiguous rented buffer (the hot path is a length check
   and an unaligned store; growth is out of line). `Reader` is a span with an index: one unsigned bounds
-  check per read. Lengths from the payload are validated against the remaining bytes before allocating.
+  check per read. Lengths from the payload are validated against the remaining bytes before allocating. Loops
+  over elements work on a local copy of the reader or writer, so the cursor stays in a register.
 * **No shared mutable state on hot paths.** Scratch buffers are thread-static and taken out of their slot
   while in use; formatter lookup is a static generic field; polymorphic tables are open-addressing arrays of
   16-byte entries (four per 64-byte cache line), at most half full, read lock free. Serializing threads never
