@@ -17,6 +17,9 @@ src/Nino.Core/.AssemblyAttributes
 src/Nino.UnitTests/*.rsp
 **/BenchmarkDotNet.Artifacts
 
+# Python bytecode (the scripts under benchmarks/ and .github/scripts/)
+__pycache__/
+
 # Local AI agent state
 .claude/
 .roo/
