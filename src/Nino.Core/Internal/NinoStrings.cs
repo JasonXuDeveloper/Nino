@@ -381,9 +381,12 @@ namespace Nino.Core
             }
         }
 
-        /// <summary>A new string of <paramref name="length"/> chars to fill in (length &gt; 0).</summary>
+        /// <summary>
+        /// A new string of <paramref name="length"/> chars to fill in (length &gt; 0): freshly allocated and not yet
+        /// published, so it is written in place.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static string Allocate(int length)
+        public static string Allocate(int length)
         {
 #if NET8_0_OR_GREATER
             if (Allocator.Kind != 0)
