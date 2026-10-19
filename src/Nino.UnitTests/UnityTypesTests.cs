@@ -47,6 +47,41 @@ public class UnityTypesTests
     }
 
     [TestMethod]
+    public void UnityTypesWriteTheirDocumentedBytes()
+    {
+        // The layouts in the formatters' summaries, value by value.
+        var curve = new AnimationCurve(new Keyframe(0.5f, 1, 2, 3, 4, 5) { weightedMode = WeightedMode.Both })
+        {
+            preWrapMode = WrapMode.Loop,
+            postWrapMode = WrapMode.PingPong,
+        };
+        CollectionAssert.AreEqual(Bytes(1, 0.5f, 1f, 2f, 3f, 4f, 5f, (int)WeightedMode.Both, (int)WrapMode.Loop,
+            (int)WrapMode.PingPong), NinoSerializer.Serialize(curve));
+
+        var gradient = new Gradient
+        {
+            colorKeys = new[] { new GradientColorKey(new Color(0.1f, 0.2f, 0.3f, 0.4f), 0.5f) },
+            alphaKeys = new[] { new GradientAlphaKey(0.6f, 0.7f), new GradientAlphaKey(0.8f, 0.9f) },
+            mode = GradientMode.Fixed,
+        };
+        CollectionAssert.AreEqual(Bytes(1, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 2, 0.6f, 0.7f, 0.8f, 0.9f,
+            (int)GradientMode.Fixed), NinoSerializer.Serialize(gradient));
+
+        var offset = new System.Collections.Generic.List<byte> { 1 };
+        offset.AddRange(Bytes(1, -2, 3, 4));
+        CollectionAssert.AreEqual(offset.ToArray(), NinoSerializer.Serialize(new RectOffset(1, -2, 3, 4)));
+        CollectionAssert.AreEqual(new byte[] { 0 }, NinoSerializer.Serialize((RectOffset)null));
+
+        static byte[] Bytes(params object[] values)
+        {
+            var bytes = new System.Collections.Generic.List<byte>();
+            foreach (var v in values)
+                bytes.AddRange(v is float f ? BitConverter.GetBytes(f) : BitConverter.GetBytes((int)v));
+            return bytes.ToArray();
+        }
+    }
+
+    [TestMethod]
     public void GradientsAndRectOffsets()
     {
         var gradient = new Gradient
