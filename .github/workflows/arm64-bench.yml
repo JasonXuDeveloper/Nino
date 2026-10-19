@@ -93,8 +93,8 @@ jobs:
           set -euo pipefail
           # BenchmarkDotNet runs each benchmark at high priority, which a user may not set ("Failed to set up high
           # priority (Permission denied)"): raise this shell's nice limit (RLIMIT_NICE 40, down to nice -20), which
-          # dotnet and the benchmark processes inherit.
-          sudo prlimit --pid $$ --nice=40:40
+          # dotnet and the benchmark processes inherit. Without it they run at normal priority, as before.
+          sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
           echo "nice limit: $(ulimit -e)"
           set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
           read -ra FILTERS <<< "$FILTER"
