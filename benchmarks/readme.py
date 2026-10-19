@@ -29,8 +29,9 @@ ROOT = Path(__file__).resolve().parent.parent
 UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
 # Struct cases: a block copy in both libraries, so they stay out of the class/polymorphic ranges.
 STRUCT_KEYS = {"SimpleStruct", "SimpleStructs", "Vectors"}
-# Below a third of a clock cycle: no work at all can be told apart from BenchmarkDotNet's empty-method overhead.
-FLOOR_NS = 0.1
+# About three clock cycles. Below it, a case cannot be told apart from another: a struct read of 40 bytes measured
+# anywhere from 0.05 to 0.8 ns in Nino and MemoryPack alike, as BenchmarkDotNet subtracts its empty-method overhead.
+FLOOR_NS = 1
 CLASS_KEYS = ["SimpleClass", "SimpleClasses", "PolymorphicClass", "PolymorphicClassArray", "PolymorphicFooArray"]
 
 
@@ -106,14 +107,16 @@ def numbers(v4_path, v3_paths, tag=None):
         return ratio(v4[f"MemoryPack{verb}{key}"]["mean"], v4[f"Nino{verb}{key}"]["mean"])
 
     def wins(verb):
-        return [r for r in (vs_memorypack(verb, k) for k in CLASS_KEYS) if r > 1]
+        """Ratios of the cases v4 wins: above 1, and not on par."""
+        return [r for r in (vs_memorypack(verb, k) for k in CLASS_KEYS) if r > 1 and not on_par(r)]
 
     def win_range(verb):
-        return f"{one(min(wins(verb)))}–{one(max(wins(verb)))}"
+        won = wins(verb)
+        return f"{one(min(won))}–{one(max(won))}" if won else "—"
 
     bdn, runtime, cpu = environment(env)
     out = {
-        "ser.max": one(max(wins("Serialize"))),
+        "ser.max": one(max(wins("Serialize"), default=1.0)),
         "reuse.inplace": one(ratio(v4["MemoryPackLeavesOverwrite"]["mean"], v4["NinoLeavesInPlace"]["mean"])),
         "ser.range": win_range("Serialize"),
         "deser.range": win_range("Deserialize"),
@@ -176,7 +179,7 @@ def numbers(v4_path, v3_paths, tag=None):
                     en.append(f"**{r:.2f}× faster** ({label_en})")
                     zh.append(f"{label_zh}**快 {r:.2f} 倍**")
             out[f"v3.{op}"] = (", ".join(en), "，".join(zh))
-    out.update({f"doc.{k}": v for k, v in tables(v4, v3, env, tag).items()})
+    out.update({f"doc.{k}": v for k, v in tables(v4, v3, len(v3_paths or []), env, tag).items()})
     return out, chart
 
 
@@ -227,7 +230,7 @@ def table(head, rows):
                       ["| " + " | ".join(r) + " |" for r in rows]) + "\n"
 
 
-def tables(v4, v3, env, tag):
+def tables(v4, v3, v3_runs, env, tag):
     """The runtime section of docs/v4-benchmarks.md: one table per marker, and the line saying where they come from."""
     def mean(method):
         return v4[method]["mean"] if method in v4 else None
@@ -267,7 +270,7 @@ def tables(v4, v3, env, tag):
     source = f"the performance report of [{tag}](https://github.com/JasonXuDeveloper/Nino/releases/tag/{tag})" \
         if tag else "a local `benchmarks/run.sh` run"
     out["source"] = (f"{source}: BenchmarkDotNet {bdn}, {runtime}, {cpu}; v3 3.3.13 from NuGet ran "
-                     f"{'directly before v4' if v3 else 'not at all'} on the same machine")
+                     f"{('directly before v4' if v3_runs == 1 else 'directly before and after v4') if v3 else 'not at all'} on the same machine")
     return out
 
 

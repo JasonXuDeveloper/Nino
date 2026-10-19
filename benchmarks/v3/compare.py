@@ -15,7 +15,7 @@ import sys
 
 UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
 LIBS = ("Nino", "MemoryPack", "MessagePack")
-FLOOR_NS = 0.1  # benchmarks/readme.py and the docs site use the same floor
+FLOOR_NS = 1.0  # benchmarks/readme.py and the docs site use the same floor
 
 
 def parse(path):
