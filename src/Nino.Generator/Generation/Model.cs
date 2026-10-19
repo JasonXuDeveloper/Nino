@@ -87,8 +87,8 @@ internal sealed record MemberModel(
     int TypeId,
     // Whether the member's formatter may write or read a class body (see ResolvedFormatter.OpensBodies).
     bool OpensBodies,
-    // The formatter with the generated formatters it is composed of replaced by their __Shallow twins (see
-    // TypeFacts.HasShallow), for shallow bodies; the formatter itself when none has one.
+    // The formatter with the generated formatters it is composed of replaced by their shallow twins (see
+    // TypeFacts.ShallowTwin), for shallow bodies; the formatter itself when none has one.
     string ShallowFormatter,
     // Whether a new instance (TypeModel.FreshRead) holds null in this member, which a Nino.Core formatter then reads
     // from a null local rather than from the member: a field or auto-property of a reference type without an
@@ -172,9 +172,10 @@ internal sealed record TypeModel(
     // How deep below its own check a value can check the depth (TypeFacts.DepthBound): -1 if it opens no class
     // body, TypeFacts.Unbounded when not known.
     int DepthBound,
-    // Whether the formatter has a __Shallow twin (TypeFacts.HasShallow).
+    // Whether the formatter has a __Shallow twin (TypeFacts.HasShallow; a sealed class whose body nests nothing uses
+    // its __Top twin as that, TypeFacts.ShallowTwin).
     bool Shallow,
-    // CollectionFormatter with its element formatters' __Shallow twins.
+    // CollectionFormatter with its element formatters' shallow twins.
     string ShallowCollectionFormatter,
     // Whether ReadBody reads a new instance (created by `new T()`, not taken from a pool or a factory) apart from
     // an existing one: its members are known to be null there (MemberModel.Fresh), so their formatters' reuse
