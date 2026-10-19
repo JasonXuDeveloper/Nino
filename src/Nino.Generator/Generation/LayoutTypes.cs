@@ -60,12 +60,8 @@ internal static class LayoutTypes
     /// visible through InternalsVisibleTo) would make the names ambiguous.
     /// </summary>
     public static bool CanEmit(Compilation compilation) =>
-        HasOneAccessible(compilation, "System.Diagnostics.CodeAnalysis.DynamicDependencyAttribute") &&
-        HasOneAccessible(compilation, "System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes");
-
-    private static bool HasOneAccessible(Compilation compilation, string metadataName) =>
-        compilation.GetTypesByMetadataName(metadataName)
-            .Count(t => compilation.IsSymbolAccessibleWithin(t, compilation.Assembly)) == 1;
+        TypeNames.CanName(compilation, "System.Diagnostics.CodeAnalysis.DynamicDependencyAttribute") &&
+        TypeNames.CanName(compilation, "System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes");
 
     /// <summary>Sorted, without duplicates: the registry's attribute list is stable across builds.</summary>
     public static EquatableArray<string> ToArray(IEnumerable<string> types) =>

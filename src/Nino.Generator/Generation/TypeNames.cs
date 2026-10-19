@@ -59,6 +59,16 @@ internal static class TypeNames
     public static bool HasMetadataName(INamedTypeSymbol definition, string name) =>
         MatchMetadataName(definition, name, name.Length) == 0;
 
+    /// <summary>
+    /// Whether generated code in <paramref name="compilation"/> can name the type <paramref name="metadataName"/>:
+    /// exactly one definition it can access. Libraries carry internal polyfills of BCL attributes (ZLinq's
+    /// netstandard build has <c>ModuleInitializerAttribute</c>), which exist but cannot be used; a second
+    /// accessible one (a polyfill seen through InternalsVisibleTo) makes the name ambiguous.
+    /// </summary>
+    public static bool CanName(Compilation compilation, string metadataName) =>
+        compilation.GetTypesByMetadataName(metadataName)
+            .Count(t => compilation.IsSymbolAccessibleWithin(t, compilation.Assembly)) == 1;
+
     /// <summary>Whether <paramref name="definition"/> is a generic <c>System.ValueTuple`N</c>.</summary>
     public static bool IsValueTuple(INamedTypeSymbol definition) =>
         definition is { Name: "ValueTuple", Arity: > 0, ContainingType: null } &&

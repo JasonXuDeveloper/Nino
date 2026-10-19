@@ -94,9 +94,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
         var options = context.CompilationProvider.Select(static (c, _) => new GeneratorOptions(
             c.AssemblyName ?? "Assembly",
-            c.GetTypeByMetadataName("System.Runtime.CompilerServices.ModuleInitializerAttribute") != null,
-            c.GetTypeByMetadataName("UnityEngine.RuntimeInitializeOnLoadMethodAttribute") != null,
-            c.GetTypeByMetadataName("UnityEditor.InitializeOnLoadMethodAttribute") != null,
+            TypeNames.CanName(c, "System.Runtime.CompilerServices.ModuleInitializerAttribute"),
+            TypeNames.CanName(c, "UnityEngine.RuntimeInitializeOnLoadMethodAttribute"),
+            TypeNames.CanName(c, "UnityEditor.InitializeOnLoadMethodAttribute"),
             new EquatableArray<string>(FormatterRules.RegisteringReferences(c)
                 .OrderBy(n => n, StringComparer.Ordinal).ToArray())));
 
