@@ -143,19 +143,22 @@ namespace Nino.Core.Internal
         }
 #pragma warning restore CS0649, CS0169
 
-        // List<T> (Stack<T> has the same fields): items, size, version.
-        private static readonly int[] ListLayout = Find(CheckList,
+        // The candidate layouts of List<T> and Stack<T>, which have the same fields: items, size, version.
+        private static readonly Func<int[]>[] ListLayouts =
+        {
             () => { var m = new ListCore(); return Offsets(m, ref m._items, ref m._size, ref m._version); },
-            () => { var m = new ListFramework(); return Offsets(m, ref m._items, ref m._size, ref m._version); });
+            () => { var m = new ListFramework(); return Offsets(m, ref m._items, ref m._size, ref m._version); }
+        };
+
+        // List<T>: items, size, version.
+        private static readonly int[] ListLayout = Find(CheckList, ListLayouts);
 
         public static readonly bool List = ListLayout != null;
         public static readonly int ListItems = List ? ListLayout[0] : 0;
         public static readonly int ListSize = List ? ListLayout[1] : 0;
 
         // Stack<T>: array, size, version.
-        private static readonly int[] StackLayout = Find(CheckStack,
-            () => { var m = new ListCore(); return Offsets(m, ref m._items, ref m._size, ref m._version); },
-            () => { var m = new ListFramework(); return Offsets(m, ref m._items, ref m._size, ref m._version); });
+        private static readonly int[] StackLayout = Find(CheckStack, ListLayouts);
 
         public static readonly bool Stack = StackLayout != null;
         public static readonly int StackArray = Stack ? StackLayout[0] : 0;

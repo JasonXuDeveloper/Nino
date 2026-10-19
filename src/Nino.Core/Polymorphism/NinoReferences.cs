@@ -134,6 +134,17 @@ namespace Nino.Core
             return _count;
         }
 
+        /// <summary>
+        /// Records <paramref name="value"/> as the object whose instance <paramref name="refs"/> (null: no table) is
+        /// waiting for, if any: back references to it may come before its body.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void SetPending(NinoReferenceReadTable refs, object value)
+        {
+            if (refs != null && refs.Pending != 0)
+                refs.Set(refs.Pending, value);
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Set(int index, object value)
         {

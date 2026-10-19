@@ -31,6 +31,14 @@ namespace Nino.Core
 
         /// <summary>Set in the length of a region followed by a section of deferred bodies.</summary>
         public const int SectionFlag = int.MinValue;
+
+        /// <summary>
+        /// The depth a body deferred inside a region is written and read at, from its section, when the region ended
+        /// at <paramref name="depth"/>: one body deeper, but never as deep as <see cref="Inline"/> (a deferred body
+        /// is written in place).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Deferred(int depth) => Math.Min(depth, Inline - 1) + 1;
     }
 
     /// <summary>Writes and reads the body of a deferred object; one instance per (type, formatter).</summary>
@@ -123,6 +131,18 @@ namespace Nino.Core
 
         public static NinoDeferrals Rent() => NinoThreadCache.Take(ref t_cached) ?? new NinoDeferrals();
 
+        /// <summary>
+        /// Queues <paramref name="item"/>: in <see cref="Top"/> outside any region (<paramref name="regions"/> 0),
+        /// else in <see cref="Region"/>.
+        /// </summary>
+        public void Add(in NinoDeferredItem item, int regions)
+        {
+            if (regions == 0)
+                Top.Add(in item);
+            else
+                Region.Add(in item);
+        }
+
         public static void Return(NinoDeferrals deferrals)
         {
             if (deferrals.Top.Items?.Length > NinoThreadCache.MaxRetainedTableCapacity ||
@@ -138,26 +158,39 @@ namespace Nino.Core
     }
 
     /// <summary>
+    /// The deferred bodies of one call, and what <see cref="NinoReadContext"/> and <see cref="NinoWriteContext"/>
+    /// do with them when the call ends.
+    /// </summary>
+    internal abstract class NinoCallContext
+    {
+        public NinoDeferrals Deferrals;
+
+        /// <summary>Hands <see cref="Deferrals"/> back to their cache.</summary>
+        protected void ReturnDeferrals()
+        {
+            if (Deferrals == null)
+                return;
+            NinoDeferrals.Return(Deferrals);
+            Deferrals = null;
+        }
+    }
+
+    /// <summary>
     /// What a <see cref="Reader"/> and the readers made from it share beyond their position: the back references
     /// and the deferred bodies of one deserialization call. Rented on first use (one cached instance per thread),
     /// so calls that track nothing and never nest deep touch nothing.
     /// </summary>
-    internal sealed class NinoReadContext
+    internal sealed class NinoReadContext : NinoCallContext
     {
         [ThreadStatic] private static NinoReadContext t_cached;
 
         public NinoReferenceReadTable Refs;
-        public NinoDeferrals Deferrals;
 
         public static NinoReadContext Rent() => NinoThreadCache.Take(ref t_cached) ?? new NinoReadContext();
 
         public static void Return(NinoReadContext context)
         {
-            if (context.Deferrals != null)
-            {
-                NinoDeferrals.Return(context.Deferrals);
-                context.Deferrals = null;
-            }
+            context.ReturnDeferrals();
 
             if (context.Refs != null)
             {
@@ -174,22 +207,17 @@ namespace Nino.Core
     /// bodies of one serialization call. Rented on first use (one cached instance per thread), so calls that track
     /// nothing and never nest deep touch nothing.
     /// </summary>
-    internal sealed class NinoWriteContext
+    internal sealed class NinoWriteContext : NinoCallContext
     {
         [ThreadStatic] private static NinoWriteContext t_cached;
 
         public NinoReferenceWriteTable Refs;
-        public NinoDeferrals Deferrals;
 
         public static NinoWriteContext Rent() => NinoThreadCache.Take(ref t_cached) ?? new NinoWriteContext();
 
         public static void Return(NinoWriteContext context)
         {
-            if (context.Deferrals != null)
-            {
-                NinoDeferrals.Return(context.Deferrals);
-                context.Deferrals = null;
-            }
+            context.ReturnDeferrals();
 
             if (context.Refs != null)
             {

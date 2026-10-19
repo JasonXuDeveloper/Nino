@@ -339,11 +339,31 @@ namespace Nino.Core
         {
 #if NET8_0_OR_GREATER
             // ASCII text compared vectorized; other Latin-1 text is read again.
-            return System.Text.Ascii.Equals(MemoryMarshal.CreateReadOnlySpan(ref source, value.Length), value.AsSpan());
+            return SameAscii(ref source, value);
 #else
             for (int i = 0; i < value.Length; i++)
             {
                 if (Unsafe.Add(ref source, i) != value[i])
+                    return false;
+            }
+
+            return true;
+#endif
+        }
+
+        /// <summary>
+        /// Whether the bytes at <paramref name="source"/> are the chars of <paramref name="value"/> (as long), all
+        /// ASCII.
+        /// </summary>
+        public static bool SameAscii(ref byte source, string value)
+        {
+#if NET8_0_OR_GREATER
+            return System.Text.Ascii.Equals(MemoryMarshal.CreateReadOnlySpan(ref source, value.Length), value.AsSpan());
+#else
+            for (int i = 0; i < value.Length; i++)
+            {
+                byte b = Unsafe.Add(ref source, i);
+                if (b >= 0x80 || b != value[i])
                     return false;
             }
 
@@ -413,9 +433,8 @@ namespace Nino.Core
                     Unsafe.CopyBlockUnaligned(ref destination, ref chars, size);
                 return value;
             }
-
-            return new string(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.As<byte, char>(ref chars), length));
-#elif NETSTANDARD2_0
+#endif
+#if NETSTANDARD2_0
             fixed (byte* p = &chars)
             {
                 return new string((char*)p, 0, length);
