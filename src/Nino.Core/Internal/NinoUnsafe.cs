@@ -349,22 +349,15 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Allocates an array whose contents are not zeroed when the runtime supports it.
-        /// Only use when every element is overwritten before being read.
+        /// Allocates an array whose contents are not zeroed when the runtime supports it and it is large enough for
+        /// that to be cheaper (<see cref="NewArray{T}"/>). Only use when every element is overwritten before being read.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T[] AllocateUninitializedArray<T>(int length)
-        {
-#if NET5_0_OR_GREATER
-            if (Unsafe.SizeOf<T>() * length >= MinUninitializedArrayBytes)
-                return GC.AllocateUninitializedArray<T>(length);
-#endif
-            return new T[length];
-        }
+        public static T[] AllocateUninitializedArray<T>(int length) => NewArray<T>(length, uninitialized: true);
 
         /// <summary>
         /// A new array of <paramref name="length"/> (not negative) elements, the shared empty array for 0, and
-        /// allocated uninitialized where that is cheaper (<see cref="AllocateUninitializedArray{T}"/>) when
+        /// allocated uninitialized from 2 KB (MinUninitializedArrayBytes) on .NET 5 and later when
         /// <paramref name="uninitialized"/> (the caller overwrites every element). One unsigned compare picks the
         /// common case, a zeroed array of 1 element or more. The others are inline too: a call in between would cost
         /// a frame on the large arrays (where an uninitialized one is called for).
@@ -377,7 +370,7 @@ namespace Nino.Core
             if (length == 0)
                 return Array.Empty<T>();
 #if NET5_0_OR_GREATER
-            // At least MinUninitializedArrayBytes: the size test of AllocateUninitializedArray is already made.
+            // At least MinUninitializedArrayBytes (MaxZeroedLength): no size test of its own.
             if (uninitialized)
                 return GC.AllocateUninitializedArray<T>(length);
 #endif
@@ -385,9 +378,8 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// The longest array of <typeparamref name="T"/> that <see cref="AllocateUninitializedArray{T}"/> allocates
-        /// zeroed (when <paramref name="uninitialized"/>; otherwise any length), as <c>new T[length]</c> does. A
-        /// JIT-time constant.
+        /// The longest array of <typeparamref name="T"/> that <see cref="NewArray{T}"/> allocates zeroed (when
+        /// <paramref name="uninitialized"/>; otherwise any length), as <c>new T[length]</c> does. A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int MaxZeroedLength<T>(bool uninitialized)
