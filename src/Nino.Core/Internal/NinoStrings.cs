@@ -54,9 +54,17 @@ namespace Nino.Core
                 return NinoWire.LengthSize + length;
             }
 
-            // Not Latin-1: the narrowed prefix is overwritten.
+            return WriteUtf16(ref destination, ref chars, length);
+        }
+
+        // Not Latin-1: the narrowed prefix is overwritten. Out of line: Copy of a size not known in advance takes all
+        // its branches, which inlined grew every method writing a string by 300 to 600 bytes of code.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static int WriteUtf16(ref byte destination, ref char chars, int length)
+        {
             NinoUnsafe.Write(ref destination, length);
-            NinoUnsafe.Copy(ref body, ref Unsafe.As<char, byte>(ref chars), (uint)length * sizeof(char));
+            NinoUnsafe.Copy(ref Unsafe.Add(ref destination, NinoWire.LengthSize), ref Unsafe.As<char, byte>(ref chars),
+                (uint)length * sizeof(char));
             return NinoWire.LengthSize + length * sizeof(char);
         }
 
