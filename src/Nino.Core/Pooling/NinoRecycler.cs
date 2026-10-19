@@ -126,7 +126,16 @@ namespace Nino.Core
         {
             var old = value;
             value = replacement;
-            if (old != null && !ReferenceEquals(old, replacement))
+            if (old != null)
+                Replaced(old, replacement);
+        }
+
+        // Out of line: a slot is mostly empty when a new instance takes it, and with the recycle inline the JIT did not
+        // inline Replace into a large read (a Lazy<string> read called it, and kept the slot in memory).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void Replaced<T>(T old, T replacement) where T : class
+        {
+            if (!ReferenceEquals(old, replacement))
                 NinoRecycler<T>.Recycle(old);
         }
 

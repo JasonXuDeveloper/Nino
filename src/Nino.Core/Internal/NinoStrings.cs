@@ -395,8 +395,13 @@ namespace Nino.Core
             return new string('\0', length);
         }
 
-        /// <summary>A new string of the <paramref name="length"/> UTF-16 chars at <paramref name="chars"/> (length &gt; 0).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>
+        /// A new string of the <paramref name="length"/> UTF-16 chars at <paramref name="chars"/> (length &gt; 0). Out
+        /// of line, as when it was too large to inline: inlined into <see cref="Read"/>, this rare path used up the
+        /// inlining budget of the method reading a Latin-1 string, which then called the reader's own helpers
+        /// (Reader.Skip) instead of inlining them.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
         public static unsafe string New(ref byte chars, int length)
         {
 #if NET8_0_OR_GREATER
