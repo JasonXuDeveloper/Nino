@@ -35,7 +35,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 ## Why Nino
 
 - **Faster than MemoryPack.** Serializing classes and polymorphic types is <!--bench:ser.range-->3.4–5.6<!--/bench-->× faster. Deserializing them is
-  <!--bench:deser.range-->1.5–1.9<!--/bench-->× faster, and raw struct arrays are on par (a block copy in both).
+  <!--bench:deser.range-->1.5–1.9<!--/bench-->× faster, and raw struct arrays are at least on par (a block copy in both).
 - **Zero allocation.** Serializing into a buffer (`IBufferWriter<byte>`) allocates nothing. Deserializing into existing or pooled objects
   (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either (a string whose text is unchanged is kept),
   and is up to <!--bench:reuse.inplace-->11.5<!--/bench-->× faster than MemoryPack's overwrite mode.
@@ -162,7 +162,7 @@ networking, ASP.NET Core, TypeScript clients, message queues, caching, persisten
 |---|---|---|
 | Serialize classes and polymorphic types | **<!--bench:ser.range-->3.4–5.6<!--/bench-->× faster** | |
 | Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.5–1.9<!--/bench-->× faster** | |
-| Raw struct arrays | on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
+| Raw struct arrays | at least on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
 | Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->11.5<!--/bench-->× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids | `[MemoryPackUnion]` tags you maintain |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
@@ -187,7 +187,7 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 | v4 vs v3 (3.3.13) | |
 |---|---|
 | Serialize | <!--bench:v3.ser-->**1.82× faster** (class), **2.16× faster** (class array), on par (struct array)<!--/bench--> |
-| Deserialize | <!--bench:v3.deser-->**1.16× faster** (class), **1.19× faster** (class array), **1.06× faster** (struct), on par (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
+| Deserialize | <!--bench:v3.deser-->**1.16× faster** (class), **1.19× faster** (class array), on par (struct), on par (struct array)<!--/bench-->, while adding reference tracking, reuse deserialization and payload validation |
 | Compiling the generated code | **51× faster** at 330 types (42.9 s → 0.84 s), **221× faster** at 1,100 types (462 s → 2.1 s) |
 | Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |

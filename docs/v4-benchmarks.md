@@ -5,7 +5,7 @@ v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github
 
 The build-time numbers were measured on one machine, an Intel Xeon 2.10 GHz (4 cores, AVX-512, .NET SDK 10.0.402);
 generated code sizes do not depend on the machine. The runtime tables are those of the newest release: its CI run
-(`report.yml`) benchmarks v4 against MemoryPack, each class on one runner (v3 3.3.13 on the `SimpleTest` runner),
+(`report.yml`) benchmarks v4 against MemoryPack, each case's Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest` runner),
 puts the report in the release notes,
 and writes these tables from it (`benchmarks/readme.py`), as it does for the README and the documentation site.
 Absolute times vary between machines; the ratios are what to look at.
@@ -49,8 +49,9 @@ about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 
 ## Runtime
 
-`src/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, server GC), all eight benchmark
-classes in one session, v4 and MemoryPack 1.21.4 side by side. v3 is Nino 3.3.13 from nuget.org, running a port of
+`src/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
+GC), all ten benchmark classes, v4 and MemoryPack 1.21.4 side by side: the release run spreads the classes over five
+runners per architecture and keeps each case's Nino and MemoryPack runs on one. v3 is Nino 3.3.13 from nuget.org, running a port of
 the same `SimpleTest` (same data, same attributes) on the same runner directly before the v4 session; it has no
 polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks. These tables come from
 <!--bench:doc.source-->the performance report of [v4.0.0-rc.6](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.6): BenchmarkDotNet 0.15.8, .NET 10.0.13, AMD EPYC 7763 2.59 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
@@ -100,7 +101,7 @@ earlier run with the padded struct, that masked copy made `SimpleStruct[100]` se
 | Polymorphic class | 17.8 µs | 30.2 µs | — | **1.69× faster** | — |
 | Polymorphic class array | 258 µs | 382 µs | — | **1.48× faster** | — |
 | Polymorphic `Foo[]` | 15.5 µs | 28.9 µs | — | **1.87× faster** | — |
-| `SimpleStruct` (`int` + `DateTime`) | 0.71 ns | 1.46 ns | 0.76 ns | **2.04× faster** | **1.06× faster** |
+| `SimpleStruct` (`int` + `DateTime`) | < 1 ns | 1.46 ns | < 1 ns | **faster** (too fast to measure) | on par |
 | `SimpleStruct[100]` | 85.4 ns | 101 ns | 86.1 ns | **1.18× faster** | on par |
 | `Vector4[10000]` | 124 µs | 121 µs | 121 µs | on par | on par |
 <!--/bench-->
@@ -155,7 +156,7 @@ MemoryPack writes and parses the zone's whole serialized string on every call.
 | Object graph, 200 tracked nodes | 5.63 µs | 29.7 µs | **5.27× faster** | 6.11 µs | 20.3 µs | **3.32× faster** |
 | `TolerantClass` | 107 ns | 513 ns | **4.78× faster** | 506 ns | 814 ns | **1.61× faster** |
 | `TolerantClass[100]` | 12.4 µs | 52.6 µs | **4.26× faster** | 52.9 µs | 84.2 µs | **1.59× faster** |
-| `FixedStruct` | 9.36 ns | 9.19 ns | on par | 0.39 ns | 1.04 ns | **2.64× faster** |
+| `FixedStruct` | 9.36 ns | 9.19 ns | on par | < 1 ns | 1.04 ns | **faster** (too fast to measure) |
 | `FixedClass` | 10.3 ns | 24.9 ns | **2.42× faster** | 10.4 ns | 22.7 ns | **2.19× faster** |
 | `FixedClass[100]` | 748 ns | 1.74 µs | **2.33× faster** | 1.11 µs | 1.34 µs | **1.21× faster** |
 | `List<Player>`, 100 | 10.6 µs | 26.0 µs | **2.45× faster** | 32.0 µs | 44.9 µs | **1.40× faster** |
@@ -185,10 +186,10 @@ the result objects.
   lists of fixed-size elements are written straight into a `byte[]` of their exact size, without a scratch buffer.
   A raw nullable reads its has-value byte and its value under one bounds check, and multi-dimensional arrays take
   the block paths of flat ones.
-* **Copies sized to the CPU.** Up to 128 bytes are copied inline, as overlapping loads and stores of the widest
-  vector that fits; up to 8 KB (64-byte vectors) or 4 KB (32-byte vectors, from 256 bytes) as vectors with aligned
-  stores; beyond, with `memmove`. Reads into a new array of 2 KB or more use `memmove`, whose `rep movsb` writes
-  fresh cache lines without reading them first.
+* **Copies sized to the CPU.** Up to 64 bytes (on 64-bit runtimes) or 128 bytes (with 32-byte vectors) are copied
+  inline, as overlapping loads and stores of the widest vector that fits; up to 8 KB (64-byte vectors) or 4 KB
+  (32-byte vectors, from 256 bytes) as vectors with aligned stores; beyond, with `memmove`. Reads of 2 KB or more use
+  `memmove`, whose `rep movsb` writes fresh cache lines without reading them first.
 * **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 2 KB.
   One filled by vector shuffles or value by value (padded tuples, `DateTimeOffset`s) is allocated zeroed: the
   clearing brings its lines into the cache, where each store into an uninitialized line first reads it from
@@ -266,7 +267,7 @@ dotnet run -c Release --project src/Nino.Benchmark -- --filter '*ReferenceTest*'
     --launchCount 3 --warmupCount 5 --iterationCount 15                                  # some classes only
 ```
 
-The suite has nine classes, all against MemoryPack 1.21.4 (the tables above come from the first four):
+The suite has ten classes, all against MemoryPack 1.21.4:
 `SimpleTest` and `PolymorphicTest` (also against MessagePack), `PooledTest` and `PooledGraphTest` (reuse and
 pooling), `ReferenceTest` (a graph with shared references and cycles: `trackReferences` against MemoryPack's
 `GenerateType.CircularReference`), `VersionTolerantTest` (`SimpleClass`'s members as `NinoFormat.VersionTolerant`
@@ -278,7 +279,7 @@ collections).
 [benchmarks/README.md](../benchmarks/README.md) lists their cases.
 
 The v3 numbers come from [`benchmarks/v3`](../benchmarks/v3), the same `SimpleTest` built against the `Nino` 3.3.13
-package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3, the full v4 suite,
-v3 again) and prints v4 against both v3 runs. The release workflow runs the same protocol on its CI runner for every
-release and publishes the result in the release notes ("v3 3.3.13 vs v4 (same machine)"); once the newest v4
-release carries that section, the documentation site shows its ratios instead of the numbers above.
+package from nuget.org. [`benchmarks/run.sh`](../benchmarks/run.sh) runs the whole protocol (v3 directly before the full v4
+suite) and prints v4 against v3. The release workflow runs the same protocol for every release and publishes the
+result in the release notes ("v3 3.3.13 vs v4 (same machine)"), where the documentation site and these tables take
+their v3 ratios from.

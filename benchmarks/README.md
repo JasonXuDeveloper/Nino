@@ -25,8 +25,8 @@ same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run 
 serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`: each to the
 writer it writes in place.
 
-The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come from an earlier local run (that one ran v3
-before and after v4); the release notes of each release carry its current numbers.
+The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come from the newest release's report (see
+below); the release notes of each release carry its numbers.
 
 Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) runs the benchmark
 classes in parallel on five runners per architecture (BclTypesTest split into its serialize and deserialize cases),
