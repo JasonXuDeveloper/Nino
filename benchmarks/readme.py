@@ -184,7 +184,7 @@ def numbers(v4_path, v3_paths, tag=None):
 
 
 def time(ns):
-    """As the docs site writes times: 151 ns, 17.0 µs, 1.23 ms; under FLOOR_NS, "< 0.1 ns"."""
+    """As the docs site writes times: 151 ns, 17.0 µs, 1.23 ms; under FLOOR_NS, "< 1 ns"."""
     if ns < FLOOR_NS:
         return f"< {FLOOR_NS} ns"
     for unit, scale in (("ns", 1), ("µs", 1e3), ("ms", 1e6), ("s", 1e9)):
