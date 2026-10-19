@@ -326,11 +326,7 @@ internal static class FormatterEmitter
             return;
         }
 
-        var c = m.Construction;
-        string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
-        if (m.Pooled)
-            create = t + ".RentFromNinoPool() ?? " + create;
-        w.Line($"public {t} Create() => {create};");
+        w.Line($"public {t} Create() => {BodyEmitter.Create(m)};");
     }
 
     /// <summary>Serialize/Deserialize forwarding to the given calls, behind a reference header when tracked.</summary>
