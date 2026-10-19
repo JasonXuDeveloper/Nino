@@ -77,6 +77,9 @@ internal sealed class TypeFacts
     /// <summary>The assembly defines WEAK_VERSION_TOLERANCE: all of its own types are version tolerant.</summary>
     public bool WeakTolerance { get; }
 
+    /// <summary>Whether a type with <paramref name="attr"/> is version tolerant: so marked, or <see cref="WeakTolerance"/>.</summary>
+    public bool IsTolerant(NinoTypeOptions attr) => attr.VersionTolerant || WeakTolerance;
+
     /// <summary><c>[UnsafeAccessor]</c> is available.</summary>
     public bool Net8 { get; }
 
@@ -148,7 +151,7 @@ internal sealed class TypeFacts
         if (!Visibility.IsGeneratedHere(type))
             return false;
         var attr = type.GetNinoTypeOptions();
-        if (attr == null || attr.Keyed || attr.VersionTolerant || WeakTolerance)
+        if (attr == null || attr.Keyed || IsTolerant(attr))
             return false;
         bool isStruct = type.TypeKind == TypeKind.Struct;
         if (isStruct ? Raw.IsRawStruct(type) : ModelBuilder.IsTracked(type) || Resolver.ResolveCollection(type) != null)

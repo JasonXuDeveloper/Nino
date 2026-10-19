@@ -43,7 +43,7 @@ internal static class ModelBuilder
         var factories = new List<FactoryRegistration>();
         bool needsPartialAccessor = false;
 
-        bool tolerant = attr.VersionTolerant || facts.WeakTolerance;
+        bool tolerant = facts.IsTolerant(attr);
         // Abstract classes have no body of their own, but emit WriteMembers/ReadMembers for their subtypes.
         // Keyed bodies are self-describing per member: no delegation to or from them.
         bool emitMembers = facts.IsDelegatable(type);
@@ -53,22 +53,7 @@ internal static class ModelBuilder
         if ((kind != FormatterKind.Polymorphic || emitMembers) && !rawStruct)
         {
             var symbols = facts.Members.Of(type, attr);
-
-            // Reuse the base formatter's member code when the base's members are exactly our first members, in
-            // the same order: the bytes are identical, and each member is compiled once instead of once per subtype.
-            int basePrefix = 0;
-            if (type.TypeKind == TypeKind.Class && !attr.Keyed && type.BaseType is { } baseType &&
-                facts.IsDelegatable(baseType) &&
-                (baseType.GetNinoTypeOptions() is { } baseAttr && (baseAttr.VersionTolerant || facts.WeakTolerance) == tolerant))
-            {
-                var baseSymbols = facts.Members.Of(baseType, baseAttr);
-                if (baseSymbols.Count <= symbols.Count &&
-                    baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbols[i])).All(x => x))
-                {
-                    basePrefix = baseSymbols.Count;
-                    baseFormatter = FormatterResolver.GeneratedFormatter(baseType);
-                }
-            }
+            int basePrefix = BasePrefix(type, attr, symbols, facts, ref baseFormatter);
 
             // Abstract types do not report member diagnostics: their subtypes do.
             var memberDiagnostics = kind == FormatterKind.Polymorphic ? null : diagnostics;
@@ -120,46 +105,8 @@ internal static class ModelBuilder
                 LayoutTypes.Collect(t, facts, layoutTypes);
         }
 
-        if (attr.Keyed && diagnostics != null)
-        {
-            // Current names first, so a former name that collides names the member it collides with.
-            var seen = new Dictionary<int, string>();
-            foreach (var member in members)
-            {
-                if (seen.TryGetValue(member.Key, out var other))
-                    diagnostics.Report(NinoDiagnostics.KeyCollision, type, other, member.Name, type.ToDisplayString());
-                else
-                    seen[member.Key] = member.Name;
-            }
-
-            for (int i = 0; i < members.Count; i++)
-            {
-                var member = members[i];
-                if (member.FormerKeys.Length == 0)
-                    continue;
-                var claimed = new HashSet<int> { member.Key };
-                foreach (var (former, formerKey) in FormerKeys(memberSymbols[i], member.Name != member.SourceName, known))
-                {
-                    if (!claimed.Add(formerKey))
-                        continue;
-                    string label = $"{member.Name} (former name '{former}')";
-                    if (seen.TryGetValue(formerKey, out var other))
-                        diagnostics.Report(NinoDiagnostics.KeyCollision, memberSymbols[i], other, label,
-                            type.ToDisplayString());
-                    else
-                        seen[formerKey] = label;
-                }
-            }
-        }
-        else if (!attr.Keyed && diagnostics != null)
-        {
-            // Only keyed bodies write member names; elsewhere a member's former name means nothing.
-            foreach (var symbol in type.GetMembers())
-            {
-                if (symbol is IFieldSymbol or IPropertySymbol && NinoSymbols.Has(symbol, known.FormerName))
-                    diagnostics.Report(NinoDiagnostics.FormerNameNotKeyed, symbol, symbol.Name, type.ToDisplayString());
-            }
-        }
+        if (diagnostics != null)
+            ReportNames(type, attr.Keyed, members, memberSymbols, known, diagnostics);
 
         var construction = kind == FormatterKind.Polymorphic || rawStruct
             ? new ConstructionModel(false, "", EquatableArray<string>.Empty, "")
@@ -237,23 +184,10 @@ internal static class ModelBuilder
             }
         }
 
-        // The topmost base class of this assembly whose formatter dispatches subtypes: this type's subtypes are
-        // dispatched there, so each subtype is listed once per hierarchy rather than once per ancestor.
-        string dispatchRoot = "", dispatchRootFormatter = "";
         var ancestors = type.NinoAncestors().ToList();
-        if (type.TypeKind == TypeKind.Class && !generic && !trackReferences)
-        {
-            foreach (var b in ancestors)
-            {
-                if (b.TypeKind == TypeKind.Class && !b.IsSealed && !b.IsGenericType && Visibility.IsEligible(b) &&
-                    SymbolEqualityComparer.Default.Equals(b.ContainingAssembly, type.ContainingAssembly) &&
-                    !IsTracked(b))
-                {
-                    dispatchRoot = Global(b);
-                    dispatchRootFormatter = FormatterName(b);
-                }
-            }
-        }
+        var dispatchRoot = type.TypeKind == TypeKind.Class && !generic && !trackReferences
+            ? DispatchRoot(type, ancestors)
+            : null;
 
         bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
         return new TypeModel(
@@ -283,8 +217,8 @@ internal static class ModelBuilder
                     .OrderBy(f => f.TypeName, System.StringComparer.Ordinal)),
             UsedGenericTypes: new EquatableArray<TypeRegistration>(genericTypes.Distinct()
                 .OrderBy(g => g.TypeName, System.StringComparer.Ordinal)),
-            DispatchRoot: dispatchRoot,
-            DispatchRootFormatter: dispatchRootFormatter,
+            DispatchRoot: dispatchRoot == null ? "" : Global(dispatchRoot),
+            DispatchRootFormatter: dispatchRoot == null ? "" : FormatterName(dispatchRoot),
             NinoBaseClasses: new EquatableArray<string>(ancestors
                 .Where(static a => a.TypeKind != TypeKind.Interface).Select(Global)),
             NinoInterfaces: new EquatableArray<string>(ancestors
@@ -306,6 +240,94 @@ internal static class ModelBuilder
                        !members.Skip(baseMemberCount).Any(static m => m.ReadsLoop) && ConstructsDefaults(type),
             LayoutTypes: LayoutTypes.ToArray(layoutTypes),
             RawLayout: rawStruct ? RawLayout.Describe(type) : "");
+    }
+
+    /// <summary>
+    /// How many of the first <paramref name="symbols"/> a base formatter's <c>WriteMembers</c>/<c>ReadMembers</c>
+    /// write and read (that formatter in <paramref name="baseFormatter"/>), or 0: reused when the base's members are
+    /// exactly the first members, in the same order, and in the same format. The bytes are identical, and each
+    /// member is compiled once instead of once per subtype.
+    /// </summary>
+    private static int BasePrefix(INamedTypeSymbol type, NinoTypeOptions attr, MemberList symbols, TypeFacts facts,
+        ref string baseFormatter)
+    {
+        if (type.TypeKind != TypeKind.Class || attr.Keyed || type.BaseType is not { } baseType ||
+            !facts.IsDelegatable(baseType) || baseType.GetNinoTypeOptions() is not { } baseAttr ||
+            facts.IsTolerant(baseAttr) != facts.IsTolerant(attr))
+            return 0;
+        var baseSymbols = facts.Members.Of(baseType, baseAttr);
+        if (baseSymbols.Count > symbols.Count ||
+            !baseSymbols.Select((x, i) => SymbolEqualityComparer.Default.Equals(x, symbols[i])).All(x => x))
+            return 0;
+        baseFormatter = FormatterResolver.GeneratedFormatter(baseType);
+        return baseSymbols.Count;
+    }
+
+    /// <summary>
+    /// Keyed: the keys of two members, or of a member's former name and another member, that collide. Elsewhere:
+    /// former names, which mean nothing where member names are not written.
+    /// </summary>
+    private static void ReportNames(INamedTypeSymbol type, bool keyed, List<MemberModel> members,
+        List<ISymbol> memberSymbols, NinoSymbols known, DiagnosticSink diagnostics)
+    {
+        if (!keyed)
+        {
+            foreach (var symbol in type.GetMembers())
+            {
+                if (symbol is IFieldSymbol or IPropertySymbol && NinoSymbols.Has(symbol, known.FormerName))
+                    diagnostics.Report(NinoDiagnostics.FormerNameNotKeyed, symbol, symbol.Name, type.ToDisplayString());
+            }
+
+            return;
+        }
+
+        // Current names first, so a former name that collides names the member it collides with.
+        var seen = new Dictionary<int, string>();
+        foreach (var member in members)
+        {
+            if (seen.TryGetValue(member.Key, out var other))
+                diagnostics.Report(NinoDiagnostics.KeyCollision, type, other, member.Name, type.ToDisplayString());
+            else
+                seen[member.Key] = member.Name;
+        }
+
+        for (int i = 0; i < members.Count; i++)
+        {
+            var member = members[i];
+            if (member.FormerKeys.Length == 0)
+                continue;
+            var claimed = new HashSet<int> { member.Key };
+            foreach (var (former, formerKey) in FormerKeys(memberSymbols[i], member.Name != member.SourceName, known))
+            {
+                if (!claimed.Add(formerKey))
+                    continue;
+                string label = $"{member.Name} (former name '{former}')";
+                if (seen.TryGetValue(formerKey, out var other))
+                    diagnostics.Report(NinoDiagnostics.KeyCollision, memberSymbols[i], other, label,
+                        type.ToDisplayString());
+                else
+                    seen[formerKey] = label;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The topmost base class of this assembly whose formatter dispatches subtypes (of <paramref name="ancestors"/>,
+    /// nearest first), or null: this type's subtypes are dispatched there, so each subtype is listed once per
+    /// hierarchy rather than once per ancestor.
+    /// </summary>
+    private static INamedTypeSymbol? DispatchRoot(INamedTypeSymbol type, List<INamedTypeSymbol> ancestors)
+    {
+        INamedTypeSymbol? root = null;
+        foreach (var b in ancestors)
+        {
+            if (b.TypeKind == TypeKind.Class && !b.IsSealed && !b.IsGenericType && Visibility.IsEligible(b) &&
+                SymbolEqualityComparer.Default.Equals(b.ContainingAssembly, type.ContainingAssembly) &&
+                !IsTracked(b))
+                root = b;
+        }
+
+        return root;
     }
 
     /// <summary>
