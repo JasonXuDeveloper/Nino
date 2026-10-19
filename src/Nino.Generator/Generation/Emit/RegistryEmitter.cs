@@ -7,7 +7,6 @@ namespace Nino.Generator.Generation.Emit;
 /// <summary>Emits the assembly registry and the registrations of built-in formatters the assembly uses.</summary>
 internal static class RegistryEmitter
 {
-    private const string CodeAnalysis = "global::System.Diagnostics.CodeAnalysis.";
 
     /// <summary>Class registering the built-in formatters the assembly uses (<see cref="EmitUsages"/>).</summary>
     private const string UsagesClass = "NinoGenUsages";
@@ -92,7 +91,22 @@ internal static class RegistryEmitter
         var w = new CodeWriter();
         w.Raw(FormatterEmitter.Header);
         w.Open($"namespace {GenNamespace}");
+        var kept = layoutTypes.ToList();
+        if (kept.Count != 0)
+        {
+            const string codeAnalysis = "global::System.Diagnostics.CodeAnalysis.";
+            w.Line($"using __NinoDynamicDependency = {codeAnalysis}DynamicDependencyAttribute;");
+            w.Line($"using __NinoMembers = {codeAnalysis}DynamicallyAccessedMemberTypes;");
+            w.Line();
+        }
+
         w.Open($"internal static class {UsagesClass}");
+        if (kept.Count != 0)
+        {
+            w.Line("private const __NinoMembers __Fields = __NinoMembers.PublicFields | __NinoMembers.NonPublicFields;");
+            w.Line();
+        }
+
         w.Line("/// <summary>Registers the closed built-in formatters whose type has id <paramref name=\"id\"/>.</summary>");
         // Formatters first, then creators, then closed generic [NinoType]s, each in their own (sorted) order.
         var statements = usages
@@ -100,9 +114,8 @@ internal static class RegistryEmitter
             .Concat(factories.Select(f => (f.Id, Code: $"{Core}NinoActivator<{f.TypeName}>.TryRegister({f.Creator});")))
             .Concat(generics.SelectMany(GenericStatements));
         // The registry calls Register, so these stay with it: NativeAOT keeps the fields NinoLayout measures.
-        foreach (var type in layoutTypes)
-            w.Line($"[{CodeAnalysis}DynamicDependency({CodeAnalysis}DynamicallyAccessedMemberTypes.PublicFields | " +
-                   $"{CodeAnalysis}DynamicallyAccessedMemberTypes.NonPublicFields, typeof({type}))]");
+        foreach (var type in kept)
+            w.Line($"[__NinoDynamicDependency(__Fields, typeof({type}))]");
         EmitIdDispatch(w, "internal static", "",
             statements.GroupBy(u => u.Id).OrderBy(g => g.Key)
                 .Select(g => new KeyValuePair<int, List<string>>(g.Key, g.Select(u => u.Code).ToList()))

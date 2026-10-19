@@ -21,43 +21,45 @@ internal static class MemberCode
         ? $"(({member.DeclaringType}){v}).{Identifier(member.SourceName)}"
         : $"{v}.{Identifier(member.SourceName)}";
 
+    /// <summary>
+    /// The accessors of a member that generated code cannot name: <c>[UnsafeAccessor]</c> externs in the formatter
+    /// (<c>__G_Name</c>, <c>__S_Name</c>, <c>__F_Name</c>) or methods of the partial accessor class (<c>G_Name</c>...):
+    /// a getter, a setter (properties) and a field reference (fields).
+    /// </summary>
+    public static string Getter(MemberModel member) => AccessorPrefix(member) + "G_" + member.Name;
+
+    public static string Setter(MemberModel member) => AccessorPrefix(member) + "S_" + member.Name;
+
+    public static string FieldRef(MemberModel member) => AccessorPrefix(member) + "F_" + member.Name;
+
+    private static string AccessorPrefix(MemberModel member) =>
+        member.Access == MemberAccess.UnsafeAccessor ? "__" : "";
+
+    private static bool Named(MemberModel member) => member.Access is MemberAccess.Direct or MemberAccess.Cast;
+
+    /// <summary>A call of the accessor <paramref name="accessor"/> on <paramref name="v"/>.</summary>
+    private static string Call(TypeModel m, MemberModel member, string accessor, string v, string more = "") =>
+        member.Access == MemberAccess.UnsafeAccessor
+            ? $"{accessor}({Instance(member, v)}{more})"
+            : $"{Accessor(m)}.{accessor}({Instance(member, v)}{more})";
+
     /// <summary>Expression reading the member of <paramref name="v"/>.</summary>
-    public static string Get(TypeModel m, MemberModel member, string v) => member.Access switch
-    {
-        MemberAccess.Direct or MemberAccess.Cast => Direct(member, v),
-        MemberAccess.UnsafeAccessor => member.IsProperty
-            ? $"__G_{member.Name}({Instance(member, v)})"
-            : $"__F_{member.Name}({Instance(member, v)})",
-        _ => member.IsProperty || IsReadonlyField(member)
-            ? $"{Accessor(m)}.G_{member.Name}({Instance(member, v)})"
-            : $"{Accessor(m)}.F_{member.Name}({Instance(member, v)})",
-    };
+    public static string Get(TypeModel m, MemberModel member, string v) =>
+        Named(member) ? Direct(member, v)
+        // [UnsafeAccessor] reads a field through its reference; the accessor class has no reference to a readonly one.
+        : Call(m, member, member.IsProperty || member.Access == MemberAccess.Partial && IsReadonlyField(member)
+            ? Getter(member)
+            : FieldRef(member), v);
 
     /// <summary>Assignable reference to a field of <paramref name="v"/>, or null for properties.</summary>
-    public static string? Ref(TypeModel m, MemberModel member, string v)
-    {
-        if (member.IsProperty)
-            return null;
-        return member.Access switch
-        {
-            MemberAccess.Direct or MemberAccess.Cast => Direct(member, v),
-            MemberAccess.UnsafeAccessor => $"__F_{member.Name}({Instance(member, v)})",
-            _ => $"{Accessor(m)}.F_{member.Name}({Instance(member, v)})",
-        };
-    }
+    public static string? Ref(TypeModel m, MemberModel member, string v) =>
+        member.IsProperty ? null : Named(member) ? Direct(member, v) : Call(m, member, FieldRef(member), v);
 
     /// <summary>Statement assigning <paramref name="expr"/> to the member of <paramref name="v"/>.</summary>
-    public static string Set(TypeModel m, MemberModel member, string v, string expr)
-    {
-        if (!member.IsProperty)
-            return $"{Ref(m, member, v)} = {expr};";
-        return member.Access switch
-        {
-            MemberAccess.Direct or MemberAccess.Cast => $"{Direct(member, v)} = {expr};",
-            MemberAccess.UnsafeAccessor => $"__S_{member.Name}({Instance(member, v)}, {expr});",
-            _ => $"{Accessor(m)}.S_{member.Name}({Instance(member, v)}, {expr});",
-        };
-    }
+    public static string Set(TypeModel m, MemberModel member, string v, string expr) =>
+        !member.IsProperty ? $"{Ref(m, member, v)} = {expr};"
+        : Named(member) ? $"{Direct(member, v)} = {expr};"
+        : Call(m, member, Setter(member), v, ", " + expr) + ";";
 
     /// <summary>Stores a read value: into the instance (in place) or into the member's local.</summary>
     public static string Store(TypeModel m, MemberModel member, bool inPlace, string expr, string v) =>
