@@ -34,6 +34,10 @@ internal static class TypeNames
     public const string InlineAttribute =
         "[" + CompilerServices + "MethodImpl(" + CompilerServices + "MethodImplOptions.AggressiveInlining)]";
 
+    /// <summary>The no-inlining attribute, spelled out (see <see cref="InlineAttribute"/>).</summary>
+    public const string NoInlineAttribute =
+        "[" + CompilerServices + "MethodImpl(" + CompilerServices + "MethodImplOptions.NoInlining)]";
+
     /// <summary>Fully qualified C# name, e.g. <c>global::Ns.Outer.Box&lt;int&gt;</c>.</summary>
     public static string Global(ITypeSymbol type)
     {

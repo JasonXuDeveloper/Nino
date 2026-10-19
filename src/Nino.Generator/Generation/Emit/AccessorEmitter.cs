@@ -120,22 +120,27 @@ internal static class AccessorEmitter
             w.Line("s_ninoPool.Add(this, ref t_ninoPool);");
         });
         w.Line();
+        // Inlined into the reads (a take from this thread's stack); the warmup, run once, is out of line.
         w.Line(HiddenAttribute);
+        w.Line(InlineAttribute);
         w.Block($"internal static {t} RentFromNinoPool()", () =>
         {
             w.Line("if (s_ninoPool.BeginWarmup())");
-            w.Open();
+            w.Indented(() => w.Line("__NinoPoolWarmup();"));
+            w.Line("var value = s_ninoPool.TryTake(ref t_ninoPool);");
+            w.Line("if (value != null)");
+            w.Indented(() => w.Line("value._ninoPooled = 0;"));
+            w.Line("return value;");
+        });
+        w.Line();
+        w.Line(NoInlineAttribute);
+        w.Block("private static void __NinoPoolWarmup()", () =>
+        {
             w.Line($"foreach (var item in {PoolHooks.Warmup}() ?? global::System.Linq.Enumerable.Empty<{t}>())");
             w.Open();
             w.Line($"if (item != null && {exchange} item._ninoPooled, 1) == 0)");
             w.Indented(() => w.Line("s_ninoPool.Add(item, ref t_ninoPool);"));
             w.Close();
-            w.Close();
-            w.Line();
-            w.Line("var value = s_ninoPool.TryTake(ref t_ninoPool);");
-            w.Line("if (value != null)");
-            w.Indented(() => w.Line("value._ninoPooled = 0;"));
-            w.Line("return value;");
         });
     }
 }
