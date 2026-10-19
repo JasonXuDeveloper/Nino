@@ -85,9 +85,8 @@ namespace Nino.Core
             if (RawFormatter.Is<T, TFormatter>())
             {
                 int size = Unsafe.SizeOf<T>();
-                ref byte dst = ref writer.Reserve(checked(NinoWire.LengthSize + count * size));
-                NinoUnsafe.Write(ref dst, count);
-                ref byte next = ref Unsafe.Add(ref dst, NinoWire.LengthSize);
+                ref byte elements = ref writer.ReserveCounted(count, size);
+                ref byte next = ref elements;
                 for (var node = linked.First; node != null; node = node.Next)
                 {
                     if (--count < 0)
@@ -101,7 +100,7 @@ namespace Nino.Core
                     next = ref Unsafe.Add(ref next, size);
                 }
 
-                NinoLayout<T>.ClearPadding(ref Unsafe.Add(ref dst, NinoWire.LengthSize), linked.Count);
+                NinoLayout<T>.ClearPadding(ref elements, linked.Count);
                 return;
             }
 

@@ -586,19 +586,30 @@ namespace Nino.Core
                 return;
             }
 
-            // The size in 64 bits: it cannot overflow, and the capacity check rejects a size too large for an int
-            // on the cold path (AsBytes would check the multiplication with imul/jo, CopyToWire once more).
+            // AsBytes would check the multiplication with imul/jo, CopyToWire once more (see ReserveCounted).
             int count = values.Length;
-            ulong size = (ulong)(uint)count * (uint)Unsafe.SizeOf<T>();
-            ref byte dst = ref ReserveLarge(NinoWire.LengthSize + size);
-            NinoUnsafe.Write(ref dst, count);
+            ref byte dst = ref ReserveCounted(count, Unsafe.SizeOf<T>());
             if (count == 0)
                 return;
             ref byte src = ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values));
             if (NinoLayout<T>.HasPadding)
-                NinoLayout<T>.CopyToWire(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, count);
+                NinoLayout<T>.CopyToWire(ref dst, ref src, count);
             else
-                NinoUnsafe.Copy(ref Unsafe.Add(ref dst, NinoWire.LengthSize), ref src, (uint)size);
+                NinoUnsafe.Copy(ref dst, ref src, (uint)count * (uint)Unsafe.SizeOf<T>());
+        }
+
+        /// <summary>
+        /// Writes the length <paramref name="count"/> and reserves the <paramref name="elementSize"/>-byte elements
+        /// after it, in one reservation; returns a reference to the first element. The caller writes every element.
+        /// </summary>
+        // The size in 64 bits: it cannot overflow, and the capacity check rejects a size too large for an int on the
+        // cold path, where a checked int size would test the multiplication and the addition on every call.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref byte ReserveCounted(int count, int elementSize)
+        {
+            ref byte dst = ref ReserveLarge(NinoWire.LengthSize + (ulong)(uint)count * (uint)elementSize);
+            NinoUnsafe.Write(ref dst, count);
+            return ref Unsafe.Add(ref dst, NinoWire.LengthSize);
         }
 
         /// <summary><see cref="Reserve"/> for a size that may not fit in an int (rejected when it does not).</summary>
