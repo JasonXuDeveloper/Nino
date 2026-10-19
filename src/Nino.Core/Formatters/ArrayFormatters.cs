@@ -92,8 +92,12 @@ namespace Nino.Core
                 return;
             }
 
+            // The writer as a local for the loop, as Read does.
+            Writer local = default;
+            writer.CopyTo(ref local);
             foreach (var item in values)
-                default(TFormatter).Serialize(item, ref writer);
+                default(TFormatter).Serialize(item, ref local);
+            local.CopyTo(ref writer);
         }
 
         /// <summary>
