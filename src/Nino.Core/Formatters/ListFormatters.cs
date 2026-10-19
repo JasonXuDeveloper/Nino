@@ -153,17 +153,22 @@ namespace Nino.Core
             else
                 count = -1;
 
-            int countPos = writer.ReserveInt32();
+            // The writer as a local for the loop, its cursor in registers across the enumerator's calls (as
+            // HashSetFormatter's).
+            Writer local = default;
+            writer.CopyTo(ref local);
+            int countPos = local.ReserveInt32();
             int written = 0;
             foreach (var item in values)
             {
-                default(TFormatter).Serialize(item, ref writer);
+                default(TFormatter).Serialize(item, ref local);
                 written++;
             }
 
             if (count >= 0 && count != written)
                 NinoThrow.InvalidData("collection was modified during serialization");
-            writer.PatchInt32(countPos, written);
+            local.PatchInt32(countPos, written);
+            local.CopyTo(ref writer);
         }
     }
 }
