@@ -138,7 +138,10 @@ jobs:
 
       - name: Build benchmark project
         working-directory: ./src/Nino.Benchmark
-        run: dotnet build -c Release
+        run: |
+          dotnet build -c Release
+          # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
+          dotnet bin/Release/net10.0/Nino.Benchmark.dll --verify
 
       # Nino v3 3.3.13 from nuget.org (benchmarks/v3 has its own nuget.config), the same SimpleTest. It runs once,
       # directly before the v4 run, as benchmarks/run.sh does; MemoryPack runs in both, so drift of the runner shows.

@@ -37,7 +37,7 @@ public sealed partial class PolymorphicClass : PolymorphicClassBase, IPolymorphi
 
     public static PolymorphicClass Create()
     {
-        Random random = Random.Shared;
+        Random random = BenchmarkRandom.Shared;
         return new PolymorphicClass
         {
             Id = random.Next(),

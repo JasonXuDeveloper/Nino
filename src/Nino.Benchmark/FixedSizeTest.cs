@@ -23,8 +23,8 @@ public partial struct FixedStruct
     {
         Id = r.Next(),
         Position = new Vector3(r.NextSingle(), r.NextSingle(), r.NextSingle()),
-        Ticks = DateTime.Now.AddSeconds(r.Next()).Ticks,
-        Guid = Guid.NewGuid(),
+        Ticks = BenchmarkRandom.Now.AddSeconds(r.Next()).Ticks,
+        Guid = BenchmarkRandom.NewGuid(),
     };
 }
 
@@ -42,8 +42,8 @@ public sealed partial class FixedClass
     {
         Id = r.Next(),
         Position = new Vector3(r.NextSingle(), r.NextSingle(), r.NextSingle()),
-        Ticks = DateTime.Now.AddSeconds(r.Next()).Ticks,
-        Guid = Guid.NewGuid(),
+        Ticks = BenchmarkRandom.Now.AddSeconds(r.Next()).Ticks,
+        Guid = BenchmarkRandom.NewGuid(),
     };
 }
 

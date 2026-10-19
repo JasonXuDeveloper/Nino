@@ -48,7 +48,7 @@ public class SimpleTest
         SimpleClasses = Enumerable.Range(0, 100).Select(_ => SimpleClass.Create()).ToArray();
         SimpleStruct = SimpleStruct.Create();
         SimpleStructs = Enumerable.Range(0, 100).Select(_ => SimpleStruct.Create()).ToArray();
-        var r = Random.Shared;
+        var r = BenchmarkRandom.Shared;
         Vectors = Enumerable.Range(0, 10000)
             .Select(_ => new Vector4(r.NextSingle(), r.NextSingle(),
                 r.NextSingle(), r.NextSingle())).ToArray();
