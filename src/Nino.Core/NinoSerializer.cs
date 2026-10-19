@@ -86,6 +86,12 @@ namespace Nino.Core
             if (NinoTopFormatter<T>.Formatter is { FixedSize: >= 0 } fixedSize)
                 return fixedSize.SerializeFixed(value);
 
+            // A collection whose size is known up front (a count times a fixed element size): written into an array of
+            // that size, with no scratch buffer to copy out of.
+            if (NinoTopFormatter<T>.Formatter is { Sized: true } sizedFormatter &&
+                sizedFormatter.SerializeSized(value) is { } sized)
+                return sized;
+
             return SerializeToArray(value, NinoTopFormatter<T>.Get);
         }
 

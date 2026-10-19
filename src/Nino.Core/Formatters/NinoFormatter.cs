@@ -161,6 +161,52 @@ namespace Nino.Core
         void ReadBlock(ref byte source, ref T value);
     }
 
+    /// <summary>
+    /// Formatters that can tell how many bytes a value takes before writing it, cheaply: collections whose elements
+    /// are written as one block (a count times a fixed size). The top-level calls then allocate the result at that size
+    /// and write the value straight into it, without the scratch buffer and the copy out of it (<see cref="NinoSized"/>).
+    /// </summary>
+    internal interface INinoSizedFormatter<T>
+    {
+        /// <summary>
+        /// The bytes <paramref name="value"/> is written as, or -1 when they are not known up front (for a given element
+        /// type, a JIT-time constant decides which).
+        /// </summary>
+        int Size(T value);
+
+        /// <summary>Writes <paramref name="value"/> into the <see cref="Size"/> bytes at <paramref name="destination"/>.</summary>
+        void WriteSized(T value, ref byte destination);
+    }
+
+    /// <summary>Top-level serialization of a value whose size its formatter knows (<see cref="INinoSizedFormatter{T}"/>).</summary>
+    internal static class NinoSized
+    {
+        /// <summary>Whether <typeparamref name="TFormatter"/> may know sizes: a JIT-time constant.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Is<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            default(TFormatter) is INinoSizedFormatter<T>;
+
+        /// <summary>
+        /// <paramref name="value"/> as a new array of exactly its bytes, written straight into it; null when its size is
+        /// not known up front. The same bytes as a writer writes.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static byte[] Serialize<T, TFormatter>(T value) where TFormatter : struct, INinoFormatter<T>
+        {
+            int size = ((INinoSizedFormatter<T>)default(TFormatter)).Size(value);
+            if (size < 0)
+                return null;
+            // Bytes are written little-endian, as Writer does (which rejects other hosts).
+            if (!BitConverter.IsLittleEndian)
+                NinoThrow.BigEndianHost();
+            // Zeroed, not uninitialized: the clearing brings the lines into the cache (as a fast string store), where
+            // vector stores into fresh lines first read each one; 1,000 (int, long) took 1.3 times as long.
+            var bytes = new byte[size];
+            ((INinoSizedFormatter<T>)default(TFormatter)).WriteSized(value, ref NinoUnsafe.GetArrayDataReference(bytes));
+            return bytes;
+        }
+    }
+
     /// <summary>The formatter of a type, for code that only has a <see cref="Type"/>.</summary>
     internal abstract class NinoFormatter
     {
@@ -232,6 +278,15 @@ namespace Nino.Core
 
         /// <summary>A new array of exactly the value's bytes; only when <see cref="FixedSize"/> is not -1.</summary>
         internal virtual byte[] SerializeFixed(T value) => null;
+
+        /// <summary>
+        /// Whether <see cref="SerializeSized"/> may apply (<see cref="INinoSizedFormatter{T}"/>). Read through
+        /// <see cref="NinoTopFormatter{T}.Formatter"/>, as <see cref="FixedSize"/>, so a constant.
+        /// </summary>
+        internal virtual bool Sized => false;
+
+        /// <summary>A new array of exactly the value's bytes when its size is known up front (<see cref="Sized"/>), else null.</summary>
+        internal virtual byte[] SerializeSized(T value) => null;
     }
 
     /// <summary>Formatters of arrays whose elements are written as one raw block.</summary>
@@ -315,6 +370,10 @@ namespace Nino.Core
 
         internal override INinoRawArrayFormatter RawArray =>
             default(TFormatter) is INinoRawArrayFormatter raw && raw.ElementSize != 0 ? raw : null;
+
+        internal override bool Sized => NinoSized.Is<T, TFormatter>();
+
+        internal override byte[] SerializeSized(T value) => NinoSized.Serialize<T, TFormatter>(value);
     }
 
     /// <summary>

@@ -30,39 +30,73 @@ namespace Nino.Core
         public static void Write<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            // Raw elements (unmanaged values and raw [NinoType] structs, a constant check) are one block, as the
-            // unmanaged formatters write them: an interface, Stack or Queue of them, or any collection whose
-            // formatter is not specialized for them, would otherwise check the capacity per element.
-            if (RawFormatter.Is<T, TFormatter>())
-            {
-                if (!values.IsEmpty)
-                    NinoLayout<T>.CopyToWire(ref writer.Reserve(checked(values.Length * Unsafe.SizeOf<T>())),
-                        ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), values.Length);
-                return;
-            }
-
-            // Fixed-size values: one capacity check for the block.
-            if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
-            {
-                if (!values.IsEmpty)
-                    DateTimeOffsetFormatter.WriteAll(
-                        ref writer.Reserve(checked(values.Length * NinoWire.DateTimeOffsetSize)),
-                        ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
-                return;
-            }
-
-            // Fixed-size values (tuples of raw items): one capacity check for the block, no check per value.
-            int block = NinoBlock.Size<T, TFormatter>();
+            // Elements of a fixed size (BlockSize): one capacity check for the block, none per element. Raw elements
+            // too, as the unmanaged formatters write them: an interface, Stack or Queue of them, or any collection
+            // whose formatter is not specialized for them, would otherwise check the capacity per element.
+            int block = BlockSize<T, TFormatter>();
             if (block > 0)
             {
                 if (!values.IsEmpty)
-                    NinoBlock.WriteAll<T, TFormatter>(ref writer.Reserve(checked(values.Length * block)),
-                        ref MemoryMarshal.GetReference(values), values.Length, block);
+                    WriteBlock<T, TFormatter>(ref writer.Reserve(checked(values.Length * block)), values);
                 return;
             }
 
             foreach (var item in values)
                 default(TFormatter).Serialize(item, ref writer);
+        }
+
+        /// <summary>
+        /// The wire size of each element when a span of them is written as one block, else -1: raw elements
+        /// (unmanaged values and raw [NinoType] structs), DateTimeOffsets and tuples of raw items. A JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int BlockSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            RawFormatter.Is<T, TFormatter>() ? Unsafe.SizeOf<T>()
+            : typeof(TFormatter) == typeof(DateTimeOffsetFormatter) ? NinoWire.DateTimeOffsetSize
+            : NinoBlock.Size<T, TFormatter>();
+
+        /// <summary>Writes <paramref name="values"/> (not empty) as one block of <see cref="BlockSize"/> bytes each.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteBlock<T, TFormatter>(ref byte destination, ReadOnlySpan<T> values)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (RawFormatter.Is<T, TFormatter>())
+                NinoLayout<T>.CopyToWire(ref destination,
+                    ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)), values.Length);
+            else if (typeof(TFormatter) == typeof(DateTimeOffsetFormatter))
+                DateTimeOffsetFormatter.WriteAll(ref destination,
+                    ref Unsafe.As<T, DateTimeOffset>(ref MemoryMarshal.GetReference(values)), values.Length);
+            else
+                NinoBlock.WriteAll<T, TFormatter>(ref destination, ref MemoryMarshal.GetReference(values),
+                    values.Length, NinoBlock.Size<T, TFormatter>());
+        }
+
+        /// <summary>
+        /// The bytes of a collection of <paramref name="count"/> elements (-1: null) written as its length and one
+        /// block (<see cref="INinoSizedFormatter{T}"/>), or -1 when its elements are not, or it is too large for an
+        /// array (the regular path reports it).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int SizedBytes<T, TFormatter>(int count) where TFormatter : struct, INinoFormatter<T>
+        {
+            int block = BlockSize<T, TFormatter>();
+            if (block <= 0)
+                return -1;
+            long size = NinoWire.LengthSize + (long)Math.Max(count, 0) * block;
+            return size <= int.MaxValue ? (int)size : -1;
+        }
+
+        /// <summary>
+        /// Writes a collection's length (the null length when <paramref name="isNull"/>) and its elements as one block
+        /// into the <see cref="SizedBytes"/> at <paramref name="destination"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void WriteSized<T, TFormatter>(ref byte destination, ReadOnlySpan<T> values, bool isNull)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            NinoUnsafe.Write(ref destination, isNull ? NinoWire.NullLength : values.Length);
+            if (!values.IsEmpty)
+                WriteBlock<T, TFormatter>(ref Unsafe.Add(ref destination, NinoWire.LengthSize), values);
         }
 
         /// <summary>Reads into the elements of a span, reusing the existing values.</summary>
@@ -169,8 +203,15 @@ namespace Nino.Core
     }
 
     /// <summary><c>T[]</c>: length (-1 = null), then the elements. Reuses an existing array of the same length.</summary>
-    public struct ArrayFormatter<T, TFormatter> : INinoFormatter<T[]> where TFormatter : struct, INinoFormatter<T>
+    public struct ArrayFormatter<T, TFormatter> : INinoFormatter<T[]>, INinoSizedFormatter<T[]>
+        where TFormatter : struct, INinoFormatter<T>
     {
+        int INinoSizedFormatter<T[]>.Size(T[] value) =>
+            NinoElements.SizedBytes<T, TFormatter>(value == null ? -1 : value.Length);
+
+        void INinoSizedFormatter<T[]>.WriteSized(T[] value, ref byte destination) =>
+            NinoElements.WriteSized<T, TFormatter>(ref destination, value, value == null);
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T[] value, ref Writer writer)
         {
