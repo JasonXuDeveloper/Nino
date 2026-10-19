@@ -113,7 +113,7 @@ namespace Nino.Core
             var type = typeof(T);
             if (type.IsValueType)
                 return Activator.CreateInstance<T>;
-            if (type.IsAbstract || type.IsInterface || type.ContainsGenericParameters)
+            if (IsAbstract(type))
                 return () =>
                 {
                     NinoThrow.CannotCreate(type, "it is abstract");
@@ -133,10 +133,9 @@ namespace Nino.Core
             if (parameterless != null && SetsRequiredMembers(type, parameterless))
                 return Compile<T>(parameterless) ?? Activator.CreateInstance<T>;
 
-            foreach (var constructor in type.GetConstructors())
+            var constructor = FindConstructor(type);
+            if (constructor != null)
             {
-                if (!CallableWithoutArguments(constructor) || !SetsRequiredMembers(type, constructor))
-                    continue;
                 var args = DefaultArguments(constructor);
                 return () => (T)constructor.Invoke(args);
             }
@@ -157,27 +156,52 @@ namespace Nino.Core
         {
             if (!HasRequiredMembers(type))
                 return true;
-            foreach (var data in constructor.CustomAttributes)
-            {
-                if (data.AttributeType.FullName == "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute")
-                    return true;
-            }
-
-            return false;
+            return HasAttribute(constructor, "System.Diagnostics.CodeAnalysis.SetsRequiredMembersAttribute");
         }
 
         private static bool HasRequiredMembers(Type type)
         {
             for (var t = type; t != null; t = t.BaseType)
             {
-                foreach (var data in t.CustomAttributes)
-                {
-                    if (data.AttributeType.FullName == "System.Runtime.CompilerServices.RequiredMemberAttribute")
-                        return true;
-                }
+                if (HasAttribute(t, "System.Runtime.CompilerServices.RequiredMemberAttribute"))
+                    return true;
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Whether <paramref name="member"/> carries an attribute named <paramref name="fullName"/>: attributes the
+        /// compiler emits, which older targets do not define (so they are matched by name, from any assembly).
+        /// </summary>
+        internal static bool HasAttribute(MemberInfo member, string fullName)
+        {
+            foreach (var data in member.CustomAttributes)
+            {
+                if (data.AttributeType.FullName == fullName)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsAbstract(Type type) =>
+            type.IsAbstract || type.IsInterface || type.ContainsGenericParameters;
+
+        /// <summary>
+        /// A public constructor of <paramref name="type"/> callable without arguments that sets its required members
+        /// (see <see cref="SetsRequiredMembers"/>), or null.
+        /// </summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = CreatorJustification)]
+        private static ConstructorInfo FindConstructor(Type type)
+        {
+            foreach (var constructor in type.GetConstructors())
+            {
+                if (CallableWithoutArguments(constructor) && SetsRequiredMembers(type, constructor))
+                    return constructor;
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -219,20 +243,11 @@ namespace Nino.Core
         }
 
         /// <summary>Whether a class has what a <see cref="NinoCreatedAttribute"/> parameter requires.</summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = CreatorJustification)]
         internal static bool IsCreatable(Type type)
         {
-            if (type.IsValueType || type.IsAbstract || type.IsInterface || type.ContainsGenericParameters)
+            if (type.IsValueType || IsAbstract(type))
                 return false;
-            if (FindFactory(type) != null)
-                return true;
-            foreach (var constructor in type.GetConstructors())
-            {
-                if (CallableWithoutArguments(constructor) && SetsRequiredMembers(type, constructor))
-                    return true;
-            }
-
-            return false;
+            return FindFactory(type) != null || FindConstructor(type) != null;
         }
 
         private static bool CallableWithoutArguments(MethodBase method)

@@ -384,16 +384,8 @@ namespace Nino.Core
                 return true;
             }
 
-            private static bool IsUnmanagedConstrained(Type parameter)
-            {
-                foreach (var data in parameter.CustomAttributes)
-                {
-                    if (data.AttributeType.FullName == "System.Runtime.CompilerServices.IsUnmanagedAttribute")
-                        return true;
-                }
-
-                return false;
-            }
+            private static bool IsUnmanagedConstrained(Type parameter) =>
+                NinoActivator.HasAttribute(parameter, "System.Runtime.CompilerServices.IsUnmanagedAttribute");
         }
 
         /// <summary>The registrations seen so far, indexed like the generator's; replaced as a whole when one is added.</summary>

@@ -243,26 +243,13 @@ namespace Nino.Core
         /// registers there rather than in the memory of a caller that passes its address (see
         /// <see cref="INinoTopFormatter{T}"/>).
         /// </summary>
-        internal virtual void Write(T value, NinoArrayBufferWriter buffer)
-        {
-            var writer = new Writer(buffer);
-            Serialize(value, ref writer);
-            writer.Flush();
-            writer.ReleaseReferences();
-        }
+        internal abstract void Write(T value, NinoArrayBufferWriter buffer);
 
         /// <summary>
         /// Reads a whole payload into a new value (the top-level calls): the reader is created by the formatter's
         /// class, for the reasons of <see cref="Write"/>.
         /// </summary>
-        internal virtual T Read(ReadOnlySpan<byte> data)
-        {
-            var reader = new Reader(data);
-            T value = default;
-            Deserialize(ref value, ref reader);
-            reader.ReleaseReferences();
-            return value;
-        }
+        internal abstract T Read(ReadOnlySpan<byte> data);
 
         /// <summary>Whether the formatter writes exactly the in-memory bytes of <typeparamref name="T"/>.</summary>
         internal virtual bool IsRaw => false;
@@ -348,24 +335,35 @@ namespace Nino.Core
             !NinoUnsafe.IsReferenceOrContainsReferences<T>() && RawFormatter<T, TFormatter>.Is;
     }
 
-    /// <summary>Wraps a struct formatter as a <see cref="NinoFormatter{T}"/>.</summary>
-    internal sealed class StructFormatter<T, TFormatter> : NinoFormatter<T>
+    /// <summary>
+    /// The members every wrapper of a struct formatter shares: calls through to <typeparamref name="TFormatter"/>
+    /// (inlined), and the top-level calls with a writer or reader of their own (<see cref="NinoDirect"/>). Not sealed,
+    /// but its leaves are: <see cref="NinoTopFormatter{T}.Formatter"/> holds one of them, whose exact class Tier1 code
+    /// knows, so these calls are devirtualized there as they were when each leaf declared them.
+    /// </summary>
+    internal abstract class StructFormatterBase<T, TFormatter> : NinoFormatter<T>
         where TFormatter : struct, INinoFormatter<T>
     {
-        internal override Type StructType => typeof(TFormatter);
+        internal sealed override Type StructType => typeof(TFormatter);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
+        public sealed override void Serialize(T value, ref Writer writer) =>
+            default(TFormatter).Serialize(value, ref writer);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Deserialize(ref T value, ref Reader reader) =>
+        public sealed override void Deserialize(ref T value, ref Reader reader) =>
             default(TFormatter).Deserialize(ref value, ref reader);
 
         internal override void Write(T value, NinoArrayBufferWriter buffer) =>
             NinoDirect.Write<T, TFormatter>(value, buffer);
 
         internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
+    }
 
+    /// <summary>Wraps a struct formatter as a <see cref="NinoFormatter{T}"/>.</summary>
+    internal sealed class StructFormatter<T, TFormatter> : StructFormatterBase<T, TFormatter>
+        where TFormatter : struct, INinoFormatter<T>
+    {
         internal override bool IsRaw => RawFormatter.Is<T, TFormatter>();
 
         internal override INinoRawArrayFormatter RawArray =>
@@ -381,23 +379,9 @@ namespace Nino.Core
     /// (<see cref="NinoFormatterCache{T}.TryRegisterFixed{TFormatter}"/>): the regular byte array call writes into an
     /// array of exactly that size too.
     /// </summary>
-    internal sealed class FixedStructFormatter<T, TFormatter> : NinoFormatter<T>
+    internal sealed class FixedStructFormatter<T, TFormatter> : StructFormatterBase<T, TFormatter>
         where TFormatter : struct, INinoFixedSizeFormatter<T>
     {
-        internal override Type StructType => typeof(TFormatter);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Deserialize(ref T value, ref Reader reader) =>
-            default(TFormatter).Deserialize(ref value, ref reader);
-
-        internal override void Write(T value, NinoArrayBufferWriter buffer) =>
-            NinoDirect.Write<T, TFormatter>(value, buffer);
-
-        internal override T Read(ReadOnlySpan<byte> data) => NinoDirect.Deserialize<T, TFormatter>(data);
-
         internal override int FixedSize => default(TFormatter).FixedSize;
 
         internal override byte[] SerializeFixed(T value) => NinoDirect.WriteFixed<T, TFormatter>(value);
@@ -410,19 +394,10 @@ namespace Nino.Core
     /// the twin, with the writer it creates (see <see cref="INinoTopFormatter{T}"/>); everything else through
     /// <typeparamref name="TFormatter"/>.
     /// </summary>
-    internal sealed class TopStructFormatter<T, TFormatter, TTop> : NinoFormatter<T>
+    internal sealed class TopStructFormatter<T, TFormatter, TTop> : StructFormatterBase<T, TFormatter>
         where TFormatter : struct, INinoFormatter<T>
         where TTop : struct, INinoTopFormatter<T>
     {
-        internal override Type StructType => typeof(TFormatter);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Serialize(T value, ref Writer writer) => default(TFormatter).Serialize(value, ref writer);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public override void Deserialize(ref T value, ref Reader reader) =>
-            default(TFormatter).Deserialize(ref value, ref reader);
-
         internal override void Write(T value, NinoArrayBufferWriter buffer) => default(TTop).Write(value, buffer);
 
         internal override T Read(ReadOnlySpan<byte> data) => default(TTop).Read(data);

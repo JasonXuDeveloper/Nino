@@ -431,26 +431,16 @@ namespace Nino.Core
                     _tracked = true;
                 }
 
-                var byType = _byType;
-                var byId = _byId;
-                if ((_count + 1) * 2 > byType.Length)
+                if ((_count + 1) * 2 > _byType.Length)
                 {
                     // Keep the load factor at or below 50%, so probes stay short.
-                    byType = new TypeEntry[byType.Length * 2];
-                    byId = new IdEntry[byType.Length];
-                    foreach (var e in _byType)
-                    {
-                        if (e.Key != null)
-                            Insert(byType, byId, e.Handler);
-                    }
-
-                    Insert(byType, byId, handler);
-                    Volatile.Write(ref _byType, byType);
-                    Volatile.Write(ref _byId, byId);
+                    var handlers = Handlers(null);
+                    handlers.Add(handler);
+                    Rebuild(_byType.Length * 2, handlers);
                 }
                 else
                 {
-                    Insert(byType, byId, handler);
+                    Insert(_byType, _byId, handler);
                 }
 
                 _count++;
@@ -465,23 +455,43 @@ namespace Nino.Core
         {
             lock (Lock)
             {
-                var kept = new List<NinoSubtypeHandler>();
-                foreach (var e in _byType)
-                {
-                    if (e.Key != null && !NinoUnload.Mentions(e.Key, assembly))
-                        kept.Add(e.Handler);
-                }
-
+                var kept = Handlers(assembly);
                 if (kept.Count == _count)
                     return;
-                var byType = new TypeEntry[_byType.Length];
-                var byId = new IdEntry[byType.Length];
-                foreach (var handler in kept)
-                    Insert(byType, byId, handler);
-                Volatile.Write(ref _byType, byType);
-                Volatile.Write(ref _byId, byId);
+                Rebuild(_byType.Length, kept);
                 _count = kept.Count;
             }
+        }
+
+        /// <summary>
+        /// The registered handlers, except those of types that mention <paramref name="removed"/> (null: none).
+        /// Called under <see cref="Lock"/>.
+        /// </summary>
+        private static List<NinoSubtypeHandler> Handlers(System.Reflection.Assembly removed)
+        {
+            var handlers = new List<NinoSubtypeHandler>(_count + 1);
+            foreach (var e in _byType)
+            {
+                if (e.Key != null && (removed == null || !NinoUnload.Mentions(e.Key, removed)))
+                    handlers.Add(e.Handler);
+            }
+
+            return handlers;
+        }
+
+        /// <summary>
+        /// Publishes new tables of <paramref name="capacity"/> entries holding <paramref name="handlers"/>, one
+        /// reference write each: lookups running meanwhile see the old or the new tables. Called under
+        /// <see cref="Lock"/>.
+        /// </summary>
+        private static void Rebuild(int capacity, List<NinoSubtypeHandler> handlers)
+        {
+            var byType = new TypeEntry[capacity];
+            var byId = new IdEntry[capacity];
+            foreach (var handler in handlers)
+                Insert(byType, byId, handler);
+            Volatile.Write(ref _byType, byType);
+            Volatile.Write(ref _byId, byId);
         }
 
         private static void Insert(TypeEntry[] byType, IdEntry[] byId, NinoSubtypeHandler handler)
@@ -644,27 +654,23 @@ namespace Nino.Core
         /// current value is recycled.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Deserialize(int id, ref TBase value, ref Reader reader)
-        {
-            if (id == NinoWire.NullTypeId)
-            {
-                NinoRecycler.Discard(ref value);
-                return;
-            }
-
-            var handler = FindForRead(id, ref value);
-            object result = value;
-            handler.Deserialize(ref result, ref reader);
-            // The handler's type derives from TBase (checked when it was registered here), and so does a back reference.
-            value = Unsafe.As<TBase>(result);
-        }
+        public static void Deserialize(int id, ref TBase value, ref Reader reader) =>
+            Read(id, ref value, ref reader, referenced: false);
 
         /// <summary>
         /// Reads what <see cref="SerializeReferenced"/> wrote after the reference header, given the type id (already
         /// consumed).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void DeserializeReferenced(int id, ref TBase value, ref Reader reader)
+        public static void DeserializeReferenced(int id, ref TBase value, ref Reader reader) =>
+            Read(id, ref value, ref reader, referenced: true);
+
+        /// <summary>
+        /// <see cref="Deserialize"/>, or <see cref="DeserializeReferenced"/> when <paramref name="referenced"/> (a
+        /// constant in both).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Read(int id, ref TBase value, ref Reader reader, bool referenced)
         {
             if (id == NinoWire.NullTypeId)
             {
@@ -672,15 +678,6 @@ namespace Nino.Core
                 return;
             }
 
-            var handler = FindForRead(id, ref value);
-            object result = value;
-            handler.DeserializeReferenced(ref result, ref reader);
-            value = Unsafe.As<TBase>(result);
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static NinoSubtypeHandler FindForRead(int id, ref TBase value)
-        {
             var handler = Find(id);
             if (handler == null)
                 NinoThrow.UnknownTypeId(typeof(TBase), id);
@@ -688,7 +685,13 @@ namespace Nino.Core
             // The handler owns an instance of its exact type (it reuses it, or recycles it when it has to re-create
             // the type); an instance of another type is recycled here.
             NinoRecycler.ReuseExact(ref value, handler.Type);
-            return handler;
+            object result = value;
+            if (referenced)
+                handler.DeserializeReferenced(ref result, ref reader);
+            else
+                handler.Deserialize(ref result, ref reader);
+            // The handler's type derives from TBase (checked when it was registered here), and so does a back reference.
+            value = Unsafe.As<TBase>(result);
         }
     }
 }
