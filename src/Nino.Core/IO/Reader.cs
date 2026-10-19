@@ -275,9 +275,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void SetReference(object value)
         {
-            var refs = _context?.Refs;
-            if (refs != null && refs.Pending != 0)
-                refs.Set(refs.Pending, value);
+            NinoReferenceReadTable.SetPending(_context?.Refs, value);
         }
 
         /// <summary>Records the object read after <see cref="ReadReference{T}"/> returned true.</summary>
@@ -374,7 +372,7 @@ namespace Nino.Core
             // Keys are relative to the start of the region's members (validated by ReadRegion).
             int start = regionEnd - NinoUnsafe.Read<int>(ref Unsafe.Add(ref MemoryMarshal.GetReference(data), sectionEnd));
             var section = new Reader(Prefix(data, sectionEnd), regionEnd, depth, 1, context);
-            int entryDepth = Math.Min(depth, NinoDepth.Inline - 1) + 1;
+            int entryDepth = NinoDepth.Deferred(depth);
             while (!d.Region.IsEmpty)
             {
                 var item = d.Region.Items[d.Region.Head++];
@@ -449,16 +447,9 @@ namespace Nino.Core
         {
             context ??= NinoReadContext.Rent();
             // A tracked object is recorded now: back references to it may come before its body.
-            var refs = context.Refs;
-            if (refs != null && refs.Pending != 0)
-                refs.Set(refs.Pending, value);
-            var d = context.Deferrals ??= NinoDeferrals.Rent();
-            var item = new NinoDeferredItem
-                { Value = value, Body = NinoDeferredBody<T, TFormatter>.Instance, Position = position };
-            if (regions == 0)
-                d.Top.Add(in item);
-            else
-                d.Region.Add(in item);
+            NinoReferenceReadTable.SetPending(context.Refs, value);
+            (context.Deferrals ??= NinoDeferrals.Rent()).Add(new NinoDeferredItem
+                { Value = value, Body = NinoDeferredBody<T, TFormatter>.Instance, Position = position }, regions);
             return context;
         }
 
@@ -586,28 +577,13 @@ namespace Nino.Core
         /// <c>length * minElementSize</c> more bytes.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int ReadLength(int minElementSize = 1)
-        {
+        public int ReadLength(int minElementSize = 1) =>
             // A constant in the formatters: one compare covers null, invalid and too long.
-            if (minElementSize >= 1)
-                return TryReadLength(minElementSize, out int count) ? count : NinoWire.NullLength;
-
-            int length = UnsafeRead<int>();
-            if (length < 0)
-            {
-                if (length != NinoWire.NullLength)
-                    NinoThrow.InvalidLength(length);
-                return NinoWire.NullLength;
-            }
-
-            if ((long)length * minElementSize > Remaining)
-                NinoThrow.InvalidLength(length);
-            return length;
-        }
+            TryReadLength(Math.Max(minElementSize, 0), out int count) ? count : NinoWire.NullLength;
 
         /// <summary>
         /// Reads a collection length into <paramref name="length"/>; false for null. Throws if the payload cannot
-        /// possibly contain <c>length * minElementSize</c> more bytes (<paramref name="minElementSize"/> at least 1).
+        /// possibly contain <c>length * minElementSize</c> more bytes (<paramref name="minElementSize"/> not negative).
         /// The sign is tested first: the callers then know the length is not negative, which drops the checks of
         /// <c>new List&lt;T&gt;(length)</c>, <c>CollectionsMarshal.SetCount</c> and the like.
         /// </summary>
@@ -625,6 +601,34 @@ namespace Nino.Core
             if ((ulong)(uint)length * (uint)minElementSize > (uint)Avail)
                 NinoThrow.InvalidLength(length);
             return true;
+        }
+
+        /// <summary>
+        /// <see cref="TryReadLength(int, out int)"/> in the prologue of a collection formatter: for null, the
+        /// collection in <paramref name="value"/> is dropped (<see cref="NinoRecycler.Discard{T}"/>) and false
+        /// returned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool TryReadLengthOrDiscard<T>(ref T value, int minElementSize, out int length)
+        {
+            if (TryReadLength(minElementSize, out length))
+                return true;
+            NinoRecycler.Discard(ref value);
+            return false;
+        }
+
+        /// <summary>
+        /// Reads the 1-byte null flag of a sealed class (or tuple, or nullable value): false for null, after
+        /// dropping the instance in <paramref name="value"/> (<see cref="NinoRecycler.Discard{T}"/>); true when the
+        /// body follows.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool TryReadPresent<T>(ref T value)
+        {
+            if (UnsafeRead<byte>() != NinoWire.Null)
+                return true;
+            NinoRecycler.Discard(ref value);
+            return false;
         }
 
         /// <summary>
@@ -844,7 +848,7 @@ namespace Nino.Core
                 // ASCII text: as many bytes as chars, compared without decoding.
                 if ((int)counts == current.Length && (int)(counts >> 32) == current.Length &&
                     current.Length <= Avail - 2 * sizeof(int) &&
-                    SameAscii(ref Unsafe.Add(ref start, 2 * sizeof(int)), current))
+                    NinoStrings.SameAscii(ref Unsafe.Add(ref start, 2 * sizeof(int)), current))
                 {
                     Skip(2 * sizeof(int) + current.Length);
                     return current;
@@ -854,22 +858,6 @@ namespace Nino.Core
             return ReadUtf8();
         }
 
-        /// <summary>Whether the bytes at <paramref name="src"/> are ASCII and equal to the chars of <paramref name="value"/>.</summary>
-        private static bool SameAscii(ref byte src, string value)
-        {
-#if NET8_0_OR_GREATER
-            return Ascii.Equals(MemoryMarshal.CreateReadOnlySpan(ref src, value.Length), value.AsSpan());
-#else
-            for (int i = 0; i < value.Length; i++)
-            {
-                byte b = Unsafe.Add(ref src, i);
-                if (b >= 0x80 || b != value[i])
-                    return false;
-            }
-
-            return true;
-#endif
-        }
 
         /// <summary>
         /// The char count of a UTF-8 string in the last 0 to 7 bytes, where only a null or empty one (a count alone)

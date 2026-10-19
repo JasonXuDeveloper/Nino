@@ -156,24 +156,17 @@ namespace Nino.CodeGen
             sb.Append("    {\n");
             sb.Append($"        public void Serialize({type} value, ref Writer writer)\n");
             sb.Append("        {\n");
-            sb.Append("            if (value == null)\n");
-            sb.Append("            {\n");
-            sb.Append("                writer.UnsafeWrite(NinoWire.Null);\n");
+            sb.Append("            if (!writer.WritePresence(value))\n");
             sb.Append("                return;\n");
-            sb.Append("            }\n");
             sb.Append("\n");
-            sb.Append("            writer.UnsafeWrite(NinoWire.NotNull);\n");
             foreach (int i in Items(arity))
                 sb.Append($"            default(TF{i}).Serialize(value.Item{i}, ref writer);\n");
             sb.Append("        }\n");
             sb.Append("\n");
             sb.Append($"        public void Deserialize(ref {type} value, ref Reader reader)\n");
             sb.Append("        {\n");
-            sb.Append("            if (reader.UnsafeRead<byte>() == NinoWire.Null)\n");
-            sb.Append("            {\n");
-            sb.Append("                NinoRecycler.Discard(ref value);\n");
+            sb.Append("            if (!reader.TryReadPresent(ref value))\n");
             sb.Append("                return;\n");
-            sb.Append("            }\n");
             sb.Append("\n");
             sb.Append("            // Tuples are immutable: the items are read into locals and the tuple is replaced.\n");
             foreach (int i in Items(arity))

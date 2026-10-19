@@ -286,7 +286,14 @@ namespace Nino.Core
 
         /// <summary>Writes a nullable unmanaged value: a has-value byte, then the value if present.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Write<T>(T? value) where T : unmanaged
+        public void Write<T>(T? value) where T : unmanaged => WriteNullableRaw(value);
+
+        /// <summary>
+        /// <see cref="Write{T}(T?)"/> of a value whose memory is its wire layout (unmanaged values, raw structs): the
+        /// has-value byte and the value in one reservation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void WriteNullableRaw<T>(T? value) where T : struct
         {
             if (!value.HasValue)
             {
@@ -306,6 +313,36 @@ namespace Nino.Core
         /// <summary>Writes the null collection marker (-1).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteNullLength() => UnsafeWrite(NinoWire.NullLength);
+
+        /// <summary>
+        /// Writes the null collection marker when <paramref name="value"/> is null, and returns whether it did: the
+        /// prologue of the formatters of collections, whose length follows otherwise.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool TryWriteNullLength(object value)
+        {
+            if (value != null)
+                return false;
+            WriteNullLength();
+            return true;
+        }
+
+        /// <summary>
+        /// Writes the 1-byte null flag of a sealed class (or tuple), and returns whether <paramref name="value"/> is
+        /// present: its body follows then.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool WritePresence(object value)
+        {
+            if (value == null)
+            {
+                UnsafeWrite(NinoWire.Null);
+                return false;
+            }
+
+            UnsafeWrite(NinoWire.NotNull);
+            return true;
+        }
 
         /// <summary>Reserves 4 bytes to be patched later and returns their position.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -410,7 +447,7 @@ namespace Nino.Core
                 var item = d.Region.Items[d.Region.Head++];
                 UnsafeWrite(item.Position - start);
                 int length = ReserveInt32();
-                WriteDeferred(in item, Math.Min(depth, NinoDepth.Inline - 1) + 1);
+                WriteDeferred(in item, NinoDepth.Deferred(depth));
                 PatchLength(length);
             }
 
@@ -508,10 +545,7 @@ namespace Nino.Core
             {
                 Value = value, Body = body, Position = pos, Anchor = anchor, Generation = generation + 1
             };
-            if (regions == 0)
-                d.Top.Add(in item);
-            else
-                d.Region.Add(in item);
+            d.Add(in item, regions);
             return d;
         }
 
@@ -585,7 +619,7 @@ namespace Nino.Core
         private static byte[] GrowLarge(NinoArrayBufferWriter owner, int pos, ulong size)
         {
             if (size > int.MaxValue)
-                throw new OverflowException();
+                NinoThrow.TooLarge();
             return Grow(owner, pos, (int)size);
         }
 
@@ -593,13 +627,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Write<T>(T[] values) where T : unmanaged
         {
-            if (values == null)
-            {
-                WriteNullLength();
-                return;
-            }
-
-            Write((ReadOnlySpan<T>)values);
+            if (!TryWriteNullLength(values))
+                Write((ReadOnlySpan<T>)values);
         }
 
         /// <summary>
@@ -623,11 +652,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void WriteUtf8(string value)
         {
-            if (value == null)
-            {
-                WriteNullLength();
+            if (TryWriteNullLength(value))
                 return;
-            }
 
             // Short strings reserve the worst case (3 bytes per char) and encode in one pass; long ones count their
             // bytes first, so the buffer does not grow to three times the string (or overflow the count).
