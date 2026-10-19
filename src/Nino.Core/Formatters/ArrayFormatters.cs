@@ -8,12 +8,12 @@ namespace Nino.Core
     internal static class NinoElements
     {
         /// <summary>
-        /// Whether elements read into a new array are copied into it as one block (memmove), which overwrites it all:
-        /// only then is it allocated uninitialized. An array filled by vector or per-value stores is allocated zeroed:
-        /// the clearing brings its lines into the cache, where such stores into fresh lines first read each one
+        /// Whether elements read into a new array are copied into it as one block (NinoUnsafe.CopyToNew), which overwrites
+        /// it all: only then is it allocated uninitialized. An array filled by vector or per-value stores is allocated
+        /// zeroed: the clearing brings its lines into the cache, where such stores into fresh lines first read each one
         /// (workstation GC, AVX-512 Xeon: 1,000 (int, long) into a new list in 1.5 to 1.7 µs zeroed, 2.7 to 2.9
-        /// uninitialized; 1,000 DateTimeOffsets in 3.7 to 3.8 µs against 5.0 to 5.6; server GC on par or faster
-        /// zeroed). A JIT-time constant.
+        /// uninitialized; 1,000 DateTimeOffsets in 3.7 to 3.8 µs against 5.0 to 5.6; server GC on par or faster zeroed). A
+        /// JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool CopiedWhole<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
@@ -45,7 +45,7 @@ namespace Nino.Core
             if (RawFormatter.Is<T, TFormatter>())
             {
                 int size = checked(count * Unsafe.SizeOf<T>());
-                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref first), ref reader.ReadBlock(size), (uint)size);
+                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first), ref reader.ReadBlock(size), (uint)size);
                 return;
             }
 
@@ -143,7 +143,7 @@ namespace Nino.Core
             if (RawFormatter.Is<T, TFormatter>())
             {
                 int size = checked(values.Length * Unsafe.SizeOf<T>());
-                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
+                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(values)),
                     ref reader.ReadBlock(size), (uint)size);
                 return;
             }
@@ -328,7 +328,7 @@ namespace Nino.Core
             }
 
             var array = NinoUnsafe.NewArray<T>(length, uninitialized: true);
-            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
+            NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
                 ref Unsafe.Add(ref start, NinoWire.LengthSize), (uint)length * size);
             return array;
         }
@@ -359,7 +359,7 @@ namespace Nino.Core
 
             var array = NinoElements.EnsureLength(ref value, length, uninitialized: true);
             uint bytes = (uint)length * size;
-            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
+            NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref NinoUnsafe.GetArrayDataReference(array)),
                 ref reader.UnsafeAdvance((int)bytes), bytes);
         }
 
@@ -469,8 +469,7 @@ namespace Nino.Core
             ref T? item = ref MemoryMarshal.GetReference(destination);
             if (Raw)
             {
-                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T?, byte>(ref item), ref src,
-                    (uint)(destination.Length * Stride));
+                NinoUnsafe.CopyToNew(ref Unsafe.As<T?, byte>(ref item), ref src, (uint)(destination.Length * Stride));
                 return;
             }
 

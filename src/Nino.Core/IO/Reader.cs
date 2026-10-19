@@ -669,15 +669,14 @@ namespace Nino.Core
                 return;
             }
 
-            // One bounds check and a block copy (the JIT's memcpy helper): AsBytes, Slice and CopyTo would add an
-            // overflow check, two more bounds checks and a call through SpanHelpers.Memmove's indirection cell.
+            // One bounds check and a block copy (NinoUnsafe.CopyToNew): AsBytes, Slice and CopyTo would add an overflow
+            // check, two more bounds checks and a call through SpanHelpers.Memmove's indirection cell.
             ulong size = (ulong)(uint)destination.Length * (uint)Unsafe.SizeOf<T>();
             ref byte src = ref Cur;
             if (size > (uint)Avail)
                 NinoThrow.EndOfData();
             Skip((int)size);
-            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), ref src,
-                (uint)size);
+            NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref MemoryMarshal.GetReference(destination)), ref src, (uint)size);
         }
 
         /// <summary>Reads a length-prefixed unmanaged array written by <see cref="Writer.Write{T}(T[])"/>.</summary>

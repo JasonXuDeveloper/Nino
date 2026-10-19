@@ -56,7 +56,7 @@ namespace Nino.Core
 
             // Not Latin-1: the narrowed prefix is overwritten.
             NinoUnsafe.Write(ref destination, length);
-            Unsafe.CopyBlockUnaligned(ref body, ref Unsafe.As<char, byte>(ref chars), (uint)length * sizeof(char));
+            NinoUnsafe.Copy(ref body, ref Unsafe.As<char, byte>(ref chars), (uint)length * sizeof(char));
             return NinoWire.LengthSize + length * sizeof(char);
         }
 
@@ -408,32 +408,7 @@ namespace Nino.Core
                 string value = Allocate(length);
                 ref byte destination = ref Unsafe.As<char, byte>(ref MemoryMarshal.GetReference(value.AsSpan()));
                 uint size = (uint)length * sizeof(char);
-                if (size <= 32)
-                    NinoUnsafe.Copy(ref destination, ref chars, size);
-                else if (size <= 64)
-                {
-                    // 32-byte vectors are emulated where they are not accelerated (Arm64): two 16-byte ones each.
-                    if (Vector256.IsHardwareAccelerated)
-                    {
-                        var head = Vector256.LoadUnsafe(ref chars);
-                        var tail = Vector256.LoadUnsafe(ref chars, size - 32);
-                        head.StoreUnsafe(ref destination);
-                        tail.StoreUnsafe(ref destination, size - 32);
-                    }
-                    else
-                    {
-                        var head = Vector128.LoadUnsafe(ref chars);
-                        var head2 = Vector128.LoadUnsafe(ref chars, 16);
-                        var tail = Vector128.LoadUnsafe(ref chars, size - 32);
-                        var tail2 = Vector128.LoadUnsafe(ref chars, size - 16);
-                        head.StoreUnsafe(ref destination);
-                        head2.StoreUnsafe(ref destination, 16);
-                        tail.StoreUnsafe(ref destination, size - 32);
-                        tail2.StoreUnsafe(ref destination, size - 16);
-                    }
-                }
-                else
-                    Unsafe.CopyBlockUnaligned(ref destination, ref chars, size);
+                NinoUnsafe.Copy(ref destination, ref chars, size);
                 return value;
             }
 #endif
