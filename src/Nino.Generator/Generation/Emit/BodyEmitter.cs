@@ -169,13 +169,14 @@ internal sealed class BodyEmitter
 
         _w.Block(signature, () =>
         {
+            if (Region && !(_m.EmitMembers && !_shallow) && TryEmitRegionWithBlock())
+                return;
+            // Keyed: the region holds everything; version tolerant: the members (the elements of a collection come
+            // first, as positional ones).
             if (_m.Keyed)
                 _w.Line("int __length = writer.BeginRegion();");
             if (_m.CollectionFormatter.Length != 0)
                 _w.Line($"default({CollectionFormatter}).Serialize(value, ref writer);");
-            // Version tolerant: the members (the elements of a collection come first, as positional ones).
-            if (Tolerant && !(_m.EmitMembers && !_shallow) && TryEmitRegionWithBlock())
-                return;
             if (Tolerant)
                 _w.Line("int __length = writer.BeginRegion();");
             if (_m.EmitMembers && !_shallow)
@@ -299,7 +300,7 @@ internal sealed class BodyEmitter
             _w.Line($"{_m.BaseFormatter}.WriteMembers(value, ref writer);");
         if (_m.Keyed)
         {
-            EmitKeyedWrites();
+            EmitKeyedWrites(RawBlock.Groups(_m.Members));
             return;
         }
 
@@ -307,26 +308,47 @@ internal sealed class BodyEmitter
     }
 
     /// <summary>
-    /// A version-tolerant body whose first members are raw values (written here, not by a base's WriteMembers):
-    /// the region's length and those members in one reservation (one capacity check rather than two).
+    /// A version-tolerant or keyed body whose first members are raw values (written here, not by a base's
+    /// WriteMembers, nor after a collection's elements): the region's length and those members (keyed: with their
+    /// headers) in one reservation, one capacity check rather than two.
     /// </summary>
     private bool TryEmitRegionWithBlock()
     {
-        if (Delegates || _m.Keyed || _m.CollectionFormatter.Length != 0)
+        if (Delegates || _m.CollectionFormatter.Length != 0)
             return false;
         var groups = RawBlock.Groups(OwnMembers);
         if (groups.Count == 0 || groups[0][0].Raw == null)
             return false;
         _blocks = 0;
-        var first = groups[0];
-        var block = new RawBlock(first, start: NinoWire.LengthSize);
-        string p = "__p" + _blocks++;
-        _w.Line($"ref byte {p} = ref writer.BeginRegion({block.Total}, out int __length);");
-        for (int i = 0; i < first.Count; i++)
-            _w.Line(RawWrite(first[i], p, block.Offsets[i]));
-        EmitPositionalWrites(groups.Skip(1).SelectMany(g => g));
+        var block = new RawBlock(groups[0], headers: _m.Keyed, start: NinoWire.LengthSize);
+        EmitRawBlock(groups[0], block, $"writer.BeginRegion({block.Total}, out int __length)");
+        if (_m.Keyed)
+            EmitKeyedWrites(groups.Skip(1));
+        else
+            EmitPositionalWrites(groups.Skip(1).SelectMany(g => g));
         _w.Line("writer.EndRegion(__length);");
         return true;
+    }
+
+    /// <summary>
+    /// The raw members of <paramref name="block"/> (keyed: each after its key and length) in the reservation that
+    /// <paramref name="reserve"/> returns.
+    /// </summary>
+    private void EmitRawBlock(List<MemberModel> group, RawBlock block, string reserve)
+    {
+        string p = "__p" + _blocks++;
+        _w.Line($"ref byte {p} = ref {reserve};");
+        bool headers = block.HeaderOffsets.Count != 0;
+        for (int i = 0; i < group.Count; i++)
+        {
+            if (headers)
+            {
+                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {group[i].Key});");
+                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].Raw!.Expression});");
+            }
+
+            _w.Line(RawWrite(group[i], p, block.Offsets[i]));
+        }
     }
 
     private void EmitPositionalWrites(IEnumerable<MemberModel> members)
@@ -354,10 +376,7 @@ internal sealed class BodyEmitter
             }
 
             var block = new RawBlock(group);
-            string p = "__p" + _blocks++;
-            _w.Line($"ref byte {p} = ref writer.Reserve({block.Total});");
-            for (int i = 0; i < group.Count; i++)
-                _w.Line(RawWrite(group[i], p, block.Offsets[i]));
+            EmitRawBlock(group, block, $"writer.Reserve({block.Total})");
         }
     }
 
@@ -388,10 +407,10 @@ internal sealed class BodyEmitter
             : null;
 
     /// <summary>Each member as (key, length, value); consecutive raw members share one reservation.</summary>
-    private void EmitKeyedWrites()
+    private void EmitKeyedWrites(IEnumerable<List<MemberModel>> groups)
     {
         int lengths = 0;
-        foreach (var group in RawBlock.Groups(_m.Members))
+        foreach (var group in groups)
         {
             var first = group[0];
             if (first.Raw == null)
@@ -405,14 +424,7 @@ internal sealed class BodyEmitter
             }
 
             var block = new RawBlock(group, headers: true);
-            string p = "__p" + _blocks++;
-            _w.Line($"ref byte {p} = ref writer.Reserve({block.Total});");
-            for (int i = 0; i < group.Count; i++)
-            {
-                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i]}, {group[i].Key});");
-                _w.Line($"{Core}NinoUnsafe.Write<int>(ref {p}, {block.HeaderOffsets[2 * i + 1]}, {group[i].Raw!.Expression});");
-                _w.Line(RawWrite(group[i], p, block.Offsets[i]));
-            }
+            EmitRawBlock(group, block, $"writer.Reserve({block.Total})");
         }
     }
 
