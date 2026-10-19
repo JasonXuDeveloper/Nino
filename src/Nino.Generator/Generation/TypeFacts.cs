@@ -291,38 +291,75 @@ internal sealed class TypeFacts
     }
 
     /// <summary>
-    /// Whether the generated formatter of <paramref name="type"/> has a <c>__Shallow</c> twin: the same bytes, for
-    /// where its <see cref="DepthBound"/> is known to stay below <see cref="InlineDepth"/>, counting and checking no
-    /// depth, its members through the twins of theirs. Sealed classes and structs that open a class body, not
-    /// tracked (their own formatter is used there, which is correct anywhere).
+    /// The twin of the generated formatter of <paramref name="type"/> for where its <see cref="DepthBound"/> is known
+    /// to stay below <see cref="InlineDepth"/>: the same bytes, counting and checking no depth, its members through
+    /// the twins of theirs. Sealed classes and structs that open a class body (a sealed class opens its own), not
+    /// tracked (their own formatter is used there, which is correct anywhere); null for any other type.
+    /// <see cref="TypeNames.Top"/> for a sealed class whose members and elements open no class body: its
+    /// <c>__Top</c> twin (<c>TypeModel.HasTop</c>, which ModelBuilder decides from the same resolutions) already
+    /// counts and checks no depth, and is correct wherever no body inside it is deferred, which none is. Otherwise
+    /// <see cref="TypeNames.Shallow"/>.
     /// </summary>
-    public bool HasShallow(INamedTypeSymbol type)
+    public string? ShallowTwin(INamedTypeSymbol type)
     {
         int bound = TypeBound(type);
-        return bound != Unbounded && bound >= 0 && !(type.TypeKind == TypeKind.Class && ModelBuilder.IsTracked(type));
+        if (bound == Unbounded || bound < 0)
+            return null;
+        if (type.TypeKind != TypeKind.Class)
+            return TypeNames.Shallow;
+        if (ModelBuilder.IsTracked(type))
+            return null;
+        return OpensNoBody(type) ? TypeNames.Top : TypeNames.Shallow;
+    }
+
+    /// <summary>Whether the formatter of <paramref name="type"/> has a <c>__Shallow</c> twin (<see cref="ShallowTwin"/>).</summary>
+    public bool HasShallow(INamedTypeSymbol type) => ShallowTwin(type) == TypeNames.Shallow;
+
+    /// <summary>
+    /// Whether no member of a sealed class, nor its elements, is written by a formatter that may open a class body
+    /// (<see cref="ResolvedFormatter.OpensBodies"/>; a custom formatter may): the body nests nothing
+    /// (<c>TypeModel.Nests</c> false).
+    /// </summary>
+    private bool OpensNoBody(INamedTypeSymbol type)
+    {
+        if (type.GetNinoTypeOptions() is not { } attr || Resolver.ResolveCollection(type) is { OpensBodies: true })
+            return false;
+        foreach (var member in Members.Of(type, attr))
+        {
+            if (NinoSymbols.Has(member, Symbols.CustomFormatter))
+                return false;
+            if (MemberCollector.MemberType(member) is { } memberType &&
+                Resolver.Resolve(memberType, NinoSymbols.Has(member, Symbols.Utf8)) is { OpensBodies: true })
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>
     /// <paramref name="formatter"/> (resolved as <paramref name="resolved"/>) with the generated formatters it is
-    /// composed of replaced by their <c>__Shallow</c> twins (<see cref="HasShallow"/>).
+    /// composed of replaced by their twins (<see cref="ShallowTwin"/>).
     /// </summary>
     public string ShallowFormatter(string formatter, ResolvedFormatter resolved, bool utf8)
     {
         if (!resolved.OpensBodies)
             return formatter;
-        var twins = new HashSet<string>();
-        CollectShallow(resolved, utf8, twins, 0);
-        return twins.Count == 0 ? formatter : TypeNames.WithTwin(formatter, twins, ".__Shallow");
+        var tops = new HashSet<string>();
+        var shallow = new HashSet<string>();
+        CollectShallow(resolved, utf8, tops, shallow, 0);
+        return TypeNames.WithTwins(formatter, tops, shallow);
     }
 
-    private void CollectShallow(ResolvedFormatter resolved, bool utf8, HashSet<string> twins, int level)
+    private void CollectShallow(ResolvedFormatter resolved, bool utf8, HashSet<string> tops, HashSet<string> shallow,
+        int level)
     {
         if (!resolved.OpensBodies || level > 32)
             return;
         if (resolved.Body is { } body)
         {
-            if (HasShallow(body))
-                twins.Add(resolved.Code);
+            var twin = ShallowTwin(body);
+            if (twin != null)
+                (twin == TypeNames.Top ? tops : shallow).Add(resolved.Code);
             return;
         }
 
@@ -331,7 +368,7 @@ internal sealed class TypeFacts
         foreach (var element in resolved.Elements)
         {
             if (Resolver.Resolve(element, utf8) is { } inner)
-                CollectShallow(inner, utf8, twins, level + 1);
+                CollectShallow(inner, utf8, tops, shallow, level + 1);
         }
     }
 }

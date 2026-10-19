@@ -375,6 +375,20 @@ internal static class TypeNames
         return sb.ToString();
     }
 
+    /// <summary>The suffix that names a formatter's <c>__Top</c> twin (<c>TypeModel.HasTop</c>).</summary>
+    public const string Top = ".__Top";
+
+    /// <summary>The suffix that names a formatter's <c>__Shallow</c> twin (<c>TypeModel.Shallow</c>).</summary>
+    public const string Shallow = ".__Shallow";
+
+    /// <summary>
+    /// <paramref name="formatter"/> with the generated formatters in <paramref name="tops"/> replaced by their
+    /// <c>__Top</c> twins and those in <paramref name="shallow"/> by their <c>__Shallow</c> twins (see
+    /// <see cref="WithTwin"/>).
+    /// </summary>
+    internal static string WithTwins(string formatter, HashSet<string> tops, HashSet<string> shallow) =>
+        WithTwin(WithTwin(formatter, tops, Top), shallow, Shallow);
+
     /// <summary>
     /// <paramref name="formatter"/> with the generated formatters in <paramref name="names"/> replaced by their nested
     /// twin <paramref name="suffix"/> (<c>.__Top</c>, <c>.__Shallow</c>): the formatter itself, or the element

@@ -137,7 +137,7 @@ internal static class Interceptors
     /// bound stays below <c>NinoDepth.Inline</c> (<see cref="TypeFacts.DepthBound"/>), which it does with none open.
     /// </summary>
     internal static string WithTop(string formatter, HashSet<string> tops, HashSet<string> shallow) =>
-        TypeNames.WithTwin(TypeNames.WithTwin(formatter, tops, ".__Top"), shallow, ".__Shallow");
+        TypeNames.WithTwins(formatter, tops, shallow);
 
     /// <summary>
     /// The call of an <see cref="InterceptedCall.Inlinable"/> call with the twins of <see cref="WithTop"/>. A write of a
