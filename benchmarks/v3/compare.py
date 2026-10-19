@@ -10,51 +10,31 @@ Prints: case | v3 3.3.13 | v4 | v4 vs v3 | MemoryPack (v4 run) | MemoryPack (v3 
   - a time under FLOOR_NS cannot be told apart from an empty method: v4 under it against a measurable v3 is
     "faster (v4 too fast to measure)", with no ratio; both under it is "on par".
 """
-import re
 import sys
+from pathlib import Path
 
-UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from bdn import FLOOR_NS, mean_ns, rows, show  # noqa: E402 (benchmarks/bdn.py)
+
 LIBS = ("Nino", "MemoryPack", "MessagePack")
-FLOOR_NS = 1.0  # benchmarks/readme.py and the docs site use the same floor
 
 
 def parse(path):
     """-> {method: mean_ns}. Uses the first table with a Method and a Mean column."""
-    rows, header = {}, None
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line.startswith("|"):
-                continue
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            if header is None:
-                if "Method" in cells and "Mean" in cells:
-                    header = cells
-                continue
-            if set("".join(cells)) <= set("-: "):
-                continue  # separator or blank group row
-            row = dict(zip(header, cells))
-            method = row.get("Method", "").strip("*")
-            if not method:
-                continue
-            if "Job" in row and "ShortRun" not in row["Job"]:
-                continue  # if a report holds several jobs, keep the ShortRun one (the configured job)
-            m = re.match(r"([\d,.]+)\s*(\S+)", row["Mean"].strip("*"))
-            if not m:
-                continue
-            rows[method] = float(m.group(1).replace(",", "")) * UNITS_NS[m.group(2)]
-    if not rows:
+    out = {}
+    for row in rows(path)[1]:
+        if "Job" in row and "ShortRun" not in row["Job"]:
+            continue  # if a report holds several jobs, keep the ShortRun one (the configured job)
+        mean = mean_ns(row["Mean"])
+        if row["Method"] and mean is not None:
+            out[row["Method"]] = mean
+    if not out:
         sys.exit(f"no benchmark rows found in {path}")
-    return rows
+    return out
 
 
 def fmt(ns):
-    if ns is None:
-        return "-"
-    for unit, scale in (("s", 1e9), ("ms", 1e6), ("μs", 1e3)):
-        if ns >= scale:
-            return f"{ns / scale:,.2f} {unit}"
-    return f"{ns:,.2f} ns"
+    return "-" if ns is None else show(ns)
 
 
 def split(method):

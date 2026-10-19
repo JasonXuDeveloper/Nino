@@ -54,6 +54,9 @@ dash in the tables. A time under 1 ns (about three clock cycles) cannot be told 
 it against a measurable one is "faster (too fast to measure)", with no ratio, and both under it are on par.
 Build-time numbers and everything outside the markers are edited by hand.
 
+The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `v3/compare.py`, `members/table.py`) share
+one parser, unit table and floor: [`bdn.py`](bdn.py).
+
 ## Benchmark Classes
 
 `src/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with

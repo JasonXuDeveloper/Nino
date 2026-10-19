@@ -25,43 +25,26 @@ import re
 import sys
 from pathlib import Path
 
+from bdn import FLOOR_NS, mean_ns, rows
+
 ROOT = Path(__file__).resolve().parent.parent
-UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
-# Struct cases: a block copy in both libraries, so they stay out of the class/polymorphic ranges.
-STRUCT_KEYS = {"SimpleStruct", "SimpleStructs", "Vectors"}
-# About three clock cycles. Below it, a case cannot be told apart from another: a struct read of 40 bytes measured
-# anywhere from 0.05 to 0.8 ns in Nino and MemoryPack alike, as BenchmarkDotNet subtracts its empty-method overhead.
-FLOOR_NS = 1
+# The cases of the class/polymorphic ranges. The struct cases (SimpleStruct, SimpleStructs, Vectors) are a block copy in
+# both libraries, so they stay out.
 CLASS_KEYS = ["SimpleClass", "SimpleClasses", "PolymorphicClass", "PolymorphicClassArray", "PolymorphicFooArray"]
 
 
 def parse(path):
     """-> (environment lines, {method: row}); a row is {"mean": ns, "payload": str, "allocated": str}."""
-    text = Path(path).read_text(encoding="utf-8")
-    env = re.search(r"```\s*\n(.*?)```", text, re.S)
-    rows, header = {}, None
-    for line in text.splitlines():
-        line = line.strip()
-        if not line.startswith("|"):
-            continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
-        if header is None:
-            if "Method" in cells and "Mean" in cells:
-                header = cells
-            continue
-        row = dict(zip(header, cells))
-        method = row.get("Method", "").strip("*")
-        mean = re.match(r"([\d,.]+)\s*(\S+)", row.get("Mean", "").strip("*"))
-        if not method or not mean:
-            continue  # separator or blank group row
-        rows[method] = {
-            "mean": float(mean.group(1).replace(",", "")) * UNITS_NS[mean.group(2)],
-            "payload": row.get("Payload", "-"),
-            "allocated": row.get("Allocated", "-"),
-        }
-    if not rows:
+    before, table = rows(path)
+    env = re.search(r"```\s*\n(.*?)```", "\n".join(before) + "\n", re.S)
+    out = {}
+    for row in table:
+        method, mean = row.get("Method", ""), mean_ns(row.get("Mean", ""))
+        if method and mean is not None:
+            out[method] = {"mean": mean, "payload": row.get("Payload", "-"), "allocated": row.get("Allocated", "-")}
+    if not out:
         sys.exit(f"no benchmark rows found in {path}")
-    return (env.group(1).strip().splitlines() if env else []), rows
+    return (env.group(1).strip().splitlines() if env else []), out
 
 
 def ratio(slow, fast):

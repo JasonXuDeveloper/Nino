@@ -6,44 +6,23 @@ usage: ab.py base.md head.md > table.md
 One row per Nino benchmark in head: its mean in base and head, head against base (above 1.00x is faster), and head
 against MemoryPack's case of the same name in head. Times may be in any unit BenchmarkDotNet prints.
 """
-import re
 import sys
 
-UNITS = {"ns": 1, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
+from bdn import FLOOR_NS, mean_ns, rows, show
 
 
 def means(path):
     """-> {(type, method): mean in ns} from the first table with a Method and a Mean column."""
-    lines = open(path, encoding="utf-8").read().splitlines()
-    out, header = {}, None
-    for line in lines:
-        if not line.startswith("|"):
-            if out:
-                break
-            header = None
-            continue
-        cells = [cell.strip().strip("*") for cell in line.strip().strip("|").split("|")]
-        if header is None:
-            header = cells if "Method" in cells and "Mean" in cells else []
-            continue
-        if not header or set(line) <= set("|-: ") or len(cells) != len(header):
-            continue
-        row = dict(zip(header, cells))
-        match = re.match(r"([\d,.]+)\s*(\S+)", row["Mean"])
-        if row["Method"] and match and match.group(2) in UNITS:
-            out[(row.get("Type", ""), row["Method"])] = float(match.group(1).replace(",", "")) * UNITS[match.group(2)]
+    out = {}
+    for row in rows(path)[1]:
+        mean = mean_ns(row["Mean"])
+        if row["Method"] and mean is not None:
+            out[(row.get("Type", ""), row["Method"])] = mean
     return out
 
 
-def show(ns):
-    for unit, scale in (("s", 1e9), ("ms", 1e6), ("μs", 1e3)):
-        if ns >= scale:
-            return f"{ns / scale:.2f} {unit}"
-    return f"{ns:.2f} ns"
-
-
 def ratio(slow, fast):
-    if fast < 1.0 or slow < 1.0:  # too fast to tell apart (readme.py's FLOOR_NS)
+    if fast < FLOOR_NS or slow < FLOOR_NS:  # too fast to tell apart
         return "-"
     return f"{slow / fast:.2f}x"
 
