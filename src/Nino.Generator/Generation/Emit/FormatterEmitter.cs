@@ -228,11 +228,16 @@ internal static class FormatterEmitter
         ? $"{Core}NinoObject.SerializeTopRaw<{m.TypeName}, {m.FormatterName}>(value, ref writer)"
         : $"{Core}NinoObject.SerializeTop<{m.TypeName}, {twin}>(value, ref writer)";
 
-    /// <summary>A twin's <c>WriteBody</c>: a call to <paramref name="body"/>, or (null) to the formatter's.</summary>
+    /// <summary>
+    /// A twin's <c>WriteBody</c>: a call to the static body <paramref name="body"/>, or (null) to the formatter's
+    /// <c>WriteBody</c>.
+    /// </summary>
     private static void ForwardWriteBody(CodeWriter w, TypeModel m, FormatterNames names, string? body)
     {
         w.Line(names.Inline);
-        w.Line($"{Signature.WriteBody(m.TypeName)} => {body ?? $"default({m.FormatterName}).WriteBody"}(value, ref writer);");
+        w.Line(body == null
+            ? $"{Signature.WriteBody(m.TypeName)} => default({m.FormatterName}).WriteBody(value, ref writer);"
+            : $"{Signature.WriteBody(m.TypeName)} => {body}({BodyEmitter.ValueArgument(m)}, ref writer);");
     }
 
     /// <summary>A twin's <c>ReadBody</c>: a call to <paramref name="body"/>, or (null) to the formatter's.</summary>
