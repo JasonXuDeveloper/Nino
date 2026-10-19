@@ -469,7 +469,7 @@ namespace Nino.Core
             var array = ArrayPool<T>.Shared.Rent(length);
             var span = new Span<T>(array, 0, length);
             // Over default values: a rented array holds old ones (unless every element is overwritten).
-            if (!ReadOverwrites<T, TFormatter>())
+            if (!NinoElements.ReadOverwrites<T, TFormatter>())
                 span.Clear();
             try
             {
@@ -483,16 +483,6 @@ namespace Nino.Core
 
             return array;
         }
-
-        /// <summary>
-        /// Whether <see cref="NinoElements.Read{T,TFormatter}(Span{T}, ref Reader)"/> overwrites every element
-        /// whatever it held (raw elements, DateTimeOffsets and blocks are each read in full), so the slots need not
-        /// be cleared or zeroed first. A JIT-time constant.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool ReadOverwrites<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            RawFormatter.Is<T, TFormatter>() || typeof(TFormatter) == typeof(DateTimeOffsetFormatter) ||
-            NinoBlock.Size<T, TFormatter>() > 0;
 
         /// <summary>
         /// <see cref="WriteCopied{T,TFormatter}"/> for pairs, as
