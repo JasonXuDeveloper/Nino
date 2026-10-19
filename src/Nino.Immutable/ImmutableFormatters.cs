@@ -50,12 +50,8 @@ namespace Nino.Immutable
             default(ArrayFormatter<T, TFormatter>).Serialize(ImmutableCollectionsMarshal.AsArray(value), ref writer);
         }
 
-        public void Deserialize(ref ImmutableArray<T> value, ref Reader reader)
-        {
-            T[] array = null;
-            default(ArrayFormatter<T, TFormatter>).Deserialize(ref array, ref reader);
-            value = ImmutableCollectionsMarshal.AsImmutableArray(array);
-        }
+        public void Deserialize(ref ImmutableArray<T> value, ref Reader reader) =>
+            value = ImmutableCollectionsMarshal.AsImmutableArray(ImmutableCollections.Read<T, TFormatter>(ref reader));
     }
 
     /// <summary><c>ImmutableList&lt;T&gt;</c>: count (-1 = null), then the elements.</summary>
@@ -81,8 +77,7 @@ namespace Nino.Immutable
         {
             // Read as a T[] (raw elements as one block) and built from it in one pass: a builder would insert and
             // rebalance its tree for every element.
-            T[] array = null;
-            default(ArrayFormatter<T, TFormatter>).Deserialize(ref array, ref reader);
+            var array = ImmutableCollections.Read<T, TFormatter>(ref reader);
             value = array == null ? null : ImmutableList.CreateRange(array);
         }
     }
@@ -218,12 +213,16 @@ namespace Nino.Immutable
                 return;
             }
 
-            // Enumerated top to bottom: reversed into a T[] first (raw elements then go as one block).
-            var items = new List<T>(value);
-            items.Reverse();
-            var array = ArrayPool<T>.Shared.Rent(items.Count);
-            items.CopyTo(array);
-            ImmutableCollections.WriteRented<T, TFormatter>(array, items.Count, ref writer);
+            // Enumerated top to bottom: counted, then copied into a T[] from its end (raw elements then go as one
+            // block), without a list to grow and reverse.
+            int count = 0;
+            for (var rest = value; !rest.IsEmpty; rest = rest.Pop())
+                count++;
+            var array = ArrayPool<T>.Shared.Rent(count);
+            int i = count;
+            foreach (var item in value)
+                array[--i] = item;
+            ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
         }
 
         public void Deserialize(ref ImmutableStack<T> value, ref Reader reader)
