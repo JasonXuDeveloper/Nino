@@ -24,6 +24,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- v4's job and data, compiled from its files: the two runs differ only in the library they call. -->
+        <Compile Include="..\..\src\Nino.Benchmark\NinoJobAttribute.cs" Link="NinoJobAttribute.cs"/>
+        <Compile Include="..\..\src\Nino.Benchmark\SimpleBenchmarkData.cs" Link="SimpleBenchmarkData.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <Using Include="BenchmarkDotNet.Attributes"/>
     </ItemGroup>
 </Project>
