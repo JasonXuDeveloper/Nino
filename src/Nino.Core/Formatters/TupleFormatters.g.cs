@@ -60,23 +60,16 @@ namespace Nino.Core
     {
         public void Serialize(Tuple<T1> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
+            if (!writer.WritePresence(value))
                 return;
-            }
 
-            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
         }
 
         public void Deserialize(ref Tuple<T1> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == NinoWire.Null)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadPresent(ref value))
                 return;
-            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -161,24 +154,17 @@ namespace Nino.Core
     {
         public void Serialize(Tuple<T1, T2> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
+            if (!writer.WritePresence(value))
                 return;
-            }
 
-            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
         }
 
         public void Deserialize(ref Tuple<T1, T2> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == NinoWire.Null)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadPresent(ref value))
                 return;
-            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -274,13 +260,9 @@ namespace Nino.Core
     {
         public void Serialize(Tuple<T1, T2, T3> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
+            if (!writer.WritePresence(value))
                 return;
-            }
 
-            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -288,11 +270,8 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == NinoWire.Null)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadPresent(ref value))
                 return;
-            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -399,13 +378,9 @@ namespace Nino.Core
     {
         public void Serialize(Tuple<T1, T2, T3, T4> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
+            if (!writer.WritePresence(value))
                 return;
-            }
 
-            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -414,11 +389,8 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3, T4> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == NinoWire.Null)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadPresent(ref value))
                 return;
-            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -536,13 +508,9 @@ namespace Nino.Core
     {
         public void Serialize(Tuple<T1, T2, T3, T4, T5> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
+            if (!writer.WritePresence(value))
                 return;
-            }
 
-            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -552,11 +520,8 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3, T4, T5> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == NinoWire.Null)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadPresent(ref value))
                 return;
-            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -685,13 +650,9 @@ namespace Nino.Core
     {
         public void Serialize(Tuple<T1, T2, T3, T4, T5, T6> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
+            if (!writer.WritePresence(value))
                 return;
-            }
 
-            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -702,11 +663,8 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3, T4, T5, T6> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == NinoWire.Null)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadPresent(ref value))
                 return;
-            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;
@@ -846,13 +804,9 @@ namespace Nino.Core
     {
         public void Serialize(Tuple<T1, T2, T3, T4, T5, T6, T7> value, ref Writer writer)
         {
-            if (value == null)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
+            if (!writer.WritePresence(value))
                 return;
-            }
 
-            writer.UnsafeWrite(NinoWire.NotNull);
             default(TF1).Serialize(value.Item1, ref writer);
             default(TF2).Serialize(value.Item2, ref writer);
             default(TF3).Serialize(value.Item3, ref writer);
@@ -864,11 +818,8 @@ namespace Nino.Core
 
         public void Deserialize(ref Tuple<T1, T2, T3, T4, T5, T6, T7> value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == NinoWire.Null)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadPresent(ref value))
                 return;
-            }
 
             // Tuples are immutable: the items are read into locals and the tuple is replaced.
             T1 item1 = default;

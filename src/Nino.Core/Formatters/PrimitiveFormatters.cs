@@ -167,18 +167,16 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Serialize(T? value, ref Writer writer)
         {
-            if (!value.HasValue)
-            {
-                writer.UnsafeWrite(NinoWire.Null);
-                return;
-            }
-
             if (RawFormatter.Is<T, TFormatter>())
             {
                 // Flag and value in one reservation.
-                ref byte dst = ref writer.Reserve(1 + Unsafe.SizeOf<T>());
-                dst = NinoWire.NotNull;
-                NinoLayout<T>.Write(ref Unsafe.Add(ref dst, 1), value.GetValueOrDefault());
+                writer.WriteNullableRaw(value);
+                return;
+            }
+
+            if (!value.HasValue)
+            {
+                writer.UnsafeWrite(NinoWire.Null);
                 return;
             }
 
@@ -189,11 +187,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T? value, ref Reader reader)
         {
-            if (reader.UnsafeRead<byte>() == NinoWire.Null)
-            {
-                NinoRecycler.Discard(ref value);
+            if (!reader.TryReadPresent(ref value))
                 return;
-            }
 
             if (RawFormatter.Is<T, TFormatter>())
             {
