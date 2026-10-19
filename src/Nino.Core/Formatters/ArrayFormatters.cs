@@ -102,14 +102,25 @@ namespace Nino.Core
                 return;
             }
 
-            if (!WritesOnLocal<T>())
+            if (WritesOnLocal<T>())
             {
-                foreach (var item in values)
-                    default(TFormatter).Serialize(item, ref writer);
+                if (!values.IsEmpty)
+                    WriteOnLocal<T, TFormatter>(values, ref writer);
                 return;
             }
 
-            // The writer as a local for the loop, as Read does.
+            foreach (var item in values)
+                default(TFormatter).Serialize(item, ref writer);
+        }
+
+        /// <summary>
+        /// The elements one by one through a local copy of the writer (as Read does), out of line: Write is inlined
+        /// into every collection formatter, and a second loop there slows down the code around it (as
+        /// HashSetFormatter's raw loop was).
+        /// </summary>
+        private static void WriteOnLocal<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
+            where TFormatter : struct, INinoFormatter<T>
+        {
             Writer local = default;
             writer.CopyTo(ref local);
             foreach (var item in values)

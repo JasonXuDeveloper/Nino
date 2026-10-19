@@ -20,27 +20,25 @@ namespace Nino.Core
 
             if (!NinoElements.WritesOnLocal<TElement>() || !NinoElements.WritesOnLocal<TPriority>())
             {
-                writer.WriteLength(value.Count);
-                foreach (var (element, priority) in value.UnorderedItems)
-                {
-                    default(TElementFormatter).Serialize(element, ref writer);
-                    default(TPriorityFormatter).Serialize(priority, ref writer);
-                }
-
+                WriteEach(value, ref writer);
                 return;
             }
 
             // The writer and reader as locals for the loops, their cursors in registers.
             Writer local = default;
             writer.CopyTo(ref local);
-            local.WriteLength(value.Count);
+            WriteEach(value, ref local);
+            local.CopyTo(ref writer);
+        }
+
+        private static void WriteEach(PriorityQueue<TElement, TPriority> value, ref Writer writer)
+        {
+            writer.WriteLength(value.Count);
             foreach (var (element, priority) in value.UnorderedItems)
             {
-                default(TElementFormatter).Serialize(element, ref local);
-                default(TPriorityFormatter).Serialize(priority, ref local);
+                default(TElementFormatter).Serialize(element, ref writer);
+                default(TPriorityFormatter).Serialize(priority, ref writer);
             }
-
-            local.CopyTo(ref writer);
         }
 
         public void Deserialize(ref PriorityQueue<TElement, TPriority> value, ref Reader reader)
