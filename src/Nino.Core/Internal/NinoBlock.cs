@@ -160,7 +160,7 @@ namespace Nino.Core
         {
             if (NinoBlock<T, TFormatter>.IsMemory)
             {
-                Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref first), ref source, (uint)(count * size));
+                NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first), ref source, (uint)(count * size));
                 return;
             }
 

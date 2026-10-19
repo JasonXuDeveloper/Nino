@@ -105,7 +105,7 @@ namespace Nino.Core
 
             // The length was checked against the remaining bytes above: one block copy, no second bounds check.
             uint bytes = (uint)length * (uint)Unsafe.SizeOf<T>();
-            Unsafe.CopyBlockUnaligned(ref Unsafe.As<T, byte>(ref first), ref reader.UnsafeAdvance((int)bytes), bytes);
+            NinoUnsafe.CopyToNew(ref Unsafe.As<T, byte>(ref first), ref reader.UnsafeAdvance((int)bytes), bytes);
         }
     }
 

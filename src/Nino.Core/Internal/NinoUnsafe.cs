@@ -165,17 +165,43 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Copies <paramref name="size"/> bytes. Up to 32 (most strings) inline, as two overlapping loads and stores of
-        /// the largest width that fits: a block copy of a size that is not a constant calls Memmove. From 64 bytes to
-        /// 8 KB with 64-byte vectors where they are accelerated, else from 256 bytes to 4 KB with 32-byte ones
-        /// (<see cref="CopyVectors{TVector}"/>), Memmove beyond.
+        /// Copies <paramref name="size"/> bytes. Up to 64 (most strings) inline, as overlapping loads and stores of the
+        /// largest width that fits (33 to 64 bytes: two 32-byte vectors where they are accelerated, else four 16-byte
+        /// moves), and 65 to 128 as four 32-byte vectors where they are accelerated: a block copy of a size that is not a
+        /// constant calls Memmove. Beyond, up to 8 KB with 64-byte vectors where they are accelerated, else from 256
+        /// bytes to 4 KB with 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an
+        /// AVX-512 Xeon (.NET 10, source and destination of different alignments), with AVX-512 on or off: 33 to 64
+        /// bytes in 4.0 to 4.5 ns instead of 4.7 to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A
+        /// loop of 16-byte vectors (Arm64, WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call
+        /// Memmove from 65 bytes.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy(ref byte destination, ref byte source, uint size)
         {
-            if (Is64Bit && size <= 32)
+            if (Is64Bit && size <= 64)
             {
-                if (size >= 16)
+                if (size > 32)
+                {
+#if NET8_0_OR_GREATER
+                    if (Vector256.IsHardwareAccelerated)
+                    {
+                        var head = Vector256.LoadUnsafe(ref source);
+                        var tail = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, (nint)size - 32));
+                        head.StoreUnsafe(ref destination);
+                        tail.StoreUnsafe(ref Unsafe.Add(ref destination, (nint)size - 32));
+                        return;
+                    }
+#endif
+                    var a = Unsafe.ReadUnaligned<Bytes16>(ref source);
+                    var b = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, 16));
+                    var c = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 32));
+                    var d = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 16));
+                    Unsafe.WriteUnaligned(ref destination, a);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, 16), b);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 32), c);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, (nint)size - 16), d);
+                }
+                else if (size >= 16)
                 {
                     var head = Unsafe.ReadUnaligned<Bytes16>(ref source);
                     var tail = Unsafe.ReadUnaligned<Bytes16>(ref Unsafe.Add(ref source, (nint)size - 16));
@@ -210,21 +236,56 @@ namespace Nino.Core
             }
 
 #if NET8_0_OR_GREATER
-            if (Vector512.IsHardwareAccelerated)
+            if (Vector256.IsHardwareAccelerated)
             {
-                if (size - 64 <= MaxVectorCopy - 64)
+                if (size <= 128)
                 {
-                    CopyVectors<Vector512<byte>>(ref destination, ref source, size);
+                    // 65 to 128 bytes (32-bit processes, which skip the small sizes above, go to Memmove).
+                    if (Is64Bit)
+                    {
+                        var a = Vector256.LoadUnsafe(ref source);
+                        var b = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, 32));
+                        var c = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, (nint)size - 64));
+                        var d = Vector256.LoadUnsafe(ref Unsafe.Add(ref source, (nint)size - 32));
+                        a.StoreUnsafe(ref destination);
+                        b.StoreUnsafe(ref Unsafe.Add(ref destination, 32));
+                        c.StoreUnsafe(ref Unsafe.Add(ref destination, (nint)size - 64));
+                        d.StoreUnsafe(ref Unsafe.Add(ref destination, (nint)size - 32));
+                        return;
+                    }
+                }
+                else if (Vector512.IsHardwareAccelerated ? size <= MaxVectorCopy : size - 256 <= MaxVector256Copy - 256)
+                {
+                    if (Vector512.IsHardwareAccelerated)
+                        CopyVectors<Vector512<byte>>(ref destination, ref source, size);
+                    else
+                        CopyVectors<Vector256<byte>>(ref destination, ref source, size);
                     return;
                 }
             }
-            else if (Vector256.IsHardwareAccelerated && size - 256 <= MaxVector256Copy - 256)
+#endif
+            Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
+        }
+
+        /// <summary>
+        /// <see cref="Copy"/> into memory that may have just been allocated (a read into a new array): Memmove from
+        /// <see cref="MinUninitializedArrayBytes"/>, where a new array is uninitialized and vector stores read each of
+        /// its lines from memory first (Memmove's rep movsb writes whole lines without reading them). Below, where a new
+        /// array was zeroed into the cache, as <see cref="Copy"/>. Measured on an AVX-512 Xeon (.NET 10): 1,000 ints
+        /// read into a new array in 470 to 710 ns with Memmove, 760 to 830 with vector stores; into an existing
+        /// array of 250, 14 ns instead of 23 with vector stores.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void CopyToNew(ref byte destination, ref byte source, uint size)
+        {
+#if NET5_0_OR_GREATER
+            if (size >= MinUninitializedArrayBytes)
             {
-                CopyVectors<Vector256<byte>>(ref destination, ref source, size);
+                Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
                 return;
             }
 #endif
-            Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
+            Copy(ref destination, ref source, size);
         }
 
 #if NET8_0_OR_GREATER
@@ -239,7 +300,7 @@ namespace Nino.Core
         /// The range copied with 32-byte vectors where 64-byte ones are not accelerated (AVX2 without AVX-512, most
         /// desktop CPUs). Measured on a Xeon with AVX-512 turned off (.NET 10, source and destination of different
         /// alignments) against Memmove: 256 bytes 3.9 ns instead of 6.3, 1,200 bytes 12.4 instead of 15.7, 4,000 bytes
-        /// 38.9 instead of 44.8; on par at 64 and 128 bytes, and slower at 8 KB.
+        /// 38.9 instead of 44.8; on par from 129 to 255 bytes, and slower at 8 KB.
         /// </summary>
         private const uint MaxVector256Copy = 4 * 1024;
 
