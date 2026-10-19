@@ -107,6 +107,12 @@ internal sealed class BodyEmitter
     /// </summary>
     private string BodySignature(string name, string parameters)
     {
+        bool write = name == "WriteBody";
+        // The instance method's parameters, and the static bodies' (a struct's by reference: see ValueArgument).
+        string forwarded = parameters;
+        string value = write ? ValueArgument(_m) : "ref value";
+        if (write && value != "value")
+            parameters = "ref " + parameters;
         if (_shallow)
         {
             _w.Line(_names.NoInline);
@@ -114,28 +120,19 @@ internal sealed class BodyEmitter
         }
 
         if (!OutOfLine)
-            return $"public void {name}({parameters})";
-        bool write = name == "WriteBody";
+            return $"public void {name}({forwarded})";
         string body = "__" + name;
+        string target = _m.InlineBody ? body + "Inline" : body;
+        // A one-call forwarder, which the JIT inlines without being told to.
+        _w.Line($"public void {name}({forwarded}) => {target}({value}, ref {(write ? "writer" : "reader")});");
+        _w.Line();
         if (_m.InlineBody)
         {
-            // A class: passed by value. A one-call forwarder, which the JIT inlines without being told to.
-            _w.Line($"public void {name}({parameters}) => {body}Inline({(write ? "value, ref writer" : "ref value, ref reader")});");
-            _w.Line();
             _w.Line(_names.Inline);
-            return $"private static void {body}Inline({parameters})";
+            return $"private static void {target}({parameters})";
         }
 
-        // A struct reaches the out-of-line body by reference: passed by value, every call copies it to the stack
-        // (an element of a list of structs of 48 bytes: one rep movsq per element). Not `in`: reading a property of a
-        // struct that is not readonly through an `in` parameter copies the struct first.
-        bool byRef = write && _m.Kind == FormatterKind.Struct;
-        string value = write && !byRef ? "value" : "ref value";
-        _w.Line($"public void {name}({parameters}) => {body}({value}, ref {(write ? "writer" : "reader")});");
-        _w.Line();
         _w.Line(_names.NoInline);
-        if (byRef)
-            parameters = "ref " + parameters;
         if (write ? !LocalWriter : !ReadTop)
             return $"private static void {body}({parameters})";
         // The members are written or read by the inlinable twin (__Top's, or one made for this), through the local.
@@ -145,6 +142,13 @@ internal sealed class BodyEmitter
         _w.Line(_names.Inline);
         return $"private static void {body}Inline({parameters})";
     }
+
+    /// <summary>
+    /// The value as the static write bodies take it: a struct by reference, since passed by value every call copies
+    /// it to the stack (an element of a list of structs of 48 bytes: one rep movsq per element). Not <c>in</c>:
+    /// reading a property of a struct that is not readonly through an <c>in</c> parameter copies the struct first.
+    /// </summary>
+    internal static string ValueArgument(TypeModel m) => m.Kind == FormatterKind.Struct ? "ref value" : "value";
 
     public void EmitWriteBody()
     {
