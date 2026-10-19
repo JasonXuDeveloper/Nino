@@ -36,10 +36,8 @@ namespace Nino.Core
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         public static void TryRegister<TFormatter>() where TFormatter : struct, INinoFormatter<T>
         {
-            if (Volatile.Read(ref _instance) != null)
-                return;
-            Interlocked.CompareExchange(ref _instance, new StructFormatter<T, TFormatter>(), null);
-            NinoFormatterCache.MarkRegistered(typeof(T), _instance);
+            if (Volatile.Read(ref _instance) == null)
+                Publish(new StructFormatter<T, TFormatter>());
         }
 
         /// <summary>
@@ -49,10 +47,8 @@ namespace Nino.Core
         [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
         public static void TryRegisterFixed<TFormatter>() where TFormatter : struct, INinoFixedSizeFormatter<T>
         {
-            if (Volatile.Read(ref _instance) != null)
-                return;
-            Interlocked.CompareExchange(ref _instance, new FixedStructFormatter<T, TFormatter>(), null);
-            NinoFormatterCache.MarkRegistered(typeof(T), _instance);
+            if (Volatile.Read(ref _instance) == null)
+                Publish(new FixedStructFormatter<T, TFormatter>());
         }
 
         /// <summary>
@@ -64,10 +60,8 @@ namespace Nino.Core
             where TFormatter : struct, INinoFormatter<T>
             where TTop : struct, INinoTopFormatter<T>
         {
-            if (Volatile.Read(ref _instance) != null)
-                return;
-            Interlocked.CompareExchange(ref _instance, new TopStructFormatter<T, TFormatter, TTop>(), null);
-            NinoFormatterCache.MarkRegistered(typeof(T), _instance);
+            if (Volatile.Read(ref _instance) == null)
+                Publish(new TopStructFormatter<T, TFormatter, TTop>());
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -85,9 +79,7 @@ namespace Nino.Core
                 var fixedFormatter = CreateWithoutDynamicCode();
                 if (fixedFormatter == null)
                     NinoThrow.NoGeneratedFormatter(typeof(T));
-                Interlocked.CompareExchange(ref _instance, fixedFormatter, null);
-                NinoFormatterCache.MarkRegistered(typeof(T), _instance);
-                return _instance;
+                return Publish(fixedFormatter);
             }
 #endif
             return Build();
@@ -130,9 +122,18 @@ namespace Nino.Core
 
             var created = (NinoFormatter<T>)Activator.CreateInstance(
                 typeof(StructFormatter<,>).MakeGenericType(typeof(T), formatterType));
-            Interlocked.CompareExchange(ref _instance, created, null);
-            NinoFormatterCache.MarkRegistered(typeof(T), _instance);
-            return _instance;
+            return Publish(created);
+        }
+
+        /// <summary>
+        /// Stores <paramref name="formatter"/> unless another one was stored first, records the one stored for the
+        /// resolver (<see cref="NinoFormatterCache.MarkRegistered"/>) and returns it.
+        /// </summary>
+        private static NinoFormatter<T> Publish(NinoFormatter<T> formatter)
+        {
+            var instance = Interlocked.CompareExchange(ref _instance, formatter, null) ?? formatter;
+            NinoFormatterCache.MarkRegistered(typeof(T), instance);
+            return instance;
         }
     }
 
