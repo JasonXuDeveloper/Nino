@@ -24,7 +24,8 @@ The runtime tables in [docs/v4-benchmarks.md](../docs/v4-benchmarks.md) come fro
 before and after v4); the release notes of each release carry its current numbers.
 
 Every release runs the same protocol in CI: [`report.yml`](../.github/workflows/report.yml) runs the benchmark
-classes in parallel on four runners, a class's Nino and MemoryPack cases always on one, and
+classes in parallel on five runners per architecture (BclTypesTest split into its serialize and deserialize cases),
+each case's Nino and MemoryPack runs always on one, every case in three processes, and
 [`merge_reports.py`](merge_reports.py) merges their reports into one table, naming each class's runner under it.
 The `SimpleTest` runner builds `v3/` and runs it directly before its v4 run with the same settings; the workflow adds a
 **📊 v3 3.3.13 vs v4 (same machine)** section to the release notes, in front of the Performance Report: the
