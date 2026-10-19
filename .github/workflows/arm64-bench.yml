@@ -47,7 +47,7 @@ jobs:
     env:
       NINO_BENCH_QUICK: ${{ inputs.quick && '1' || '0' }}
       # The settings of report.yml when not in quick mode.
-      BDN_ARGS: ${{ !inputs.quick && '--launchCount 1 --warmupCount 5 --iterationCount 15' || '' }}
+      BDN_ARGS: ${{ !inputs.quick && '--launchCount 3 --warmupCount 5 --iterationCount 15' || '' }}
       FILTER: ${{ inputs.filter || '*' }}
 
     steps:

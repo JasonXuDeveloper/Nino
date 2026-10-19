@@ -16,7 +16,7 @@ if [[ "${QUICK:-0}" == 1 ]]; then
   export NINO_BENCH_QUICK=1
   ARGS=()
 else
-  ARGS=(--launchCount 1 --warmupCount 5 --iterationCount 15)
+  ARGS=(--launchCount 3 --warmupCount 5 --iterationCount 15)
 fi
 
 mkdir -p "$OUT"

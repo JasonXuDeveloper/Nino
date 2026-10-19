@@ -235,9 +235,9 @@ generated files. Each line reports one of five runs.
 Runtime (`src/Nino.Benchmark`, BenchmarkDotNet):
 
 ```sh
-dotnet run -c Release --project src/Nino.Benchmark -- --filter '*' --launchCount 1 --warmupCount 5 --iterationCount 15
+dotnet run -c Release --project src/Nino.Benchmark -- --filter '*' --launchCount 3 --warmupCount 5 --iterationCount 15
 dotnet run -c Release --project src/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*' \
-    --launchCount 1 --warmupCount 5 --iterationCount 15                                  # some classes only
+    --launchCount 3 --warmupCount 5 --iterationCount 15                                  # some classes only
 ```
 
 The suite has nine classes, all against MemoryPack 1.21.4 (the tables above come from the first four):

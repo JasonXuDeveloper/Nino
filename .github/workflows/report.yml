@@ -85,8 +85,10 @@ jobs:
             echo "✅ A section is missing, will run"
           fi
 
-  # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), a class's
-  # Nino and MemoryPack cases always on one runner; the publish job merges the reports into one table
+  # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), each case's
+  # Nino and MemoryPack runs always on one runner (BclTypesTest, a third of the suite, is split into its serialize and
+  # deserialize cases); with three launches a case, each shard takes 35 to 55 minutes. The publish job merges the
+  # reports into one table
   # (benchmarks/merge_reports.py). v3 runs on the SimpleTest runner, directly before its v4 run, as benchmarks/run.sh does.
   # The same shards run on Arm64 runners too, for the Arm64 section of the release (AdvSimd and TBL paths that x64
   # never takes); an Arm64 failure leaves that section out and never blocks the x64 report.
@@ -96,25 +98,28 @@ jobs:
     if: needs.target.outputs.skip != 'true'
     # Named images, not ubuntu-latest: the OS under the benchmark changes only when these lines do.
     runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-26.04' }}
-    timeout-minutes: 120
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { arch: x64, shard: a, classes: SimpleTest PooledTest, v3: true }
-          - { arch: x64, shard: b, classes: CommonTypesTest FixedSizeTest }
-          - { arch: x64, shard: c, classes: PolymorphicTest VersionTolerantTest BclTypesTest }
-          - { arch: x64, shard: d, classes: CollectionsTest ReferenceTest PooledGraphTest }
-          - { arch: arm64, shard: a, classes: SimpleTest PooledTest }
-          - { arch: arm64, shard: b, classes: CommonTypesTest FixedSizeTest }
-          - { arch: arm64, shard: c, classes: PolymorphicTest VersionTolerantTest BclTypesTest }
-          - { arch: arm64, shard: d, classes: CollectionsTest ReferenceTest PooledGraphTest }
+          - { arch: x64, shard: a, filters: "'*.SimpleTest.*' '*.PooledTest.*'", v3: true }
+          - { arch: x64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
+          - { arch: x64, shard: c, filters: "'*.PolymorphicTest.*' '*.BclTypesTest.NinoSerialize*' '*.BclTypesTest.MemoryPackSerialize*'" }
+          - { arch: x64, shard: d, filters: "'*.VersionTolerantTest.*' '*.ReferenceTest.*' '*.BclTypesTest.*Deserialize*'" }
+          - { arch: x64, shard: e, filters: "'*.CollectionsTest.*' '*.PooledGraphTest.*'" }
+          - { arch: arm64, shard: a, filters: "'*.SimpleTest.*' '*.PooledTest.*'" }
+          - { arch: arm64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
+          - { arch: arm64, shard: c, filters: "'*.PolymorphicTest.*' '*.BclTypesTest.NinoSerialize*' '*.BclTypesTest.MemoryPackSerialize*'" }
+          - { arch: arm64, shard: d, filters: "'*.VersionTolerantTest.*' '*.ReferenceTest.*' '*.BclTypesTest.*Deserialize*'" }
+          - { arch: arm64, shard: e, filters: "'*.CollectionsTest.*' '*.PooledGraphTest.*'" }
     env:
-      # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few.
-      BDN_ARGS: --launchCount 1 --warmupCount 5 --iterationCount 15
+      # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few, and one process a
+      # case leaves its layout to chance (a 12 ns case moved by 13% between processes); the mean of three does not.
+      BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
       V3_OUT: ${{ github.workspace }}/v3-results
       OUT: ${{ github.workspace }}/report
-      CLASSES: ${{ matrix.classes }}
+      FILTERS: ${{ matrix.filters }}
 
     steps:
       - name: Checkout repository
@@ -161,11 +166,11 @@ jobs:
       - name: Run benchmarks
         working-directory: ./src/Nino.Benchmark
         run: |
-          FILTERS=()
-          for CLASS in $CLASSES; do FILTERS+=("*.$CLASS.*"); done
+          # The shard's filters, quoted globs (the matrix above).
+          eval "PATTERNS=($FILTERS)"
           # The settings of the published numbers (BDN_ARGS above, docs/v4-benchmarks.md).
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
-          dotnet run -c Release --no-build -- --filter "${FILTERS[@]}" $BDN_ARGS
+          dotnet run -c Release --no-build -- --filter "${PATTERNS[@]}" $BDN_ARGS
           REPORT=$(find BenchmarkDotNet.Artifacts/results -name "*-joined-*-report-github.md" | head -n1)
           if [[ -z "$REPORT" ]]; then
             echo "❌ No joined report in BenchmarkDotNet.Artifacts/results"
@@ -202,7 +207,7 @@ jobs:
     timeout-minutes: 30
     env:
       tag_name: ${{ needs.target.outputs.tag }}
-      BDN_ARGS: --launchCount 1 --warmupCount 5 --iterationCount 15
+      BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
       # The second section of the release body: Nino v3 3.3.13 against this release, on the SimpleTest runner.
       # The docs site (nino.docs scripts/sync-benchmarks.ts) looks for this heading.
       V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
@@ -213,6 +218,8 @@ jobs:
       ARM64_ASSET: arm64-benchmark.md
       # Every benchmark class of src/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
+      # The shards of the bench job's matrix, per architecture.
+      SHARDS: 5
       BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest BclTypesTest
 
     steps:
@@ -236,8 +243,8 @@ jobs:
           ls -la "$DIR"
           shopt -s nullglob
           X64=("$DIR"/v4-*.md) ARM64=("$DIR"/arm64-*.md)
-          if (( ${#X64[@]} != 4 )); then
-            echo "❌ ${#X64[@]} of the 4 x64 reports: not publishing a partial Performance Report"
+          if (( ${#X64[@]} != SHARDS )); then
+            echo "❌ ${#X64[@]} of the $SHARDS x64 reports: not publishing a partial Performance Report"
             exit 1
           fi
           python3 benchmarks/merge_reports.py "${X64[@]}" > "$RUNNER_TEMP/v4-report.md"
@@ -249,12 +256,12 @@ jobs:
             fi
           done
           echo "BENCHMARK_FILE=$RUNNER_TEMP/v4-report.md" >> "$GITHUB_ENV"
-          # Arm64: all four shards or no section (a partial table would read as the whole suite).
-          if (( ${#ARM64[@]} == 4 )); then
+          # Arm64: every shard or no section (a partial table would read as the whole suite).
+          if (( ${#ARM64[@]} == SHARDS )); then
             python3 benchmarks/merge_reports.py "${ARM64[@]}" > "$RUNNER_TEMP/arm64-report.md"
             echo "ARM64_REPORT=$RUNNER_TEMP/arm64-report.md" >> "$GITHUB_ENV"
           else
-            echo "::warning::${#ARM64[@]} of the 4 Arm64 reports: the Arm64 section is left out"
+            echo "::warning::${#ARM64[@]} of the $SHARDS Arm64 reports: the Arm64 section is left out"
           fi
           if [[ -f "$DIR/v3.md" ]]; then
             echo "V3_REPORT=$DIR/v3.md" >> "$GITHUB_ENV"

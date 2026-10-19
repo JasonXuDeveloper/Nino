@@ -5,7 +5,7 @@
 release, so v4 can be compared with v3 on the same machine. It is not part of `src/Nino.sln`.
 
 ```sh
-benchmarks/run.sh                          # v3, then the full v4 suite; about 35 minutes
+benchmarks/run.sh                          # v3, then the full v4 suite; about three and a half hours
 benchmarks/run.sh /path/to/out             # write the results somewhere else
 QUICK=1 benchmarks/run.sh                  # development run, about 15 to 20 minutes (see below)
 FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest's Nino and MemoryPack cases)
@@ -72,7 +72,7 @@ Method names are unique across classes (`<Serializer><Serialize|Deserialize><Cas
 
 ```sh
 cd src/Nino.Benchmark
-dotnet run -c Release -- --filter '*' --launchCount 1 --warmupCount 5 --iterationCount 15   # the published settings
+dotnet run -c Release -- --filter '*' --launchCount 3 --warmupCount 5 --iterationCount 15   # the published settings
 dotnet run -c Release -- --filter '*FixedSizeTest*' --launchCount 1 --warmupCount 1 --iterationCount 3   # a quick look
 ```
 
