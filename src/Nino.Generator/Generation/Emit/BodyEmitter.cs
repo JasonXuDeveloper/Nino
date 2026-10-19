@@ -150,6 +150,17 @@ internal sealed class BodyEmitter
     /// </summary>
     internal static string ValueArgument(TypeModel m) => m.Kind == FormatterKind.Struct ? "ref value" : "value";
 
+    /// <summary>
+    /// The instance a class is read into when the slot is null: its <c>[NinoFactory]</c> or constructor, after the
+    /// pool of a pooled type. Also the formatter's <c>Create</c>.
+    /// </summary>
+    internal static string Create(TypeModel m)
+    {
+        var c = m.Construction;
+        string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
+        return m.Pooled ? m.TypeName + ".RentFromNinoPool() ?? " + create : create;
+    }
+
     public void EmitWriteBody()
     {
         if (_m.RawBody && !_shallow)
@@ -590,12 +601,9 @@ internal sealed class BodyEmitter
 
     private void EmitInPlaceRead(string r)
     {
-        var c = _m.Construction;
         if (_m.Kind != FormatterKind.Struct)
         {
-            string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
-            if (_m.Pooled)
-                create = T + ".RentFromNinoPool() ?? " + create;
+            string create = Create(_m);
             // The instance in a local (a collection formatter may replace value, so not for collections).
             if (_m.CollectionFormatter.Length == 0)
             {
