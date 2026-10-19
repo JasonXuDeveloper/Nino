@@ -104,11 +104,10 @@ public sealed class NinoGenerator : IIncrementalGenerator
             .Select(static (x, _) => new EquatableArray<RegistryEntry>(
                 x.Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)));
 
-        // Built-in generic types used directly with the top-level APIs (e.g. NinoSerializer.Serialize(list)):
-        // register closed formatters so AOT platforms have them and generator-only formatters are found.
-        var usages = context.SyntaxProvider.CreateSyntaxProvider(
-                // Receiver checked syntactically too: binding every Serialize call of other libraries
-                // (JsonSerializer...) on each edit is not free.
+        // The top-level NinoSerializer/NinoDeserializer calls, bound once for what they register and (Roslyn 4.8+)
+        // how they are intercepted. Receiver checked syntactically too: binding every Serialize call of other
+        // libraries (JsonSerializer...) on each edit is not free.
+        var calls = context.SyntaxProvider.CreateSyntaxProvider(
                 static (node, _) => node is InvocationExpressionSyntax
                 {
                     Expression: MemberAccessExpressionSyntax
@@ -116,39 +115,28 @@ public sealed class NinoGenerator : IIncrementalGenerator
                         Name.Identifier.ValueText: "Serialize" or "Deserialize"
                     } access
                 } && IsNinoReceiver(access.Expression),
-                static (ctx, ct) => TransformUsage(ctx, ct))
-            .WithTrackingName("Usage")
-            .Where(static u => u != null)
-            .Select(static (u, _) => u!)
-            .Collect();
+                static (ctx, ct) => TransformCall(ctx, ct))
+            .WithTrackingName("TopLevelCall")
+            .Where(static c => c != null)
+            .Select(static (c, _) => c!);
+
+        // Built-in generic types used directly with the top-level APIs (e.g. NinoSerializer.Serialize(list)):
+        // register closed formatters so AOT platforms have them and generator-only formatters are found.
+        var usages = calls.Where(static c => c.Usage != null).Select(static (c, _) => c.Usage!).Collect();
 
         // Closed built-in formatters used by members: registered once per assembly here rather than by every
-        // type that uses them (the same List<int> formatter is typically used by many types).
-        var memberFormatters = CollectAll(models, static m => m.UsedFormatters);
-        // Creators of the collections those formatters create (NinoActivator<T>), registered the same way.
-        var memberFactories = CollectAll(models, static m => m.UsedFactories);
-        // Closed generic [NinoType]s named anywhere above, registered by type id (they have no registration of
-        // their own: a polymorphic read must be able to map their id back to the type).
-        var memberGenerics = CollectAll(models, static m => m.UsedGenericTypes);
-
-        var registrations = usages.Combine(memberFormatters)
-            .Select(static (x, _) => new EquatableArray<FormatterRegistration>(
-                x.Left.Where(static u => u.Formatter != null).Select(static u => u.Formatter!)
-                    .Concat(x.Right.SelectMany(static a => a))
-                    .Distinct()
-                    .OrderBy(u => u.TypeName, StringComparer.Ordinal)
-                    .ThenBy(u => u.Formatter, StringComparer.Ordinal)));
-        var factories = usages.Combine(memberFactories)
-            .Select(static (x, _) => new EquatableArray<FactoryRegistration>(
-                x.Left.SelectMany(static u => u.Factories).Concat(x.Right.SelectMany(static a => a))
-                    .Distinct()
-                    .OrderBy(f => f.TypeName, StringComparer.Ordinal)));
-
-        var generics = usages.Combine(memberGenerics)
-            .Select(static (x, _) => new EquatableArray<ClosedTypeRegistration>(
-                x.Left.SelectMany(static u => u.GenericTypes).Concat(x.Right.SelectMany(static a => a))
-                    .Distinct()
-                    .OrderBy(g => g.TypeName, StringComparer.Ordinal)));
+        // type that uses them (the same List<int> formatter is typically used by many types); creators of the
+        // collections those formatters create (NinoActivator<T>), registered the same way; and closed generic
+        // [NinoType]s named anywhere above, registered by type id (they have no registration of their own: a
+        // polymorphic read must be able to map their id back to the type).
+        var registrations = Merge(usages, CollectAll(models, static m => m.UsedFormatters),
+            static u => u.Formatter is { } f ? new[] { f } : Array.Empty<FormatterRegistration>(),
+            static all => all.OrderBy(u => u.TypeName, StringComparer.Ordinal)
+                .ThenBy(u => u.Formatter, StringComparer.Ordinal));
+        var factories = Merge(usages, CollectAll(models, static m => m.UsedFactories), static u => u.Factories,
+            static all => all.OrderBy(f => f.TypeName, StringComparer.Ordinal));
+        var generics = Merge(usages, CollectAll(models, static m => m.UsedGenericTypes), static u => u.GenericTypes,
+            static all => all.OrderBy(g => g.TypeName, StringComparer.Ordinal));
 
         // Structs whose layout the runtime measures: their field metadata is kept for NativeAOT (LayoutTypes), where
         // the compilation can name [DynamicDependency].
@@ -172,32 +160,17 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
 #if ROSLYN4_8
         // Top-level calls with a known type argument call the resolved formatter directly (where enabled).
-        var intercepted = context.SyntaxProvider.CreateSyntaxProvider(
-                static (node, _) => node is InvocationExpressionSyntax
-                {
-                    Expression: MemberAccessExpressionSyntax
-                    {
-                        Name.Identifier.ValueText: "Serialize" or "Deserialize"
-                    } access
-                } && IsNinoReceiver(access.Expression),
-                static (ctx, ct) => Interceptors.Transform(ctx, ct))
-            .WithTrackingName("Intercepted")
-            .Where(static c => c != null)
-            .Select(static (c, _) => c!)
+        var intercepted = calls.Where(static c => c.Intercepted != null).Select(static (c, _) => c.Intercepted!)
             .Collect()
             .Select(static (x, _) => new EquatableArray<InterceptedCall>(x.Distinct()
                 .OrderBy(c => c.Signature, StringComparer.Ordinal).ThenBy(c => c.Call, StringComparer.Ordinal)
                 .ThenBy(c => c.Location, StringComparer.Ordinal)));
         var fileLocal = context.ParseOptionsProvider.Select(static (o, _) =>
             o is CSharpParseOptions { LanguageVersion: >= LanguageVersion.CSharp11 });
-        // Formatters with a __Top twin for these calls (see TypeModel.HasTop).
-        var top = CollectAll(models, static m => m.HasTop ? m.FormatterName : "")
-            .Select(static (x, _) => new EquatableArray<string>(x.Where(static n => n.Length != 0).Distinct()
-                .OrderBy(n => n, StringComparer.Ordinal)));
-        // Formatters with a __Shallow twin (see TypeModel.Shallow).
-        var shallow = CollectAll(models, static m => m.Shallow ? m.FormatterName : "")
-            .Select(static (x, _) => new EquatableArray<string>(x.Where(static n => n.Length != 0).Distinct()
-                .OrderBy(n => n, StringComparer.Ordinal)));
+        // Formatters with a __Top twin for these calls (see TypeModel.HasTop), and with a __Shallow twin
+        // (see TypeModel.Shallow).
+        var top = NamesWhere(models, static m => m.HasTop);
+        var shallow = NamesWhere(models, static m => m.Shallow);
         context.RegisterImplementationSourceOutput(
             intercepted.Combine(fileLocal).Combine(enabled).Combine(top).Combine(shallow),
             static (spc, x) =>
@@ -247,6 +220,24 @@ public sealed class NinoGenerator : IIncrementalGenerator
         return all;
     }
 
+    /// <summary>The names of the formatters of the models <paramref name="where"/> holds for, sorted.</summary>
+    private static IncrementalValueProvider<EquatableArray<string>> NamesWhere(
+        IncrementalValuesProvider<TypeModel>[] streams, Func<TypeModel, bool> where) =>
+        CollectAll(streams, m => where(m) ? m.FormatterName : "")
+            .Select(static (x, _) => new EquatableArray<string>(x.Where(static n => n.Length != 0).Distinct()
+                .OrderBy(n => n, StringComparer.Ordinal)));
+
+    /// <summary>
+    /// What the top-level calls (<paramref name="fromUsage"/>) and the models register, once each, in the order of
+    /// <paramref name="order"/>.
+    /// </summary>
+    private static IncrementalValueProvider<EquatableArray<T>> Merge<T>(
+        IncrementalValueProvider<ImmutableArray<UsageRegistration>> usages,
+        IncrementalValueProvider<ImmutableArray<EquatableArray<T>>> models,
+        Func<UsageRegistration, IEnumerable<T>> fromUsage, Func<IEnumerable<T>, IEnumerable<T>> order) =>
+        usages.Combine(models).Select((x, _) => new EquatableArray<T>(
+            order(x.Left.SelectMany(fromUsage).Concat(x.Right.SelectMany(static a => a)).Distinct())));
+
     private static bool IsNinoReceiver(ExpressionSyntax receiver)
     {
         var name = receiver switch
@@ -291,19 +282,31 @@ public sealed class NinoGenerator : IIncrementalGenerator
             () => ModelBuilder.Build(symbol, TypeFacts.For(compilation, options)));
     }
 
-    private static UsageRegistration? TransformUsage(GeneratorSyntaxContext ctx, CancellationToken ct)
+    private static TopLevelCall? TransformCall(GeneratorSyntaxContext ctx, CancellationToken ct)
     {
         if (ctx.SemanticModel.GetSymbolInfo(ctx.Node, ct).Symbol is not IMethodSymbol { IsGenericMethod: true } method)
             return null;
-        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
+        var options = ctx.SemanticModel.SyntaxTree.Options;
+        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, options);
         var owner = method.ContainingType;
         if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
             !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
             return null;
+        var usage = TransformUsage(method, facts);
+#if ROSLYN4_8
+        var intercepted = Interceptors.Enabled(options) ? Interceptors.Transform(ctx, method, facts, ct) : null;
+#else
+        InterceptedCall? intercepted = null;
+#endif
+        return usage == null && intercepted == null ? null : new TopLevelCall(usage, intercepted);
+    }
+
+    private static UsageRegistration? TransformUsage(IMethodSymbol method, TypeFacts facts)
+    {
         var type = method.TypeArguments[0];
         if (TypeNames.ContainsTypeParameter(type))
             return null;
-        var generics = new List<ClosedTypeRegistration>();
+        var generics = new List<TypeRegistration>();
         ClosedGenerics.Collect(type, facts, generics);
         var layouts = new List<string>();
         LayoutTypes.Collect(type, facts, layouts);
@@ -317,13 +320,12 @@ public sealed class NinoGenerator : IIncrementalGenerator
                 ? new FormatterRegistration(TypeNames.Global(type), formatter!.Value.Code, facts.TypeId(type))
                 : null,
             registered ? formatter!.Value.Factories : EquatableArray<FactoryRegistration>.Empty,
-            new EquatableArray<ClosedTypeRegistration>(generics.Distinct()),
+            new EquatableArray<TypeRegistration>(generics.Distinct()),
             LayoutTypes.ToArray(layouts));
     }
 
     private static RegistryEntry ToEntry(TypeModel model) =>
-        new(model.FormatterName, model.TypeParameters.Length, model.TypeId, model.NameId,
-            Nino.Generator.Generation.Emit.FormatterEmitter.RegisterStatements(model));
+        new(model.FormatterName, model.TypeParameters.Length, RegistryEmitter.Registration(model));
 
     private static void Emit(SourceProductionContext spc, TypeModel model)
     {

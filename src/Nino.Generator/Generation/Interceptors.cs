@@ -13,17 +13,6 @@ using Nino.Generator.Common;
 namespace Nino.Generator.Generation;
 
 /// <summary>
-/// One intercepted top-level call. <see cref="Signature"/> is the interceptor's parameter list and return type,
-/// <see cref="Call"/> the <c>NinoDirect</c> call it makes, <see cref="Location"/> the arguments of its
-/// <c>[InterceptsLocation]</c>. Calls with the same signature and call share one interceptor. <see cref="Inlinable"/>: the call creates its own
-/// reader or writer, so no class body is open around <see cref="Formatter"/>: the call then uses the <c>__Top</c>
-/// twin (<see cref="TypeModel.HasTop"/>) of the formatter, or of the element formatters of a built-in collection
-/// (<c>List&lt;Small&gt;</c>, <c>Dictionary&lt;int, Small&gt;</c>), whose elements are read and written there too.
-/// </summary>
-internal sealed record InterceptedCall(string Signature, string Call, string Location, string Formatter = "",
-    bool Inlinable = false);
-
-/// <summary>
 /// Interceptors for the generic <c>NinoSerializer</c>/<c>NinoDeserializer</c> calls whose type argument is known
 /// at the call site: they call the resolved formatter directly (<c>Nino.Core.NinoDirect</c>) instead of through
 /// the formatter cache, a virtual call. Emitted only by the Roslyn 4.8 and 4.12 builds of the generator, and only
@@ -46,22 +35,17 @@ internal static class Interceptors
         return false;
     }
 
-    public static InterceptedCall? Transform(GeneratorSyntaxContext ctx, CancellationToken ct)
+    /// <summary>
+    /// The interceptor of a top-level call of <paramref name="method"/> (of <c>NinoSerializer</c> or
+    /// <c>NinoDeserializer</c>), or null; <paramref name="ctx"/> must enable interceptors (<see cref="Enabled"/>).
+    /// </summary>
+    public static InterceptedCall? Transform(GeneratorSyntaxContext ctx, IMethodSymbol method, TypeFacts facts,
+        CancellationToken ct)
     {
-        if (!Enabled(ctx.SemanticModel.SyntaxTree.Options))
+        if (method.TypeArguments.Length != 1)
             return null;
         var invocation = (InvocationExpressionSyntax)ctx.Node;
-        if (ctx.SemanticModel.GetSymbolInfo(invocation, ct).Symbol is not IMethodSymbol
-            {
-                IsGenericMethod: true, TypeArguments.Length: 1
-            } method)
-            return null;
-        var facts = TypeFacts.For(ctx.SemanticModel.Compilation, ctx.SemanticModel.SyntaxTree.Options);
         var owner = method.ContainingType;
-        if (!SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Serializer) &&
-            !SymbolEqualityComparer.Default.Equals(owner, facts.Symbols.Deserializer))
-            return null;
-
         var type = method.TypeArguments[0];
         if (!facts.Visibility.CanName(type))
             return null;
