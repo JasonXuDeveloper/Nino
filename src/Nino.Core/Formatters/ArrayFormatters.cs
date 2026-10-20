@@ -8,16 +8,18 @@ namespace Nino.Core
     internal static class NinoElements
     {
         /// <summary>
-        /// Whether elements read into a new array are copied into it as one block (NinoUnsafe.CopyToNew), which overwrites
-        /// it all: only then is it allocated uninitialized. An array filled by vector or per-value stores is allocated
-        /// zeroed: the clearing brings its lines into the cache, where such stores into fresh lines first read each one
+        /// Whether a new array that elements are read into is allocated uninitialized (from 6 KB, NinoUnsafe.NewArray):
+        /// when they are copied into it as one block (NinoUnsafe.CopyToNew), which overwrites it all, and on Arm64 and
+        /// AMD CPUs when the read overwrites every element by vector or per-value stores. On Intel's those are zeroed:
+        /// the clearing brings their lines into the cache, where such stores into fresh lines first read each one
         /// (workstation GC, AVX-512 Xeon: 1,000 (int, long) into a new list in 1.5 to 1.7 µs zeroed, 2.7 to 2.9
-        /// uninitialized; 1,000 DateTimeOffsets in 3.7 to 3.8 µs against 5.0 to 5.6; server GC on par or faster zeroed). A
-        /// JIT-time constant.
+        /// uninitialized; 1,000 DateTimeOffsets in 3.7 to 3.8 µs against 5.0 to 5.6; server GC on par or faster zeroed).
+        /// Elsewhere the clearing is the cost: 1,000 (int, long) read into a new array in 580 to 655 ns uninitialized,
+        /// 880 to 990 zeroed (EPYC 7763); 595 to 625 against 800 to 830 (Neoverse N2). A JIT-time constant.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool CopiedWhole<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && Traits<T, TFormatter>.CopiedWhole;
+        public static bool NewUninitialized<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && Traits<T, TFormatter>.NewUninitialized;
 
         /// <summary>
         /// Whether a loop that writes elements one at a time goes through a local copy of the writer, whose cursor then
@@ -43,12 +45,25 @@ namespace Nino.Core
         // out, and kept its reader in memory).
         private static class Traits<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
         {
-            public static readonly bool CopiedWhole = RawFormatter.Is<T, TFormatter>() ||
-                NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory;
-
             public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
                 typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlock.Size<T, TFormatter>() > 0;
+
+            // After ReadOverwrites (static fields initialize in order).
+            public static readonly bool NewUninitialized = RawFormatter.Is<T, TFormatter>() ||
+                NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory ||
+                ReadOverwrites && StoresSkipLineReads;
         }
+
+        // Whether stores into lines not in the cache need not read them first (see NewUninitialized): Arm64 cores
+        // write a run of whole lines without reading them, and AMD's (Zen 3) measured the same.
+        private static readonly bool StoresSkipLineReads =
+#if NET5_0_OR_GREATER
+            System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported ||
+            System.Runtime.Intrinsics.X86.X86Base.IsSupported &&
+            System.Runtime.Intrinsics.X86.X86Base.CpuId(0, 0).Ebx == 0x68747541; // "Auth" of "AuthenticAMD"
+#else
+            false;
+#endif
 
         /// <summary>
         /// Writes <paramref name="count"/> elements starting at <paramref name="first"/> (a multi-dimensional array's),
@@ -337,7 +352,7 @@ namespace Nino.Core
                 return;
 
             NinoElements.Read<T, TFormatter>(
-                NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>(),
+                NinoElements.EnsureLength(ref value, length, NinoElements.NewUninitialized<T, TFormatter>(),
                     NinoElements.ReadOverwrites<T, TFormatter>()), ref reader);
         }
     }
@@ -478,7 +493,7 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
 
-            // Uninitialized only for a block copy (NinoElements.CopiedWhole).
+            // Uninitialized only for a block copy (NinoNullables.Raw).
             NinoNullables<T>.Read(NinoElements.EnsureLength(ref value, length, NinoNullables<T>.Raw, overwritten: true),
                 ref reader);
         }

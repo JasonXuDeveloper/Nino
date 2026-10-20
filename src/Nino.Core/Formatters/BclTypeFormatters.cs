@@ -294,7 +294,7 @@ namespace Nino.Core
 
             // A new array is left uninitialized only when the read copies it in whole.
             if (value.Length != length)
-                value = NinoUnsafe.NewArray<T>(length, NinoElements.CopiedWhole<T, TFormatter>());
+                value = NinoUnsafe.NewArray<T>(length, NinoElements.NewUninitialized<T, TFormatter>());
             NinoElements.Read<T, TFormatter>(value.Span, ref reader);
         }
     }
@@ -385,7 +385,7 @@ namespace Nino.Core
             TKey key = default;
             default(TKeyFormatter).Deserialize(ref key, ref reader);
             var elements = NinoUnsafe.NewArray<TElement>(count,
-                NinoElements.CopiedWhole<TElement, TElementFormatter>());
+                NinoElements.NewUninitialized<TElement, TElementFormatter>());
             NinoElements.Read<TElement, TElementFormatter>(elements, ref reader);
             return new NinoGrouping<TKey, TElement>(key, elements);
         }
