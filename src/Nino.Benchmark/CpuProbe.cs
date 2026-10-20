@@ -100,17 +100,27 @@ public static class ProbeTimer
 {
     public static int Run(string[] args)
     {
+        if (args.Contains("--check"))
+            TupleProbe.Verify();
         var probe = new SerializeProbe();
+        var tuples = new TupleProbe();
         var cases = new (string Name, Func<int> Run)[]
         {
             ("NinoTuples", probe.NinoTuples), ("MemoryPackTuples", probe.MemoryPackTuples),
             ("NinoPairs", probe.NinoPairs), ("MemoryPackPairs", probe.MemoryPackPairs),
             ("NinoItems", probe.NinoItems), ("MemoryPackItems", probe.MemoryPackItems),
+            ("Tuple.NinoWrite", tuples.NinoWrite), ("Tuple.MemoryPackWrite", tuples.MemoryPackWrite),
+            ("Tuple.NinoRead", tuples.NinoRead), ("Tuple.MemoryPackRead", tuples.MemoryPackRead),
+            ("Tuple.Memcpy", tuples.Memcpy), ("Tuple.WriteScalar", tuples.WriteScalar),
+            ("Tuple.WritePermute", tuples.WritePermute), ("Tuple.WritePermuteFull", tuples.WritePermuteFull),
+            ("Tuple.WriteLanes", tuples.WriteLanes), ("Tuple.WriteZip", tuples.WriteZip),
+            ("Tuple.ReadScalar", tuples.ReadScalar), ("Tuple.ReadPermute", tuples.ReadPermute),
+            ("Tuple.ReadZip", tuples.ReadZip),
         };
         var names = args.Where(a => !a.StartsWith("--")).ToArray();
         foreach (var (name, run) in cases)
         {
-            if (names.Length > 0 && !names.Any(n => name.Contains(n)))
+            if (names.Length > 0 && !names.Any(n => name.Contains(n)) || run() < 0)
                 continue;
             // Long enough for tiered compilation to reach Tier1 (call counting starts after 100 ms of quiet).
             var warm = System.Diagnostics.Stopwatch.StartNew();
@@ -125,7 +135,7 @@ public static class ProbeTimer
                     run();
                 best = Math.Min(best, watch.Elapsed.TotalNanoseconds / n);
             }
-            Console.WriteLine($"{name,-18} {best,7:F1} ns");
+            Console.WriteLine($"{name,-24} {best,7:F1} ns");
         }
         return 0;
     }

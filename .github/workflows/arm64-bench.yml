@@ -30,6 +30,11 @@ on:
         required: false
         default: '*'
         type: string
+      bisect:
+        description: 'Measure every commit since the previous release tag that changes Nino.Core or the generator (experiment)'
+        required: false
+        default: false
+        type: boolean
       quick:
         description: 'Quick mode (NINO_BENCH_QUICK): shorter iterations, stopping at 2% error'
         required: false
@@ -68,6 +73,25 @@ jobs:
           echo "Comparing with $BASE"
           git -C head worktree add --detach ../base "refs/tags/$BASE"
 
+      # The commits of this ref's own first-parent history since that tag that change the library: never a ref named
+      # by whoever dispatched.
+      - name: Check out the commits to bisect
+        if: inputs.bisect
+        run: |
+          set -euo pipefail
+          BASE=$(git -C head describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-preview.*' HEAD^)
+          COMMITS="$(git -C head rev-parse --short "refs/tags/$BASE") $(git -C head log --first-parent --reverse --format=%h "$BASE..HEAD" -- src/Nino.Core src/Nino.Generator | tr '\n' ' ')"
+          echo "Bisecting from $BASE: $COMMITS"
+          N=0
+          mkdir -p bisect
+          for C in $COMMITS; do
+            N=$((N + 1))
+            D=$(printf 'bisect/%03d-%s' $N $C)
+            git -C head worktree add --detach "../$D" "$C"
+            rm -rf "$D/src/Nino.Benchmark"
+            cp -r head/src/Nino.Benchmark "$D/src/Nino.Benchmark"
+          done
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
@@ -80,6 +104,11 @@ jobs:
       - name: Build
         run: |
           set -euo pipefail
+          if [[ -d bisect ]]; then
+            for D in bisect/*/; do
+              dotnet build -c Release "$D/src/Nino.Benchmark" -v q -nologo || echo "::warning::$D did not build"
+            done
+          fi
           if [[ -d base ]]; then
             rm -rf base/src/Nino.Benchmark
             cp -r head/src/Nino.Benchmark base/src/Nino.Benchmark
@@ -98,8 +127,11 @@ jobs:
           echo "nice limit: $(ulimit -e)"
           set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
           read -ra FILTERS <<< "$FILTER"
-          for SIDE in base head; do
+          SIDES="base head"
+          if [[ -d bisect ]]; then SIDES="$(ls -d bisect/*) head"; fi
+          for SIDE in $SIDES; do
             [[ -d $SIDE ]] || continue
+            [[ -f $SIDE/src/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue
             echo "== $SIDE $(git -C $SIDE rev-parse --short HEAD)"
             # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
             (cd $SIDE/src/Nino.Benchmark && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "${FILTERS[@]}" $BDN_ARGS \
@@ -112,6 +144,13 @@ jobs:
         run: |
           set -euo pipefail
           HEAD_REPORT=$(find results/head/results -name '*-report-github.md' | sort | head -n1)
+          if [[ -d results/bisect ]]; then
+            FIRST=$(find results/bisect -name '*-report-github.md' | sort | head -n1)
+            for R in results/bisect/*/; do
+              echo "### $(basename "$R") against the release"
+              python3 head/benchmarks/ab.py "$FIRST" "$(find "$R" -name '*-report-github.md' | sort | head -n1)"
+            done >> "$GITHUB_STEP_SUMMARY"
+          fi
           {
             echo "## Benchmark on $RUNNER: $GITHUB_REF_NAME ($(git -C head rev-parse --short HEAD))"
             echo ""
@@ -136,5 +175,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}
-          path: results/*/results
+          path: results
           retention-days: 30
