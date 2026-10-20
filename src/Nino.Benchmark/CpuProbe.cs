@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Environments;
@@ -13,7 +14,10 @@ using Perfolizer.Horology;
 
 namespace Nino.Benchmark;
 
-/// <summary>Experiment: the same cases with AVX-512 on and off (DOTNET_EnableAVX512F=0).</summary>
+/// <summary>
+/// Experiment: the same cases with AVX-512 on, off (DOTNET_EnableAVX512=0: .NET 10 ignores DOTNET_EnableAVX512F) and
+/// with 64-byte vectors not preferred (Avx512F still supported, Vector512 not accelerated).
+/// </summary>
 public class ProbeConfig : ManualConfig
 {
     public ProbeConfig()
@@ -22,7 +26,7 @@ public class ProbeConfig : ManualConfig
             .WithIterationTime(TimeInterval.FromMilliseconds(250)).WithWarmupCount(3)
             .WithMinIterationCount(6).WithMaxIterationCount(10).WithMaxRelativeError(0.02);
         AddJob(job.WithId("Avx512"));
-        AddJob(job.WithEnvironmentVariables(new EnvironmentVariable("DOTNET_EnableAVX512F", "0")).WithId("NoAvx512"));
+        AddJob(job.WithEnvironmentVariables(new EnvironmentVariable("DOTNET_EnableAVX512", "0")).WithId("Avx2"));
         AddJob(job.WithEnvironmentVariables(new EnvironmentVariable("DOTNET_PreferredVectorBitWidth", "256")).WithId("Prefer256"));
     }
 }
@@ -52,16 +56,43 @@ public class SerializeProbe
 public class CopyProbe
 {
     [Params(2048, 4000, 8000, 16000)]
-    public int Bytes;
+    public int Bytes = 2048;
 
-    private readonly byte[] _source = new byte[1 << 15];
-    private readonly byte[] _destination = new byte[1 << 15];
+    private readonly byte[] _source = GC.AllocateArray<byte>(1 << 15, pinned: true);
+    private readonly byte[] _destination = GC.AllocateArray<byte>(1 << 15, pinned: true);
 
     [Benchmark(Baseline = true)]
-    public void Memmove() => _source.AsSpan(0, Bytes).CopyTo(_destination.AsSpan(4));
+    public int Memmove() { _source.AsSpan(0, Bytes).CopyTo(_destination.AsSpan(4)); return Bytes; }
 
     [Benchmark]
-    public void NinoCopy() => NinoUnsafe.Copy(ref _destination[4], ref MemoryMarshal.GetArrayDataReference(_source), (uint)Bytes);
+    public int NinoCopy() { NinoUnsafe.Copy(ref _destination[4], ref MemoryMarshal.GetArrayDataReference(_source), (uint)Bytes); return Bytes; }
+
+    /// <summary>The 32-byte vector loop of NinoUnsafe.Copy at every size (it calls Memmove above 4 KB).</summary>
+    [Benchmark]
+    public int Vector256Loop()
+    {
+        ref byte destination = ref _destination[4];
+        ref byte source = ref MemoryMarshal.GetArrayDataReference(_source);
+        nuint size = (nuint)Bytes;
+        Vector256.LoadUnsafe(ref source).StoreUnsafe(ref destination);
+        nuint i = 32 - ((nuint)(nint)Marshal.UnsafeAddrOfPinnedArrayElement(_destination, 4) & 31);
+        nuint end = size - 32;
+        for (; i + 96 <= end; i += 128)
+        {
+            var a = Vector256.LoadUnsafe(ref source, i);
+            var b = Vector256.LoadUnsafe(ref source, i + 32);
+            var c = Vector256.LoadUnsafe(ref source, i + 64);
+            var d = Vector256.LoadUnsafe(ref source, i + 96);
+            a.StoreUnsafe(ref destination, i);
+            b.StoreUnsafe(ref destination, i + 32);
+            c.StoreUnsafe(ref destination, i + 64);
+            d.StoreUnsafe(ref destination, i + 96);
+        }
+        for (; i <= end; i += 32)
+            Vector256.LoadUnsafe(ref source, i).StoreUnsafe(ref destination, i);
+        Vector256.LoadUnsafe(ref source, end).StoreUnsafe(ref destination, end);
+        return Bytes;
+    }
 }
 
 /// <summary>Experiment: `--time [name...]` times SerializeProbe's methods outside BenchmarkDotNet (best of 15 rounds).</summary>

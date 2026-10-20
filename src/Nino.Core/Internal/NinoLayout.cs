@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
 #endif
 using Nino.Core.Internal;
 
@@ -342,6 +343,10 @@ namespace Nino.Core
             if (period == width)
             {
                 var v = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, m));
+#if NET8_0_OR_GREATER
+                if (AdvSimd.Arm64.IsSupported && Vector<byte>.Count == 16)
+                    i = CopyPairs(ref destination, ref source, i, end, v.AsVector128());
+#endif
                 for (; i + 3 * width <= end; i += 4 * width)
                 {
                     var a = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) & v;
@@ -377,6 +382,31 @@ namespace Nino.Core
                 Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, end)) &
                 Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, TailOffset(m, i, end, period))));
         }
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// The body of <see cref="CopyVectors"/> on Arm64, 64 bytes at a time as two load pairs and two store pairs
+        /// (ldp/stp of q registers, as the C library's memcpy copies): from <paramref name="i"/> while a whole 64
+        /// bytes fits before <paramref name="end"/> + 16; returns where it stopped.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe nuint CopyPairs(ref byte destination, ref byte source, nuint i, nuint end,
+            Vector128<byte> v)
+        {
+            fixed (byte* d = &destination, s = &source)
+            {
+                for (; i + 48 <= end; i += 64)
+                {
+                    var (a, b) = AdvSimd.Arm64.LoadPairVector128(s + i);
+                    var (c, e) = AdvSimd.Arm64.LoadPairVector128(s + i + 32);
+                    AdvSimd.Arm64.StorePair(d + i, a & v, b & v);
+                    AdvSimd.Arm64.StorePair(d + i + 32, c & v, e & v);
+                }
+            }
+
+            return i;
+        }
+#endif
 
 #if NET8_0_OR_GREATER
         /// <summary>
