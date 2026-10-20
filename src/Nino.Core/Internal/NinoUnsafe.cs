@@ -24,9 +24,11 @@ namespace Nino.Core
         /// and from there takes a slower allocation path than new T[], which only zeroing a larger array pays for.
         /// Measured on GitHub's runners (.NET 10, quick BenchmarkDotNet runs), a new int[] filled by one copy, against
         /// new int[]: 1.42x (x64) and 2.18x (Arm64) the time at 2 KB, 1.09x and 1.11x at 4 KB, 0.66x and 0.73x at
-        /// 64 KB, the same at 256 KB (the large object heap).
+        /// 64 KB, the same at 256 KB (the large object heap). At 8,000 bytes uninitialized already wins: zeroed,
+        /// arrays of 1,000 KeyValuePair&lt;int, int&gt; and of 1,000 8-byte structs deserialized 14 to 28% more
+        /// slowly. Between that and 4 KB, 6 KB.
         /// </summary>
-        private const int MinUninitializedArrayBytes = 16 * 1024;
+        private const int MinUninitializedArrayBytes = 6 * 1024;
 #endif
 
         /// <summary>
@@ -359,7 +361,7 @@ namespace Nino.Core
 
         /// <summary>
         /// A new array of <paramref name="length"/> (not negative) elements, the shared empty array for 0, and
-        /// allocated uninitialized from 16 KB (MinUninitializedArrayBytes) on .NET 5 and later when
+        /// allocated uninitialized from 6 KB (MinUninitializedArrayBytes) on .NET 5 and later when
         /// <paramref name="uninitialized"/> (the caller overwrites every element). One unsigned compare picks the
         /// common case, a zeroed array of 1 element or more. The others are inline too: a call in between would cost
         /// a frame on the large arrays (where an uninitialized one is called for).
