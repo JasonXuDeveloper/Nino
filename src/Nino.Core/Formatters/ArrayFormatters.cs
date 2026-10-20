@@ -58,7 +58,8 @@ namespace Nino.Core
         // write a run of whole lines without reading them, and AMD's (Zen 3) measured the same.
         private static readonly bool StoresSkipLineReads =
 #if NET5_0_OR_GREATER
-            System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported ||
+            NinoExperiment.Uninitialized && System.Runtime.Intrinsics.Arm.AdvSimd.Arm64.IsSupported ||
+            NinoExperiment.Uninitialized &&
             System.Runtime.Intrinsics.X86.X86Base.IsSupported &&
             System.Runtime.Intrinsics.X86.X86Base.CpuId(0, 0).Ebx == 0x68747541; // "Auth" of "AuthenticAMD"
 #else
