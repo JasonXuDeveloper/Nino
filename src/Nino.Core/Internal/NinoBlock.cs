@@ -483,9 +483,21 @@ namespace Nino.Core
                     i = skip;
                 }
 
-                for (; i <= last; i += group)
-                    Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)i * from),
-                        ref Unsafe.Add(ref destination, (nint)i * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                if (i <= last)
+                {
+                    // Cursors bumped a group at a time and a count down, not a multiply and an add per group.
+                    int n = (last - i) / group + 1;
+                    ref byte at = ref Unsafe.Add(ref source, (nint)i * from);
+                    ref byte into = ref Unsafe.Add(ref destination, (nint)i * to);
+                    i += n * group;
+                    do
+                    {
+                        Lanes32<T, TFormatter, TDirection>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3);
+                        at = ref Unsafe.Add(ref at, (nint)group * from);
+                        into = ref Unsafe.Add(ref into, (nint)group * to);
+                    } while (--n != 0);
+                }
+
                 if (i < last + group && last >= start)
                 {
                     Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)last * from),
@@ -505,9 +517,21 @@ namespace Nino.Core
                     i = skip;
                 }
 
-                for (; i <= last; i += group)
-                    Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)i * from),
-                        ref Unsafe.Add(ref destination, (nint)i * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                if (i <= last)
+                {
+                    // Cursors bumped a group at a time and a count down, not a multiply and an add per group.
+                    int n = (last - i) / group + 1;
+                    ref byte at = ref Unsafe.Add(ref source, (nint)i * from);
+                    ref byte into = ref Unsafe.Add(ref destination, (nint)i * to);
+                    i += n * group;
+                    do
+                    {
+                        Lanes16<T, TFormatter, TDirection>(ref at, ref into, a0, b0, a1, b1, a2, b2, a3, b3);
+                        at = ref Unsafe.Add(ref at, (nint)group * from);
+                        into = ref Unsafe.Add(ref into, (nint)group * to);
+                    } while (--n != 0);
+                }
+
                 if (i < last + group && last >= start)
                 {
                     Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)last * from),
