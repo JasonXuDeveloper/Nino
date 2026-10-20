@@ -188,9 +188,11 @@ the result objects.
   the block paths of flat ones.
 * **Copies sized to the CPU.** Up to 64 bytes (on 64-bit runtimes) or 128 bytes (with 32-byte vectors) are copied
   inline, as overlapping loads and stores of the widest vector that fits; up to 8 KB (64-byte vectors) or 4 KB
-  (32-byte vectors, from 256 bytes) as vectors with aligned stores; beyond, with `memmove`. Reads of 2 KB or more use
+  (32-byte vectors, from 256 bytes) as vectors with aligned stores; beyond, with `memmove`. Reads of 6 KB or more use
   `memmove`, whose `rep movsb` writes fresh cache lines without reading them first.
-* **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 2 KB.
+* **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 6 KB: below,
+  the runtime's uninitialized allocation costs more than zeroing (on GitHub's runners, 1.1x the time at 4 KB, 1.4x to
+  2.2x at 2 KB).
   One filled by vector shuffles or value by value (padded tuples, `DateTimeOffset`s) is allocated zeroed: the
   clearing brings its lines into the cache, where each store into an uninitialized line first reads it from
   memory (1,000 `(int, long)` into a new list in 1.5 µs instead of 2.7 µs). Slots a read overwrites are not cleared
