@@ -604,7 +604,8 @@ namespace Nino.Core
 
         /// <summary>
         /// One group of 16-byte vectors: each one or two 16-byte loads, as one table lookup of one or two registers on
-        /// Arm64 (the second's indices from 16), or each load shuffled (an index from 0x80 giving a zero) and ORed.
+        /// Arm64 (the second's indices from 16), or each load shuffled (an index from 0x80 giving a zero) and ORed. As
+        /// <see cref="Lanes32{T, TFormatter, TDirection}"/>, all before any is stored.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Lanes16<T, TFormatter, TDirection>(ref byte source, ref byte destination,
@@ -614,16 +615,17 @@ namespace Nino.Core
             where TDirection : struct, INinoDirection
         {
             int vectors = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Vectors;
-            Lane16<T, TFormatter, TDirection>(ref source, 0, a0, b0).StoreUnsafe(ref destination);
-            if (vectors < 2)
-                return;
-            Lane16<T, TFormatter, TDirection>(ref source, 1, a1, b1).StoreUnsafe(ref destination, 16);
-            if (vectors < 3)
-                return;
-            Lane16<T, TFormatter, TDirection>(ref source, 2, a2, b2).StoreUnsafe(ref destination, 32);
-            if (vectors < 4)
-                return;
-            Lane16<T, TFormatter, TDirection>(ref source, 3, a3, b3).StoreUnsafe(ref destination, 48);
+            var v0 = Lane16<T, TFormatter, TDirection>(ref source, 0, a0, b0);
+            var v1 = vectors > 1 ? Lane16<T, TFormatter, TDirection>(ref source, 1, a1, b1) : default;
+            var v2 = vectors > 2 ? Lane16<T, TFormatter, TDirection>(ref source, 2, a2, b2) : default;
+            var v3 = vectors > 3 ? Lane16<T, TFormatter, TDirection>(ref source, 3, a3, b3) : default;
+            v0.StoreUnsafe(ref destination);
+            if (vectors > 1)
+                v1.StoreUnsafe(ref destination, 16);
+            if (vectors > 2)
+                v2.StoreUnsafe(ref destination, 32);
+            if (vectors > 3)
+                v3.StoreUnsafe(ref destination, 48);
         }
 
         /// <summary>
@@ -732,32 +734,32 @@ namespace Nino.Core
         /// </summary>
         public static NinoLanes Solve(int width, int[] map, int size, int memorySize, bool writes, bool tables)
         {
-            int target = writes ? size : memorySize;
-            int group = width / Gcd(target, width), vectors = group * target / width;
-            if (vectors > 4)
-                return null;
-            // AVX2 takes whichever costs less: windows anywhere (fewest loads when each lane's bytes follow) or on
-            // a 16-byte grid (loads repeat across a group's vectors, and two lanes far apart come from them by one
-            // lane permute rather than two more loads).
-            var plan = Plan(width, map, size, memorySize, writes, tables, vectors, grid: false);
-            if (width == 32 && !tables)
+            int target = writes ? size : memorySize, source = writes ? memorySize : size;
+            int group = width / Gcd(target, width);
+            var plan = Plan(width, map, size, memorySize, writes, tables, group, grid: false);
+            // AVX2 and Arm64 take whichever costs less a value: windows anywhere (fewest loads when each lane's bytes
+            // follow) or on a 16-byte grid (loads repeat across a group's vectors; with AVX2 two lanes far apart come
+            // from them by one lane permute rather than two more loads). Arm64's lookups take two registers, so its
+            // grid groups are as many values as also start their source on the grid: 16-byte values from 12-byte
+            // blocks four at a time, from three loads rather than four.
+            if (width == 32 || tables)
             {
-                var gridded = Plan(width, map, size, memorySize, writes, tables, vectors, grid: true);
-                if (plan == null || gridded != null && gridded.Cost() < plan.Cost())
+                int gridGroup = tables ? group / Gcd(group, 16 / Gcd(source, 16)) * (16 / Gcd(source, 16)) : group;
+                var gridded = Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: true);
+                if (plan == null || gridded != null && gridded.Cost() * plan.Group < plan.Cost() * gridGroup)
                     plan = gridded;
             }
 
-            if (plan == null)
-                return null;
-            plan.Group = group;
             return plan;
         }
 
         private static NinoLanes Plan(int width, int[] map, int size, int memorySize, bool writes, bool tables,
-            int vectors, bool grid)
+            int group, bool grid)
         {
-            int sourceSize = writes ? memorySize : size;
-            var plan = new NinoLanes { Width = width, Vectors = vectors, _masks = new byte[8][] };
+            int sourceSize = writes ? memorySize : size, vectors = group * (writes ? size : memorySize) / width;
+            if (vectors > 4)
+                return null;
+            var plan = new NinoLanes { Width = width, Group = group, Vectors = vectors, _masks = new byte[8][] };
             for (int v = 0; v < vectors; v++)
             {
                 // The source byte of each byte of the vector (-1: padding, any value).
