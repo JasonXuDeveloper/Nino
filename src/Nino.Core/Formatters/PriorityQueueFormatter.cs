@@ -1,5 +1,6 @@
 #if NET6_0_OR_GREATER
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace Nino.Core
 {
@@ -18,20 +19,12 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            if (!NinoElements.WritesOnLocal<TElement>() || !NinoElements.WritesOnLocal<TPriority>())
-            {
-                WriteEach(value, ref writer);
-                return;
-            }
-
-            // The writer and reader as locals for the loops, their cursors in registers.
-            Writer local = default;
-            writer.CopyTo(ref local);
-            WriteEach(value, ref local);
-            local.CopyTo(ref writer);
+            writer = WriteEach(value, writer);
         }
 
-        private static void WriteEach(PriorityQueue<TElement, TPriority> value, ref Writer writer)
+        // The writer by value and returned, a local whose cursor stays in registers (as HashSetFormatter's).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteEach(PriorityQueue<TElement, TPriority> value, Writer writer)
         {
             writer.WriteLength(value.Count);
             foreach (var (element, priority) in value.UnorderedItems)
@@ -39,6 +32,8 @@ namespace Nino.Core
                 default(TElementFormatter).Serialize(element, ref writer);
                 default(TPriorityFormatter).Serialize(priority, ref writer);
             }
+
+            return writer;
         }
 
         public void Deserialize(ref PriorityQueue<TElement, TPriority> value, ref Reader reader)

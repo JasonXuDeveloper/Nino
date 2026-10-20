@@ -153,21 +153,13 @@ namespace Nino.Core
             else
                 count = -1;
 
-            if (!NinoElements.WritesOnLocal<T>())
-            {
-                WriteEnumerated<T, TFormatter>(values, count, ref writer);
-                return;
-            }
-
-            // The writer as a local for the loop, its cursor in registers across the enumerator's calls (as
-            // HashSetFormatter's).
-            Writer local = default;
-            writer.CopyTo(ref local);
-            WriteEnumerated<T, TFormatter>(values, count, ref local);
-            local.CopyTo(ref writer);
+            writer = WriteEnumerated<T, TFormatter>(values, count, writer);
         }
 
-        private static void WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, ref Writer writer)
+        // The writer by value and returned, a local whose cursor stays in registers across the enumerator's calls (as
+        // HashSetFormatter's).
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteEnumerated<T, TFormatter>(IEnumerable<T> values, int count, Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             int countPos = writer.ReserveInt32();
@@ -181,6 +173,7 @@ namespace Nino.Core
             if (count >= 0 && count != written)
                 NinoThrow.InvalidData("collection was modified during serialization");
             writer.PatchInt32(countPos, written);
+            return writer;
         }
     }
 }

@@ -22,9 +22,7 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Size<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && default(TFormatter) is INinoBlockFormatter<T>
-                ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockSize
-                : -1;
+            !NinoUnsafe.IsReferenceOrContainsReferences<T>() ? NinoBlock<T, TFormatter>.Size : -1;
 
         /// <summary>The byte offset of <paramref name="field"/> inside <paramref name="value"/>.</summary>
         public static int Offset<T, TField>(ref T value, ref TField field) =>
@@ -61,7 +59,7 @@ namespace Nino.Core
 
         /// <summary>Writes <paramref name="count"/> values at <paramref name="destination"/>, <paramref name="size"/> bytes apart.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void WriteAll<T, TFormatter>(ref byte destination, ref T first, int count, int size)
+        public static void WriteAll<T, TFormatter>(ref byte destination, ref T first, int count, int size)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (NinoBlock<T, TFormatter>.IsMemory)
@@ -70,6 +68,18 @@ namespace Nino.Core
                 return;
             }
 
+            WriteEach<T, TFormatter>(ref destination, ref first, count, size);
+        }
+
+        /// <summary>
+        /// <see cref="WriteAll{T, TFormatter}"/> of values whose blocks are not laid out as in memory. Out of line: its
+        /// vector paths take many locals, and inlined into a collection formatter (also where the elements are copied
+        /// whole and it is never reached) they left the reader or writer of the method around it on the stack.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe void WriteEach<T, TFormatter>(ref byte destination, ref T first, int count, int size)
+            where TFormatter : struct, INinoFormatter<T>
+        {
             int i = 0;
 #if NET8_0_OR_GREATER
             // A group of values at a time, as full vectors of blocks: one two-source permute and one store each, none
@@ -155,7 +165,7 @@ namespace Nino.Core
 
         /// <summary>Reads <paramref name="count"/> values from <paramref name="source"/>, <paramref name="size"/> bytes apart.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void ReadAll<T, TFormatter>(ref byte source, ref T first, int count, int size)
+        public static void ReadAll<T, TFormatter>(ref byte source, ref T first, int count, int size)
             where TFormatter : struct, INinoFormatter<T>
         {
             if (NinoBlock<T, TFormatter>.IsMemory)
@@ -164,6 +174,17 @@ namespace Nino.Core
                 return;
             }
 
+            ReadEach<T, TFormatter>(ref source, ref first, count, size);
+        }
+
+        /// <summary>
+        /// <see cref="ReadAll{T, TFormatter}"/> of values whose blocks are not laid out as in memory, out of line as
+        /// <see cref="WriteEach{T, TFormatter}"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static unsafe void ReadEach<T, TFormatter>(ref byte source, ref T first, int count, int size)
+            where TFormatter : struct, INinoFormatter<T>
+        {
             int i = 0;
 #if NET8_0_OR_GREATER
             // As WriteAll, the other way. Padding is unspecified, as when a value is read a field at a time.
@@ -898,6 +919,14 @@ namespace Nino.Core
     /// </summary>
     internal static class NinoBlock<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
     {
+        /// <summary>
+        /// <see cref="NinoBlock.Size{T, TFormatter}"/>, read from a field: one load where the type test and the size
+        /// were each an inlined call, which the JIT counts against what else it inlines into the method.
+        /// </summary>
+        public static readonly int Size = default(TFormatter) is INinoBlockFormatter<T>
+            ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockSize
+            : -1;
+
         private static readonly int[] Map = NinoBlock.Size<T, TFormatter>() > 0
             ? ((INinoBlockFormatter<T>)default(TFormatter)).BlockMap()
             : null;
