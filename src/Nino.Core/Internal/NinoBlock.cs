@@ -742,7 +742,7 @@ namespace Nino.Core
             // from them by one lane permute rather than two more loads). Arm64's lookups take two registers, so its
             // grid groups are as many values as also start their source on the grid: 16-byte values from 12-byte
             // blocks four at a time, from three loads rather than four.
-            if (width == 32 || tables)
+            if (width == 32 || tables && (writes ? NinoExperiment.GridWrites : NinoExperiment.GridReads))
             {
                 int gridGroup = tables ? group / Gcd(group, 16 / Gcd(source, 16)) * (16 / Gcd(source, 16)) : group;
                 var gridded = Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: true);
