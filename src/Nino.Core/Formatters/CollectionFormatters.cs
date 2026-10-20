@@ -81,28 +81,22 @@ namespace Nino.Core
                 return;
             }
 
-            if (!NinoElements.WritesOnLocal<T>())
-            {
-                WriteEach(value, ref writer);
-                return;
-            }
-
-            // The writer as a local for the loop, its cursor in registers (HashSet<int?> of 1,000: 5 to 10% faster).
-            Writer local = default;
-            writer.CopyTo(ref local);
-            WriteEach(value, ref local);
-            local.CopyTo(ref writer);
+            writer = WriteEach(value, writer);
         }
 
         /// <summary>
         /// The count and the elements one by one: one loop, out of Serialize (a second loop there made the raw one's
-        /// code slower: HashSet&lt;int&gt; of 1,000 serialized 40% slower on x64 and Arm64).
+        /// code slower: HashSet&lt;int&gt; of 1,000 serialized 40% slower on x64 and Arm64). The writer by value and
+        /// returned: a local here, its cursor in registers (HashSet&lt;int?&gt; of 1,000: 5 to 10% faster), where one
+        /// passed by reference would be kept in memory, the caller's too.
         /// </summary>
-        private static void WriteEach(TSet value, ref Writer writer)
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Writer WriteEach(TSet value, Writer writer)
         {
             writer.WriteLength(value.Count);
             foreach (var item in value)
                 default(TFormatter).Serialize(item, ref writer);
+            return writer;
         }
 
         public void Deserialize(ref TSet value, ref Reader reader)

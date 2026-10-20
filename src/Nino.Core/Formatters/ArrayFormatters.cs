@@ -17,7 +17,7 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool CopiedWhole<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            RawFormatter.Is<T, TFormatter>() || NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory;
+            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && Traits<T, TFormatter>.CopiedWhole;
 
         /// <summary>
         /// Whether a loop that writes elements one at a time goes through a local copy of the writer, whose cursor then
@@ -36,8 +36,19 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool ReadOverwrites<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
-            RawFormatter.Is<T, TFormatter>() || typeof(TFormatter) == typeof(DateTimeOffsetFormatter) ||
-            NinoBlock.Size<T, TFormatter>() > 0;
+            !NinoUnsafe.IsReferenceOrContainsReferences<T>() && Traits<T, TFormatter>.ReadOverwrites;
+
+        // The checks above as fields: one load each, where every check they combine was an inlined call, and the
+        // JIT counts those against what else it inlines into the method (an ImmutableDictionary<int, int> read ran
+        // out, and kept its reader in memory).
+        private static class Traits<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
+        {
+            public static readonly bool CopiedWhole = RawFormatter.Is<T, TFormatter>() ||
+                NinoBlock.Size<T, TFormatter>() > 0 && NinoBlock<T, TFormatter>.IsMemory;
+
+            public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
+                typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlock.Size<T, TFormatter>() > 0;
+        }
 
         /// <summary>
         /// Writes <paramref name="count"/> elements starting at <paramref name="first"/> (a multi-dimensional array's),
@@ -105,7 +116,7 @@ namespace Nino.Core
             if (WritesOnLocal<T>())
             {
                 if (!values.IsEmpty)
-                    WriteOnLocal<T, TFormatter>(values, ref writer);
+                    writer = WriteOnLocal<T, TFormatter>(values, writer);
                 return;
             }
 
@@ -118,14 +129,12 @@ namespace Nino.Core
         /// into every collection formatter, and a second loop there slows down the code around it (as
         /// HashSetFormatter's raw loop was).
         /// </summary>
-        private static void WriteOnLocal<T, TFormatter>(ReadOnlySpan<T> values, ref Writer writer)
+        private static Writer WriteOnLocal<T, TFormatter>(ReadOnlySpan<T> values, Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            Writer local = default;
-            writer.CopyTo(ref local);
             foreach (var item in values)
-                default(TFormatter).Serialize(item, ref local);
-            local.CopyTo(ref writer);
+                default(TFormatter).Serialize(item, ref writer);
+            return writer;
         }
 
         /// <summary>
@@ -219,14 +228,24 @@ namespace Nino.Core
                 return;
             }
 
-            // The reader as a local for the loop: its cursor stays in registers, where through the ref parameter every
-            // element would store it and load it back (List<(int, long)>: 2x faster). Copied a field at a time
-            // (Reader.CopyTo).
-            Reader local = default;
-            reader.CopyTo(ref local);
+            reader = ReadEach<T, TFormatter>(values, reader);
+        }
+
+        /// <summary>
+        /// The elements one by one, out of line: inlined into a read (also where they are blocks and it is never
+        /// reached), the loop and the element's formatter used up what the JIT inlines into the method, and helpers as
+        /// small as Reader.Skip were left calls. The reader by value and returned, not by reference: its address passed
+        /// to a call would keep the caller's reader in memory.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadEach<T, TFormatter>(Span<T> values, Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            // The reader a local, its cursor in registers, where through a reference every element would store it and
+            // load it back (List<(int, long)>: 2x faster).
             for (int i = 0; i < values.Length; i++)
-                default(TFormatter).Deserialize(ref values[i], ref local);
-            local.CopyTo(ref reader);
+                default(TFormatter).Deserialize(ref values[i], ref reader);
+            return reader;
         }
 
         /// <summary>
