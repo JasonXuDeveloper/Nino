@@ -119,6 +119,28 @@ python3 benchmarks/members/split-asm.py out.txt asm      # DOTNET_JitStdOutFile;
 a run with it are meaningless. Its ARM64 code is the generic Unix ABI; Apple's differs only in calls with stack
 arguments.
 
+### What a change did to the code: `asm.py`
+
+`asm.py` compares the Tier1 code of every Nino case, and of the generated formatters and Nino.Core methods they
+call, between two commits, in about two minutes (BenchmarkDotNet needs half an hour and moves by 15% between runs on
+a shared machine; the JIT's code barely moves):
+
+```sh
+python3 benchmarks/asm.py compare v4.0.0-rc.6             # that tag against the working tree
+python3 benchmarks/asm.py dump --ref main base.json       # or one side at a time,
+python3 benchmarks/asm.py dump --asm head.asm head.json   # keeping the listing,
+python3 benchmarks/asm.py diff base.json head.json        # and compared
+```
+
+It runs `Nino.Benchmark` of each side with the startup hook in `jitwarm/`, which calls every case until it is compiled
+at Tier1 (the code BenchmarkDotNet times: everything a top-level call reaches is inlined into the case), and lists
+the methods whose code grew by more than 15% and 64 bytes or that access the stack more often (a reader, a writer or
+a cursor left in memory), with the calls each makes that it did not make before. What the JIT inlines also depends on
+profile data gathered while the process runs, so each side runs three times and keeps each method's leanest code; a
+method listed alone, in code the change does not reach, is that variation (dump again). Run both sides on one machine; set
+`DOTNET_EnableAVX512F=0` for the code of a machine without AVX-512. It shows x64 (or whatever the machine is); the
+cross JIT above shows ARM64.
+
 ## TypeScript
 
 `typescript/` measures the TypeScript that Nino.TypeScript generates against `JSON.stringify` and `JSON.parse`, in

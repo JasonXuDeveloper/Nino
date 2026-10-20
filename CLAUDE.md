@@ -14,6 +14,23 @@ Guidance for Claude Code when working in this repository.
   (or the release workflow), whose job id stays `ShortRun-.NET 10.0`.
 - See benchmarks/README.md for the options.
 
+## Machine code
+
+A change to a read or write path (Nino.Core, Nino.Immutable, the code the generator emits) can slow cases it does not
+touch: everything a top-level call reaches is inlined into one method, under one inlining budget. Before committing
+one, run `python3 benchmarks/asm.py compare origin/main` (about two minutes, see benchmarks/README.md) and explain or fix
+every method it lists. What has gone wrong before:
+- A branch whose condition is a method call (`RawFormatter.Is`, `NinoBlock.Size`, ...) is compiled and inlined even
+  for the types where it is dead, and uses up the budget there. Keep rare or large paths (vector loops, element by
+  element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline.
+- Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
+  the struct in memory for the whole method. Pass it by value and return it (`reader = ReadEach(values, reader)`).
+- A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
+  `NinoBlock<T, TFormatter>.Size`): one load, nothing to inline.
+- The signs in the listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget ran out);
+  `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
+  reader or writer was not kept in registers).
+
 ## Commit messages and release notes
 
 - Conventional Commits: `type(scope): summary`, plus a body that says why. Types: `feat`, `fix`, `perf`,
