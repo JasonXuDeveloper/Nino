@@ -81,7 +81,12 @@ namespace Nino.Core
                 return;
             }
 
-            writer = WriteEach(value, writer);
+            // Elements with references through the writer parameter, which their formatters' calls take anyway: a copy
+            // in and out of WriteEach for each set cost more (NinoElements.WritesOnLocal).
+            if (NinoElements.WritesOnLocal<T>())
+                writer = WriteEach(value, writer);
+            else
+                WriteEach(value, ref writer);
         }
 
         /// <summary>
@@ -93,10 +98,16 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteEach(TSet value, Writer writer)
         {
+            WriteEach(value, ref writer);
+            return writer;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteEach(TSet value, ref Writer writer)
+        {
             writer.WriteLength(value.Count);
             foreach (var item in value)
                 default(TFormatter).Serialize(item, ref writer);
-            return writer;
         }
 
         public void Deserialize(ref TSet value, ref Reader reader)
