@@ -20,13 +20,13 @@ namespace Nino.Core
 
 #if NET5_0_OR_GREATER
         /// <summary>
-        /// Smallest array (in bytes) allocated uninitialized: the 2 KB below which GC.AllocateUninitializedArray zeroes
-        /// anyway. Measured with BenchmarkDotNet (.NET 10, x64, server GC) reading a ReadOnlyCollection of 1,000 ints
-        /// (4 KB): 570 to 590 ns with the array zeroed, 450 to 510 uninitialized (MemoryPack, which allocates it
-        /// uninitialized: 450 to 570). A loop that allocated and filled arrays had zeroing ahead up to 6 KB, but not
-        /// the benchmarks.
+        /// Smallest array (in bytes) allocated uninitialized. GC.AllocateUninitializedArray zeroes below 2 KB anyway,
+        /// and from there takes a slower allocation path than new T[], which only zeroing a larger array pays for.
+        /// Measured on GitHub's runners (.NET 10, quick BenchmarkDotNet runs), a new int[] filled by one copy, against
+        /// new int[]: 1.42x (x64) and 2.18x (Arm64) the time at 2 KB, 1.09x and 1.11x at 4 KB, 0.66x and 0.73x at
+        /// 64 KB, the same at 256 KB (the large object heap).
         /// </summary>
-        private const int MinUninitializedArrayBytes = 2 * 1024;
+        private const int MinUninitializedArrayBytes = 16 * 1024;
 #endif
 
         /// <summary>
@@ -272,7 +272,7 @@ namespace Nino.Core
         /// <see cref="MinUninitializedArrayBytes"/>, where a new array is uninitialized and vector stores read each of
         /// its lines from memory first (Memmove's rep movsb writes whole lines without reading them). Below, where a new
         /// array was zeroed into the cache, as <see cref="Copy"/>. Measured on an AVX-512 Xeon (.NET 10): 1,000 ints
-        /// read into a new array in 470 to 710 ns with Memmove, 760 to 830 with vector stores; into an existing
+        /// read into a new uninitialized array in 470 to 710 ns with Memmove, 760 to 830 with vector stores; into an existing
         /// array of 250, 14 ns instead of 23 with vector stores. Out of line: a size that is not a constant takes every
         /// branch of Copy, and inlined into each raw list and array read that code slowed the reads around it (a list
         /// of 8 classes holding a List&lt;int&gt; each, read in place: 680 to 710 ns inline, 570 to 610 out of line).
@@ -359,7 +359,7 @@ namespace Nino.Core
 
         /// <summary>
         /// A new array of <paramref name="length"/> (not negative) elements, the shared empty array for 0, and
-        /// allocated uninitialized from 2 KB (MinUninitializedArrayBytes) on .NET 5 and later when
+        /// allocated uninitialized from 16 KB (MinUninitializedArrayBytes) on .NET 5 and later when
         /// <paramref name="uninitialized"/> (the caller overwrites every element). One unsigned compare picks the
         /// common case, a zeroed array of 1 element or more. The others are inline too: a call in between would cost
         /// a frame on the large arrays (where an uninitialized one is called for).
