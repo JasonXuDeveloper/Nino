@@ -110,9 +110,10 @@ namespace Nino.Core
             var s = stack;
             if (s != null && s.Count != 0 && s.Generation == Generation)
             {
-                int count = --s.Count;
-                var value = s.Items[count];
-                s.Items[count] = null;
+                // Count is within [0, ThreadCapacity], the length of Items: no bounds checks.
+                ref T item = ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), --s.Count);
+                var value = item;
+                item = null;
                 return value;
             }
 
@@ -126,7 +127,7 @@ namespace Nino.Core
         {
             var s = stack;
             if (s != null && s.Count != ThreadCapacity && s.Generation == Generation)
-                s.Items[s.Count++] = value;
+                Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(s.Items), s.Count++) = value;
             else
                 AddSlow(value, ref stack);
         }

@@ -68,7 +68,7 @@ namespace Nino.Core
                 return;
             }
 
-            WriteEach<T, TFormatter>(ref destination, ref first, count, size);
+            WriteEach<T, TFormatter>(ref destination, ref first, count);
         }
 
         /// <summary>
@@ -77,18 +77,21 @@ namespace Nino.Core
         /// whole and it is never reached) they left the reader or writer of the method around it on the stack.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe void WriteEach<T, TFormatter>(ref byte destination, ref T first, int count, int size)
+        private static unsafe void WriteEach<T, TFormatter>(ref byte destination, ref T first, int count)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // The block size from its field rather than a parameter (here and in the other methods out of line): a
+            // JIT-time constant, so the divisions by it (LastVector) and the multiplications are shifts and adds.
+            int size = NinoBlock<T, TFormatter>.Size;
             int i = 0;
 #if NET8_0_OR_GREATER
             // A group of values at a time, as full vectors of blocks: one two-source permute and one store each, none
             // overlapping (Groups).
             if (NinoBlock<T, TFormatter>.Groups && NinoBlock<T, TFormatter>.LastGroup(count) >= NinoBlock<T, TFormatter>.Group)
-                i = WriteGroups<T, TFormatter>(ref destination, ref first, count, size);
+                i = WriteGroups<T, TFormatter>(ref destination, ref first, count);
             // Without AVX-512, a group of values at a time, each 16-byte lane shuffled from one or two loads (Lanes).
             else if (NinoBlock<T, TFormatter>.LanePlan<NinoWrites>.Worth(count))
-                i = Lanes<T, TFormatter, NinoWrites>(ref Unsafe.As<T, byte>(ref first), ref destination, count, size);
+                i = Lanes<T, TFormatter, NinoWrites>(ref Unsafe.As<T, byte>(ref first), ref destination, count);
 
             // Several values as 64 bytes, their bytes moved to their places in the block by one 64-byte byte permute
             // (Permute64); the tail written is overwritten by the next one.
@@ -137,9 +140,10 @@ namespace Nino.Core
         /// inside WriteAll after short ones, the loop took 3.5 times as long (1,000 12-byte blocks: 577 ns instead of 160).
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe int WriteGroups<T, TFormatter>(ref byte destination, ref T first, int count, int size)
+        private static unsafe int WriteGroups<T, TFormatter>(ref byte destination, ref T first, int count)
             where TFormatter : struct, INinoFormatter<T>
         {
+            int size = NinoBlock<T, TFormatter>.Size;
             int i = 0;
             int group = NinoBlock<T, TFormatter>.Group;
             int last = NinoBlock<T, TFormatter>.LastGroup(count);
@@ -193,7 +197,7 @@ namespace Nino.Core
                 return;
             }
 
-            ReadEach<T, TFormatter>(ref source, ref first, count, size);
+            ReadEach<T, TFormatter>(ref source, ref first, count);
         }
 
         /// <summary>
@@ -201,18 +205,19 @@ namespace Nino.Core
         /// <see cref="WriteEach{T, TFormatter}"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe void ReadEach<T, TFormatter>(ref byte source, ref T first, int count, int size)
+        private static unsafe void ReadEach<T, TFormatter>(ref byte source, ref T first, int count)
             where TFormatter : struct, INinoFormatter<T>
         {
+            int size = NinoBlock<T, TFormatter>.Size;
             int i = 0;
 #if NET8_0_OR_GREATER
             // As WriteAll, the other way. Padding is unspecified, as when a value is read a field at a time.
             ref byte destination = ref Unsafe.As<T, byte>(ref first);
             if (NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Enabled &&
                 NinoBlock<T, TFormatter>.ReadPlan<NinoPhase0>.Last(count) >= NinoBlock<T, TFormatter>.Group)
-                i = ReadGroups<T, TFormatter>(ref source, ref first, count, size);
+                i = ReadGroups<T, TFormatter>(ref source, ref first, count);
             else if (NinoBlock<T, TFormatter>.LanePlan<NinoReads>.Worth(count))
-                i = Lanes<T, TFormatter, NinoReads>(ref source, ref destination, count, size);
+                i = Lanes<T, TFormatter, NinoReads>(ref source, ref destination, count);
 
             if (NinoBlock<T, TFormatter>.Permutes)
             {
@@ -269,9 +274,10 @@ namespace Nino.Core
         /// boundary at a value, or 8 bytes into one.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe int ReadGroups<T, TFormatter>(ref byte source, ref T first, int count, int size)
+        private static unsafe int ReadGroups<T, TFormatter>(ref byte source, ref T first, int count)
             where TFormatter : struct, INinoFormatter<T>
         {
+            int size = NinoBlock<T, TFormatter>.Size;
             nuint at = (nuint)Unsafe.AsPointer(ref first);
             if (NinoBlock<T, TFormatter>.ReadPlan<NinoPhase8>.Enabled && at % 16 == 8)
                 return ReadGroups<T, TFormatter, NinoPhase8>(ref source, ref first, count, size, at);
@@ -443,11 +449,11 @@ namespace Nino.Core
         /// <see cref="WriteGroups{T, TFormatter}"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static unsafe int Lanes<T, TFormatter, TDirection>(ref byte source, ref byte destination, int count,
-            int size)
+        private static unsafe int Lanes<T, TFormatter, TDirection>(ref byte source, ref byte destination, int count)
             where TFormatter : struct, INinoFormatter<T>
             where TDirection : struct, INinoDirection
         {
+            int size = NinoBlock<T, TFormatter>.Size;
             bool writes = typeof(TDirection) == typeof(NinoWrites);
             int from = writes ? Unsafe.SizeOf<T>() : size, to = writes ? size : Unsafe.SizeOf<T>();
             int group = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Group;

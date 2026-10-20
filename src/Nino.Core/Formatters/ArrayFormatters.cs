@@ -120,7 +120,9 @@ namespace Nino.Core
                 return;
             }
 
-            foreach (var item in values)
+            // By reference, as in WriteOnLocal.
+            ref T item = ref MemoryMarshal.GetReference(values);
+            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
                 default(TFormatter).Serialize(item, ref writer);
         }
 
@@ -132,7 +134,10 @@ namespace Nino.Core
         private static Writer WriteOnLocal<T, TFormatter>(ReadOnlySpan<T> values, Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
-            foreach (var item in values)
+            // By reference, not by index: a span's length is not known to the JIT to be positive (a list's count, for
+            // one), and over a loop with a call in it each element kept a bounds check of its own.
+            ref T item = ref MemoryMarshal.GetReference(values);
+            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
                 default(TFormatter).Serialize(item, ref writer);
             return writer;
         }
@@ -243,8 +248,9 @@ namespace Nino.Core
         {
             // The reader a local, its cursor in registers, where through a reference every element would store it and
             // load it back (List<(int, long)>: 2x faster).
-            for (int i = 0; i < values.Length; i++)
-                default(TFormatter).Deserialize(ref values[i], ref reader);
+            ref T item = ref MemoryMarshal.GetReference(values); // by reference, see WriteOnLocal
+            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
+                default(TFormatter).Deserialize(ref item, ref reader);
             return reader;
         }
 

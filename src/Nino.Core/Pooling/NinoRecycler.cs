@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Nino.Core
 {
@@ -182,7 +183,9 @@ namespace Nino.Core
             if (!NinoRecycler<T>.MayRecycle)
                 return;
 
-            foreach (var item in values)
+            // By reference, as in NinoElements.WriteOnLocal.
+            ref T item = ref MemoryMarshal.GetReference(values);
+            for (int left = values.Length; left > 0; left--, item = ref Unsafe.Add(ref item, 1))
                 NinoRecycler<T>.Recycle(item);
         }
 

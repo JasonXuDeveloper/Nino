@@ -299,19 +299,23 @@ namespace Nino.Core
             }
 
             int i = 0;
-            int period = _words.Length * 8;
-            ref ulong word = ref _words[0];
+            int words = _words.Length;
+            int period = words * 8;
+            ref ulong word = ref NinoUnsafe.GetArrayDataReference(_words);
             for (; i + period <= total; i += period)
             {
                 ref byte d = ref Unsafe.Add(ref destination, i);
                 ref byte s = ref Unsafe.Add(ref source, i);
-                for (int j = 0; j < _words.Length; j++)
+                for (int j = 0; j < words; j++)
                     Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, j * 8),
                         Unsafe.ReadUnaligned<ulong>(ref Unsafe.Add(ref s, j * 8)) & Unsafe.Add(ref word, j));
             }
 
-            for (; i < total; i++)
-                Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & _mask[i % _mask.Length]);
+            // The rest is shorter than a period, which starts with the first element: its mask is the words' first
+            // bytes, with no division and no bounds checks.
+            ref byte mask = ref Unsafe.As<ulong, byte>(ref word);
+            for (int k = 0; i < total; i++, k++)
+                Unsafe.Add(ref destination, i) = (byte)(Unsafe.Add(ref source, i) & Unsafe.Add(ref mask, k));
         }
 
         /// <summary>
@@ -326,7 +330,7 @@ namespace Nino.Core
         {
             int width = Vector<byte>.Count;
             int period = _vectorPeriod;
-            ref byte mask = ref _vectorMask![0];
+            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_vectorMask!);
             Unsafe.WriteUnaligned(ref destination,
                 Unsafe.ReadUnaligned<Vector<byte>>(ref source) & Unsafe.ReadUnaligned<Vector<byte>>(ref mask));
 
@@ -388,7 +392,7 @@ namespace Nino.Core
         {
             int width = Vector512<byte>.Count;
             int period = _period512;
-            ref byte mask = ref _mask512![0];
+            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_mask512!);
             (Vector512.LoadUnsafe(ref source) & Vector512.LoadUnsafe(ref mask)).StoreUnsafe(ref destination);
 
             int i = width - (int)((nuint)Unsafe.AsPointer(ref destination) & (nuint)(width - 1));
