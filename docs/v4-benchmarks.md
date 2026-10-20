@@ -198,7 +198,10 @@ the result objects.
 * **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values
   are written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each
   16-byte lane is shuffled from at most two 16-byte windows (`vpshufb` on AVX2 and SSSE3, `TBL` on Arm64, swizzle
-  on WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type.
+  on WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type. Where the stores are
+  aligned, the unaligned head and tail of the output are covered by whole groups that overlap the body, so the
+  time does not depend on where the buffer starts (1,000 `(int, long)` in 122 to 130 ns at any alignment instead
+  of 123 to 149, AVX-512 Xeon).
 * **Layout flags folded by the JIT.** Whether a type's memory layout equals the wire layout, and whether it
   has padding, are `static readonly` values, which tiered compilation turns into constants: on 64-bit
   runtimes a raw struct costs a plain copy. Other runtimes (32-bit, old Mono) convert field by field into
@@ -221,6 +224,19 @@ the result objects.
 * **Specialized code behind shared generics.** `Serialize<T>` of an array is shared code (arrays are
   reference types), where each static access is a dictionary lookup. The raw array path looks up one object
   and lets the array formatter, compiled for the element type, do the write.
+* **Rare paths out of line.** A top-level call inlines its whole formatter chain into one method, under one
+  inlining budget, and the JIT compiles a branch whose condition is a method call even for the types where it is
+  dead. So only the common path is inline: vector loops of block copies, element-by-element loops, the copy of a
+  raw read, UTF-16 strings and recycling are calls (`NoInlining`), and checks made of several helper calls are one
+  `static readonly` field. `benchmarks/asm.py compare` lists every method whose machine code changed against a
+  base commit, and the signs of a spent budget (`Reader:Skip` or `NinoUnsafe:Read` as calls, the cursor kept in
+  memory), so a change cannot slow down the types it does not touch unnoticed.
+* **No checks the JIT cannot drop.** Element loops (array and list fallbacks, in-place reads, the padding mask,
+  recycling, pools, reference tables, immutable collections copied into rented arrays) walk a `ref` to the
+  elements instead of indexing, so there is no bounds check per element, and no covariance check when storing
+  into a `T[]` of reference types. Block sizes are read from a `static readonly` field in the out-of-line block
+  loops, so their divisions and multiplications compile to shifts and adds. Length overflow checks stay: one
+  per call, against malicious input.
 * **Writer and reader.** `Writer` writes into one contiguous rented buffer (the hot path is a length check
   and an unaligned store; growth is out of line). `Reader` is a span with an index: one unsigned bounds
   check per read. Lengths from the payload are validated against the remaining bytes before allocating. Loops
