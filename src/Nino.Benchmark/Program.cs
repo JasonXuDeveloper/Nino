@@ -17,6 +17,8 @@ namespace Nino.Benchmark
         {
             if (args.Contains("--verify"))
                 return Verify.Run();
+            if (args.Contains("--time"))
+                return ProbeTimer.Run(args);
 
             BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly)
                 .Run(args, DefaultConfig.Instance.WithOptions(ConfigOptions.JoinSummary)
