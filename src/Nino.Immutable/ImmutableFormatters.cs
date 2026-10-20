@@ -153,11 +153,17 @@ namespace Nino.Immutable
                 return;
             }
 
-            var array = ArrayPool<T>.Shared.Rent(value.Count);
-            int i = 0;
+            // By reference: the set enumerates exactly Count elements, which the JIT cannot tell.
+            int count = value.Count;
+            var array = ArrayPool<T>.Shared.Rent(count);
+            ref T slot = ref MemoryMarshal.GetReference(array.AsSpan());
             foreach (var item in value)
-                array[i++] = item;
-            ImmutableCollections.WriteRented<T, TFormatter>(array, i, ref writer);
+            {
+                slot = item;
+                slot = ref Unsafe.Add(ref slot, 1);
+            }
+
+            ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
         }
 
         public void Deserialize(ref ImmutableSortedSet<T> value, ref Reader reader)
@@ -219,9 +225,12 @@ namespace Nino.Immutable
             for (var rest = value; !rest.IsEmpty; rest = rest.Pop())
                 count++;
             var array = ArrayPool<T>.Shared.Rent(count);
-            int i = count;
+            ref T slot = ref Unsafe.Add(ref MemoryMarshal.GetReference(array.AsSpan()), count);
             foreach (var item in value)
-                array[--i] = item;
+            {
+                slot = ref Unsafe.Subtract(ref slot, 1);
+                slot = item;
+            }
             ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
         }
 
@@ -319,12 +328,18 @@ namespace Nino.Immutable
                 return;
             }
 
-            var pairs = ArrayPool<KeyValuePair<TKey, TValue>>.Shared.Rent(value.Count);
-            int i = 0;
+            // By reference, as ImmutableSortedSet<T>'s.
+            int count = value.Count;
+            var pairs = ArrayPool<KeyValuePair<TKey, TValue>>.Shared.Rent(count);
+            ref var slot = ref MemoryMarshal.GetReference(pairs.AsSpan());
             foreach (var pair in value)
-                pairs[i++] = pair;
+            {
+                slot = pair;
+                slot = ref Unsafe.Add(ref slot, 1);
+            }
+
             ImmutableCollections.WriteRented<KeyValuePair<TKey, TValue>,
-                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(pairs, i, ref writer);
+                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(pairs, count, ref writer);
         }
 
         public void Deserialize(ref ImmutableSortedDictionary<TKey, TValue> value, ref Reader reader)

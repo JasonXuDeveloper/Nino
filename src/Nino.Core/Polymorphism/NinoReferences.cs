@@ -37,10 +37,11 @@ namespace Nino.Core
         {
             if (table._entries.Length > NinoThreadCache.MaxRetainedTableCapacity)
                 return;
-            var entries = table._entries;
-            var slots = table._slots;
-            for (int k = 0; k < table._count; k++)
-                entries[slots[k]].Key = null;
+            // Each of the first _count slots holds an entry's index (GetOrAdd): no bounds checks.
+            ref var entries = ref NinoUnsafe.GetArrayDataReference(table._entries);
+            ref int slot = ref NinoUnsafe.GetArrayDataReference(table._slots);
+            for (int k = table._count; k > 0; k--, slot = ref Unsafe.Add(ref slot, 1))
+                Unsafe.Add(ref entries, slot).Key = null;
             table._count = 0;
             t_cached = table;
         }
@@ -48,24 +49,28 @@ namespace Nino.Core
         /// <summary>Returns the 1-based index of an object already written, or 0 after adding a new one.</summary>
         public int GetOrAdd(object value)
         {
+            // The slots by reference, without bounds checks: a slot is the hash masked by the length less one (a
+            // power of two), and _count stays below _slots.Length (Grow), which the JIT cannot tell.
             var entries = _entries;
+            ref var first = ref NinoUnsafe.GetArrayDataReference(entries);
             int mask = entries.Length - 1;
             int i = RuntimeHelpers.GetHashCode(value) & mask;
+            ref var entry = ref Unsafe.Add(ref first, i);
             while (true)
             {
-                ref var entry = ref entries[i];
                 var key = entry.Key;
                 if (key == null)
                     break;
                 if (ReferenceEquals(key, value))
                     return entry.Value;
                 i = (i + 1) & mask;
+                entry = ref Unsafe.Add(ref first, i);
             }
 
             int count = _count + 1;
-            entries[i].Key = value;
-            entries[i].Value = count;
-            _slots[count - 1] = i;
+            entry.Key = value;
+            entry.Value = count;
+            Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(_slots), count - 1) = i;
             _count = count;
             if (count * 2 > entries.Length)
                 Grow();
@@ -129,7 +134,7 @@ namespace Nino.Core
         {
             if (_count == _objects.Length)
                 Array.Resize(ref _objects, _count * 2);
-            _objects[_count++].Value = null;
+            At(_count++) = null;
             Pending = _count;
             return _count;
         }
@@ -150,7 +155,7 @@ namespace Nino.Core
         {
             // Usually called twice per object (once its instance exists, then when it is read): the second call
             // finds it stored and skips the write barrier.
-            ref var slot = ref _objects[index - 1].Value;
+            ref var slot = ref At(index - 1);
             if (!ReferenceEquals(slot, value))
                 slot = value;
             if (Pending == index)
@@ -161,10 +166,18 @@ namespace Nino.Core
         {
             if ((uint)(index - 1) >= (uint)_count)
                 NinoThrow.InvalidReference(index);
-            var value = _objects[index - 1].Value;
+            var value = At(index - 1);
             if (value == null)
                 NinoThrow.IncompleteReference(index);
             return value;
         }
+
+        /// <summary>
+        /// The object at <paramref name="at"/>, without a bounds check: every index here comes from Begin or was
+        /// checked against _count, which stays within the array.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private ref object At(int at) =>
+            ref Unsafe.Add(ref NinoUnsafe.GetArrayDataReference(_objects), at).Value;
     }
 }
