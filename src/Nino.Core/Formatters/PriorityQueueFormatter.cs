@@ -19,12 +19,23 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            writer = WriteEach(value, writer);
+            // As HashSetFormatter's: elements or priorities with references through the writer parameter.
+            if (NinoElements.WritesOnLocal<TElement>() && NinoElements.WritesOnLocal<TPriority>())
+                writer = WriteEach(value, writer);
+            else
+                WriteEach(value, ref writer);
         }
 
         // The writer by value and returned, a local whose cursor stays in registers (as HashSetFormatter's).
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static Writer WriteEach(PriorityQueue<TElement, TPriority> value, Writer writer)
+        {
+            WriteEach(value, ref writer);
+            return writer;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteEach(PriorityQueue<TElement, TPriority> value, ref Writer writer)
         {
             writer.WriteLength(value.Count);
             foreach (var (element, priority) in value.UnorderedItems)
@@ -32,8 +43,6 @@ namespace Nino.Core
                 default(TElementFormatter).Serialize(element, ref writer);
                 default(TPriorityFormatter).Serialize(priority, ref writer);
             }
-
-            return writer;
         }
 
         public void Deserialize(ref PriorityQueue<TElement, TPriority> value, ref Reader reader)
