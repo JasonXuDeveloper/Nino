@@ -93,6 +93,10 @@ public static class Program
         Case("(int,int)[]", ints.Select(i => (i, i * 3)).ToArray());
         Case("List<(int,long)>", ints.Select(i => (i, (long)i << 40)).ToList());
         Case("List<(long,long,int)>", ints.Select(i => ((long)i, (long)i * 2, i)).ToList());
+        // Over 6 KB: read into a new array allocated uninitialized where the CPU allows it.
+        var many = Enumerable.Range(0, 1000).Select(i => (i * 7919 % 1000 - 500, (long)i << 40)).ToArray();
+        Case("(int,long)[1000]", many);
+        Case("List<(int,long)> 1000", many.ToList());
         Case("(byte,int,short)[]", ints.Select(i => ((byte)i, i, (short)i)).ToArray());
         Case("KVP<int,int>[]", ints.Select(i => new KeyValuePair<int, int>(i, -i)).ToArray());
         Case("KVP<int,string>", ints.Take(30).Select(i => new KeyValuePair<int, string>(i, "v" + i)).ToList());
