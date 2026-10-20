@@ -170,8 +170,8 @@ namespace Nino.Core
         /// Copies <paramref name="size"/> bytes. Up to 64 (most strings) inline, as overlapping loads and stores of the
         /// largest width that fits (33 to 64 bytes: two 32-byte vectors where they are accelerated, else four 16-byte
         /// moves), and 65 to 128 as four 32-byte vectors where they are accelerated: a block copy of a size that is not a
-        /// constant calls Memmove. Beyond, up to 8 KB with 64-byte vectors where they are accelerated, else from 256
-        /// bytes to 4 KB with 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an
+        /// constant calls Memmove. Beyond, up to 32 KB with 64-byte vectors where they are accelerated, else from 256
+        /// bytes to 16 KB with 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an
         /// AVX-512 Xeon (.NET 10, source and destination of different alignments), with AVX-512 on or off: 33 to 64
         /// bytes in 4.0 to 4.5 ns instead of 4.7 to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A
         /// loop of 16-byte vectors (Arm64, WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call
@@ -294,19 +294,21 @@ namespace Nino.Core
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// Largest copy done with 64-byte vectors by <see cref="CopyVectors{TVector}"/>. Memmove calls the C library's
-        /// from 2 KB, which handles a source and destination of different alignments better: from about 8 KB it is as
-        /// fast or faster.
+        /// Largest copy done with 64-byte vectors by <see cref="CopyVectors{TVector}"/>; Memmove (the C library's from
+        /// 2 KB) beyond. Measured on an AVX-512 Xeon (.NET 10, the destination 4 bytes past a 64-byte boundary):
+        /// 16,000 bytes in 111 ns instead of 145, 32,000 in 249 instead of 283, on par at 64,000.
         /// </summary>
-        private const uint MaxVectorCopy = 8 * 1024;
+        private const uint MaxVectorCopy = 32 * 1024;
 
         /// <summary>
         /// The range copied with 32-byte vectors where 64-byte ones are not accelerated (AVX2 without AVX-512, most
         /// desktop CPUs). Measured on a Xeon with AVX-512 turned off (.NET 10, source and destination of different
-        /// alignments) against Memmove: 256 bytes 3.9 ns instead of 6.3, 1,200 bytes 12.4 instead of 15.7, 4,000 bytes
-        /// 38.9 instead of 44.8; on par from 129 to 255 bytes, and slower at 8 KB.
+        /// alignments) against Memmove: 256 bytes 3.9 ns instead of 6.3, 1,200 bytes 12.4 instead of 15.7, 8,000 bytes
+        /// 68 instead of 85, on par at 16,000 and 10 to 20% slower at 32,000; on par from 129 to 255 bytes. On GitHub's
+        /// AMD EPYC runners (7763 and 9V74), whose C library copies with rep movsb, it is 2 to 30 times as fast up to
+        /// 16,000 bytes (8,000: 83 to 85 ns instead of 236 to 2,775).
         /// </summary>
-        private const uint MaxVector256Copy = 4 * 1024;
+        private const uint MaxVector256Copy = 16 * 1024;
 
         /// <summary>
         /// Copies at least one vector (<typeparamref name="TVector"/>, a <c>Vector256</c> or <c>Vector512</c> of bytes)
