@@ -28,7 +28,7 @@ public unsafe class TupleProbe
     private static readonly byte[] MemoryPackBytes = MemoryPackSerializer.Serialize(Tuples);
 
     // Values, blocks, each with room past the end for the kernels' overlapping stores; pinned, 64-byte aligned.
-    private readonly byte* _values = (byte*)NativeMemory.AlignedAlloc(Count * 16 + 256, 64);
+    private byte* _values = (byte*)NativeMemory.AlignedAlloc(Count * 16 + 256, 64);
     private readonly byte* _blocks = (byte*)NativeMemory.AlignedAlloc(Count * 12 + 256, 64) + 4;
     private readonly byte* _copy = (byte*)NativeMemory.AlignedAlloc(Count * 16 + 256, 64) + 4;
     private readonly NinoArrayBufferWriter _nino = new(1 << 16);
@@ -208,6 +208,124 @@ public unsafe class TupleProbe
         return Count;
     }
 
+
+    // Arm64 tbl indices for four values: wire vector j from memory vectors j and j + 1 (writes), memory vector k from
+    // wire vectors k * 12 / 16 and the next (reads).
+    private static readonly Vector128<byte>[] WriteTables = Tables(writes: true), ReadTables = Tables(writes: false);
+
+    private static Vector128<byte>[] Tables(bool writes)
+    {
+        var tables = new Vector128<byte>[4];
+        for (int j = 0; j < 4; j++)
+        {
+            var idx = new byte[16];
+            for (int b = 0; b < 16; b++)
+            {
+                if (writes)
+                {
+                    int w = j * 16 + b, v = w / 12, off = w % 12;
+                    int memory = v * 16 + (off < 4 ? 8 + off : off - 4);
+                    idx[b] = j < 3 ? (byte)(memory - 16 * j) : (byte)0xFF;
+                }
+                else
+                {
+                    int lo = j * 12 / 16, off = b < 8 ? 4 + b : b < 12 ? b - 8 : -1;
+                    idx[b] = off < 0 ? (byte)0xFF : (byte)(j * 12 + off - 16 * lo);
+                }
+            }
+            tables[j] = Vector128.Create(idx);
+        }
+        return tables;
+    }
+
+    /// <summary>Four values as four loads, three 2-register table lookups (tbl) and three stores (Arm64).</summary>
+    [Benchmark]
+    public int WriteTbl()
+    {
+        if (!AdvSimd.Arm64.IsSupported)
+            return -1;
+        Vector128<byte> t0 = WriteTables[0], t1 = WriteTables[1], t2 = WriteTables[2];
+        byte* v = _values, b = _blocks;
+        for (int i = 0; i < Count; i += 4, v += 64, b += 48)
+        {
+            var (m0, m1) = AdvSimd.Arm64.LoadPairVector128(v);
+            var (m2, m3) = AdvSimd.Arm64.LoadPairVector128(v + 32);
+            AdvSimd.Arm64.StorePair(b, AdvSimd.Arm64.VectorTableLookup((m0, m1), t0),
+                AdvSimd.Arm64.VectorTableLookup((m1, m2), t1));
+            AdvSimd.Store(b + 32, AdvSimd.Arm64.VectorTableLookup((m2, m3), t2));
+        }
+        return Count;
+    }
+
+    /// <summary>Four values as three loads, four 2-register table lookups and four stores (Arm64).</summary>
+    [Benchmark]
+    public int ReadTbl()
+    {
+        if (!AdvSimd.Arm64.IsSupported)
+            return -1;
+        Vector128<byte> t0 = ReadTables[0], t1 = ReadTables[1], t2 = ReadTables[2], t3 = ReadTables[3];
+        byte* v = _values, b = _blocks;
+        for (int i = 0; i < Count; i += 4, v += 64, b += 48)
+        {
+            var (w0, w1) = AdvSimd.Arm64.LoadPairVector128(b);
+            var w2 = AdvSimd.LoadVector128(b + 32);
+            AdvSimd.Arm64.StorePair(v, AdvSimd.Arm64.VectorTableLookup((w0, w1), t0),
+                AdvSimd.Arm64.VectorTableLookup((w0, w1), t1));
+            AdvSimd.Arm64.StorePair(v + 32, AdvSimd.Arm64.VectorTableLookup((w1, w2), t2),
+                AdvSimd.Arm64.VectorTableLookup((w2, w2), t3));
+        }
+        return Count;
+    }
+
+
+    /// <summary>
+    /// A read into a new array: allocated zeroed (as Nino does for elements moved by shuffles) or uninitialized, then
+    /// unpacked by the CPU's kernel (tbl on Arm64, vpermd with AVX2, else one value at a time).
+    /// </summary>
+    [Benchmark]
+    public int ReadNewZeroed() => ReadInto(new (int, long)[Count]);
+
+    /// <inheritdoc cref="ReadNewZeroed"/>
+    [Benchmark]
+    public int ReadNewUninitialized() => ReadInto(GC.AllocateUninitializedArray<(int, long)>(Count));
+
+    private int ReadInto((int, long)[] array)
+    {
+        fixed ((int, long)* p = array)
+        {
+            var values = _values;
+            try
+            {
+                _values = (byte*)p;
+                if (AdvSimd.Arm64.IsSupported)
+                    ReadTbl();
+                else if (Avx2.IsSupported)
+                    ReadPermute();
+                else
+                    ReadScalar();
+            }
+            finally
+            {
+                _values = values;
+            }
+        }
+
+        return array.Length;
+    }
+
+    /// <summary>What a read allocates: a list of 1,000 values (its array zeroed), its count set.</summary>
+    [Benchmark]
+    public int AllocList()
+    {
+        var list = new List<(int, long)>(Count);
+        CollectionsMarshal.SetCount(list, Count);
+        return list.Count;
+    }
+
+    /// <summary>The same with the array uninitialized, (as MemoryPack and Nino allocate arrays they fill whole).</summary>
+    [Benchmark]
+    public int AllocUninitialized() => GC.AllocateUninitializedArray<(int, long)>(Count).Length;
+
     /// <summary>Checks each kernel against Nino's bytes and the values; prints the ones that differ.</summary>
     public static void Verify()
     {
@@ -217,7 +335,7 @@ public unsafe class TupleProbe
                  {
                      ("WriteScalar", probe.WriteScalar), ("WritePermute", probe.WritePermute),
                      ("WritePermuteFull", probe.WritePermuteFull), ("WriteLanes", probe.WriteLanes),
-                     ("WriteZip", probe.WriteZip)
+                     ("WriteZip", probe.WriteZip), ("WriteTbl", probe.WriteTbl)
                  })
         {
             new Span<byte>(probe._blocks, Count * 12).Clear();
@@ -226,7 +344,7 @@ public unsafe class TupleProbe
         }
 
         foreach (var (name, read) in new (string, Func<int>)[]
-                 { ("ReadScalar", probe.ReadScalar), ("ReadPermute", probe.ReadPermute), ("ReadZip", probe.ReadZip) })
+                 { ("ReadScalar", probe.ReadScalar), ("ReadPermute", probe.ReadPermute), ("ReadZip", probe.ReadZip), ("ReadTbl", probe.ReadTbl) })
         {
             expected.CopyTo(new Span<byte>(probe._blocks, Count * 12));
             new Span<byte>(probe._values, Count * 16).Clear();
