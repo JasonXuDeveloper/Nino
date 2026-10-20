@@ -737,12 +737,14 @@ namespace Nino.Core
             int target = writes ? size : memorySize, source = writes ? memorySize : size;
             int group = width / Gcd(target, width);
             var plan = Plan(width, map, size, memorySize, writes, tables, group, grid: false);
-            // AVX2 and Arm64 take whichever costs less a value: windows anywhere (fewest loads when each lane's bytes
-            // follow) or on a 16-byte grid (loads repeat across a group's vectors; with AVX2 two lanes far apart come
-            // from them by one lane permute rather than two more loads). Arm64's lookups take two registers, so its
-            // grid groups are as many values as also start their source on the grid: 16-byte values from 12-byte
-            // blocks four at a time, from three loads rather than four.
-            if (width == 32 || tables && (writes ? NinoExperiment.GridWrites : NinoExperiment.GridReads))
+            // AVX2 takes whichever costs less a value: windows anywhere (fewest loads when each lane's bytes follow)
+            // or on a 16-byte grid (loads repeat across a group's vectors, and two lanes far apart come from them by
+            // one lane permute rather than two more loads). Arm64 too for reads, with groups as many values as also
+            // start their blocks on the grid: 16-byte values from 12-byte blocks four at a time from three loads,
+            // where one value at a time was a load, a lookup and a store each (Neoverse N2, 1,000 (int, long) into a
+            // new list: 0.99 to 1.01 us against 1.13 to 1.14). Not for writes: a load two lookups share takes a
+            // register copy each, as each lookup's two registers must be consecutive (310 ns against 415).
+            if (width == 32 || tables && !writes)
             {
                 int gridGroup = tables ? group / Gcd(group, 16 / Gcd(source, 16)) * (16 / Gcd(source, 16)) : group;
                 var gridded = Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: true);

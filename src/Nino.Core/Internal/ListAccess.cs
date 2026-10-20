@@ -41,7 +41,7 @@ namespace Nino.Core.Internal
         /// negative), overwriting each one; it has them already when <see cref="Direct"/>, otherwise the caller adds
         /// them through <see cref="Open{T}"/>. A plain <see cref="List{T}"/> whose fields are known gets a backing
         /// array of exactly that length, allocated uninitialized when it is large and <paramref name="uninitialized"/>
-        /// (<see cref="NinoUnsafe.NewArray{T}"/>, <see cref="NinoElements.NewUninitialized{T, TFormatter}"/>).
+        /// (<see cref="NinoUnsafe.NewArray{T}"/>, <see cref="NinoElements.CopiedWhole{T, TFormatter}"/>).
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static TList CreateOverwritten<TList, T>(int count, bool uninitialized) where TList : List<T>

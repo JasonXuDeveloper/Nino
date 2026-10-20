@@ -41,7 +41,7 @@ namespace Nino.Core
             if (list == null)
             {
                 value = list = overwritten
-                    ? ListAccess.CreateOverwritten<TList, T>(length, NinoElements.NewUninitialized<T, TFormatter>())
+                    ? ListAccess.CreateOverwritten<TList, T>(length, NinoElements.CopiedWhole<T, TFormatter>())
                     : ListAccess.Create<TList, T>(length);
             }
             // The dropped tail (a factory may hand out a pooled list that is not empty: treated the same way).
@@ -130,7 +130,7 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoNullables<T>.Stride, out int length))
                 return;
 
-            // Uninitialized only for a block copy (NinoNullables.Raw).
+            // Uninitialized only for a block copy (NinoElements.CopiedWhole).
             var list = value ??= ListAccess.CreateOverwritten<TList, T?>(length, NinoNullables<T>.Raw);
             var span = ListAccess.Open(list, length, overwritten: true, out var buffer);
             NinoNullables<T>.Read(span, ref reader);
