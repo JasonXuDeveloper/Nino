@@ -55,11 +55,11 @@ public class SerializeProbe
 [Config(typeof(ProbeConfig))]
 public class CopyProbe
 {
-    [Params(2048, 4000, 8000, 16000)]
-    public int Bytes = 2048;
+    [Params(4000, 8000, 16000, 32000, 64000)]
+    public int Bytes = 4000;
 
-    private readonly byte[] _source = GC.AllocateArray<byte>(1 << 15, pinned: true);
-    private readonly byte[] _destination = GC.AllocateArray<byte>(1 << 15, pinned: true);
+    private readonly byte[] _source = GC.AllocateArray<byte>(1 << 17, pinned: true);
+    private readonly byte[] _destination = GC.AllocateArray<byte>(1 << 17, pinned: true);
 
     [Benchmark(Baseline = true)]
     public int Memmove() { _source.AsSpan(0, Bytes).CopyTo(_destination.AsSpan(4)); return Bytes; }
@@ -115,7 +115,9 @@ public static class ProbeTimer
             ("Tuple.WritePermute", tuples.WritePermute), ("Tuple.WritePermuteFull", tuples.WritePermuteFull),
             ("Tuple.WriteLanes", tuples.WriteLanes), ("Tuple.WriteZip", tuples.WriteZip),
             ("Tuple.ReadScalar", tuples.ReadScalar), ("Tuple.ReadPermute", tuples.ReadPermute),
-            ("Tuple.ReadZip", tuples.ReadZip),
+            ("Tuple.ReadZip", tuples.ReadZip), ("Tuple.WriteTbl", tuples.WriteTbl), ("Tuple.ReadTbl", tuples.ReadTbl),
+            ("Tuple.AllocList", tuples.AllocList), ("Tuple.ReadNewZeroed", tuples.ReadNewZeroed),
+            ("Tuple.ReadNewUninitialized", tuples.ReadNewUninitialized), ("Tuple.AllocUninitialized", tuples.AllocUninitialized),
         };
         var names = args.Where(a => !a.StartsWith("--")).ToArray();
         foreach (var (name, run) in cases)
