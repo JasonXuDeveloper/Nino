@@ -63,3 +63,39 @@ public class CopyProbe
     [Benchmark]
     public void NinoCopy() => NinoUnsafe.Copy(ref _destination[4], ref MemoryMarshal.GetArrayDataReference(_source), (uint)Bytes);
 }
+
+/// <summary>Experiment: `--time [name...]` times SerializeProbe's methods outside BenchmarkDotNet (best of 15 rounds).</summary>
+public static class ProbeTimer
+{
+    public static int Run(string[] args)
+    {
+        var probe = new SerializeProbe();
+        var cases = new (string Name, Func<int> Run)[]
+        {
+            ("NinoTuples", probe.NinoTuples), ("MemoryPackTuples", probe.MemoryPackTuples),
+            ("NinoPairs", probe.NinoPairs), ("MemoryPackPairs", probe.MemoryPackPairs),
+            ("NinoItems", probe.NinoItems), ("MemoryPackItems", probe.MemoryPackItems),
+        };
+        var names = args.Where(a => !a.StartsWith("--")).ToArray();
+        foreach (var (name, run) in cases)
+        {
+            if (names.Length > 0 && !names.Any(n => name.Contains(n)))
+                continue;
+            // Long enough for tiered compilation to reach Tier1 (call counting starts after 100 ms of quiet).
+            var warm = System.Diagnostics.Stopwatch.StartNew();
+            while (warm.ElapsedMilliseconds < 2000)
+                run();
+            double best = double.MaxValue;
+            for (int round = 0; round < 15; round++)
+            {
+                const int n = 20_000;
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                for (int i = 0; i < n; i++)
+                    run();
+                best = Math.Min(best, watch.Elapsed.TotalNanoseconds / n);
+            }
+            Console.WriteLine($"{name,-18} {best,7:F1} ns");
+        }
+        return 0;
+    }
+}

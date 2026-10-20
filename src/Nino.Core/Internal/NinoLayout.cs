@@ -321,37 +321,37 @@ namespace Nino.Core
         /// <summary>
         /// Vector copy with aligned stores: the destination usually follows a 4-byte length, and unaligned vector
         /// stores straddle cache lines every other store. The first and last vectors are unaligned and overlap
-        /// the aligned body; the mask of each vector is loaded at its offset.
+        /// the aligned body; the mask of each vector is loaded at its offset. Offsets are native-sized (nuint): int
+        /// offsets took a sign extension and an address add per vector, measured on an AVX-512 Xeon as 8,000 bytes
+        /// in 74 ns instead of 66 (64-byte vectors).
         /// </summary>
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
 #endif
         private unsafe void CopyVectors(ref byte destination, ref byte source, int total)
         {
-            int width = Vector<byte>.Count;
-            int period = _vectorPeriod;
+            nuint width = (nuint)Vector<byte>.Count;
+            nuint period = (nuint)_vectorPeriod;
             ref byte mask = ref NinoUnsafe.GetArrayDataReference(_vectorMask!);
             Unsafe.WriteUnaligned(ref destination,
                 Unsafe.ReadUnaligned<Vector<byte>>(ref source) & Unsafe.ReadUnaligned<Vector<byte>>(ref mask));
 
-            int i = width - (int)((nuint)Unsafe.AsPointer(ref destination) & (nuint)(width - 1));
-            int end = total - width;
-            int m = i; // i % period (i <= width <= period)
+            nuint i = width - ((nuint)Unsafe.AsPointer(ref destination) & (width - 1));
+            nuint end = (nuint)total - width;
+            nuint m = i; // i % period (i <= width <= period)
             if (period == width)
             {
                 var v = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, m));
-                for (; i <= end - 3 * width; i += 4 * width)
+                for (; i + 3 * width <= end; i += 4 * width)
                 {
-                    ref byte d = ref Unsafe.Add(ref destination, i);
-                    ref byte s = ref Unsafe.Add(ref source, i);
-                    var a = Unsafe.ReadUnaligned<Vector<byte>>(ref s) & v;
-                    var b = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, width)) & v;
-                    var c = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, 2 * width)) & v;
-                    var e = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref s, 3 * width)) & v;
-                    Unsafe.WriteUnaligned(ref d, a);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, width), b);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, 2 * width), c);
-                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref d, 3 * width), e);
+                    var a = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i)) & v;
+                    var b = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i + width)) & v;
+                    var c = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i + 2 * width)) & v;
+                    var e = Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, i + 3 * width)) & v;
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i), a);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + width), b);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + 2 * width), c);
+                    Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, i + 3 * width), e);
                 }
 
                 for (; i <= end; i += width)
@@ -382,39 +382,39 @@ namespace Nino.Core
         /// <summary>
         /// <see cref="CopyVectors"/> with 64-byte vectors, where the runtime reports them accelerated (not on CPUs
         /// that slow down for them). Measured on an AVX-512 Xeon, structs of 8 bytes with a padding byte, source
-        /// and destination of different alignments: 8,000 bytes in 75 ns (110 ns with 32-byte vectors, 75 ns for a
-        /// plain copy), 1,200 bytes in 14 ns (19.5 ns, and 18.6 ns).
+        /// and destination of different alignments: 8,000 bytes in 66 ns (97 ns with 32-byte vectors, 57 ns for a
+        /// plain copy, 75 ns Memmove), 1,200 bytes in 14 ns (19.5 ns, and 18.6 ns).
         /// </summary>
         // Fully optimized from the first call: a profile taken on short copies (lists of a few elements) would lay
         // out the unrolled loop as cold code for the long ones.
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
         private unsafe void CopyVectors512(ref byte destination, ref byte source, int total)
         {
-            int width = Vector512<byte>.Count;
-            int period = _period512;
+            nuint width = (nuint)Vector512<byte>.Count;
+            nuint period = (nuint)_period512;
             ref byte mask = ref NinoUnsafe.GetArrayDataReference(_mask512!);
             (Vector512.LoadUnsafe(ref source) & Vector512.LoadUnsafe(ref mask)).StoreUnsafe(ref destination);
 
-            int i = width - (int)((nuint)Unsafe.AsPointer(ref destination) & (nuint)(width - 1));
-            int end = total - width;
-            int m = i; // i % period (i <= width <= period)
+            nuint i = width - ((nuint)Unsafe.AsPointer(ref destination) & (width - 1));
+            nuint end = (nuint)total - width;
+            nuint m = i; // i % period (i <= width <= period)
             if (period == width)
             {
-                var v = Vector512.LoadUnsafe(ref mask, (nuint)m);
-                for (; i <= end - 3 * width; i += 4 * width)
+                var v = Vector512.LoadUnsafe(ref mask, m);
+                for (; i + 3 * width <= end; i += 4 * width)
                 {
-                    var a = Vector512.LoadUnsafe(ref source, (nuint)i) & v;
-                    var b = Vector512.LoadUnsafe(ref source, (nuint)(i + width)) & v;
-                    var c = Vector512.LoadUnsafe(ref source, (nuint)(i + 2 * width)) & v;
-                    var e = Vector512.LoadUnsafe(ref source, (nuint)(i + 3 * width)) & v;
-                    a.StoreUnsafe(ref destination, (nuint)i);
-                    b.StoreUnsafe(ref destination, (nuint)(i + width));
-                    c.StoreUnsafe(ref destination, (nuint)(i + 2 * width));
-                    e.StoreUnsafe(ref destination, (nuint)(i + 3 * width));
+                    var a = Vector512.LoadUnsafe(ref source, i) & v;
+                    var b = Vector512.LoadUnsafe(ref source, i + width) & v;
+                    var c = Vector512.LoadUnsafe(ref source, i + 2 * width) & v;
+                    var e = Vector512.LoadUnsafe(ref source, i + 3 * width) & v;
+                    a.StoreUnsafe(ref destination, i);
+                    b.StoreUnsafe(ref destination, i + width);
+                    c.StoreUnsafe(ref destination, i + 2 * width);
+                    e.StoreUnsafe(ref destination, i + 3 * width);
                 }
 
                 for (; i <= end; i += width)
-                    (Vector512.LoadUnsafe(ref source, (nuint)i) & v).StoreUnsafe(ref destination, (nuint)i);
+                    (Vector512.LoadUnsafe(ref source, i) & v).StoreUnsafe(ref destination, i);
             }
             else
             {
@@ -422,17 +422,16 @@ namespace Nino.Core
                     m -= period;
                 for (; i <= end; i += width)
                 {
-                    (Vector512.LoadUnsafe(ref source, (nuint)i) & Vector512.LoadUnsafe(ref mask, (nuint)m))
-                        .StoreUnsafe(ref destination, (nuint)i);
+                    (Vector512.LoadUnsafe(ref source, i) & Vector512.LoadUnsafe(ref mask, m))
+                        .StoreUnsafe(ref destination, i);
                     m += width;
                     if (m >= period)
                         m -= period;
                 }
             }
 
-            (Vector512.LoadUnsafe(ref source, (nuint)end) &
-                    Vector512.LoadUnsafe(ref mask, (nuint)TailOffset(m, i, end, period)))
-                .StoreUnsafe(ref destination, (nuint)end);
+            (Vector512.LoadUnsafe(ref source, end) & Vector512.LoadUnsafe(ref mask, TailOffset(m, i, end, period)))
+                .StoreUnsafe(ref destination, end);
         }
 #endif
 
@@ -442,10 +441,10 @@ namespace Nino.Core
         /// and the last vector at <paramref name="end"/> starts less than a vector before <paramref name="i"/>.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int TailOffset(int m, int i, int end, int period)
+        private static nuint TailOffset(nuint m, nuint i, nuint end, nuint period)
         {
-            int offset = m - (i - end);
-            return offset < 0 ? offset + period : offset;
+            nuint back = i - end;
+            return m >= back ? m - back : m + period - back;
         }
 
         /// <summary>
