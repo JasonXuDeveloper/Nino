@@ -101,6 +101,14 @@ namespace Nino.Core
                 for (; i <= last; i += step)
                     Permute64(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination, (nuint)i * (nuint)size,
                         toWire);
+                // The values after the last vector by one more, over values already written (the same bytes), rather
+                // than one at a time.
+                if (i < last + step && last >= 0)
+                {
+                    Permute64(ref source, (nuint)last * (nuint)Unsafe.SizeOf<T>(), ref destination,
+                        (nuint)last * (nuint)size, toWire);
+                    i = last + step;
+                }
             }
 
             // Then each value as one 16-byte vector, by one shuffle. The last values, whose vector would reach past
@@ -136,30 +144,41 @@ namespace Nino.Core
             int group = NinoBlock<T, TFormatter>.Group;
             int last = NinoBlock<T, TFormatter>.LastGroup(count);
             ref byte source = ref Unsafe.As<T, byte>(ref first);
-            // First the values before the first vector boundary of the blocks, one at a time: the blocks
-            // usually follow a 4-byte length, and a store across two cache lines costs two (measured on an
-            // AVX-512 Xeon, 1,000 12-byte blocks: 230 ns unaligned, 150 to 170 aligned). None when no value
-            // starts on a boundary.
+            // The groups from the first value whose blocks start on a vector boundary: the blocks usually follow a
+            // 4-byte length, and a store across two cache lines costs two (measured on an AVX-512 Xeon, 1,000
+            // 12-byte blocks: 230 ns unaligned, 150 to 170 aligned). The values before it, and those after the last
+            // group, by one more group each, unaligned, over values the aligned groups also write (the same bytes):
+            // one at a time, up to a group less one at each end took up to a fifth of the time (1,000 (int, long):
+            // 123 to 149 ns by the alignment of the blocks, 100 to 125 with the two groups).
+            int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), size, 0, group, 63);
+            if (skip > 0)
             {
-                int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), size, 0, group, 63);
-                for (; i < skip; i++)
-                    ((INinoBlockFormatter<T>)default(TFormatter)).WriteBlock(
-                        ref Unsafe.Add(ref destination, (nint)i * size), in Unsafe.Add(ref first, i));
+                WriteGroup<T, TFormatter>(ref source, ref destination, 0, size);
+                i = skip;
             }
 
-            if (Avx512F.IsSupported && NinoBlock<T, TFormatter>.GroupWords)
+            for (; i <= last; i += group)
+                WriteGroup<T, TFormatter>(ref source, ref destination, i, size);
+            if (i < last + group)
             {
-                for (; i <= last; i += group)
-                    Permute64x2Words<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
-                        (nuint)i * (nuint)size);
+                WriteGroup<T, TFormatter>(ref source, ref destination, last, size);
+                i = last + group;
             }
-            else
-            {
-                for (; i <= last; i += group)
-                    Permute64x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
-                        (nuint)i * (nuint)size);
-            }
+
             return i;
+        }
+
+        /// <summary>The group of values from value <paramref name="i"/>: <see cref="Permute64x2Words{T, TFormatter}"/> or <see cref="Permute64x2{T, TFormatter}"/>.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void WriteGroup<T, TFormatter>(ref byte source, ref byte destination, int i, int size)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            if (Avx512F.IsSupported && NinoBlock<T, TFormatter>.GroupWords)
+                Permute64x2Words<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
+                    (nuint)i * (nuint)size);
+            else
+                Permute64x2<T, TFormatter>(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination,
+                    (nuint)i * (nuint)size);
         }
 #endif
 
@@ -200,22 +219,31 @@ namespace Nino.Core
                 var toMemory = NinoBlock<T, TFormatter>.ToMemory64;
                 int step = NinoBlock<T, TFormatter>.PerVector;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 64);
-                // Where the values fill whole vectors (64 bytes a multiple of their size), the stores do not overlap:
-                // first the values before the destination's first boundary (64 bytes with AVX-512, 16 for the four
-                // Arm64 stores), one at a time, so that none straddles two cache lines. None when no value starts on
-                // a boundary.
-                if (64 % Unsafe.SizeOf<T>() == 0 && last >= step)
+                // Where the values fill whole vectors (64 bytes a multiple of their size), the stores do not overlap
+                // and are exactly the values': from the first value on the destination's first boundary (64 bytes with
+                // AVX-512, 16 for the four Arm64 stores), so that none straddles two cache lines, and the values
+                // before it, and those after the last vector, by one more vector each, unaligned (as WriteGroups).
+                bool whole = 64 % Unsafe.SizeOf<T>() == 0;
+                if (whole && i == 0 && last >= step)
                 {
                     int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), Unsafe.SizeOf<T>(), 0, step,
                         Avx512Vbmi.IsSupported ? 63u : 15u);
-                    for (; i < skip; i++)
-                        ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
-                            ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
+                    if (skip > 0)
+                    {
+                        Permute64(ref source, 0, ref destination, 0, toMemory);
+                        i = skip;
+                    }
                 }
 
                 for (; i <= last; i += step)
                     Permute64(ref source, (nuint)i * (nuint)size, ref destination, (nuint)i * (nuint)Unsafe.SizeOf<T>(),
                         toMemory);
+                if (whole && i < last + step && last >= 0)
+                {
+                    Permute64(ref source, (nuint)last * (nuint)size, ref destination,
+                        (nuint)last * (nuint)Unsafe.SizeOf<T>(), toMemory);
+                    i = last + step;
+                }
             }
 
             if (NinoBlock<T, TFormatter>.Shuffles)
@@ -260,23 +288,35 @@ namespace Nino.Core
             int group = NinoBlock<T, TFormatter>.Group;
             int last = NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Last(count);
             ref byte destination = ref Unsafe.As<T, byte>(ref first);
-            // First the values before the first one whose vectors start on a 64-byte boundary, one at a time (from
-            // the first value, unaligned, when none does). With a phase, that value is read whole too: the group's
-            // vectors start past its first bytes, and each group's last vector writes those of the next.
+            // The groups from the first value whose vectors start on a 64-byte boundary (from the first value,
+            // unaligned, when none does); the values before it, and those after the last group, by one more group
+            // each, unaligned (as WriteGroups). With a phase, the first value is read whole too: a group's vectors
+            // start past its first bytes, and each group's last vector writes those of the next.
             int skip = FirstAligned(at + (nuint)phase, Unsafe.SizeOf<T>(), 0, group, 63);
-            for (; i < skip + (phase > 0 ? 1 : 0); i++)
-                ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(
-                    ref Unsafe.Add(ref source, (nint)i * size), ref Unsafe.Add(ref first, i));
-            i = skip;
+            if (phase > 0)
+                ((INinoBlockFormatter<T>)default(TFormatter)).ReadBlock(ref source, ref first);
 
             // The indices from an array, not constants, so they stay in registers: the JIT reloads a vector
             // constant at every use (1,000 (int, long) into an array: 135 to 150 ns, against 115 to 130 with them in
             // registers).
             var masks = NinoBlock<T, TFormatter>.ReadPlan<TPhase>.Masks;
             Vector512<byte> m0 = masks[0], m1 = masks[1], m2 = masks[2], m3 = masks[3];
+            if (skip > 0)
+            {
+                ReadGroup<T, TFormatter, TPhase>(ref source, 0, ref destination, (nuint)phase, m0, m1, m2, m3);
+                i = skip;
+            }
+
             for (; i <= last; i += group)
                 ReadGroup<T, TFormatter, TPhase>(ref source, (nuint)i * (nuint)size, ref destination,
                     (nuint)i * (nuint)Unsafe.SizeOf<T>() + (nuint)phase, m0, m1, m2, m3);
+            if (i < last + group)
+            {
+                ReadGroup<T, TFormatter, TPhase>(ref source, (nuint)last * (nuint)size, ref destination,
+                    (nuint)last * (nuint)Unsafe.SizeOf<T>() + (nuint)phase, m0, m1, m2, m3);
+                i = last + group;
+            }
+
             return i;
         }
 
@@ -415,13 +455,14 @@ namespace Nino.Core
             int last = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Last(count, from, to);
             // The first value whose loads start inside the source (a window may start before the group's values),
             // then the first from there whose vectors start on a boundary of their width, so that no store straddles
-            // two cache lines (when one does); the values before it one at a time.
+            // two cache lines (when one does). The values before the first one at a time; those from it to the
+            // aligned one, and those after the last group, by one more group each, unaligned (as WriteGroups; the
+            // stores of a group are exactly its values).
             int start = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Start;
             int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), to, start, group, (nuint)(width - 1));
             int i = 0;
-            for (; i < skip; i++)
+            for (; i < start; i++)
                 Move<T, TFormatter, TDirection>(ref source, ref destination, i, size);
-            i = skip;
 
             // The indices from an array, so they stay in registers (see ReadGroups).
             if (width == 32)
@@ -429,18 +470,44 @@ namespace Nino.Core
                 var masks = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Masks32;
                 Vector256<byte> a0 = masks[0], b0 = masks[1], a1 = masks[2], b1 = masks[3], a2 = masks[4],
                     b2 = masks[5], a3 = masks[6], b3 = masks[7];
+                if (skip > start && start <= last)
+                {
+                    Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)start * from),
+                        ref Unsafe.Add(ref destination, (nint)start * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                    i = skip;
+                }
+
                 for (; i <= last; i += group)
                     Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)i * from),
                         ref Unsafe.Add(ref destination, (nint)i * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                if (i < last + group && last >= start)
+                {
+                    Lanes32<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)last * from),
+                        ref Unsafe.Add(ref destination, (nint)last * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                    i = last + group;
+                }
             }
             else
             {
                 var masks = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Masks16;
                 Vector128<byte> a0 = masks[0], b0 = masks[1], a1 = masks[2], b1 = masks[3], a2 = masks[4],
                     b2 = masks[5], a3 = masks[6], b3 = masks[7];
+                if (skip > start && start <= last)
+                {
+                    Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)start * from),
+                        ref Unsafe.Add(ref destination, (nint)start * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                    i = skip;
+                }
+
                 for (; i <= last; i += group)
                     Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)i * from),
                         ref Unsafe.Add(ref destination, (nint)i * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                if (i < last + group && last >= start)
+                {
+                    Lanes16<T, TFormatter, TDirection>(ref Unsafe.Add(ref source, (nint)last * from),
+                        ref Unsafe.Add(ref destination, (nint)last * to), a0, b0, a1, b1, a2, b2, a3, b3);
+                    i = last + group;
+                }
             }
 
             return i;

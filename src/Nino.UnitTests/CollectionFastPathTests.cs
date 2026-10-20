@@ -400,7 +400,8 @@ public class CollectionFastPathTests
     {
         var seen = new HashSet<long>();
         var keep = new List<object>();
-        foreach (int n in new[] { 33, 64, 100, 1000, 1001 })
+        // Every count up to a few groups: a group from the first value and one ending at the last, over the aligned ones.
+        foreach (int n in Enumerable.Range(30, 100).Concat(new[] { 1000, 1001 }))
         {
             var values = Enumerable.Range(0, n).Select(make).ToArray();
             var bytes = NinoSerializer.Serialize(values);
@@ -448,7 +449,8 @@ public class CollectionFastPathTests
                 expected.AddRange(NinoSerializer.Serialize(value));
             CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values), $"{typeof(T)}[] n={n}");
             CollectionAssert.AreEqual(expected, NinoSerializer.Serialize(values.ToList()), $"List<{typeof(T)}> n={n}");
-            for (int shift = 1; shift < 8; shift++)
+            // Every alignment of the blocks to a 64-byte boundary from a few groups on (below, every 8 bytes).
+            for (int shift = 1; shift < (n >= 32 ? 64 : 8); shift++)
             {
                 var buffer = new NinoArrayBufferWriter();
                 buffer.GetSpan(shift);
