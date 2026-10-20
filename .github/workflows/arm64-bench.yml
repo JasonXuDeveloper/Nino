@@ -125,10 +125,10 @@ jobs:
           # dotnet and the benchmark processes inherit. Without it they run at normal priority, as before.
           sudo prlimit --pid $$ --nice=40:40 || echo "::warning::could not raise the nice limit: normal priority"
           echo "nice limit: $(ulimit -e)"
-          set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
-          read -ra FILTERS <<< "$FILTER"
           SIDES="base head"
           if [[ -d bisect ]]; then SIDES="$(ls -d bisect/*) head"; fi
+          set -f  # the filters are patterns for BenchmarkDotNet, not for the shell
+          read -ra FILTERS <<< "$FILTER"
           for SIDE in $SIDES; do
             [[ -d $SIDE ]] || continue
             [[ -f $SIDE/src/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue
