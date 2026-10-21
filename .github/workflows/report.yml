@@ -112,12 +112,12 @@ jobs:
       matrix:
         include:
           - { arch: x64, shard: a, filters: "'*.SimpleTest.*' '*.PooledTest.*'", v3: true }
-          - { arch: x64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
+          - { arch: x64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*' '*.GenericPolymorphicTest.*'" }
           - { arch: x64, shard: c, filters: "'*.PolymorphicTest.*' '*.BclTypesTest.NinoSerialize*' '*.BclTypesTest.MemoryPackSerialize*'" }
           - { arch: x64, shard: d, filters: "'*.VersionTolerantTest.*' '*.ReferenceTest.*' '*.BclTypesTest.*Deserialize*'" }
           - { arch: x64, shard: e, filters: "'*.CollectionsTest.*' '*.PooledGraphTest.*'" }
           - { arch: arm64, shard: a, filters: "'*.SimpleTest.*' '*.PooledTest.*'" }
-          - { arch: arm64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
+          - { arch: arm64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*' '*.GenericPolymorphicTest.*'" }
           - { arch: arm64, shard: c, filters: "'*.PolymorphicTest.*' '*.BclTypesTest.NinoSerialize*' '*.BclTypesTest.MemoryPackSerialize*'" }
           - { arch: arm64, shard: d, filters: "'*.VersionTolerantTest.*' '*.ReferenceTest.*' '*.BclTypesTest.*Deserialize*'" }
           - { arch: arm64, shard: e, filters: "'*.CollectionsTest.*' '*.PooledGraphTest.*'" }
@@ -231,7 +231,7 @@ jobs:
       # class. A class missing from the table is reported as a warning.
       # The shards of the bench job's matrix, per architecture.
       SHARDS: 5
-      BENCH_CLASSES: SimpleTest PolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest BclTypesTest
+      BENCH_CLASSES: SimpleTest PolymorphicTest GenericPolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest BclTypesTest
 
     steps:
       # This workflow's commit, for its scripts (merge_reports.py, compare.py, readme.py), whichever tag was measured.
