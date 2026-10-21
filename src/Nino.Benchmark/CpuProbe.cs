@@ -143,3 +143,84 @@ public static class ProbeTimer
         return 0;
     }
 }
+
+/// <summary>
+/// Experiment: 8,000 bytes copied into a buffer 4 bytes past a 64-byte boundary (a list after its length), from every
+/// 8-byte offset of the source to one: NinoUnsafe.Copy (stores aligned), the same loop with its loads aligned instead,
+/// and Memmove. Inventory (1,000 8-byte structs, copied whole) took 37 or 57 ns on an EPYC 9V45 by the process.
+/// </summary>
+[Config(typeof(ProbeConfig))]
+public unsafe class CopyAlignProbe
+{
+    [Params(0, 8, 16, 24, 32, 40, 48, 56)]
+    public int SourceShift;
+
+    private const int Bytes = 8000;
+    private static readonly byte* SourceBase = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+    private static readonly byte* DestinationBase = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
+
+    private byte* Source => SourceBase + SourceShift;
+    private static byte* Destination => DestinationBase + 4;
+
+    [Benchmark(Baseline = true)]
+    public int NinoCopy()
+    {
+        NinoUnsafe.Copy(ref *Destination, ref *Source, Bytes);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int LoadsAligned()
+    {
+        byte* s = Source, d = Destination;
+        if (Vector512.IsHardwareAccelerated)
+        {
+            Vector512.Load(s).Store(d);
+            nuint i = 64 - ((nuint)s & 63), end = Bytes - 64;
+            for (; i + 192 <= end; i += 256)
+            {
+                var a = Vector512.Load(s + i);
+                var b = Vector512.Load(s + i + 64);
+                var c = Vector512.Load(s + i + 128);
+                var e = Vector512.Load(s + i + 192);
+                a.Store(d + i);
+                b.Store(d + i + 64);
+                c.Store(d + i + 128);
+                e.Store(d + i + 192);
+            }
+
+            for (; i <= end; i += 64)
+                Vector512.Load(s + i).Store(d + i);
+            Vector512.Load(s + end).Store(d + end);
+        }
+        else
+        {
+            Vector256.Load(s).Store(d);
+            nuint i = 32 - ((nuint)s & 31), end = Bytes - 32;
+            for (; i + 96 <= end; i += 128)
+            {
+                var a = Vector256.Load(s + i);
+                var b = Vector256.Load(s + i + 32);
+                var c = Vector256.Load(s + i + 64);
+                var e = Vector256.Load(s + i + 96);
+                a.Store(d + i);
+                b.Store(d + i + 32);
+                c.Store(d + i + 64);
+                e.Store(d + i + 96);
+            }
+
+            for (; i <= end; i += 32)
+                Vector256.Load(s + i).Store(d + i);
+            Vector256.Load(s + end).Store(d + end);
+        }
+
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Memmove()
+    {
+        Buffer.MemoryCopy(Source, Destination, Bytes, Bytes);
+        return Bytes;
+    }
+}
