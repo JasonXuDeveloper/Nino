@@ -554,6 +554,11 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
   3. `NinoPolymorphic.Register(Type)` / `Register<T>()`, for an instantiation a process reads but never names nor
      writes (created only from type parameters or by reflection, for example in another assembly). Such a type is
      otherwise an unknown id; this is the one case that needs a call at startup.
+* Registration is re-entrant: a generated registry registers a closed generic whose formatter is internal to
+  another assembly through `NinoPolymorphic.Register(Type)`, which asks every registry for that type id again,
+  including the one running. `NinoRegistry.RegisterType` keeps the types the thread is registering and returns at
+  once for one of them, so the outer call closes the formatter itself (before, a non-generic base nested in a
+  generic class, `Holder<long>.Base`, with subtypes in another assembly overflowed the stack on first use).
 * Registries are immutable snapshots replaced copy-on-write, so concurrent readers never see a torn
   entry. (The v3 inline caches could pair one type's id with another type's delegate under contention.)
 
@@ -918,8 +923,9 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   chose the branch is wrong. `NinoGenerator` turns any exception while emitting a type into one `#error` naming the
   type and the cause, instead of a generator warning and a missing formatter, or code that does not compile.
 * `ShapeMatrixTests` generates every combination of the ways a hierarchy can be declared (base kind, type parameters,
-  nesting, format, reference tracking, a type between base and subtypes) with every kind of subtype, compiles it
-  with the generator and round-trips each subtype through each type above it. A feature that adds a way to declare
+  nesting, format, reference tracking, a type between base and subtypes, subtypes in the base's assembly or in
+  another one that references it as metadata) with every kind of subtype, compiles it with the generator and
+  round-trips each subtype through each type above it, `object` and the boxed API. A feature that adds a way to declare
   a type adds a dimension there.
 * Preprocessor-dependent choices (`WEAK_VERSION_TOLERANCE`, `NET8_0_OR_GREATER`) are resolved at
   generation time from the compilation's parse options, so generated code contains no `#if` branches.

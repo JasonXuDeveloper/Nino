@@ -1,6 +1,10 @@
+#if NET8_0_OR_GREATER
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.Loader;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -11,9 +15,10 @@ namespace Nino.UnitTests.Corner
     /// Every combination of the ways a type hierarchy can be declared, generated, compiled with the generator and
     /// round-tripped: the kind of the base (abstract class, class, interface, abstract record), its type parameters
     /// (none, one, two), where it is declared (namespace, nested in a class, nested in a generic class), the format,
-    /// reference tracking and a non-generic abstract type between the base and the subtypes; with every kind of
+    /// reference tracking, a non-generic abstract type between the base and the subtypes, and whether the subtypes are in
+    /// the base's assembly or in another one; with every kind of
     /// subtype (plain, generic, with a private member, built by a constructor, a struct for interfaces), each read
-    /// through the base, the type between and itself, alone and as a list element, plus null and data of another
+    /// through the base, the type between, itself and object, by the boxed API, alone and as a list element, plus null and data of another
     /// type. A combination nobody thought of is still in the matrix: add a dimension here when a feature adds one.
     /// </summary>
     [TestClass]
@@ -25,13 +30,23 @@ namespace Nino.UnitTests.Corner
 
         private static readonly string[] Formats = { "Positional", "VersionTolerant", "Keyed" };
 
+        // Rows 0 to 3: each kind of base, its subtypes in its assembly; rows 4 to 7: in another assembly.
         [TestMethod]
         [DataRow(0)]
         [DataRow(1)]
         [DataRow(2)]
         [DataRow(3)]
-        public void EveryShapeCompilesAndRoundTrips(int kind)
+        [DataRow(4)]
+        [DataRow(5)]
+        [DataRow(6)]
+        [DataRow(7)]
+        public void EveryShapeCompilesAndRoundTrips(int row)
         {
+            int kind = row % 4;
+            bool otherAssembly = row >= 4;
+            // otherAssembly: the bases in one assembly, the subtypes in another that references it as metadata (a
+            // package or a project reference on the command line), both loaded into one context.
+            var bases = new StringBuilder("using Nino.Core;\n");
             var source = new StringBuilder(Prelude);
             var probes = new List<string>();
             foreach (int arity in new[] { 0, 1, 2 })
@@ -40,8 +55,9 @@ namespace Nino.UnitTests.Corner
             foreach (bool track in new[] { false, true })
             foreach (bool middle in new[] { false, true })
             {
-                string ns = $"{(Kind)kind}{arity}{place}{format}{(track ? "Tracked" : "")}{(middle ? "Middle" : "")}";
-                source.Append(new Shape((Kind)kind, arity, place, format, track, middle).Emit(ns));
+                // Each run its own names: the same full name loaded twice in one process is a type id collision.
+                string ns = $"{(otherAssembly ? "Split" : "")}{(Kind)kind}{arity}{place}{format}{(track ? "Tracked" : "")}{(middle ? "Middle" : "")}";
+                source.Append(new Shape((Kind)kind, arity, place, format, track, middle).Emit(ns, bases, otherAssembly));
                 probes.Add(ns);
             }
 
@@ -51,10 +67,36 @@ namespace Nino.UnitTests.Corner
                 source.Append($"        {ns}.Probe.Run(e);\n");
             source.Append("        return e;\n    }\n}\n");
 
-            var compiled = CornerCompiler.Compile(source.ToString());
-            Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
-            var errors = (List<string>)compiled.Assembly.GetType("Probes")!.GetMethod("Run")!.Invoke(null, null);
+            Assembly probesAssembly;
+            if (otherAssembly)
+            {
+                var library = CornerCompiler.Compile(bases.ToString(), load: false);
+                Assert.AreEqual(0, library.Errors.Length, library.ErrorText);
+                var compiled = CornerCompiler.CompileAgainst(source.ToString(), library);
+                Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
+                var context = new TwoAssemblies(library.Image);
+                probesAssembly = context.LoadFromStream(new MemoryStream(compiled.Image));
+            }
+            else
+            {
+                var compiled = CornerCompiler.Compile(source.Insert(Prelude.Length, bases.ToString().Substring("using Nino.Core;\n".Length)).ToString());
+                Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
+                probesAssembly = compiled.Assembly;
+            }
+
+            var errors = (List<string>)probesAssembly.GetType("Probes")!.GetMethod("Run")!.Invoke(null, null);
             Assert.AreEqual(0, errors.Count, string.Join("\n", errors));
+        }
+
+        /// <summary>Resolves the probes' reference to the bases' assembly; everything else from the default context.</summary>
+        private sealed class TwoAssemblies : AssemblyLoadContext
+        {
+            private readonly Assembly _library;
+
+            public TwoAssemblies(byte[] library) : base("nino-shape-matrix") =>
+                _library = LoadFromStream(new MemoryStream(library));
+
+            protected override Assembly Load(AssemblyName name) => name.Name == _library.GetName().Name ? _library : null;
         }
 
         private const string Prelude = @"using System;
@@ -152,12 +194,18 @@ namespace Other
                 return list;
             }
 
-            public string Emit(string ns)
+            /// <summary>
+            /// The source of the shape, in namespace <paramref name="ns"/>: the base (and the type between) in
+            /// <paramref name="bases"/>, the subtypes and their checks in the return value. With
+            /// <paramref name="split"/> the two go to different assemblies, and the subtypes are declared next to the
+            /// containing class instead of in it (a class cannot be partial across assemblies).
+            /// </summary>
+            public string Emit(string ns, StringBuilder bases, bool split)
             {
                 var s = new StringBuilder();
-                s.Append($"namespace {ns}\n{{\n");
+                bases.Append($"namespace {ns}\n{{\n");
                 if (_place != Place.Namespace)
-                    s.Append(_place == Place.Nested ? "public partial class Holder\n{\n" : "public partial class Holder<X>\n{\n");
+                    bases.Append(_place == Place.Nested ? "public partial class Holder\n{\n" : "public partial class Holder<X>\n{\n");
 
                 string baseFields = !Fields ? ""
                     : (_arity == 0 ? "public int V0; " : _arity == 1 ? "public T1 V1; " : "public T1 V1; public T2 V2; ") +
@@ -166,51 +214,70 @@ namespace Other
                 {
                     Kind.Abstract => "abstract class", Kind.Class => "class", Kind.Interface => "interface", _ => "abstract record"
                 };
-                s.Append($"{Attribute()} public {baseKeyword} Base{Parameters(_arity)} {{ {baseFields}}}\n");
+                bases.Append($"{Attribute()} public {baseKeyword} Base{Parameters(_arity)} {{ {baseFields}}}\n");
                 string closedBase = "Base" + Arguments(_arity);
                 if (_middle)
-                    s.Append(_kind == Kind.Interface
+                    bases.Append(_kind == Kind.Interface
                         ? $"{Attribute()} public interface Mid : {closedBase} {{ }}\n"
                         : $"{Attribute()} public abstract {Keyword} Mid : {closedBase} {{ public int M; }}\n");
-                string parent = _middle ? "Mid" : closedBase;
 
-                s.Append($"{Attribute()} public sealed {Keyword} PLeaf : {parent} {{ public int W; }}\n");
-                if (!_middle && _arity > 0)
-                    s.Append($"{Attribute()} public sealed {Keyword} GLeaf{Parameters(_arity)} : Base{Parameters(_arity)} {{ public int W; }}\n");
-                else
-                    s.Append($"{Attribute()} public sealed {Keyword} GLeaf<TL> : {parent} {{ public TL W; }}\n");
-                s.Append($"{Attribute(nonPublic: true)} public sealed partial {Keyword} QLeaf : {parent} " +
-                         "{ private int _w; public int GetW() => _w; public void SetW(int w) => _w = w; }\n");
-                var all = Inherited().Concat(new[] { ("W", "int", "7") }).ToList();
-                if (!_track)
+                // Where the subtypes are declared: in the container, or (split) in the namespace, naming it.
+                var leaves = split ? s : bases;
+                string near = split ? Prefix : "";
+                string leafPrefix = split ? "" : Prefix;
+                string outer = split ? "long" : "X";
+                if (split)
                 {
-                    s.Append($"{Attribute()} public sealed {Keyword} CLeaf : {parent} {{ public readonly int W; " +
-                             $"[NinoConstructor({string.Join(", ", all.Select(m => $"\"{m.Item1}\""))})] " +
-                             $"public CLeaf({string.Join(", ", all.Select(m => $"{m.Item2} {m.Item1.ToLowerInvariant()}"))}) " +
-                             $"{{ {string.Join(" ", all.Select(m => $"this.{m.Item1} = {m.Item1.ToLowerInvariant()};"))} }} }}\n");
-                    if (_kind == Kind.Interface)
-                        s.Append($"{Attribute()} public struct SLeaf : {parent} {{ public int W; }}\n");
+                    if (_place != Place.Namespace)
+                        bases.Append("}\n");
+                    bases.Append("}\n");
+                    s.Append($"namespace {ns}\n{{\n");
                 }
 
-                if (_place != Place.Namespace)
-                    s.Append("}\n");
+                string parent = near + (_middle ? "Mid" : closedBase);
+                leaves.Append($"{Attribute()} public sealed {Keyword} PLeaf : {parent} {{ public int W; }}\n");
+                if (!_middle && _arity > 0)
+                    leaves.Append($"{Attribute()} public sealed {Keyword} GLeaf{Parameters(_arity)} : {near}Base{Parameters(_arity)} {{ public int W; }}\n");
+                else
+                    leaves.Append($"{Attribute()} public sealed {Keyword} GLeaf<TL> : {parent} {{ public TL W; }}\n");
+                leaves.Append($"{Attribute(nonPublic: true)} public sealed partial {Keyword} QLeaf : {parent} " +
+                              "{ private int _w; public int GetW() => _w; public void SetW(int w) => _w = w; }\n");
+                var all = Inherited().Select(m => m.Type == "X" ? (m.Name, outer, m.Value) : m)
+                    .Concat(new[] { ("W", "int", "7") }).ToList();
+                if (!_track)
+                {
+                    leaves.Append($"{Attribute()} public sealed {Keyword} CLeaf : {parent} {{ public readonly int W; " +
+                                  $"[NinoConstructor({string.Join(", ", all.Select(m => $"\"{m.Item1}\""))})] " +
+                                  $"public CLeaf({string.Join(", ", all.Select(m => $"{m.Item2} {m.Item1.ToLowerInvariant()}"))}) " +
+                                  $"{{ {string.Join(" ", all.Select(m => $"this.{m.Item1} = {m.Item1.ToLowerInvariant()};"))} }} }}\n");
+                    if (_kind == Kind.Interface)
+                        leaves.Append($"{Attribute()} public struct SLeaf : {parent} {{ public int W; }}\n");
+                }
+
+                if (!split && _place != Place.Namespace)
+                    bases.Append("}\n");
+                if (!split)
+                {
+                    bases.Append("}\n");
+                    s.Append($"namespace {ns}\n{{\n");
+                }
 
                 // The checks: every subtype through the base, the type between and itself.
                 s.Append("public static class Probe\n{\n    public static void Run(List<string> e)\n    {\n");
                 string inits = string.Join(", ", Inherited().Select(m => $"{m.Name} = {m.Value}"));
                 string checks = string.Concat(Inherited().Select(m => $" && q.{m.Name} == {m.Value}"));
                 string gleaf = !_middle && _arity > 0 ? "GLeaf" + Arguments(_arity) : "GLeaf<int>";
-                var leaves = new List<(string Type, string Create, string Check)>
+                var types = new List<(string Type, string Create, string Check)>
                 {
-                    ("PLeaf", $"new {Prefix}PLeaf {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
-                    (gleaf, $"new {Prefix}{gleaf} {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
-                    ("QLeaf", $"P.Init(new {Prefix}QLeaf {{ {inits} }}, q => q.SetW(7))", $"q.GetW() == 7{checks}"),
+                    ("PLeaf", $"new {leafPrefix}PLeaf {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
+                    (gleaf, $"new {leafPrefix}{gleaf} {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
+                    ("QLeaf", $"P.Init(new {leafPrefix}QLeaf {{ {inits} }}, q => q.SetW(7))", $"q.GetW() == 7{checks}"),
                 };
                 if (!_track)
                 {
-                    leaves.Add(("CLeaf", $"new {Prefix}CLeaf({string.Join(", ", all.Select(m => m.Item3))})", $"q.W == 7{checks}"));
+                    types.Add(("CLeaf", $"new {leafPrefix}CLeaf({string.Join(", ", all.Select(m => m.Item3))})", $"q.W == 7{checks}"));
                     if (_kind == Kind.Interface)
-                        leaves.Add(("SLeaf", $"new {Prefix}SLeaf {{ W = 7 }}", "q.W == 7"));
+                        types.Add(("SLeaf", $"new {leafPrefix}SLeaf {{ W = 7 }}", "q.W == 7"));
                 }
 
                 if (_kind == Kind.Class)
@@ -220,13 +287,17 @@ namespace Other
                         $"new {Prefix}{closedBase} {{ {string.Join(", ", own.Select(m => $"{m.Name} = {m.Value}"))} }}",
                         string.Join(" && ", own.Select(m => $"q.{m.Name} == {m.Value}")));
                 }
-                foreach (var leaf in leaves)
+
+                foreach (var leaf in types)
                 {
-                    var through = new List<string> { Prefix + closedBase, Prefix + leaf.Type };
+                    var through = new List<string> { Prefix + closedBase, leafPrefix + leaf.Type };
                     if (_middle)
                         through.Insert(1, Prefix + "Mid");
                     foreach (string type in through)
-                        Check(s, ns, type, Prefix + leaf.Type, leaf.Create, leaf.Check);
+                        Check(s, ns, type, leafPrefix + leaf.Type, leaf.Create, leaf.Check);
+                    // By runtime type: as object, and through the boxed API naming the base.
+                    Check(s, ns, "object", leafPrefix + leaf.Type, leaf.Create, leaf.Check);
+                    Check(s, ns, "object", leafPrefix + leaf.Type, leaf.Create, leaf.Check, boxedAs: Prefix + closedBase);
                     if (!_track)
                         s.Append($"        P.Rejects(e, \"{ns} {leaf.Type} read as another type\", () => " +
                                  $"NinoDeserializer.Deserialize<Other.OtherBase>(NinoSerializer.Serialize<{Prefix}{closedBase}>({leaf.Create})));\n");
@@ -238,11 +309,15 @@ namespace Other
 
             private static string Join(string a, string b) => a.Length == 0 ? b : a + ", " + b;
 
-            private static void Check(StringBuilder s, string ns, string through, string leaf, string create, string check) =>
-                s.Append($"        P.Check<{through}>(e, \"{ns} {leaf} as {through}\", {create}, " +
-                         $"x => NinoSerializer.Serialize<{through}>(x), b => NinoDeserializer.Deserialize<{through}>(b), " +
+            private static void Check(StringBuilder s, string ns, string through, string leaf, string create, string check,
+                string boxedAs = null) =>
+                s.Append($"        P.Check<{through}>(e, \"{ns} {leaf} as {boxedAs ?? through}{(boxedAs != null ? " (boxed)" : "")}\", {create}, " +
+                         (boxedAs == null
+                             ? $"x => NinoSerializer.Serialize<{through}>(x), b => NinoDeserializer.Deserialize<{through}>(b), "
+                             : $"x => NinoSerializer.SerializeBoxed(x, typeof({boxedAs})), b => NinoDeserializer.DeserializeBoxed(b, typeof({boxedAs})), ") +
                          $"x => NinoSerializer.Serialize(x), b => NinoDeserializer.Deserialize<List<{through}>>(b), " +
                          $"r => r is {leaf} q && {check});\n");
         }
     }
 }
+#endif

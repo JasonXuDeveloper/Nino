@@ -68,6 +68,8 @@ every method it lists. What has gone wrong before:
   from the model's rules (`DispatchesSubtypes`, `IsDispatchRoot`, ...), not from a new check next to them.
 - A feature that adds a way to declare a type (a kind, an attribute option, a place) adds a dimension to
   `src/Nino.UnitTests/Corner/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
+- Generated registration code may call back into Nino.Core (`NinoPolymorphic.Register(Type)`), which asks every
+  registry again: anything a registry calls must be re-entrant (`NinoRegistry.RegisterType` guards it per thread).
 
 ## Commit messages and release notes
 
