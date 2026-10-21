@@ -525,7 +525,7 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     `ReadExact` there is not shared code either. Other closed instances, and generic subtypes, go through the
     registry. Before, a generic base had no generated dispatch and went through the registry, which wrote and read an
     array of subtypes in random order several times slower than a non-generic base; now both take the same time
-    (`GenericPolymorphicProbe`).
+    (`GenericPolymorphicTest`).
   * A class below the root reads through the root's switch and then checks that the type the data named is one
     of its own (`NinoObject.EnsureSubtype`), so data naming a sibling type throws instead of being stored.
   * Each subtype costs three lines per hierarchy (not per ancestor), so generated code stays linear in the number
