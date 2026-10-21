@@ -138,7 +138,7 @@ the methods whose code grew by more than 15% and 64 bytes or that access the sta
 a cursor left in memory), with the calls each makes that it did not make before. What the JIT inlines also depends on
 profile data gathered while the process runs, so each side runs three times and keeps each method's leanest code; a
 method listed alone, in code the change does not reach, is that variation (dump again). Run both sides on one machine; set
-`DOTNET_EnableAVX512F=0` for the code of a machine without AVX-512. It shows x64 (or whatever the machine is); the
+`DOTNET_EnableAVX512=0` for the code of a machine without AVX-512 (.NET 10 ignores `DOTNET_EnableAVX512F`). It shows x64 (or whatever the machine is); the
 cross JIT above shows ARM64.
 
 ## TypeScript

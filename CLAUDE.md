@@ -25,6 +25,11 @@ every method it lists. What has gone wrong before:
   element loops, string allocation, recycling) out of line (`NoInlining`), with only the common path inline.
 - Never pass `ref reader` or `ref writer` to a method that is not inlined, even in a dead branch: the address keeps
   the struct in memory for the whole method. Pass it by value and return it (`reader = ReadEach(values, reader)`).
+- Mark every small helper a read or write path calls `AggressiveInlining`, even one whose arguments are constants
+  and that looks certain to fold: in a large method the JIT's inliner gives up on it. `NinoLanes.Paired`, called
+  with constants in the AVX2 group loop, stayed a call per load and spilled the vectors around it: AVX2 writes took
+  twice as long as SSSE3's. Look for such calls in the Tier1 listing of every ISA a path takes (`--asm`, with
+  `DOTNET_EnableAVX512=0` and `DOTNET_EnableAVX2=0` too).
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlock<T, TFormatter>.Size`): one load, nothing to inline.
 - Vector loops: bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
