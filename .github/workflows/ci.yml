@@ -94,6 +94,14 @@ jobs:
             coverage: false
             project: Nino.UnitTests/Nino.UnitTests.csproj
             simd: '0'
+          # Windows: its paths, file system and line endings. A contributor's analyzer test failed there (PR #203)
+          # while every Linux job passed.
+          - name: net10.0 on Windows
+            runner: windows-latest
+            framework: net10.0
+            properties: ''
+            coverage: false
+            project: Nino.UnitTests/Nino.UnitTests.csproj
 
     steps:
       - name: Checkout code
