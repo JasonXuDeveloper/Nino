@@ -256,7 +256,7 @@ internal static class ModelBuilder
     {
         if (type.TypeKind != TypeKind.Class || attr.Keyed || type.BaseType is not { } baseType ||
             !facts.IsDelegatable(baseType) || baseType.GetNinoTypeOptions() is not { } baseAttr ||
-            facts.IsTolerant(baseAttr) != facts.IsTolerant(attr))
+            facts.IsTolerant(baseAttr) != facts.IsTolerant(attr) || SharedInstance(baseType))
             return 0;
         var baseSymbols = facts.Members.Of(baseType, baseAttr);
         if (baseSymbols.Count > symbols.Count ||
@@ -264,6 +264,33 @@ internal static class ModelBuilder
             return 0;
         baseFormatter = FormatterResolver.GeneratedFormatter(baseType);
         return baseSymbols.Count;
+    }
+
+    /// <summary>
+    /// Whether a closed generic base runs the runtime's shared code: a type argument (of it or of a containing type)
+    /// is a reference type, or a generic struct over one, such as <c>Box&lt;(Item, int)&gt;</c>. Its
+    /// <c>WriteMembers</c>/<c>ReadMembers</c> then look each <c>T</c> member's formatter up at run time and call it
+    /// virtually, so a subtype that is not generic itself writes and reads those members with their concrete types.
+    /// A base over a subtype's own type parameters is shared either way, and stays reused.
+    /// </summary>
+    private static bool SharedInstance(INamedTypeSymbol type)
+    {
+        var arguments = new List<ITypeSymbol>();
+        for (var t = type; t != null; t = t.ContainingType)
+            arguments.AddRange(t.TypeArguments);
+        return !arguments.Any(ContainsTypeParameter) && arguments.Any(Shares);
+
+        static bool Shares(ITypeSymbol t) =>
+            t.IsReferenceType || t is INamedTypeSymbol { IsGenericType: true } n && n.TypeArguments.Any(Shares);
+
+        static bool ContainsTypeParameter(ITypeSymbol t) => t switch
+        {
+            ITypeParameterSymbol => true,
+            IArrayTypeSymbol a => ContainsTypeParameter(a.ElementType),
+            INamedTypeSymbol n => n.TypeArguments.Any(ContainsTypeParameter) ||
+                                  n.ContainingType != null && ContainsTypeParameter(n.ContainingType),
+            _ => false,
+        };
     }
 
     /// <summary>
