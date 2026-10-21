@@ -98,16 +98,17 @@ namespace Nino.Core
             if (NinoBlock<T, TFormatter>.Permutes)
             {
                 var toWire = NinoBlock<T, TFormatter>.ToWire64;
+                int tables = NinoBlock<T, TFormatter>.WireTables64;
                 int step = NinoBlock<T, TFormatter>.PerVector;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 64);
                 ref byte source = ref Unsafe.As<T, byte>(ref first);
-                i = Permute64(ref source, Unsafe.SizeOf<T>(), ref destination, size, i, last, step, toWire);
+                i = Permute64(ref source, Unsafe.SizeOf<T>(), ref destination, size, i, last, step, toWire, tables);
                 // The values after the last vector by one more, over values already written (the same bytes), rather
                 // than one at a time.
                 if (i < last + step && last >= 0)
                 {
                     Permute64(ref source, (nint)last * Unsafe.SizeOf<T>(), ref destination, (nint)last * size,
-                        toWire);
+                        toWire, tables);
                     i = last + step;
                 }
             }
@@ -220,6 +221,7 @@ namespace Nino.Core
             if (NinoBlock<T, TFormatter>.Permutes)
             {
                 var toMemory = NinoBlock<T, TFormatter>.ToMemory64;
+                int tables = NinoBlock<T, TFormatter>.MemoryTables64;
                 int step = NinoBlock<T, TFormatter>.PerVector;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 64);
                 // Where the values fill whole vectors (64 bytes a multiple of their size), the stores do not overlap
@@ -233,16 +235,16 @@ namespace Nino.Core
                         Avx512Vbmi.IsSupported ? 63u : 15u);
                     if (skip > 0)
                     {
-                        Permute64(ref source, 0, ref destination, 0, toMemory);
+                        Permute64(ref source, 0, ref destination, 0, toMemory, tables);
                         i = skip;
                     }
                 }
 
-                i = Permute64(ref source, size, ref destination, Unsafe.SizeOf<T>(), i, last, step, toMemory);
+                i = Permute64(ref source, size, ref destination, Unsafe.SizeOf<T>(), i, last, step, toMemory, tables);
                 if (whole && i < last + step && last >= 0)
                 {
                     Permute64(ref source, (nint)last * size, ref destination, (nint)last * Unsafe.SizeOf<T>(),
-                        toMemory);
+                        toMemory, tables);
                     i = last + step;
                 }
             }
@@ -711,7 +713,7 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// <see cref="Permute64(ref byte, nint, ref byte, nint, Vector512{byte})"/> of the values from value
+        /// <see cref="Permute64(ref byte, nint, ref byte, nint, Vector512{byte}, int)"/> of the values from value
         /// <paramref name="i"/> to value <paramref name="last"/>, <paramref name="step"/> at a time (none when
         /// <paramref name="i"/> is past <paramref name="last"/>), each <paramref name="from"/> bytes apart in
         /// <paramref name="source"/> and <paramref name="to"/> in <paramref name="destination"/>; returns the value
@@ -721,7 +723,7 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int Permute64(ref byte source, nint from, ref byte destination, nint to, int i, int last,
-            int step, Vector512<byte> indices)
+            int step, Vector512<byte> indices, int tables)
         {
             if (i > last)
                 return i;
@@ -732,7 +734,7 @@ namespace Nino.Core
             i += n * step;
             do
             {
-                Permute64(ref at, ref into, indices, q0, q1, q2, q3);
+                Permute64(ref at, ref into, indices, tables, q0, q1, q2, q3);
                 at = ref Unsafe.Add(ref at, step * from);
                 into = ref Unsafe.Add(ref into, step * to);
             } while (--n != 0);
@@ -749,10 +751,11 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Permute64(ref byte source, nint from, ref byte destination, nint to,
-            Vector512<byte> indices)
+            Vector512<byte> indices, int tables)
         {
             var (q0, q1, q2, q3) = Quarters(indices);
-            Permute64(ref Unsafe.Add(ref source, from), ref Unsafe.Add(ref destination, to), indices, q0, q1, q2, q3);
+            Permute64(ref Unsafe.Add(ref source, from), ref Unsafe.Add(ref destination, to), indices, tables, q0, q1,
+                q2, q3);
         }
 
         /// <summary>The 16-byte quarters of <paramref name="indices"/> for the Arm64 table lookups (none with AVX-512 VBMI).</summary>
@@ -764,8 +767,13 @@ namespace Nino.Core
                 : (indices.GetLower().GetLower(), indices.GetLower().GetUpper(), indices.GetUpper().GetLower(),
                     indices.GetUpper().GetUpper());
 
+        /// <summary>
+        /// One permute of <see cref="Permute64(ref byte, nint, ref byte, nint, Vector512{byte}, int)"/>; on Arm64 each
+        /// 16 bytes written by one lookup in the quarters <paramref name="tables"/> names
+        /// (<see cref="NinoBlock{T, TFormatter}.WireTables64"/>), each quarter loaded once.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Permute64(ref byte source, ref byte destination, Vector512<byte> indices,
+        private static void Permute64(ref byte source, ref byte destination, Vector512<byte> indices, int tables,
             Vector128<byte> q0, Vector128<byte> q1, Vector128<byte> q2, Vector128<byte> q3)
         {
             if (Avx512Vbmi.IsSupported)
@@ -774,12 +782,54 @@ namespace Nino.Core
                 return;
             }
 
-            var table = (Vector128.LoadUnsafe(ref source), Vector128.LoadUnsafe(ref source, 16),
-                Vector128.LoadUnsafe(ref source, 32), Vector128.LoadUnsafe(ref source, 48));
-            AdvSimd.Arm64.VectorTableLookup(table, q0).StoreUnsafe(ref destination);
-            AdvSimd.Arm64.VectorTableLookup(table, q1).StoreUnsafe(ref destination, 16);
-            AdvSimd.Arm64.VectorTableLookup(table, q2).StoreUnsafe(ref destination, 32);
-            AdvSimd.Arm64.VectorTableLookup(table, q3).StoreUnsafe(ref destination, 48);
+            Vector128<byte> t0 = default, t1 = default, t2 = default, t3 = default;
+            if ((tables & 1 << 20) != 0)
+                t0 = Vector128.LoadUnsafe(ref source);
+            if ((tables & 1 << 21) != 0)
+                t1 = Vector128.LoadUnsafe(ref source, 16);
+            if ((tables & 1 << 22) != 0)
+                t2 = Vector128.LoadUnsafe(ref source, 32);
+            if ((tables & 1 << 23) != 0)
+                t3 = Vector128.LoadUnsafe(ref source, 48);
+            // All lookups before the stores, so the JIT pairs them (stp).
+            var r0 = Table64(t0, t1, t2, t3, tables, q0);
+            var r1 = Table64(t0, t1, t2, t3, tables >> 4, q1);
+            var r2 = Table64(t0, t1, t2, t3, tables >> 8, q2);
+            var r3 = Table64(t0, t1, t2, t3, tables >> 12, q3);
+            if ((tables & 1 << 16) != 0)
+                r0.StoreUnsafe(ref destination);
+            if ((tables & 1 << 17) != 0)
+                r1.StoreUnsafe(ref destination, 16);
+            if ((tables & 1 << 18) != 0)
+                r2.StoreUnsafe(ref destination, 32);
+            if ((tables & 1 << 19) != 0)
+                r3.StoreUnsafe(ref destination, 48);
+        }
+
+        /// <summary>
+        /// A lookup of <paramref name="index"/> in the consecutive quarters <paramref name="table"/> names (its low two
+        /// bits the first, the next two their count less one), whose indices count from the first.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Table64(Vector128<byte> t0, Vector128<byte> t1, Vector128<byte> t2,
+            Vector128<byte> t3, int table, Vector128<byte> index)
+        {
+            int first = table & 3;
+            switch (table >> 2 & 3)
+            {
+                case 0:
+                    return AdvSimd.Arm64.VectorTableLookup(first == 0 ? t0 : first == 1 ? t1 : first == 2 ? t2 : t3,
+                        index);
+                case 1:
+                    return first == 0 ? AdvSimd.Arm64.VectorTableLookup((t0, t1), index)
+                        : first == 1 ? AdvSimd.Arm64.VectorTableLookup((t1, t2), index)
+                        : AdvSimd.Arm64.VectorTableLookup((t2, t3), index);
+                case 2:
+                    return first == 0 ? AdvSimd.Arm64.VectorTableLookup((t0, t1, t2), index)
+                        : AdvSimd.Arm64.VectorTableLookup((t1, t2, t3), index);
+                default:
+                    return AdvSimd.Arm64.VectorTableLookup((t0, t1, t2, t3), index);
+            }
         }
 #endif
     }
@@ -1552,16 +1602,70 @@ namespace Nino.Core
                                                (Avx512Vbmi.IsSupported ||
                                                 AdvSimd.Arm64.IsSupported && Unsafe.SizeOf<T>() <= 8);
 
-        /// <summary><see cref="ToWire"/> for <see cref="PerVector"/> values.</summary>
+        /// <summary>
+        /// <see cref="ToWire"/> for <see cref="PerVector"/> values; on Arm64 each quarter's indices count from the first
+        /// quarter of its table (<see cref="WireTables64"/>).
+        /// </summary>
         public static readonly Vector512<byte> ToWire64 = Mask64(toWire: true);
 
-        /// <summary><see cref="ToMemory"/> for <see cref="PerVector"/> values.</summary>
+        /// <summary><see cref="ToMemory"/> for <see cref="PerVector"/> values, as <see cref="ToWire64"/>.</summary>
         public static readonly Vector512<byte> ToMemory64 = Mask64(toWire: false);
+
+        /// <summary>
+        /// Arm64's lookups for <see cref="ToWire64"/> (<see cref="NinoBlock"/>.Permute64): for each 16 bytes written,
+        /// only the quarters of the 64 bytes loaded that its bytes come from, as a lookup takes a micro-op per register
+        /// on Neoverse cores (1,000 (byte, int), five bytes each and 40 a group, written as 64 bytes by four 4-register
+        /// lookups, took twice as long as (short, int)), and only the quarters within the values' bytes are written.
+        /// Bits 4q and 4q + 1: the first quarter of quarter q's table, 4q + 2 and 4q + 3: its quarters less one;
+        /// 16 + q: whether quarter q is written; 20 + k: whether quarter k is loaded. 0 with AVX-512 VBMI.
+        /// </summary>
+        public static readonly int WireTables64 = Tables64(toWire: true);
+
+        /// <summary><see cref="WireTables64"/> for <see cref="ToMemory64"/>.</summary>
+        public static readonly int MemoryTables64 = Tables64(toWire: false);
 
         private static Vector512<byte> Mask64(bool toWire)
         {
             if (!Permutes)
                 return default;
+            var mask = Indices64(toWire);
+            int tables = Tables64(toWire);
+            for (int b = 0; b < 64; b++)
+                if (mask[b] < 64)
+                    mask[b] -= (byte)(16 * (tables >> 4 * (b / 16) & 3));
+            return Vector512.Create(mask);
+        }
+
+        private static int Tables64(bool toWire)
+        {
+            if (!Permutes || Avx512Vbmi.IsSupported)
+                return 0;
+            var mask = Indices64(toWire);
+            int written = PerVector * (toWire ? NinoBlock.Size<T, TFormatter>() : Unsafe.SizeOf<T>());
+            int tables = 0;
+            for (int q = 0; q * 16 < written; q++)
+            {
+                int first = 3, last = 0;
+                for (int b = q * 16; b < q * 16 + 16; b++)
+                    if (mask[b] < 64)
+                    {
+                        first = Math.Min(first, mask[b] / 16);
+                        last = Math.Max(last, mask[b] / 16);
+                    }
+
+                if (first > last)
+                    first = last = 0;
+                tables |= (first | (last - first) << 2) << 4 * q | 1 << 16 + q;
+                for (int k = first; k <= last; k++)
+                    tables |= 1 << 20 + k;
+            }
+
+            return tables;
+        }
+
+        /// <summary>The indices of <see cref="ToWire64"/> or <see cref="ToMemory64"/> into all 64 bytes.</summary>
+        private static byte[] Indices64(bool toWire)
+        {
             var mask = new byte[64];
             mask.AsSpan().Fill(0x80);
             int size = NinoBlock.Size<T, TFormatter>();
@@ -1576,7 +1680,7 @@ namespace Nino.Core
                     mask[memory] = (byte)wire;
             }
 
-            return Vector512.Create(mask);
+            return mask;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
