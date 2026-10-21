@@ -46,6 +46,7 @@ namespace Nino.Core.Internal
 
     /// <summary>
     /// Where the fields of <see cref="List{T}"/>, <see cref="Stack{T}"/>, <see cref="Queue{T}"/>,
+    /// <see cref="HashSet{T}"/>, <see cref="Dictionary{TKey,TValue}"/>,
     /// <see cref="SortedList{TKey,TValue}"/>, <see cref="SortedSet{T}"/> and
     /// <see cref="SortedDictionary{TKey,TValue}"/> are on this runtime, for <see cref="CollectionFields"/>. Each
     /// layout is one of the classes below, which declare the fields of a known implementation in its order (.NET; .NET
@@ -141,6 +142,85 @@ namespace Nino.Core.Internal
             public object _values;
             public object _set;
         }
+
+        // HashSet<T> and Dictionary<TKey, TValue> on .NET 5+ (64-bit and 32-bit, which has no _fastModMultiplier);
+        // on .NET Core 3.1, .NET Framework, Mono and Unity (the "old" ones) their entries are m_slots / entries, and
+        // their bound is m_lastIndex / count.
+        private sealed class HashSetCore64
+        {
+            public object _buckets;
+            public object _entries;
+            public ulong _fastModMultiplier;
+            public int _count;
+            public int _freeList;
+            public int _freeCount;
+            public int _version;
+            public object _comparer;
+        }
+
+        private sealed class HashSetCore32
+        {
+            public object _buckets;
+            public object _entries;
+            public int _count;
+            public int _freeList;
+            public int _freeCount;
+            public int _version;
+            public object _comparer;
+        }
+
+        private sealed class HashSetOld
+        {
+            public object m_buckets;
+            public object m_slots;
+            public int m_count;
+            public int m_lastIndex;
+            public int m_freeList;
+            public object m_comparer;
+            public int m_version;
+            public object m_siInfo;
+        }
+
+        private sealed class DictionaryCore64
+        {
+            public object _buckets;
+            public object _entries;
+            public ulong _fastModMultiplier;
+            public int _count;
+            public int _freeList;
+            public int _freeCount;
+            public int _version;
+            public object _comparer;
+            public object _keys;
+            public object _values;
+        }
+
+        private sealed class DictionaryCore32
+        {
+            public object _buckets;
+            public object _entries;
+            public int _count;
+            public int _freeList;
+            public int _freeCount;
+            public int _version;
+            public object _comparer;
+            public object _keys;
+            public object _values;
+        }
+
+        private sealed class DictionaryOld
+        {
+            public object buckets;
+            public object entries;
+            public int count;
+            public int version;
+            public int freeList;
+            public int freeCount;
+            public object comparer;
+            public object keys;
+            public object values;
+            public object _syncRoot;
+        }
 #pragma warning restore CS0649, CS0169
 
         // The candidate layouts of List<T> and Stack<T>, which have the same fields: items, size, version.
@@ -234,6 +314,50 @@ namespace Nino.Core.Internal
 
         public static readonly bool SortedDictionary = SortedDictionaryLayout != null;
         public static readonly int SortedDictionarySet = SortedDictionary ? SortedDictionaryLayout[0] : 0;
+
+        // HashSet<T>: entries, bound (the entries in use, live or free), version.
+        private static readonly int[] HashSetLayout = Find(CheckHashSet,
+            () =>
+            {
+                var m = new HashSetCore64();
+                return Offsets(m, ref m._entries, ref m._count, ref m._version);
+            },
+            () =>
+            {
+                var m = new HashSetCore32();
+                return Offsets(m, ref m._entries, ref m._count, ref m._version);
+            },
+            () =>
+            {
+                var m = new HashSetOld();
+                return Offsets(m, ref m.m_slots, ref m.m_lastIndex, ref m.m_version);
+            });
+
+        public static readonly bool HashSet = HashSetLayout != null;
+        public static readonly int HashSetEntries = HashSet ? HashSetLayout[0] : 0;
+        public static readonly int HashSetBound = HashSet ? HashSetLayout[1] : 0;
+
+        // Dictionary<TKey, TValue>: entries, bound, version.
+        private static readonly int[] DictionaryLayout = Find(CheckDictionary,
+            () =>
+            {
+                var m = new DictionaryCore64();
+                return Offsets(m, ref m._entries, ref m._count, ref m._version);
+            },
+            () =>
+            {
+                var m = new DictionaryCore32();
+                return Offsets(m, ref m._entries, ref m._count, ref m._version);
+            },
+            () =>
+            {
+                var m = new DictionaryOld();
+                return Offsets(m, ref m.entries, ref m.count, ref m.version);
+            });
+
+        public static readonly bool Dictionary = DictionaryLayout != null;
+        public static readonly int DictionaryEntries = Dictionary ? DictionaryLayout[0] : 0;
+        public static readonly int DictionaryBound = Dictionary ? DictionaryLayout[1] : 0;
 
         private static int[] Offsets<T0, T1, T2>(object mirror, ref T0 f0, ref T1 f1, ref T2 f2) => new[]
         {
@@ -392,6 +516,41 @@ namespace Nino.Core.Internal
                    target.Count == 3;
         }
 
+        private static bool CheckHashSet(int[] at)
+        {
+            // Four entries in use, one of them free: bound 4, count 3, version 4 or 5 (Remove bumps it on some).
+            var set = new HashSet<long> { 10, 11, 12, 13 };
+            set.Remove(11);
+            int version = ObjectFields.At<int>(set, at[2]);
+            if (ObjectFields.At<int>(set, at[1]) != 4 || version != 4 && version != 5)
+                return false;
+            if (ObjectFields.At<object>(set, at[0]) is not Array { Length: >= 4 } array ||
+                array.GetType().GetElementType() is not { IsValueType: true, IsGenericType: true } ||
+                Unsafe.As<CollectionFields.SetEntry<long>[]>(array) is not { } entries ||
+                entries[0].Value != 10 || entries[2].Value != 12 || entries[3].Value != 13)
+                return false;
+            set.Add(14); // into the free entry: bound 4, count 4
+            return ObjectFields.At<int>(set, at[1]) == 4 && entries[1].Value == 14 && set.Count == 4;
+        }
+
+        private static bool CheckDictionary(int[] at)
+        {
+            // As CheckHashSet's.
+            var dictionary = new Dictionary<long, short> { { 10, 1 }, { 11, 2 }, { 12, 3 }, { 13, 4 } };
+            dictionary.Remove(11);
+            int version = ObjectFields.At<int>(dictionary, at[2]);
+            if (ObjectFields.At<int>(dictionary, at[1]) != 4 || version != 4 && version != 5)
+                return false;
+            if (ObjectFields.At<object>(dictionary, at[0]) is not Array { Length: >= 4 } array ||
+                array.GetType().GetElementType() is not { IsValueType: true, IsGenericType: true } ||
+                Unsafe.As<CollectionFields.MapEntry<long, short>[]>(array) is not { } entries ||
+                entries[0].Key != 10 || entries[2].Value != 3 || entries[3].Key != 13 || entries[3].Value != 4)
+                return false;
+            dictionary.Add(14, 5); // into the free entry: bound 4, count 4
+            return ObjectFields.At<int>(dictionary, at[1]) == 4 && entries[1].Key == 14 && entries[1].Value == 5 &&
+                   dictionary.Count == 4;
+        }
+
         private static bool CheckSortedDictionary(int[] at)
         {
             var dictionary = new SortedDictionary<int, int> { { 9, 90 }, { 7, 70 } };
@@ -410,6 +569,44 @@ namespace Nino.Core.Internal
     /// </summary>
     internal static class CollectionFields
     {
+        /// <summary>An entry of <see cref="HashSet{T}"/> (HashCode, Next, Value; hashCode, next, value elsewhere).</summary>
+        internal struct SetEntry<T>
+        {
+#pragma warning disable CS0649 // read through Unsafe.As
+            public int HashCode;
+            public int Next;
+            public T Value;
+#pragma warning restore CS0649
+        }
+
+        /// <summary>An entry of <see cref="Dictionary{TKey,TValue}"/> (hashCode, next, key, value).</summary>
+        internal struct MapEntry<TKey, TValue>
+        {
+#pragma warning disable CS0649 // read through Unsafe.As
+            public int HashCode;
+            public int Next;
+            public TKey Key;
+            public TValue Value;
+#pragma warning restore CS0649
+        }
+
+        /// <summary>
+        /// The entries of <paramref name="set"/> when all of its first Count are in use (none removed since), else
+        /// null. Read for element types without references only, whose entries are laid out in field order.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static SetEntry<T>[] Entries<T>(HashSet<T> set, int count) =>
+            ObjectFields.At<int>(set, CollectionViews.HashSetBound) == count
+                ? Unsafe.As<SetEntry<T>[]>(ObjectFields.At<object>(set, CollectionViews.HashSetEntries))
+                : null;
+
+        /// <summary>As <see cref="Entries{T}(HashSet{T}, int)"/>, for a dictionary.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static MapEntry<TKey, TValue>[] Entries<TKey, TValue>(Dictionary<TKey, TValue> dictionary, int count) =>
+            ObjectFields.At<int>(dictionary, CollectionViews.DictionaryBound) == count
+                ? Unsafe.As<MapEntry<TKey, TValue>[]>(ObjectFields.At<object>(dictionary, CollectionViews.DictionaryEntries))
+                : null;
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T[] Items<T>(List<T> list) => ref ObjectFields.At<T[]>(list, CollectionViews.ListItems);
 

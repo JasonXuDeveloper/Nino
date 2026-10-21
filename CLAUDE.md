@@ -48,6 +48,14 @@ every method it lists. What has gone wrong before:
   outside the benchmark suite takes, such as `(byte, int)` for the 64-byte permutes, need a small program of their
   own). A clean loop is loads (`ldp`), lookups, stores (`stp`) and the cursor adds; `stp`/`ldp` to `[fp, ...]`, `mul`
   or `mov v..` in it are the signs above.
+- Every optimization has to hold on each platform Nino runs on: x64 with AVX-512, AVX2 or SSSE3 only, Arm64, Arm32
+  and other 32-bit targets, WebAssembly and anything without SIMD (`DOTNET_EnableHWIntrinsic=0`), Mono and Unity
+  (IL2CPP included), .NET Framework. Fix a problem everywhere it occurs, not only in the case that showed it, and say
+  in the commit body which platforms a change speeds up and which keep the old path. A path through a runtime's
+  internals (`CollectionViews`: the fields of `List<T>`, `HashSet<T>`, `Dictionary<TKey, TValue>`, ...) declares a
+  layout for each implementation (.NET 64-bit and 32-bit, .NET Framework, Mono), checks it against an instance with
+  known contents at startup and uses the public API when none matches; run the tests on .NET, the `net472` build under
+  Mono and the `linux-arm` and `linux-arm64` builds under qemu, and keep the fallback (the enumerator) out of line.
 - The signs in the listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget ran out);
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
