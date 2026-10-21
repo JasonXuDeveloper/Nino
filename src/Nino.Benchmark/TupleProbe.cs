@@ -279,6 +279,30 @@ public unsafe class TupleProbe
 
 
     /// <summary>
+    /// Four values as four 16-byte loads, one at each block, and four 1-register table lookups with one index (the
+    /// long from bytes 4 to 11, the int from 0 to 3): four lookups of one micro-op each against ReadTbl's (and Nino's)
+    /// 2-register ones of two, for one load more (Arm64).
+    /// </summary>
+    [Benchmark]
+    public int ReadTbl1()
+    {
+        if (!AdvSimd.Arm64.IsSupported)
+            return -1;
+        var t = Vector128.Create((byte)4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 0x80, 0x80, 0x80, 0x80);
+        byte* v = _values, b = _blocks;
+        for (int i = 0; i < Count; i += 4, v += 64, b += 48)
+        {
+            var a = AdvSimd.Arm64.VectorTableLookup(AdvSimd.LoadVector128(b), t);
+            var c = AdvSimd.Arm64.VectorTableLookup(AdvSimd.LoadVector128(b + 12), t);
+            var d = AdvSimd.Arm64.VectorTableLookup(AdvSimd.LoadVector128(b + 24), t);
+            var e = AdvSimd.Arm64.VectorTableLookup(AdvSimd.LoadVector128(b + 36), t);
+            AdvSimd.Arm64.StorePair(v, a, c);
+            AdvSimd.Arm64.StorePair(v + 32, d, e);
+        }
+        return Count;
+    }
+
+    /// <summary>
     /// A read into a new array: allocated zeroed (as Nino does for elements moved by shuffles) or uninitialized, then
     /// unpacked by the CPU's kernel (tbl on Arm64, vpermd with AVX2, else one value at a time).
     /// </summary>
@@ -344,7 +368,7 @@ public unsafe class TupleProbe
         }
 
         foreach (var (name, read) in new (string, Func<int>)[]
-                 { ("ReadScalar", probe.ReadScalar), ("ReadPermute", probe.ReadPermute), ("ReadZip", probe.ReadZip), ("ReadTbl", probe.ReadTbl) })
+                 { ("ReadScalar", probe.ReadScalar), ("ReadPermute", probe.ReadPermute), ("ReadZip", probe.ReadZip), ("ReadTbl", probe.ReadTbl), ("ReadTbl1", probe.ReadTbl1) })
         {
             expected.CopyTo(new Span<byte>(probe._blocks, Count * 12));
             new Span<byte>(probe._values, Count * 16).Clear();

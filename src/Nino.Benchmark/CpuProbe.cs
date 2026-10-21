@@ -116,6 +116,7 @@ public static class ProbeTimer
             ("Tuple.WriteLanes", tuples.WriteLanes), ("Tuple.WriteZip", tuples.WriteZip),
             ("Tuple.ReadScalar", tuples.ReadScalar), ("Tuple.ReadPermute", tuples.ReadPermute),
             ("Tuple.ReadZip", tuples.ReadZip), ("Tuple.WriteTbl", tuples.WriteTbl), ("Tuple.ReadTbl", tuples.ReadTbl),
+            ("Tuple.ReadTbl1", tuples.ReadTbl1),
             ("Tuple.AllocList", tuples.AllocList), ("Tuple.ReadNewZeroed", tuples.ReadNewZeroed),
             ("Tuple.ReadNewUninitialized", tuples.ReadNewUninitialized), ("Tuple.AllocUninitialized", tuples.AllocUninitialized),
         };
