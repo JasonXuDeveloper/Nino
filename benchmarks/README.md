@@ -10,6 +10,7 @@ benchmarks/run.sh                          # v3, then the full v4 suite; about t
 benchmarks/run.sh /path/to/out             # write the results somewhere else
 QUICK=1 benchmarks/run.sh                  # development run, about 15 to 20 minutes (see below)
 FILTER='*PooledTest*' benchmarks/run.sh    # only some v4 classes (v3 always runs SimpleTest's Nino and MemoryPack cases)
+FILTER='*Vectors* *FixedStruct*' benchmarks/run.sh   # several patterns, separated by spaces
 ```
 
 `QUICK=1` is for trends and regressions while developing: it sets `NINO_BENCH_QUICK=1`, which switches every class's
