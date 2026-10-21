@@ -5,13 +5,15 @@
 # usage: benchmarks/run.sh [output directory]   (default: benchmarks/results)
 #   QUICK=1     development run: shorter iterations that stop at 2% error (NINO_BENCH_QUICK, see
 #               src/Nino.Benchmark/Program.cs). For trends and regressions, not for publishing.
-#   FILTER=...  the v4 benchmarks to run, as BenchmarkDotNet's --filter (default '*', e.g. '*PooledTest*').
+#   FILTER=...  the v4 benchmarks to run, as BenchmarkDotNet's --filter patterns, separated by spaces (default '*',
+#               e.g. '*PooledTest*' or '*Vectors* *FixedStruct*').
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/benchmarks/results}
 V3=$ROOT/benchmarks/v3
 V4=$ROOT/src/Nino.Benchmark
 FILTER=${FILTER:-*}
+read -r -a FILTERS <<< "$FILTER"
 if [[ "${QUICK:-0}" == 1 ]]; then
   export NINO_BENCH_QUICK=1
   ARGS=()
@@ -31,7 +33,7 @@ echo "v3 $(date)"
   ${ARGS[@]+"${ARGS[@]}"} \
   --artifacts "$OUT/v3" > "$OUT/v3.log")
 echo "v4 $(date)"
-(cd "$V4" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "$FILTER" ${ARGS[@]+"${ARGS[@]}"} \
+(cd "$V4" && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "${FILTERS[@]}" ${ARGS[@]+"${ARGS[@]}"} \
   --artifacts "$OUT/v4" > "$OUT/v4.log")
 echo "done $(date)"
 
