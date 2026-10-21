@@ -142,6 +142,20 @@ namespace Nino.Core
             ref Unsafe.As<TSub, TBase>(ref slot);
 
         /// <summary>
+        /// Generated dispatch of a generic base: <paramref name="value"/> as <typeparamref name="T"/>, which the caller
+        /// checked is the type it is declared as (<c>typeof(Base&lt;TArg&gt;) == typeof(T)</c>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T SameType<T>(object value) where T : class => Unsafe.As<T>(value);
+
+        /// <summary>
+        /// Generated dispatch of a generic base: a slot as a slot of <typeparamref name="TTo"/>, which the caller checked
+        /// is <typeparamref name="TFrom"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref TTo SameTypeSlot<TFrom, TTo>(ref TFrom slot) => ref Unsafe.As<TFrom, TTo>(ref slot);
+
+        /// <summary>
         /// Generated subtype dispatch: after a base's dispatch read a slot declared as <typeparamref name="T"/>,
         /// rejects data that named a type of the base that is not a <typeparamref name="T"/>.
         /// </summary>

@@ -267,7 +267,7 @@ internal static class FormatterEmitter
     private static void EmitShallow(CodeWriter w, TypeModel m, FormatterNames names, BodyEmitter body)
     {
         string t = m.TypeName;
-        string self = m.FormatterName;
+        string self = m.FormatterName + m.TypeParameterList;
         string twin = self + ".__Shallow";
         OpenTwin(w, m, "__Shallow", $"{Core}INinoBodyFormatter<{t}>");
         if (m.Kind == FormatterKind.Struct)
@@ -363,10 +363,10 @@ internal static class FormatterEmitter
     private static void EmitDispatchingEntryPoints(CodeWriter w, TypeModel m, bool ownId)
     {
         string t = m.TypeName;
-        string self = m.FormatterName;
+        string self = m.FormatterName + m.TypeParameterList;
         // The root's dispatch covers every subtype of this class. Writing needs nothing more (its checks are exact);
-        // reading checks that the type the data named is one of this class. A generic type has no dispatch (it lists
-        // no closed subtypes): its subtypes go through the registry, as a dispatch does after its own checks.
+        // reading checks that the type the data named is one of this class. A generic type is its own root: its
+        // dispatch selects one of its closed instances (DispatchEmitter).
         bool root = m.IsDispatchRoot;
         string rootFormatter = "", rootType = "";
         if (m.DispatchesSubtypes && !root)

@@ -182,8 +182,9 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
 #endif
         // Bases dispatch the subtypes of this assembly through generated code; any other subtype through the registry.
-        var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName, m.TypeId,
-                m.IsDispatchRoot, m.IsDispatchTarget, m.NinoBaseClasses, m.NinoInterfaces, m.RawBody))
+        var dispatch = CollectAll(models, static m => new DispatchEntry(m.TypeName, m.FormatterName,
+                m.TypeParameterList, m.TypeId, m.IsDispatchRoot, m.IsDispatchTarget, m.NinoBaseClasses,
+                m.NinoInterfaces, m.NinoGenericAncestors, m.RawBody))
             .Select(static (x, _) => new EquatableArray<DispatchEntry>(x.Where(static e => e.IsBase || e.IsTarget)
                 .Distinct().OrderBy(e => e.FormatterName, StringComparer.Ordinal)));
         context.RegisterImplementationSourceOutput(dispatch.Combine(enabled), static (spc, x) =>

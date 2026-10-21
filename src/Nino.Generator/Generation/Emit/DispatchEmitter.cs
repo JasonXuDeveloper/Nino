@@ -10,7 +10,8 @@ namespace Nino.Generator.Generation.Emit;
 /// Emits, for each base formatter that dispatches subtypes, the dispatch to the subtypes declared in this assembly:
 /// on write a chain of exact runtime type checks (one method table compare each), on read a switch on the type id,
 /// each writing the subtype's id and body, or calling a method of the base formatter that reads that subtype. Anything
-/// else (subtypes in other assemblies, closed generics, tracked types) falls back to <c>NinoPolymorphic&lt;T&gt;</c>.
+/// else (subtypes in other assemblies, generic subtypes, tracked types) falls back to <c>NinoPolymorphic&lt;T&gt;</c>.
+/// A generic base dispatches each of its closed instances that subtypes here derive from in the same way.
 /// Only calls are emitted, never subtype bodies, so the size is two lines and a one-line method per (base, subtype)
 /// pair.
 /// </summary>
@@ -36,19 +37,53 @@ internal static class DispatchEmitter
         }
 
         var w = new CodeWriter(4096, indent: 1);
+        int closedCount = 0;
         foreach (var e in entries)
         {
             if (!e.IsBase)
                 continue;
-            var subtypes = subtypesOf.TryGetValue(e.TypeName, out var all)
-                ? all.Where(t => t.TypeId != e.TypeId).ToList()
-                : new List<DispatchEntry>();
-            // Colliding ids cannot be switch cases; the registry reports the collision when one is used.
-            var ids = new HashSet<int>(subtypes.GroupBy(static t => t.TypeId).Where(static g => g.Count() > 1)
-                .Select(static g => g.Key));
-            subtypes.RemoveAll(t => ids.Contains(t.TypeId));
-            w.Open($"partial struct {e.FormatterName}");
-            EmitBase(w, e, subtypes);
+            if (e.TypeParameterList.Length == 0)
+            {
+                w.Open($"partial struct {e.FormatterName}");
+                EmitBase(w, e.TypeName, Subtypes(subtypesOf, e.TypeName, e.TypeId));
+                w.Close();
+                w.Line();
+                continue;
+            }
+
+            // A generic base: each closed instance its subtypes here derive from gets the dispatch of a non-generic
+            // base, in a class of its own (where ReadExact is not shared code). The generic formatter selects it by
+            // comparing types, which the JIT folds where the type arguments are value types; for reference types it is
+            // one lookup in the method's generic context.
+            var closed = entries.Where(static t => t.IsTarget).SelectMany(static t => t.GenericAncestors)
+                .Where(a => a.Definition == e.TypeName).Select(static a => a.Type).Distinct()
+                .OrderBy(static a => a, System.StringComparer.Ordinal).ToList();
+            var classes = new List<string>();
+            foreach (var c in closed)
+            {
+                string name = $"__NinoDispatch{closedCount++}";
+                classes.Add(name);
+                w.Open($"static class {name}");
+                EmitBase(w, c, Subtypes(subtypesOf, c, 0));
+                w.Close();
+                w.Line();
+            }
+
+            string t = e.TypeName;
+            w.Open($"partial struct {e.FormatterName}{e.TypeParameterList}");
+            w.Block($"internal static void __WriteSubtype({t} value, ref __NinoWriter writer)", () =>
+            {
+                for (int i = 0; i < closed.Count; i++)
+                    w.Line($"if (typeof({t}) == typeof({closed[i]})) {{ {classes[i]}.__WriteSubtype(__NinoObject.SameType<{closed[i]}>(value), ref writer); return; }}");
+                w.Line($"{Core}NinoPolymorphic<{t}>.Serialize(value, ref writer);");
+            });
+            w.Line();
+            w.Block($"internal static void __ReadSubtype(int id, ref {t} value, ref __NinoReader reader)", () =>
+            {
+                for (int i = 0; i < closed.Count; i++)
+                    w.Line($"if (typeof({t}) == typeof({closed[i]})) {{ {classes[i]}.__ReadSubtype(id, ref __NinoObject.SameTypeSlot<{t}, {closed[i]}>(ref value), ref reader); return; }}");
+                w.Line($"{Core}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
+            });
             w.Close();
             w.Line();
         }
@@ -82,9 +117,25 @@ internal static class DispatchEmitter
         w.Close();
     }
 
-    private static void EmitBase(CodeWriter w, DispatchEntry b, List<DispatchEntry> subtypes)
+    /// <summary>
+    /// The subtypes of <paramref name="baseType"/> (other than itself, id <paramref name="baseId"/>) that bases dispatch
+    /// to, without colliding ids, which cannot be switch cases: the registry reports the collision when one is used.
+    /// </summary>
+    private static List<DispatchEntry> Subtypes(Dictionary<string, List<DispatchEntry>> subtypesOf, string baseType,
+        int baseId)
     {
-        string t = b.TypeName;
+        var subtypes = subtypesOf.TryGetValue(baseType, out var all)
+            ? all.Where(t => t.TypeId != baseId).ToList()
+            : new List<DispatchEntry>();
+        var ids = new HashSet<int>(subtypes.GroupBy(static t => t.TypeId).Where(static g => g.Count() > 1)
+            .Select(static g => g.Key));
+        subtypes.RemoveAll(t => ids.Contains(t.TypeId));
+        return subtypes;
+    }
+
+    /// <summary>The dispatch of the non-generic (or closed generic) base <paramref name="t"/> to <paramref name="subtypes"/>.</summary>
+    private static void EmitBase(CodeWriter w, string t, List<DispatchEntry> subtypes)
+    {
         w.Block($"internal static void __WriteSubtype({t} value, ref __NinoWriter writer)", () =>
         {
             // value.GetType() == typeof(X) compiles to one method table compare. WriteExact is inlined where the

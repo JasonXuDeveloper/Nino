@@ -223,6 +223,9 @@ internal static class ModelBuilder
                 .Where(static a => a.TypeKind != TypeKind.Interface).Select(Global)),
             NinoInterfaces: new EquatableArray<string>(ancestors
                 .Where(static a => a.TypeKind == TypeKind.Interface).Select(Global)),
+            NinoGenericAncestors: new EquatableArray<GenericAncestor>(ancestors
+                .Where(a => !a.IsDefinition && facts.Visibility.CanName(a))
+                .Select(a => new GenericAncestor(Global(a), Global(a.OriginalDefinition)))),
             Pooled: pooled,
             PartialNamespace: partialNamespace,
             PartialDeclarations: new EquatableArray<string>(partialDeclarations),
