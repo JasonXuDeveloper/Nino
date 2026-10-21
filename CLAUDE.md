@@ -27,6 +27,19 @@ every method it lists. What has gone wrong before:
   the struct in memory for the whole method. Pass it by value and return it (`reader = ReadEach(values, reader)`).
 - A JIT-time check made of several helper calls is one `static readonly` field instead (`NinoElements.Traits`,
   `NinoBlock<T, TFormatter>.Size`): one load, nothing to inline.
+- Vector loops: bump `ref` cursors and count down (`at = ref Unsafe.Add(ref at, step)`, `while (--n != 0)`), never
+  `(nuint)i * size` per iteration; take everything that does not change per iteration (masks, indices) out of the
+  loop into locals.
+- On Arm64 (and anywhere without AVX-512) `Vector512<T>` and `Vector256<T>` are structs of 16-byte vectors: passed
+  into an inlined loop body they are copied through the stack every iteration. Take their `Vector128` parts out once,
+  before the loop, and pass those.
+- Arm64 `tbl` with two to four table registers needs consecutive registers: build the tuples from loads made once
+  per iteration, before any lookup (`(w0, w1)`, `(w1, w2)`), never from per-lookup loads, or the JIT adds `mov`s.
+- Look at Arm64 code too, not only x64: build for `linux-arm64` and run under `qemu-aarch64-static` with
+  `DOTNET_TieredCompilation=0 DOTNET_JitDisasm='<method>' DOTNET_JitStdOutFile=<file>` (the code paths only a type
+  outside the benchmark suite takes, such as `(byte, int)` for the 64-byte permutes, need a small program of their
+  own). A clean loop is loads (`ldp`), lookups, stores (`stp`) and the cursor adds; `stp`/`ldp` to `[fp, ...]`, `mul`
+  or `mov v..` in it are the signs above.
 - The signs in the listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget ran out);
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
