@@ -329,6 +329,20 @@ public sealed class NinoGenerator : IIncrementalGenerator
 
     private static void Emit(SourceProductionContext spc, TypeModel model)
     {
-        spc.AddSource($"NinoGen.{model.FormatterName}.g.cs", FormatterEmitter.Emit(model));
+        string source;
+        try
+        {
+            source = FormatterEmitter.Emit(model);
+        }
+        catch (Exception e)
+        {
+            // A rule that emits code the model has no name for (TypeModel.Need), or any other generator bug: one
+            // build error naming the type, instead of a generator warning and no formatter, or code that does not
+            // compile at all.
+            source = $"#error Nino generator failed on {model.TypeName} ({e.GetType().Name}: " +
+                     $"{e.Message.Replace('\n', ' ').Replace('\r', ' ')}). Please report it at https://github.com/JasonXuDeveloper/Nino/issues\n";
+        }
+
+        spc.AddSource($"NinoGen.{model.FormatterName}.g.cs", source);
     }
 }

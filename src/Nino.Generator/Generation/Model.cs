@@ -204,6 +204,14 @@ internal sealed record TypeModel(
     public bool DispatchesSubtypes =>
         !IsGeneric && !TrackReferences && Kind is FormatterKind.Polymorphic or FormatterKind.Class;
 
+    /// <summary>
+    /// <paramref name="value"/>, one of the names the model leaves empty where it does not apply (a base, collection or
+    /// dispatch root formatter, a constructor). Emitting an empty one is a bug in the rule that chose the branch: it throws, and
+    /// <c>NinoGenerator</c> reports it as a build error naming the type, rather than writing code that does not compile.
+    /// </summary>
+    public string Need(string value, string name) =>
+        value.Length != 0 ? value : throw new System.InvalidOperationException($"{name} of {TypeName} is empty");
+
     /// <summary>Whether this type's formatter holds the dispatch of its hierarchy (emitted with the registry).</summary>
     public bool IsDispatchRoot => DispatchesSubtypes && DispatchRoot.Length == 0;
 

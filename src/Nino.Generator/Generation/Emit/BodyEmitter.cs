@@ -60,7 +60,10 @@ internal sealed class BodyEmitter
     private string Formatter(MemberModel member) =>
         _names.Use(_shallow ? member.ShallowFormatter : member.Formatter);
 
-    private string CollectionFormatter => _shallow ? _m.ShallowCollectionFormatter : _m.CollectionFormatter;
+    private string CollectionFormatter => _m.Need(_shallow ? _m.ShallowCollectionFormatter : _m.CollectionFormatter,
+        nameof(_m.CollectionFormatter));
+
+    private string BaseFormatter => _m.Need(_m.BaseFormatter, nameof(_m.BaseFormatter));
 
     /// <summary>
     /// The bodies of the <c>__Shallow</c> twin (<see cref="TypeModel.ShallowBodies"/>): <c>__WriteBodyShallow</c> and
@@ -157,7 +160,7 @@ internal sealed class BodyEmitter
     internal static string Create(TypeModel m)
     {
         var c = m.Construction;
-        string create = (c.Factory.Length != 0 ? c.Factory : c.Creator) + "()";
+        string create = (c.Factory.Length != 0 ? c.Factory : m.Need(c.Creator, nameof(c.Creator))) + "()";
         return m.Pooled ? m.TypeName + ".RentFromNinoPool() ?? " + create : create;
     }
 
@@ -308,7 +311,7 @@ internal sealed class BodyEmitter
     {
         _blocks = 0;
         if (Delegates)
-            _w.Line($"{_m.BaseFormatter}.WriteMembers(value, ref writer);");
+            _w.Line($"{BaseFormatter}.WriteMembers(value, ref writer);");
         if (_m.Keyed)
         {
             EmitKeyedWrites(RawBlock.Groups(_m.Members));
@@ -498,7 +501,7 @@ internal sealed class BodyEmitter
             // without a branch gets no profile from tiered PGO, and without one the JIT stops inlining the
             // collection constructors of the member reads. An instance passed in anyway is still read correctly
             // (its members are replaced, not reused).
-            ReadIntoLocal(_m.Construction.Creator + "()");
+            ReadIntoLocal(_m.Need(_m.Construction.Creator, nameof(ConstructionModel.Creator)) + "()");
             _fresh = true;
             EmitInPlaceMembers(r);
             _fresh = false;
@@ -724,7 +727,7 @@ internal sealed class BodyEmitter
         bool delegates = inPlace && Delegates;
         var members = inPlace ? OwnMembers : _m.Members;
         if (delegates)
-            _w.Line($"{_m.BaseFormatter}.ReadMembers({_target}, ref {r});");
+            _w.Line($"{BaseFormatter}.ReadMembers({_target}, ref {r});");
 
         if (_m.Keyed)
         {
