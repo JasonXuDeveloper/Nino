@@ -55,10 +55,6 @@ internal static class FormatterEmitter
             if (m.TrackReferences)
                 EmitEntryPoints(w, m, $"{Core}NinoPolymorphic<{t}>.SerializeReferenced(value, ref writer)",
                     $"{Core}NinoPolymorphic<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
-            else if (m.IsGeneric)
-                // An open generic base has no static subtype table to emit: its closed instantiations are registered
-                // in the type registry (see ClosedGenerics) and reached through NinoPolymorphic<T> at run time.
-                EmitRuntimeDispatchingEntryPoints(w, m);
             else
                 EmitDispatchingEntryPoints(w, m, ownId: false);
             w.Line();
@@ -361,29 +357,6 @@ internal static class FormatterEmitter
     }
 
     /// <summary>
-    /// Type id (0 = null) and body for an open generic base: no subtype table exists at compile time, so the id is
-    /// written and read through <c>NinoPolymorphic&lt;T&gt;</c>, which holds the closed instantiations registered at
-    /// run time.
-    /// </summary>
-    private static void EmitRuntimeDispatchingEntryPoints(CodeWriter w, TypeModel m)
-    {
-        string t = m.TypeName;
-        w.Block($"{Signature.Serialize(t)}", () =>
-        {
-            w.Line($"if (value == null)");
-            w.Indented(() => w.Line($"writer.UnsafeWrite({NinoWire.NullTypeId});"));
-            w.Line($"else");
-            w.Indented(() => w.Line($"{Core}NinoPolymorphic<{t}>.Serialize(value, ref writer);"));
-        });
-        w.Line();
-        w.Block($"{Signature.Deserialize(t)}", () =>
-        {
-            w.Line("int id = reader.UnsafeRead<int>();");
-            w.Line($"{Core}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
-        });
-    }
-
-    /// <summary>
     /// Type id (0 = null) and body. A class's own type is checked first; subtypes go through the generated dispatch
     /// (<see cref="DispatchEmitter"/>).
     /// </summary>
@@ -392,11 +365,14 @@ internal static class FormatterEmitter
         string t = m.TypeName;
         string self = m.FormatterName;
         // The root's dispatch covers every subtype of this class. Writing needs nothing more (its checks are exact);
-        // reading checks that the type the data named is one of this class.
+        // reading checks that the type the data named is one of this class. A generic type has no dispatch (it lists
+        // no closed subtypes): its subtypes go through the registry, as a dispatch does after its own checks.
         bool root = m.IsDispatchRoot;
-        string write = root ? "__WriteSubtype(value, ref writer)" : $"{m.DispatchRootFormatter}.__WriteSubtype(value, ref writer)";
-        string read = root
-            ? "__ReadSubtype(id, ref value, ref reader);"
+        string write = !m.DispatchesSubtypes ? $"{Core}NinoPolymorphic<{t}>.Serialize(value, ref writer)"
+            : root ? "__WriteSubtype(value, ref writer)"
+            : $"{m.DispatchRootFormatter}.__WriteSubtype(value, ref writer)";
+        string read = !m.DispatchesSubtypes ? $"{Core}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);"
+            : root ? "__ReadSubtype(id, ref value, ref reader);"
             : $"{m.DispatchRootFormatter}.__ReadSubtype(id, ref {Core}NinoObject.AsBaseSlot<{t}, {m.DispatchRoot}>(ref value), ref reader); {Core}NinoObject.EnsureSubtype<{t}>(value);";
         w.Line($"{Signature.Serialize(t)}");
         w.Indented(() => w.Line(ownId
