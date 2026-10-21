@@ -64,9 +64,9 @@ jobs:
           persist-credentials: false
 
       # The newest release tag before this ref (not the Unity package's -preview.N alias of it), from its own history:
-      # a release, never a ref named by whoever dispatched.
+      # a release, never a ref named by whoever dispatched. A bisect measures that release as its first commit.
       - name: Check out the previous release
-        if: inputs.compare
+        if: inputs.compare && !inputs.bisect
         run: |
           set -euo pipefail
           BASE=$(git -C head describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-preview.*' HEAD^)
