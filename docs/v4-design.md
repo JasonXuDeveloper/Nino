@@ -515,6 +515,10 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     order this reads 1.5x as fast as the registry, whose indirect call mispredicts; a perfect hash with a dense
     switch (an indirect jump) was measured too and mispredicts the same way. When the subtypes repeat in a fixed
     cycle the registry's indirect call is perfectly predicted and the switch is about 10% slower.
+  * A generic base (a generic abstract class or interface, or an abstract class nested in a generic type) lists no
+    closed subtypes, so it has no generated dispatch: its formatter writes and reads its subtypes through the
+    registry (`NinoPolymorphic<T>`), as generic classes do (`TypeModel.DispatchesSubtypes`, one rule for every
+    entry point).
   * A class below the root reads through the root's switch and then checks that the type the data named is one
     of its own (`NinoObject.EnsureSubtype`), so data naming a sibling type throws instead of being stored.
   * Each subtype costs three lines per hierarchy (not per ancestor), so generated code stays linear in the number
@@ -909,6 +913,14 @@ generator as well (linked files, `NINO_GENERATOR` switches their namespace):
   not. It comes from the same
   `TypeModel` as the formatter, so it changes exactly when the bytes do, and is the same in every target framework
   (`LayoutMetadataTests`).
+* The model leaves a name empty where it does not apply (a base, collection or dispatch root formatter, a
+  constructor). The emitters take such a name through `TypeModel.Need`, which throws when it is empty: the rule that
+  chose the branch is wrong. `NinoGenerator` turns any exception while emitting a type into one `#error` naming the
+  type and the cause, instead of a generator warning and a missing formatter, or code that does not compile.
+* `ShapeMatrixTests` generates every combination of the ways a hierarchy can be declared (base kind, type parameters,
+  nesting, format, reference tracking, a type between base and subtypes) with every kind of subtype, compiles it
+  with the generator and round-trips each subtype through each type above it. A feature that adds a way to declare
+  a type adds a dimension there.
 * Preprocessor-dependent choices (`WEAK_VERSION_TOLERANCE`, `NET8_0_OR_GREATER`) are resolved at
   generation time from the compilation's parse options, so generated code contains no `#if` branches.
 
