@@ -461,8 +461,11 @@ public class Derived : Base
     }
 
     [TestMethod]
-    public async Task NINO003_AddNinoType_AddsUsing()
+    [DataRow("\n")]
+    [DataRow("\r\n")]
+    public async Task NINO003_AddNinoType_AddsUsing(string newLine)
     {
+        // The using directive and the attribute take the file's line breaks, on any machine.
         var code = @"
 [Nino.Core.NinoType(allowInheritance: false)]
 public interface IBase
@@ -472,7 +475,7 @@ public interface IBase
 public class {|#0:Implementation|} : IBase
 {
     public int A;
-}";
+}".Replace("\r\n", "\n").Replace("\n", newLine);
 
         var fixedCode = @"
 using Nino.Core;
@@ -486,7 +489,7 @@ public interface IBase
 public class Implementation : IBase
 {
     public int A;
-}";
+}".Replace("\r\n", "\n").Replace("\n", newLine);
 
         await SetUpCodeFixTest(code, fixedCode,
             VerifyCF.Diagnostic("NINO003").WithLocation(0).WithArguments("Implementation", "IBase")).RunAsync();
