@@ -60,6 +60,15 @@ every method it lists. What has gone wrong before:
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
 
+## Source generator
+
+- A generator bug shows up as code that does not compile for one shape of type nobody tested (#203: every generic
+  abstract class or interface). Take a name the model may leave empty (`BaseFormatter`, `DispatchRootFormatter`,
+  `Construction.Creator`, ...) through `TypeModel.Need`, never by interpolating it directly. Decide what a type gets
+  from the model's rules (`DispatchesSubtypes`, `IsDispatchRoot`, ...), not from a new check next to them.
+- A feature that adds a way to declare a type (a kind, an attribute option, a place) adds a dimension to
+  `src/Nino.UnitTests/Corner/ShapeMatrixTests.cs`, so it is compiled and round-tripped with every other one.
+
 ## Commit messages and release notes
 
 - Conventional Commits: `type(scope): summary`, plus a body that says why. Types: `feat`, `fix`, `perf`,
