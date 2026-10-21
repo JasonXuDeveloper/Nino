@@ -188,7 +188,8 @@ the result objects.
   the block paths of flat ones.
 * **Copies sized to the CPU.** Up to 64 bytes (on 64-bit runtimes) or 128 bytes (with 32-byte vectors) are copied
   inline, as overlapping loads and stores of the widest vector that fits; up to 32 KB (64-byte vectors) or 16 KB
-  (32-byte vectors, from 256 bytes) as vectors with aligned stores; beyond, with `memmove`, which is far slower on some
+  (32-byte vectors, from 256 bytes) as vectors with aligned stores (with only 16-byte vectors, on Arm64, SSE only and
+  WebAssembly, `memmove` from 65 bytes); beyond, with `memmove`, which is far slower on some
   CPUs (8,000 bytes in 236 ns on GitHub's EPYC 9V74 runners and 2.8 µs on their EPYC 7763 ones, against 83 to 85 ns for
   the vector loop). Reads of 6 KB or more use
   `memmove`, whose `rep movsb` writes fresh cache lines without reading them first.
@@ -202,7 +203,12 @@ the result objects.
 * **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values are
   written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each 16-byte
   lane is shuffled from at most two 16-byte windows (`vpshufb` on AVX2 and SSSE3, `TBL` on Arm64, swizzle on
-  WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type. On Arm64, a plan whose windows
+  WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type. Without AVX-512 VBMI (and not on Arm64), a
+  value whose exact group would take more than four vectors (5-byte blocks such as `(byte, int)`: 32 values in five
+  32-byte vectors) moves in groups of as many values as one to four vectors hold (six `(byte, int)` a 32-byte vector,
+  twelve in four 16-byte ones), the rest of the last vector rewritten by the next group, instead of one value at a
+  time. The check of whether two windows share a 32-byte load is inlined: left a call in the AVX2 group loop, it
+  spilled the vectors around each load, and AVX2 writes took twice as long as SSSE3's. On Arm64, a plan whose windows
   lie on the 16-byte grid loads each window of a group once, before any lookup, so the JIT gives them consecutive
   registers and every `TBL` takes one window or two consecutive ones as they are: four `(int, long)` are written from
   two `ldp` by three lookups and read from three loads by four, with no register copies (loaded for each lookup, the
@@ -236,7 +242,10 @@ the result objects.
 * **Collection loops specialized on element types.** Pair loops of `Dictionary<TKey, TValue>` live in a helper
   generic over the key and value types only (the dictionary type itself would be a reference-type parameter,
   making the whole loop shared generic code); exact `Dictionary<,>` members get a formatter without the
-  dictionary type parameter, which also shortens generated code.
+  dictionary type parameter, which also shortens generated code. Raw `HashSet<T>` and `Dictionary<TKey, TValue>` are written from their
+  entries array when none has been removed (the layouts of .NET 64-bit and 32-bit and of .NET Framework and Mono are
+  checked at startup), without the enumerator's version check and field reloads on every element; with removed
+  entries, or no layout recognized, through the enumerator, out of line.
 * **Specialized code behind shared generics.** `Serialize<T>` of an array is shared code (arrays are
   reference types), where each static access is a dictionary lookup. The raw array path looks up one object
   and lets the array formatter, compiled for the element type, do the write.
