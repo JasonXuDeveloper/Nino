@@ -812,7 +812,7 @@ namespace Nino.Core
             // span: they load once each into consecutive registers and every lookup takes two of them, as Lanes16
             // does (loaded for each lookup, the loads two lookups share took register copies: writes 415 ns against
             // 310 for six loads anywhere; reads seven copies a group of four 16-byte values from 12-byte blocks).
-            // Its other plans take the grid plan's group, so that a step moves as many values (one value a step:
+            // Its reads' other plans take the grid plan's group, so that a step moves as many values (one value a step:
             // 1.13 us against 0.99 to 1.01 with three grid loads a group, 1,000 (int, long) into a new list).
             if (width == 32 || tables)
             {
@@ -867,8 +867,6 @@ namespace Nino.Core
                 }
             }
 
-            if (tables)
-                Pair(plan);
 
             // The bytes loaded, from the group's first value; loads from before it: groups start where they stay
             // inside the source.
@@ -882,48 +880,6 @@ namespace Nino.Core
             plan.Start = (-low + sourceSize - 1) / sourceSize;
             plan.End = high;
             return plan;
-        }
-
-        /// <summary>
-        /// Arm64: a vector from one window looks up in the pair of a vector that loads it too, as its first window
-        /// (indices as they are) or its second (indices past the first's 16 bytes), so that every lookup takes two
-        /// registers out of the same loads. A lookup's two registers must be consecutive: with one-register lookups
-        /// next to two-register ones sharing their loads, the JIT copies registers (seven copies a group for 16-byte
-        /// values from 12-byte blocks, none once each lookup takes a pair).
-        /// </summary>
-        private static void Pair(NinoLanes plan)
-        {
-            for (int v = 0; v < plan.Vectors; v++)
-            {
-                if (plan.Windows[v * 4 + 2] != None)
-                    continue;
-                int window = plan.Windows[v * 4];
-                for (int u = 0; u < plan.Vectors; u++)
-                {
-                    int first = plan.Windows[u * 4], second = plan.Windows[u * 4 + 2];
-                    if (u == v || second == None)
-                        continue;
-                    if (first == window)
-                    {
-                        plan.Windows[v * 4 + 2] = second;
-                        plan.Windows[v * 4 + 3] = second + 16;
-                    }
-                    else if (second == window)
-                    {
-                        plan.Windows[v * 4] = first;
-                        plan.Windows[v * 4 + 1] = first + 16;
-                        plan.Windows[v * 4 + 2] = window;
-                        plan.Windows[v * 4 + 3] = window + 16;
-                        var a = plan._masks[v * 2];
-                        for (int b = 0; b < a.Length; b++)
-                            if (a[b] < 16)
-                                a[b] += 16;
-                    }
-                    else
-                        continue;
-                    break;
-                }
-            }
         }
 
         /// <summary>
