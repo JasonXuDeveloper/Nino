@@ -14,7 +14,8 @@ namespace Nino.UnitTests.Corner
     /// <summary>
     /// Every combination of the ways a type hierarchy can be declared, generated, compiled with the generator and
     /// round-tripped: the kind of the base (abstract class, class, interface, abstract record), its type parameters
-    /// (none, one, two), where it is declared (namespace, nested in a class, nested in a generic class), the format,
+    /// (none, one, two) and, for a generic base, more closed instances with subtypes of their own (tuple and class
+    /// type arguments), where it is declared (namespace, nested in a class, nested in a generic class), the format,
     /// reference tracking, a non-generic abstract type between the base and the subtypes, and whether the subtypes are in
     /// the base's assembly or in another one; with every kind of
     /// subtype (plain, generic, with a private member, built by a constructor, a struct for interfaces), each read
@@ -171,6 +172,15 @@ namespace Other
             private static string Parameters(int n) => n == 0 ? "" : "<" + string.Join(", ", new[] { "T1", "T2" }.Take(n)) + ">";
             private static string Arguments(int n) => n == 0 ? "" : "<" + string.Join(", ", new[] { "int", "string" }.Take(n)) + ">";
 
+            // More closed instances of a generic base, each with subtypes of its own (a dispatch per instance): type
+            // arguments that are tuples, a class with subtypes and a sealed class.
+            private static string[] OtherArguments(int n) => n switch
+            {
+                0 => new string[0],
+                1 => new[] { "<(int, long)>", "<OpenArg>" },
+                _ => new[] { "<(int, string), OpenArg>", "<SealedArg, (int, long)>" },
+            };
+
             private string Attribute(bool nonPublic = false) =>
                 $"[NinoType(format: NinoFormat.{_format}, trackReferences: {(_track ? "true" : "false")}" +
                 $"{(nonPublic ? ", containNonPublicMembers: true" : "")})]";
@@ -204,6 +214,11 @@ namespace Other
             {
                 var s = new StringBuilder();
                 bases.Append($"namespace {ns}\n{{\n");
+                // Type arguments of the other closed instances, in each namespace: a type loaded twice is an id collision.
+                if (_arity > 0)
+                    bases.Append($"{Attribute()} public sealed class SealedArg {{ public int A; }}\n" +
+                                 $"{Attribute()} public class OpenArg {{ public int A; }}\n" +
+                                 $"{Attribute()} public sealed class OpenArgChild : OpenArg {{ }}\n");
                 if (_place != Place.Namespace)
                     bases.Append(_place == Place.Nested ? "public partial class Holder\n{\n" : "public partial class Holder<X>\n{\n");
 
@@ -240,6 +255,9 @@ namespace Other
                     leaves.Append($"{Attribute()} public sealed {Keyword} GLeaf{Parameters(_arity)} : {near}Base{Parameters(_arity)} {{ public int W; }}\n");
                 else
                     leaves.Append($"{Attribute()} public sealed {Keyword} GLeaf<TL> : {parent} {{ public TL W; }}\n");
+                string[] others = OtherArguments(_arity);
+                for (int i = 0; i < others.Length; i++)
+                    leaves.Append($"{Attribute()} public sealed {Keyword} XLeaf{i} : {near}Base{others[i]} {{ public int W; }}\n");
                 leaves.Append($"{Attribute(nonPublic: true)} public sealed partial {Keyword} QLeaf : {parent} " +
                               "{ private int _w; public int GetW() => _w; public void SetW(int w) => _w = w; }\n");
                 var all = Inherited().Select(m => m.Type == "X" ? (m.Name, outer, m.Value) : m)
@@ -301,6 +319,18 @@ namespace Other
                     if (!_track)
                         s.Append($"        P.Rejects(e, \"{ns} {leaf.Type} read as another type\", () => " +
                                  $"NinoDeserializer.Deserialize<Other.OtherBase>(NinoSerializer.Serialize<{Prefix}{closedBase}>({leaf.Create})));\n");
+                }
+
+                // The subtypes of the other closed instances: through their own base, and rejected through the first one.
+                for (int i = 0; i < others.Length; i++)
+                {
+                    string leaf = "XLeaf" + i, create = $"new {leafPrefix}{leaf} {{ W = 7 }}";
+                    foreach (string type in new[] { Prefix + "Base" + others[i], leafPrefix + leaf, "object" })
+                        Check(s, ns, type, leafPrefix + leaf, create, "q.W == 7");
+                    Check(s, ns, "object", leafPrefix + leaf, create, "q.W == 7", boxedAs: Prefix + "Base" + others[i]);
+                    if (!_track)
+                        s.Append($"        P.Rejects(e, \"{ns} {leaf} read as {closedBase}\", () => " +
+                                 $"NinoDeserializer.Deserialize<{Prefix}{closedBase}>(NinoSerializer.Serialize<{Prefix}Base{others[i]}>({create})));\n");
                 }
 
                 s.Append("    }\n}\n}\n");
