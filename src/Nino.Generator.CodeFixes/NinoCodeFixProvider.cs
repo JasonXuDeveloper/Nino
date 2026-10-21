@@ -123,8 +123,9 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
 
     /// <summary>
     /// Formats what the fix inserted with the line breaks of <paramref name="original"/>, then drops the formatting
-    /// annotations: left to the code action's cleanup, it would take the machine's (Environment.NewLine), and a fix
-    /// on Windows would add CRLF lines to an LF file.
+    /// annotations and makes the elastic trivia the syntax generator adds (around a using directive or an attribute)
+    /// concrete: left to the code action's cleanup, they would take the machine's line break (Environment.NewLine),
+    /// and a fix on Windows would add CRLF lines to an LF file.
     /// </summary>
     private static async Task<Document> FormatAsync(Document document, SourceText original, CancellationToken ct)
     {
@@ -133,9 +134,18 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         var options = (await document.GetOptionsAsync(ct).ConfigureAwait(false))
             .WithChangedOption(FormattingOptions.NewLine, LanguageNames.CSharp, newLine);
         document = await Formatter.FormatAsync(document, Formatter.Annotation, options, ct).ConfigureAwait(false);
+        document = await Formatter.FormatAsync(document, SyntaxAnnotation.ElasticAnnotation, options, ct)
+            .ConfigureAwait(false);
         var root = (await document.GetSyntaxRootAsync(ct).ConfigureAwait(false))!;
-        return document.WithSyntaxRoot(root.ReplaceNodes(root.GetAnnotatedNodes(Formatter.Annotation),
-            static (_, node) => node.WithoutAnnotations(Formatter.Annotation)));
+        root = root.ReplaceNodes(root.GetAnnotatedNodes(Formatter.Annotation),
+            static (_, node) => node.WithoutAnnotations(Formatter.Annotation));
+        root = root.ReplaceTrivia(root.DescendantTrivia(descendIntoTrivia: true).Where(static t => t.HasAnnotation(SyntaxAnnotation.ElasticAnnotation)),
+            (trivia, _) => trivia.IsKind(SyntaxKind.EndOfLineTrivia)
+                ? SyntaxFactory.EndOfLine(newLine)
+                : trivia.IsKind(SyntaxKind.WhitespaceTrivia)
+                    ? SyntaxFactory.Whitespace(trivia.ToString())
+                    : trivia.WithoutAnnotations(SyntaxAnnotation.ElasticAnnotation));
+        return document.WithSyntaxRoot(root);
     }
 
     /// <summary>The line break of the first line of <paramref name="text"/>, or null for a single line.</summary>
