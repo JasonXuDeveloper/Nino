@@ -368,12 +368,19 @@ internal static class FormatterEmitter
         // reading checks that the type the data named is one of this class. A generic type has no dispatch (it lists
         // no closed subtypes): its subtypes go through the registry, as a dispatch does after its own checks.
         bool root = m.IsDispatchRoot;
+        string rootFormatter = "", rootType = "";
+        if (m.DispatchesSubtypes && !root)
+        {
+            rootFormatter = m.Need(m.DispatchRootFormatter, nameof(m.DispatchRootFormatter));
+            rootType = m.Need(m.DispatchRoot, nameof(m.DispatchRoot));
+        }
+
         string write = !m.DispatchesSubtypes ? $"{Core}NinoPolymorphic<{t}>.Serialize(value, ref writer)"
             : root ? "__WriteSubtype(value, ref writer)"
-            : $"{m.DispatchRootFormatter}.__WriteSubtype(value, ref writer)";
+            : $"{rootFormatter}.__WriteSubtype(value, ref writer)";
         string read = !m.DispatchesSubtypes ? $"{Core}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);"
             : root ? "__ReadSubtype(id, ref value, ref reader);"
-            : $"{m.DispatchRootFormatter}.__ReadSubtype(id, ref {Core}NinoObject.AsBaseSlot<{t}, {m.DispatchRoot}>(ref value), ref reader); {Core}NinoObject.EnsureSubtype<{t}>(value);";
+            : $"{rootFormatter}.__ReadSubtype(id, ref {Core}NinoObject.AsBaseSlot<{t}, {rootType}>(ref value), ref reader); {Core}NinoObject.EnsureSubtype<{t}>(value);";
         w.Line($"{Signature.Serialize(t)}");
         w.Indented(() => w.Line(ownId
             ? $"{{ if (!{Core}NinoObject.TryWriteOwn{Raw(m)}<{t}, {self}>(value, ref writer)) {write}; }}"
