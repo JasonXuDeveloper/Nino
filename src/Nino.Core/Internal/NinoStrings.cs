@@ -276,7 +276,6 @@ namespace Nino.Core
             return (chars | (chars << 8)) & 0x00FF00FF00FF00FF;
         }
 
-        [MethodImpl(MethodImplOptions.NoInlining)]
         private static unsafe void Widen(ref byte source, ref ushort destination, nuint n)
         {
             nuint i = 0;

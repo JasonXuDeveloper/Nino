@@ -140,6 +140,8 @@ internal sealed record TypeModel(
     // Formatter whose WriteMembers/ReadMembers cover the first BaseMemberCount members, or "".
     string BaseFormatter,
     int BaseMemberCount,
+    // Whether the first members are a shared generic base's, written here instead of through its WriteMembers.
+    bool SharedBase,
     EquatableArray<MemberModel> Members,
     ConstructionModel Construction,
     // (type, formatter) pairs registered for AOT platforms and top-level calls.
@@ -239,11 +241,13 @@ internal sealed record TypeModel(
 
     /// <summary>
     /// Whether the body is small enough to be inlined wherever the formatter is used (at most two members that call
-    /// formatters, of at most eight), for a class whose body opens no class body.
+    /// formatters, of at most eight), for a class whose body opens no class body. A subtype writing a base's members
+    /// (through its WriteMembers, or itself for a <see cref="SharedBase"/>) keeps its body out of line: inlined into a
+    /// dispatch of many subtypes, the bodies would use up its inlining budget.
     /// </summary>
     public bool InlineBody => !IsGeneric && !TrackReferences && !RawStruct && !Nests &&
                               Kind is FormatterKind.Class or FormatterKind.SealedClass && !Keyed && !Tolerant &&
-                              BaseFormatter.Length == 0 && CollectionFormatter.Length == 0 &&
+                              BaseFormatter.Length == 0 && !SharedBase && CollectionFormatter.Length == 0 &&
                               Members.Length <= 8 && Members.Count(static x => x.Raw == null) is 1 or 2;
 
     /// <summary>
