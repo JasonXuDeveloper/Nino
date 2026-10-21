@@ -878,9 +878,6 @@ namespace Nino.Core
 
         public int Width, Group, Vectors, Start, End;
 
-        /// <summary>Arm64 reads: each vector one table lookup (see <see cref="Cost"/>).</summary>
-        private bool _lookups;
-
         /// <summary>For each vector, load and lane, where its window starts from the group's first value.</summary>
         public readonly int[] Windows = new int[16];
 
@@ -924,20 +921,6 @@ namespace Nino.Core
                 ? Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: false) ??
                   Plan(width, map, size, memorySize, writes, tables, group, grid: false)
                 : Plan(width, map, size, memorySize, writes, tables, group, grid: false);
-            // Arm64 reads also as many values as four vectors hold, each vector one lookup in a load of its own
-            // anywhere, all with one register: a lookup takes a micro-op per register on Neoverse cores, and four
-            // vectors a step the loop around them once (four (int, long), four loads and 1-register lookups: 239 ns
-            // a 1,000 against 257 for three grid loads and two 2-register lookups, Neoverse N2). Whichever costs less
-            // a value, with three for the loop (as above): (byte, int) took two values a step, one lookup each.
-            if (tables && !writes)
-            {
-                int most = group * Math.Max(1, 4 * width / (group * target));
-                var single = Plan(width, map, size, memorySize, writes, tables, most, grid: false);
-                if (single != null && single.OneLoad() &&
-                    (plan == null || (single.Cost() + 3) * plan.Group < (plan.Cost() + 3) * most))
-                    plan = single;
-            }
-
             // AVX2 takes whichever costs less a value: windows anywhere (fewest loads when each lane's bytes follow)
             // or on a 16-byte grid (loads repeat across a group's vectors, and two lanes far apart come from them by
             // one lane permute rather than two more loads). Arm64 too, when the grid plan's windows fit one 64-byte
@@ -955,6 +938,22 @@ namespace Nino.Core
                     plan = gridded;
             }
 
+            // Arm64 reads of a plan that moves fewer values a step than four vectors hold: also as many as they hold,
+            // each vector one lookup of one register in a load of its own anywhere, so that the loop goes round once
+            // for them (1,000 (byte, int) into a new list, two values a step before: 790 to 810 ns against 840 to 870,
+            // one Neoverse N2 runner, quick runs). Not where a step moves as many already: three grid loads and two
+            // 2-register lookups took less than four loads anywhere, which can straddle cache lines ((short, int):
+            // 755 to 765 ns against 780 to 805; (int, long) on par).
+            if (tables && !writes && plan != null)
+            {
+                int most = group * Math.Max(1, 4 * width / (group * target));
+                var single = most > plan.Group
+                    ? Plan(width, map, size, memorySize, writes, tables, most, grid: false)
+                    : null;
+                if (single != null && single.OneLoad() && (single.Cost() + 3) * plan.Group < (plan.Cost() + 3) * most)
+                    plan = single;
+            }
+
             return plan;
         }
 
@@ -965,10 +964,7 @@ namespace Nino.Core
             int vectors = (targets + width - 1) / width;
             if (vectors > 4)
                 return null;
-            var plan = new NinoLanes
-            {
-                Width = width, Group = group, Vectors = vectors, _masks = new byte[8][], _lookups = tables && !writes
-            };
+            var plan = new NinoLanes { Width = width, Group = group, Vectors = vectors, _masks = new byte[8][] };
             for (int v = 0; v < vectors; v++)
             {
                 // The source byte of each byte of the vector (-1: padding, any value).
@@ -1100,18 +1096,8 @@ namespace Nino.Core
 
         // Loads cost more than the shuffles: a load issues at most twice a cycle on Zen 3 for 32 bytes, and twice when
         // it straddles cache lines; a blend issues on any vector port, a lane permute on one or two.
-        // Arm64 reads: a load issues three times a cycle on Neoverse cores, and a lookup takes a micro-op per register
-        // on the two vector pipes, so each counts one (see Solve).
         private int Cost()
         {
-            if (_lookups)
-            {
-                int ops = Loads().Count;
-                for (int v = 0; v < Vectors; v++)
-                    ops += Windows[v * 4 + 2] == None ? 1 : 2;
-                return ops;
-            }
-
             int cost = 3 * Loads().Count;
             for (int v = 0; v < Vectors; v++)
             for (int load = 0; load < 2; load++)
