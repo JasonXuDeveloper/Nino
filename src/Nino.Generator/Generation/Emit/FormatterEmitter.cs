@@ -55,6 +55,10 @@ internal static class FormatterEmitter
             if (m.TrackReferences)
                 EmitEntryPoints(w, m, $"{Core}NinoPolymorphic<{t}>.SerializeReferenced(value, ref writer)",
                     $"{Core}NinoPolymorphic<{t}>.DeserializeReferenced(reader.UnsafeRead<int>(), ref value, ref reader)");
+            else if (m.IsGeneric)
+                // An open generic base has no static subtype table to emit: its closed instantiations are registered
+                // in the type registry (see ClosedGenerics) and reached through NinoPolymorphic<T> at run time.
+                EmitRuntimeDispatchingEntryPoints(w, m);
             else
                 EmitDispatchingEntryPoints(w, m, ownId: false);
             w.Line();
@@ -353,6 +357,29 @@ internal static class FormatterEmitter
             w.Indented(() => w.Line("return;"));
             w.Line($"{read};");
             w.Line("reader.EndReference(__index, value);");
+        });
+    }
+
+    /// <summary>
+    /// Type id (0 = null) and body for an open generic base: no subtype table exists at compile time, so the id is
+    /// written and read through <c>NinoPolymorphic&lt;T&gt;</c>, which holds the closed instantiations registered at
+    /// run time.
+    /// </summary>
+    private static void EmitRuntimeDispatchingEntryPoints(CodeWriter w, TypeModel m)
+    {
+        string t = m.TypeName;
+        w.Block($"{Signature.Serialize(t)}", () =>
+        {
+            w.Line($"if (value == null)");
+            w.Indented(() => w.Line($"writer.UnsafeWrite({NinoWire.NullTypeId});"));
+            w.Line($"else");
+            w.Indented(() => w.Line($"{Core}NinoPolymorphic<{t}>.Serialize(value, ref writer);"));
+        });
+        w.Line();
+        w.Block($"{Signature.Deserialize(t)}", () =>
+        {
+            w.Line("int id = reader.UnsafeRead<int>();");
+            w.Line($"{Core}NinoPolymorphic<{t}>.DeserializeOther(id, ref value, ref reader);");
         });
     }
 
