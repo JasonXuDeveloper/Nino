@@ -207,6 +207,8 @@ internal static class ModelBuilder
             EmitMembers: emitMembers,
             BaseFormatter: baseFormatter,
             BaseMemberCount: baseMemberCount,
+            SharedBase: type.TypeKind == TypeKind.Class && type.BaseType is { } baseType && facts.IsDelegatable(baseType) &&
+                        SharedInstance(baseType),
             Members: new EquatableArray<MemberModel>(members),
             Construction: construction,
             UsedFormatters: new EquatableArray<FormatterRegistration>(used),
