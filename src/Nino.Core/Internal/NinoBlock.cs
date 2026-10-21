@@ -760,17 +760,21 @@ namespace Nino.Core
         {
             int target = writes ? size : memorySize, source = writes ? memorySize : size;
             int group = width / Gcd(target, width);
-            var plan = Plan(width, map, size, memorySize, writes, tables, group, grid: false);
+            int gridGroup = tables ? group / Gcd(group, 16 / Gcd(source, 16)) * (16 / Gcd(source, 16)) : group;
+            var plan = tables && !writes
+                ? Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: false) ??
+                  Plan(width, map, size, memorySize, writes, tables, group, grid: false)
+                : Plan(width, map, size, memorySize, writes, tables, group, grid: false);
             // AVX2 takes whichever costs less a value: windows anywhere (fewest loads when each lane's bytes follow)
             // or on a 16-byte grid (loads repeat across a group's vectors, and two lanes far apart come from them by
-            // one lane permute rather than two more loads). Arm64 too for reads, with groups as many values as also
-            // start their blocks on the grid: 16-byte values from 12-byte blocks four at a time from three loads,
-            // where one value at a time was a load, a lookup and a store each (Neoverse N2, 1,000 (int, long) into a
-            // new list: 0.99 to 1.01 us against 1.13 to 1.14). Not for writes: a load two lookups share takes a
-            // register copy each, as each lookup's two registers must be consecutive (310 ns against 415).
-            if (width == 32 || tables && !writes)
+            // one lane permute rather than two more loads). Not Arm64: a load two lookups share takes register
+            // copies, as each lookup's two registers must be consecutive (writes: 310 ns against 415 on Neoverse N2;
+            // reads of 16-byte values from 12-byte blocks: seven copies a group of four). Its reads take groups as
+            // many values as start their blocks on the 16-byte grid instead, each window anywhere: four values a
+            // load, a lookup and a store each, but one loop step (one value a step: 1.13 us against 0.99 to 1.01
+            // with three grid loads a group, 1,000 (int, long) into a new list).
+            if (width == 32)
             {
-                int gridGroup = tables ? group / Gcd(group, 16 / Gcd(source, 16)) * (16 / Gcd(source, 16)) : group;
                 var gridded = Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: true);
                 if (plan == null || gridded != null && gridded.Cost() * plan.Group < plan.Cost() * gridGroup)
                     plan = gridded;
