@@ -394,6 +394,8 @@ public class CollectionFastPathTests
         ReadsAtEveryAlignment(i => new KeyValuePair<int, long>(i, i * 1000L));
         ReadsAtEveryAlignment(i => (i * 3L, (byte)i));
         ReadsAtEveryAlignment(i => ((short)i, (double)i / 3));
+        // 20 bytes in memory: no group of whole vectors fits in four, so groups that end inside a vector.
+        ReadsAtEveryAlignment(i => ((byte)i, i, i * 3, i * 5, i * 7));
     }
 
     private static void ReadsAtEveryAlignment<T>(Func<int, T> make) where T : unmanaged
@@ -437,6 +439,7 @@ public class CollectionFastPathTests
         WritesAsEachValue(i => ((byte)i, i * 5));
         WritesAsEachValue(i => (i, (short)i, i * 9L));
         WritesAsEachValue(i => ((double)i, i, (byte)i));
+        WritesAsEachValue(i => ((byte)i, i, i * 3, i * 5, i * 7));
     }
 
     private static void WritesAsEachValue<T>(Func<int, T> make) where T : unmanaged

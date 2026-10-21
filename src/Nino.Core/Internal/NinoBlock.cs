@@ -461,7 +461,7 @@ namespace Nino.Core
             // then the first from there whose vectors start on a boundary of their width, so that no store straddles
             // two cache lines (when one does). The values before the first one at a time; those from it to the
             // aligned one, and those after the last group, by one more group each, unaligned (as WriteGroups; the
-            // stores of a group are exactly its values).
+            // stores of a group are its values, and at most part of the next value's, which is moved after it).
             int start = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Start;
             int skip = FirstAligned((nuint)Unsafe.AsPointer(ref destination), to, start, group, (nuint)(width - 1));
             int i = 0;
@@ -888,10 +888,34 @@ namespace Nino.Core
         /// The plan, or null when a group would take more than four vectors or a lane draws on bytes no two windows
         /// cover. <paramref name="map"/> is the block map (memory offset, block offset, size triples).
         /// </summary>
-        public static NinoLanes Solve(int width, int[] map, int size, int memorySize, bool writes, bool tables)
+        public static NinoLanes Solve(int width, int[] map, int size, int memorySize, bool writes, bool tables,
+            bool partial)
         {
             int target = writes ? size : memorySize, source = writes ? memorySize : size;
             int group = width / Gcd(target, width);
+            // A group whose vectors are exactly its values would take more than four (5-byte blocks: 32 values, five
+            // 32-byte vectors): where nothing else moves several values at a time (partial), as many values as one to
+            // four vectors hold instead, the rest of the last vector over the next value, which the next group writes
+            // again. Whichever costs least a value, with three for the loop around a group (1,000 (byte, int) on an
+            // AVX-512 Xeon with AVX-512 off took 690 ns a value at a time; AVX2, six values a 32-byte vector: 157 ns;
+            // SSSE3, twelve values a group of four 16-byte vectors: 161 ns, three a group of one: 253 ns).
+            if (group * target / width > 4)
+            {
+                if (tables || !partial)
+                    return null;
+                NinoLanes best = null;
+                for (int vectors = 1; vectors <= 4; vectors++)
+                for (int grid = 0; grid < (width == 32 ? 2 : 1); grid++)
+                {
+                    int values = vectors * width / target;
+                    var each = values < 2 ? null : Plan(width, map, size, memorySize, writes, tables, values, grid == 1);
+                    if (each != null && (best == null || (each.Cost() + 3) * best.Group < (best.Cost() + 3) * values))
+                        best = each;
+                }
+
+                return best;
+            }
+
             int gridGroup = tables ? group / Gcd(group, 16 / Gcd(source, 16)) * (16 / Gcd(source, 16)) : group;
             var plan = tables && !writes
                 ? Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: false) ??
@@ -920,7 +944,8 @@ namespace Nino.Core
         private static NinoLanes Plan(int width, int[] map, int size, int memorySize, bool writes, bool tables,
             int group, bool grid)
         {
-            int sourceSize = writes ? memorySize : size, vectors = group * (writes ? size : memorySize) / width;
+            int sourceSize = writes ? memorySize : size, targets = group * (writes ? size : memorySize);
+            int vectors = (targets + width - 1) / width;
             if (vectors > 4)
                 return null;
             var plan = new NinoLanes { Width = width, Group = group, Vectors = vectors, _masks = new byte[8][] };
@@ -929,7 +954,7 @@ namespace Nino.Core
                 // The source byte of each byte of the vector (-1: padding, any value).
                 var sources = new int[width];
                 for (int b = 0; b < width; b++)
-                    sources[b] = Source(map, size, memorySize, writes, v * width + b);
+                    sources[b] = v * width + b < targets ? Source(map, size, memorySize, writes, v * width + b) : -1;
                 if (!Cover(sources, width, grid, out int[] first, out int[] second))
                     return null;
                 var a = new byte[width];
@@ -1584,7 +1609,7 @@ namespace Nino.Core
                 if (width == 0)
                     return null;
                 var plan = NinoLanes.Solve(width, Map, NinoBlock.Size<T, TFormatter>(), Unsafe.SizeOf<T>(),
-                    typeof(TDirection) == typeof(NinoWrites), AdvSimd.Arm64.IsSupported);
+                    typeof(TDirection) == typeof(NinoWrites), AdvSimd.Arm64.IsSupported, !Avx512Vbmi.IsSupported);
                 // A value a group is what Shuffles does already, without the group loop around it.
                 return plan is { Group: 1 } && Shuffles ? null : plan;
             }
