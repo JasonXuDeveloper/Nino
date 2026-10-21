@@ -142,9 +142,27 @@ namespace Nino.Core
             EnsureInitializedFor(type);
             // Keyed by the plain name hash (generated registries also list [NinoFormerName] types under it), which
             // needs no attribute reflection.
-            if (!type.ContainsGenericParameters)
+            if (type.ContainsGenericParameters)
+                return;
+            // A registry can register the type by calling back into NinoPolymorphic.Register(Type) (a closed generic
+            // whose formatter is in another assembly), which lands here again for the same type: that inner call
+            // returns, and the outer one goes on to close the formatter itself.
+            var registering = _registering ??= new List<Type>();
+            if (registering.Contains(type))
+                return;
+            registering.Add(type);
+            try
+            {
                 RegisterId(NinoTypeId.Compute(NinoTypeId.GetName(type)));
+            }
+            finally
+            {
+                registering.Remove(type);
+            }
         }
+
+        /// <summary>The types this thread is registering (<see cref="RegisterType"/>).</summary>
+        [ThreadStatic] private static List<Type> _registering;
 
         /// <summary>
         /// Runs the generated registration of <paramref name="assembly"/> once, and returns when it has completed,
