@@ -155,6 +155,9 @@ internal sealed record TypeModel(
     // The [NinoType] base classes (nearest first) and interfaces (global names), for the subtype dispatch.
     EquatableArray<string> NinoBaseClasses,
     EquatableArray<string> NinoInterfaces,
+    // The closed generic ones among them that generated code can name, with their definitions: a generic base of this
+    // assembly dispatches to this type when its type arguments are these (DispatchEmitter).
+    EquatableArray<GenericAncestor> NinoGenericAncestors,
     // [NinoPooled]: instances are taken from NinoPool<T> before being created, and the partial adds the pool hooks.
     bool Pooled,
     // Namespace and containing declarations of the generated partial (accessor class, pool hooks); empty when
@@ -202,7 +205,7 @@ internal sealed record TypeModel(
     /// <c>__ReadSubtype</c>, emitted with the registry) before falling back to <c>NinoPolymorphic</c>.
     /// </summary>
     public bool DispatchesSubtypes =>
-        !IsGeneric && !TrackReferences && Kind is FormatterKind.Polymorphic or FormatterKind.Class;
+        !TrackReferences && Kind is FormatterKind.Polymorphic or FormatterKind.Class;
 
     /// <summary>
     /// <paramref name="value"/>, one of the names the model leaves empty where it does not apply (a base, collection or
@@ -374,9 +377,15 @@ internal sealed record InterceptedCall(string Signature, string Method, string T
 }
 
 // A type in the per-assembly subtype dispatch: a base (DispatchesSubtypes), a target (IsDispatchTarget), or both.
-// RawBody: the target's body is one raw block (TypeModel.RawBody), written with its type id in one reservation.
-internal sealed record DispatchEntry(string TypeName, string FormatterName, int TypeId, bool IsBase, bool IsTarget,
-    EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces, bool RawBody);
+// TypeParameterList: a generic base's (TypeModel.TypeParameterList), "" otherwise. RawBody: the target's body is one raw
+// block (TypeModel.RawBody), written with its type id in one reservation.
+internal sealed record DispatchEntry(string TypeName, string FormatterName, string TypeParameterList, int TypeId,
+    bool IsBase, bool IsTarget, EquatableArray<string> BaseClasses, EquatableArray<string> Interfaces,
+    EquatableArray<GenericAncestor> GenericAncestors, bool RawBody);
+
+// A closed generic [NinoType] ancestor (global name) and its definition (global name, as the definition's TypeModel
+// names it).
+internal sealed record GenericAncestor(string Type, string Definition);
 
 // RegisteringReferences: one formatter (open name) of each referenced assembly that registers formatters.
 internal sealed record GeneratorOptions(string AssemblyName, bool HasModuleInitializer, bool HasUnityEngine,

@@ -8,10 +8,11 @@ using Nino.Core;
 namespace Nino.UnitTests.GenericPolymorphism
 {
     // Every shape of a generic type that has subtypes: a generic abstract class or interface, an abstract class nested
-    // in a generic type, generic subtypes of non-generic bases, in each format. A generic type lists no closed subtypes,
-    // so its formatter reaches them through the registry; before that, the generator emitted a static dispatch with no
-    // root for these types and the project did not compile. The types below compile with the generated code, so a
-    // regression in any of them fails the build of this project.
+    // in a generic type, generic subtypes of non-generic bases, in each format. A generic base dispatches the subtypes
+    // of each of its closed instances declared here through generated code, and anything else through the registry;
+    // #203: the generator once emitted a static dispatch with no root for these types and the project did not
+    // compile. The types below compile with the generated code, so a regression in any of them fails the build of this
+    // project.
 
     [NinoType(false)]
     public abstract class GenericPolyBase
@@ -56,6 +57,32 @@ namespace Nino.UnitTests.GenericPolymorphism
 
     [NinoType(trackReferences: true)] public abstract class TrackedBase { public int A; }
     [NinoType(trackReferences: true)] public sealed class TrackedGenericLeaf<T> : TrackedBase { public T Value; }
+
+    // One generic base, three closed instances with subtypes here (one dispatch each): a value type, a sealed class and
+    // a class with subtypes as the type argument.
+    [NinoType] public sealed class SealedArg { public int S; }
+    [NinoType] public class OpenArg { public int O; }
+    [NinoType] public sealed class OpenArgChild : OpenArg { public int C; }
+    [NinoType] public abstract class ArgBox<T> { public T Value; }
+    [NinoType] public sealed class IntArgA : ArgBox<int> { public int A; }
+    [NinoType] public sealed class IntArgB : ArgBox<int> { public int B; }
+    [NinoType] public sealed class SealedArgA : ArgBox<SealedArg> { public int A; }
+    [NinoType] public sealed class SealedArgB : ArgBox<SealedArg> { public int B; }
+    [NinoType] public sealed class OpenArgA : ArgBox<OpenArg> { public int A; }
+    [NinoType] public class OpenArgB : ArgBox<OpenArg> { public int B; }
+    [NinoType] public sealed class OpenArgBChild : OpenArgB { public int C; }
+
+    // Tuples as the type argument: unmanaged, managed, and holding a sealed class and a class with subtypes.
+    [NinoType] public sealed class UnmanagedTupleArg : ArgBox<(int, long)> { public int A; }
+    [NinoType] public sealed class ManagedTupleArg : ArgBox<(int, string)> { public int A; }
+    [NinoType] public sealed class SealedTupleArg : ArgBox<(SealedArg, int)> { public int A; }
+    [NinoType] public class OpenTupleArg : ArgBox<(OpenArg, int)> { public int A; }
+    [NinoType] public sealed class OpenTupleArgChild : OpenTupleArg { public int C; }
+
+    // A generic class with instances of its own and subtypes.
+    [NinoType] public class Node<T> { public T Value; }
+    [NinoType] public sealed class IntNode : Node<int> { public int N; }
+    [NinoType] public sealed class OpenArgNode : Node<OpenArg> { public int N; }
 
     [NinoType] public class ClassBase { public int A; }
     [NinoType] public class ClassBox<T> : ClassBase { public T Value; }
@@ -269,6 +296,101 @@ namespace Nino.UnitTests.GenericPolymorphism
             var chainResult = NinoDeserializer.Deserialize<List<Chain1<int>>>(NinoSerializer.Serialize(chain));
             Assert.AreEqual(2, ((ChainLeaf)chainResult[0]).C);
             Assert.IsNull(chainResult[1]);
+        }
+
+        private static List<T> RoundTrip<T>(List<T> values)
+        {
+            byte[] bytes = NinoSerializer.Serialize(values);
+            var result = NinoDeserializer.Deserialize<List<T>>(bytes);
+            CollectionAssert.AreEqual(bytes, NinoSerializer.Serialize(result));
+            Assert.AreEqual(values.Count, result.Count);
+            for (int i = 0; i < values.Count; i++)
+                Assert.AreEqual(values[i]?.GetType(), result[i]?.GetType());
+            return result;
+        }
+
+        [TestMethod]
+        public void EachClosedInstanceDispatchesItsSubtypes()
+        {
+            var ints = RoundTrip(new List<ArgBox<int>> { new IntArgA { Value = 1, A = 2 }, new IntArgB { Value = 3, B = 4 }, null });
+            Assert.AreEqual(2, ((IntArgA)ints[0]).A);
+            Assert.AreEqual(3, ints[1].Value);
+            Assert.AreEqual(4, ((IntArgB)ints[1]).B);
+
+            var sealedArgs = RoundTrip(new List<ArgBox<SealedArg>>
+            {
+                new SealedArgA { Value = new SealedArg { S = 5 }, A = 6 }, new SealedArgB { B = 7 }, null
+            });
+            Assert.AreEqual(5, sealedArgs[0].Value.S);
+            Assert.AreEqual(6, ((SealedArgA)sealedArgs[0]).A);
+            Assert.IsNull(sealedArgs[1].Value);
+            Assert.AreEqual(7, ((SealedArgB)sealedArgs[1]).B);
+
+            var openArgs = RoundTrip(new List<ArgBox<OpenArg>>
+            {
+                new OpenArgA { Value = new OpenArgChild { O = 8, C = 9 }, A = 10 },
+                new OpenArgB { Value = new OpenArg { O = 11 }, B = 12 },
+                new OpenArgBChild { B = 13, C = 14 }, null
+            });
+            Assert.AreEqual(9, ((OpenArgChild)openArgs[0].Value).C);
+            Assert.AreEqual(10, ((OpenArgA)openArgs[0]).A);
+            Assert.AreEqual(11, openArgs[1].Value.O);
+            Assert.AreEqual(14, ((OpenArgBChild)openArgs[2]).C);
+            Assert.AreEqual(13, ((OpenArgB)openArgs[2]).B);
+
+            var nodes = RoundTrip(new List<Node<int>> { new Node<int> { Value = 1 }, new IntNode { Value = 2, N = 3 }, null });
+            Assert.AreEqual(1, nodes[0].Value);
+            Assert.AreEqual(3, ((IntNode)nodes[1]).N);
+            var openNodes = RoundTrip(new List<Node<OpenArg>>
+            {
+                new Node<OpenArg> { Value = new OpenArgChild { C = 4 } }, new OpenArgNode { N = 5 }
+            });
+            Assert.AreEqual(4, ((OpenArgChild)openNodes[0].Value).C);
+            Assert.AreEqual(5, ((OpenArgNode)openNodes[1]).N);
+            var unmanaged = RoundTrip(new List<ArgBox<(int, long)>> { new UnmanagedTupleArg { Value = (1, 2L), A = 3 }, null });
+            Assert.AreEqual((1, 2L), unmanaged[0].Value);
+            Assert.AreEqual(3, ((UnmanagedTupleArg)unmanaged[0]).A);
+            var managed = RoundTrip(new List<ArgBox<(int, string)>>
+            {
+                new ManagedTupleArg { Value = (4, "five"), A = 6 }, new ManagedTupleArg { Value = (7, null) }, null
+            });
+            Assert.AreEqual((4, "five"), managed[0].Value);
+            Assert.AreEqual(6, ((ManagedTupleArg)managed[0]).A);
+            Assert.IsNull(managed[1].Value.Item2);
+            var sealedTuple = RoundTrip(new List<ArgBox<(SealedArg, int)>>
+            {
+                new SealedTupleArg { Value = (new SealedArg { S = 8 }, 9), A = 10 }, new SealedTupleArg(), null
+            });
+            Assert.AreEqual(8, sealedTuple[0].Value.Item1.S);
+            Assert.AreEqual(9, sealedTuple[0].Value.Item2);
+            Assert.IsNull(sealedTuple[1].Value.Item1);
+            var openTuple = RoundTrip(new List<ArgBox<(OpenArg, int)>>
+            {
+                new OpenTupleArg { Value = (new OpenArgChild { O = 11, C = 12 }, 13), A = 14 },
+                new OpenTupleArgChild { Value = (new OpenArg { O = 15 }, 16), C = 17 }, null
+            });
+            Assert.AreEqual(12, ((OpenArgChild)openTuple[0].Value.Item1).C);
+            Assert.AreEqual(13, openTuple[0].Value.Item2);
+            Assert.AreEqual(15, openTuple[1].Value.Item1.O);
+            Assert.AreEqual(17, ((OpenTupleArgChild)openTuple[1]).C);
+
+            // Closed instances with no subtypes here go through the registry.
+            RoundTrip(new List<Node<string>> { new Node<string> { Value = "s" }, null });
+            RoundTrip(new List<ArgBox<long>> { null });
+        }
+
+        [TestMethod]
+        public void DataOfAnotherClosedInstanceIsRejected()
+        {
+            byte[] sealedArg = NinoSerializer.Serialize<ArgBox<SealedArg>>(new SealedArgA { A = 1 });
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<OpenArg>>(sealedArg));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<int>>(sealedArg));
+            byte[] tuple = NinoSerializer.Serialize<ArgBox<(int, long)>>(new UnmanagedTupleArg { A = 1 });
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<(int, string)>>(tuple));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<(OpenArg, int)>>(tuple));
+            byte[] intNode = NinoSerializer.Serialize<Node<int>>(new IntNode { N = 1 });
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<Node<OpenArg>>(intNode));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<int>>(intNode));
         }
 
         [TestMethod]

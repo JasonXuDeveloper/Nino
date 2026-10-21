@@ -515,10 +515,17 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     order this reads 1.5x as fast as the registry, whose indirect call mispredicts; a perfect hash with a dense
     switch (an indirect jump) was measured too and mispredicts the same way. When the subtypes repeat in a fixed
     cycle the registry's indirect call is perfectly predicted and the switch is about 10% slower.
-  * A generic base (a generic abstract class or interface, or an abstract class nested in a generic type) lists no
-    closed subtypes, so it has no generated dispatch: its formatter writes and reads its subtypes through the
-    registry (`NinoPolymorphic<T>`), as generic classes do (`TypeModel.DispatchesSubtypes`, one rule for every
-    entry point).
+  * A generic base (a generic abstract class or interface, a generic class, or an abstract class nested in a
+    generic type) is a root of its own. For each closed instance of it that subtypes in the same assembly derive
+    from (`Box<int>` for `IntBox : Box<int>`), a static class `__NinoDispatch{n}` holds the same two methods as a
+    non-generic root; the generic formatter's methods select it with `typeof(Box<T>) == typeof(Box<int>)` and pass
+    the value or slot on as that type (`NinoObject.SameType`, `NinoObject.SameTypeSlot`, which reinterpret without a
+    check). The JIT folds the type compare where the type arguments are value types; where they are reference types
+    (shared code) it is one lookup in the generic context. The methods live in a non-generic class so that
+    `ReadExact` there is not shared code either. Other closed instances, and generic subtypes, go through the
+    registry. Before, a generic base had no generated dispatch and went through the registry, which wrote and read an
+    array of subtypes in random order several times slower than a non-generic base; now both take the same time
+    (`GenericPolymorphicProbe`).
   * A class below the root reads through the root's switch and then checks that the type the data named is one
     of its own (`NinoObject.EnsureSubtype`), so data naming a sibling type throws instead of being stored.
   * Each subtype costs three lines per hierarchy (not per ancestor), so generated code stays linear in the number
@@ -532,7 +539,7 @@ rather than in the sum of hierarchy depths, and avoids one generic instantiation
     id and another for the body. The same merge applies where the formatter writes its own subtype (`TryWriteOwnRaw`,
     `SerializeRaw`, `SerializeSealedRaw`: id or null flag with the body) and to the top-level twins
     (`SerializeTopRaw`). The bytes are the same; the deep path (nesting at `NinoDepth.Inline`) is unchanged.
-* **Serialize (registry)**: other subtypes (other assemblies, closed generics, tracked types, more than 64): look up
+* **Serialize (registry)**: other subtypes (other assemblies, generic subtypes, tracked types, more than 64): look up
   the runtime type in a lock-free open-addressing table and call the subtype's body serializer through its
   handler.
 * **Deserialize (registry)**: the switch's default case reads the type id's handler from a second
