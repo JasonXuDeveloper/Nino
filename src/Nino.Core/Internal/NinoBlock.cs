@@ -101,15 +101,13 @@ namespace Nino.Core
                 int step = NinoBlock<T, TFormatter>.PerVector;
                 int last = NinoBlock<T, TFormatter>.LastVector(count, size, 64);
                 ref byte source = ref Unsafe.As<T, byte>(ref first);
-                for (; i <= last; i += step)
-                    Permute64(ref source, (nuint)i * (nuint)Unsafe.SizeOf<T>(), ref destination, (nuint)i * (nuint)size,
-                        toWire);
+                i = Permute64(ref source, Unsafe.SizeOf<T>(), ref destination, size, i, last, step, toWire);
                 // The values after the last vector by one more, over values already written (the same bytes), rather
                 // than one at a time.
                 if (i < last + step && last >= 0)
                 {
-                    Permute64(ref source, (nuint)last * (nuint)Unsafe.SizeOf<T>(), ref destination,
-                        (nuint)last * (nuint)size, toWire);
+                    Permute64(ref source, (nint)last * Unsafe.SizeOf<T>(), ref destination, (nint)last * size,
+                        toWire);
                     i = last + step;
                 }
             }
@@ -240,13 +238,11 @@ namespace Nino.Core
                     }
                 }
 
-                for (; i <= last; i += step)
-                    Permute64(ref source, (nuint)i * (nuint)size, ref destination, (nuint)i * (nuint)Unsafe.SizeOf<T>(),
-                        toMemory);
+                i = Permute64(ref source, size, ref destination, Unsafe.SizeOf<T>(), i, last, step, toMemory);
                 if (whole && i < last + step && last >= 0)
                 {
-                    Permute64(ref source, (nuint)last * (nuint)size, ref destination,
-                        (nuint)last * (nuint)Unsafe.SizeOf<T>(), toMemory);
+                    Permute64(ref source, (nint)last * size, ref destination, (nint)last * Unsafe.SizeOf<T>(),
+                        toMemory);
                     i = last + step;
                 }
             }
@@ -715,6 +711,36 @@ namespace Nino.Core
         }
 
         /// <summary>
+        /// <see cref="Permute64(ref byte, nint, ref byte, nint, Vector512{byte})"/> of the values from value
+        /// <paramref name="i"/> to value <paramref name="last"/>, <paramref name="step"/> at a time (none when
+        /// <paramref name="i"/> is past <paramref name="last"/>), each <paramref name="from"/> bytes apart in
+        /// <paramref name="source"/> and <paramref name="to"/> in <paramref name="destination"/>; returns the value
+        /// after them. Cursors bumped a vector at a time and a count down, and on Arm64 the quarters of the indices
+        /// taken out once: there a 64-byte vector is a struct of four, and a group at a time it was copied through the
+        /// stack and its quarters loaded from it again.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int Permute64(ref byte source, nint from, ref byte destination, nint to, int i, int last,
+            int step, Vector512<byte> indices)
+        {
+            if (i > last)
+                return i;
+            var (q0, q1, q2, q3) = Quarters(indices);
+            int n = (last - i) / step + 1;
+            ref byte at = ref Unsafe.Add(ref source, i * from);
+            ref byte into = ref Unsafe.Add(ref destination, i * to);
+            i += n * step;
+            do
+            {
+                Permute64(ref at, ref into, indices, q0, q1, q2, q3);
+                at = ref Unsafe.Add(ref at, step * from);
+                into = ref Unsafe.Add(ref into, step * to);
+            } while (--n != 0);
+
+            return i;
+        }
+
+        /// <summary>
         /// One 64-byte byte permute from <paramref name="source"/> + <paramref name="from"/> to
         /// <paramref name="destination"/> + <paramref name="to"/>: each byte written is the source byte its index
         /// names. AVX-512 VBMI's permute, which reads only an index's low six bits (so a padding byte, index 0x80, takes
@@ -722,23 +748,38 @@ namespace Nino.Core
         /// lookups, one per 16 bytes written.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void Permute64(ref byte source, nuint from, ref byte destination, nuint to,
+        private static void Permute64(ref byte source, nint from, ref byte destination, nint to,
             Vector512<byte> indices)
+        {
+            var (q0, q1, q2, q3) = Quarters(indices);
+            Permute64(ref Unsafe.Add(ref source, from), ref Unsafe.Add(ref destination, to), indices, q0, q1, q2, q3);
+        }
+
+        /// <summary>The 16-byte quarters of <paramref name="indices"/> for the Arm64 table lookups (none with AVX-512 VBMI).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static (Vector128<byte>, Vector128<byte>, Vector128<byte>, Vector128<byte>) Quarters(
+            Vector512<byte> indices) =>
+            Avx512Vbmi.IsSupported
+                ? default
+                : (indices.GetLower().GetLower(), indices.GetLower().GetUpper(), indices.GetUpper().GetLower(),
+                    indices.GetUpper().GetUpper());
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void Permute64(ref byte source, ref byte destination, Vector512<byte> indices,
+            Vector128<byte> q0, Vector128<byte> q1, Vector128<byte> q2, Vector128<byte> q3)
         {
             if (Avx512Vbmi.IsSupported)
             {
-                Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source, from), indices)
-                    .StoreUnsafe(ref destination, to);
+                Avx512Vbmi.PermuteVar64x8(Vector512.LoadUnsafe(ref source), indices).StoreUnsafe(ref destination);
                 return;
             }
 
-            var table = (Vector128.LoadUnsafe(ref source, from), Vector128.LoadUnsafe(ref source, from + 16),
-                Vector128.LoadUnsafe(ref source, from + 32), Vector128.LoadUnsafe(ref source, from + 48));
-            ref var quarters = ref Unsafe.As<Vector512<byte>, Vector128<byte>>(ref indices);
-            AdvSimd.Arm64.VectorTableLookup(table, quarters).StoreUnsafe(ref destination, to);
-            AdvSimd.Arm64.VectorTableLookup(table, Unsafe.Add(ref quarters, 1)).StoreUnsafe(ref destination, to + 16);
-            AdvSimd.Arm64.VectorTableLookup(table, Unsafe.Add(ref quarters, 2)).StoreUnsafe(ref destination, to + 32);
-            AdvSimd.Arm64.VectorTableLookup(table, Unsafe.Add(ref quarters, 3)).StoreUnsafe(ref destination, to + 48);
+            var table = (Vector128.LoadUnsafe(ref source), Vector128.LoadUnsafe(ref source, 16),
+                Vector128.LoadUnsafe(ref source, 32), Vector128.LoadUnsafe(ref source, 48));
+            AdvSimd.Arm64.VectorTableLookup(table, q0).StoreUnsafe(ref destination);
+            AdvSimd.Arm64.VectorTableLookup(table, q1).StoreUnsafe(ref destination, 16);
+            AdvSimd.Arm64.VectorTableLookup(table, q2).StoreUnsafe(ref destination, 32);
+            AdvSimd.Arm64.VectorTableLookup(table, q3).StoreUnsafe(ref destination, 48);
         }
 #endif
     }
