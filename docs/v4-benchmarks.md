@@ -199,18 +199,22 @@ the result objects.
   clearing brings its lines into the cache, where each store into an uninitialized line first reads it from
   memory (1,000 `(int, long)` into a new list in 1.5 µs instead of 2.7 µs). Slots a read overwrites are not cleared
   first, in new or existing lists and arrays.
-* **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values
-  are written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each
-  16-byte lane is shuffled from at most two 16-byte windows (`vpshufb` on AVX2 and SSSE3, `TBL` on Arm64, swizzle
-  on WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type. On Arm64, a plan whose
-  windows lie on the 16-byte grid loads each window of a group once, before any lookup, so the JIT gives them
-  consecutive registers and every `TBL` takes one window or two consecutive ones as they are: four `(int, long)` are
-  written from two `ldp` by three lookups and read from three loads by four, with no register copies (loaded for
-  each lookup, the loads two lookups share took a copy each). Each loop step moves a whole group and advances two
-  cursors, without an index multiply. Where the stores are
-  aligned, the unaligned head and tail of the output are covered by whole groups that overlap the body, so the
-  time does not depend on where the buffer starts (1,000 `(int, long)` in 122 to 130 ns at any alignment instead
-  of 123 to 149, AVX-512 Xeon).
+* **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values are
+  written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each 16-byte
+  lane is shuffled from at most two 16-byte windows (`vpshufb` on AVX2 and SSSE3, `TBL` on Arm64, swizzle on
+  WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type. On Arm64, a plan whose windows
+  lie on the 16-byte grid loads each window of a group once, before any lookup, so the JIT gives them consecutive
+  registers and every `TBL` takes one window or two consecutive ones as they are: four `(int, long)` are written from
+  two `ldp` by three lookups and read from three loads by four, with no register copies (loaded for each lookup, the
+  loads two lookups share took a copy each). Each loop step moves a whole group and advances two cursors, without an
+  index multiply. Values of 8 bytes or less (`(byte, int)`, `(short, int)`) move eight at a time as one 64-byte
+  permute (`vpermb` with AVX-512 VBMI); on Arm64 each 16 bytes written is one `TBL` over just the 16-byte quarters its
+  bytes come from (one to four consecutive registers, each a micro-op on Neoverse cores), only those quarters are
+  loaded and only the group's bytes stored, and the permute's indices stay in registers (a `Vector512` is a struct of
+  four there, which as a parameter was copied through the stack every group). Where the stores are aligned, the
+  unaligned head and tail of the output are covered by whole groups that overlap the body, so the time does not depend
+  on where the buffer starts (1,000 `(int, long)` in 122 to 130 ns at any alignment instead of 123 to 149, AVX-512
+  Xeon).
 * **Layout flags folded by the JIT.** Whether a type's memory layout equals the wire layout, and whether it
   has padding, are `static readonly` values, which tiered compilation turns into constants: on 64-bit
   runtimes a raw struct costs a plain copy. Other runtimes (32-bit, old Mono) convert field by field into
