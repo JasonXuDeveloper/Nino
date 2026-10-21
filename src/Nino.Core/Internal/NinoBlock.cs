@@ -1008,6 +1008,7 @@ namespace Nino.Core
 
         /// <summary>Whether the windows <paramref name="low"/> and <paramref name="high"/> of a 32-byte load are lanes of
         /// loads on the 32-byte grid, permuted (vperm2i128): both on the 16-byte grid, not one load.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool Paired(int low, int high) => high != low + 16 && low % 16 == 0 && high % 16 == 0;
 
         /// <summary>Where each load of a group starts (a vector width each), repeated loads once.</summary>
