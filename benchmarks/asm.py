@@ -18,8 +18,9 @@ method's leanest code is kept.
 `diff` prints every method whose code grew by more than 15% and 64 bytes, or that accesses the stack more than 4
 times more often (a reader, a writer or a cursor left in memory), and exits with 1 when there is one; it also lists
 the methods each calls that it did not call before (one the JIT no longer inlined, or code moved out of line on
-purpose). Dump both sides on the same machine (DOTNET_EnableAVX512F=0 gives the code of a machine without AVX-512);
-a method listed alone, in code the change does not reach, is usually the variation above: dump again to tell.
+purpose). Dump both sides on the same machine (DOTNET_EnableAVX512=0 gives the code of a machine without AVX-512;
+.NET 10 ignores DOTNET_EnableAVX512F); a method listed alone, in code the change does not reach, is usually the
+variation above: dump again to tell.
 """
 import argparse
 import json
