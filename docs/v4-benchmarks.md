@@ -187,8 +187,10 @@ the result objects.
   A raw nullable reads its has-value byte and its value under one bounds check, and multi-dimensional arrays take
   the block paths of flat ones.
 * **Copies sized to the CPU.** Up to 64 bytes (on 64-bit runtimes) or 128 bytes (with 32-byte vectors) are copied
-  inline, as overlapping loads and stores of the widest vector that fits; up to 8 KB (64-byte vectors) or 4 KB
-  (32-byte vectors, from 256 bytes) as vectors with aligned stores; beyond, with `memmove`. Reads of 6 KB or more use
+  inline, as overlapping loads and stores of the widest vector that fits; up to 32 KB (64-byte vectors) or 16 KB
+  (32-byte vectors, from 256 bytes) as vectors with aligned stores; beyond, with `memmove`, which is far slower on some
+  CPUs (8,000 bytes in 236 ns on GitHub's EPYC 9V74 runners and 2.8 µs on their EPYC 7763 ones, against 83 to 85 ns for
+  the vector loop). Reads of 6 KB or more use
   `memmove`, whose `rep movsb` writes fresh cache lines without reading them first.
 * **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 6 KB: below,
   the runtime's uninitialized allocation costs more than zeroing (on GitHub's runners, 1.1x the time at 4 KB, 1.4x to
@@ -200,7 +202,12 @@ the result objects.
 * **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values
   are written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each
   16-byte lane is shuffled from at most two 16-byte windows (`vpshufb` on AVX2 and SSSE3, `TBL` on Arm64, swizzle
-  on WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type. Where the stores are
+  on WebAssembly), with the cheaper of an unaligned and a grid-aligned plan for each type. On Arm64, a plan whose
+  windows lie on the 16-byte grid loads each window of a group once, before any lookup, so the JIT gives them
+  consecutive registers and every `TBL` takes one window or two consecutive ones as they are: four `(int, long)` are
+  written from two `ldp` by three lookups and read from three loads by four, with no register copies (loaded for
+  each lookup, the loads two lookups share took a copy each). Each loop step moves a whole group and advances two
+  cursors, without an index multiply. Where the stores are
   aligned, the unaligned head and tail of the output are covered by whole groups that overlap the body, so the
   time does not depend on where the buffer starts (1,000 `(int, long)` in 122 to 130 ns at any alignment instead
   of 123 to 149, AVX-512 Xeon).
@@ -213,7 +220,10 @@ the result objects.
   second pass, which would reload freshly stored bytes and stall on store forwarding. Stores are aligned to
   the vector width (the block usually follows a 4-byte length, so unaligned stores would split cache lines
   every other store), the loop is unrolled 4×, and the unaligned head and tail vectors overlap the body.
-  On 100 padded `SimpleStruct`s (16 bytes each without `Pack`, 1.6 KB) this costs about 5 ns over a plain `memcpy`. A struct without padding, or one
+  On 100 padded `SimpleStruct`s (16 bytes each without `Pack`, 1.6 KB) this costs about 5 ns over a plain `memcpy`.
+  The loop indexes with native-sized offsets (1,000 8-byte structs with a padding byte in 66 ns instead of 74 with
+  64-byte vectors), and on Arm64 loads and stores pairs of 16-byte vectors (`ldp`/`stp`), as the C library's `memcpy`
+  does. A struct without padding, or one
   declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`, skips the mask and is a plain block copy;
   `LayoutKind.Auto` structs are not raw at all and are written field by field.
 * **Store-only padding for single values.** A single padded value is written, then its padding runs are
@@ -242,7 +252,9 @@ the result objects.
 * **Writer and reader.** `Writer` writes into one contiguous rented buffer (the hot path is a length check
   and an unaligned store; growth is out of line). `Reader` is a span with an index: one unsigned bounds
   check per read. Lengths from the payload are validated against the remaining bytes before allocating. Loops
-  over elements work on a local copy of the reader or writer, so the cursor stays in a register.
+  over elements work on a local copy of the reader or writer, so the cursor stays in a register, except where the
+  elements' formatters take the writer's address anyway (strings, classes): those loops run on the caller's writer,
+  without a copy in and out per collection.
 * **No shared mutable state on hot paths.** Scratch buffers are thread-static and taken out of their slot
   while in use; formatter lookup is a static generic field; polymorphic tables are open-addressing arrays of
   16-byte entries (four per 64-byte cache line), at most half full, read lock free. Serializing threads never
