@@ -35,6 +35,9 @@ every method it lists. What has gone wrong before:
   before the loop, and pass those.
 - Arm64 `tbl` with two to four table registers needs consecutive registers: build the tuples from loads made once
   per iteration, before any lookup (`(w0, w1)`, `(w1, w2)`), never from per-lookup loads, or the JIT adds `mov`s.
+  Each table register is a micro-op on Neoverse cores: give each lookup only the registers its bytes come from, and
+  store only the bytes the values fill (`NinoBlock.WireTables64`); check each shape, as types that compile to the
+  same code can differ by the data (`(byte, int)` took twice as long as `(short, int)`).
 - Look at Arm64 code too, not only x64: build for `linux-arm64` and run under `qemu-aarch64-static` with
   `DOTNET_TieredCompilation=0 DOTNET_JitDisasm='<method>' DOTNET_JitStdOutFile=<file>` (the code paths only a type
   outside the benchmark suite takes, such as `(byte, int)` for the 64-byte permutes, need a small program of their
