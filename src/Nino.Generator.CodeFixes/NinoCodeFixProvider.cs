@@ -117,8 +117,31 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     {
         var editor = await DocumentEditor.CreateAsync(document, ct).ConfigureAwait(false);
         fix.Apply(editor, editor.OriginalRoot.FindNode(span, getInnermostNodeForTie: true));
-        return editor.GetChangedDocument();
+        return await FormatAsync(editor.GetChangedDocument(), await document.GetTextAsync(ct).ConfigureAwait(false), ct)
+            .ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Formats what the fix inserted with the line breaks of <paramref name="original"/>, then drops the formatting
+    /// annotations: left to the code action's cleanup, it would take the machine's (Environment.NewLine), and a fix
+    /// on Windows would add CRLF lines to an LF file.
+    /// </summary>
+    private static async Task<Document> FormatAsync(Document document, SourceText original, CancellationToken ct)
+    {
+        if (NewLine(original) is not { } newLine)
+            return document;
+        var options = (await document.GetOptionsAsync(ct).ConfigureAwait(false))
+            .WithChangedOption(FormattingOptions.NewLine, LanguageNames.CSharp, newLine);
+        document = await Formatter.FormatAsync(document, Formatter.Annotation, options, ct).ConfigureAwait(false);
+        var root = (await document.GetSyntaxRootAsync(ct).ConfigureAwait(false))!;
+        return document.WithSyntaxRoot(root.ReplaceNodes(root.GetAnnotatedNodes(Formatter.Annotation),
+            static (_, node) => node.WithoutAnnotations(Formatter.Annotation)));
+    }
+
+    /// <summary>The line break of the first line of <paramref name="text"/>, or null for a single line.</summary>
+    private static string? NewLine(SourceText text) => text.Lines.Count < 2
+        ? null
+        : text.ToString(TextSpan.FromBounds(text.Lines[0].End, text.Lines[0].EndIncludingLineBreak));
 
     private static Fix RemoveAttributeFix(string name) =>
         new($"Remove [{name}]", "Remove" + name, (e, n) => RemoveAttribute(e, n, name));
@@ -192,12 +215,13 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
         if (editor.SemanticModel.GetDeclaredSymbol(type) is not { } symbol)
             return;
         string self = type.Identifier.ValueText + TypeArguments(type);
+        string newLine = NewLine(editor.OriginalRoot.GetText()) ?? "\n";
         foreach (var name in PoolHooks.Missing(symbol, CancellationToken.None))
         {
             string declaration = name == PoolHooks.Warmup
                 ? $"private static partial System.Collections.Generic.IEnumerable<{self}> {name}()\n{{\n    return System.Array.Empty<{self}>();\n}}\n"
                 : $"private partial void {name}()\n{{\n}}\n";
-            if (SyntaxFactory.ParseMemberDeclaration(declaration) is { } member)
+            if (SyntaxFactory.ParseMemberDeclaration(declaration.Replace("\n", newLine)) is { } member)
                 editor.AddMember(type, member.WithAdditionalAnnotations(Formatter.Annotation, Simplifier.Annotation));
         }
     }
