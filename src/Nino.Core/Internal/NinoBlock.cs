@@ -639,10 +639,35 @@ namespace Nino.Core
             where TDirection : struct, INinoDirection
         {
             int vectors = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Vectors;
-            var v0 = Lane16<T, TFormatter, TDirection>(ref source, 0, a0, b0);
-            var v1 = vectors > 1 ? Lane16<T, TFormatter, TDirection>(ref source, 1, a1, b1) : default;
-            var v2 = vectors > 2 ? Lane16<T, TFormatter, TDirection>(ref source, 2, a2, b2) : default;
-            var v3 = vectors > 3 ? Lane16<T, TFormatter, TDirection>(ref source, 3, a3, b3) : default;
+            Vector128<byte> v0, v1, v2, v3;
+            if (AdvSimd.Arm64.IsSupported && NinoBlock<T, TFormatter>.LanePlan<TDirection>.Gridded)
+            {
+                // The group's windows once each, before any lookup: the JIT then gives them consecutive registers,
+                // and each lookup takes two of them as they are (loaded for each lookup, the loads it repeats take
+                // register copies).
+                var w0 = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Loads(0) ? Vector128.LoadUnsafe(ref source) : default;
+                var w1 = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Loads(1)
+                    ? Vector128.LoadUnsafe(ref source, 16)
+                    : default;
+                var w2 = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Loads(2)
+                    ? Vector128.LoadUnsafe(ref source, 32)
+                    : default;
+                var w3 = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Loads(3)
+                    ? Vector128.LoadUnsafe(ref source, 48)
+                    : default;
+                v0 = Table16<T, TFormatter, TDirection>(0, w0, w1, w2, w3, a0);
+                v1 = vectors > 1 ? Table16<T, TFormatter, TDirection>(1, w0, w1, w2, w3, a1) : default;
+                v2 = vectors > 2 ? Table16<T, TFormatter, TDirection>(2, w0, w1, w2, w3, a2) : default;
+                v3 = vectors > 3 ? Table16<T, TFormatter, TDirection>(3, w0, w1, w2, w3, a3) : default;
+            }
+            else
+            {
+                v0 = Lane16<T, TFormatter, TDirection>(ref source, 0, a0, b0);
+                v1 = vectors > 1 ? Lane16<T, TFormatter, TDirection>(ref source, 1, a1, b1) : default;
+                v2 = vectors > 2 ? Lane16<T, TFormatter, TDirection>(ref source, 2, a2, b2) : default;
+                v3 = vectors > 3 ? Lane16<T, TFormatter, TDirection>(ref source, 3, a3, b3) : default;
+            }
+
             v0.StoreUnsafe(ref destination);
             if (vectors > 1)
                 v1.StoreUnsafe(ref destination, 16);
@@ -650,6 +675,22 @@ namespace Nino.Core
                 v2.StoreUnsafe(ref destination, 32);
             if (vectors > 3)
                 v3.StoreUnsafe(ref destination, 48);
+        }
+
+        /// <summary>Vector <paramref name="vector"/> of a <see cref="NinoLanes.Gridded"/> group: a lookup in its window, or
+        /// its two consecutive ones (Arm64).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector128<byte> Table16<T, TFormatter, TDirection>(int vector, Vector128<byte> w0,
+            Vector128<byte> w1, Vector128<byte> w2, Vector128<byte> w3, Vector128<byte> a)
+            where TFormatter : struct, INinoFormatter<T>
+            where TDirection : struct, INinoDirection
+        {
+            int k = NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 0, 0) / 16;
+            if (NinoBlock<T, TFormatter>.LanePlan<TDirection>.Window(vector, 1, 0) == NinoLanes.None)
+                return AdvSimd.Arm64.VectorTableLookup(k == 0 ? w0 : k == 1 ? w1 : k == 2 ? w2 : w3, a);
+            return k == 0 ? AdvSimd.Arm64.VectorTableLookup((w0, w1), a)
+                : k == 1 ? AdvSimd.Arm64.VectorTableLookup((w1, w2), a)
+                : AdvSimd.Arm64.VectorTableLookup((w2, w3), a);
         }
 
         /// <summary>
@@ -767,15 +808,17 @@ namespace Nino.Core
                 : Plan(width, map, size, memorySize, writes, tables, group, grid: false);
             // AVX2 takes whichever costs less a value: windows anywhere (fewest loads when each lane's bytes follow)
             // or on a 16-byte grid (loads repeat across a group's vectors, and two lanes far apart come from them by
-            // one lane permute rather than two more loads). Not Arm64: a load two lookups share takes register
-            // copies, as each lookup's two registers must be consecutive (writes: 310 ns against 415 on Neoverse N2;
-            // reads of 16-byte values from 12-byte blocks: seven copies a group of four). Its reads take groups as
-            // many values as start their blocks on the 16-byte grid instead, each window anywhere: four values a
-            // load, a lookup and a store each, but one loop step (one value a step: 1.13 us against 0.99 to 1.01
-            // with three grid loads a group, 1,000 (int, long) into a new list).
-            if (width == 32)
+            // one lane permute rather than two more loads). Arm64 too, when the grid plan's windows fit one 64-byte
+            // span: they load once each into consecutive registers and every lookup takes two of them, as Lanes16
+            // does (loaded for each lookup, the loads two lookups share took register copies: writes 415 ns against
+            // 310 for six loads anywhere; reads seven copies a group of four 16-byte values from 12-byte blocks).
+            // Its other plans take the grid plan's group, so that a step moves as many values (one value a step:
+            // 1.13 us against 0.99 to 1.01 with three grid loads a group, 1,000 (int, long) into a new list).
+            if (width == 32 || tables)
             {
                 var gridded = Plan(width, map, size, memorySize, writes, tables, gridGroup, grid: true);
+                if (tables && gridded?.Gridded() == false)
+                    gridded = null;
                 if (plan == null || gridded != null && gridded.Cost() * plan.Group < plan.Cost() * gridGroup)
                     plan = gridded;
             }
@@ -824,6 +867,9 @@ namespace Nino.Core
                 }
             }
 
+            if (tables)
+                Pair(plan);
+
             // The bytes loaded, from the group's first value; loads from before it: groups start where they stay
             // inside the source.
             int low = 0, high = 0;
@@ -836,6 +882,81 @@ namespace Nino.Core
             plan.Start = (-low + sourceSize - 1) / sourceSize;
             plan.End = high;
             return plan;
+        }
+
+        /// <summary>
+        /// Arm64: a vector from one window looks up in the pair of a vector that loads it too, as its first window
+        /// (indices as they are) or its second (indices past the first's 16 bytes), so that every lookup takes two
+        /// registers out of the same loads. A lookup's two registers must be consecutive: with one-register lookups
+        /// next to two-register ones sharing their loads, the JIT copies registers (seven copies a group for 16-byte
+        /// values from 12-byte blocks, none once each lookup takes a pair).
+        /// </summary>
+        private static void Pair(NinoLanes plan)
+        {
+            for (int v = 0; v < plan.Vectors; v++)
+            {
+                if (plan.Windows[v * 4 + 2] != None)
+                    continue;
+                int window = plan.Windows[v * 4];
+                for (int u = 0; u < plan.Vectors; u++)
+                {
+                    int first = plan.Windows[u * 4], second = plan.Windows[u * 4 + 2];
+                    if (u == v || second == None)
+                        continue;
+                    if (first == window)
+                    {
+                        plan.Windows[v * 4 + 2] = second;
+                        plan.Windows[v * 4 + 3] = second + 16;
+                    }
+                    else if (second == window)
+                    {
+                        plan.Windows[v * 4] = first;
+                        plan.Windows[v * 4 + 1] = first + 16;
+                        plan.Windows[v * 4 + 2] = window;
+                        plan.Windows[v * 4 + 3] = window + 16;
+                        var a = plan._masks[v * 2];
+                        for (int b = 0; b < a.Length; b++)
+                            if (a[b] < 16)
+                                a[b] += 16;
+                    }
+                    else
+                        continue;
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Arm64: whether each vector looks up in one 16-byte window of the group's first 64 bytes on the 16-byte grid,
+        /// or in two consecutive ones, so that the group's windows load once into consecutive registers (see Lanes16).
+        /// </summary>
+        public bool Gridded()
+        {
+            if (Width != 16)
+                return false;
+            for (int v = 0; v < Vectors; v++)
+            {
+                int first = Windows[v * 4], second = Windows[v * 4 + 2];
+                if (first < 0 || first % 16 != 0 || first + (second == None ? 16 : 32) > 64 ||
+                    second != None && second != first + 16)
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>For <see cref="Gridded"/> plans, the 16-byte windows a group loads (bit k: bytes 16k to 16k + 15).</summary>
+        public int GridLoads()
+        {
+            int loads = 0;
+            for (int v = 0; v < Vectors; v++)
+            {
+                loads |= 1 << (Windows[v * 4] / 16);
+                if (Windows[v * 4 + 2] != None)
+                    loads |= 1 << (Windows[v * 4 + 2] / 16);
+            }
+
+            return loads;
         }
 
         /// <summary>Whether the windows <paramref name="low"/> and <paramref name="high"/> of a 32-byte load are lanes of
@@ -1346,6 +1467,15 @@ namespace Nino.Core
             public static readonly int Start = Plan?.Start ?? 0;
 
             private static readonly int End = Plan?.End ?? 0;
+
+            /// <summary>Arm64: the group's windows load once, on the 16-byte grid (NinoLanes.Gridded).</summary>
+            public static readonly bool Gridded = Plan?.Gridded() == true;
+
+            private static readonly int GridLoads = Gridded ? Plan.GridLoads() : 0;
+
+            /// <summary>Whether a <see cref="Gridded"/> group loads bytes 16 <paramref name="k"/> to 16 <paramref name="k"/> + 15.</summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            public static bool Loads(int k) => (GridLoads & (1 << k)) != 0;
 
             // The windows of each vector (Window); NinoLanes.None for a second load not taken.
             private static readonly int W0 = Get(0), W1 = Get(1), W2 = Get(2), W3 = Get(3), W4 = Get(4), W5 = Get(5),
