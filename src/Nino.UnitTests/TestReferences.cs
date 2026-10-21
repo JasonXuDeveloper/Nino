@@ -16,7 +16,7 @@ internal static class TestReferences
         {
             var name = System.IO.Path.GetFileName(path);
             if (name == "System.Private.CoreLib.dll" || name == "netstandard.dll" || name == "mscorlib.dll" ||
-                (name.StartsWith("System.") && !name.StartsWith("System.Private.")))
+                (name.StartsWith("System.") && !name.StartsWith("System.Private.")) && IsManaged(path))
                 state.AdditionalReferences.Add(Microsoft.CodeAnalysis.MetadataReference.CreateFromFile(path));
         }
 #elif NET8_0_OR_GREATER
@@ -25,4 +25,20 @@ internal static class TestReferences
         state.ReferenceAssemblies = ReferenceAssemblies.NetStandard.NetStandard21;
 #endif
     }
+
+#if NET10_0_OR_GREATER
+    // The runtime directory also holds native libraries named System.* (System.IO.Compression.Native.dll on Windows).
+    private static bool IsManaged(string path)
+    {
+        try
+        {
+            System.Reflection.AssemblyName.GetAssemblyName(path);
+            return true;
+        }
+        catch (System.BadImageFormatException)
+        {
+            return false;
+        }
+    }
+#endif
 }
