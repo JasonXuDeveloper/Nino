@@ -1697,6 +1697,42 @@ public sealed partial class TestClass
     }
 
     [TestMethod]
+    public async Task NINO019_ImplementPoolHooks_KeepsTheFilesLineBreaks()
+    {
+        // What the fix inserts takes the file's line breaks (CRLF here, LF elsewhere), on any machine.
+        var code = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public sealed partial class {|#0:TestClass|}
+{
+    public int Value;
+
+    static void OnNinoPoolWarmup() { }
+}".Replace("\r\n", "\n").Replace("\n", "\r\n");
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType, NinoPooled]
+public sealed partial class TestClass
+{
+    public int Value;
+
+    static void OnNinoPoolWarmup() { }
+    private partial void {|#0:OnNinoPoolReturn|}()
+    {
+    }
+}".Replace("\r\n", "\n").Replace("\n", "\r\n");
+
+        var test = SetUpCodeFixTest(code, fixedCode,
+            VerifyCF.Diagnostic("NINO019").WithLocation(0).WithArguments("TestClass", "OnNinoPoolReturn()"));
+        test.FixedState.ExpectedDiagnostics.Add(
+            DiagnosticResult.CompilerError("CS0759").WithLocation(0).WithArguments("TestClass.OnNinoPoolReturn()"));
+        await test.RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO019_ImplementPoolHooks_AfterPartialDeclaration()
     {
         var code = @"
