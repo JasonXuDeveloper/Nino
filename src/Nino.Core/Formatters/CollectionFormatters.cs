@@ -66,16 +66,25 @@ namespace Nino.Core
                 int size = Unsafe.SizeOf<T>();
                 int count = value.Count;
                 ref byte elements = ref writer.ReserveCounted(count, size);
-                // A cursor rather than an int offset, which every store would sign-extend.
-                ref byte next = ref elements;
-                int written = 0;
-                foreach (var item in value)
+                // The set's own entries when none is free: a loop over an array, without the enumerator's version
+                // check and reloads of the set's fields on each element. The enumerator out of line, so that its
+                // state does not take registers or inlining budget here.
+                var entries = CollectionViews.HashSet ? CollectionFields.Entries(value, count) : null;
+                if (entries != null && count != 0 && count <= entries.Length)
                 {
-                    if (++written > count)
-                        NinoThrow.InvalidData("collection was modified during serialization");
-                    NinoUnsafe.Write(ref next, item);
-                    next = ref Unsafe.Add(ref next, size);
+                    // Cursors rather than an int index, which every load and store would scale and sign-extend.
+                    ref var entry = ref entries[0];
+                    ref byte at = ref elements;
+                    int left = count;
+                    do
+                    {
+                        NinoUnsafe.Write(ref at, entry.Value);
+                        entry = ref Unsafe.Add(ref entry, 1);
+                        at = ref Unsafe.Add(ref at, size);
+                    } while (--left != 0);
                 }
+                else if (count != 0)
+                    WriteEnumerated(value, ref elements, count);
 
                 NinoLayout<T>.ClearPadding(ref elements, count);
                 return;
@@ -87,6 +96,21 @@ namespace Nino.Core
                 writer = WriteEach(value, writer);
             else
                 WriteEach(value, ref writer);
+        }
+
+        /// <summary>The <paramref name="count"/> raw elements of a set with free entries, in enumeration order.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteEnumerated(TSet value, ref byte next, int count)
+        {
+            int size = Unsafe.SizeOf<T>();
+            int written = 0;
+            foreach (var item in value)
+            {
+                if (++written > count)
+                    NinoThrow.InvalidData("collection was modified during serialization");
+                NinoUnsafe.Write(ref next, item);
+                next = ref Unsafe.Add(ref next, size);
+            }
         }
 
         /// <summary>

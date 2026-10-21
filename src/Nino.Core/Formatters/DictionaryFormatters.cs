@@ -91,6 +91,36 @@ namespace Nino.Core
         {
             int keySize = Unsafe.SizeOf<TKey>();
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
+            // The dictionary's own entries when none is free (as HashSetFormatter's); the enumerator out of line.
+            var entries = CollectionViews.Dictionary ? CollectionFields.Entries(value, count) : null;
+            if (entries == null || count > entries.Length)
+            {
+                if (count != 0)
+                    WriteEnumerated(value, ref pairs, count);
+                return;
+            }
+
+            if (count == 0)
+                return;
+            ref var entry = ref entries[0];
+            int left = count;
+            do
+            {
+                NinoUnsafe.Write(ref pairs, 0, entry.Key);
+                NinoUnsafe.Write(ref pairs, keySize, entry.Value);
+                NinoLayout<TKey>.ClearPadding(ref pairs);
+                NinoLayout<TValue>.ClearPadding(ref Unsafe.Add(ref pairs, keySize));
+                entry = ref Unsafe.Add(ref entry, 1);
+                pairs = ref Unsafe.Add(ref pairs, pairSize);
+            } while (--left != 0);
+        }
+
+        /// <summary>The <paramref name="count"/> raw pairs of a dictionary with free entries, in enumeration order.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void WriteEnumerated(Dictionary<TKey, TValue> value, ref byte pairs, int count)
+        {
+            int keySize = Unsafe.SizeOf<TKey>();
+            int pairSize = keySize + Unsafe.SizeOf<TValue>();
             int written = 0;
             foreach (var pair in value)
             {

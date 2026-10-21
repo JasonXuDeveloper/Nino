@@ -631,5 +631,74 @@ public class CollectionFastPathTests
         Assert.IsTrue(Nino.Core.Internal.CollectionViews.SortedList, "SortedList<TKey, TValue>");
         Assert.IsTrue(Nino.Core.Internal.CollectionViews.SortedSet, "SortedSet<T>");
         Assert.IsTrue(Nino.Core.Internal.CollectionViews.SortedDictionary, "SortedDictionary<TKey, TValue>");
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.HashSet, "HashSet<T>");
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.Dictionary, "Dictionary<TKey, TValue>");
+    }
+
+    [TestMethod]
+    public void SetsAndDictionariesWriteTheirEntriesInOrder()
+    {
+        // Raw sets and dictionaries are written from their entries when none is free, else through the enumerator:
+        // either way the elements in enumeration order, as an array of them is written.
+        SetStates(i => (byte)i);
+        SetStates(i => (short)i);
+        SetStates(i => i * 7L);
+        SetStates(i => (i, (byte)i));
+        DictionaryStates(i => (byte)i);
+        DictionaryStates(i => i * 7L);
+        DictionaryStates(i => ((short)i, i));
+    }
+
+    private static void SetStates<T>(Func<int, T> make)
+    {
+        var set = new HashSet<T>();
+        Check();
+        for (int i = 0; i < 100; i++)
+            set.Add(make(i));
+        Check();
+        for (int i = 0; i < 100; i += 3)
+            set.Remove(make(i));
+        Check();
+        for (int i = 0; i < 100; i += 3)
+            set.Add(make(i + 1000));
+        Check();
+        set.Clear();
+        Check();
+        set.Add(make(5));
+        Check();
+
+        void Check()
+        {
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(set.ToArray()), NinoSerializer.Serialize(set));
+            CollectionAssert.AreEquivalent(set.ToArray(),
+                NinoDeserializer.Deserialize<HashSet<T>>(NinoSerializer.Serialize(set)).ToArray());
+        }
+    }
+
+    private static void DictionaryStates<T>(Func<int, T> make)
+    {
+        var dictionary = new Dictionary<int, T>();
+        Check();
+        for (int i = 0; i < 100; i++)
+            dictionary.Add(i, make(i));
+        Check();
+        for (int i = 0; i < 100; i += 3)
+            dictionary.Remove(i);
+        Check();
+        for (int i = 0; i < 100; i += 3)
+            dictionary.Add(i + 1000, make(i));
+        Check();
+        dictionary.Clear();
+        Check();
+        dictionary.Add(5, make(5));
+        Check();
+
+        void Check()
+        {
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionary.ToArray()),
+                NinoSerializer.Serialize(dictionary));
+            CollectionAssert.AreEquivalent(dictionary.ToArray(),
+                NinoDeserializer.Deserialize<Dictionary<int, T>>(NinoSerializer.Serialize(dictionary)).ToArray());
+        }
     }
 }
