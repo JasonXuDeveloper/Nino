@@ -22,9 +22,9 @@ namespace Nino.Core
             switch (value)
             {
                 case SortedSet<T> sorted:
-                    // Copied out by its own recursive walk: its enumerator keeps a stack of nodes and checks the
-                    // version per element.
-                    NinoCollections.WriteCopied<T, TFormatter>(sorted, ref writer);
+                    // Copied out of its tree: its enumerator keeps a stack of nodes and checks the version per
+                    // element.
+                    NinoCollections.WriteCopied<T, TFormatter>(sorted, SortedTrees.RootOf(sorted), ref writer);
                     return true;
                 case LinkedList<T> linked:
                     WriteLinked(linked, ref writer);
@@ -201,9 +201,10 @@ namespace Nino.Core
             switch (value)
             {
                 case SortedDictionary<TKey, TValue> sorted:
-                    // Copied out by its own recursive walk, then written as an array of pairs (raw ones as one block):
-                    // its enumerator keeps a stack of nodes and checks the version per pair.
-                    NinoCollections.WriteCopiedPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(sorted, ref writer);
+                    // Copied out of its tree, then written as an array of pairs (raw ones as one block): its
+                    // enumerator keeps a stack of nodes and checks the version per pair.
+                    NinoCollections.WriteCopiedPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(sorted,
+                        SortedTrees.RootOf(sorted), ref writer);
                     return true;
                 case SortedList<TKey, TValue> list when CollectionViews.SortedList:
                     WriteSortedList(list, ref writer);
@@ -481,6 +482,22 @@ namespace Nino.Core
             return built.Count;
         }
 
+        /// <summary>
+        /// The root of <paramref name="set"/>'s tree, to copy its items out of (<see cref="SortedSetNodes{T}.CopyTo"/>),
+        /// or null to copy them with the set's own <c>CopyTo</c> (an unknown layout, or a view of another set). Out of
+        /// line, as the copy is: inlined, its checks keep the writer in memory.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static object RootOf<T>(SortedSet<T> set) =>
+            SortedSetNodes.Layout != 0 && CanFill(set) ? CollectionFields.Root(set) : null;
+
+        /// <summary><see cref="RootOf{T}(SortedSet{T})"/> of the set of <paramref name="dictionary"/>'s pairs.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static object RootOf<TKey, TValue>(SortedDictionary<TKey, TValue> dictionary) =>
+            SortedSetNodes.Layout != 0 && CollectionViews.SortedDictionary
+                ? CollectionFields.Root(CollectionFields.Set(dictionary))
+                : null;
+
         private static bool Increasing<T>(T[] items, int count, IComparer<T> comparer)
         {
             for (int i = 1; i < count; i++)
@@ -673,28 +690,55 @@ namespace Nino.Core
         /// <summary>The root of the red-black tree of <c>items[0..count)</c> (in order, none twice, count not 0).</summary>
         public static object Build(T[] items, int count) =>
             SortedSetNodes.Build(items, count, SortedSetNodes.Layout, At, Type);
+
+        /// <summary>Copies the items under <paramref name="root"/> into <paramref name="array"/> in order.</summary>
+        public static void CopyTo(object root, T[] array)
+        {
+            int at = 0;
+            CopyTo(root, array, ref at, At[0], At[1], At[2]);
+        }
+
+        private static void CopyTo(object node, T[] array, ref int at, int item, int left, int right)
+        {
+            for (; node != null; node = ObjectFields.At<object>(node, right))
+            {
+                CopyTo(ObjectFields.At<object>(node, left), array, ref at, item, left, right);
+                array[at++] = ObjectFields.At<T>(node, item);
+            }
+        }
     }
 
     internal static partial class NinoCollections
     {
         /// <summary>
         /// Writes the count of <paramref name="source"/>, then its elements in the order
-        /// <see cref="ICollection{T}.CopyTo"/> puts them, as an array is written (raw elements as one block).
+        /// <see cref="ICollection{T}.CopyTo"/> puts them, as an array is written (raw elements as one block): copied
+        /// out of the <see cref="SortedSet{T}"/> tree under <paramref name="root"/> when it is not null.
         /// </summary>
-        public static void WriteCopied<T, TFormatter>(ICollection<T> source, ref Writer writer)
+        public static void WriteCopied<T, TFormatter>(ICollection<T> source, object root, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
             int count = source.Count;
             var array = ArrayPool<T>.Shared.Rent(count);
             try
             {
-                source.CopyTo(array, 0);
+                CopyOut(source, root, array);
                 WriteSpan<T, TFormatter>(new ReadOnlySpan<T>(array, 0, count), ref writer);
             }
             finally
             {
                 ReturnRented(array);
             }
+        }
+
+        // Out of line: in the caller, the branch keeps the writer in memory.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void CopyOut<T>(ICollection<T> source, object root, T[] array)
+        {
+            if (root != null)
+                SortedSetNodes<T>.CopyTo(root, array);
+            else
+                source.CopyTo(array, 0);
         }
 
         /// <summary>
@@ -727,12 +771,12 @@ namespace Nino.Core
         /// <see cref="KeyValuePairFormatter{TKey,TValue,TKeyFormatter,TValueFormatter}"/> writes them.
         /// </summary>
         public static void WriteCopiedPairs<TKey, TValue, TKeyFormatter, TValueFormatter>(
-            ICollection<KeyValuePair<TKey, TValue>> source, ref Writer writer)
+            ICollection<KeyValuePair<TKey, TValue>> source, object root, ref Writer writer)
             where TKeyFormatter : struct, INinoFormatter<TKey>
             where TValueFormatter : struct, INinoFormatter<TValue> =>
             WriteCopied<KeyValuePair<TKey, TValue>,
                 KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(
-                source, ref writer);
+                source, root, ref writer);
 
         /// <summary><see cref="ReadRented{T,TFormatter}"/> for pairs.</summary>
         public static KeyValuePair<TKey, TValue>[] ReadPairsRented<TKey, TValue, TKeyFormatter, TValueFormatter>(

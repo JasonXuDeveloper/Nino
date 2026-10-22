@@ -432,11 +432,23 @@ public class BclTypeTests
             CollectionAssert.AreEqual(set.Reverse().ToArray(), setBack.Reverse().ToArray());
             Assert.AreEqual(set.Min, setBack.Min);
             Assert.AreEqual(set.Max, setBack.Max);
+            // Copied out of the tree (built by Nino, then changed through the public API), as the array is written;
+            // a view of a set (its root is the whole set's) with its own CopyTo.
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(set.ToArray()), NinoSerializer.Serialize(setBack));
+            if (set.Count > 2)
+            {
+                var view = setBack.GetViewBetween(setBack.ElementAt(1), setBack.ElementAt(setBack.Count - 2));
+                CollectionAssert.AreEqual(NinoSerializer.Serialize(view.ToArray()), NinoSerializer.Serialize(view));
+            }
 
             var dictionary = new SortedDictionary<T, int>(items.Select((k, i) => (k, i)).ToDictionary(p => p.k, p => p.i));
             var dictionaryBack = RoundTrip(dictionary);
             CollectionAssert.AreEqual(dictionary.ToArray(), dictionaryBack.ToArray());
-            foreach (var item in items)
+            for (int i = 0; i < items.Length; i += 3)
+                dictionaryBack.Remove(items[i]);
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionaryBack.ToArray()),
+                NinoSerializer.Serialize(dictionaryBack));
+            foreach (var item in items.Where((_, i) => i % 3 != 0))
                 Assert.IsTrue(dictionaryBack.Remove(item));
             Assert.AreEqual(0, dictionaryBack.Count);
         }
