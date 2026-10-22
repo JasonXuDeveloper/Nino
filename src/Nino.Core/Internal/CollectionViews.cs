@@ -350,49 +350,67 @@ namespace Nino.Core.Internal
         public static readonly int LinkedListCount = LinkedList ? LinkedListLayout[1] : 0;
         public static readonly int LinkedListVersion = LinkedList ? LinkedListLayout[2] : 0;
 
-        // HashSet<T>: entries, bound (the entries in use, live or free), version.
+        // HashSet<T>: entries, bound (the entries in use, live or free), version; then, for HashTables, the buckets,
+        // the fast-mod multiplier (-1: none, the bucket is the hash modulo the bucket count) and the live count.
         private static readonly int[] HashSetLayout = Find(CheckHashSet,
             () =>
             {
                 var m = new HashSetCore64();
-                return Offsets(m, ref m._entries, ref m._count, ref m._version);
+                return With(Offsets(m, ref m._entries, ref m._count, ref m._version, ref m._buckets,
+                    ref m._fastModMultiplier), ObjectFields.OffsetOf(m, ref m._count));
             },
             () =>
             {
                 var m = new HashSetCore32();
-                return Offsets(m, ref m._entries, ref m._count, ref m._version);
+                return With(Offsets(m, ref m._entries, ref m._count, ref m._version, ref m._buckets), -1,
+                    ObjectFields.OffsetOf(m, ref m._count));
             },
             () =>
             {
                 var m = new HashSetOld();
-                return Offsets(m, ref m.m_slots, ref m.m_lastIndex, ref m.m_version);
+                return With(Offsets(m, ref m.m_slots, ref m.m_lastIndex, ref m.m_version, ref m.m_buckets), -1,
+                    ObjectFields.OffsetOf(m, ref m.m_count));
             });
 
         public static readonly bool HashSet = HashSetLayout != null;
         public static readonly int HashSetEntries = HashSet ? HashSetLayout[0] : 0;
         public static readonly int HashSetBound = HashSet ? HashSetLayout[1] : 0;
+        /// <summary>The offsets above, or null: read once by <see cref="HashTables"/>.</summary>
+        internal static int[] HashSetOffsets => HashSetLayout;
 
-        // Dictionary<TKey, TValue>: entries, bound, version.
+        // Dictionary<TKey, TValue>: as HashSet<T>'s.
         private static readonly int[] DictionaryLayout = Find(CheckDictionary,
             () =>
             {
                 var m = new DictionaryCore64();
-                return Offsets(m, ref m._entries, ref m._count, ref m._version);
+                return With(Offsets(m, ref m._entries, ref m._count, ref m._version, ref m._buckets,
+                    ref m._fastModMultiplier), ObjectFields.OffsetOf(m, ref m._count));
             },
             () =>
             {
                 var m = new DictionaryCore32();
-                return Offsets(m, ref m._entries, ref m._count, ref m._version);
+                return With(Offsets(m, ref m._entries, ref m._count, ref m._version, ref m._buckets), -1,
+                    ObjectFields.OffsetOf(m, ref m._count));
             },
             () =>
             {
                 var m = new DictionaryOld();
-                return Offsets(m, ref m.entries, ref m.count, ref m.version);
+                return With(Offsets(m, ref m.entries, ref m.count, ref m.version, ref m.buckets), -1,
+                    ObjectFields.OffsetOf(m, ref m.count));
             });
 
         public static readonly bool Dictionary = DictionaryLayout != null;
         public static readonly int DictionaryEntries = Dictionary ? DictionaryLayout[0] : 0;
         public static readonly int DictionaryBound = Dictionary ? DictionaryLayout[1] : 0;
+        internal static int[] DictionaryOffsets => DictionaryLayout;
+
+        private static int[] With(int[] offsets, params int[] more)
+        {
+            var all = new int[offsets.Length + more.Length];
+            offsets.CopyTo(all, 0);
+            more.CopyTo(all, offsets.Length);
+            return all;
+        }
 
         private static int[] Offsets<T0, T1, T2>(object mirror, ref T0 f0, ref T1 f1, ref T2 f2) => new[]
         {

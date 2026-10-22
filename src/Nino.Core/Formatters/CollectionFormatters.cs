@@ -147,6 +147,8 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, raw ? Unsafe.SizeOf<T>() : 1, out int length))
                 return;
 
+            // A new plain set (default comparer) of raw elements is filled directly (HashTables).
+            bool created = value == null && typeof(TSet) == typeof(HashSet<T>);
             // InterfaceSetFormatter reads into a plain HashSet<T>, which no generated code registers a creator for.
             var set = value ??= typeof(TSet) == typeof(HashSet<T>)
                 ? (TSet)new HashSet<T>()
@@ -162,6 +164,8 @@ namespace Nino.Core
             {
                 int size = Unsafe.SizeOf<T>();
                 ref byte src = ref reader.ReadElements(length, size);
+                if (created && length != 0 && HashTables.Set && HashTables.TryFill(set, ref src, length, size))
+                    return;
                 for (int i = 0; i < length; i++)
                 {
                     if (!set.Add(NinoUnsafe.Read<T>(ref src)))

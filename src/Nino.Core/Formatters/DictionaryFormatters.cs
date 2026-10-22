@@ -272,6 +272,9 @@ namespace Nino.Core
             // A cursor rather than an int offset, which every access would sign-extend.
             int keySize = Unsafe.SizeOf<TKey>();
             int pairSize = keySize + Unsafe.SizeOf<TValue>();
+            // The dictionary is new and sized for the pairs (Read's only caller): filled directly where it can be.
+            if (HashTables.Map && HashTables.TryFill(dictionary, ref src, length, keySize, pairSize))
+                return;
             for (int i = 0; i < length; i++)
             {
                 NinoCollections.AddUnique(dictionary, NinoUnsafe.Read<TKey>(ref src),
