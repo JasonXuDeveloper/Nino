@@ -320,11 +320,11 @@ namespace Nino.Core
         }
 
         /// <summary>
-        /// Vector copy with aligned stores: the destination usually follows a 4-byte length, and unaligned vector
-        /// stores straddle cache lines every other store. The first and last vectors are unaligned and overlap
-        /// the aligned body; the mask of each vector is loaded at its offset. Offsets are native-sized (nuint): int
-        /// offsets took a sign extension and an address add per vector, measured on an AVX-512 Xeon as 8,000 bytes
-        /// in 74 ns instead of 66 (64-byte vectors).
+        /// Vector copy with aligned stores (aligned loads on Arm64, <see cref="AlignedSide"/>): the destination usually
+        /// follows a 4-byte length, and unaligned vector stores straddle cache lines every other store. The first and
+        /// last vectors are unaligned and overlap the aligned body; the mask of each vector is loaded at its offset.
+        /// Offsets are native-sized (nuint): int offsets took a sign extension and an address add per vector, measured
+        /// on an AVX-512 Xeon as 8,000 bytes in 74 ns instead of 66 (64-byte vectors).
         /// </summary>
 #if NET8_0_OR_GREATER
         [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -337,7 +337,7 @@ namespace Nino.Core
             Unsafe.WriteUnaligned(ref destination,
                 Unsafe.ReadUnaligned<Vector<byte>>(ref source) & Unsafe.ReadUnaligned<Vector<byte>>(ref mask));
 
-            nuint i = width - ((nuint)Unsafe.AsPointer(ref destination) & (width - 1));
+            nuint i = width - ((nuint)Unsafe.AsPointer(ref AlignedSide(ref destination, ref source)) & (width - 1));
             nuint end = (nuint)total - width;
             nuint m = i; // i % period (i <= width <= period)
             if (period == width)
@@ -381,6 +381,22 @@ namespace Nino.Core
             Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, end),
                 Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref source, end)) &
                 Unsafe.ReadUnaligned<Vector<byte>>(ref Unsafe.Add(ref mask, TailOffset(m, i, end, period))));
+        }
+
+        /// <summary>
+        /// The side <see cref="CopyVectors"/> aligns: the destination (unaligned vector stores straddle cache lines),
+        /// but the source on Arm64, where aligned loads beat aligned stores: on GitHub's Arm64 runners (Neoverse N2, .NET
+        /// 10) a 16-byte vector copy took 0.76 to 1.00 of memcpy's time for 8,000 bytes with its loads aligned, and up to
+        /// 1.31 times with its stores aligned.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ref byte AlignedSide(ref byte destination, ref byte source)
+        {
+#if NET8_0_OR_GREATER
+            if (AdvSimd.Arm64.IsSupported)
+                return ref source;
+#endif
+            return ref destination;
         }
 
 #if NET8_0_OR_GREATER

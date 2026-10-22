@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 #if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.Arm;
 #endif
 
 namespace Nino.Core
@@ -174,8 +175,8 @@ namespace Nino.Core
         /// bytes to 16 KB with 32-byte ones (<see cref="CopyVectors{TVector}"/>), and Memmove beyond. Measured on an
         /// AVX-512 Xeon (.NET 10, source and destination of different alignments), with AVX-512 on or off: 33 to 64
         /// bytes in 4.0 to 4.5 ns instead of 4.7 to 5.4 (Memmove), 65 to 128 in about 4.2 ns instead of 5.4 to 6.6. A
-        /// loop of 16-byte vectors (Arm64, WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call
-        /// Memmove from 65 bytes.
+        /// loop of 16-byte vectors (WebAssembly, SSE only) is slower than Memmove from 2 KB, so those CPUs call Memmove
+        /// from 65 bytes; Arm64 copies up to 64 KB with <see cref="CopyPairs"/>, out of line.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Copy(ref byte destination, ref byte source, uint size)
@@ -265,6 +266,25 @@ namespace Nino.Core
                     return;
                 }
             }
+
+#endif
+            CopyBlock(ref destination, ref source, size);
+        }
+
+        /// <summary>
+        /// Memmove, or <see cref="CopyPairs"/> on Arm64. A call of its own, so Copy's code is the same size on every
+        /// platform: with the Arm64 branch written in Copy, the JIT inlined Copy where it had not before (an
+        /// ImmutableSortedDictionary write) and left the writer in memory.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void CopyBlock(ref byte destination, ref byte source, uint size)
+        {
+#if NET8_0_OR_GREATER
+            if (AdvSimd.Arm64.IsSupported)
+            {
+                CopyPairs(ref destination, ref source, size);
+                return;
+            }
 #endif
             Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
         }
@@ -346,6 +366,65 @@ namespace Nino.Core
                     Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, i)));
             Unsafe.WriteUnaligned(ref Unsafe.Add(ref destination, end),
                 Unsafe.ReadUnaligned<TVector>(ref Unsafe.Add(ref source, end)));
+        }
+#endif
+
+#if NET8_0_OR_GREATER
+        /// <summary>
+        /// Largest copy done by <see cref="CopyPairs"/> on Arm64 instead of Memmove; above it the two take the same time.
+        /// </summary>
+        private const uint MaxArm64VectorCopy = 64 * 1024;
+
+        /// <summary>
+        /// Copies more than 64 bytes on Arm64 (Memmove above <see cref="MaxArm64VectorCopy"/>, or in a 32-bit process;
+        /// out of line, so Copy inlined into every read and write gains only this call): the first 16 bytes, then from
+        /// the first 16-byte aligned source address 64 bytes a step through cursors, four 16-byte loads and stores that
+        /// the JIT pairs into two ldp and two stp of q registers, then the last 64 bytes, overlapping. Measured on
+        /// GitHub's Arm64 runners (Neoverse N2, .NET 10, the destination 4 bytes past a 64-byte boundary, the source 0, 4
+        /// or 8 bytes past one) against the C library's memcpy: 128 bytes in 0.80 to 0.84 of its time, 1,024 in 0.73 to
+        /// 0.91, 8,000 in 0.76 to 1.00, 64,000 and more the same. Without aligning the loads the loop was faster than
+        /// memcpy from an aligned source but up to 1.31 times slower from one 4 bytes past it.
+        /// </summary>
+        // Fully optimized from the first call (see NinoMask.CopyVectors512).
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+        private static unsafe void CopyPairs(ref byte destination, ref byte source, uint size)
+        {
+            if (size > MaxArm64VectorCopy || !Is64Bit)
+            {
+                Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
+                return;
+            }
+
+            Vector128.LoadUnsafe(ref source).StoreUnsafe(ref destination);
+            // 1 to 16 bytes, to the next aligned source address (a moving GC may change it: only slower, still right).
+            nint skip = 16 - (nint)((nuint)Unsafe.AsPointer(ref source) & 15);
+            ref byte from = ref Unsafe.Add(ref source, skip);
+            ref byte to = ref Unsafe.Add(ref destination, skip);
+            for (nuint n = (size - (nuint)skip) / 64; n != 0; n--)
+            {
+                var a = Vector128.LoadUnsafe(ref from);
+                var b = Vector128.LoadUnsafe(ref Unsafe.Add(ref from, 16));
+                var c = Vector128.LoadUnsafe(ref Unsafe.Add(ref from, 32));
+                var d = Vector128.LoadUnsafe(ref Unsafe.Add(ref from, 48));
+                a.StoreUnsafe(ref to);
+                b.StoreUnsafe(ref Unsafe.Add(ref to, 16));
+                c.StoreUnsafe(ref Unsafe.Add(ref to, 32));
+                d.StoreUnsafe(ref Unsafe.Add(ref to, 48));
+                from = ref Unsafe.Add(ref from, 64);
+                to = ref Unsafe.Add(ref to, 64);
+            }
+
+            // The last 64 bytes, overlapping what the loop copied.
+            from = ref Unsafe.Add(ref source, (nint)size - 64);
+            to = ref Unsafe.Add(ref destination, (nint)size - 64);
+            var e = Vector128.LoadUnsafe(ref from);
+            var f = Vector128.LoadUnsafe(ref Unsafe.Add(ref from, 16));
+            var g = Vector128.LoadUnsafe(ref Unsafe.Add(ref from, 32));
+            var h = Vector128.LoadUnsafe(ref Unsafe.Add(ref from, 48));
+            e.StoreUnsafe(ref to);
+            f.StoreUnsafe(ref Unsafe.Add(ref to, 16));
+            g.StoreUnsafe(ref Unsafe.Add(ref to, 32));
+            h.StoreUnsafe(ref Unsafe.Add(ref to, 48));
         }
 #endif
 

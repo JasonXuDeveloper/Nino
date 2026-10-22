@@ -188,8 +188,9 @@ the result objects.
   the block paths of flat ones.
 * **Copies sized to the CPU.** Up to 64 bytes (on 64-bit runtimes) or 128 bytes (with 32-byte vectors) are copied
   inline, as overlapping loads and stores of the widest vector that fits; up to 32 KB (64-byte vectors) or 16 KB
-  (32-byte vectors, from 256 bytes) as vectors with aligned stores (with only 16-byte vectors, on Arm64, SSE only and
-  WebAssembly, `memmove` from 65 bytes); beyond, with `memmove`, which is far slower on some
+  (32-byte vectors, from 256 bytes) as vectors with aligned stores; on Arm64 up to 64 KB as pairs of 16-byte loads
+  and stores (`ldp`/`stp`), 64 bytes a step from an aligned source address, which beats the C library's `memcpy`
+  there (with only 16-byte vectors on x64 with SSE and WebAssembly, `memmove` from 65 bytes); beyond, with `memmove`, which is far slower on some
   CPUs (8,000 bytes in 236 ns on GitHub's EPYC 9V74 runners and 2.8 µs on their EPYC 7763 ones, against 83 to 85 ns for
   the vector loop). Reads of 6 KB or more use
   `memmove`, whose `rep movsb` writes fresh cache lines without reading them first.
