@@ -245,7 +245,12 @@ the result objects.
   dictionary type parameter, which also shortens generated code. Raw `HashSet<T>` and `Dictionary<TKey, TValue>` are written from their
   entries array when none has been removed (the layouts of .NET 64-bit and 32-bit and of .NET Framework and Mono are
   checked at startup), without the enumerator's version check and field reloads on every element; with removed
-  entries, or no layout recognized, through the enumerator, out of line.
+  entries, or no layout recognized, through the enumerator, out of line. A new one that a read creates (default
+  comparer) is filled the other way round: entries and buckets written as `Add` would, after the constructor or
+  `EnsureCapacity` sized it, without `Add`'s comparer, free-list, resize and version checks per element; the bucket
+  is .NET's fast modulo where the table keeps its multiplier, else the remainder, and the hashing (31-bit mask, bucket
+  bias) is found at startup by filling a collection and checking it through the public API. Empty collections skip
+  the out-of-line element loops altogether.
 * **Specialized code behind shared generics.** `Serialize<T>` of an array is shared code (arrays are
   reference types), where each static access is a dictionary lookup. The raw array path looks up one object
   and lets the array formatter, compiled for the element type, do the write.
