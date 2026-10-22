@@ -122,7 +122,8 @@ public static class Verify
         }
 
         if (type != b.GetType()) return false;
-        if (type.IsPrimitive || type.IsEnum || OverridesEquals(type)) return a.Equals(b);
+        // Tuples field by field: their Equals compares a class member by reference.
+        if (type.IsPrimitive || type.IsEnum || OverridesEquals(type) && a is not ITuple) return a.Equals(b);
         for (var t = type; t != null && t != typeof(object) && t != typeof(ValueType); t = t.BaseType)
         {
             foreach (var field in t.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
