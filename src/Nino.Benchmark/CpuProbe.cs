@@ -56,11 +56,11 @@ public class SerializeProbe
 [Config(typeof(ProbeConfig))]
 public class CopyProbe
 {
-    [Params(4000, 8000, 16000, 32000, 64000)]
+    [Params(4000, 8000, 16000, 32000, 64000, 160000)]
     public int Bytes = 4000;
 
-    private readonly byte[] _source = GC.AllocateArray<byte>(1 << 17, pinned: true);
-    private readonly byte[] _destination = GC.AllocateArray<byte>(1 << 17, pinned: true);
+    private readonly byte[] _source = GC.AllocateArray<byte>(1 << 18, pinned: true);
+    private readonly byte[] _destination = GC.AllocateArray<byte>(1 << 18, pinned: true);
 
     [Benchmark(Baseline = true)]
     public int Memmove() { _source.AsSpan(0, Bytes).CopyTo(_destination.AsSpan(4)); return Bytes; }
@@ -104,10 +104,10 @@ public class CopyProbe
 [Config(typeof(ProbeConfig))]
 public class NewArrayCopyProbe
 {
-    [Params(8000, 16000, 32000, 64000)]
+    [Params(8000, 16000, 32000, 64000, 160000)]
     public int Bytes = 8000;
 
-    private readonly byte[] _source = GC.AllocateArray<byte>(1 << 17, pinned: true);
+    private readonly byte[] _source = GC.AllocateArray<byte>(1 << 18, pinned: true);
 
     [Benchmark(Baseline = true)]
     public byte[] Memmove()
