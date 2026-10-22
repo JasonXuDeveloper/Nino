@@ -96,6 +96,36 @@ public class CopyProbe
     }
 }
 
+/// <summary>
+/// Experiment: a read into a new array (deserializing a large raw array): a new uninitialized array, then the bytes
+/// copied in from offset 4 of a buffer, with Memmove (NinoUnsafe.CopyToNew, as MemoryPack copies) or with
+/// NinoUnsafe.Copy's vector loop.
+/// </summary>
+[Config(typeof(ProbeConfig))]
+public class NewArrayCopyProbe
+{
+    [Params(8000, 16000, 32000, 64000)]
+    public int Bytes = 8000;
+
+    private readonly byte[] _source = GC.AllocateArray<byte>(1 << 17, pinned: true);
+
+    [Benchmark(Baseline = true)]
+    public byte[] Memmove()
+    {
+        var array = GC.AllocateUninitializedArray<byte>(Bytes);
+        Unsafe.CopyBlockUnaligned(ref MemoryMarshal.GetArrayDataReference(array), ref _source[4], (uint)Bytes);
+        return array;
+    }
+
+    [Benchmark]
+    public byte[] NinoCopy()
+    {
+        var array = GC.AllocateUninitializedArray<byte>(Bytes);
+        NinoUnsafe.Copy(ref MemoryMarshal.GetArrayDataReference(array), ref _source[4], (uint)Bytes);
+        return array;
+    }
+}
+
 /// <summary>Experiment: `--time [name...]` times SerializeProbe's methods outside BenchmarkDotNet (best of 15 rounds).</summary>
 public static class ProbeTimer
 {
