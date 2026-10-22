@@ -8,8 +8,8 @@ namespace Nino.UnitTests;
 
 /// <summary>
 /// DateTimeOffset is read and written through its fields where their positions were found (ValueViews): the bytes
-/// and the values must be those of the public API, the ends of the range included, and invalid data must throw as
-/// the constructor does.
+/// and the values must be those of the public API, the ends of the range included, and what the constructor rejects
+/// must throw as invalid data.
 /// </summary>
 [TestClass]
 public class DateTimeOffsetTests
@@ -68,22 +68,8 @@ public class DateTimeOffsetTests
         return bytes;
     }
 
-    private static Type Thrown(Action action)
-    {
-        try
-        {
-            action();
-        }
-        catch (Exception e)
-        {
-            return e.GetType();
-        }
-
-        return null;
-    }
-
     [TestMethod]
-    public void InvalidDataThrowsAsTheConstructor()
+    public void InvalidDataThrowsAsInvalidData()
     {
         (long Utc, short Minutes)[] invalid =
         {
@@ -107,10 +93,15 @@ public class DateTimeOffsetTests
                 expected = e.GetType();
             }
 
+            // What the constructor rejects is invalid data, reported as Nino's (not the constructor's) exception.
             Assert.IsNotNull(expected, $"{utc} {minutes}");
-            Assert.AreEqual(expected, Thrown(() => NinoDeserializer.Deserialize<DateTimeOffset>(Wire(utc, minutes))));
+            var error = Assert.ThrowsExactly<InvalidOperationException>(() =>
+                NinoDeserializer.Deserialize<DateTimeOffset>(Wire(utc, minutes)));
+            StringAssert.StartsWith(error.Message, "Nino:");
             var arrayBytes = new byte[] { 1, 0, 0, 0 }.Concat(Wire(utc, minutes)).ToArray();
-            Assert.AreEqual(expected, Thrown(() => NinoDeserializer.Deserialize<DateTimeOffset[]>(arrayBytes)));
+            error = Assert.ThrowsExactly<InvalidOperationException>(() =>
+                NinoDeserializer.Deserialize<DateTimeOffset[]>(arrayBytes));
+            StringAssert.StartsWith(error.Message, "Nino:");
         }
     }
 }

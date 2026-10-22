@@ -38,6 +38,20 @@ namespace Nino.Core
         public static void InvalidData(string message) =>
             throw new InvalidOperationException("Nino: " + message);
 
+        /// <summary>A value the data holds that its type's own constructor or parser rejected (<paramref name="inner"/>).</summary>
+        [MethodImpl(Cold)]
+        public static void InvalidValue(Type type, Exception inner) =>
+            throw new InvalidOperationException($"Nino: the data holds an invalid {type.FullName}: {inner.Message}", inner);
+
+        [MethodImpl(Cold)]
+        public static void NullKey(object collection) =>
+            throw new InvalidOperationException(
+                $"Nino: the data holds a null key for {collection.GetType().FullName}, which takes none.");
+
+        [MethodImpl(Cold)]
+        public static void NullKey(Type type) =>
+            throw new InvalidOperationException($"Nino: the data holds a null key for {type.FullName}, which takes none.");
+
         [MethodImpl(Cold)]
         public static void UnknownTypeId(Type declaredType, int id) =>
             throw new InvalidOperationException(
@@ -110,7 +124,8 @@ namespace Nino.Core
         [MethodImpl(Cold)]
         public static void TooDeep(Type type) =>
             throw new InvalidOperationException(
-                $"Nino: {type.FullName} is nested more than {NinoDepth.Max} objects deep. Objects deeper than " +
+                $"Nino: {type.FullName} is nested more than {NinoDepth.Max} objects deep, or deeper than the stack has " +
+                $"room for. Objects deeper than " +
                 $"{NinoDepth.Inline} are written later, from a shallow point, except those built by their constructor " +
                 "or compared by value (records, types overriding GetHashCode or implementing IComparable), which " +
                 "must be complete when their slot gets them. If the graph has a cycle, mark its types " +

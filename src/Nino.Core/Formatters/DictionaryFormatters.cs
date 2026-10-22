@@ -200,6 +200,8 @@ namespace Nino.Core
                 {
                     TKey key = default;
                     default(TKeyFormatter).Deserialize(ref key, ref reader);
+                    if (key == null)
+                        NinoThrow.NullKey(dictionary);
                     seen[i] = key;
 #if NET8_0_OR_GREATER
                     // Reading the value never touches this dictionary, so the reference stays valid.
@@ -309,8 +311,30 @@ namespace Nino.Core
                 return;
             Reader copy = default;
             reader.CopyTo(ref copy);
-            ReadPairs(dictionary, length, ref copy);
+            // Only a reference-type key can be null (a JIT-time constant).
+            if (default(TKey) == null)
+                ReadPairsChecked(dictionary, length, ref copy);
+            else
+                ReadPairs(dictionary, length, ref copy);
             copy.CopyTo(ref reader);
+        }
+
+        /// <summary>
+        /// <see cref="ReadPairs"/>, with a null key in the data (TryAdd's ArgumentNullException) reported as invalid
+        /// data: caught here, around the loop, rather than checked for every key in it, which cost the loop registers
+        /// (a <c>Dictionary&lt;string, int&gt;</c> read kept more of its state on the stack).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void ReadPairsChecked(Dictionary<TKey, TValue> dictionary, int length, ref Reader source)
+        {
+            try
+            {
+                ReadPairs(dictionary, length, ref source);
+            }
+            catch (ArgumentNullException e) when (e.ParamName == "key")
+            {
+                NinoThrow.NullKey(dictionary);
+            }
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
@@ -616,9 +640,29 @@ namespace Nino.Core
         public static void AddUnique<TKey, TValue>(IDictionary<TKey, TValue> dictionary, TKey key, TValue value,
             int count)
         {
-            dictionary[key] = value;
+            if (key == null)
+                AddNullKey(dictionary, value);
+            else
+                dictionary[key] = value;
             if (dictionary.Count != count + 1)
                 NinoThrow.DuplicateKey(dictionary.GetType());
+        }
+
+        /// <summary>
+        /// A null key, which a dictionary of its own may take; the runtime's throw ArgumentNullException, reported as
+        /// invalid data.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void AddNullKey<TKey, TValue>(IDictionary<TKey, TValue> dictionary, TValue value)
+        {
+            try
+            {
+                dictionary[default] = value;
+            }
+            catch (ArgumentNullException)
+            {
+                NinoThrow.NullKey(dictionary.GetType());
+            }
         }
     }
 }

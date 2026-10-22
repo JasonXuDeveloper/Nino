@@ -284,6 +284,32 @@ namespace Nino.Core
         public void EndReference(int index, object value) => _context.Refs.Set(index, value);
 
         /// <summary>
+        /// Generated code: opens the body of a struct that can hold itself (through a collection, a nullable, a
+        /// <c>Lazy</c> or an interface). No class body counts such nesting (<see cref="NinoDepth"/>), so it is counted
+        /// here, with the open class bodies, up to <see cref="NinoDepth.Max"/>, and the stack is checked every 16
+        /// levels: deeply nested data throws instead of overflowing the stack. Call <see cref="ExitStruct"/> after the
+        /// body. Out of line, as these bodies are: the reader's address reaches a call there already. A body that
+        /// throws leaves the count raised, in a context the failed call drops.
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void EnterStruct(Type type)
+        {
+            var context = _context ??= NinoReadContext.Rent();
+            int open = ++context.Structs;
+            if (open + Depth > NinoDepth.Max || ((open & 15) == 0 && !NinoDepth.StackLeft()))
+                NinoThrow.TooDeep(type);
+        }
+
+        /// <summary>Generated code: closes a body opened by <see cref="EnterStruct"/>.</summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void ExitStruct() => _context.Structs--;
+
+        /// <summary>The struct bodies <see cref="EnterStruct"/> opened, which the class body depth adds to.</summary>
+        internal int OpenStructs => _context?.Structs ?? 0;
+
+        /// <summary>
         /// Call when done with a reader returned by <see cref="ReadSlice"/>: objects it read stay visible to
         /// later back references.
         /// </summary>

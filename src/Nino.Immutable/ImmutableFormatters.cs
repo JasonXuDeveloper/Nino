@@ -472,7 +472,12 @@ namespace Nino.Immutable
                         DuplicateKey(type);
                 }
             }
-            catch (ArgumentException e) when (!(e is ArgumentNullException))
+            catch (ArgumentNullException)
+            {
+                throw new InvalidOperationException(
+                    $"Nino: the data holds a null key for {type.FullName}, which takes none.");
+            }
+            catch (ArgumentException)
             {
                 DuplicateKey(type);
             }

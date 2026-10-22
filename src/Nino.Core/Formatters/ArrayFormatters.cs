@@ -38,6 +38,19 @@ namespace Nino.Core
         public static bool ReadOverwrites<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
             !NinoUnsafe.IsReferenceOrContainsReferences<T>() && Traits<T, TFormatter>.ReadOverwrites;
 
+        /// <summary>
+        /// The fewest bytes an element takes on the wire, to check a length against the bytes left before allocating:
+        /// <see cref="BlockSize{T,TFormatter}"/> for elements read as one block, else 1. A new array read as one block
+        /// is allocated uninitialized (<see cref="CopiedWhole{T,TFormatter}"/>): checked against 1 byte an element,
+        /// data claiming more elements than its bytes hold left an array of stale heap memory in the caller's object
+        /// when the copy then failed (Deserialize with an existing value). A JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int MinWireSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            // Elements with references are never one block: 1 without the static field (a shared generic's runtime
+            // lookup).
+            NinoUnsafe.IsReferenceOrContainsReferences<T>() ? 1 : Traits<T, TFormatter>.MinWireSize;
+
         // The checks above as fields: one load each, where every check they combine was an inlined call, and the
         // JIT counts those against what else it inlines into the method (an ImmutableDictionary<int, int> read ran
         // out, and kept its reader in memory).
@@ -48,6 +61,8 @@ namespace Nino.Core
 
             public static readonly bool ReadOverwrites = RawFormatter.Is<T, TFormatter>() ||
                 typeof(TFormatter) == typeof(DateTimeOffsetFormatter) || NinoBlock.Size<T, TFormatter>() > 0;
+
+            public static readonly int MinWireSize = Math.Max(BlockSize<T, TFormatter>(), 1);
         }
 
         /// <summary>
@@ -335,7 +350,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref T[] value, ref Reader reader)
         {
-            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
             NinoElements.Read<T, TFormatter>(
@@ -747,8 +762,11 @@ namespace Nino.Core
             const int max = NinoUnsafe.MaxArrayLength;
             if (a > max || b > max || c > max || d > max)
                 NinoThrow.InvalidLength(Math.Max(Math.Max(a, b), Math.Max(c, d)));
-            long total = (long)a * b * c * d;
-            if (total > reader.Remaining)
+            // One dimension multiplied in at a time, each product checked: a * b * c * d overflows a long (three
+            // dimensions of 2^29 wrap around to 0). An empty array too: the runtime rejects one whose leading
+            // dimensions multiply past 2^32 (CoreCLR: OutOfMemoryException for 65536 x 65536 x 0).
+            long total = a;
+            if ((total *= b) > uint.MaxValue || (total *= c) > uint.MaxValue || (total *= d) > reader.Remaining)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));
             shape.Total = (int)total;
             return true;

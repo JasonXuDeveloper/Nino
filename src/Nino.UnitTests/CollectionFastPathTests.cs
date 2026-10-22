@@ -193,8 +193,9 @@ public class CollectionFastPathTests
             NinoDeserializer.Deserialize<ConcurrentDictionary<int, int>>(pairs));
         StringAssert.Contains(e.Message, "twice");
         var nullKey = NinoSerializer.Serialize(new[] { new KeyValuePair<string, int>(null, 1) });
-        Assert.ThrowsExactly<ArgumentNullException>(() =>
+        e = Assert.ThrowsExactly<InvalidOperationException>(() =>
             NinoDeserializer.Deserialize<ConcurrentDictionary<string, int>>(nullKey));
+        StringAssert.Contains(e.Message, "null key");
 
         // Derived types read the rest normally.
         var fine = NinoSerializer.Serialize(new Dictionary<string, int> { ["a"] = 1, ["b"] = 2 });
@@ -572,11 +573,14 @@ public class CollectionFastPathTests
         NinoDeserializer.Deserialize(sets, ref caseless);
         Assert.AreEqual(2, caseless.Count);
 
-        // A null key is the indexer's error.
+        // A null key is invalid data, as for every dictionary that takes none.
         var nullKey = NinoSerializer.Serialize(new List<KeyValuePair<string, int>> { new("a", 1), new(null, 2) });
-        Assert.ThrowsExactly<ArgumentNullException>(() => NinoDeserializer.Deserialize<SortedList<string, int>>(nullKey));
-        Assert.ThrowsExactly<ArgumentNullException>(() =>
-            NinoDeserializer.Deserialize<SortedDictionary<string, int>>(nullKey));
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<SortedList<string, int>>(nullKey)).Message, "null key");
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<SortedDictionary<string, int>>(nullKey)).Message, "null key");
+        StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() =>
+            NinoDeserializer.Deserialize<Dictionary<string, int>>(nullKey)).Message, "null key");
     }
 
     [TestMethod]

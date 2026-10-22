@@ -462,6 +462,14 @@ internal sealed class BodyEmitter
 
     private bool LocalReader => _m.LocalReader;
 
+    /// <summary>
+    /// Whether the read body counts its nesting with the reader's <c>EnterStruct</c>: a struct whose nesting no bound
+    /// covers (<see cref="TypeModel.DepthBound"/>, a struct that can reach itself or a type that is not known here),
+    /// which opens no class body of its own to count it.
+    /// </summary>
+    private bool CountsStructDepth =>
+        _m.Kind == FormatterKind.Struct && !_shallow && _m.Nests && _m.DepthBound == TypeFacts.Unbounded;
+
     private bool LocalWriter => _m.LocalWriter;
 
     /// <summary><see cref="TypeModel.ReadTop"/>, for the body of the type's own formatter.</summary>
@@ -478,6 +486,21 @@ internal sealed class BodyEmitter
         }
 
         _w.Open(BodySignature("ReadBody", Signature.ReadParameters(T)));
+        if (CountsStructDepth)
+        {
+            // A struct that can hold itself (through a collection, a nullable, a Lazy or an interface) opens no class
+            // body, so no depth counts its nesting: the reader counts it here, and throws before the stack runs out.
+            _w.Line($"reader.EnterStruct(typeof({T}));");
+            _w.Open("try");
+            EmitReadBodyContents(fresh: false, local: false);
+            _w.Close();
+            _w.Open("finally");
+            _w.Line("reader.ExitStruct();");
+            _w.Close();
+            _w.Close();
+            return;
+        }
+
         // A __Top twin's inlinable body is read through the local of the out-of-line wrapper (BodySignature).
         EmitReadBodyContents(fresh: false, local: LocalReader && !_m.InlineBody && !_shallow && !ReadTop);
         _w.Close();

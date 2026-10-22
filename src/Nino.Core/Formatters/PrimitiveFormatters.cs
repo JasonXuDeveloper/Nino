@@ -114,7 +114,8 @@ namespace Nino.Core
             short minutes = NinoUnsafe.Read<short>(ref src, NinoWire.DateTimeOffsetMinutesPosition);
             // The constructor's checks, as two unsigned compares: the UTC time is a valid date at least 14 hours
             // from either end (so the local time is one too), the offset is at most 14 hours. The ends of the range
-            // and anything invalid take the constructor, which checks exactly and throws as before.
+            // and anything invalid take the constructor, out of line, after the same checks made exactly (what it
+            // rejects is invalid data, InvalidOperationException rather than its ArgumentOutOfRangeException).
             int ticksAt = ValueViews.DateTimeOffsetTicks;
             if (ticksAt >= 0 && (ulong)(utc - MaxOffsetTicks) <= MaxTicks - 2 * MaxOffsetTicks &&
                 (uint)(minutes + MaxOffsetMinutes) <= 2 * MaxOffsetMinutes)
@@ -130,8 +131,18 @@ namespace Nino.Core
                 return;
             }
 
+            value = Construct(utc, minutes);
+        }
+
+        /// <summary>The ends of the range, through the constructor; anything it rejects is invalid data.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static DateTimeOffset Construct(long utc, short minutes)
+        {
             long offset = minutes * TimeSpan.TicksPerMinute;
-            value = new DateTimeOffset(utc + offset, new TimeSpan(offset));
+            if ((uint)(minutes + MaxOffsetMinutes) > 2 * MaxOffsetMinutes || (ulong)utc > MaxTicks ||
+                (ulong)(utc + offset) > MaxTicks)
+                NinoThrow.InvalidData("invalid DateTimeOffset.");
+            return new DateTimeOffset(utc + offset, new TimeSpan(offset));
         }
 
         private const ulong MaxTicks = 3_155_378_975_999_999_999; // DateTime.MaxValue.Ticks

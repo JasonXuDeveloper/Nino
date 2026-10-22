@@ -261,7 +261,12 @@ namespace Nino.Core
                 return new ConcurrentDictionary<TKey, TValue>(
                     new ArraySegment<KeyValuePair<TKey, TValue>>(pairs, 0, length));
             }
-            catch (ArgumentException e) when (!(e is ArgumentNullException))
+            catch (ArgumentNullException)
+            {
+                NinoThrow.NullKey(typeof(ConcurrentDictionary<TKey, TValue>));
+                throw;
+            }
+            catch (ArgumentException)
             {
                 NinoThrow.DuplicateKey(typeof(ConcurrentDictionary<TKey, TValue>));
                 throw;
@@ -328,6 +333,8 @@ namespace Nino.Core
                 TValue item = default;
                 default(TKeyFormatter).Deserialize(ref key, ref local);
                 default(TValueFormatter).Deserialize(ref item, ref local);
+                if (key == null)
+                    NinoThrow.NullKey(concurrent);
                 if (!concurrent.TryAdd(key, item))
                     NinoThrow.DuplicateKey(concurrent.GetType());
             }

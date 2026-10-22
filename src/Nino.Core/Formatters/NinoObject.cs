@@ -258,7 +258,7 @@ namespace Nino.Core
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             int depth = writer.Depth;
-            if (depth >= NinoDepth.Max)
+            if (depth >= NinoDepth.Max || !NinoDepth.StackLeft())
                 NinoThrow.TooDeep(typeof(T));
             writer.Depth = depth + 1;
             default(TFormatter).WriteBody(value, ref writer);
@@ -321,7 +321,9 @@ namespace Nino.Core
             where TFormatter : struct, INinoBodyFormatter<T>
         {
             int depth = reader.Depth;
-            if (depth >= NinoDepth.Max)
+            // Struct bodies that can hold themselves count too (Reader.EnterStruct), and the stack is checked: this
+            // many bodies of a large type take more than a small stack has.
+            if (depth + reader.OpenStructs >= NinoDepth.Max || !NinoDepth.StackLeft())
                 NinoThrow.TooDeep(typeof(T));
             reader.Depth = depth + 1;
             default(TFormatter).ReadBody(ref value, ref reader);

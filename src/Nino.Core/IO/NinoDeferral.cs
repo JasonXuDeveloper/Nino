@@ -39,6 +39,29 @@ namespace Nino.Core
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int Deferred(int depth) => Math.Min(depth, Inline - 1) + 1;
+
+        /// <summary>
+        /// Whether the stack has room for more nesting (the runtime's own check, which keeps about 64 KB, 128 KB on
+        /// 64-bit .NET, for what follows). Reads past <see cref="Inline"/> that cannot be deferred check it: up to
+        /// <see cref="Max"/> bodies of a large type take more than a small stack (256 KB IIS or mobile threads) has.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static bool StackLeft()
+        {
+#if NETSTANDARD2_0
+            try
+            {
+                RuntimeHelpers.EnsureSufficientExecutionStack();
+                return true;
+            }
+            catch (InsufficientExecutionStackException)
+            {
+                return false;
+            }
+#else
+            return RuntimeHelpers.TryEnsureSufficientExecutionStack();
+#endif
+        }
     }
 
     /// <summary>Writes and reads the body of a deferred object; one instance per (type, formatter).</summary>
@@ -186,11 +209,15 @@ namespace Nino.Core
 
         public NinoReferenceReadTable Refs;
 
+        /// <summary>Open bodies of structs that can hold themselves (<see cref="Reader.EnterStruct"/>).</summary>
+        public int Structs;
+
         public static NinoReadContext Rent() => NinoThreadCache.Take(ref t_cached) ?? new NinoReadContext();
 
         public static void Return(NinoReadContext context)
         {
             context.ReturnDeferrals();
+            context.Structs = 0;
 
             if (context.Refs != null)
             {

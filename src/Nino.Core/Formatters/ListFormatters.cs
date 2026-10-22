@@ -31,7 +31,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Deserialize(ref TList value, ref Reader reader)
         {
-            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
             var list = value;

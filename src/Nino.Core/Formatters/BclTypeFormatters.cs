@@ -50,7 +50,19 @@ namespace Nino.Core
         public void Deserialize(ref Uri value, ref Reader reader)
         {
             string text = reader.ReadString();
-            value = text == null ? null : new Uri(text, UriKind.RelativeOrAbsolute);
+            if (text == null)
+                value = null;
+            else
+                value = Parse(text);
+        }
+
+        // Out of line, as the constructor it replaces was: what it rejects is invalid data.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Uri Parse(string text)
+        {
+            if (!Uri.TryCreate(text, UriKind.RelativeOrAbsolute, out var uri))
+                NinoThrow.InvalidData("invalid Uri.");
+            return uri;
         }
     }
 
@@ -84,6 +96,9 @@ namespace Nino.Core
             ref byte parts = ref reader.ReadBlock(3 * sizeof(int));
             int minor = NinoUnsafe.Read<int>(ref parts, 0), build = NinoUnsafe.Read<int>(ref parts, sizeof(int)),
                 revision = NinoUnsafe.Read<int>(ref parts, 2 * sizeof(int));
+            // What the constructors throw ArgumentOutOfRangeException for (an undefined build or revision is -1).
+            if ((major | minor) < 0)
+                NinoThrow.InvalidData("invalid Version.");
             value = build < 0 ? new Version(major, minor)
                 : revision < 0 ? new Version(major, minor, build)
                 : new Version(major, minor, build, revision);
@@ -129,8 +144,11 @@ namespace Nino.Core
                 return;
             }
 
-            // ~length for Latin-1 chars, one byte each; the length for UTF-16.
+            // ~length for Latin-1 chars, one byte each; the length for UTF-16. Checked against the bytes left before
+            // the builder is sized for it (in 64 bits: a UTF-16 length up to int.MaxValue doubles past an int).
             int length = header < 0 ? ~header : header;
+            if ((ulong)(uint)length * (header < 0 ? 1u : sizeof(char)) > (uint)reader.Remaining)
+                NinoThrow.InvalidLength(header);
             var builder = value ??= new StringBuilder(length);
             builder.Clear();
             if (header < 0)
@@ -183,7 +201,21 @@ namespace Nino.Core
         public void Deserialize(ref CultureInfo value, ref Reader reader)
         {
             string name = reader.ReadString();
-            value = name == null ? null : CultureInfo.GetCultureInfo(name);
+            value = name == null ? null : GetCulture(name);
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static CultureInfo GetCulture(string name)
+        {
+            try
+            {
+                return CultureInfo.GetCultureInfo(name);
+            }
+            catch (CultureNotFoundException e)
+            {
+                NinoThrow.InvalidValue(typeof(CultureInfo), e);
+                return null;
+            }
         }
     }
 
@@ -215,7 +247,25 @@ namespace Nino.Core
             }
 
             string rules = reader.ReadString();
-            value = rules == null ? TimeZoneInfo.FindSystemTimeZoneById(id) : TimeZoneInfo.FromSerializedString(rules);
+            value = Find(id, rules);
+        }
+
+        // A zone this machine does not have, or rules the runtime cannot parse, is invalid data.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static TimeZoneInfo Find(string id, string rules)
+        {
+            try
+            {
+                return rules == null ? TimeZoneInfo.FindSystemTimeZoneById(id) : TimeZoneInfo.FromSerializedString(rules);
+            }
+            catch (Exception e) when (e is TimeZoneNotFoundException || e is InvalidTimeZoneException ||
+                                      e is System.Runtime.Serialization.SerializationException ||
+                                      e is ArgumentException || e is System.IO.IOException ||
+                                      e is UnauthorizedAccessException || e is System.Security.SecurityException)
+            {
+                NinoThrow.InvalidValue(typeof(TimeZoneInfo), e);
+                return null;
+            }
         }
 
         private static bool IsSystemZone(TimeZoneInfo zone)
@@ -286,7 +336,7 @@ namespace Nino.Core
 
         public void Deserialize(ref Memory<T> value, ref Reader reader)
         {
-            if (!reader.TryReadLength(1, out int length))
+            if (!reader.TryReadLength(NinoElements.MinWireSize<T, TFormatter>(), out int length))
             {
                 value = default;
                 return;
