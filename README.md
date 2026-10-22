@@ -26,6 +26,16 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 
 </div>
 
+> [!IMPORTANT]
+> **Nino is built to read untrusted data**: messages from network peers, files users hand you, request bodies.
+> Crafted bytes cannot crash the process, read past the input, allocate out of proportion to their size (a
+> collection allocates at most 16× the bytes left ahead of its elements) or name a type to create: the data holds
+> type ids of your declared subtypes, never type names. Every invalid input throws one exception,
+> `InvalidOperationException` with a message starting `Nino:`, so a single `catch` at the boundary handles it.
+> Fuzzed and hand-crafted payloads were run against every built-in type, and what they found is fixed in 4.0.0-rc.7.
+> [What Nino checks, and what stays your code's job](https://nino.xgamedev.net/en/docs/v4/basic#invalid-data). (MemoryPack now
+> [recommends itself for trusted data only](https://github.com/Cysharp/MemoryPack#readme); see the [comparison](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#untrusted-input).)
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4 vs Nino v3 vs MemoryPack: serialize and deserialize speed" width="760">
 </p>
@@ -36,6 +46,9 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 
 - **Faster than MemoryPack.** Serializing classes and polymorphic types is <!--bench:ser.range-->3.4–5.6<!--/bench-->× faster. Deserializing them is
   <!--bench:deser.range-->1.5–1.9<!--/bench-->× faster, and raw struct arrays are at least on par (a block copy in both).
+- **Safe for untrusted data.** Crafted bytes cannot crash the process, allocate out of proportion to their size or make
+  Nino create a type you did not declare; every invalid input throws one `InvalidOperationException`.
+  [Invalid data](https://nino.xgamedev.net/en/docs/v4/basic#invalid-data).
 - **Zero allocation.** Serializing into a buffer (`IBufferWriter<byte>`) allocates nothing. Deserializing into existing or pooled objects
   (`[NinoPooled]`, reuse deserialization into existing objects) allocates nothing either (a string whose text is unchanged is kept),
   and is up to <!--bench:reuse.inplace-->11.5<!--/bench-->× faster than MemoryPack's overwrite mode.
@@ -164,6 +177,7 @@ networking, ASP.NET Core, TypeScript clients, message queues, caching, persisten
 | Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.5–1.9<!--/bench-->× faster** | |
 | Raw struct arrays | at least on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
 | Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->11.5<!--/bench-->× faster** (in place) | overwrite mode, allocates |
+| Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only, per its README |
 | Polymorphism | automatic type ids | `[MemoryPackUnion]` tags you maintain |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | 2022.3+, `netstandard2.0` and `2.1`, HybridCLR | `netstandard2.1` |

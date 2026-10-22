@@ -26,6 +26,15 @@
 
 </div>
 
+> [!IMPORTANT]
+> **Nino 本来就是为读取不可信数据而设计的**：网络对端的消息、用户交给你的文件、请求体。
+> 伪造的字节无法让进程崩溃，无法越过输入末尾读取，无法分配与自身大小不成比例的内存（一个集合在读到元素之前最多预先分配剩余字节数的 16 倍），
+> 也无法指定要创建的类型：数据里只有你声明的子类型的类型 id，没有类型名。所有无效输入都抛出同一种异常，
+> 即消息以 `Nino:` 开头的 `InvalidOperationException`，在边界处一个 `catch` 就能处理。
+> 我们用变异 fuzz 和手工构造的数据检验了每个内置类型，发现的问题都已在 4.0.0-rc.7 修复。
+> [Nino 检查什么、哪些仍需你的代码负责](https://nino.xgamedev.net/zh/docs/v4/basic#invalid-data)。（MemoryPack 现在
+> [建议只用于可信数据](https://github.com/Cysharp/MemoryPack#readme)；参见[对比](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack#untrusted-input)。）
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/JasonXuDeveloper/Nino/main/docs/assets/benchmark.png" alt="Nino v4、Nino v3 与 MemoryPack 的序列化/反序列化速度对比" width="760">
 </p>
@@ -35,6 +44,8 @@
 ## 为什么选 Nino
 
 - **比 MemoryPack 更快。** 类和多态类型的序列化快 <!--bench:ser.range-->3.4–5.6<!--/bench--> 倍，反序列化快 <!--bench:deser.range-->1.5–1.9<!--/bench--> 倍；原始结构体数组两者都是整块拷贝，性能至少持平。
+- **可读取不可信数据。** 伪造的字节无法让进程崩溃、无法分配与自身大小不成比例的内存，也无法让 Nino 创建你没有声明的类型；
+  所有无效输入都抛出同一种 `InvalidOperationException`。[无效数据](https://nino.xgamedev.net/zh/docs/v4/basic#invalid-data)。
 - **零分配。** 序列化到缓冲区（`IBufferWriter<byte>`）不分配内存。反序列化到已有对象或池化对象（`[NinoPooled]`、复用反序列化）同样不分配（内容不变的字符串直接保留），
   比 MemoryPack 的覆盖写入最多快 <!--bench:reuse.inplace-->11.5<!--/bench--> 倍。
 - **一切在编译期完成。** 源生成器为每个类型生成格式化器：没有反射、没有 IL emit、无需注册、无需初始化调用，
@@ -153,6 +164,7 @@ public class Node { public string Name; public List<Node> Links; }
 | 反序列化类和多态类型 | **快 <!--bench:deser.range-->1.5–1.9<!--/bench--> 倍** | |
 | 原始结构体数组 | 至少持平（两者都是整块拷贝）；v4 会清零填充字节，热点结构体建议声明为无填充 | 原样复制填充字节 |
 | 反序列化到已有对象 | **0 B，最多快 <!--bench:reuse.inplace-->11.5<!--/bench--> 倍**（原地复用） | 覆盖写入，有分配 |
+| 不可信输入 | **设计目标**：分配和栈用量有上限，只有一种异常 | 按其 README，仅用于可信数据 |
 | 多态 | 自动类型 ID | 需要维护 `[MemoryPackUnion]` 标签 |
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
 | Unity | 2022.3+，`netstandard2.0` 和 `2.1`，HybridCLR | `netstandard2.1` |
