@@ -173,8 +173,15 @@ namespace Nino.Immutable
         public void Deserialize(ref ImmutableSortedSet<T> value, ref Reader reader)
         {
             var array = ImmutableCollections.Read<T, TFormatter>(ref reader);
-            value = array == null ? null : ImmutableCollections.Distinct(ImmutableSortedSet.CreateRange(array), array.Length);
+            value = array == null ? null : Build(array);
         }
+
+        // Built as its tree where it can be (SortedTrees), else by CreateRange, which sorts the elements.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ImmutableSortedSet<T> Build(T[] items) =>
+            items.Length != 0 && SortedTrees.Usable && SortedSetTree<T>.Create(items) is { } set
+                ? set
+                : ImmutableCollections.Distinct(ImmutableSortedSet.CreateRange(items), items.Length);
     }
 
     /// <summary><c>ImmutableQueue&lt;T&gt;</c>: count (-1 = null), then the elements front to back, as a <c>Queue&lt;T&gt;</c>.</summary>
@@ -290,8 +297,7 @@ namespace Nino.Immutable
 
             value = Build(pairs);
         }
-        // As ImmutableHashSet<T>'s, out of line like WritePairs. In the builder, a key already there throws (another
-        // value) or leaves the count as it was (the same value).
+        // As ImmutableHashSet<T>'s, out of line like WritePairs.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableDictionary<TKey, TValue> Build(KeyValuePair<TKey, TValue>[] pairs)
         {
@@ -299,21 +305,7 @@ namespace Nino.Immutable
                 return dictionary;
 
             var builder = ImmutableDictionary.CreateBuilder<TKey, TValue>();
-            try
-            {
-                foreach (var pair in pairs)
-                {
-                    int count = builder.Count;
-                    builder.Add(pair.Key, pair.Value);
-                    if (builder.Count == count)
-                        ImmutableCollections.DuplicateKey(typeof(ImmutableDictionary<TKey, TValue>));
-                }
-            }
-            catch (ArgumentException e) when (!(e is ArgumentNullException))
-            {
-                ImmutableCollections.DuplicateKey(typeof(ImmutableDictionary<TKey, TValue>));
-            }
-
+            ImmutableCollections.AddAll(builder, pairs, typeof(ImmutableDictionary<TKey, TValue>));
             return builder.ToImmutable();
         }
     }
@@ -351,12 +343,22 @@ namespace Nino.Immutable
 
         public void Deserialize(ref ImmutableSortedDictionary<TKey, TValue> value, ref Reader reader)
         {
-            // Read as a SortedDictionary (Nino fills one from sorted data without comparisons where it can), from
-            // which an empty ImmutableSortedDictionary with the same comparer builds its tree in one pass.
-            SortedDictionary<TKey, TValue> sorted = null;
-            default(DictionaryLikeFormatter<SortedDictionary<TKey, TValue>, TKey, TValue, TKeyFormatter,
-                TValueFormatter>).Deserialize(ref sorted, ref reader);
-            value = sorted == null ? null : ImmutableSortedDictionary.CreateRange(sorted);
+            var pairs = ImmutableCollections.Read<KeyValuePair<TKey, TValue>,
+                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(ref reader);
+            value = pairs == null ? null : Build(pairs);
+        }
+
+        // Built as its tree where it can be (SortedTrees), else added one by one to a builder.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static ImmutableSortedDictionary<TKey, TValue> Build(KeyValuePair<TKey, TValue>[] pairs)
+        {
+            if (pairs.Length != 0 && SortedTrees.Usable &&
+                SortedDictionaryTree<TKey, TValue>.Create(pairs) is { } dictionary)
+                return dictionary;
+
+            var builder = ImmutableSortedDictionary.CreateBuilder<TKey, TValue>();
+            ImmutableCollections.AddAll(builder, pairs, typeof(ImmutableSortedDictionary<TKey, TValue>));
+            return builder.ToImmutable();
         }
     }
 
@@ -392,6 +394,29 @@ namespace Nino.Immutable
             if (collection.Count != length)
                 DuplicateKey(typeof(TCollection));
             return collection;
+        }
+
+        /// <summary>
+        /// Adds <paramref name="pairs"/> to <paramref name="builder"/>, empty, or throws if the data holds a key twice: a
+        /// key already there throws (another value) or leaves the count as it was (the same value).
+        /// </summary>
+        public static void AddAll<TKey, TValue>(IDictionary<TKey, TValue> builder, KeyValuePair<TKey, TValue>[] pairs,
+            Type type)
+        {
+            try
+            {
+                foreach (var pair in pairs)
+                {
+                    int count = builder.Count;
+                    builder.Add(pair.Key, pair.Value);
+                    if (builder.Count == count)
+                        DuplicateKey(type);
+                }
+            }
+            catch (ArgumentException e) when (!(e is ArgumentNullException))
+            {
+                DuplicateKey(type);
+            }
         }
 
         public static void DuplicateKey(Type type) =>
