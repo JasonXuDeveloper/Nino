@@ -47,7 +47,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.1"/>
+        <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.13"/>
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.402" PrivateAssets="All"/>
     </ItemGroup>
 
