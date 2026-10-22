@@ -49,7 +49,18 @@ namespace Nino.Core
             where TSub : class
             where TFormatter : struct, INinoRawBodyFormatter<TSub>
         {
-            WriteOwnRaw<TSub, TFormatter>(Unsafe.As<TSub>(value), ref writer);
+            // WriteOwnRaw's body written out, not called: one more level of inlining per subtype used up the inlining
+            // budget of a dispatch of 20 subtypes on Arm64, which then called the last one's WriteRawWithId with the
+            // writer's address and kept the writer in memory (an array of them serialized 10% slower than in rc.6).
+            var sub = Unsafe.As<TSub>(value);
+            if (writer.Depth >= NinoDepth.Inline)
+            {
+                writer.UnsafeWrite(default(TFormatter).TypeId);
+                WriteDeep<TSub, TFormatter>(sub, ref writer);
+                return;
+            }
+
+            WriteRawWithId<TSub, TFormatter>(sub, ref writer);
         }
 
         /// <summary>
