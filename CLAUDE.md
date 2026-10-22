@@ -56,6 +56,28 @@ every method it lists. What has gone wrong before:
   layout for each implementation (.NET 64-bit and 32-bit, .NET Framework, Mono), checks it against an instance with
   known contents at startup and uses the public API when none matches; run the tests on .NET, the `net472` build under
   Mono and the `linux-arm` and `linux-arm64` builds under qemu, and keep the fallback (the enumerator) out of line.
+- Building a runtime's own objects without its public API (`Nino.Immutable/HashTrees.cs`: an `ImmutableDictionary`
+  or `ImmutableHashSet` built as its tree, instead of one builder `Add` at a time): one way for every runtime where
+  one works, and a separate way per runtime (behind `#if` or a startup check) only where none does. What works
+  everywhere so far:
+  - Mirror classes that declare the fields of the real class in its order, read and written through `Unsafe.As`:
+    every runtime lays out two classes with the same field list the same way. Check the field lists of every version
+    of the library users may have (System.Collections.Immutable 1.5 to 10.0 have the same fields), and check the
+    layout at startup against an instance with known contents, through the public API; use the public API when it
+    fails.
+  - Never call an instance method on a mirrored object (a `MemberwiseClone` helper in the mirror class): Mono and
+    IL2CPP take a shared generic method's context from `this`'s class, and Mono aborts (an assertion, not an
+    exception, so no `catch` helps). Static code only.
+  - Allocate a mirror instance with `new` and set its type word to the real type's (`HashTrees.Retype`): the same
+    fields mean the same size and the same references for the GC. Faster than `RuntimeHelpers.GetUninitializedObject`
+    (13 ns on .NET 10 but 77 on .NET 8, FormatterServices 59 on Mono) and needs nothing IL2CPP may lack. The type word
+    sits where the reference points (CoreCLR: method table, one header word; Mono and IL2CPP: vtable or class, then
+    the monitor, two words), found at startup; call `GetType()` on a retyped object out of line (`NoInlining`), or
+    the JIT folds it to the type it allocated (Arm32 did).
+  - Run it on .NET 8 and 10, the `net472` build under Mono (also `MONO_GC_DEBUG=verify-before-collections`), Arm32
+    under qemu, with a GC stress (forced compacting collections between builds, then every object checked).
+    qemu-aarch64 crashes on allocation-heavy runs with or without Nino's code (in `ToImmutableDictionary`): keep
+    Arm64 runs small there, or use an Arm64 runner.
 - The signs in the listing: `Reader:Skip`, `Reader:CopyTo` or `NinoUnsafe:Read` as calls (the budget ran out);
   `NinoReadContext:Return` or `NinoWriteContext:Return` calls and `[rbp-0x..]` loads and stores of the cursor (the
   reader or writer was not kept in registers).
