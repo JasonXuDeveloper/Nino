@@ -255,6 +255,9 @@ jobs:
             if ((${#files[@]} == 1)); then cp "${files[0]}" "$2"; else python3 benchmarks/merge_reports.py "${files[@]}" > "$2"; fi
           }
           SIDES=$(cat shards/*/sides.txt | sort -u)
+          # The reports in a directory of their own: the sparse checkout also has the repository's root files.
+          mkdir -p merged && cd merged
+          ln -s ../shards ../benchmarks .
           report head head.md || { echo "No report of this ref" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
           {
             HEAD_LINE=$(grep '^head ' <<< "$SIDES" | head -n1)
@@ -287,7 +290,7 @@ jobs:
             echo ""
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"
-          mkdir -p merged && cp ./*.md merged/
+          rm shards benchmarks
 
       - name: Upload merged reports
         uses: actions/upload-artifact@v7
