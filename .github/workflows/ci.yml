@@ -146,7 +146,7 @@ jobs:
           --logger trx --results-directory ./TestResults
 
       # The TypeScript generator: Node runs the generated code (type stripping, Node 22.18+), tsc checks it.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: ${{ matrix.project == '' }}
         with:
           node-version: 22
