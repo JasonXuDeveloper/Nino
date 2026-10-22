@@ -53,15 +53,46 @@ permissions:
   contents: read
 
 jobs:
+  # The whole suite runs as the shards of report.yml, one runner each, in parallel: on one runner, both refs in full
+  # mode took over three and a half hours. Each shard measures both refs one after the other on its runner, so each
+  # comparison is still made on one machine; the summary job merges the shards. A filter of its own is one shard.
+  plan:
+    name: Plan shards
+    runs-on: ubuntu-24.04
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - id: plan
+        env:
+          FILTER: ${{ inputs.filter || '*' }}
+        run: |
+          set -euo pipefail
+          if [[ $FILTER == '*' ]]; then
+            # report.yml's shards (the probe classes are left out: run them with a filter).
+            SHARDS='[{"id":"a","filters":"*.SimpleTest.* *.PooledTest.*"},
+              {"id":"b","filters":"*.CommonTypesTest.* *.FixedSizeTest.* *.GenericPolymorphicTest.*"},
+              {"id":"c","filters":"*.PolymorphicTest.* *.BclTypesTest.NinoSerialize* *.BclTypesTest.MemoryPackSerialize*"},
+              {"id":"d","filters":"*.VersionTolerantTest.* *.ReferenceTest.* *.BclTypesTest.*Deserialize*"},
+              {"id":"e","filters":"*.CollectionsTest.* *.PooledGraphTest.*"}]'
+          else
+            SHARDS=$(jq -cn --arg f "$FILTER" '[{id: "filter", filters: $f}]')
+          fi
+          echo "shards=$(jq -c . <<< "$SHARDS")" >> "$GITHUB_OUTPUT"
+
   bench:
-    name: Benchmark on ${{ inputs.runner || 'ubuntu-24.04-arm' }}
+    name: Benchmark on ${{ inputs.runner || 'ubuntu-24.04-arm' }} (${{ matrix.shard.id }})
+    needs: plan
     runs-on: ${{ inputs.runner || 'ubuntu-24.04-arm' }}
     timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     env:
       NINO_BENCH_QUICK: ${{ inputs.quick && '1' || '0' }}
       # The settings of report.yml when not in quick mode.
       BDN_ARGS: ${{ !inputs.quick && '--launchCount 3 --warmupCount 5 --iterationCount 15' || '' }}
-      FILTER: ${{ inputs.filter || '*' }}
+      FILTER: ${{ matrix.shard.filters }}
 
     steps:
       - name: Checkout
@@ -164,42 +195,95 @@ jobs:
               --filter "${FILTERS[@]}" $BDN_ARGS --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
           done
 
-      - name: Summary
-        env:
-          RUNNER: ${{ inputs.runner || 'ubuntu-24.04-arm' }}
+      # What each side measured, for the summary job: the side's directory, then its description.
+      - name: Record the sides
+        if: always()
         run: |
           set -euo pipefail
-          HEAD_REPORT=$(find results/head/results -name '*-report-github.md' | sort | head -n1)
-          if [[ -d results/bisect ]]; then
-            FIRST=$(find results/bisect -name '*-report-github.md' | sort | head -n1)
-            for R in results/bisect/*/; do
-              echo "### $(basename "$R") against the release"
-              python3 head/benchmarks/ab.py "$FIRST" "$(find "$R" -name '*-report-github.md' | sort | head -n1)"
-            done >> "$GITHUB_STEP_SUMMARY"
-          fi
-          {
-            echo "## Benchmark on $RUNNER: $GITHUB_REF_NAME ($(git -C head rev-parse --short HEAD))"
-            echo ""
-            if [[ -d base ]]; then
-              BASE_REPORT=$(find results/base/results -name '*-report-github.md' | sort | head -n1)
-              echo "Against $(git -C base describe --tags --exclude '*-preview.*') ($(git -C base rev-parse --short HEAD)), on the same runner."
-              echo ""
-              python3 head/benchmarks/ab.py "$BASE_REPORT" "$HEAD_REPORT"
-            else
-              python3 head/benchmarks/ab.py "$HEAD_REPORT" "$HEAD_REPORT"
-            fi
-            echo ""
-            echo "<details><summary>Report</summary>"
-            echo ""
-            cat "$HEAD_REPORT"
-            echo ""
-            echo "</details>"
-          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p results
+          for SIDE in base head $(ls -d bisect/* 2>/dev/null); do
+            [[ -d $SIDE ]] || continue
+            echo "$SIDE $(git -C $SIDE describe --tags --exclude '*-preview.*' --always) $(git -C $SIDE rev-parse --short HEAD)"
+          done > results/sides.txt
+          lscpu | grep 'Model name' > results/cpu.txt || true
 
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}
+          name: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}-${{ matrix.shard.id }}
           path: results
+          retention-days: 30
+
+  summary:
+    name: Summary
+    needs: bench
+    if: always() && needs.bench.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    steps:
+      # This ref's scripts (ab.py, merge_reports.py, bdn.py).
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: benchmarks
+          persist-credentials: false
+
+      - name: Download results
+        uses: actions/download-artifact@v7
+        with:
+          pattern: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}-*
+          path: shards
+
+      - name: Summary
+        env:
+          RUNNER: ${{ inputs.runner || 'ubuntu-24.04-arm' }}
+        run: |
+          set -euo pipefail
+          # One report per side: its shards' reports merged, in shard order.
+          report() {
+            local files
+            mapfile -t files < <(find shards/*/"$1"/results -name '*-report-github.md' 2>/dev/null | sort)
+            ((${#files[@]})) || return 1
+            if ((${#files[@]} == 1)); then cp "${files[0]}" "$2"; else python3 benchmarks/merge_reports.py "${files[@]}" > "$2"; fi
+          }
+          SIDES=$(cat shards/*/sides.txt | sort -u)
+          report head head.md || { echo "No report of this ref" >> "$GITHUB_STEP_SUMMARY"; exit 1; }
+          {
+            HEAD_LINE=$(grep '^head ' <<< "$SIDES" | head -n1)
+            echo "## Benchmark on $RUNNER: $GITHUB_REF_NAME ($(cut -d' ' -f3 <<< "$HEAD_LINE"))"
+            echo ""
+            echo "Shards: $(ls shards | wc -l) runners ($(cat shards/*/cpu.txt | sed 's/Model name: *//' | sort | uniq -c | xargs))."
+            echo ""
+            if report base base.md; then
+              BASE_LINE=$(grep '^base ' <<< "$SIDES" | head -n1)
+              echo "Against $(cut -d' ' -f2 <<< "$BASE_LINE") ($(cut -d' ' -f3 <<< "$BASE_LINE")), each shard on one runner."
+              echo ""
+              python3 benchmarks/ab.py base.md head.md
+            else
+              python3 benchmarks/ab.py head.md head.md
+            fi
+            if grep -q '^bisect/' <<< "$SIDES"; then
+              FIRST=""
+              for B in $(grep -o '^bisect/[^ ]*' <<< "$SIDES" | sort -u); do
+                report "$B" "$(basename "$B").md" || continue
+                [[ -n $FIRST ]] || FIRST="$(basename "$B").md"
+                echo ""
+                echo "### $(basename "$B") against the release"
+                python3 benchmarks/ab.py "$FIRST" "$(basename "$B").md"
+              done
+            fi
+            echo ""
+            echo "<details><summary>Report</summary>"
+            echo ""
+            cat head.md
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p merged && cp ./*.md merged/
+
+      - name: Upload merged reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmark-${{ inputs.runner || 'ubuntu-24.04-arm' }}-merged
+          path: merged
           retention-days: 30
