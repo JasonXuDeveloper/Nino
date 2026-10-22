@@ -473,6 +473,8 @@ public class BclTypeTests
         void Same<TKey>(TKey[] keys, Func<int, TKey> other)
         {
             var dictionary = keys.Select((k, i) => new KeyValuePair<TKey, int>(k, i)).ToImmutableDictionary();
+            // Copied out of the tree, written as the enumerator yields it.
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionary.ToArray()), NinoSerializer.Serialize(dictionary));
             var back = RoundTrip(dictionary);
             Assert.AreEqual(dictionary.Count, back.Count);
             foreach (var pair in dictionary)
@@ -489,6 +491,7 @@ public class BclTypeTests
             Assert.IsTrue(emptied.IsEmpty);
 
             var set = keys.ToImmutableHashSet();
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(set.ToArray()), NinoSerializer.Serialize(set));
             var setBack = RoundTrip(set);
             Assert.IsTrue(setBack.SetEquals(set));
             Assert.IsFalse(setBack.Contains(other(1)));
@@ -511,6 +514,7 @@ public class BclTypeTests
         void SameSorted<TKey>(TKey[] keys, TKey absent)
         {
             var dictionary = keys.Select((k, i) => new KeyValuePair<TKey, int>(k, i)).ToImmutableSortedDictionary();
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(dictionary.ToArray()), NinoSerializer.Serialize(dictionary));
             var back = RoundTrip(dictionary);
             CollectionAssert.AreEqual(dictionary.ToArray(), back.ToArray());
             Assert.IsFalse(back.ContainsKey(absent));
@@ -520,6 +524,7 @@ public class BclTypeTests
             Assert.IsTrue(keys.Aggregate(back, (d, k) => d.Remove(k)).IsEmpty);
 
             var set = keys.ToImmutableSortedSet();
+            CollectionAssert.AreEqual(NinoSerializer.Serialize(set.ToArray()), NinoSerializer.Serialize(set));
             var setBack = RoundTrip(set);
             CollectionAssert.AreEqual(set.ToArray(), setBack.ToArray());
             for (int i = 0; i < set.Count; i++)
