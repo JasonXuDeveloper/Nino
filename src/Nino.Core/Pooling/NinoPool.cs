@@ -103,6 +103,17 @@ namespace Nino.Core
         public bool BeginWarmup() =>
             Volatile.Read(ref WarmedUp) == 0 && Interlocked.Exchange(ref WarmedUp, 1) == 0;
 
+        /// <summary>
+        /// For generated code: false until an instance is first added, while every stack is empty; a take then answers
+        /// null without the thread's own stack (a thread-local access, the most of an empty take's time on Arm64).
+        /// </summary>
+        [EditorBrowsable(EditorBrowsableState.Never)]
+        public bool EverFilled
+        {
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => Filled != 0;
+        }
+
         /// <summary>For generated code: a pooled instance, or null when the pool is empty.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -157,6 +168,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private void AddSlow(T value, ref PerThread stack)
         {
+            // The first add of each thread comes here (its stack is created here).
+            if (Filled == 0)
+                Volatile.Write(ref Filled, 1);
             var s = Current(ref stack);
             if (s.Count == ThreadCapacity)
             {
@@ -214,6 +228,8 @@ namespace Nino.Core
         // Bumped by Clear: thread stacks filled before it drop their instances.
         [FieldOffset(56)] internal int Generation;
         [FieldOffset(60)] internal int WarmedUp;
+        // Set by the first add: until then every stack is empty.
+        [FieldOffset(64)] internal int Filled;
         [FieldOffset(120)] private int _end;
 
         private protected NinoPoolLine()
