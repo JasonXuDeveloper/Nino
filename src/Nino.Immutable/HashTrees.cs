@@ -24,7 +24,7 @@ namespace Nino.Immutable
         /// Whether the layouts below are the ones of this runtime's System.Collections.Immutable: checked against
         /// collections with known contents, built both ways, through the public API.
         /// </summary>
-        public static readonly bool Usable = FindHeader() is var header && (Header = header) != 0 && Check();
+        public static readonly bool Usable = ObjectTypes.Usable && Check();
 
         private static bool Check()
         {
@@ -47,64 +47,6 @@ namespace Nino.Immutable
                 return false;
             }
         }
-
-        // What type an object is: the word before its first field and any other header word, which CoreCLR (the method
-        // table, one word) and Mono and IL2CPP (the vtable or class, then the monitor: two words) keep at the address a
-        // reference holds. Found from two classes of one byte field: the word that differs between them and not
-        // between two instances of one.
-        private sealed class Probe
-        {
-#pragma warning disable CS0649 // read through Unsafe.As
-            public byte Data;
-#pragma warning restore CS0649
-        }
-
-        private sealed class OtherProbe
-        {
-#pragma warning disable CS0649, CS0169 // laid out only
-            public byte Data;
-#pragma warning restore CS0649, CS0169
-        }
-
-        // Set before Usable is.
-        private static readonly int Header;
-
-        private static int FindHeader()
-        {
-            foreach (int header in new[] { IntPtr.Size, 2 * IntPtr.Size })
-            {
-                IntPtr type = TypeWord(new Probe(), header), other = TypeWord(new OtherProbe(), header);
-                if (type == IntPtr.Zero || type != TypeWord(new Probe(), header) || type == other)
-                    continue;
-                object instance = new OtherProbe();
-                TypeWord(instance, header) = type;
-                if (TypeOfInstance(instance) == typeof(Probe))
-                    return header;
-            }
-
-            return 0;
-        }
-
-        // Out of line: inlined, the JIT knows the type it allocated and takes that for GetType's (Arm32).
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static Type TypeOfInstance(object instance) => instance.GetType();
-
-        private static ref IntPtr TypeWord(object instance, int header) =>
-            ref Unsafe.As<byte, IntPtr>(ref Unsafe.Subtract(ref Unsafe.As<Probe>(instance).Data, header));
-
-        /// <summary>The word that says what type <paramref name="instance"/> is.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static IntPtr TypeOf(object instance) => TypeWord(instance, Header);
-
-        /// <summary>
-        /// Makes <paramref name="instance"/>, a new instance of a class laid out as the type <paramref name="type"/>
-        /// says (the same fields in the same order: the same size and the same references where the GC looks for
-        /// them), an instance of that type: a plain allocation instead of an uninitialized object made by type
-        /// (RuntimeHelpers.GetUninitializedObject: 13 ns on .NET 10 but 77 on .NET 8, and FormatterServices on Mono:
-        /// 59), and nothing a runtime without them (IL2CPP) could lack.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void Retype(object instance, IntPtr type) => TypeWord(instance, Header) = type;
 
         private static bool CheckDictionary()
         {
@@ -187,7 +129,7 @@ namespace Nino.Immutable
             for (int i = 1; i < hashes.Length; i++)
                 if (hashes[i] == hashes[i - 1])
                     return null;
-            return Make(items, hashes, 0, items.Length - 1, empty, HashTrees.TypeOf(empty));
+            return Make(items, hashes, 0, items.Length - 1, empty, ObjectTypes.TypeOf(empty));
         }
 
         private static Node Make(TItem[] items, int[] hashes, int low, int high, Node empty, IntPtr type)
@@ -196,7 +138,7 @@ namespace Nino.Immutable
                 return empty;
             int middle = (low + high) >> 1;
             var node = new Node();
-            HashTrees.Retype(node, type);
+            ObjectTypes.Retype(node, type);
             node._key = hashes[middle];
             node._value._firstValue = items[middle];
             node._value._additionalElements = NoMore;
@@ -242,7 +184,7 @@ namespace Nino.Immutable
             if (root == null)
                 return null;
             var view = new View();
-            HashTrees.Retype(view, HashTrees.TypeOf(ImmutableDictionary<TKey, TValue>.Empty));
+            ObjectTypes.Retype(view, ObjectTypes.TypeOf(ImmutableDictionary<TKey, TValue>.Empty));
             view._count = pairs.Length;
             view._root = root;
             view._comparers = empty._comparers;
@@ -284,7 +226,7 @@ namespace Nino.Immutable
             if (root == null)
                 return null;
             var view = new View();
-            HashTrees.Retype(view, HashTrees.TypeOf(ImmutableHashSet<T>.Empty));
+            ObjectTypes.Retype(view, ObjectTypes.TypeOf(ImmutableHashSet<T>.Empty));
             view._equalityComparer = empty._equalityComparer;
             view._count = items.Length;
             view._root = root;

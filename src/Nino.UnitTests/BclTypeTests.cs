@@ -391,9 +391,10 @@ public class BclTypeTests
     }
 
     [TestMethod]
-    public void ImmutableHashCollectionsReadAsTreesBehaveAsBuilt()
+    public void ImmutableCollectionsReadAsTreesBehaveAsBuilt()
     {
         Assert.IsTrue(Nino.Immutable.HashTrees.Usable);
+        Assert.IsTrue(Nino.Immutable.SortedTrees.Usable);
 
         void Same<TKey>(TKey[] keys, Func<int, TKey> other)
         {
@@ -432,6 +433,43 @@ public class BclTypeTests
             // Equal hashes: built the usual way.
             Same(Enumerable.Range(0, n).Select(i => new Crowded(i)).ToArray(), i => new Crowded(-1 - i));
         }
+
+        void SameSorted<TKey>(TKey[] keys, TKey absent)
+        {
+            var dictionary = keys.Select((k, i) => new KeyValuePair<TKey, int>(k, i)).ToImmutableSortedDictionary();
+            var back = RoundTrip(dictionary);
+            CollectionAssert.AreEqual(dictionary.ToArray(), back.ToArray());
+            Assert.IsFalse(back.ContainsKey(absent));
+            var changed = back.Add(absent, -1).Remove(keys[0]);
+            Assert.AreEqual(back.Count, changed.Count);
+            Assert.AreEqual(-1, changed[absent]);
+            Assert.IsTrue(keys.Aggregate(back, (d, k) => d.Remove(k)).IsEmpty);
+
+            var set = keys.ToImmutableSortedSet();
+            var setBack = RoundTrip(set);
+            CollectionAssert.AreEqual(set.ToArray(), setBack.ToArray());
+            for (int i = 0; i < set.Count; i++)
+                Assert.AreEqual(set[i], setBack[i]);
+            Assert.AreEqual(set.Count - 1, setBack.Remove(keys[0]).Count);
+            Assert.AreEqual(set.IndexOf(keys[keys.Length - 1]), setBack.IndexOf(keys[keys.Length - 1]));
+            Assert.IsTrue(setBack.Add(absent).Contains(absent));
+            Assert.IsTrue(keys.Aggregate(setBack, (x, k) => x.Remove(k)).IsEmpty);
+        }
+
+        foreach (int n in new[] { 1, 2, 3, 7, 64, 1000 })
+        {
+            SameSorted(Enumerable.Range(-n / 2, n).Select(i => i * 7919).ToArray(), int.MaxValue);
+            SameSorted(Enumerable.Range(0, n).Select(i => "key" + i).ToArray(), "other");
+            SameSorted(Enumerable.Range(0, n).Select(i => new Guid(i, 1, 2, new byte[8])).ToArray(), Guid.Empty);
+        }
+
+        // Out of order (another comparer wrote them): sorted on the way in.
+        var unsorted = NinoSerializer.Serialize(new List<KeyValuePair<int, int>> { new(3, 30), new(1, 10), new(2, 20) });
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 },
+            NinoDeserializer.Deserialize<ImmutableSortedDictionary<int, int>>(unsorted).Keys.ToArray());
+        var unsortedSet = NinoSerializer.Serialize(new List<int> { 3, 1, 2 });
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 },
+            NinoDeserializer.Deserialize<ImmutableSortedSet<int>>(unsortedSet).ToArray());
 
         var withNull = ImmutableHashSet.Create("a", null, "b");
         Assert.IsTrue(RoundTrip(withNull).SetEquals(withNull));

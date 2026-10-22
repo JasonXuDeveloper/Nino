@@ -68,7 +68,7 @@ every method it lists. What has gone wrong before:
   - Never call an instance method on a mirrored object (a `MemberwiseClone` helper in the mirror class): Mono and
     IL2CPP take a shared generic method's context from `this`'s class, and Mono aborts (an assertion, not an
     exception, so no `catch` helps). Static code only.
-  - Allocate a mirror instance with `new` and set its type word to the real type's (`HashTrees.Retype`): the same
+  - Allocate a mirror instance with `new` and set its type word to the real type's (`ObjectTypes.Retype`): the same
     fields mean the same size and the same references for the GC. Faster than `RuntimeHelpers.GetUninitializedObject`
     (13 ns on .NET 10 but 77 on .NET 8, FormatterServices 59 on Mono) and needs nothing IL2CPP may lack. The type word
     sits where the reference points (CoreCLR: method table, one header word; Mono and IL2CPP: vtable or class, then
