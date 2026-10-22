@@ -1,3 +1,5 @@
+// Generic polymorphic bases need a generator with the fix for #203 (rc.7): left out of A/B runs against older releases.
+#if !NINO_BENCH_LEGACY
 using System;
 using System.Linq;
 using BenchmarkDotNet.Attributes;
@@ -289,3 +291,4 @@ public abstract partial class ProbeBase { public int V; }
 [NinoType, MemoryPackable] public sealed partial class ProbeOcF : ProbeBox<(ProbeOpenItem, int)> { }
 [NinoType, MemoryPackable] public sealed partial class ProbeOcG : ProbeBox<(ProbeOpenItem, int)> { }
 [NinoType, MemoryPackable] public sealed partial class ProbeOcH : ProbeBox<(ProbeOpenItem, int)> { }
+#endif

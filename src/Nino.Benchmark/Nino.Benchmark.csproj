@@ -7,6 +7,8 @@
         <Nullable>enable</Nullable>
         <Optimize>true</Optimize>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <!-- -p:NinoBenchLegacy=true leaves out the benchmarks an older release's generator cannot compile (A/B runs). -->
+        <DefineConstants Condition="'$(NinoBenchLegacy)' == 'true'">$(DefineConstants);NINO_BENCH_LEGACY</DefineConstants>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />

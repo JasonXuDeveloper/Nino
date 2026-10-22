@@ -129,8 +129,11 @@ jobs:
             rm -rf base/src/Nino.Benchmark
             cp -r head/src/Nino.Benchmark base/src/Nino.Benchmark
             # A release older than a benchmark's types (one whose generator could not compile them) cannot run them:
-            # head alone is measured, and against main compares the code this ref changes.
+            # base is built without them (NinoBenchLegacy, #if !NINO_BENCH_LEGACY), so they are measured on head alone;
+            # if it still does not build, head alone is measured, and against main compares the code this ref changes.
             dotnet build -c Release base/src/Nino.Benchmark ||
+              { echo "::warning::base does not build all of head's benchmarks; leaving out the ones marked NINO_BENCH_LEGACY";
+                dotnet build -c Release base/src/Nino.Benchmark -p:NinoBenchLegacy=true; } ||
               { echo "::warning::base does not build head's benchmarks; measuring head only (try against: main)"; rm -rf base; }
           fi
           dotnet build -c Release head/src/Nino.Benchmark
