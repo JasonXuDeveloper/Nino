@@ -127,6 +127,9 @@ internal static class AccessorEmitter
         {
             w.Line("if (s_ninoPool.BeginWarmup())");
             w.Indented(() => w.Line("__NinoPoolWarmup();"));
+            // Nothing pooled yet (as when every read makes new instances): no thread-local access.
+            w.Line("if (!s_ninoPool.EverFilled)");
+            w.Indented(() => w.Line("return null;"));
             w.Line("var value = s_ninoPool.TryTake(ref t_ninoPool);");
             w.Line("if (value != null)");
             w.Indented(() => w.Line("value._ninoPooled = 0;"));
