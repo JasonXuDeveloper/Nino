@@ -107,6 +107,9 @@ jobs:
           cp src/Nino.Core/bin/Release/netstandard2.1/Nino.Core.dll "$UNITY_PACKAGE/Runtime/Nino.Core.dll"
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
           cp src/Nino.Generator/bin/Release/netstandard2.0/Nino.Generator.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.dll"
+          # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates. The
+          # compiler finds no analyzer in it and leaves it alone (no warning, Roslyn 3.9 and later).
+          cp src/Nino.Generator.CodeFixes/bin/Release/netstandard2.0/Nino.Generator.CodeFixes.dll "$UNITY_PACKAGE/Runtime/Nino.Generator.CodeFixes.dll"
           # The Unity class formatters, compiled against UnityEngineStub; in Unity they bind to Unity's CoreModule.
           cp src/Nino.UnityTypes/bin/Release/netstandard2.1/Nino.UnityTypes.dll "$UNITY_PACKAGE/Runtime/Nino.UnityTypes.dll"
 
