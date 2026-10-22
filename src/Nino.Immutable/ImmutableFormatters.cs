@@ -97,9 +97,18 @@ namespace Nino.Immutable
                 return;
             }
 
+            // Copied out of its tree (HashTrees) in the order its enumerator yields them, and written as an array
+            // (raw elements as one block): the enumerator keeps a pooled stack of nodes and checks it per element.
+            int count = value.Count;
+            if (count != 0 && HashTrees.Usable && SetTree<T>.Copy(value, count) is { } array)
+            {
+                ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
+                return;
+            }
+
             // Element by element with its own (struct) enumerator: through IEnumerable<T>, each step is an
-            // interface call, and copying out to write one block costs more than it saves.
-            writer.WriteLength(value.Count);
+            // interface call.
+            writer.WriteLength(count);
             WriteItems(value, ref writer);
         }
 
@@ -157,9 +166,23 @@ namespace Nino.Immutable
                 return;
             }
 
-            // By reference: the set enumerates exactly Count elements, which the JIT cannot tell.
+            // Copied out of its tree in order (SortedTrees), else with its enumerator, then written as an array.
             int count = value.Count;
+            ImmutableCollections.WriteRented<T, TFormatter>(Copy(value, count), count, ref writer);
+        }
+
+        // Out of line: renting inlines a large path into the caller.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static T[] Copy(ImmutableSortedSet<T> value, int count)
+        {
             var array = ArrayPool<T>.Shared.Rent(count);
+            if (SortedTrees.Usable)
+            {
+                SortedSetTree<T>.CopyTo(value, array);
+                return array;
+            }
+
+            // By reference: the set enumerates exactly Count elements, which the JIT cannot tell.
             ref T slot = ref MemoryMarshal.GetReference(array.AsSpan());
             foreach (var item in value)
             {
@@ -167,7 +190,7 @@ namespace Nino.Immutable
                 slot = ref Unsafe.Add(ref slot, 1);
             }
 
-            ImmutableCollections.WriteRented<T, TFormatter>(array, count, ref writer);
+            return array;
         }
 
         public void Deserialize(ref ImmutableSortedSet<T> value, ref Reader reader)
@@ -269,8 +292,16 @@ namespace Nino.Immutable
                 return;
             }
 
-            // As ImmutableHashSet<T>: key by key with its own enumerator.
-            writer.WriteLength(value.Count);
+            // As ImmutableHashSet<T>'s: copied out of its tree, else key by key with its own enumerator.
+            int count = value.Count;
+            if (count != 0 && HashTrees.Usable && DictionaryTree<TKey, TValue>.Copy(value, count) is { } pairs)
+            {
+                ImmutableCollections.WriteRented<KeyValuePair<TKey, TValue>,
+                    KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(pairs, count, ref writer);
+                return;
+            }
+
+            writer.WriteLength(count);
             WritePairs(value, ref writer);
         }
 
@@ -327,9 +358,23 @@ namespace Nino.Immutable
                 return;
             }
 
-            // By reference, as ImmutableSortedSet<T>'s.
+            // As ImmutableSortedSet<T>'s.
             int count = value.Count;
+            ImmutableCollections.WriteRented<KeyValuePair<TKey, TValue>,
+                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(Copy(value, count), count, ref writer);
+        }
+
+        // Out of line, as ImmutableSortedSet<T>'s.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static KeyValuePair<TKey, TValue>[] Copy(ImmutableSortedDictionary<TKey, TValue> value, int count)
+        {
             var pairs = ArrayPool<KeyValuePair<TKey, TValue>>.Shared.Rent(count);
+            if (SortedTrees.Usable)
+            {
+                SortedDictionaryTree<TKey, TValue>.CopyTo(value, pairs);
+                return pairs;
+            }
+
             ref var slot = ref MemoryMarshal.GetReference(pairs.AsSpan());
             foreach (var pair in value)
             {
@@ -337,8 +382,7 @@ namespace Nino.Immutable
                 slot = ref Unsafe.Add(ref slot, 1);
             }
 
-            ImmutableCollections.WriteRented<KeyValuePair<TKey, TValue>,
-                KeyValuePairFormatter<TKey, TValue, TKeyFormatter, TValueFormatter>>(pairs, count, ref writer);
+            return pairs;
         }
 
         public void Deserialize(ref ImmutableSortedDictionary<TKey, TValue> value, ref Reader reader)
@@ -369,6 +413,12 @@ namespace Nino.Immutable
             where TFormatter : struct, INinoFormatter<T>
         {
             default(ArraySegmentFormatter<T, TFormatter>).Serialize(new ArraySegment<T>(array, 0, count), ref writer);
+            Return(array);
+        }
+
+        /// <summary>Returns a rented array, cleared if it may hold references.</summary>
+        public static void Return<T>(T[] array)
+        {
 #if NETSTANDARD2_0
             ArrayPool<T>.Shared.Return(array, clearArray: true);
 #else

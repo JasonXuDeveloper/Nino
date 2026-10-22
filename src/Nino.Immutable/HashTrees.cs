@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
@@ -133,6 +134,34 @@ namespace Nino.Immutable
             return Make(items, hashes, 0, items.Length - 1, empty, ObjectTypes.TypeOf(empty));
         }
 
+        /// <summary>
+        /// The <paramref name="count"/> items under <paramref name="root"/> in a rented array, in the order the
+        /// collection's enumerator yields them (by hash); null when a bucket holds more than one item, which the
+        /// enumerator is left to.
+        /// </summary>
+        public static TItem[] Copy(Node root, int count)
+        {
+            var array = ArrayPool<TItem>.Shared.Rent(count);
+            int at = 0;
+            if (CopyTo(root, array, ref at))
+                return array;
+            ImmutableCollections.Return(array);
+            return null;
+        }
+
+        private static bool CopyTo(Node node, TItem[] array, ref int at)
+        {
+            // The empty node, under every leaf, has no children.
+            for (; node._left != null; node = node._right)
+            {
+                if (!CopyTo(node._left, array, ref at) || node._value._additionalElements != NoMore)
+                    return false;
+                array[at++] = node._value._firstValue;
+            }
+
+            return true;
+        }
+
         private static Node Make(TItem[] items, int[] hashes, int low, int high, Node empty, IntPtr type)
         {
             if (low > high)
@@ -166,6 +195,14 @@ namespace Nino.Immutable
 #pragma warning restore CS0649, CS0169
 
         public static View ViewOf(ImmutableDictionary<TKey, TValue> dictionary) => Unsafe.As<View>(dictionary);
+
+        /// <summary>
+        /// The <paramref name="count"/> pairs of <paramref name="dictionary"/> in a rented array, as
+        /// <see cref="HashTree{TItem}.Copy"/> copies them, or null.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static KeyValuePair<TKey, TValue>[] Copy(ImmutableDictionary<TKey, TValue> dictionary, int count) =>
+            HashTree<KeyValuePair<TKey, TValue>>.Copy(ViewOf(dictionary)._root, count);
 
         /// <summary>The dictionary of <paramref name="pairs"/> (sorted by hash), or null to build it the usual way.</summary>
         public static ImmutableDictionary<TKey, TValue> Create(KeyValuePair<TKey, TValue>[] pairs)
@@ -208,6 +245,13 @@ namespace Nino.Immutable
 #pragma warning restore CS0649, CS0169
 
         public static View ViewOf(ImmutableHashSet<T> set) => Unsafe.As<View>(set);
+
+        /// <summary>
+        /// The <paramref name="count"/> items of <paramref name="set"/> in a rented array, as
+        /// <see cref="HashTree{TItem}.Copy"/> copies them, or null.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static T[] Copy(ImmutableHashSet<T> set, int count) => HashTree<T>.Copy(ViewOf(set)._root, count);
 
         /// <summary>The set of <paramref name="items"/> (sorted by hash), or null to build it the usual way.</summary>
         public static ImmutableHashSet<T> Create(T[] items)

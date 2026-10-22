@@ -126,6 +126,23 @@ namespace Nino.Immutable
             return Unsafe.As<ImmutableSortedDictionary<TKey, TValue>>(view);
         }
 
+        /// <summary>Copies the pairs of <paramref name="dictionary"/> into <paramref name="array"/> in order.</summary>
+        public static void CopyTo(ImmutableSortedDictionary<TKey, TValue> dictionary, KeyValuePair<TKey, TValue>[] array)
+        {
+            int at = 0;
+            CopyTo(ViewOf(dictionary)._root, array, ref at);
+        }
+
+        private static void CopyTo(Node node, KeyValuePair<TKey, TValue>[] array, ref int at)
+        {
+            // The empty node, under every leaf, has no children.
+            for (; node._left != null; node = node._right)
+            {
+                CopyTo(node._left, array, ref at);
+                array[at++] = new KeyValuePair<TKey, TValue>(node._key, node._value);
+            }
+        }
+
         private static Node Make(KeyValuePair<TKey, TValue>[] pairs, int low, int high, Node empty, IntPtr type)
         {
             if (low > high)
@@ -185,6 +202,22 @@ namespace Nino.Immutable
             view._root = Make(items, 0, items.Length - 1, empty._root, ObjectTypes.TypeOf(empty._root));
             view._comparer = empty._comparer;
             return Unsafe.As<ImmutableSortedSet<T>>(view);
+        }
+
+        /// <summary>Copies the items of <paramref name="set"/> into <paramref name="array"/> in order.</summary>
+        public static void CopyTo(ImmutableSortedSet<T> set, T[] array)
+        {
+            int at = 0;
+            CopyTo(ViewOf(set)._root, array, ref at);
+        }
+
+        private static void CopyTo(Node node, T[] array, ref int at)
+        {
+            for (; node._left != null; node = node._right)
+            {
+                CopyTo(node._left, array, ref at);
+                array[at++] = node._key;
+            }
         }
 
         private static Node Make(T[] items, int low, int high, Node empty, IntPtr type)
