@@ -2,6 +2,8 @@ using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Nino.Core.Internal;
 
@@ -112,18 +114,52 @@ namespace Nino.Core
             local.CopyTo(ref writer);
         }
 
+        /// <summary>
+        /// Each node linked as it is read, and the list's fields set once at the end, where its layout was checked:
+        /// AddLast checks the node, links it in and bumps the count and the version per element (a third of the time
+        /// a list of ints takes to build).
+        /// </summary>
         private static void ReadLinked(LinkedList<T> linked, int length, ref Reader reader)
         {
+            if (!CollectionViews.LinkedList || length == 0 || linked.Count != 0)
+            {
+                reader = AddEach(linked, length, reader);
+                return;
+            }
+
             Reader local = default;
             reader.CopyTo(ref local);
+            LinkedListNode<T> first = null, last = null;
             for (int i = 0; i < length; i++)
             {
                 T item = default;
                 default(TFormatter).Deserialize(ref item, ref local);
+                var node = new LinkedListNode<T>(item);
+                CollectionFields.Append(linked, node, last);
+                if (last == null)
+                    first = node;
+                last = node;
+            }
+
+            CollectionFields.Close(first, last);
+            CollectionFields.Head(linked) = first;
+            CollectionFields.Count(linked) = length;
+            CollectionFields.Version(linked)++;
+            local.CopyTo(ref reader);
+        }
+
+        /// <summary>Through AddLast, where the list's layout is not known.</summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader AddEach(LinkedList<T> linked, int length, Reader reader)
+        {
+            for (int i = 0; i < length; i++)
+            {
+                T item = default;
+                default(TFormatter).Deserialize(ref item, ref reader);
                 linked.AddLast(item);
             }
 
-            local.CopyTo(ref reader);
+            return reader;
         }
 
         /// <summary>
@@ -429,12 +465,214 @@ namespace Nino.Core
         /// </summary>
         public static int Fill<T>(SortedSet<T> set, T[] items, int count)
         {
+            if (SortedSetNodes.Layout != 0 && count != 0 && Increasing(items, count, set.Comparer))
+            {
+                // In order and none twice (as Nino writes them): the tree is built from them as they are.
+                CollectionFields.Root(set) = SortedSetNodes<T>.Build(items, count);
+                CollectionFields.Count(set) = count;
+                CollectionFields.Version(set)++;
+                return count;
+            }
+
             var built = new SortedSet<T>(new ArraySegment<T>(items, 0, count), set.Comparer);
             CollectionFields.Root(set) = CollectionFields.Root(built);
             CollectionFields.Count(set) = built.Count;
             CollectionFields.Version(set)++;
             return built.Count;
         }
+
+        private static bool Increasing<T>(T[] items, int count, IComparer<T> comparer)
+        {
+            for (int i = 1; i < count; i++)
+                if (comparer.Compare(items[i - 1], items[i]) >= 0)
+                    return false;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// The nodes of <see cref="SortedSet{T}"/> (an internal class) made as <see cref="Nino.Core.Internal.ObjectTypes"/>
+    /// makes objects, so a set of items in order is built as its tree directly: the public constructor copies them,
+    /// sorts the copy and drops duplicates first. Each layout below declares the node's fields in the order of a known
+    /// implementation (.NET, Mono and Unity: Item, Left, Right, a byte color; .NET Framework: IsRed, Item, Left,
+    /// Right); the first one a set with known contents reads as built is used, and the public constructor otherwise.
+    /// </summary>
+    [SuppressMessage("ReSharper", "InconsistentNaming")]
+#pragma warning disable CS0649 // laid out only
+    internal static class SortedSetNodes
+    {
+        internal sealed class NodeCore<T>
+        {
+            public T Item;
+            public NodeCore<T> Left;
+            public NodeCore<T> Right;
+            public byte Color; // red: 1
+        }
+
+        internal sealed class NodeFramework<T>
+        {
+            public bool IsRed;
+            public T Item;
+            public NodeFramework<T> Left;
+            public NodeFramework<T> Right;
+        }
+#pragma warning restore CS0649
+
+        /// <summary>1 for <see cref="NodeCore{T}"/>, 2 for <see cref="NodeFramework{T}"/>, 0 for neither.</summary>
+        public static readonly int Layout = ObjectTypes.Usable && CollectionViews.SortedSet ? Find() : 0;
+
+        /// <summary>The offsets of the item, left, right and color (red: 1) of <typeparamref name="T"/>'s node in a layout.</summary>
+        public static int[] Offsets<T>(int layout)
+        {
+            if (layout == 0)
+                return null;
+            if (layout == 1)
+            {
+                var m = new NodeCore<T>();
+                return new[]
+                {
+                    ObjectFields.OffsetOf(m, ref m.Item), ObjectFields.OffsetOf(m, ref m.Left),
+                    ObjectFields.OffsetOf(m, ref m.Right), ObjectFields.OffsetOf(m, ref m.Color)
+                };
+            }
+
+            var f = new NodeFramework<T>();
+            return new[]
+            {
+                ObjectFields.OffsetOf(f, ref f.Item), ObjectFields.OffsetOf(f, ref f.Left),
+                ObjectFields.OffsetOf(f, ref f.Right), ObjectFields.OffsetOf(f, ref f.IsRed)
+            };
+        }
+
+        private static int Find()
+        {
+            for (int layout = 1; layout <= 2; layout++)
+            {
+                try
+                {
+                    if (Check(layout))
+                        return layout;
+                }
+                catch
+                {
+                    // Not this layout.
+                }
+            }
+
+            return 0;
+        }
+
+        private static bool Check(int layout)
+        {
+            // Added in this order, the tree is 2 (black) over 1 and 3 (red) on every implementation. Int fields first
+            // (a reference may sit where another layout has an int, never read as one).
+            var at = Offsets<int>(layout);
+            var root = CollectionFields.Root(new SortedSet<int> { 1, 2, 3 });
+            if (ObjectFields.At<int>(root, at[0]) != 2 || ObjectFields.At<byte>(root, at[3]) != 0)
+                return false;
+            object left = ObjectFields.At<object>(root, at[1]), right = ObjectFields.At<object>(root, at[2]);
+            if (left == null || right == null || ObjectFields.At<int>(left, at[0]) != 1 ||
+                ObjectFields.At<byte>(left, at[3]) != 1 || ObjectFields.At<int>(right, at[0]) != 3 ||
+                ObjectFields.At<byte>(right, at[3]) != 1 || ObjectFields.At<object>(left, at[1]) != null)
+                return false;
+            var strings = Offsets<string>(layout);
+            var stringRoot = CollectionFields.Root(new SortedSet<string>(StringComparer.Ordinal) { "a", "b", "c" });
+            if (ObjectFields.At<byte>(stringRoot, strings[3]) != 0 ||
+                ObjectFields.At<byte>(ObjectFields.At<object>(stringRoot, strings[1]), strings[3]) != 1 ||
+                ObjectFields.At<string>(stringRoot, strings[0]) != "b")
+                return false;
+            return CheckBuilt(layout);
+        }
+
+        /// <summary>The type of <typeparamref name="T"/>'s nodes: the root of a set of one item (added without a comparison).</summary>
+        public static IntPtr TypeOfNodes<T>()
+        {
+            var set = new SortedSet<T>();
+            set.Add(default);
+            return ObjectTypes.TypeOf(CollectionFields.Root(set));
+        }
+
+        /// <summary>
+        /// The root of the red-black tree of <c>items[0..count)</c> (in order, none twice, count not 0), its nodes in
+        /// <paramref name="layout"/> at the offsets <paramref name="at"/> (<see cref="Offsets{T}"/>), of the type
+        /// <paramref name="type"/> (<see cref="TypeOfNodes{T}"/>).
+        /// </summary>
+        public static object Build<T>(T[] items, int count, int layout, int[] at, IntPtr type)
+        {
+            // Halves that differ by at most one item: every leaf is on the last level or the one above it. The last
+            // level is red, the others black: every path from the root to a missing child passes as many black nodes,
+            // and no red node has a red child. A single node, the root, stays black.
+            int last = 0;
+            for (int n = count; n > 1; n >>= 1)
+                last++;
+            return Make(items, 0, count - 1, 0, last == 0 ? -1 : last, layout, at, type);
+        }
+
+        private static object Make<T>(T[] items, int low, int high, int depth, int red, int layout, int[] at, IntPtr type)
+        {
+            if (low > high)
+                return null;
+            int middle = (low + high) >> 1;
+            object node = layout == 1 ? new NodeCore<T>() : new NodeFramework<T>();
+            ObjectTypes.Retype(node, type);
+            ObjectFields.At<T>(node, at[0]) = items[middle];
+            ObjectFields.At<object>(node, at[1]) = Make(items, low, middle - 1, depth + 1, red, layout, at, type);
+            ObjectFields.At<object>(node, at[2]) = Make(items, middle + 1, high, depth + 1, red, layout, at, type);
+            if (depth == red)
+                ObjectFields.At<byte>(node, at[3]) = 1;
+            return node;
+        }
+
+        /// <summary>Built as Nino builds it, a set works through its public API: lookups, order, adds and removes.</summary>
+        private static bool CheckBuilt(int layout)
+        {
+            var items = new string[40];
+            for (int i = 0; i < items.Length; i++)
+                items[i] = "s" + (i + 10).ToString(CultureInfo.InvariantCulture);
+            var set = new SortedSet<string>(StringComparer.Ordinal);
+            CollectionFields.Root(set) = Build(items, items.Length, layout, Offsets<string>(layout),
+                TypeOfNodes<string>());
+            CollectionFields.Count(set) = items.Length;
+            CollectionFields.Version(set)++;
+            int at = 0;
+            foreach (var item in set)
+                if (item != items[at++])
+                    return false;
+            if (at != 40 || set.Min != "s10" || set.Max != "s49" || !set.Contains("s33") || set.Contains("s50") ||
+                set.GetViewBetween("s20", "s29").Count != 10)
+                return false;
+            for (int i = 0; i < 40; i += 2)
+                set.Remove(items[i]);
+            for (int i = 50; i < 70; i++)
+                set.Add("s" + i.ToString(CultureInfo.InvariantCulture));
+            at = 0;
+            string previous = null;
+            foreach (var item in set)
+            {
+                if (previous != null && string.CompareOrdinal(previous, item) >= 0)
+                    return false;
+                previous = item;
+                at++;
+            }
+
+            return at == 40 && set.Count == 40 && set.Min == "s11" && set.Max == "s69" && !set.Contains("s10") &&
+                   set.Contains("s49");
+        }
+    }
+
+    /// <summary>
+    /// The nodes of <see cref="SortedSet{T}"/> for one <typeparamref name="T"/> in the layout
+    /// <see cref="SortedSetNodes"/> found. Read only once that is known: the check builds sets of its own through
+    /// <see cref="SortedSetNodes.Build{T}"/>, which keeps nothing.
+    /// </summary>
+    internal static class SortedSetNodes<T>
+    {
+        private static readonly int[] At = SortedSetNodes.Offsets<T>(SortedSetNodes.Layout);
+        private static readonly IntPtr Type = SortedSetNodes.Layout != 0 ? SortedSetNodes.TypeOfNodes<T>() : IntPtr.Zero;
+
+        /// <summary>The root of the red-black tree of <c>items[0..count)</c> (in order, none twice, count not 0).</summary>
+        public static object Build(T[] items, int count) =>
+            SortedSetNodes.Build(items, count, SortedSetNodes.Layout, At, Type);
     }
 
     internal static partial class NinoCollections

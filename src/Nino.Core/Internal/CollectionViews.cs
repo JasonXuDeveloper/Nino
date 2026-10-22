@@ -46,7 +46,7 @@ namespace Nino.Core.Internal
 
     /// <summary>
     /// Where the fields of <see cref="List{T}"/>, <see cref="Stack{T}"/>, <see cref="Queue{T}"/>,
-    /// <see cref="HashSet{T}"/>, <see cref="Dictionary{TKey,TValue}"/>,
+    /// <see cref="LinkedList{T}"/>, <see cref="HashSet{T}"/>, <see cref="Dictionary{TKey,TValue}"/>,
     /// <see cref="SortedList{TKey,TValue}"/>, <see cref="SortedSet{T}"/> and
     /// <see cref="SortedDictionary{TKey,TValue}"/> are on this runtime, for <see cref="CollectionFields"/>. Each
     /// layout is one of the classes below, which declare the fields of a known implementation in its order (.NET; .NET
@@ -134,6 +134,23 @@ namespace Nino.Core.Internal
             public int version;
             public object _syncRoot;
             public object siInfo;
+        }
+
+        private sealed class LinkedListCore
+        {
+            public object head;
+            public int count;
+            public int version;
+            public object _siInfo;
+        }
+
+        private sealed class LinkedListFramework
+        {
+            public object head;
+            public int count;
+            public int version;
+            public object _syncRoot;
+            public object _siInfo;
         }
 
         private sealed class SortedDictionaryAny
@@ -314,6 +331,24 @@ namespace Nino.Core.Internal
 
         public static readonly bool SortedDictionary = SortedDictionaryLayout != null;
         public static readonly int SortedDictionarySet = SortedDictionary ? SortedDictionaryLayout[0] : 0;
+
+        // LinkedList<T>: head, count, version; its nodes: LinkedNode<T> (list, next, prev, item, the same everywhere).
+        private static readonly int[] LinkedListLayout = Find(CheckLinkedList,
+            () =>
+            {
+                var m = new LinkedListCore();
+                return Offsets(m, ref m.head, ref m.count, ref m.version);
+            },
+            () =>
+            {
+                var m = new LinkedListFramework();
+                return Offsets(m, ref m.head, ref m.count, ref m.version);
+            });
+
+        public static readonly bool LinkedList = LinkedListLayout != null;
+        public static readonly int LinkedListHead = LinkedList ? LinkedListLayout[0] : 0;
+        public static readonly int LinkedListCount = LinkedList ? LinkedListLayout[1] : 0;
+        public static readonly int LinkedListVersion = LinkedList ? LinkedListLayout[2] : 0;
 
         // HashSet<T>: entries, bound (the entries in use, live or free), version.
         private static readonly int[] HashSetLayout = Find(CheckHashSet,
@@ -516,6 +551,60 @@ namespace Nino.Core.Internal
                    target.Count == 3;
         }
 
+        private static bool CheckLinkedList(int[] at)
+        {
+            var list = new LinkedList<int>();
+            for (int i = 0; i < 4; i++)
+                list.AddLast(i); // version 4
+            if (ObjectFields.At<int>(list, at[1]) != 4 || ObjectFields.At<int>(list, at[2]) != 4 ||
+                !ObjectFields.Holds(list, at[0], list.First) || !CheckLinkedNode(list.First, list, 0) ||
+                !CheckLinkedNode(list.Last, list, 3))
+                return false;
+            var strings = new LinkedList<string>();
+            strings.AddLast("a");
+            strings.AddLast("b");
+            if (!CheckLinkedNode(strings.First, strings, "a"))
+                return false;
+
+            // Built as Nino builds it: the list works through its public API.
+            var built = new LinkedList<string>();
+            LinkedListNode<string> first = null, last = null;
+            for (int i = 0; i < 40; i++)
+            {
+                var node = new LinkedListNode<string>("n" + i);
+                CollectionFields.Append(built, node, last);
+                first ??= node;
+                last = node;
+            }
+            ObjectFields.At<LinkedListNode<string>>(built, at[0]) = first;
+            ObjectFields.At<int>(built, at[1]) = 40;
+            ObjectFields.At<int>(built, at[2])++;
+            CollectionFields.Close(first, last);
+            int seen = 0;
+            foreach (var item in built)
+                if (item != "n" + seen++)
+                    return false;
+            built.Remove("n5");
+            built.AddLast("n40");
+            built.AddFirst("n41");
+            return seen == 40 && built.Count == 41 && built.First.Value == "n41" && built.Last.Value == "n40" &&
+                   built.Last.Previous.Value == "n39" && built.Find("n6").Previous.Value == "n4" &&
+                   built.Find("n0").List == built && built.First.Previous == null && built.Last.Next == null;
+        }
+
+        /// <summary>Whether <paramref name="node"/>, read as a <see cref="CollectionFields.LinkedNode{T}"/>, holds what it holds.</summary>
+        private static bool CheckLinkedNode<T>(LinkedListNode<T> node, LinkedList<T> list, T item)
+        {
+            var m = new CollectionFields.LinkedNode<T>();
+            // References compared as addresses first: an item that is not one is never read as one.
+            if (!ObjectFields.Holds(node, ObjectFields.OffsetOf(m, ref m.list), list) ||
+                !ObjectFields.Holds(node, ObjectFields.OffsetOf(m, ref m.next), node.Next ?? list.First) ||
+                !ObjectFields.Holds(node, ObjectFields.OffsetOf(m, ref m.prev), node.Previous ?? list.Last))
+                return false;
+            return EqualityComparer<T>.Default.Equals(ObjectFields.At<T>(node, ObjectFields.OffsetOf(m, ref m.item)),
+                item);
+        }
+
         private static bool CheckHashSet(int[] at)
         {
             // Four entries in use, one of them free: bound 4, count 3, version 4 or 5 (Remove bumps it on some).
@@ -671,6 +760,58 @@ namespace Nino.Core.Internal
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref int Version<T>(SortedSet<T> set) =>
             ref ObjectFields.At<int>(set, CollectionViews.SortedSetVersion);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref LinkedListNode<T> Head<T>(LinkedList<T> list) =>
+            ref ObjectFields.At<LinkedListNode<T>>(list, CollectionViews.LinkedListHead);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref int Count<T>(LinkedList<T> list) =>
+            ref ObjectFields.At<int>(list, CollectionViews.LinkedListCount);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static ref int Version<T>(LinkedList<T> list) =>
+            ref ObjectFields.At<int>(list, CollectionViews.LinkedListVersion);
+
+        /// <summary>
+        /// <see cref="LinkedListNode{T}"/>'s fields, in its order on every known implementation (checked by
+        /// <see cref="CollectionViews"/>): the list, then the next and previous nodes (a ring: the last node's next is
+        /// the first), then the item.
+        /// </summary>
+        [SuppressMessage("ReSharper", "InconsistentNaming")]
+        internal sealed class LinkedNode<T>
+        {
+#pragma warning disable CS0649 // read through Unsafe.As
+            public LinkedList<T> list;
+            public LinkedListNode<T> next;
+            public LinkedListNode<T> prev;
+            public T item;
+#pragma warning restore CS0649
+        }
+
+        /// <summary>
+        /// Links <paramref name="node"/> (new) into <paramref name="list"/> after <paramref name="last"/> (null: as the
+        /// first). The list's own fields are set at the end, by the caller and <see cref="Close{T}"/>.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Append<T>(LinkedList<T> list, LinkedListNode<T> node, LinkedListNode<T> last)
+        {
+            var m = Unsafe.As<LinkedNode<T>>(node);
+            m.list = list;
+            if (last != null)
+            {
+                m.prev = last;
+                Unsafe.As<LinkedNode<T>>(last).next = node;
+            }
+        }
+
+        /// <summary>Closes the ring of nodes <see cref="Append{T}"/> linked.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Close<T>(LinkedListNode<T> first, LinkedListNode<T> last)
+        {
+            Unsafe.As<LinkedNode<T>>(first).prev = last;
+            Unsafe.As<LinkedNode<T>>(last).next = first;
+        }
 
         /// <summary>The set of the dictionary's pairs, ordered by key.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

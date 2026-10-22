@@ -57,7 +57,8 @@ every method it lists. What has gone wrong before:
   known contents at startup and uses the public API when none matches; run the tests on .NET, the `net472` build under
   Mono and the `linux-arm` and `linux-arm64` builds under qemu, and keep the fallback (the enumerator) out of line.
 - Building a runtime's own objects without its public API (`Nino.Immutable/HashTrees.cs`: an `ImmutableDictionary`
-  or `ImmutableHashSet` built as its tree, instead of one builder `Add` at a time): one way for every runtime where
+  or `ImmutableHashSet` built as its tree, instead of one builder `Add` at a time; `SortedSetNodes` in Nino.Core: a
+  `SortedSet<T>`'s red-black tree; `ReadLinked`: a `LinkedList<T>`'s ring of nodes): one way for every runtime where
   one works, and a separate way per runtime (behind `#if` or a startup check) only where none does. What works
   everywhere so far:
   - Mirror classes that declare the fields of the real class in its order, read and written through `Unsafe.As`:

@@ -1,12 +1,13 @@
 using System;
 using System.Runtime.CompilerServices;
 
-namespace Nino.Immutable
+namespace Nino.Core.Internal
 {
     /// <summary>
     /// Objects of a runtime's own classes made from instances of mirror classes, classes that declare the same fields in
-    /// the same order (<see cref="HashTrees"/>, <see cref="SortedTrees"/>): allocated with <c>new</c>, then given the
-    /// real type.
+    /// the same order (the nodes of <c>SortedSet&lt;T&gt;</c>, the immutable trees of Nino.Immutable): allocated with
+    /// <c>new</c>, then given the real type. Compiled into Nino.Core and Nino.Immutable each, as internal code of
+    /// both, so neither depends on the other's internals.
     /// </summary>
     internal static class ObjectTypes
     {
@@ -34,7 +35,6 @@ namespace Nino.Immutable
             public byte Data;
 #pragma warning restore CS0649, CS0169
         }
-
 
         private static int FindHeader()
         {
