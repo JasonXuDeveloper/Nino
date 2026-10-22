@@ -59,6 +59,10 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 - **Fast to build.** The generator is incremental: one file per type, and only the type you edit is
   re-generated. Compared with v3, the generated code is 14× smaller and compiles 51× (330 types) to 221× (1,100 types) faster.
 - **Thread-safe.** Serialize and deserialize from any number of threads, with no locks on the hot path.
+- **Polymorphism without tags.** A value declared as a base class or interface (abstract or not, generic or not)
+  is read back as its runtime type. Type ids are derived from type names, so there is no tag table to maintain, and
+  subtypes in other assemblies (plugins, HybridCLR hot updates) are found on their own.
+  [Polymorphism](https://nino.xgamedev.net/en/docs/v4/polymorphism).
 - **Data that evolves.** Version tolerance, keyed members, and reference tracking for shared references and
   cycles. All are opt-in per type, so types that don't use them pay nothing.
 - **One format everywhere.** `netstandard2.0`, `netstandard2.1`, `net8.0` and `net10.0` write identical bytes on
@@ -79,7 +83,7 @@ messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.
 |---|---|
 | ⚙️ **[Services & IPC](https://nino.xgamedev.net/en/docs/v4/advanced/high-performance)** | Compact binary payloads, no per-call allocations, and safe concurrent use from ASP.NET Core, workers and actors. [Nino.AspNetCore](https://nino.xgamedev.net/en/docs/v4/advanced/aspnetcore) reads and writes `application/x-nino` bodies in MVC and Minimal APIs. |
 | 🧩 **[Web & Node clients](https://nino.xgamedev.net/en/docs/v4/advanced/typescript)** | [Nino.TypeScript](https://nino.xgamedev.net/en/docs/v4/advanced/typescript) generates TypeScript classes and codecs for your `[NinoType]`s after each build, so browsers and Node read and write the same bytes as .NET. |
-| 🌐 **[RPC & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)** | Serialize straight into an `IBufferWriter<byte>` (a `PipeWriter`, a pooled buffer), deserialize from a `ReadOnlySpan<byte>`, and reuse pooled message objects. Polymorphic messages need no tags. |
+| 🌐 **[RPC & networking](https://nino.xgamedev.net/en/docs/v4/advanced/networking)** | Serialize straight into an `IBufferWriter<byte>` (a `PipeWriter`, a pooled buffer), deserialize from a `ReadOnlySpan<byte>`, and reuse pooled message objects. Polymorphic messages need no tags, and a crafted message throws one exception instead of taking the server down. |
 | 📨 **[Message queues & event streams](https://nino.xgamedev.net/en/docs/v4/advanced/message-queues)** | Polymorphic event types behind one base type, small payloads, and formats that let producers and consumers upgrade at different times. |
 | 🗄️ **[Caching](https://nino.xgamedev.net/en/docs/v4/advanced/caching)** | Values for Redis, `IDistributedCache`/`HybridCache` or in-process caches, with schema changes across deployments. |
 | 💾 **[Persistence & storage](https://nino.xgamedev.net/en/docs/v4/advanced/persistence)** | Version tolerance and keyed members let you add, reorder and remove fields across releases. Reference tracking keeps object graphs with shared references and cycles. |
@@ -178,14 +182,15 @@ networking, ASP.NET Core, TypeScript clients, message queues, caching, persisten
 | Raw struct arrays | at least on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
 | Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->11.5<!--/bench-->× faster** (in place) | overwrite mode, allocates |
 | Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only, per its README |
-| Polymorphism | automatic type ids | `[MemoryPackUnion]` tags you maintain |
+| Polymorphism | automatic type ids, any base class or interface, generic bases included | `[MemoryPackUnion]` tags you maintain, on interfaces and abstract classes, not on generic types |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
-| Unity | 2022.3+, `netstandard2.0` and `2.1`, HybridCLR | `netstandard2.1` |
+| Unity | 2022.3+ from OpenUPM, `netstandard2.0` and `2.1`, HybridCLR | 2022.3.12f1+, `netstandard2.1` |
 
 MemoryPack still has `System.Type` (left out of Nino on purpose: data that names the types to create is an attack
 vector). Nino.TypeScript generates TypeScript from the layouts the formatters are generated from, after each build,
 structs and version-tolerant types included
-([compared with MemoryPack's](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#compared-with-memorypack)),
+([compared with MemoryPack's](https://nino.xgamedev.net/en/docs/v4/advanced/typescript#compared-with-memorypack),
+which its README says will be removed in its next release),
 and Nino.AspNetCore adds MVC formatters and Minimal API bodies; browser clients can also run the same C# types on
 [.NET WebAssembly](https://nino.xgamedev.net/en/docs/v4/advanced/browser). Streams, async I/O, multi-segment
 `ReadOnlySequence<byte>` input, callbacks and compression are a few lines around Nino's `IBufferWriter<byte>` and
@@ -206,8 +211,10 @@ v4 is a rewrite of the runtime and the generator. **Its binary format is not com
 | Running the generator | **3.1× faster**; after an edit, only that type is re-generated (**8.3× faster**) |
 | Generated code | **14× smaller** source, **5× smaller** IL |
 
-New in v4, through 4.0.0-rc.6:
+New in v4, through 4.0.0-rc.7:
 
+- **Untrusted data** (rc.7): bounded allocation (at most 16× the bytes left ahead of the elements) and stack depth,
+  one `InvalidOperationException` for every invalid input, checked with fuzzed and hand-crafted payloads.
 - **Formats**: version-tolerant and keyed types, reference tracking, and the wire layout of every type published as
   `[assembly: NinoTypeLayout]` metadata, so a change in the bytes shows up between builds.
 - **Allocation**: reuse deserialization into existing objects, `[NinoPooled]` pools, `[NinoFactory]`, and
@@ -226,7 +233,7 @@ New in v4, through 4.0.0-rc.6:
   UTF-16, and `[NinoUtf8]` writes UTF-8 per member.
 - **Integrations**: Nino.AspNetCore (MVC formatters, Minimal API `NinoBody<T>` and `NinoResults`) and Nino.TypeScript
   (TypeScript classes and codecs for browsers and Node, generated after each build).
-- **Tooling**: an incremental generator and 26 analyzers (NINO001–NINO026) with code fixes.
+- **Tooling**: an incremental generator and 26 analyzers (NINO001–NINO026) with code fixes, in Unity too.
 
 See [what's new](https://nino.xgamedev.net/en/docs/v4/whats-new), the
 [changelog](https://nino.xgamedev.net/en/docs/v4/changelog) and the
