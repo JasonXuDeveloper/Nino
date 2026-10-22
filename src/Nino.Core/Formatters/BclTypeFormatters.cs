@@ -344,7 +344,18 @@ namespace Nino.Core
 
             // A new array is left uninitialized only when the read copies it in whole.
             if (value.Length != length)
+            {
+                // Out of line where the elements take far more memory than the data (see ArrayFormatter).
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                {
+                    T[] grown = null;
+                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref grown, length, reader);
+                    value = grown;
+                    return;
+                }
+
                 value = NinoUnsafe.NewArray<T>(length, NinoElements.CopiedWhole<T, TFormatter>());
+            }
             NinoElements.Read<T, TFormatter>(value.Span, ref reader);
         }
     }
@@ -419,7 +430,7 @@ namespace Nino.Core
 
         public void Deserialize(ref IGrouping<TKey, TElement> value, ref Reader reader)
         {
-            int count = reader.ReadLength();
+            int count = reader.ReadLength(NinoElements.MinWireSize<TElement, TElementFormatter>());
             if (count < 0)
             {
                 value = null;
@@ -434,9 +445,21 @@ namespace Nino.Core
         {
             TKey key = default;
             default(TKeyFormatter).Deserialize(ref key, ref reader);
-            var elements = NinoUnsafe.NewArray<TElement>(count,
-                NinoElements.CopiedWhole<TElement, TElementFormatter>());
-            NinoElements.Read<TElement, TElementFormatter>(elements, ref reader);
+            TElement[] elements;
+            if (Unsafe.SizeOf<TElement>() <= NinoElements.Amplification ||
+                !NinoElements.HeavyElements<TElement, TElementFormatter>.Value)
+            {
+                elements = NinoUnsafe.NewArray<TElement>(count,
+                    NinoElements.CopiedWhole<TElement, TElementFormatter>());
+                NinoElements.Read<TElement, TElementFormatter>(elements, ref reader);
+            }
+            else
+            {
+                // Out of line, grown as they are read where the data could not fill as many (see ArrayFormatter).
+                elements = null;
+                reader = NinoElements.ReadGrowing<TElement, TElementFormatter>(ref elements, count, reader);
+            }
+
             return new NinoGrouping<TKey, TElement>(key, elements);
         }
     }
@@ -464,17 +487,25 @@ namespace Nino.Core
 
         public void Deserialize(ref ILookup<TKey, TElement> value, ref Reader reader)
         {
-            int count = reader.ReadLength();
+            // Each grouping starts with its element count.
+            int count = reader.ReadLength(NinoWire.LengthSize);
             if (count < 0)
             {
                 value = null;
                 return;
             }
 
-            var lookup = new NinoLookup<TKey, TElement>(count);
+            // The groupings by key in a dictionary sized for them, unless its entries would take far more memory
+            // than the data (a large key): then it grows as they are added.
+            var lookup = new NinoLookup<TKey, TElement>(count,
+                Unsafe.SizeOf<KeyValuePair<TKey, object>>() + NinoElements.HashSlot >
+                NinoElements.Amplification * NinoWire.LengthSize
+                    ? NinoElements.Capacity(count, Unsafe.SizeOf<KeyValuePair<TKey, object>>() + NinoElements.HashSlot,
+                        reader.Remaining)
+                    : count);
             for (int i = 0; i < count; i++)
             {
-                int length = reader.ReadLength();
+                int length = reader.ReadLength(NinoElements.MinWireSize<TElement, TElementFormatter>());
                 if (length < 0)
                     NinoThrow.InvalidLength(length);
                 lookup.Add(GroupingFormatter<TKey, TElement, TKeyFormatter, TElementFormatter>.Read(length, ref reader));
@@ -540,9 +571,9 @@ namespace Nino.Core
         private NinoGrouping<TKey, TElement> _nullKey; // a Dictionary takes no null key; a lookup does
         private int _count;
 
-        public NinoLookup(int capacity)
+        public NinoLookup(int count, int capacity)
         {
-            _groupings = new NinoGrouping<TKey, TElement>[capacity];
+            _groupings = new NinoGrouping<TKey, TElement>[count];
             _byKey = new Dictionary<TKey, NinoGrouping<TKey, TElement>>(capacity);
         }
 

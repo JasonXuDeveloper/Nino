@@ -51,6 +51,131 @@ namespace Nino.Core
             // lookup).
             NinoUnsafe.IsReferenceOrContainsReferences<T>() ? 1 : Traits<T, TFormatter>.MinWireSize;
 
+        /// <summary>
+        /// The most memory a collection read allocates ahead of its elements, per byte of data left. A count is
+        /// checked against the bytes left with the fewest bytes an element takes (<see cref="MinWireSize"/>), but an
+        /// element can take far more memory than that: a list of 520-byte structs of a byte each on the wire, sized
+        /// for the count, allocated 520 times the data. Where the slots would take more, a collection is grown as its
+        /// elements are read (<see cref="ReadGrowing{T,TFormatter}"/>) or its capacity clamped
+        /// (<see cref="Capacity"/>): what it allocates beyond this bound is then at most 4 times the memory of the
+        /// elements actually read.
+        /// </summary>
+        public const int Amplification = 16;
+
+        /// <summary>
+        /// What a collection may allocate ahead of its elements however few bytes are left, so that a small
+        /// collection of large elements is sized for its count as before.
+        /// </summary>
+        public const int PresizeFloor = 16 << 10;
+
+        /// <summary>
+        /// Bytes a hash set or dictionary takes per element beyond the element (or pair): its entry's hash code and
+        /// next index, and its bucket.
+        /// </summary>
+        public const int HashSlot = 3 * sizeof(int);
+
+        /// <summary>
+        /// Whether slots of <paramref name="slotSize"/> bytes, each read from at least <paramref name="minWire"/>
+        /// bytes, can take more than <see cref="Amplification"/> bytes of memory per byte of data: then a collection of
+        /// them checks its count against the bound before it sizes itself for it (<see cref="Capacity"/>,
+        /// <see cref="ReadGrowing{T,TFormatter}"/>). Otherwise the count check bounds them already (references, raw
+        /// elements, small structs). A JIT-time constant where the sizes are: the check in the formatters is this
+        /// test and an out-of-line call, so that types for which it is false compile and inline as before.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Heavy(int slotSize, int minWire) => slotSize > Amplification * minWire;
+
+        /// <summary>
+        /// <see cref="Heavy(int, int)"/> for the elements of an array or a list (<see cref="MinWireSize"/>), as a
+        /// static field: the formatters test <c>Unsafe.SizeOf&lt;T&gt;() &gt; Amplification &amp;&amp;
+        /// HeavyElements&lt;T, TFormatter&gt;.Value</c>, an intrinsic and a field the JIT folds while it imports the
+        /// method (no load of the field in shared code for references, whose slots are 8 bytes), so the branch is not
+        /// compiled where it is false. A method returning the same (an inlined call) left it compiled: the array slot
+        /// it passes by reference was kept in memory, and what else the read inlines changed.
+        /// </summary>
+        internal static class HeavyElements<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
+        {
+            public static readonly bool Value = Heavy(Unsafe.SizeOf<T>(), MinWireSize<T, TFormatter>());
+        }
+
+        /// <summary>
+        /// The fewest bytes an element of a hash set takes, which its count is checked with: raw elements their
+        /// size, a string its 4-byte header, others 1. A JIT-time constant.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int MinHashedSize<T, TFormatter>() where TFormatter : struct, INinoFormatter<T> =>
+            RawFormatter.Is<T, TFormatter>() ? Unsafe.SizeOf<T>()
+            : typeof(TFormatter) == typeof(StringFormatter) ? NinoWire.LengthSize
+            : 1;
+
+        /// <summary>
+        /// <see cref="Heavy(int, int)"/> for a hash set's entries (<see cref="HashSlot"/> bytes beyond the element,
+        /// <see cref="MinHashedSize{T,TFormatter}"/>), as <see cref="HeavyElements{T,TFormatter}"/>.
+        /// </summary>
+        internal static class HeavyHashed<T, TFormatter> where TFormatter : struct, INinoFormatter<T>
+        {
+            public static readonly bool Value = Heavy(Unsafe.SizeOf<T>() + HashSlot, MinHashedSize<T, TFormatter>());
+        }
+
+        /// <summary>
+        /// Whether <paramref name="length"/> slots of <paramref name="slotSize"/> bytes fit
+        /// <see cref="Amplification"/> bytes per byte left (or <see cref="PresizeFloor"/>).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Fits(int length, int slotSize, int remaining) =>
+            (ulong)(uint)length * (uint)slotSize <= Budget(remaining);
+
+        /// <summary>
+        /// The capacity to give a collection of <see cref="Heavy(int, int)"/> slots that grows as it is filled, for
+        /// <paramref name="length"/> elements: the length where they <see cref="Fits"/>, else what fits the bound.
+        /// Out of line: called only for such slots.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static int Capacity(int length, int slotSize, int remaining) =>
+            Fits(length, slotSize, remaining) ? length : Clamped(slotSize, remaining);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong Budget(int remaining) =>
+            Math.Max((ulong)(uint)remaining * Amplification, PresizeFloor);
+
+        /// <summary>
+        /// The slots of <paramref name="slotSize"/> bytes that fit the bound (at least one); fewer than a length that
+        /// does not <see cref="Fits"/>.
+        /// </summary>
+        internal static int Clamped(int slotSize, int remaining) =>
+            (int)Math.Max(Budget(remaining) / (uint)Math.Max(slotSize, 1), 1);
+
+        /// <summary>
+        /// Reads <paramref name="length"/> elements into <paramref name="array"/>, as
+        /// <see cref="ArrayFormatter{T,TFormatter}"/> does, for <see cref="HeavyElements{T,TFormatter}"/> elements: an
+        /// existing array of that length is read in place, a new one of that length where it <see cref="Fits"/>;
+        /// otherwise the array starts at what fits the bound (or the existing one's length) and doubles as its
+        /// elements are read (<see cref="EnsureLength{T}"/> moves them over), to exactly <paramref name="length"/>.
+        /// Data claiming more elements than it holds then fails after allocating at most 4 times the memory of the
+        /// elements it held. The reader by value and returned, as ReadEach's.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static Reader ReadGrowing<T, TFormatter>(scoped ref T[] array, int length, Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var current = array;
+            int count = current != null && current.Length == length ||
+                        Fits(length, Unsafe.SizeOf<T>(), reader.Remaining)
+                ? length
+                : Math.Min(length, Math.Max(Clamped(Unsafe.SizeOf<T>(), reader.Remaining),
+                    current == null ? 0 : current.Length));
+            int done = 0;
+            while (true)
+            {
+                var items = EnsureLength(ref array, count);
+                Read<T, TFormatter>(new Span<T>(items, done, count - done), ref reader);
+                if (count == length)
+                    return reader;
+                done = count;
+                count = (int)Math.Min(length, 2L * count);
+            }
+        }
+
         // The checks above as fields: one load each, where every check they combine was an inlined call, and the
         // JIT counts those against what else it inlines into the method (an ImmutableDictionary<int, int> read ran
         // out, and kept its reader in memory).
@@ -353,6 +478,14 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
+            // Elements far larger in memory than on the wire: out of line, grown as they are read where the data
+            // could not fill as many. A constant false for the others, and nothing compiled.
+            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+            {
+                reader = NinoElements.ReadGrowing<T, TFormatter>(ref value, length, reader);
+                return;
+            }
+
             NinoElements.Read<T, TFormatter>(
                 NinoElements.EnsureLength(ref value, length, NinoElements.CopiedWhole<T, TFormatter>(),
                     NinoElements.ReadOverwrites<T, TFormatter>()), ref reader);
@@ -637,7 +770,7 @@ namespace Nino.Core
 
         public void Deserialize(ref T[,] value, ref Reader reader)
         {
-            if (!MultiDim.TryReadShape(ref reader, 2, out var shape))
+            if (!MultiDim.TryReadShape(ref reader, 2, NinoElements.MinWireSize<T, TFormatter>(), out var shape))
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -646,6 +779,18 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, in shape))
             {
+                // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
+                // (grown as they are read), the array of this shape made once they are.
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                {
+                    T[] items = null;
+                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
+                    array = new T[shape.A, shape.B];
+                    MultiDim.Fill(items, ref array[0, 0]);
+                    NinoRecycler.Replace(ref value, array);
+                    return;
+                }
+
                 array = new T[shape.A, shape.B];
                 NinoRecycler.Replace(ref value, array);
             }
@@ -670,7 +815,7 @@ namespace Nino.Core
 
         public void Deserialize(ref T[,,] value, ref Reader reader)
         {
-            if (!MultiDim.TryReadShape(ref reader, 3, out var shape))
+            if (!MultiDim.TryReadShape(ref reader, 3, NinoElements.MinWireSize<T, TFormatter>(), out var shape))
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -679,6 +824,18 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, in shape))
             {
+                // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
+                // (grown as they are read), the array of this shape made once they are.
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                {
+                    T[] items = null;
+                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
+                    array = new T[shape.A, shape.B, shape.C];
+                    MultiDim.Fill(items, ref array[0, 0, 0]);
+                    NinoRecycler.Replace(ref value, array);
+                    return;
+                }
+
                 array = new T[shape.A, shape.B, shape.C];
                 NinoRecycler.Replace(ref value, array);
             }
@@ -703,7 +860,7 @@ namespace Nino.Core
 
         public void Deserialize(ref T[,,,] value, ref Reader reader)
         {
-            if (!MultiDim.TryReadShape(ref reader, 4, out var shape))
+            if (!MultiDim.TryReadShape(ref reader, 4, NinoElements.MinWireSize<T, TFormatter>(), out var shape))
             {
                 NinoRecycler.Discard(ref value);
                 return;
@@ -712,6 +869,18 @@ namespace Nino.Core
             var array = value;
             if (!MultiDim.SameShape(array, in shape))
             {
+                // Elements far larger in memory than on the wire (NinoElements.Heavy): read into an array first
+                // (grown as they are read), the array of this shape made once they are.
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                {
+                    T[] items = null;
+                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, shape.Total, reader);
+                    array = new T[shape.A, shape.B, shape.C, shape.D];
+                    MultiDim.Fill(items, ref array[0, 0, 0, 0]);
+                    NinoRecycler.Replace(ref value, array);
+                    return;
+                }
+
                 array = new T[shape.A, shape.B, shape.C, shape.D];
                 NinoRecycler.Replace(ref value, array);
             }
@@ -742,10 +911,11 @@ namespace Nino.Core
         /// <summary>
         /// Reads the <paramref name="rank"/> lengths (false when the first is -1, for null) and checks them: rejects
         /// negative lengths, lengths no array can have and more elements than bytes left (every element takes at
-        /// least one byte). The first length alone is not checked against the remaining bytes: another dimension
-        /// may be 0, so a single length says nothing about the payload.
+        /// least <paramref name="minElementSize"/> bytes, <see cref="NinoElements.MinWireSize{T,TFormatter}"/>). The
+        /// first length alone is not checked against the remaining bytes: another dimension may be 0, so a single
+        /// length says nothing about the payload.
         /// </summary>
-        public static bool TryReadShape(ref Reader reader, int rank, out ArrayShape shape)
+        public static bool TryReadShape(ref Reader reader, int rank, int minElementSize, out ArrayShape shape)
         {
             shape = new ArrayShape { B = 1, C = 1, D = 1 };
             if (!reader.TryReadLength(0, out shape.A))
@@ -766,10 +936,23 @@ namespace Nino.Core
             // dimensions of 2^29 wrap around to 0). An empty array too: the runtime rejects one whose leading
             // dimensions multiply past 2^32 (CoreCLR: OutOfMemoryException for 65536 x 65536 x 0).
             long total = a;
-            if ((total *= b) > uint.MaxValue || (total *= c) > uint.MaxValue || (total *= d) > reader.Remaining)
+            // The last product times the fewest bytes an element takes (NinoElements.MinWireSize, under 2^31):
+            // under 2^63.
+            if ((total *= b) > uint.MaxValue || (total *= c) > uint.MaxValue || (total *= d) > uint.MaxValue ||
+                total * minElementSize > reader.Remaining)
                 NinoThrow.InvalidLength((int)Math.Min(total, int.MaxValue));
             shape.Total = (int)total;
             return true;
+        }
+
+        /// <summary>
+        /// Copies <paramref name="items"/> into the elements of a multidimensional array starting at
+        /// <paramref name="first"/>, as many as it holds.
+        /// </summary>
+        public static void Fill<T>(T[] items, ref T first)
+        {
+            for (int i = 0; i < items.Length; i++)
+                Unsafe.Add(ref first, i) = items[i];
         }
 
         /// <summary>Whether <paramref name="array"/> is not null and of <paramref name="shape"/>.</summary>

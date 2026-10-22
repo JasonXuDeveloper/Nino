@@ -755,6 +755,13 @@ namespace Nino.Core
         public static T[] ReadRented<T, TFormatter>(int length, ref Reader reader)
             where TFormatter : struct, INinoFormatter<T>
         {
+            // Elements far larger in memory than on the wire (NinoElements.HeavyElements): out of line.
+            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+            {
+                reader = ReadRentedHeavy<T, TFormatter>(out var rented, length, reader);
+                return rented;
+            }
+
             var array = ArrayPool<T>.Shared.Rent(length);
             var span = new Span<T>(array, 0, length);
             // Over default values: a rented array holds old ones (unless every element is overwritten).
@@ -771,6 +778,22 @@ namespace Nino.Core
             }
 
             return array;
+        }
+
+        /// <summary>
+        /// <see cref="ReadRented{T,TFormatter}"/> of elements far larger in memory than on the wire: where the data
+        /// could not fill as many (<see cref="NinoElements.Fits"/>), read into an array grown as they are
+        /// (<see cref="NinoElements.ReadGrowing{T,TFormatter}"/>), then copied into the rented one.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static Reader ReadRentedHeavy<T, TFormatter>(out T[] rented, int length, Reader reader)
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            T[] grown = null;
+            reader = NinoElements.ReadGrowing<T, TFormatter>(ref grown, length, reader);
+            rented = ArrayPool<T>.Shared.Rent(length);
+            Array.Copy(grown, rented, length);
+            return reader;
         }
 
         /// <summary>

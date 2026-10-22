@@ -54,13 +54,22 @@ namespace Nino.Core
 
         public void Deserialize(ref PriorityQueue<TElement, TPriority> value, ref Reader reader)
         {
-            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
+            // Each pair takes at least its fewest bytes, which bounds what the queue allocates ahead of them.
+            int minPair = NinoElements.MinWireSize<TElement, TElementFormatter>() +
+                          NinoElements.MinWireSize<TPriority, TPriorityFormatter>();
+            if (!reader.TryReadLengthOrDiscard(ref value, minPair, out int length))
                 return;
 
             var queue = value;
             if (queue == null)
             {
-                queue = new PriorityQueue<TElement, TPriority>(length);
+                // Sized for the pairs, unless they would take far more memory than the data (large elements or
+                // priorities): then it grows as they are added.
+                queue = new PriorityQueue<TElement, TPriority>(
+                    Unsafe.SizeOf<(TElement, TPriority)>() > 2 * NinoElements.Amplification &&
+                    NinoElements.Heavy(Unsafe.SizeOf<(TElement, TPriority)>(), minPair)
+                        ? NinoElements.Capacity(length, Unsafe.SizeOf<(TElement, TPriority)>(), reader.Remaining)
+                        : length);
                 value = queue;
             }
             else

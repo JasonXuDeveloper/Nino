@@ -29,7 +29,9 @@ namespace Nino.Core
 
         public void Deserialize(ref TCollection value, ref Reader reader)
         {
-            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
+            // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
+            // collection allocates ahead of them (NinoElements.Heavy).
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
             var collection = value ??= NinoActivator<TCollection>.Create();
@@ -144,7 +146,9 @@ namespace Nino.Core
         public void Deserialize(ref TSet value, ref Reader reader)
         {
             bool raw = RawFormatter.Is<T, TFormatter>();
-            if (!reader.TryReadLengthOrDiscard(ref value, raw ? Unsafe.SizeOf<T>() : 1, out int length))
+            // A string takes its 4-byte header at least: a set of strings (20 bytes an element) is then sized for its
+            // count within NinoElements.Amplification bytes per byte.
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinHashedSize<T, TFormatter>(), out int length))
                 return;
 
             // A new plain set (default comparer) of raw elements is filled directly (HashTables).
@@ -157,8 +161,14 @@ namespace Nino.Core
                 set.Clear();
 
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
+            // Sized for the elements, unless its entries would take far more memory than the data (large elements):
+            // then it grows as they are added.
             if (length != 0)
-                set.EnsureCapacity(length);
+                set.EnsureCapacity(typeof(TFormatter) != typeof(StringFormatter) &&
+                                   Unsafe.SizeOf<T>() + NinoElements.HashSlot > NinoElements.Amplification &&
+                                   NinoElements.HeavyHashed<T, TFormatter>.Value
+                    ? NinoElements.Capacity(length, Unsafe.SizeOf<T>() + NinoElements.HashSlot, reader.Remaining)
+                    : length);
 #endif
             if (raw)
             {
@@ -230,11 +240,16 @@ namespace Nino.Core
 
         public void Deserialize(ref TQueue value, ref Reader reader)
         {
-            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
+            // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
+            // collection allocates ahead of them (NinoElements.Heavy).
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
             var queue = value ??= typeof(TQueue) == typeof(Queue<T>)
-                ? (TQueue)new Queue<T>(length)
+                ? (TQueue)new Queue<T>(Unsafe.SizeOf<T>() > NinoElements.Amplification &&
+                    NinoElements.HeavyElements<T, TFormatter>.Value
+                    ? NinoElements.Capacity(length, Unsafe.SizeOf<T>(), reader.Remaining)
+                    : length)
                 : NinoActivator<TQueue>.Create();
             if (NinoRecycler.DiscardAll(queue, queue.Count))
                 queue.Clear();
@@ -316,11 +331,16 @@ namespace Nino.Core
 
         public void Deserialize(ref TStack value, ref Reader reader)
         {
-            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
+            // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
+            // collection allocates ahead of them (NinoElements.Heavy).
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
             var stack = value ??= typeof(TStack) == typeof(Stack<T>)
-                ? (TStack)new Stack<T>(length)
+                ? (TStack)new Stack<T>(Unsafe.SizeOf<T>() > NinoElements.Amplification &&
+                    NinoElements.HeavyElements<T, TFormatter>.Value
+                    ? NinoElements.Capacity(length, Unsafe.SizeOf<T>(), reader.Remaining)
+                    : length)
                 : NinoActivator<TStack>.Create();
             if (NinoRecycler.DiscardAll(stack, stack.Count))
                 stack.Clear();
@@ -359,7 +379,21 @@ namespace Nino.Core
         {
             var items = array;
             if (items.Length < length)
+            {
+                // Elements far larger in memory than on the wire: out of line, the array grown as they are read
+                // where the data could not fill as many, from the one the collection has (created with a clamped
+                // capacity), cleared as above.
+                if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+                {
+                    if (!NinoElements.ReadOverwrites<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
+                        Array.Clear(items, 0, items.Length);
+                    reader = NinoElements.ReadGrowing<T, TFormatter>(ref items, length, reader);
+                    return array = items;
+                }
+
                 array = items = new T[length];
+            }
+
             var span = new Span<T>(items, 0, length);
             if (!NinoElements.ReadOverwrites<T, TFormatter>() && !NinoUnsafe.IsReferenceOrContainsReferences<T>())
                 span.Clear();
@@ -391,7 +425,9 @@ namespace Nino.Core
 
         public void Deserialize(ref TCollection value, ref Reader reader)
         {
-            if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
+            // Each element takes at least its fewest bytes (NinoElements.MinWireSize), which bounds what the
+            // collection allocates ahead of them (NinoElements.Heavy).
+            if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
             if (value == null)

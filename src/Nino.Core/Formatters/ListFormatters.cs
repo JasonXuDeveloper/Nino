@@ -34,6 +34,14 @@ namespace Nino.Core
             if (!reader.TryReadLengthOrDiscard(ref value, NinoElements.MinWireSize<T, TFormatter>(), out int length))
                 return;
 
+            // Elements far larger in memory than on the wire: out of line, grown as they are read where the data
+            // could not fill as many (see ArrayFormatter). A constant false for the others, and nothing compiled.
+            if (Unsafe.SizeOf<T>() > NinoElements.Amplification && NinoElements.HeavyElements<T, TFormatter>.Value)
+            {
+                reader = NinoCollections.ReadGrowing<TList, T, TFormatter>(ref value, length, reader);
+                return;
+            }
+
             var list = value;
             // Values each read in full: neither a new list's backing array nor an existing one's new slots need be
             // cleared first.
@@ -141,6 +149,37 @@ namespace Nino.Core
     /// <summary>Shared helpers for collection formatters.</summary>
     internal static partial class NinoCollections
     {
+        /// <summary>
+        /// Reads <paramref name="length"/> elements into a list, as <see cref="ListFormatter{TList,T,TFormatter}"/>
+        /// does, for <see cref="NinoElements.HeavyElements{T,TFormatter}"/> elements: where they do not
+        /// <see cref="NinoElements.Fits"/>, the list's count starts at what fits the bound (or the elements it has)
+        /// and doubles as they are read, as
+        /// <see cref="NinoElements.ReadGrowing{T,TFormatter}"/> does for an array. Elements it has are reused.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static Reader ReadGrowing<TList, T, TFormatter>(scoped ref TList value, int length, Reader reader)
+            where TList : List<T>
+            where TFormatter : struct, INinoFormatter<T>
+        {
+            var list = value ??= ListAccess.Create<TList, T>(0);
+            if (list.Count > length)
+                NinoRecycler.DiscardAll(ListAccess.AsSpan<T>(list).Slice(length));
+            int count = NinoElements.Fits(length, Unsafe.SizeOf<T>(), reader.Remaining)
+                ? length
+                : Math.Min(length, Math.Max(NinoElements.Clamped(Unsafe.SizeOf<T>(), reader.Remaining), list.Count));
+            int done = 0;
+            while (true)
+            {
+                var span = ListAccess.Open(list, count, overwritten: false, out var buffer);
+                NinoElements.Read<T, TFormatter>(span.Slice(done), ref reader);
+                ListAccess.Close(list, count, buffer);
+                if (count == length)
+                    return reader;
+                done = count;
+                count = (int)Math.Min(length, 2L * count);
+            }
+        }
+
         /// <summary>Writes the count of <paramref name="values"/> (patched afterwards if unknown), then the elements.</summary>
         public static void WriteEnumerable<T, TFormatter>(IEnumerable<T> values, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>

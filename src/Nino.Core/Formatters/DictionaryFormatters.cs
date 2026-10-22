@@ -157,22 +157,47 @@ namespace Nino.Core
             writer.CopyTo(ref target);
         }
 
-        /// <summary>The fewest bytes a pair takes, which the pair count is validated with.</summary>
+        /// <summary>
+        /// The fewest bytes a pair takes, which the pair count is validated with: the key's and the value's
+        /// (<see cref="NinoElements.MinWireSize{T,TFormatter}"/>; their sizes for raw ones). A JIT-time constant.
+        /// </summary>
         public static int MinPairSize
         {
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>()
-                ? Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>()
-                : 1;
+            get => NinoElements.MinWireSize<TKey, TKeyFormatter>() + NinoElements.MinWireSize<TValue, TValueFormatter>();
         }
 
+        /// <summary>
+        /// The capacity to give a dictionary for <paramref name="length"/> pairs: the length, unless its entries would
+        /// take far more memory than the data (<see cref="NinoElements.Heavy(int, int)"/>; large keys
+        /// or values): then what fits the bound, and it grows as the pairs are added.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int Capacity(int length, int remaining) =>
+            // A pair takes 2 bytes at least: entries of up to 32 bytes never are, without the field.
+            Unsafe.SizeOf<KeyValuePair<TKey, TValue>>() + NinoElements.HashSlot > 2 * NinoElements.Amplification &&
+            HeavyEntries
+                ? NinoElements.Capacity(length, Unsafe.SizeOf<KeyValuePair<TKey, TValue>>() + NinoElements.HashSlot,
+                    remaining)
+                : length;
+
+        /// <summary>
+        /// Whether a dictionary's entries (<see cref="NinoElements.HashSlot"/> bytes beyond the pair), or the keys
+        /// alone, are <see cref="NinoElements.Heavy(int, int)"/>: fields, which the JIT folds where it imports the
+        /// test (a call's result it does not).
+        /// </summary>
+        private static readonly bool HeavyEntries = NinoElements.Heavy(
+            Unsafe.SizeOf<KeyValuePair<TKey, TValue>>() + NinoElements.HashSlot, MinPairSize);
+
+        private static readonly bool HeavyKeys = NinoElements.Heavy(Unsafe.SizeOf<TKey>(), MinPairSize);
+
         /// <summary>Recycles and clears an existing dictionary before it is refilled with <paramref name="length"/> pairs.</summary>
-        public static void Reset(Dictionary<TKey, TValue> dictionary, int length)
+        public static void Reset(Dictionary<TKey, TValue> dictionary, int length, int remaining)
         {
             NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
             dictionary.Clear();
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
-            dictionary.EnsureCapacity(length);
+            dictionary.EnsureCapacity(Capacity(length, remaining));
 #endif
         }
 
@@ -185,9 +210,12 @@ namespace Nino.Core
         public static void Refill(Dictionary<TKey, TValue> dictionary, int length, ref Reader reader)
         {
             int before = dictionary.Count;
-            if (before == 0 || (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>()))
+            // Also when the keys read (into an array of the length) would take far more memory than the data.
+            if (before == 0 || (RawFormatter.Is<TKey, TKeyFormatter>() && RawFormatter.Is<TValue, TValueFormatter>()) ||
+                Unsafe.SizeOf<TKey>() > 2 * NinoElements.Amplification && HeavyKeys &&
+                !NinoElements.Fits(length, Unsafe.SizeOf<TKey>(), reader.Remaining))
             {
-                Reset(dictionary, length);
+                Reset(dictionary, length, reader.Remaining);
                 Read(dictionary, length, ref reader);
                 return;
             }
@@ -403,7 +431,8 @@ namespace Nino.Core
             if (value == null && typeof(TDictionary) == typeof(Dictionary<TKey, TValue>))
             {
                 // A new plain dictionary, sized for the pairs: filled without the merge of Refill.
-                var created = new Dictionary<TKey, TValue>(length);
+                var created = new Dictionary<TKey, TValue>(
+                    NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Capacity(length, reader.Remaining));
                 value = Unsafe.As<TDictionary>(created);
                 NinoDictionary<TKey, TValue, TKeyFormatter, TValueFormatter>.Read(created, length, ref reader);
                 return;
@@ -443,6 +472,9 @@ namespace Nino.Core
 
         public void Deserialize(ref TDictionary value, ref Reader reader)
         {
+            // 1 byte a pair: what reads them into an array first (sorted and concurrent dictionaries,
+            // NinoCollections.ReadRented) bounds it by the pairs' own fewest bytes (KeyValuePairFormatter's), which
+            // this is for pairs larger in memory than on the wire.
             if (!reader.TryReadLengthOrDiscard(ref value, 1, out int length))
                 return;
 
