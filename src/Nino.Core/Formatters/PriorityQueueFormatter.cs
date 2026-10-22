@@ -19,7 +19,14 @@ namespace Nino.Core
             if (writer.TryWriteNullLength(value))
                 return;
 
-            // As HashSetFormatter's: elements or priorities with references through the writer parameter.
+            // As HashSetFormatter's: an empty queue skips the call, and elements or priorities with references go
+            // through the writer parameter.
+            if (value.Count == 0)
+            {
+                writer.WriteLength(0);
+                return;
+            }
+
             if (NinoElements.WritesOnLocal<TElement>() && NinoElements.WritesOnLocal<TPriority>())
                 writer = WriteEach(value, writer);
             else

@@ -46,6 +46,13 @@ namespace Nino.Core
                 }
             }
 
+            // An empty dictionary skips the call and the copies of the writer in and out (as NinoElements.Read).
+            if (value.Count == 0)
+            {
+                writer.WriteLength(0);
+                return;
+            }
+
             Writer copy = default;
             writer.CopyTo(ref copy);
             WritePairs(value, ref copy);
@@ -282,7 +289,8 @@ namespace Nino.Core
                 // The block is taken here and the pairs added out of line: the reader's address never leaves the
                 // caller, and the caller stays small enough for the JIT to inline the rest of its path.
                 ref byte src = ref reader.ReadElements(length, Unsafe.SizeOf<TKey>() + Unsafe.SizeOf<TValue>());
-                AddRaw(dictionary, ref src, length);
+                if (length != 0)
+                    AddRaw(dictionary, ref src, length);
                 return;
             }
 
@@ -293,7 +301,9 @@ namespace Nino.Core
                 return;
             }
 
-            // Out of line, through a copy of the reader (see AddRaw).
+            // Out of line, through a copy of the reader (see AddRaw); an empty dictionary skips both.
+            if (length == 0)
+                return;
             Reader copy = default;
             reader.CopyTo(ref copy);
             ReadPairs(dictionary, length, ref copy);

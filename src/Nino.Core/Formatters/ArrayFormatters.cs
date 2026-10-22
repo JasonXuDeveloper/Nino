@@ -233,7 +233,9 @@ namespace Nino.Core
                 return;
             }
 
-            reader = ReadEach<T, TFormatter>(values, reader);
+            // Empty collections (the leaves of a tree) skip the call and the copies of the reader in and out.
+            if (values.Length != 0)
+                reader = ReadEach<T, TFormatter>(values, reader);
         }
 
         /// <summary>

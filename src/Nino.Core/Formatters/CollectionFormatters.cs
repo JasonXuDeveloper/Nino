@@ -90,6 +90,13 @@ namespace Nino.Core
                 return;
             }
 
+            // An empty set skips the call (as NinoElements.Read).
+            if (value.Count == 0)
+            {
+                writer.WriteLength(0);
+                return;
+            }
+
             // Elements with references through the writer parameter, which their formatters' calls take anyway: a copy
             // in and out of WriteEach for each set cost more (NinoElements.WritesOnLocal).
             if (NinoElements.WritesOnLocal<T>())
@@ -148,7 +155,8 @@ namespace Nino.Core
                 set.Clear();
 
 #if NET8_0_OR_GREATER || NETSTANDARD2_1
-            set.EnsureCapacity(length);
+            if (length != 0)
+                set.EnsureCapacity(length);
 #endif
             if (raw)
             {

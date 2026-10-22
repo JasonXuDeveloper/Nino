@@ -109,7 +109,8 @@ namespace Nino.Immutable
             // Element by element with its own (struct) enumerator: through IEnumerable<T>, each step is an
             // interface call.
             writer.WriteLength(count);
-            WriteItems(value, ref writer);
+            if (count != 0)
+                WriteItems(value, ref writer);
         }
 
         // Out of line: inlined into the caller, the large enumerator is kept in memory instead of registers.
@@ -137,7 +138,10 @@ namespace Nino.Immutable
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableHashSet<T> Build(T[] items)
         {
-            if (items.Length != 0 && HashTrees.Usable && SetTree<T>.Create(items) is { } set)
+            // Empty: the shared instance, which a builder would return too, without allocating one.
+            if (items.Length == 0)
+                return ImmutableHashSet<T>.Empty;
+            if (HashTrees.Usable && SetTree<T>.Create(items) is { } set)
                 return set;
 
             var builder = ImmutableHashSet.CreateBuilder<T>();
@@ -202,7 +206,8 @@ namespace Nino.Immutable
         // Built as its tree where it can be (SortedTrees), else by CreateRange, which sorts the elements.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableSortedSet<T> Build(T[] items) =>
-            items.Length != 0 && SortedTrees.Usable && SortedSetTree<T>.Create(items) is { } set
+            items.Length == 0 ? ImmutableSortedSet<T>.Empty
+            : SortedTrees.Usable && SortedSetTree<T>.Create(items) is { } set
                 ? set
                 : ImmutableCollections.Distinct(ImmutableSortedSet.CreateRange(items), items.Length);
     }
@@ -302,7 +307,8 @@ namespace Nino.Immutable
             }
 
             writer.WriteLength(count);
-            WritePairs(value, ref writer);
+            if (count != 0)
+                WritePairs(value, ref writer);
         }
 
         // Out of line, as ImmutableHashSet<T>'s.
@@ -332,7 +338,9 @@ namespace Nino.Immutable
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableDictionary<TKey, TValue> Build(KeyValuePair<TKey, TValue>[] pairs)
         {
-            if (pairs.Length != 0 && HashTrees.Usable && DictionaryTree<TKey, TValue>.Create(pairs) is { } dictionary)
+            if (pairs.Length == 0)
+                return ImmutableDictionary<TKey, TValue>.Empty;
+            if (HashTrees.Usable && DictionaryTree<TKey, TValue>.Create(pairs) is { } dictionary)
                 return dictionary;
 
             var builder = ImmutableDictionary.CreateBuilder<TKey, TValue>();
@@ -396,8 +404,9 @@ namespace Nino.Immutable
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableSortedDictionary<TKey, TValue> Build(KeyValuePair<TKey, TValue>[] pairs)
         {
-            if (pairs.Length != 0 && SortedTrees.Usable &&
-                SortedDictionaryTree<TKey, TValue>.Create(pairs) is { } dictionary)
+            if (pairs.Length == 0)
+                return ImmutableSortedDictionary<TKey, TValue>.Empty;
+            if (SortedTrees.Usable && SortedDictionaryTree<TKey, TValue>.Create(pairs) is { } dictionary)
                 return dictionary;
 
             var builder = ImmutableSortedDictionary.CreateBuilder<TKey, TValue>();

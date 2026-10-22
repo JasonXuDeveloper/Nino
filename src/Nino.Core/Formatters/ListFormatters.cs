@@ -153,7 +153,14 @@ namespace Nino.Core
             else
                 count = -1;
 
-            // As HashSetFormatter's: elements with references through the writer parameter.
+            // As HashSetFormatter's: an empty collection skips the call, and elements with references go through the
+            // writer parameter.
+            if (count == 0)
+            {
+                writer.WriteLength(0);
+                return;
+            }
+
             if (NinoElements.WritesOnLocal<T>())
                 writer = WriteEnumerated<T, TFormatter>(values, count, writer);
             else
