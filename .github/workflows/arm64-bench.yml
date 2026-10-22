@@ -254,6 +254,9 @@ jobs:
             ((${#files[@]})) || return 1
             if ((${#files[@]} == 1)); then cp "${files[0]}" "$2"; else python3 benchmarks/merge_reports.py "${files[@]}" > "$2"; fi
           }
+          # download-artifact puts a single artifact (a filter run's one shard) straight into shards/, not into a
+          # directory of its own.
+          if [[ -f shards/sides.txt ]]; then mv shards one && mkdir shards && mv one shards/filter; fi
           SIDES=$(cat shards/*/sides.txt | sort -u)
           # The reports in a directory of their own: the sparse checkout also has the repository's root files.
           mkdir -p merged && cd merged
