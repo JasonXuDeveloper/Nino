@@ -391,6 +391,80 @@ public class BclTypeTests
     }
 
     [TestMethod]
+    public void LinkedListsAndSortedSetsReadAsBuiltBehaveAsBuilt()
+    {
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.LinkedList);
+        Assert.AreNotEqual(0, SortedSetNodes.Layout);
+        var random = new Random(7);
+
+        void Same<T>(T[] items, Func<int, T> other)
+        {
+            var linked = new LinkedList<T>(items);
+            var linkedBack = RoundTrip(linked);
+            CollectionAssert.AreEqual(linked.ToArray(), linkedBack.ToArray());
+            CollectionAssert.AreEqual(linked.Reverse().ToArray(), Backwards(linkedBack).ToArray());
+            if (items.Length != 0)
+            {
+                Assert.AreSame(linkedBack, linkedBack.Find(items[items.Length / 2])!.List);
+                linkedBack.Remove(items[0]);
+                linkedBack.AddFirst(other(0));
+                linkedBack.AddLast(other(1));
+                Assert.AreEqual(items.Length + 1, linkedBack.Count);
+                Assert.AreEqual(other(1), linkedBack.Last!.Value);
+                Assert.AreEqual(other(0), linkedBack.First!.Value);
+            }
+
+            var set = new SortedSet<T>(items);
+            var setBack = RoundTrip(set);
+            CollectionAssert.AreEqual(set.ToArray(), setBack.ToArray());
+            // Random adds and removes, against a set built the usual way: the tree stays a red-black tree.
+            var pool = items.Concat(Enumerable.Range(0, items.Length + 8).Select(other)).ToArray();
+            for (int i = 0; i < 3 * pool.Length; i++)
+            {
+                var item = pool[random.Next(pool.Length)];
+                if (random.Next(2) == 0)
+                    Assert.AreEqual(set.Add(item), setBack.Add(item));
+                else
+                    Assert.AreEqual(set.Remove(item), setBack.Remove(item));
+            }
+
+            CollectionAssert.AreEqual(set.ToArray(), setBack.ToArray());
+            CollectionAssert.AreEqual(set.Reverse().ToArray(), setBack.Reverse().ToArray());
+            Assert.AreEqual(set.Min, setBack.Min);
+            Assert.AreEqual(set.Max, setBack.Max);
+
+            var dictionary = new SortedDictionary<T, int>(items.Select((k, i) => (k, i)).ToDictionary(p => p.k, p => p.i));
+            var dictionaryBack = RoundTrip(dictionary);
+            CollectionAssert.AreEqual(dictionary.ToArray(), dictionaryBack.ToArray());
+            foreach (var item in items)
+                Assert.IsTrue(dictionaryBack.Remove(item));
+            Assert.AreEqual(0, dictionaryBack.Count);
+        }
+
+        foreach (int n in new[] { 0, 1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 64, 100, 1000 })
+        {
+            Same(Enumerable.Range(-n / 2, n).Select(i => i * 7919).ToArray(), i => int.MaxValue - i);
+            Same(Enumerable.Range(0, n).Select(i => "key" + i.ToString("D5", CultureInfo.InvariantCulture)).ToArray(),
+                i => "other" + i);
+            Same(Enumerable.Range(0, n).Select(i => new Guid(i, 0, 0, new byte[8])).ToArray(),
+                i => new Guid(-1 - i, 1, 1, new byte[8]));
+        }
+
+        // Out of order on the wire (written under another comparer): built the usual way.
+        var reversed = new SortedSet<int>(Enumerable.Range(0, 50), Comparer<int>.Create((a, b) => b.CompareTo(a)));
+        var bytes = NinoSerializer.Serialize(reversed);
+        CollectionAssert.AreEqual(Enumerable.Range(0, 50).ToArray(), NinoDeserializer.Deserialize<SortedSet<int>>(bytes).ToArray());
+        var withNull = new SortedSet<string>(new[] { null, "a", "b" });
+        CollectionAssert.AreEqual(withNull.ToArray(), RoundTrip(withNull).ToArray());
+
+        static IEnumerable<T> Backwards<T>(LinkedList<T> list)
+        {
+            for (var node = list.Last; node != null; node = node.Previous)
+                yield return node.Value;
+        }
+    }
+
+    [TestMethod]
     public void ImmutableCollectionsReadAsTreesBehaveAsBuilt()
     {
         Assert.IsTrue(Nino.Immutable.HashTrees.Usable);

@@ -45,6 +45,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Compile Include="..\Nino.Core\Internal\ObjectTypes.cs" Link="ObjectTypes.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- Build with -p:NinoCoreTfm=netstandard2.0 (or netstandard2.1) to test a specific Nino.Core build. -->
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' == ''"/>
         <ProjectReference Include="..\Nino.Core\Nino.Core.csproj" Condition="'$(NinoCoreTfm)' != ''"
