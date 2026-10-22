@@ -133,7 +133,7 @@ jobs:
             # if it still does not build, head alone is measured, and against main compares the code this ref changes.
             dotnet build -c Release base/src/Nino.Benchmark ||
               { echo "::warning::base does not build all of head's benchmarks; leaving out the ones marked NINO_BENCH_LEGACY";
-                dotnet build -c Release base/src/Nino.Benchmark -p:NinoBenchLegacy=true; } ||
+                dotnet build -c Release base/src/Nino.Benchmark -p:NinoBenchLegacy=true && touch base/.bench-legacy; } ||
               { echo "::warning::base does not build head's benchmarks; measuring head only (try against: main)"; rm -rf base; }
           fi
           dotnet build -c Release head/src/Nino.Benchmark
@@ -155,9 +155,13 @@ jobs:
             [[ -d $SIDE ]] || continue
             [[ -f $SIDE/src/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue
             echo "== $SIDE $(git -C $SIDE rev-parse --short HEAD)"
+            # BenchmarkDotNet builds the project again for its runs: a side built with NinoBenchLegacy (above) gets it
+            # through the environment, which MSBuild reads as properties.
+            LEGACY=""
+            [[ -f $SIDE/.bench-legacy ]] && LEGACY=true
             # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
-            (cd $SIDE/src/Nino.Benchmark && dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "${FILTERS[@]}" $BDN_ARGS \
-              --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
+            (cd $SIDE/src/Nino.Benchmark && NinoBenchLegacy=$LEGACY dotnet bin/Release/net10.0/Nino.Benchmark.dll \
+              --filter "${FILTERS[@]}" $BDN_ARGS --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
           done
 
       - name: Summary
