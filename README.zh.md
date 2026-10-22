@@ -161,16 +161,33 @@ public class Node { public string Name; public List<Node> Links; }
 
 ## Nino 与 MemoryPack
 
+除了性能，两者最明显的区别是**不可信输入**。MemoryPack 的 README 现在称自己是"仅用于可信数据的高性能序列化格式"，
+并且不再建议在"输入可能来自不可信方，例如公共网络端点或用户提供的文件"的场景使用（[MemoryPack README](https://github.com/Cysharp/MemoryPack#readme)）。
+Nino 正是为这类输入设计的：长度和分配以收到的字节数为上限，栈有深度上限，数据里没有类型名，
+所有无效输入都只抛出一种异常（[详情](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack#untrusted-input)）。
+
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
+| 不可信输入 | **设计目标**：分配和栈用量有上限，只有一种异常 | 按其 README，仅用于可信数据 |
 | 序列化类和多态类型 | **快 <!--bench:ser.range-->3.4–5.6<!--/bench--> 倍** | |
 | 反序列化类和多态类型 | **快 <!--bench:deser.range-->1.5–1.9<!--/bench--> 倍** | |
 | 原始结构体数组 | 至少持平（两者都是整块拷贝）；v4 会清零填充字节，热点结构体建议声明为无填充 | 原样复制填充字节 |
 | 反序列化到已有对象 | **0 B，最多快 <!--bench:reuse.inplace-->11.5<!--/bench--> 倍**（原地复用） | 覆盖写入，有分配 |
-| 不可信输入 | **设计目标**：分配和栈用量有上限，只有一种异常 | 按其 README，仅用于可信数据 |
 | 多态 | 自动类型 ID，任何基类或接口，包括泛型基类 | 需要维护 `[MemoryPackUnion]` 标签，只能用于接口和抽象类，不支持泛型类型 |
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
 | Unity | 2022.3+，从 OpenUPM 安装，`netstandard2.0` 和 `2.1`，HybridCLR | 2022.3.12f1+，`netstandard2.1` |
+
+### 基准测试中发现的 MemoryPack 问题
+
+计时前我们先让每个值在 MemoryPack 1.21.4 中往返一次，以下几种会失败（[详情](https://nino.xgamedev.net/zh/docs/v4/vs-memorypack#memorypack-bugs-found-while-benchmarking)）：
+
+- **`BigInteger`**：255 字节以内的值读回来是另一个值，所有运行时都如此。它的格式化器在栈缓冲区上写的是
+  `temp.Slice(written)`，本意是 `temp.Slice(0, written)`。
+- **.NET 10 上的 `BitArray`**：写出的字节错误，读取时破坏堆内存并导致进程崩溃。格式化器按 .NET 8 的字段布局强转，而 .NET 10 改了布局。
+- **跨运行时的非托管元组**：在 .NET 上写出的 `(1, 2L)` 在 Mono 和 Unity 中读回来是 `(2, 1)`，
+  因为那里 `ValueTuple` 的布局不同，而 MemoryPack 按内存原样拷贝（包括填充字节）。
+
+Nino 按值写出这三种类型，不依赖运行时的私有布局，在所有平台上都能正确往返。
 
 MemoryPack 还支持 `System.Type`（Nino 有意不支持：由数据指定要创建的类型是一种攻击手段）。Nino.TypeScript 在每次构建后，
 依据生成格式化器所用的布局生成 TypeScript，支持结构体和版本容错类型（[与 MemoryPack 的对比](https://nino.xgamedev.net/zh/docs/v4/advanced/typescript#compared-with-memorypack)，按其 README，MemoryPack 的 TypeScript 生成将在下个版本移除），

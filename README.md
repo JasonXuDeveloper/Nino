@@ -175,16 +175,35 @@ networking, ASP.NET Core, TypeScript clients, message queues, caching, persisten
 
 ## Nino vs MemoryPack
 
+Besides speed, the clearest difference is **untrusted input**. MemoryPack's README now calls it "a high-performance
+serialization format for trusted data only" and no longer recommends it "where the input can come from an untrusted
+party, such as public network endpoints or user-supplied files" ([MemoryPack README](https://github.com/Cysharp/MemoryPack#readme)). Nino is built for that
+input: lengths and allocation are bounded by the bytes received, the stack by a depth limit, the data names no types,
+and every invalid input throws one exception ([details](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#untrusted-input)).
+
 | | Nino v4 | MemoryPack 1.21.4 |
 |---|---|---|
+| Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only, per its README |
 | Serialize classes and polymorphic types | **<!--bench:ser.range-->3.4–5.6<!--/bench-->× faster** | |
 | Deserialize classes and polymorphic types | **<!--bench:deser.range-->1.5–1.9<!--/bench-->× faster** | |
 | Raw struct arrays | at least on par (a block copy in both); v4 zeroes padding, so declare hot structs without it | copies padding as is |
 | Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->11.5<!--/bench-->× faster** (in place) | overwrite mode, allocates |
-| Untrusted input | **built for it**: bounded allocation and stack, one exception type | trusted data only, per its README |
 | Polymorphism | automatic type ids, any base class or interface, generic bases included | `[MemoryPackUnion]` tags you maintain, on interfaces and abstract classes, not on generic types |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
 | Unity | 2022.3+ from OpenUPM, `netstandard2.0` and `2.1`, HybridCLR | 2022.3.12f1+, `netstandard2.1` |
+
+### MemoryPack bugs we found while benchmarking
+
+We round-trip every value through MemoryPack 1.21.4 before timing it. These fail ([details](https://nino.xgamedev.net/en/docs/v4/vs-memorypack#memorypack-bugs-found-while-benchmarking)):
+
+- **`BigInteger`** of up to 255 bytes reads back as another value, on every runtime: its formatter writes
+  `temp.Slice(written)` of its stack buffer where `temp.Slice(0, written)` is meant.
+- **`BitArray` on .NET 10** is written wrong, and reading it corrupts the heap and crashes the process: the formatter
+  reinterprets it with .NET 8's field layout, which .NET 10 changed.
+- **Tuples of unmanaged items between runtimes**: `(1, 2L)` written on .NET reads back as `(2, 1)` on Mono and in
+  Unity, because `ValueTuple` is laid out differently there and MemoryPack copies its memory, padding included.
+
+Nino writes all three by their values, not by the runtime's private layout, so they round-trip everywhere.
 
 MemoryPack still has `System.Type` (left out of Nino on purpose: data that names the types to create is an attack
 vector). Nino.TypeScript generates TypeScript from the layouts the formatters are generated from, after each build,
