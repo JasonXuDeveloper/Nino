@@ -162,10 +162,18 @@ jobs:
             # A release older than a benchmark's types (one whose generator could not compile them) cannot run them:
             # base is built without them (NinoBenchLegacy, #if !NINO_BENCH_LEGACY), so they are measured on head alone;
             # if it still does not build, head alone is measured, and against main compares the code this ref changes.
-            dotnet build -c Release base/src/Nino.Benchmark ||
-              { echo "::warning::base does not build all of head's benchmarks; leaving out the ones marked NINO_BENCH_LEGACY";
-                dotnet build -c Release base/src/Nino.Benchmark -p:NinoBenchLegacy=true && touch base/.bench-legacy; } ||
-              { echo "::warning::base does not build head's benchmarks; measuring head only (try against: main)"; rm -rf base; }
+            # The first build's output goes to a file: its compiler errors would otherwise show as the run's annotations,
+            # although the build without those benchmarks is the expected outcome for an older release.
+            if dotnet build -c Release base/src/Nino.Benchmark > base-build.log 2>&1; then
+              echo "base builds every benchmark of head"
+            elif dotnet build -c Release base/src/Nino.Benchmark -p:NinoBenchLegacy=true; then
+              touch base/.bench-legacy
+              echo "::notice::base does not build all of head's benchmarks (its generator predates them); the ones marked NINO_BENCH_LEGACY are measured on head alone"
+            else
+              sed 's/^/  /' base-build.log
+              echo "::warning::base does not build head's benchmarks; measuring head only (try against: main)"
+              rm -rf base
+            fi
           fi
           dotnet build -c Release head/src/Nino.Benchmark
           lscpu | grep -E 'Model name|Flags' || true
