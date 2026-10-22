@@ -6,6 +6,9 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.Arm;
 #endif
+#if NET5_0_OR_GREATER
+using System.Runtime.Intrinsics.X86;
+#endif
 
 namespace Nino.Core
 {
@@ -289,6 +292,25 @@ namespace Nino.Core
             Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
         }
 
+#if NET5_0_OR_GREATER
+        /// <summary>
+        /// An AMD x64 CPU, whose rep movsb (Memmove's copy of a large block) is slower than vector stores also into a
+        /// new array, where Intel's writes whole lines without reading them first. Measured on GitHub's EPYC 7763
+        /// (.NET 10), a new uninitialized array filled from offset 4 of a buffer, vector stores against Memmove: 8,000
+        /// bytes in 279 to 288 ns instead of 341 to 350, 16,000 in 556 to 567 instead of 658 to 677, 64,000 in 1,989 to
+        /// 2,018 instead of 2,680 to 2,750; on an AVX-512 Xeon, Memmove 1.3 to 2 times as fast; on Arm64 (Neoverse
+        /// N2) Memmove as fast or faster. One CPUID at startup.
+        /// </summary>
+        private static readonly bool AmdCopy = X86Base.IsSupported && IsAmd();
+
+        private static bool IsAmd()
+        {
+            // "AuthenticAMD", in EBX, EDX and ECX.
+            var (_, ebx, ecx, edx) = X86Base.CpuId(0, 0);
+            return ebx == 0x68747541 && edx == 0x69746E65 && ecx == 0x444D4163;
+        }
+
+#endif
         /// <summary>
         /// <see cref="Copy"/> into memory that may have just been allocated (a read into a new array): Memmove from
         /// <see cref="MinUninitializedArrayBytes"/>, where a new array is uninitialized and vector stores read each of
@@ -303,7 +325,7 @@ namespace Nino.Core
         public static void CopyToNew(ref byte destination, ref byte source, uint size)
         {
 #if NET5_0_OR_GREATER
-            if (size >= MinUninitializedArrayBytes)
+            if (size >= MinUninitializedArrayBytes && !AmdCopy)
             {
                 Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
                 return;
