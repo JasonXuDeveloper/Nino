@@ -296,7 +296,8 @@ namespace Nino.Core
         /// <summary>
         /// Largest copy done with 64-byte vectors by <see cref="CopyVectors{TVector}"/>; Memmove (the C library's from
         /// 2 KB) beyond. Measured on an AVX-512 Xeon (.NET 10, the destination 4 bytes past a 64-byte boundary):
-        /// 16,000 bytes in 111 ns instead of 145, 32,000 in 249 instead of 283, on par at 64,000.
+        /// 16,000 bytes in 111 ns instead of 145, 32,000 in 249 instead of 283, on par at 64,000, slower beyond (160,000:
+        /// 3.2 µs instead of 2.9).
         /// </summary>
         private const uint MaxVectorCopy = 32 * 1024;
 
@@ -304,11 +305,13 @@ namespace Nino.Core
         /// The range copied with 32-byte vectors where 64-byte ones are not accelerated (AVX2 without AVX-512, most
         /// desktop CPUs). Measured on a Xeon with AVX-512 turned off (.NET 10, source and destination of different
         /// alignments) against Memmove: 256 bytes 3.9 ns instead of 6.3, 1,200 bytes 12.4 instead of 15.7, 8,000 bytes
-        /// 68 instead of 85, on par at 16,000 and 10 to 20% slower at 32,000; on par from 129 to 255 bytes. On GitHub's
-        /// AMD EPYC runners (7763 and 9V74), whose C library copies with rep movsb, it is 2 to 30 times as fast up to
-        /// 16,000 bytes (8,000: 83 to 85 ns instead of 236 to 2,775).
+        /// 68 instead of 85; on par from 129 to 255 bytes. On GitHub's AMD EPYC runners (7763 and 9V74), whose C
+        /// library copies with rep movsb, it is 2 to 30 times as fast up to 16,000 bytes (8,000: 83 to 85 ns instead of
+        /// 236 to 2,775). Larger blocks written into a serializer's buffer keep a gain, even against the C library's
+        /// AVX-512 copy on that Xeon: 32,000 bytes in 745 ns instead of 837, 160,000 in 2.9 µs instead of 3.2, 480,000
+        /// in 8.8 µs instead of 10.0. Beyond 1 MB, Memmove, whose stores bypass the cache for blocks larger than it.
         /// </summary>
-        private const uint MaxVector256Copy = 16 * 1024;
+        private const uint MaxVector256Copy = 1024 * 1024;
 
         /// <summary>
         /// Copies at least one vector (<typeparamref name="TVector"/>, a <c>Vector256</c> or <c>Vector512</c> of bytes)
