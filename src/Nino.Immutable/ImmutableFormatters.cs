@@ -123,10 +123,14 @@ namespace Nino.Immutable
             value = Build(array);
         }
 
-        // Added one by one to a builder (CreateRange enumerates through IEnumerable<T>), out of line like WriteItems.
+        // Built as its tree where it can be (HashTrees), else added one by one to a builder (CreateRange enumerates
+        // through IEnumerable<T>); out of line like WriteItems.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableHashSet<T> Build(T[] items)
         {
+            if (items.Length != 0 && HashTrees.Usable && SetTree<T>.Create(items) is { } set)
+                return set;
+
             var builder = ImmutableHashSet.CreateBuilder<T>();
             foreach (var item in items)
             {
@@ -286,11 +290,14 @@ namespace Nino.Immutable
 
             value = Build(pairs);
         }
-        // Added one by one to a builder (CreateRange enumerates through IEnumerable<T>), out of line like WritePairs.
-        // A key already there throws (another value) or leaves the count as it was (the same value).
+        // As ImmutableHashSet<T>'s, out of line like WritePairs. In the builder, a key already there throws (another
+        // value) or leaves the count as it was (the same value).
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static ImmutableDictionary<TKey, TValue> Build(KeyValuePair<TKey, TValue>[] pairs)
         {
+            if (pairs.Length != 0 && HashTrees.Usable && DictionaryTree<TKey, TValue>.Create(pairs) is { } dictionary)
+                return dictionary;
+
             var builder = ImmutableDictionary.CreateBuilder<TKey, TValue>();
             try
             {

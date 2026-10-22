@@ -383,4 +383,59 @@ public class BclTypeTests
                 NinoDeserializer.Deserialize<ImmutableSortedDictionary<int, int>>(bytes));
         }
     }
+
+    /// <summary>A key whose hash is its value divided by four: four keys to a bucket.</summary>
+    private readonly record struct Crowded(int Value)
+    {
+        public override int GetHashCode() => Value / 4;
+    }
+
+    [TestMethod]
+    public void ImmutableHashCollectionsReadAsTreesBehaveAsBuilt()
+    {
+        Assert.IsTrue(Nino.Immutable.HashTrees.Usable);
+
+        void Same<TKey>(TKey[] keys, Func<int, TKey> other)
+        {
+            var dictionary = keys.Select((k, i) => new KeyValuePair<TKey, int>(k, i)).ToImmutableDictionary();
+            var back = RoundTrip(dictionary);
+            Assert.AreEqual(dictionary.Count, back.Count);
+            foreach (var pair in dictionary)
+                Assert.AreEqual(pair.Value, back[pair.Key]);
+            CollectionAssert.AreEquivalent(dictionary.ToArray(), back.ToArray());
+            var changed = back.Add(other(0), -1).SetItem(keys[keys.Length - 1], -2).Remove(keys[0]);
+            Assert.AreEqual(back.Count, changed.Count);
+            Assert.AreEqual(-1, changed[other(0)]);
+            Assert.IsFalse(changed.ContainsKey(keys[0]));
+            if (keys.Length > 1)
+                Assert.AreEqual(-2, changed[keys[keys.Length - 1]]);
+            Assert.AreEqual(0, back[keys[0]]);
+            var emptied = keys.Aggregate(back, (d, k) => d.Remove(k));
+            Assert.IsTrue(emptied.IsEmpty);
+
+            var set = keys.ToImmutableHashSet();
+            var setBack = RoundTrip(set);
+            Assert.IsTrue(setBack.SetEquals(set));
+            Assert.IsFalse(setBack.Contains(other(1)));
+            var setChanged = setBack.Add(other(1)).Remove(keys[0]);
+            Assert.IsTrue(setChanged.Contains(other(1)));
+            Assert.IsFalse(setChanged.Contains(keys[0]));
+            Assert.IsTrue(setBack.Contains(keys[0]));
+            Assert.IsTrue(keys.Aggregate(setBack, (s, k) => s.Remove(k)).IsEmpty);
+        }
+
+        foreach (int n in new[] { 1, 2, 3, 7, 64, 1000 })
+        {
+            Same(Enumerable.Range(-n / 2, n).Select(i => i * 7919).ToArray(), i => int.MaxValue - i);
+            Same(Enumerable.Range(0, n).Select(i => "key" + i).ToArray(), i => "other" + i);
+            Same(Enumerable.Range(0, n).Select(i => (long)i << 32 | (uint)i).ToArray(), i => -1L - i);
+            // Equal hashes: built the usual way.
+            Same(Enumerable.Range(0, n).Select(i => new Crowded(i)).ToArray(), i => new Crowded(-1 - i));
+        }
+
+        var withNull = ImmutableHashSet.Create("a", null, "b");
+        Assert.IsTrue(RoundTrip(withNull).SetEquals(withNull));
+        Assert.AreEqual(0, RoundTrip(ImmutableDictionary<string, int>.Empty).Count);
+        Assert.AreEqual(0, RoundTrip(ImmutableHashSet<string>.Empty).Count);
+    }
 }
