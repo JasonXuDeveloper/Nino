@@ -237,17 +237,25 @@ public class SingleProbeConfig : ManualConfig
 
 /// <summary>
 /// Experiment: block copies of 16-byte vectors (Arm64 ldp/stp of q registers, which the JIT pairs from adjacent loads
-/// and stores) against Memmove (the C library's memcpy), into a buffer 4 bytes past a 64-byte boundary (a collection
-/// after its length), from a 64-byte aligned source: 64 or 128 bytes a step, stores aligned to 16 bytes or not.
+/// and stores through cursors) against Memmove (the C library's memcpy), into a buffer 4 bytes past a 64-byte boundary
+/// (a collection after its length), from a source <see cref="SourceShift"/> bytes past one (arrays' elements start 16
+/// bytes into the object, itself 8-byte aligned): 64 bytes a step as they come, or after one unaligned step that
+/// brings the loads to a 16-byte boundary. On a Neoverse N2 with an aligned source, the plain loop took 0.85 to 0.92 of
+/// Memmove's time from 1 to 64 KB, and the loop with its stores aligned (its loads then not) 0.96 to 1.31.
 /// </summary>
 [Config(typeof(SingleProbeConfig))]
 public unsafe class Copy128Probe
 {
-    [Params(1024, 2048, 4096, 8000, 16000, 32000, 64000)]
+    [Params(128, 256, 512, 1024, 8000, 64000, 256000, 1048576)]
     public int Bytes = 8000;
 
-    private static readonly byte* Source = (byte*)NativeMemory.AlignedAlloc(1 << 17, 64);
-    private static readonly byte* Destination = (byte*)NativeMemory.AlignedAlloc(1 << 17, 64) + 4;
+    [Params(0, 4, 8)]
+    public int SourceShift;
+
+    private static readonly byte* SourceBase = (byte*)NativeMemory.AlignedAlloc(1 << 21, 64);
+    private static readonly byte* Destination = (byte*)NativeMemory.AlignedAlloc(1 << 21, 64) + 4;
+
+    private byte* Source => SourceBase + SourceShift;
 
     [Benchmark(Baseline = true)]
     public int Memmove()
@@ -257,57 +265,20 @@ public unsafe class Copy128Probe
     }
 
     [Benchmark]
-    public int NinoCopy()
+    public int Loop64()
     {
-        NinoUnsafe.Copy(ref *Destination, ref *Source, (uint)Bytes);
-        return Bytes;
-    }
-
-    [Benchmark]
-    public int Loop64() { Copy64(Source, Destination, Bytes); Tail(Source, Destination, Bytes); return Bytes; }
-
-    [Benchmark]
-    public int Loop64Aligned()
-    {
-        byte* s = Source, d = Destination;
-        Vector128.Load(s).Store(d);
-        nint skip = 16 - (nint)((nuint)d & 15);
-        Copy64(s + skip, d + skip, Bytes - (int)skip);
+        Copy64(Source, Destination, Bytes);
         Tail(Source, Destination, Bytes);
         return Bytes;
     }
 
     [Benchmark]
-    public int Loop128Aligned()
+    public int Loop64LoadsAligned()
     {
         byte* s = Source, d = Destination;
         Vector128.Load(s).Store(d);
-        nint skip = 16 - (nint)((nuint)d & 15);
-        s += skip;
-        d += skip;
-        int bytes = Bytes - (int)skip;
-        for (nuint n = (nuint)bytes / 128; n != 0; n--)
-        {
-            var a = Vector128.Load(s);
-            var b = Vector128.Load(s + 16);
-            var c = Vector128.Load(s + 32);
-            var e = Vector128.Load(s + 48);
-            var f = Vector128.Load(s + 64);
-            var g = Vector128.Load(s + 80);
-            var h = Vector128.Load(s + 96);
-            var k = Vector128.Load(s + 112);
-            a.Store(d);
-            b.Store(d + 16);
-            c.Store(d + 32);
-            e.Store(d + 48);
-            f.Store(d + 64);
-            g.Store(d + 80);
-            h.Store(d + 96);
-            k.Store(d + 112);
-            s += 128;
-            d += 128;
-        }
-
+        nint skip = 16 - (nint)((nuint)s & 15);
+        Copy64(s + skip, d + skip, Bytes - (int)skip);
         Tail(Source, Destination, Bytes);
         return Bytes;
     }
