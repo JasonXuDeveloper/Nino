@@ -99,6 +99,7 @@ namespace Nino.Core
 
         /// <summary>For generated code: true for the first caller only, which then runs the warmup.</summary>
         [EditorBrowsable(EditorBrowsableState.Never)]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool BeginWarmup() =>
             Volatile.Read(ref WarmedUp) == 0 && Interlocked.Exchange(ref WarmedUp, 1) == 0;
 
@@ -117,7 +118,8 @@ namespace Nino.Core
                 return value;
             }
 
-            return TakeShared(ref stack);
+            // An empty pool (every read until something is returned) answers here, without a call.
+            return Volatile.Read(ref _count) == 0 ? null : TakeShared(ref stack);
         }
 
         /// <summary>For generated code: adds an instance that <c>ReturnToPool</c> has checked.</summary>
@@ -135,8 +137,6 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private T TakeShared(ref PerThread stack)
         {
-            if (Volatile.Read(ref _count) == 0)
-                return null;
             var s = Current(ref stack);
             lock (_lock)
             {
