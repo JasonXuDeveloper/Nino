@@ -32,6 +32,9 @@ public class CollectionsTest
     private static readonly HashSet<int> HashSet = new HashSet<int>(Enumerable.Range(0, N).Select(i => i * 3));
     private static readonly Queue<int> Queue = new Queue<int>(Enumerable.Range(0, N));
     private static readonly LinkedList<int> LinkedList = new LinkedList<int>(Enumerable.Range(0, N));
+    private static readonly SortedSet<int> SortedSet = new SortedSet<int>(Enumerable.Range(0, N).Select(i => i * 7));
+    private static readonly SortedDictionary<int, int> SortedDictionary =
+        new SortedDictionary<int, int>(Enumerable.Range(0, N).ToDictionary(i => i * 7, i => i));
     private static readonly SortedList<int, int> SortedList = new SortedList<int, int>(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
     private static readonly ConcurrentDictionary<int, int> ConcurrentDictionary = new ConcurrentDictionary<int, int>(Enumerable.Range(0, N).ToDictionary(i => i, i => i * 7));
 
@@ -45,6 +48,10 @@ public class CollectionsTest
     private static readonly byte[] MemoryPackQueueBytes = MemoryPackSerializer.Serialize(Queue);
     private static readonly byte[] NinoLinkedListBytes = NinoSerializer.Serialize(LinkedList);
     private static readonly byte[] MemoryPackLinkedListBytes = MemoryPackSerializer.Serialize(LinkedList);
+    private static readonly byte[] NinoSortedSetBytes = NinoSerializer.Serialize(SortedSet);
+    private static readonly byte[] MemoryPackSortedSetBytes = MemoryPackSerializer.Serialize(SortedSet);
+    private static readonly byte[] NinoSortedDictionaryBytes = NinoSerializer.Serialize(SortedDictionary);
+    private static readonly byte[] MemoryPackSortedDictionaryBytes = MemoryPackSerializer.Serialize(SortedDictionary);
     private static readonly byte[] NinoSortedListBytes = NinoSerializer.Serialize(SortedList);
     private static readonly byte[] MemoryPackSortedListBytes = MemoryPackSerializer.Serialize(SortedList);
     private static readonly byte[] NinoConcurrentDictionaryBytes = NinoSerializer.Serialize(ConcurrentDictionary);
@@ -65,6 +72,10 @@ public class CollectionsTest
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeQueue), MemoryPackQueueBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeLinkedList), NinoLinkedListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeLinkedList), MemoryPackLinkedListBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSortedSet), NinoSortedSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSortedSet), MemoryPackSortedSetBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSortedDictionary), NinoSortedDictionaryBytes.Length);
+        BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSortedDictionary), MemoryPackSortedDictionaryBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeSortedList), NinoSortedListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(MemoryPackSerializeSortedList), MemoryPackSortedListBytes.Length);
         BenchmarkPayloadRegistry.Register(nameof(NinoSerializeConcurrentDictionary), NinoConcurrentDictionaryBytes.Length);
@@ -187,6 +198,52 @@ public class CollectionsTest
 
     [Benchmark, BenchmarkCategory("LinkedListDeserialize")]
     public LinkedList<int> MemoryPackDeserializeLinkedList() => MemoryPackSerializer.Deserialize<LinkedList<int>>(MemoryPackLinkedListBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("SortedSetSerialize")]
+    public int NinoSerializeSortedSet()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(SortedSet, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("SortedSetSerialize")]
+    public int MemoryPackSerializeSortedSet()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, SortedSet);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("SortedSetDeserialize")]
+    public SortedSet<int> NinoDeserializeSortedSet() => NinoDeserializer.Deserialize<SortedSet<int>>(NinoSortedSetBytes);
+
+    [Benchmark, BenchmarkCategory("SortedSetDeserialize")]
+    public SortedSet<int> MemoryPackDeserializeSortedSet() => MemoryPackSerializer.Deserialize<SortedSet<int>>(MemoryPackSortedSetBytes);
+
+    [Benchmark(Baseline = true), BenchmarkCategory("SortedDictionarySerialize")]
+    public int NinoSerializeSortedDictionary()
+    {
+        _ninoBuffer.ResetWrittenCount();
+        NinoSerializer.Serialize(SortedDictionary, _ninoBuffer);
+        return _ninoBuffer.WrittenCount;
+    }
+
+    [Benchmark, BenchmarkCategory("SortedDictionarySerialize")]
+    public int MemoryPackSerializeSortedDictionary()
+    {
+        _memoryPackBuffer.ResetWrittenCount();
+        MemoryPackSerializer.Serialize(_memoryPackBuffer, SortedDictionary);
+        return _memoryPackBuffer.WrittenCount;
+    }
+
+    [Benchmark(Baseline = true), BenchmarkCategory("SortedDictionaryDeserialize")]
+    public SortedDictionary<int, int> NinoDeserializeSortedDictionary() =>
+        NinoDeserializer.Deserialize<SortedDictionary<int, int>>(NinoSortedDictionaryBytes);
+
+    [Benchmark, BenchmarkCategory("SortedDictionaryDeserialize")]
+    public SortedDictionary<int, int> MemoryPackDeserializeSortedDictionary() =>
+        MemoryPackSerializer.Deserialize<SortedDictionary<int, int>>(MemoryPackSortedDictionaryBytes);
 
     [Benchmark(Baseline = true), BenchmarkCategory("SortedListSerialize")]
     public int NinoSerializeSortedList()
