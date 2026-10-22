@@ -175,7 +175,7 @@ Nino 正是为这类输入设计的：长度和分配以收到的字节数为上
 | 反序列化到已有对象 | **0 B，最多快 <!--bench:reuse.inplace-->11.5<!--/bench--> 倍**（原地复用） | 覆盖写入，有分配 |
 | 多态 | 自动类型 ID，任何基类或接口，包括泛型基类 | 需要维护 `[MemoryPackUnion]` 标签，只能用于接口和抽象类，不支持泛型类型 |
 | keyed 成员、引用追踪、对象池 | ✅ | 有版本兼容和循环引用，没有对象池 |
-| Unity | 2022.3+，从 OpenUPM 安装，`netstandard2.0` 和 `2.1`，HybridCLR | 2022.3.12f1+，`netstandard2.1` |
+| Unity | ✅ 2022.3+，一个 OpenUPM 包，`netstandard2.0` 和 `2.1`，HybridCLR 无需初始化调用 | ✅ 2022.3.12f1+，NuGetForUnity 加一个 git 包，`netstandard2.1` |
 
 ### 基准测试中发现的 MemoryPack 问题
 

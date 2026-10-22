@@ -190,7 +190,7 @@ and every invalid input throws one exception ([details](https://nino.xgamedev.ne
 | Deserialize into existing objects | **0 B, up to <!--bench:reuse.inplace-->11.5<!--/bench-->× faster** (in place) | overwrite mode, allocates |
 | Polymorphism | automatic type ids, any base class or interface, generic bases included | `[MemoryPackUnion]` tags you maintain, on interfaces and abstract classes, not on generic types |
 | Keyed members, reference tracking, object pools | ✅ | version tolerance and circular references, no pools |
-| Unity | 2022.3+ from OpenUPM, `netstandard2.0` and `2.1`, HybridCLR | 2022.3.12f1+, `netstandard2.1` |
+| Unity | ✅ 2022.3+, one OpenUPM package, `netstandard2.0` and `2.1`, HybridCLR without an init call | ✅ 2022.3.12f1+, NuGetForUnity plus a git package, `netstandard2.1` |
 
 ### MemoryPack bugs we found while benchmarking
 
