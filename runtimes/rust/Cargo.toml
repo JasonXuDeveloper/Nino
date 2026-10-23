@@ -20,13 +20,16 @@ rust_decimal = { version = "1", optional = true, default-features = false }
 chrono = { version = "0.4", optional = true, default-features = false }
 num-bigint = { version = "0.4", optional = true, default-features = false, features = ["std"] }
 indexmap = { version = "2", optional = true, default-features = false, features = ["std"] }
+serde = { version = "1", optional = true, default-features = false, features = ["std", "derive"] }
 
 [features]
 default = []
+# serde for Nino's value types, so types with Nino codecs can derive serde too.
+serde = ["dep:serde", "indexmap?/serde", "uuid?/serde"]
 
 # Test-only: the conformance test and its JSON comparison. The crate itself has no required dependencies.
 [dev-dependencies]
-serde = "1"
+serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["unbounded_depth"] }
 indexmap = "2"
 

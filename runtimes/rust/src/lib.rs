@@ -32,6 +32,8 @@ mod defer;
 mod error;
 mod impls;
 mod reader;
+#[cfg(feature = "serde")]
+mod serde_impls;
 mod strings;
 mod traits;
 mod types;

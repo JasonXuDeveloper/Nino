@@ -359,3 +359,68 @@ fn indexmap_feature() {
     assert_eq!(serialize(&s).unwrap(), hex("02000000 02 01"));
     assert_eq!(kind::<IndexSet<u8>>("02000000 01 01"), ErrorKind::DuplicateKey);
 }
+
+#[test]
+fn text_forms() {
+    for v in [0i128, 1, -1, 127, 128, -128, -129, 255, 256, i128::from(i64::MAX), i128::MIN + 1, i128::MAX] {
+        let b = BigInteger::from_i128(v);
+        assert_eq!(b.to_string(), v.to_string());
+        assert_eq!(v.to_string().parse::<BigInteger>().unwrap(), b);
+    }
+    assert_eq!("+00042".parse::<BigInteger>().unwrap(), BigInteger::from_i128(42));
+    assert_eq!("-0".parse::<BigInteger>().unwrap(), BigInteger::from_i128(0));
+    for bad in ["", "-", "1.5", "0x10", " 1"] {
+        assert_eq!(bad.parse::<BigInteger>().unwrap_err().kind(), ErrorKind::InvalidText, "{bad:?}");
+    }
+
+    for text in ["0", "1.50", "-12.3456", "79228162514264337593543950335", "0.0000000000000000000000000001"] {
+        let d: Decimal = text.parse().unwrap();
+        assert_eq!(d.to_string(), text);
+    }
+    assert_eq!("1.50".parse::<Decimal>().unwrap(), Decimal::new(150, 2, false).unwrap());
+    for bad in ["", ".", "1e5", "--1", "1.2.3"] {
+        assert_eq!(bad.parse::<Decimal>().unwrap_err().kind(), ErrorKind::InvalidText, "{bad:?}");
+    }
+    // Text in the form but out of range is the reader's error.
+    for big in ["79228162514264337593543950336", "0.00000000000000000000000000001"] {
+        assert_eq!(big.parse::<Decimal>().unwrap_err().kind(), ErrorKind::InvalidDecimal, "{big:?}");
+    }
+
+    let g: Guid = "00112233-4455-6677-8899-AABBCCDDEEFF".parse().unwrap();
+    assert_eq!(g.to_u128(), 0x0011_2233_4455_6677_8899_aabb_ccdd_eeff);
+    assert_eq!(g.to_string().parse::<Guid>().unwrap(), g);
+    for bad in [
+        "",
+        "00112233445566778899aabbccddeeff",
+        "0011223-34455-6677-8899-aabbccddeeff",
+        "+0112233-4455-6677-8899-aabbccddeeff",
+    ] {
+        assert_eq!(bad.parse::<Guid>().unwrap_err().kind(), ErrorKind::InvalidText, "{bad:?}");
+    }
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn serde_feature() {
+    fn json<T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug>(v: T, text: &str) {
+        assert_eq!(serde_json::to_string(&v).unwrap(), text);
+        assert_eq!(serde_json::from_str::<T>(text).unwrap(), v);
+    }
+    json(Decimal::new(150, 2, true).unwrap(), r#""-1.50""#);
+    json(BigInteger::from_i128(-129), r#""-129""#);
+    json(Guid::from_u128(1), r#""00000000-0000-0000-0000-000000000001""#);
+    json(DateTime::new(5, DateTimeKind::Utc).unwrap(), r#"{"ticks":5,"kind":"Utc"}"#);
+    json(DateTimeOffset::new(36_000_000_000, -60).unwrap(), r#"{"utcTicks":36000000000,"offsetMinutes":-60}"#);
+    json(TimeSpan(-3), "-3");
+    json(DateOnly::new(7).unwrap(), "7");
+    json(Version { major: 1, minor: 2, build: -1, revision: -1 }, r#"{"major":1,"minor":2,"build":-1,"revision":-1}"#);
+    json(BitArray::from_bools(&[true, false]), "[true,false]");
+    json(WideString::from("hi"), r#""hi""#);
+    json(WideString(vec![0xD800]), "[55296]");
+    json(Grid::new([1, 2], vec![1, 2]).unwrap(), r#"{"lengths":[1,2],"items":[1,2]}"#);
+    // Validated as the reader validates.
+    assert!(serde_json::from_str::<DateOnly>("-1").is_err());
+    assert!(serde_json::from_str::<Decimal>(r#""1e3""#).is_err());
+    assert!(serde_json::from_str::<Version>(r#"{"major":1,"minor":2,"build":-1,"revision":0}"#).is_err());
+    assert!(serde_json::from_str::<Grid<i32, 2>>(r#"{"lengths":[2,2],"items":[1]}"#).is_err());
+}

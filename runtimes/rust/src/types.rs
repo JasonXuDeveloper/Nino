@@ -207,6 +207,31 @@ impl fmt::Display for Decimal {
     }
 }
 
+impl core::str::FromStr for Decimal {
+    type Err = Error;
+
+    /// `-12.3456`: an optional sign, digits and an optional fraction (at most 28 digits after the point and a
+    /// 96-bit integer); the scale is kept (`"1.50"` has scale 2).
+    fn from_str(text: &str) -> Result<Self> {
+        let bad = || Error::of(ErrorKind::InvalidText);
+        let (negative, digits) = match text.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, text.strip_prefix('+').unwrap_or(text)),
+        };
+        let (int, frac) = digits.split_once('.').unwrap_or((digits, ""));
+        if int.is_empty() && frac.is_empty() {
+            return Err(bad());
+        }
+        let mut mantissa: u128 = 0;
+        for c in int.chars().chain(frac.chars()) {
+            let d = c.to_digit(10).ok_or_else(bad)?;
+            mantissa = mantissa.checked_mul(10).and_then(|m| m.checked_add(u128::from(d))).ok_or_else(bad)?;
+        }
+        let scale = u8::try_from(frac.len()).map_err(|_| bad())?;
+        Decimal::new(mantissa, scale, negative)
+    }
+}
+
 // ---------------------------------------------------------------------- Guid
 
 /// `System.Guid`, as its 16 wire bytes (`Guid.ToByteArray()`: the first three groups little-endian).
@@ -262,6 +287,25 @@ impl fmt::Display for Guid {
             (v >> 48) as u16,
             v & 0xFFFF_FFFF_FFFF
         )
+    }
+}
+
+impl core::str::FromStr for Guid {
+    type Err = Error;
+
+    /// `00112233-4455-6677-8899-aabbccddeeff` (hex digits in either case, the hyphens where they are).
+    fn from_str(text: &str) -> Result<Self> {
+        let bad = || Error::of(ErrorKind::InvalidText);
+        let b = text.as_bytes();
+        if b.len() != 36 || [8, 13, 18, 23].iter().any(|&i| b.get(i) != Some(&b'-')) {
+            return Err(bad());
+        }
+        let mut value: u128 = 0;
+        for c in text.chars().filter(|&c| c != '-') {
+            let d = c.to_digit(16).ok_or_else(bad)?;
+            value = (value << 4) | u128::from(d);
+        }
+        Ok(Guid::from_u128(value))
     }
 }
 
@@ -648,6 +692,79 @@ impl BigInteger {
             *dst = *src;
         }
         Some(i128::from_le_bytes(b))
+    }
+}
+
+impl fmt::Display for BigInteger {
+    /// The decimal text (`-129`).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let negative = self.0.last().is_some_and(|&b| b & 0x80 != 0);
+        // The magnitude, least significant byte first.
+        let mut mag = self.0.clone();
+        if negative {
+            let mut carry = true;
+            for b in &mut mag {
+                let (v, c) = (!*b).overflowing_add(u8::from(carry));
+                *b = v;
+                carry = c;
+            }
+        }
+        let mut digits = Vec::new();
+        while mag.iter().any(|&b| b != 0) {
+            let mut rem = 0u32;
+            for b in mag.iter_mut().rev() {
+                let cur = (rem << 8) | u32::from(*b);
+                *b = (cur / 10) as u8;
+                rem = cur % 10;
+            }
+            digits.push(char::from(b'0'.wrapping_add(rem as u8)));
+        }
+        if digits.is_empty() {
+            digits.push('0');
+        }
+        if negative {
+            digits.push('-');
+        }
+        f.write_str(&digits.iter().rev().collect::<String>())
+    }
+}
+
+impl core::str::FromStr for BigInteger {
+    type Err = Error;
+
+    /// Decimal text with an optional sign.
+    fn from_str(text: &str) -> Result<Self> {
+        let (negative, digits) = match text.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, text.strip_prefix('+').unwrap_or(text)),
+        };
+        if digits.is_empty() {
+            return Err(Error::of(ErrorKind::InvalidText));
+        }
+        // The magnitude, least significant byte first: times 10 plus the digit, for each digit.
+        let mut mag: Vec<u8> = vec![0];
+        for c in digits.chars() {
+            let mut carry = c.to_digit(10).ok_or_else(|| Error::of(ErrorKind::InvalidText))?;
+            for b in &mut mag {
+                let v = u32::from(*b).wrapping_mul(10).wrapping_add(carry); // at most 255 * 10 + 9 + 255
+                *b = v as u8;
+                carry = v >> 8;
+            }
+            while carry != 0 {
+                mag.push(carry as u8);
+                carry >>= 8;
+            }
+        }
+        mag.push(0); // room for the sign bit
+        if negative {
+            let mut carry = true;
+            for b in &mut mag {
+                let (v, c) = (!*b).overflowing_add(u8::from(carry));
+                *b = v;
+                carry = c;
+            }
+        }
+        Ok(Self::from_signed_bytes_le(&mag))
     }
 }
 

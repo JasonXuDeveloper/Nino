@@ -42,6 +42,8 @@ pub enum ErrorKind {
     InvalidDecimal,
     /// Bytes left over after the value, from [`crate::deserialize_exact`].
     TrailingData,
+    /// Text that is not the form of the value parsed from it (`"1.5".parse::<Guid>()`).
+    InvalidText,
     /// Data this runtime cannot represent (a body deferred inside a set element or a dictionary key).
     Unsupported,
 }
@@ -132,6 +134,7 @@ impl fmt::Display for Error {
             ErrorKind::InvalidDecimal => write!(f, "Nino: invalid decimal"),
             ErrorKind::TrailingData => write!(f, "Nino: {v} bytes after the value"),
             ErrorKind::Unsupported => write!(f, "Nino: data this runtime cannot represent"),
+            ErrorKind::InvalidText => write!(f, "Nino: text that is not a value of the type"),
         }
     }
 }
