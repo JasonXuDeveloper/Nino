@@ -345,6 +345,49 @@ public class MadeList : System.Collections.Generic.List<Made> { }
     }
 
     [TestMethod]
+    public void NamesDifferingOnlyByCaseGetTheirOwnFiles()
+    {
+        // Hint names are compared ignoring case: two of them that differ only by case fail the whole generator run
+        // (CS8785), which then adds no file at all.
+        var compilation = Create(
+            ("A.cs", Usings + @"
+[NinoType] public struct RawS { public int A; }
+[NinoType] public sealed class Raws { public string B; }
+[NinoType] public class Box<T> { public T V; }
+[NinoType] public class box<T> { public T V; }
+public class Holder { [NinoType] public class Item { public int I; } }
+public class holder { [NinoType] public class item { public int I; } }
+[NinoType] public class Plain { public int P; }
+}"),
+            ("B.cs", Usings + "[NinoType] public class Other { public int O; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new[] { new Generator.Generation.NinoGenerator().AsSourceGenerator() },
+            driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
+        driver = driver.RunGenerators(compilation);
+        var result = driver.GetRunResult().Results[0];
+        Assert.AreEqual(0, result.Diagnostics.Length, string.Join("\n", result.Diagnostics));
+        var names = result.GeneratedSources.Select(s => s.HintName).ToList();
+        Assert.AreEqual(names.Count, names.Distinct(StringComparer.OrdinalIgnoreCase).Count(), string.Join("\n", names));
+        foreach (var formatter in new[]
+                 {
+                     "Inc_RawSFormatter", "Inc_RawsFormatter", "Inc_Box_1Formatter", "Inc_box_1Formatter",
+                     "Inc_Holder_ItemFormatter", "Inc_holder_itemFormatter",
+                 })
+            Assert.AreEqual(1, names.Count(n => n.StartsWith($"NinoGen.{formatter}.", StringComparison.Ordinal) &&
+                                                n.Length > $"NinoGen.{formatter}.g.cs".Length), formatter);
+        // Types whose names clash with none keep their plain hint name.
+        CollectionAssert.Contains(names, "NinoGen.Inc_PlainFormatter.g.cs");
+
+        // The same names in the next run, and nothing re-emitted for an edit elsewhere.
+        compilation = Edit(compilation, "B.cs", "public int O;", "public int O; public int O2;");
+        driver = driver.RunGenerators(compilation);
+        result = driver.GetRunResult().Results[0];
+        CollectionAssert.AreEquivalent(names, result.GeneratedSources.Select(s => s.HintName).ToList());
+        var reasons = result.TrackedOutputSteps.SelectMany(s => s.Value).SelectMany(s => s.Outputs)
+            .Count(o => o.Reason != IncrementalStepRunReason.Cached);
+        Assert.IsTrue(reasons <= 4, $"{reasons} outputs re-emitted"); // Other's formatter, registry, usages, dispatch
+    }
+
+    [TestMethod]
     public void SerializedPrivateFieldsAreNotReportedAsUnused()
     {
         // .NET 8+: private members are reached through [UnsafeAccessor], which the compiler cannot see.

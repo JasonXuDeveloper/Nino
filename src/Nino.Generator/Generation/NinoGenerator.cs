@@ -89,8 +89,16 @@ public sealed class NinoGenerator : IIncrementalGenerator
         // Both streams produce the same models; Roslyn 4.3 cannot concatenate value providers, so every output
         // below is registered for (or collected from) each of them.
         var models = new[] { Gate(marked, enabled), Gate(inherited, enabled) };
+        // Hint names are compared ignoring case (and so are file names on Windows and macOS): formatter names that
+        // differ only by case (types RawS and Raws) take a suffix of their own. Usually empty, so an edit that changes
+        // no such name re-emits nothing.
+        var clashing = CollectAll(models, static m => m.FormatterName)
+            .Select(static (names, _) => new EquatableArray<string>(names.Distinct()
+                .GroupBy(n => n, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1)
+                .SelectMany(g => g).OrderBy(n => n, StringComparer.Ordinal)));
         foreach (var stream in models)
-            context.RegisterImplementationSourceOutput(stream, static (spc, model) => Emit(spc, model));
+            context.RegisterImplementationSourceOutput(stream.Combine(clashing),
+                static (spc, x) => Emit(spc, x.Left, x.Right.Contains(x.Left.FormatterName)));
 
         var options = context.CompilationProvider.Select(static (c, _) => new GeneratorOptions(
             c.AssemblyName ?? "Assembly",
@@ -340,7 +348,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
     private static RegistryEntry ToEntry(TypeModel model) =>
         new(model.FormatterName, model.TypeParameters.Length, RegistryEmitter.Registration(model));
 
-    private static void Emit(SourceProductionContext spc, TypeModel model)
+    /// <summary>
+    /// Emits the formatter of <paramref name="model"/>; <paramref name="clashes"/>: another formatter's name differs
+    /// from its own only by case, so its hint name carries the hash of its exact name.
+    /// </summary>
+    private static void Emit(SourceProductionContext spc, TypeModel model, bool clashes)
     {
         string source;
         try
@@ -356,6 +368,11 @@ public sealed class NinoGenerator : IIncrementalGenerator
                      $"{e.Message.Replace('\n', ' ').Replace('\r', ' ')}). Please report it at https://github.com/JasonXuDeveloper/Nino/issues\n";
         }
 
-        spc.AddSource($"NinoGen.{model.FormatterName}.g.cs", source);
+        spc.AddSource(HintName(model.FormatterName, clashes), source);
     }
+
+    /// <summary>The hint name of a formatter's file (see <see cref="Emit"/>).</summary>
+    internal static string HintName(string formatterName, bool clashes) => clashes
+        ? $"NinoGen.{formatterName}.{TypeNames.ComputeId(formatterName):X8}.g.cs"
+        : $"NinoGen.{formatterName}.g.cs";
 }
