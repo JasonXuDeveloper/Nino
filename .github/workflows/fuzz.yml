@@ -1,0 +1,148 @@
+name: Fuzz
+
+# Fuzzes the deserializer (tests/Nino.Fuzz, README.md there): the mutational fuzzer with guard pages and invariant
+# checks on every SIMD path, the hand-made probes, and coverage-guided libFuzzer runs of the SharpFuzz targets.
+# Pull requests and pushes get about a minute per configuration; the nightly run a longer budget.
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'src/**'
+      - 'tests/Nino.Fuzz/**'
+      - '.github/workflows/fuzz.yml'
+  pull_request:
+    branches: [ "main", "develop" ]
+    paths:
+      - 'src/**'
+      - 'tests/Nino.Fuzz/**'
+      - '.github/workflows/fuzz.yml'
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Seconds of mutational fuzzing per configuration'
+        default: '600'
+      libfuzzer_seconds:
+        description: 'Seconds of libFuzzer per target'
+        default: '120'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: '1'
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  # Known open bugs (the probes marked Known in tests/Nino.Fuzz/Probes.cs) are reported without failing the run until
+  # the repository variable NINO_FUZZ_STRICT_KNOWN is set to 1 (once their fixes are merged).
+  NINO_FUZZ_STRICT_KNOWN: ${{ vars.NINO_FUZZ_STRICT_KNOWN || '0' }}
+  SECONDS_BUDGET: ${{ github.event_name == 'schedule' && '1800' || inputs.seconds || '60' }}
+  LIBFUZZER_SECONDS: ${{ github.event_name == 'schedule' && '240' || inputs.libfuzzer_seconds || '10' }}
+
+jobs:
+  mutational:
+    name: Mutational (${{ matrix.name }})
+    runs-on: ${{ matrix.runner || 'ubuntu-26.04' }}
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 90 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SIMD
+          # Every vector path has a scalar twin; each SIMD level is its own code path to fuzz.
+          - name: without SIMD
+            simd: '0'
+          - name: without AVX-512
+            avx512: '0'
+          - name: without AVX2
+            avx2: '0'
+          - name: Arm64
+            runner: ubuntu-24.04-arm
+    env:
+      DOTNET_EnableHWIntrinsic: ${{ matrix.simd || '1' }}
+      DOTNET_EnableAVX512: ${{ matrix.avx512 || '1' }}
+      DOTNET_EnableAVX2: ${{ matrix.avx2 || '1' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-${{ runner.arch }}-fuzz-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-fuzz-nuget-
+
+      - name: Build
+        run: dotnet build tests/Nino.Fuzz/Nino.Fuzz.csproj -c Release -f net10.0
+
+      # The fuzzer must find the crashes, hang and exception planted in its SelfTest target, or it would report
+      # nothing on a platform where its supervisor or guard pages do not work.
+      - name: Self test
+        run: dotnet tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll selftest
+
+      - name: Fuzz
+        run: >
+          dotnet tests/Nino.Fuzz/bin/Release/net10.0/Nino.Fuzz.dll fuzz
+          --seconds "$SECONDS_BUDGET" --seed "${{ github.run_number }}"
+          --findings "${{ runner.temp }}/findings"
+
+      - name: Upload findings
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-findings-${{ matrix.name }}
+          path: ${{ runner.temp }}/findings
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
+
+  libfuzzer:
+    name: libFuzzer (SharpFuzz)
+    runs-on: ubuntu-26.04
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 120 }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            ${{ vars.DOTNET_VERSION || '10.0.x' }}
+            10.0.x
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-${{ runner.arch }}-fuzz-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-fuzz-nuget-
+
+      - name: Install clang with libFuzzer
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q clang
+          version=$(clang --version | sed -n 's/.*clang version \([0-9]*\).*/\1/p')
+          sudo apt-get install -y -q "libclang-rt-$version-dev" || true
+
+      - name: Fuzz every target
+        env:
+          NINO_LIBFUZZER_WORK: ${{ runner.temp }}/libfuzzer
+        run: tests/Nino.Fuzz/libfuzzer/run.sh "$LIBFUZZER_SECONDS"
+
+      - name: Upload findings
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: libfuzzer-findings
+          path: ${{ runner.temp }}/libfuzzer/findings
+          if-no-files-found: ignore
+          retention-days: 30
