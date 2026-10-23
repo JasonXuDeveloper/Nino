@@ -3,7 +3,7 @@
 `src/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack and MessagePack).
 `v3/` is the same `SimpleTest` (same data, same attributes) built against **Nino 3.3.13 from nuget.org**, the last v3
 release, so v4 can be compared with v3 on the same machine; it compiles v4's `NinoJobAttribute.cs` and
-`SimpleBenchmarkData.cs`, so the job and the data cannot drift apart. It is not part of `src/Nino.sln`.
+`SimpleBenchmarkData.cs`, so the job and the data cannot drift apart. It is not part of `src/Nino.slnx`.
 
 ```sh
 benchmarks/run.sh                          # v3, then the full v4 suite; about three and a half hours

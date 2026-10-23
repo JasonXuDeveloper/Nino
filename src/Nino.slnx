@@ -1,0 +1,26 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Nino.AotTests/Nino.AotTests.csproj" />
+  <Project Path="Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj" />
+  <Project Path="Nino.AspNetCore/Nino.AspNetCore.csproj" />
+  <Project Path="Nino.Benchmark/Nino.Benchmark.csproj" />
+  <Project Path="Nino.Core/Nino.Core.csproj" />
+  <Project Path="Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj" />
+  <Project Path="Nino.Generator.Roslyn4.12/Nino.Generator.Roslyn4.12.csproj" />
+  <Project Path="Nino.Generator.Roslyn4.8/Nino.Generator.Roslyn4.8.csproj" />
+  <Project Path="Nino.Generator/Nino.Generator.csproj" />
+  <Project Path="Nino.GeneratorBenchmark/Nino.GeneratorBenchmark.csproj" />
+  <Project Path="Nino.Immutable/Nino.Immutable.csproj" />
+  <Project Path="Nino.RuntimeTests/Nino.RuntimeTests.csproj" />
+  <Project Path="Nino.TypeScript.Tests/Nino.TypeScript.Tests.csproj" />
+  <Project Path="Nino.TypeScript/Nino.TypeScript.csproj" />
+  <Project Path="Nino.UnitTests.Subset/Nino.UnitTests.Subset.csproj" />
+  <Project Path="Nino.UnitTests/Nino.UnitTests.csproj" />
+  <Project Path="Nino.UnityTypes/Nino.UnityTypes.csproj" />
+  <Project Path="Nino.UnityTypes/UnityEngineStub/UnityEngine.CoreModule.csproj" />
+  <Project Path="Nino/Nino.csproj" />
+</Solution>
