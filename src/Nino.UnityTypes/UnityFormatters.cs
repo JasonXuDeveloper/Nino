@@ -29,20 +29,22 @@ namespace Nino.UnityTypes
             // The count, the keys and the wrap modes in one reservation.
             var keys = value.keys;
             ref byte next = ref writer.Reserve(checked(sizeof(int) + keys.Length * KeySize + 2 * sizeof(int)));
-            next = ref UnityBytes.Put(ref next, keys.Length);
+            NinoUnsafe.Write(ref next, keys.Length);
+            next = ref Unsafe.Add(ref next, sizeof(int));
             foreach (var key in keys)
             {
-                next = ref UnityBytes.Put(ref next, key.time);
-                next = ref UnityBytes.Put(ref next, key.value);
-                next = ref UnityBytes.Put(ref next, key.inTangent);
-                next = ref UnityBytes.Put(ref next, key.outTangent);
-                next = ref UnityBytes.Put(ref next, key.inWeight);
-                next = ref UnityBytes.Put(ref next, key.outWeight);
-                next = ref UnityBytes.Put(ref next, (int)key.weightedMode);
+                NinoUnsafe.Write(ref next, 0, key.time);
+                NinoUnsafe.Write(ref next, 4, key.value);
+                NinoUnsafe.Write(ref next, 8, key.inTangent);
+                NinoUnsafe.Write(ref next, 12, key.outTangent);
+                NinoUnsafe.Write(ref next, 16, key.inWeight);
+                NinoUnsafe.Write(ref next, 20, key.outWeight);
+                NinoUnsafe.Write(ref next, 24, (int)key.weightedMode);
+                next = ref Unsafe.Add(ref next, KeySize);
             }
 
-            next = ref UnityBytes.Put(ref next, (int)value.preWrapMode);
-            UnityBytes.Put(ref next, (int)value.postWrapMode);
+            NinoUnsafe.Write(ref next, 0, (int)value.preWrapMode);
+            NinoUnsafe.Write(ref next, 4, (int)value.postWrapMode);
         }
 
         private const int KeySize = 7 * sizeof(float);
@@ -61,19 +63,19 @@ namespace Nino.UnityTypes
             var keys = new Keyframe[count];
             for (int i = 0; i < keys.Length; i++)
             {
-                keys[i] = new Keyframe(UnityBytes.Get<float>(ref next, 0), UnityBytes.Get<float>(ref next, 4),
-                    UnityBytes.Get<float>(ref next, 8), UnityBytes.Get<float>(ref next, 12),
-                    UnityBytes.Get<float>(ref next, 16), UnityBytes.Get<float>(ref next, 20))
+                keys[i] = new Keyframe(NinoUnsafe.Read<float>(ref next, 0), NinoUnsafe.Read<float>(ref next, 4),
+                    NinoUnsafe.Read<float>(ref next, 8), NinoUnsafe.Read<float>(ref next, 12),
+                    NinoUnsafe.Read<float>(ref next, 16), NinoUnsafe.Read<float>(ref next, 20))
                 {
-                    weightedMode = (WeightedMode)UnityBytes.Get<int>(ref next, 24),
+                    weightedMode = (WeightedMode)NinoUnsafe.Read<int>(ref next, 24),
                 };
                 next = ref Unsafe.Add(ref next, KeySize);
             }
 
             var curve = value ??= new AnimationCurve();
             curve.keys = keys;
-            curve.preWrapMode = (WrapMode)UnityBytes.Get<int>(ref next, 0);
-            curve.postWrapMode = (WrapMode)UnityBytes.Get<int>(ref next, 4);
+            curve.preWrapMode = (WrapMode)NinoUnsafe.Read<int>(ref next, 0);
+            curve.postWrapMode = (WrapMode)NinoUnsafe.Read<int>(ref next, 4);
         }
     }
 
@@ -97,24 +99,28 @@ namespace Nino.UnityTypes
             var alphaKeys = value.alphaKeys;
             ref byte next = ref writer.Reserve(checked(sizeof(int) + colorKeys.Length * ColorKeySize + sizeof(int) +
                                                        alphaKeys.Length * AlphaKeySize + sizeof(int)));
-            next = ref UnityBytes.Put(ref next, colorKeys.Length);
+            NinoUnsafe.Write(ref next, colorKeys.Length);
+            next = ref Unsafe.Add(ref next, sizeof(int));
             foreach (var key in colorKeys)
             {
-                next = ref UnityBytes.Put(ref next, key.color.r);
-                next = ref UnityBytes.Put(ref next, key.color.g);
-                next = ref UnityBytes.Put(ref next, key.color.b);
-                next = ref UnityBytes.Put(ref next, key.color.a);
-                next = ref UnityBytes.Put(ref next, key.time);
+                NinoUnsafe.Write(ref next, 0, key.color.r);
+                NinoUnsafe.Write(ref next, 4, key.color.g);
+                NinoUnsafe.Write(ref next, 8, key.color.b);
+                NinoUnsafe.Write(ref next, 12, key.color.a);
+                NinoUnsafe.Write(ref next, 16, key.time);
+                next = ref Unsafe.Add(ref next, ColorKeySize);
             }
 
-            next = ref UnityBytes.Put(ref next, alphaKeys.Length);
+            NinoUnsafe.Write(ref next, alphaKeys.Length);
+            next = ref Unsafe.Add(ref next, sizeof(int));
             foreach (var key in alphaKeys)
             {
-                next = ref UnityBytes.Put(ref next, key.alpha);
-                next = ref UnityBytes.Put(ref next, key.time);
+                NinoUnsafe.Write(ref next, 0, key.alpha);
+                NinoUnsafe.Write(ref next, 4, key.time);
+                next = ref Unsafe.Add(ref next, AlphaKeySize);
             }
 
-            UnityBytes.Put(ref next, (int)value.mode);
+            NinoUnsafe.Write(ref next, (int)value.mode);
         }
 
         private const int ColorKeySize = 5 * sizeof(float);
@@ -134,9 +140,9 @@ namespace Nino.UnityTypes
             var colorKeys = new GradientColorKey[colorCount];
             for (int i = 0; i < colorKeys.Length; i++)
             {
-                var color = new Color(UnityBytes.Get<float>(ref next, 0), UnityBytes.Get<float>(ref next, 4),
-                    UnityBytes.Get<float>(ref next, 8), UnityBytes.Get<float>(ref next, 12));
-                colorKeys[i] = new GradientColorKey(color, UnityBytes.Get<float>(ref next, 16));
+                var color = new Color(NinoUnsafe.Read<float>(ref next, 0), NinoUnsafe.Read<float>(ref next, 4),
+                    NinoUnsafe.Read<float>(ref next, 8), NinoUnsafe.Read<float>(ref next, 12));
+                colorKeys[i] = new GradientColorKey(color, NinoUnsafe.Read<float>(ref next, 16));
                 next = ref Unsafe.Add(ref next, ColorKeySize);
             }
 
@@ -145,14 +151,14 @@ namespace Nino.UnityTypes
             for (int i = 0; i < alphaKeys.Length; i++)
             {
                 alphaKeys[i] =
-                    new GradientAlphaKey(UnityBytes.Get<float>(ref next, 0), UnityBytes.Get<float>(ref next, 4));
+                    new GradientAlphaKey(NinoUnsafe.Read<float>(ref next, 0), NinoUnsafe.Read<float>(ref next, 4));
                 next = ref Unsafe.Add(ref next, AlphaKeySize);
             }
 
             var gradient = value ??= new Gradient();
             gradient.colorKeys = colorKeys;
             gradient.alphaKeys = alphaKeys;
-            gradient.mode = (GradientMode)UnityBytes.Get<int>(ref next, 0);
+            gradient.mode = (GradientMode)NinoUnsafe.Read<int>(ref next, 0);
         }
     }
 
@@ -172,10 +178,10 @@ namespace Nino.UnityTypes
 
             ref byte next = ref writer.Reserve(1 + 4 * sizeof(int));
             next = 1;
-            next = ref UnityBytes.Put(ref Unsafe.Add(ref next, 1), value.left);
-            next = ref UnityBytes.Put(ref next, value.right);
-            next = ref UnityBytes.Put(ref next, value.top);
-            UnityBytes.Put(ref next, value.bottom);
+            NinoUnsafe.Write(ref next, 1, value.left);
+            NinoUnsafe.Write(ref next, 5, value.right);
+            NinoUnsafe.Write(ref next, 9, value.top);
+            NinoUnsafe.Write(ref next, 13, value.bottom);
         }
 
         public void Deserialize(ref RectOffset value, ref Reader reader)
@@ -188,30 +194,10 @@ namespace Nino.UnityTypes
 
             ref byte sides = ref reader.ReadBlock(4 * sizeof(int));
             var offset = value ??= new RectOffset();
-            offset.left = UnityBytes.Get<int>(ref sides, 0);
-            offset.right = UnityBytes.Get<int>(ref sides, 4);
-            offset.top = UnityBytes.Get<int>(ref sides, 8);
-            offset.bottom = UnityBytes.Get<int>(ref sides, 12);
+            offset.left = NinoUnsafe.Read<int>(ref sides, 0);
+            offset.right = NinoUnsafe.Read<int>(ref sides, 4);
+            offset.top = NinoUnsafe.Read<int>(ref sides, 8);
+            offset.bottom = NinoUnsafe.Read<int>(ref sides, 12);
         }
-    }
-
-    /// <summary>
-    /// Values at a cursor in a block reserved or read as a whole, in the byte order Nino writes them (the machine's,
-    /// little-endian).
-    /// </summary>
-    internal static class UnityBytes
-    {
-        /// <summary>Stores <paramref name="value"/> at <paramref name="at"/> and returns the byte after it.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static ref byte Put<T>(ref byte at, T value) where T : unmanaged
-        {
-            Unsafe.WriteUnaligned(ref at, value);
-            return ref Unsafe.Add(ref at, Unsafe.SizeOf<T>());
-        }
-
-        /// <summary>The value at <paramref name="at"/> + <paramref name="offset"/>.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static T Get<T>(ref byte at, int offset) where T : unmanaged =>
-            Unsafe.ReadUnaligned<T>(ref Unsafe.Add(ref at, offset));
     }
 }
