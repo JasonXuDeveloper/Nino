@@ -256,6 +256,79 @@ public unsafe class CopyAlignProbe
     }
 }
 
+/// <summary>
+/// Experiment: 8,000 bytes copied with the destination <see cref="Gap"/> bytes past the source modulo 4 KB (the
+/// source 64-byte aligned or <see cref="SourceShift"/> past it). A load whose address matches a pending store's in its
+/// low 12 bits waits for it (4K aliasing): copying forward, that happens when the destination is a little past the
+/// source modulo 4 KB, and the gap between a serializer's buffer and the array it writes changes from process to
+/// process. Inventory (1,000 8-byte structs, copied whole) took 105 to 170 ns by the process on an EPYC 9V74
+/// (MemoryPack, whose Memmove copies backward at such gaps: 105). NinoUnsafe.Copy (forward, stores aligned), the same
+/// loop run backward, and Memmove.
+/// </summary>
+[Config(typeof(ProbeConfig))]
+public unsafe class CopyGapProbe
+{
+    [Params(4, 36, 132, 260, 516, 1028, 2052, 4036)]
+    public int Gap;
+
+    [Params(0, 40)]
+    public int SourceShift;
+
+    private const int Bytes = 8000;
+    private static readonly byte* Base = (byte*)NativeMemory.AlignedAlloc(1 << 16, 4096);
+
+    private byte* Source => Base + SourceShift;
+    private byte* Destination => Base + 16384 + SourceShift + Gap;
+
+    [Benchmark(Baseline = true)]
+    public int NinoCopy()
+    {
+        NinoUnsafe.Copy(ref *Destination, ref *Source, Bytes);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Backward()
+    {
+        if (Vector512.IsHardwareAccelerated)
+            CopyBackward<Vector512<byte>>(Destination, Source, Bytes);
+        else
+            CopyBackward<Vector256<byte>>(Destination, Source, Bytes);
+        return Bytes;
+    }
+
+    [Benchmark]
+    public int Memmove()
+    {
+        Buffer.MemoryCopy(Source, Destination, Bytes, Bytes);
+        return Bytes;
+    }
+
+    /// <summary>NinoUnsafe.CopyVectors from the end: the last vector unaligned, aligned stores down, the first one.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.AggressiveOptimization)]
+    private static void CopyBackward<TVector>(byte* d, byte* s, nuint size) where TVector : struct
+    {
+        nuint width = (nuint)Unsafe.SizeOf<TVector>();
+        Unsafe.WriteUnaligned(d + size - width, Unsafe.ReadUnaligned<TVector>(s + size - width));
+        nuint i = size - width - ((nuint)(d + size - width) & (width - 1));
+        for (; i >= 4 * width; i -= 4 * width)
+        {
+            var a = Unsafe.ReadUnaligned<TVector>(s + i - width);
+            var b = Unsafe.ReadUnaligned<TVector>(s + i - 2 * width);
+            var c = Unsafe.ReadUnaligned<TVector>(s + i - 3 * width);
+            var e = Unsafe.ReadUnaligned<TVector>(s + i - 4 * width);
+            Unsafe.WriteUnaligned(d + i - width, a);
+            Unsafe.WriteUnaligned(d + i - 2 * width, b);
+            Unsafe.WriteUnaligned(d + i - 3 * width, c);
+            Unsafe.WriteUnaligned(d + i - 4 * width, e);
+        }
+
+        for (; i >= width; i -= width)
+            Unsafe.WriteUnaligned(d + i - width, Unsafe.ReadUnaligned<TVector>(s + i - width));
+        Unsafe.WriteUnaligned(d, Unsafe.ReadUnaligned<TVector>(s));
+    }
+}
+
 /// <summary>One job, for kernels that environment switches do not change (Arm64).</summary>
 public class SingleProbeConfig : ManualConfig
 {
