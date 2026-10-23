@@ -673,3 +673,36 @@ func TestTagEmbedded(t *testing.T) {
 		t.Fatalf("%X", got)
 	}
 }
+
+// Plans built from many goroutines at once: one plan per type, the same bytes everywhere.
+type tagConcurrent struct {
+	A    int32                     `nino:"0"`
+	Kids []tagConcurrent           `nino:"1"`
+	Map  map[string]*tagConcurrent `nino:"2"`
+}
+
+func TestTagConcurrentPlans(t *testing.T) {
+	v := &tagConcurrent{A: 1, Kids: []tagConcurrent{{A: 2}}, Map: map[string]*tagConcurrent{"x": {A: 3}}}
+	want, err := Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unsafeAccess.Store(false)
+	defer unsafeAccess.Store(true)
+	done := make(chan []byte)
+	for i := 0; i < 8; i++ {
+		go func() {
+			b, _ := Marshal(v)
+			var back *tagConcurrent
+			if Unmarshal(b, &back) != nil {
+				b = nil
+			}
+			done <- b
+		}()
+	}
+	for i := 0; i < 8; i++ {
+		if b := <-done; !bytes.Equal(b, want) {
+			t.Fatalf("%X, want %X", b, want)
+		}
+	}
+}
