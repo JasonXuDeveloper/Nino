@@ -1,0 +1,15 @@
+{
+  "case": "utf8-char-count-int-min",
+  "type": "Conformance.Targets.Utf8Value",
+  "category": "utf8",
+  "expected": "error",
+  "exercises": "[NinoUtf8]: a char count of int.MinValue.",
+  "size": 10,
+  "layouts": {
+    "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; members=Value:string:utf8"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

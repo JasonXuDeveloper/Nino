@@ -1,0 +1,19 @@
+{
+  "case": "string-one-char-past-latin1",
+  "description": "Latin-1 text with one char past U+00FF at the end: UTF-16.",
+  "type": "Conformance.Strings",
+  "features": [
+    "string",
+    "utf8"
+  ],
+  "size": 417,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Strings": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; members=Text:string:string;Utf8:string:utf8"
+  },
+  "value": {
+    "$type": "Conformance.Strings",
+    "Text": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééĀ",
+    "Utf8": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééĀ"
+  }
+}

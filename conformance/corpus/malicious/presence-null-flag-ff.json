@@ -1,0 +1,14 @@
+{
+  "case": "presence-null-flag-ff",
+  "type": "Conformance.Targets.TextValue",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "A sealed class's null flag of 0xff (only 0 and 1).",
+  "size": 5,
+  "layouts": {
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; members=Value:string:string"
+  },
+  "dotnet": {
+    "outcome": "returned"
+  }
+}

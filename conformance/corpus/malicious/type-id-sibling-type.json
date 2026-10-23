@@ -1,0 +1,17 @@
+{
+  "case": "type-id-sibling-type",
+  "type": "Conformance.Targets.DogSlot",
+  "category": "type-id",
+  "expected": "error",
+  "exercises": "A Dog member holding the type id of Cat, an Animal that is not a Dog.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Dog": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x69ACA68A; members=Name:string:string;Bones:int:raw(4)",
+    "Conformance.Puppy": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x94310DEA; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)",
+    "Conformance.Targets.DogSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x47F317D2; members=Value:Conformance.Dog:type(Conformance.Dog)"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

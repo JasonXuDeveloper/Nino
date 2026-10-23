@@ -1,0 +1,371 @@
+{
+  "rule": "For each case, every strict prefix of valid/<case>.bin (lengths 0 to size - 1) read as <type> must be an error.",
+  "expected": "error",
+  "prefixCount": 10349,
+  "cases": [
+    {
+      "case": "integers-mixed",
+      "type": "Conformance.Integers",
+      "prefixes": 63,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 63
+        }
+      }
+    },
+    {
+      "case": "integers-null",
+      "type": "Conformance.Integers",
+      "prefixes": 1,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 1
+        }
+      }
+    },
+    {
+      "case": "floats-values",
+      "type": "Conformance.Floats",
+      "prefixes": 15,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 15
+        }
+      }
+    },
+    {
+      "case": "scalars-values",
+      "type": "Conformance.Scalars",
+      "prefixes": 56,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 56
+        }
+      }
+    },
+    {
+      "case": "dates-kinds",
+      "type": "Conformance.Dates",
+      "prefixes": 35,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 35
+        }
+      }
+    },
+    {
+      "case": "enums-min",
+      "type": "Conformance.Enums",
+      "prefixes": 56,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 56
+        }
+      }
+    },
+    {
+      "case": "big-values",
+      "type": "Conformance.BigValues",
+      "prefixes": 34,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 34
+        }
+      }
+    },
+    {
+      "case": "big-values-edges",
+      "type": "Conformance.BigValues",
+      "prefixes": 23,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 23
+        }
+      }
+    },
+    {
+      "case": "string-ascii",
+      "type": "Conformance.Strings",
+      "prefixes": 37,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 37
+        }
+      }
+    },
+    {
+      "case": "string-latin1",
+      "type": "Conformance.Strings",
+      "prefixes": 43,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 43
+        }
+      }
+    },
+    {
+      "case": "string-bmp",
+      "type": "Conformance.Strings",
+      "prefixes": 69,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 69
+        }
+      }
+    },
+    {
+      "case": "string-astral",
+      "type": "Conformance.Strings",
+      "prefixes": 43,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 43
+        }
+      }
+    },
+    {
+      "case": "string-lone-surrogates",
+      "type": "Conformance.Strings",
+      "prefixes": 42,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 42
+        }
+      }
+    },
+    {
+      "case": "string-collections",
+      "type": "Conformance.StringCollections",
+      "prefixes": 387,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 387
+        }
+      }
+    },
+    {
+      "case": "bytes-values",
+      "type": "Conformance.Bytes",
+      "prefixes": 278,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 278
+        }
+      }
+    },
+    {
+      "case": "structs-values",
+      "type": "Conformance.Structs",
+      "prefixes": 241,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 241
+        }
+      }
+    },
+    {
+      "case": "nested-objects",
+      "type": "Conformance.Outer",
+      "prefixes": 57,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 57
+        }
+      }
+    },
+    {
+      "case": "empties",
+      "type": "Conformance.Empties",
+      "prefixes": 17,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 17
+        }
+      }
+    },
+    {
+      "case": "collections-values",
+      "type": "Conformance.Collections",
+      "prefixes": 470,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 470
+        }
+      }
+    },
+    {
+      "case": "nullables-values",
+      "type": "Conformance.Nullables",
+      "prefixes": 216,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 216
+        }
+      }
+    },
+    {
+      "case": "tolerant",
+      "type": "Conformance.TolerantHolder",
+      "prefixes": 40,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 40
+        }
+      }
+    },
+    {
+      "case": "tolerant-new-to-old",
+      "type": "Conformance.TolerantV1",
+      "prefixes": 40,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 40
+        }
+      }
+    },
+    {
+      "case": "keyed",
+      "type": "Conformance.KeyedHolder",
+      "prefixes": 164,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 164
+        }
+      }
+    },
+    {
+      "case": "keyed-v1-to-v2",
+      "type": "Conformance.KeyedV2",
+      "prefixes": 64,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 64
+        }
+      }
+    },
+    {
+      "case": "polymorphism",
+      "type": "Conformance.Zoo",
+      "prefixes": 289,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 289
+        }
+      }
+    },
+    {
+      "case": "polymorphism-generic-root",
+      "type": "Conformance.Animal",
+      "prefixes": 19,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 19
+        }
+      }
+    },
+    {
+      "case": "deep-chain-130",
+      "type": "Conformance.Chain",
+      "prefixes": 651,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 651
+        }
+      }
+    },
+    {
+      "case": "deep-tolerant-chain-129",
+      "type": "Conformance.TolerantChain",
+      "prefixes": 1174,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 1174
+        }
+      }
+    },
+    {
+      "case": "deep-keyed-chain-129",
+      "type": "Conformance.KeyedChain",
+      "prefixes": 3238,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 3238
+        }
+      }
+    },
+    {
+      "case": "deep-links-129",
+      "type": "Conformance.Link",
+      "prefixes": 1309,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 1309
+        }
+      }
+    },
+    {
+      "case": "deep-in-region",
+      "type": "Conformance.TolerantRoot",
+      "prefixes": 1030,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 1030
+        }
+      }
+    },
+    {
+      "case": "references-shared",
+      "type": "Conformance.TrackedHolder",
+      "prefixes": 97,
+      "optional": "track-references",
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 97
+        }
+      }
+    },
+    {
+      "case": "tree-collections",
+      "type": "Conformance.TreeHolder",
+      "prefixes": 51,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 51
+        }
+      }
+    }
+  ]
+}

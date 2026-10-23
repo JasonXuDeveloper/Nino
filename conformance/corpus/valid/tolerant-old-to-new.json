@@ -1,0 +1,22 @@
+{
+  "case": "tolerant-old-to-new",
+  "description": "Old data read by the new version: the appended members keep their defaults.",
+  "type": "Conformance.TolerantV2",
+  "features": [
+    "version-tolerant",
+    "versioning"
+  ],
+  "size": 16,
+  "roundTrip": false,
+  "reencoded": "011700000007000000fcffffff6f6c640000000000000000ffffffff",
+  "layouts": {
+    "Conformance.TolerantV2": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7BB17A9; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))"
+  },
+  "value": {
+    "$type": "Conformance.TolerantV2",
+    "A": 7,
+    "B": "old",
+    "C": 0,
+    "D": null
+  }
+}

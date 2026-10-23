@@ -1,0 +1,27 @@
+{
+  "case": "integers-mixed",
+  "description": "Values around 2^53 and byte patterns that show the byte order.",
+  "type": "Conformance.Integers",
+  "features": [
+    "int",
+    "int128"
+  ],
+  "size": 63,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Integers": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x14BD31D3; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(4){_dummyPrimitive:int@0:raw(4)};U128:System.UInt128:raw(4){_dummyPrimitive:int@0:raw(4)}"
+  },
+  "value": {
+    "$type": "Conformance.Integers",
+    "I8": -1,
+    "U8": 128,
+    "I16": -2,
+    "U16": 4660,
+    "I32": 305419896,
+    "U32": 2309737967,
+    "I64": "9007199254740993",
+    "U64": 9007199254740992,
+    "I128": "-27670116110564327417",
+    "U128": "1339673755198158349044581307228491536"
+  }
+}

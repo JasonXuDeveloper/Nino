@@ -1,0 +1,19 @@
+{
+  "case": "big-values-default",
+  "description": "BigInteger zero and a null Version.",
+  "type": "Conformance.BigValues",
+  "features": [
+    "bigint",
+    "version"
+  ],
+  "size": 10,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.BigValues": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD56E77DA; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version"
+  },
+  "value": {
+    "$type": "Conformance.BigValues",
+    "Big": "0",
+    "Version": null
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "case": "presence-nullable-array-flag-ff",
+  "type": "Conformance.Targets.MaybeIntArray",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "An int?[] element (fixed stride: flag, 3 padding bytes, value) whose flag is 0xff.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Targets.MaybeIntArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x436A69B2; members=Values:System.Nullable<int>[]:seq(raw(8){value:int@0:raw(4),_dummyPrimitive:int@4:raw(4)})"
+  },
+  "dotnet": {
+    "outcome": "returned"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "case": "polymorphism-nulls",
+  "description": "Every polymorphic member null.",
+  "type": "Conformance.Zoo",
+  "features": [
+    "type-id"
+  ],
+  "size": 37,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Animal": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD3594770; members=Name:string:string",
+    "Conformance.Box<T>": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x00000000; members=Name:string:string;Value:T:type(T)",
+    "Conformance.Cat": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAD792380; members=Name:string:string;Lives:float:raw(4)",
+    "Conformance.Circle": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0xD0A6E3F4; members=Area:double:raw(8);Radius:double:raw(8)",
+    "Conformance.Dog": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x69ACA68A; members=Name:string:string;Bones:int:raw(4)",
+    "Conformance.IShape": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x7CC3C4C0; members=",
+    "Conformance.Plain": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x3124185C; members=Value:int:raw(4)",
+    "Conformance.Puppy": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x94310DEA; members=Name:string:string;Bones:int:raw(4);Sleepy:bool:raw(1)",
+    "Conformance.Square": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x844A4BA7; members=Area:double:raw(8);Side:double:raw(8)",
+    "Conformance.Zoo": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x6E8C85FC; members=Star:Conformance.Animal:type(Conformance.Animal);Dog:Conformance.Dog:type(Conformance.Dog);Animals:System.Collections.Generic.List<Conformance.Animal>:seq(type(Conformance.Animal));Cages:Conformance.Animal[]:seq(type(Conformance.Animal));Shape:Conformance.IShape:type(Conformance.IShape);Shapes:System.Collections.Generic.List<Conformance.IShape>:seq(type(Conformance.IShape));Plain:Conformance.Plain:type(Conformance.Plain);Anything:object:object;ByName:System.Collections.Generic.Dictionary<string, Conformance.Animal>:map(string,type(Conformance.Animal))"
+  },
+  "value": {
+    "$type": "Conformance.Zoo",
+    "Star": null,
+    "Dog": null,
+    "Animals": null,
+    "Cages": null,
+    "Shape": null,
+    "Shapes": null,
+    "Plain": null,
+    "Anything": null,
+    "ByName": null
+  }
+}

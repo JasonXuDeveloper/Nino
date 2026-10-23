@@ -1,0 +1,14 @@
+{
+  "case": "depth-chain-inline-10k",
+  "type": "Conformance.Chain",
+  "category": "depth",
+  "expected": "error-or-value",
+  "exercises": "A sealed chain nested inline 10,000 deep (a writer defers past 128 open bodies). Outside any region .NET reads deep inline data as deferred bodies by design (docs/v4-design.md, Deep nesting), so it may be read; a reader must not use stack in proportion to the depth.",
+  "size": 50001,
+  "layouts": {
+    "Conformance.Chain": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8147BA33; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)"
+  },
+  "dotnet": {
+    "outcome": "returned"
+  }
+}

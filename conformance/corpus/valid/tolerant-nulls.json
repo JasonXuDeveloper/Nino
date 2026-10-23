@@ -1,0 +1,25 @@
+{
+  "case": "tolerant-nulls",
+  "description": "Null version-tolerant members.",
+  "type": "Conformance.TolerantHolder",
+  "features": [
+    "version-tolerant",
+    "type-id"
+  ],
+  "size": 11,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.TolerantBase": "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; typeId=0x9536FE88; members=A:int:raw(4)",
+    "Conformance.TolerantEmpty": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x85A223A0; members=",
+    "Conformance.TolerantHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2DA994ED; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)",
+    "Conformance.TolerantLeaf": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x6B83150B; members=A:int:raw(4);B:int:raw(4)",
+    "Conformance.TolerantV1": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x1DBD9212; members=A:int:raw(4);B:string:string"
+  },
+  "value": {
+    "$type": "Conformance.TolerantHolder",
+    "First": null,
+    "Polymorphic": null,
+    "Empty": null,
+    "After": -1
+  }
+}

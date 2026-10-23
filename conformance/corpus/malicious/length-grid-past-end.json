@@ -1,0 +1,15 @@
+{
+  "case": "length-grid-past-end",
+  "type": "Conformance.Targets.Grid",
+  "category": "length",
+  "expected": "error",
+  "exercises": "int[,]: 2 x 2 elements with 3 present.",
+  "size": 21,
+  "layouts": {
+    "Conformance.Targets.Grid": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; members=Values:int[,]:grid(2,raw(4))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

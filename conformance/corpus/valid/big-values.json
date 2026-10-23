@@ -1,0 +1,24 @@
+{
+  "case": "big-values",
+  "description": "BigInteger and Version.",
+  "type": "Conformance.BigValues",
+  "features": [
+    "bigint",
+    "version"
+  ],
+  "size": 34,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.BigValues": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD56E77DA; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version"
+  },
+  "value": {
+    "$type": "Conformance.BigValues",
+    "Big": "-123456789012345678901234567890",
+    "Version": [
+      1,
+      2,
+      3,
+      4
+    ]
+  }
+}

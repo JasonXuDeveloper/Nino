@@ -1,0 +1,18 @@
+{
+  "case": "deep-chain-1",
+  "description": "A sealed chain 1 objects long.",
+  "type": "Conformance.Chain",
+  "features": [
+    "deferral"
+  ],
+  "size": 6,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Chain": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8147BA33; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)"
+  },
+  "value": {
+    "$type": "Conformance.Chain",
+    "Value": 1,
+    "Next": null
+  }
+}

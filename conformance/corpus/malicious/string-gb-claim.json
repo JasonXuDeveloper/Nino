@@ -1,0 +1,15 @@
+{
+  "case": "string-gb-claim",
+  "type": "Conformance.Targets.TextValue",
+  "category": "string",
+  "expected": "error",
+  "exercises": "A header of 500,000,000 UTF-16 code units in a 13-byte input.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; members=Value:string:string"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

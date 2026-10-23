@@ -1,0 +1,45 @@
+{
+  "case": "nested-objects",
+  "description": "Sealed classes three levels deep.",
+  "type": "Conformance.Outer",
+  "features": [
+    "null-flag",
+    "object"
+  ],
+  "size": 57,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Inner": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8EDDB9E8; members=Value:long:raw(8);Text:string:string;Point:Conformance.Point:type(Conformance.Point)",
+    "Conformance.Middle": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD25B7AB3; members=First:Conformance.Point:type(Conformance.Point);Second:Conformance.Point:type(Conformance.Point);Inner:Conformance.Inner:type(Conformance.Inner)",
+    "Conformance.Outer": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F58E13F; members=Name:string:string;Point:Conformance.Point:type(Conformance.Point);Middle:Conformance.Middle:type(Conformance.Middle)",
+    "Conformance.Point": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x964B64BA; members=X:int:raw(4);Y:int:raw(4)"
+  },
+  "value": {
+    "$type": "Conformance.Outer",
+    "Name": "outer",
+    "Point": {
+      "$type": "Conformance.Point",
+      "X": 1,
+      "Y": 2
+    },
+    "Middle": {
+      "$type": "Conformance.Middle",
+      "First": {
+        "$type": "Conformance.Point",
+        "X": 3,
+        "Y": 4
+      },
+      "Second": null,
+      "Inner": {
+        "$type": "Conformance.Inner",
+        "Value": "-9223372036854775808",
+        "Text": "inner",
+        "Point": {
+          "$type": "Conformance.Point",
+          "X": 5,
+          "Y": 6
+        }
+      }
+    }
+  }
+}

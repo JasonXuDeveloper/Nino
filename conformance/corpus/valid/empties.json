@@ -1,0 +1,46 @@
+{
+  "case": "empties",
+  "description": "Types without members.",
+  "type": "Conformance.Empties",
+  "features": [
+    "null-flag",
+    "raw-struct",
+    "seq"
+  ],
+  "size": 17,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Empties": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF6777155; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))",
+    "Conformance.Empty": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x0C95741B; members=",
+    "Conformance.EmptyStruct": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; members=raw"
+  },
+  "value": {
+    "$type": "Conformance.Empties",
+    "Class": {
+      "$type": "Conformance.Empty"
+    },
+    "Struct": {
+      "$type": "Conformance.EmptyStruct"
+    },
+    "Structs": [
+      {
+        "$type": "Conformance.EmptyStruct"
+      },
+      {
+        "$type": "Conformance.EmptyStruct"
+      },
+      {
+        "$type": "Conformance.EmptyStruct"
+      }
+    ],
+    "Classes": [
+      {
+        "$type": "Conformance.Empty"
+      },
+      null,
+      {
+        "$type": "Conformance.Empty"
+      }
+    ]
+  }
+}

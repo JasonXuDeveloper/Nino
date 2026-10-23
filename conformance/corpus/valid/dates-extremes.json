@@ -1,0 +1,33 @@
+{
+  "case": "dates-extremes",
+  "description": "The smallest and largest DateTime and DateTimeOffset.",
+  "type": "Conformance.Dates",
+  "features": [
+    "datetime",
+    "datetimeoffset"
+  ],
+  "size": 35,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Dates": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x004F73C1; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset"
+  },
+  "value": {
+    "$type": "Conformance.Dates",
+    "Utc": {
+      "ticks": "3155378975999999999",
+      "kind": "Utc"
+    },
+    "Local": {
+      "ticks": 0,
+      "kind": "Local"
+    },
+    "Unspecified": {
+      "ticks": "3155378975999999999",
+      "kind": "Unspecified"
+    },
+    "Offset": {
+      "utcTicks": "3155377967999999999",
+      "offsetMinutes": 840
+    }
+  }
+}

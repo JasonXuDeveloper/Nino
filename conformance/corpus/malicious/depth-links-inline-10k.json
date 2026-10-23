@@ -1,0 +1,16 @@
+{
+  "case": "depth-links-inline-10k",
+  "type": "Conformance.Link",
+  "category": "depth",
+  "expected": "error-or-value",
+  "exercises": "A polymorphic chain (type ids) nested inline 10,000 deep; may be read, as chain-inline-10k.",
+  "size": 80004,
+  "layouts": {
+    "Conformance.BlueLink": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA9C583C8; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link);Note:string:string",
+    "Conformance.Link": "format=Positional; header=TypeId; trackReferences=false; raw=false; typeId=0x080A861E; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link)",
+    "Conformance.RedLink": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9F90173D; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link)"
+  },
+  "dotnet": {
+    "outcome": "returned"
+  }
+}

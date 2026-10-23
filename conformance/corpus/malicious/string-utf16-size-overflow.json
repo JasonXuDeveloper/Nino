@@ -1,0 +1,15 @@
+{
+  "case": "string-utf16-size-overflow",
+  "type": "Conformance.Targets.TextValue",
+  "category": "string",
+  "expected": "error",
+  "exercises": "A header of 0x40000000 UTF-16 code units: 2^31 bytes, negative in 32-bit arithmetic.",
+  "size": 9,
+  "layouts": {
+    "Conformance.Targets.TextValue": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; members=Value:string:string"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

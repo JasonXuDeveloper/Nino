@@ -1,0 +1,28 @@
+{
+  "case": "enums-max",
+  "description": "Enums at their underlying maximum.",
+  "type": "Conformance.Enums",
+  "features": [
+    "enum",
+    "flags"
+  ],
+  "size": 44,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Enums": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x47EFBBD6; members=A:Conformance.E8:raw(1);B:Conformance.EU8:raw(1);C:Conformance.E16:raw(2);D:Conformance.EU16:raw(2);E:Conformance.E32:raw(4);F:Conformance.EU32:raw(4);G:Conformance.E64:raw(8);H:Conformance.EU64:raw(8);Flags:Conformance.Permissions:raw(1);Wide:Conformance.WideFlags:raw(8);Array:Conformance.E32[]:seq(raw(4))"
+  },
+  "value": {
+    "$type": "Conformance.Enums",
+    "A": 127,
+    "B": 255,
+    "C": 32767,
+    "D": 65535,
+    "E": 2147483647,
+    "F": 4294967295,
+    "G": "9223372036854775807",
+    "H": "18446744073709551615",
+    "Flags": 7,
+    "Wide": "9223372036854775808",
+    "Array": []
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "case": "datetime-offset-past-14h",
+  "type": "Conformance.Dates",
+  "category": "datetime",
+  "expected": "error",
+  "exercises": "A DateTimeOffset with an offset of 15 hours (at most 14).",
+  "size": 35,
+  "layouts": {
+    "Conformance.Dates": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x004F73C1; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

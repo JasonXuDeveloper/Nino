@@ -1,0 +1,15 @@
+{
+  "case": "utf8-five-byte-form",
+  "type": "Conformance.Targets.Utf8Value",
+  "category": "utf8",
+  "expected": "error",
+  "exercises": "[NinoUtf8]: an obsolete 5-byte form (F8 88 80 80 80).",
+  "size": 14,
+  "layouts": {
+    "Conformance.Targets.Utf8Value": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; members=Value:string:utf8"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

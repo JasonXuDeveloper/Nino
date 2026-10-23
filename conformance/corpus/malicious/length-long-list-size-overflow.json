@@ -1,0 +1,15 @@
+{
+  "case": "length-long-list-size-overflow",
+  "type": "Conformance.Targets.LongList",
+  "category": "length",
+  "expected": "error",
+  "exercises": "long-list: a count of 0x20000001, whose byte size (8 a element) is 2^32 + 8: 8 bytes in 32-bit arithmetic, which are present.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Targets.LongList": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCECF34D2; members=Values:System.Collections.Generic.List<long>:seq(raw(8))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

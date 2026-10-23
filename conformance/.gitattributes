@@ -1,0 +1,2 @@
+# The corpus inputs are bytes: never converted or diffed as text (some contain CR LF).
+*.bin binary

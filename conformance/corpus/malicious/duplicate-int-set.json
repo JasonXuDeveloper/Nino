@@ -1,0 +1,15 @@
+{
+  "case": "duplicate-int-set",
+  "type": "Conformance.Targets.IntSet",
+  "category": "duplicate",
+  "expected": "error",
+  "exercises": "HashSet<int> with 7 twice.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Targets.IntSet": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAA98C54B; members=Values:System.Collections.Generic.HashSet<int>:seq(raw(4))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

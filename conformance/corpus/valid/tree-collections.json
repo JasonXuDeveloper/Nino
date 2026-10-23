@@ -1,0 +1,39 @@
+{
+  "case": "tree-collections",
+  "description": "Collections whose elements are themselves (class Tree : List<Tree>).",
+  "type": "Conformance.TreeHolder",
+  "features": [
+    "seq",
+    "map"
+  ],
+  "size": 51,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.TreeHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA20A5480; members=Tree:Conformance.Tree:seq(type(Conformance.Tree));DictTree:Conformance.DictTree:map(string,type(Conformance.DictTree))"
+  },
+  "value": {
+    "$type": "Conformance.TreeHolder",
+    "Tree": [
+      [
+        []
+      ],
+      null,
+      []
+    ],
+    "DictTree": [
+      [
+        "a",
+        [
+          [
+            "b",
+            null
+          ]
+        ]
+      ],
+      [
+        "",
+        []
+      ]
+    ]
+  }
+}

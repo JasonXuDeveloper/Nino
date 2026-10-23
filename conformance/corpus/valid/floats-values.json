@@ -1,0 +1,19 @@
+{
+  "case": "floats-values",
+  "description": "Ordinary values.",
+  "type": "Conformance.Floats",
+  "features": [
+    "float"
+  ],
+  "size": 15,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Floats": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3504C24D; members=F16:System.Half:raw(4){_dummyPrimitive:int@0:raw(4)};F32:float:raw(4);F64:double:raw(8)"
+  },
+  "value": {
+    "$type": "Conformance.Floats",
+    "F16": "0x3e00",
+    "F32": "0x40490fdb",
+    "F64": "0xc005bf0a8b145769"
+  }
+}

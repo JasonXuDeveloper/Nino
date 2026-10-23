@@ -1,0 +1,15 @@
+{
+  "case": "keyed-body-past-end",
+  "type": "Conformance.KeyedV1",
+  "category": "keyed",
+  "expected": "error",
+  "exercises": "A KeyedV1 body with a body length 1 past the end of the input.",
+  "size": 63,
+  "layouts": {
+    "Conformance.KeyedV1": "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

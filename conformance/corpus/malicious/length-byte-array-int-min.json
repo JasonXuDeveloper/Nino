@@ -1,0 +1,15 @@
+{
+  "case": "length-byte-array-int-min",
+  "type": "Conformance.Targets.ByteArray",
+  "category": "length",
+  "expected": "error",
+  "exercises": "byte-array: a count of int.MinValue.",
+  "size": 7,
+  "layouts": {
+    "Conformance.Targets.ByteArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xEE43CD01; members=Values:byte[]:seq(raw(1))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

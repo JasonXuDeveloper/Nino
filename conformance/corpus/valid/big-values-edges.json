@@ -1,0 +1,24 @@
+{
+  "case": "big-values-edges",
+  "description": "BigInteger values whose two's complement needs a sign byte; Version with unset parts.",
+  "type": "Conformance.BigValues",
+  "features": [
+    "bigint",
+    "version"
+  ],
+  "size": 23,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.BigValues": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD56E77DA; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version"
+  },
+  "value": {
+    "$type": "Conformance.BigValues",
+    "Big": "255",
+    "Version": [
+      1,
+      2,
+      -1,
+      -1
+    ]
+  }
+}

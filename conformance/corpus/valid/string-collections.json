@@ -1,0 +1,50 @@
+{
+  "case": "string-collections",
+  "description": "Strings in arrays and lists, mixed encodings and nulls.",
+  "type": "Conformance.StringCollections",
+  "features": [
+    "string",
+    "utf8",
+    "seq"
+  ],
+  "size": 387,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.StringCollections": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x744CD3F6; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8"
+  },
+  "value": {
+    "$type": "Conformance.StringCollections",
+    "Array": [
+      "a",
+      null,
+      "",
+      "é",
+      "中",
+      {
+        "utf16": [
+          55357,
+          56832
+        ]
+      },
+      {
+        "utf16": [
+          56320
+        ]
+      }
+    ],
+    "List": [
+      null,
+      "x",
+      "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    ],
+    "Utf8A": {
+      "utf16": [
+        233,
+        55357,
+        56832
+      ]
+    },
+    "Plain": "plain",
+    "Utf8B": ""
+  }
+}

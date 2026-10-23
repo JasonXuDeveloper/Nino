@@ -1,0 +1,15 @@
+{
+  "case": "length-bigint-negative",
+  "type": "Conformance.Targets.BigSlot",
+  "category": "length",
+  "expected": "error",
+  "exercises": "BigInteger: a byte length of -2.",
+  "size": 9,
+  "layouts": {
+    "Conformance.Targets.BigSlot": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA6B6AFE2; members=Value:System.Numerics.BigInteger:bigint"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

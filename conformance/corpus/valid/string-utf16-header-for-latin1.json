@@ -1,0 +1,19 @@
+{
+  "case": "string-utf16-header-for-latin1",
+  "description": "Latin-1 text written with a UTF-16 header (as a StringBuilder writes it): read, but written back with a Latin-1 header.",
+  "type": "Conformance.Strings",
+  "features": [
+    "string"
+  ],
+  "size": 15,
+  "roundTrip": false,
+  "reencoded": "01fcffffff616263ffffffff",
+  "layouts": {
+    "Conformance.Strings": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; members=Text:string:string;Utf8:string:utf8"
+  },
+  "value": {
+    "$type": "Conformance.Strings",
+    "Text": "abc",
+    "Utf8": null
+  }
+}

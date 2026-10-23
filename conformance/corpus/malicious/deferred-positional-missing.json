@@ -1,0 +1,15 @@
+{
+  "case": "deferred-positional-missing",
+  "type": "Conformance.Chain",
+  "category": "deferred",
+  "expected": "error",
+  "exercises": "deep-chain-300 without its last deferred body (the bytes after the top-level object).",
+  "size": 1492,
+  "layouts": {
+    "Conformance.Chain": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8147BA33; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

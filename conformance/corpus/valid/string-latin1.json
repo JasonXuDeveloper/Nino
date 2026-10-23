@@ -1,0 +1,19 @@
+{
+  "case": "string-latin1",
+  "description": "Latin-1 above ASCII, including U+0080-U+009F and U+00FF.",
+  "type": "Conformance.Strings",
+  "features": [
+    "string",
+    "utf8"
+  ],
+  "size": 43,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Strings": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; members=Text:string:string;Utf8:string:utf8"
+  },
+  "value": {
+    "$type": "Conformance.Strings",
+    "Text": "\u0080\u0081\u009F\u00A0é ñ ü ÿ",
+    "Utf8": "\u0080\u0081\u009F\u00A0é ñ ü ÿ"
+  }
+}

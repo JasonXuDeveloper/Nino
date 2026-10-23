@@ -1,0 +1,16 @@
+{
+  "case": "length-point-list-int-max",
+  "type": "Conformance.Targets.PointList",
+  "category": "length",
+  "expected": "error",
+  "exercises": "point-list: a count of int.MaxValue with 8 bytes of data.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Point": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x964B64BA; members=X:int:raw(4);Y:int:raw(4)",
+    "Conformance.Targets.PointList": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2EA152CC; members=Values:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

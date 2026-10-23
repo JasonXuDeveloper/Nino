@@ -1,0 +1,27 @@
+{
+  "case": "integers-min",
+  "description": "Every integer type at its minimum.",
+  "type": "Conformance.Integers",
+  "features": [
+    "int",
+    "int128"
+  ],
+  "size": 63,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Integers": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x14BD31D3; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(4){_dummyPrimitive:int@0:raw(4)};U128:System.UInt128:raw(4){_dummyPrimitive:int@0:raw(4)}"
+  },
+  "value": {
+    "$type": "Conformance.Integers",
+    "I8": -128,
+    "U8": 0,
+    "I16": -32768,
+    "U16": 0,
+    "I32": -2147483648,
+    "U32": 0,
+    "I64": "-9223372036854775808",
+    "U64": 0,
+    "I128": "-170141183460469231731687303715884105728",
+    "U128": 0
+  }
+}

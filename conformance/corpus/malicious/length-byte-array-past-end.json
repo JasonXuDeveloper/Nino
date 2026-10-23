@@ -1,0 +1,15 @@
+{
+  "case": "length-byte-array-past-end",
+  "type": "Conformance.Targets.ByteArray",
+  "category": "length",
+  "expected": "error",
+  "exercises": "byte-array: a count of 3 with 2 elements' bytes.",
+  "size": 7,
+  "layouts": {
+    "Conformance.Targets.ByteArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xEE43CD01; members=Values:byte[]:seq(raw(1))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

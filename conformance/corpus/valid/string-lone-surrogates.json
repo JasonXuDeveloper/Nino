@@ -1,0 +1,29 @@
+{
+  "case": "string-lone-surrogates",
+  "description": "Unpaired surrogates: kept in UTF-16; [NinoUtf8] writes each as U+FFFD (so it reads back changed).",
+  "type": "Conformance.Strings",
+  "features": [
+    "string",
+    "utf8"
+  ],
+  "size": 42,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Strings": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; members=Text:string:string;Utf8:string:utf8"
+  },
+  "value": {
+    "$type": "Conformance.Strings",
+    "Text": {
+      "utf16": [
+        97,
+        55296,
+        98,
+        57343,
+        99,
+        56320,
+        55296
+      ]
+    },
+    "Utf8": "a�b�c��"
+  }
+}

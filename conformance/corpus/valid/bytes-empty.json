@@ -1,0 +1,19 @@
+{
+  "case": "bytes-empty",
+  "description": "Empty byte collections.",
+  "type": "Conformance.Bytes",
+  "features": [
+    "seq"
+  ],
+  "size": 13,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Bytes": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x40CE351F; members=Array:byte[]:seq(raw(1));List:System.Collections.Generic.List<byte>:seq(raw(1));Signed:sbyte[]:seq(raw(1))"
+  },
+  "value": {
+    "$type": "Conformance.Bytes",
+    "Array": "",
+    "List": [],
+    "Signed": ""
+  }
+}

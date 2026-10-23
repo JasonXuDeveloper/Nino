@@ -1,0 +1,33 @@
+{
+  "case": "dates-default",
+  "description": "DateTime and DateTimeOffset at their defaults.",
+  "type": "Conformance.Dates",
+  "features": [
+    "datetime",
+    "datetimeoffset"
+  ],
+  "size": 35,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Dates": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x004F73C1; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset"
+  },
+  "value": {
+    "$type": "Conformance.Dates",
+    "Utc": {
+      "ticks": 0,
+      "kind": "Unspecified"
+    },
+    "Local": {
+      "ticks": 0,
+      "kind": "Unspecified"
+    },
+    "Unspecified": {
+      "ticks": 0,
+      "kind": "Unspecified"
+    },
+    "Offset": {
+      "utcTicks": 0,
+      "offsetMinutes": 0
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "case": "length-string-set-past-end",
+  "type": "Conformance.Targets.StringSet",
+  "category": "length",
+  "expected": "error",
+  "exercises": "string-set: a count of 3 with 2 elements' bytes.",
+  "size": 14,
+  "layouts": {
+    "Conformance.Targets.StringSet": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73FC2C95; members=Values:System.Collections.Generic.HashSet<string>:seq(string)"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

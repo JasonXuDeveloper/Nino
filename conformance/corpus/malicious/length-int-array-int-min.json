@@ -1,0 +1,15 @@
+{
+  "case": "length-int-array-int-min",
+  "type": "Conformance.Targets.IntArray",
+  "category": "length",
+  "expected": "error",
+  "exercises": "int-array: a count of int.MinValue.",
+  "size": 13,
+  "layouts": {
+    "Conformance.Targets.IntArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x694D6EF8; members=Values:int[]:seq(raw(4))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "case": "length-int-map-past-end",
+  "type": "Conformance.Targets.IntMap",
+  "category": "length",
+  "expected": "error",
+  "exercises": "int-map: a count of 3 with 2 elements' bytes.",
+  "size": 21,
+  "layouts": {
+    "Conformance.Targets.IntMap": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD32CFD85; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

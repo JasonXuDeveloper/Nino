@@ -1,0 +1,15 @@
+{
+  "case": "depth-tolerant-inline-10k",
+  "type": "Conformance.TolerantChain",
+  "category": "depth",
+  "expected": "error",
+  "exercises": "A version-tolerant chain nested inline 10,000 deep, region in region (a writer defers into the outermost region's section past 128).",
+  "size": 90001,
+  "layouts": {
+    "Conformance.TolerantChain": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x18DAD008; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

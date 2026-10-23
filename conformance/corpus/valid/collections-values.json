@@ -1,0 +1,207 @@
+{
+  "case": "collections-values",
+  "description": "Collections of primitives, strings and objects, with nulls inside.",
+  "type": "Conformance.Collections",
+  "features": [
+    "seq",
+    "map",
+    "grid",
+    "string",
+    "null-flag"
+  ],
+  "size": 470,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Collections": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFECE6DDB; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)",
+    "Conformance.Point": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x964B64BA; members=X:int:raw(4);Y:int:raw(4)"
+  },
+  "value": {
+    "$type": "Conformance.Collections",
+    "Ints": [
+      -2147483648,
+      -1,
+      0,
+      1,
+      2147483647
+    ],
+    "IntList": [
+      3,
+      1,
+      2
+    ],
+    "IntSet": [
+      5,
+      -5,
+      0
+    ],
+    "Longs": [
+      "-9223372036854775808",
+      "9223372036854775807"
+    ],
+    "Doubles": [
+      "0xfff8000000000000",
+      "0x8000000000000000",
+      "0x7e37e43c8800759c"
+    ],
+    "Bools": [
+      true,
+      false,
+      true
+    ],
+    "Chars": [
+      97,
+      55296,
+      233
+    ],
+    "Strings": [
+      "a",
+      null,
+      "",
+      "中"
+    ],
+    "StringSet": [
+      "x",
+      "y",
+      ""
+    ],
+    "Points": [
+      {
+        "$type": "Conformance.Point",
+        "X": 1,
+        "Y": 2
+      },
+      null
+    ],
+    "PointList": [
+      null,
+      {
+        "$type": "Conformance.Point",
+        "X": -1,
+        "Y": -2
+      }
+    ],
+    "IntMap": [
+      [
+        1,
+        10
+      ],
+      [
+        -1,
+        -10
+      ],
+      [
+        2147483647,
+        0
+      ]
+    ],
+    "StringMap": [
+      [
+        "k",
+        "v"
+      ],
+      [
+        "",
+        null
+      ],
+      [
+        "中",
+        ""
+      ]
+    ],
+    "PointMap": [
+      [
+        "origin",
+        {
+          "$type": "Conformance.Point",
+          "X": 0,
+          "Y": 0
+        }
+      ],
+      [
+        "none",
+        null
+      ]
+    ],
+    "ListMap": [
+      [
+        1,
+        [
+          "a"
+        ]
+      ],
+      [
+        2,
+        null
+      ],
+      [
+        3,
+        []
+      ]
+    ],
+    "SortedInts": [
+      [
+        1,
+        "a"
+      ],
+      [
+        2,
+        null
+      ],
+      [
+        3,
+        "c"
+      ]
+    ],
+    "SortedStrings": [
+      [
+        "a",
+        1
+      ],
+      [
+        "b",
+        2
+      ]
+    ],
+    "Nested": [
+      [
+        1,
+        2
+      ],
+      null,
+      []
+    ],
+    "Jagged": [
+      [
+        1
+      ],
+      null,
+      []
+    ],
+    "Grid": {
+      "lengths": [
+        2,
+        3
+      ],
+      "items": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    "StringGrid": {
+      "lengths": [
+        2,
+        2
+      ],
+      "items": [
+        "a",
+        null,
+        "",
+        "d"
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "case": "presence-nullable-flag-02",
+  "type": "Conformance.Targets.MaybeInt",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "A nullable's has-value byte of 0x02.",
+  "size": 6,
+  "layouts": {
+    "Conformance.Targets.MaybeInt": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3E8CF8A3; members=Value:System.Nullable<int>:nullable(raw(4))"
+  },
+  "dotnet": {
+    "outcome": "returned"
+  }
+}

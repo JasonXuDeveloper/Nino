@@ -1,0 +1,15 @@
+{
+  "case": "duplicate-string-map-encodings",
+  "type": "Conformance.Targets.StringMap",
+  "category": "duplicate",
+  "expected": "error",
+  "exercises": "Dictionary<string, int> with the key \"a\" twice, once Latin-1 and once UTF-16.",
+  "size": 24,
+  "layouts": {
+    "Conformance.Targets.StringMap": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x4B1A1F3B; members=Values:System.Collections.Generic.Dictionary<string, int>:map(string,raw(4))"
+  },
+  "dotnet": {
+    "outcome": "error",
+    "exception": "InvalidOperationException"
+  }
+}

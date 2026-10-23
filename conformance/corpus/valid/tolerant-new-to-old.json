@@ -1,0 +1,20 @@
+{
+  "case": "tolerant-new-to-old",
+  "description": "New data read by the old version: the trailing members are skipped.",
+  "type": "Conformance.TolerantV1",
+  "features": [
+    "version-tolerant",
+    "versioning"
+  ],
+  "size": 40,
+  "roundTrip": false,
+  "reencoded": "010b00000007000000fcffffff6e6577",
+  "layouts": {
+    "Conformance.TolerantV1": "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x1DBD9212; members=A:int:raw(4);B:string:string"
+  },
+  "value": {
+    "$type": "Conformance.TolerantV1",
+    "A": 7,
+    "B": "new"
+  }
+}

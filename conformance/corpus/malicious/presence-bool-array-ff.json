@@ -1,0 +1,14 @@
+{
+  "case": "presence-bool-array-ff",
+  "type": "Conformance.Targets.BoolArray",
+  "category": "presence",
+  "expected": "error",
+  "exercises": "A bool[] element of 0xff.",
+  "size": 7,
+  "layouts": {
+    "Conformance.Targets.BoolArray": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2C38911D; members=Values:bool[]:seq(raw(1))"
+  },
+  "dotnet": {
+    "outcome": "returned"
+  }
+}

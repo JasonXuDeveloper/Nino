@@ -1,0 +1,23 @@
+{
+  "case": "scalars-decimal-scale",
+  "description": "A decimal with the largest scale (28).",
+  "type": "Conformance.Scalars",
+  "features": [
+    "decimal"
+  ],
+  "size": 56,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Scalars": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD2727283; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4){_dummyPrimitive:int@0:raw(4)};Time:System.TimeOnly:raw(4){_dummyPrimitive:int@0:raw(4)}"
+  },
+  "value": {
+    "$type": "Conformance.Scalars",
+    "Flag": false,
+    "Char": 0,
+    "Decimal": "0.0000000000000000000000000001",
+    "Guid": "00000000-0000-0000-0000-000000000000",
+    "Span": 0,
+    "Date": 0,
+    "Time": 0
+  }
+}

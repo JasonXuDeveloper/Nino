@@ -1,0 +1,29 @@
+{
+  "case": "scalars-values",
+  "description": "A lone surrogate char, a decimal with its scale kept, a Guid that shows its byte order.",
+  "type": "Conformance.Scalars",
+  "features": [
+    "bool",
+    "char",
+    "decimal",
+    "guid",
+    "timespan",
+    "dateonly",
+    "timeonly"
+  ],
+  "size": 56,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Scalars": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD2727283; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4){_dummyPrimitive:int@0:raw(4)};Time:System.TimeOnly:raw(4){_dummyPrimitive:int@0:raw(4)}"
+  },
+  "value": {
+    "$type": "Conformance.Scalars",
+    "Flag": true,
+    "Char": 55296,
+    "Decimal": "-1234.5600",
+    "Guid": "00112233-4455-6677-8899-aabbccddeeff",
+    "Span": -1,
+    "Date": 739911,
+    "Time": 863999990000
+  }
+}

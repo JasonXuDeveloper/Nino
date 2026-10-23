@@ -1,0 +1,19 @@
+{
+  "case": "floats-infinity",
+  "description": "Positive infinity.",
+  "type": "Conformance.Floats",
+  "features": [
+    "float"
+  ],
+  "size": 15,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Floats": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3504C24D; members=F16:System.Half:raw(4){_dummyPrimitive:int@0:raw(4)};F32:float:raw(4);F64:double:raw(8)"
+  },
+  "value": {
+    "$type": "Conformance.Floats",
+    "F16": "0x7c00",
+    "F32": "0x7f800000",
+    "F64": "0x7ff0000000000000"
+  }
+}
