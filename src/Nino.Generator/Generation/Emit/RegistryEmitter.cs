@@ -11,6 +11,13 @@ internal static class RegistryEmitter
     /// <summary>Class registering the built-in formatters the assembly uses (<see cref="EmitUsages"/>).</summary>
     private const string UsagesClass = "NinoGenUsages";
 
+    /// <summary>
+    /// The formatter of <c>ValueTuple&lt;T1, ..., T7, TRest&gt;</c> (a tuple of eight items or more), which Nino.Core
+    /// has none of: emitted with the usages (<see cref="EmitUsages"/>), it writes the seven items and then the rest,
+    /// which is a tuple of the remaining items: every item in order, as Nino.Core's tuple formatters write them.
+    /// </summary>
+    public const string LongTupleFormatter = Gen + UsagesClass + ".LongTupleFormatter";
+
     /// <summary>Ids per bucket method the dispatch aims for: few enough that a lookup loads few types.</summary>
     private const int IdsPerBucket = 8;
 
@@ -110,9 +117,40 @@ internal static class RegistryEmitter
         foreach (var type in kept)
             w.Line($"[__NinoDynamicDependency(__Fields, typeof({type}))]");
         EmitIdDispatch(w, "internal static", "", ById(statements));
+        w.Line();
+        EmitLongTupleFormatter(w);
         w.Close();
         w.Close();
         return w.ToString();
+    }
+
+    /// <summary>Emits <see cref="LongTupleFormatter"/>.</summary>
+    private static void EmitLongTupleFormatter(CodeWriter w)
+    {
+        var items = Enumerable.Range(1, 7).Select(i => $"T{i}").Append("TRest").ToList();
+        var formatters = Enumerable.Range(1, 8).Select(i => $"TF{i}").ToList();
+        var fields = Enumerable.Range(1, 7).Select(i => $"Item{i}").Append("Rest").ToList();
+        string tuple = $"global::System.ValueTuple<{string.Join(", ", items)}>";
+        w.Line("/// <summary><c>ValueTuple&lt;T1, ..., T7, TRest&gt;</c>: the items in order, then the rest's.</summary>");
+        w.Line(HiddenAttribute);
+        w.Line($"internal struct LongTupleFormatter<{string.Join(", ", items.Concat(formatters))}>");
+        w.Line($"    : {Core}INinoFormatter<{tuple}>");
+        w.Line("    where TRest : struct");
+        for (int i = 0; i < 8; i++)
+            w.Line($"    where {formatters[i]} : struct, {Core}INinoFormatter<{items[i]}>");
+        w.Open();
+        w.Line(InlineAttribute);
+        w.Open($"public void Serialize({tuple} value, ref {Core}Writer writer)");
+        for (int i = 0; i < 8; i++)
+            w.Line($"default({formatters[i]}).Serialize(value.{fields[i]}, ref writer);");
+        w.Close();
+        w.Line();
+        w.Line(InlineAttribute);
+        w.Open($"public void Deserialize(ref {tuple} value, ref {Core}Reader reader)");
+        for (int i = 0; i < 8; i++)
+            w.Line($"default({formatters[i]}).Deserialize(ref value.{fields[i]}, ref reader);");
+        w.Close();
+        w.Close();
     }
 
     /// <summary>How the registry registers the formatter of <paramref name="m"/>; null for generic types.</summary>
