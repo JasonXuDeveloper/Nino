@@ -112,6 +112,8 @@ jobs:
         run: |
           go test -run='^$' -fuzz=FuzzReader -fuzztime=45s .
           go test -run='^$' -fuzz=FuzzDecode -fuzztime=60s ./internal/sample
+          go test -run='^$' -fuzz=FuzzTagged -fuzztime=45s .
+          go test -run='^$' -fuzz=FuzzTaggedDecode -fuzztime=60s ./internal/sample
 
       - name: Keep failing fuzz inputs
         if: failure()

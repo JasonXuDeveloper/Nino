@@ -109,9 +109,14 @@ requirements:
   big-endian hosts). Keep rare paths (`Fail`, growth, deferral) in `//go:noinline` functions. Check
   `go build -gcflags=-d=ssa/check_bce/debug=1` and `-gcflags=-m` on what you change, and keep writing a value free
   of allocations (`bench`, `-benchmem`).
+- Struct tags (`tagged.go`, `layout.go`, `marshal.go`) are the one place reflection is allowed: a plan built once
+  per type, then walked. Anything the wire format cannot express is a `*TagError` naming the field when the plan
+  is built, never a silent default; reads go through the same `Reader` calls as generated code, so the guarantees
+  above hold there too. The sample types carry the tags and `NinoLayout` a generator emits (README, "Tags on
+  generated structs"); keep them and `internal/sample/tagged_test.go` in step with the hand-written codecs.
 - Before committing: `go vet ./...`, `go test -race ./...` with the conformance corpus present, a short run of
-  `FuzzReader` and `FuzzDecode`, and the benchmarks back to back against the previous commit for a change to a
-  read or write path. The runtime's module has no dependencies; competitors live in the `bench` module.
+  `FuzzReader`, `FuzzDecode`, `FuzzTagged` and `FuzzTaggedDecode`, and the benchmarks back to back against the
+  previous commit for a change to a read or write path. The runtime's module has no dependencies; competitors live in the `bench` module.
 
 ## Commit messages and release notes
 

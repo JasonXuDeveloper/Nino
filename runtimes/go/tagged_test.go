@@ -185,7 +185,8 @@ type tagAll struct {
 	Small   *tagSmall               `nino:"24"`
 	OptVec  *tagRawStruct           `nino:"25"`
 	Skipped int                     `nino:"-"`
-	hidden  int
+	//lint:ignore U1000 an unexported field the tag path must ignore
+	hidden int
 }
 
 func writeAllByHand(w *Writer, v *tagAll) {
@@ -550,6 +551,7 @@ type (
 		A int32 `nino:"0,former=B"`
 	}
 	badUnexported struct {
+		//lint:ignore U1000 an unexported field with a tag: the error under test
 		a int32 `nino:"0"`
 	}
 	badKeyCollision struct {

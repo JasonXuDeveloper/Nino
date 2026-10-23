@@ -7,6 +7,10 @@
 // ([TypeSet], [ReadAny]). The codecs of the types themselves are generated (or written by hand in the same style);
 // [Serialize] and [Deserialize] run one with a pooled writer or reader.
 //
+// Go structs without generated codecs can be mapped with `nino` struct tags and a NinoLayout method instead:
+// [Marshal] and [Unmarshal] build a plan per type once (with reflection), check it against the .NET layout, and
+// read through the same [Reader] with the same guarantees. See the README, "Struct tags".
+//
 // # Guarantees
 //
 //   - Reading never panics, on any input, and never reads outside the data. Every length is checked against the
@@ -21,5 +25,5 @@
 //   - The writer appends to a buffer that grows by doubling; reused through [Writer.Reset] (or the pool behind
 //     [Serialize] and [Append]), writing a value allocates nothing.
 //
-// The package has no dependencies beyond the standard library and uses no reflection.
+// The package has no dependencies beyond the standard library; generated code uses no reflection.
 package nino
