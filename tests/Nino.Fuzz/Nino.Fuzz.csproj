@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The deserializer fuzzer: a mutational fuzzer with guard pages and invariant checks (the fuzz command), and
+         SharpFuzz targets for libFuzzer (the libfuzzer command, see libfuzzer/run.sh). See README.md. -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <IsPackable>false</IsPackable>
+        <ServerGarbageCollection>false</ServerGarbageCollection>
+        <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+        <!-- NINO022: the sample types keep public fields the generator would rather see as properties. -->
+        <NoWarn>$(NoWarn);NINO022;CS0649;NU1608</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Remove="Golden/**;libfuzzer/**;findings/**"/>
+        <None Remove="Golden/**;libfuzzer/**;findings/**"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="SharpFuzz" Version="2.3.0"/>
+        <ProjectReference Include="../../src/Nino.Core/Nino.Core.csproj"/>
+        <ProjectReference Include="../../src/Nino.Immutable/Nino.Immutable.csproj"/>
+        <ProjectReference Include="Golden/Nino.Fuzz.Golden.csproj"/>
+        <ProjectReference Include="../../src/Nino.Generator.Roslyn4.12/Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <Import Project="../../src/Nino.Generator/build/Nino.Generator.props"/>
+
+</Project>

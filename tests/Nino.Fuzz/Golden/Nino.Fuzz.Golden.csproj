@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- The golden-bytes corpus of the unit tests (src/Nino.UnitTests/GoldenBytesTests.cs), compiled as it is there:
+         with WEAK_VERSION_TOLERANCE, which makes every type of this assembly version tolerant. That is why it is an
+         assembly of its own: the fuzzer's own types keep their positional, keyed and raw formats. -->
+    <PropertyGroup>
+        <TargetFrameworks>net10.0;net8.0</TargetFrameworks>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <IsPackable>false</IsPackable>
+        <DefineConstants>$(DefineConstants);WEAK_VERSION_TOLERANCE</DefineConstants>
+        <NoWarn>$(NoWarn);NU1608</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="../../../src/Nino.UnitTests/GoldenBytesTests.cs" Link="GoldenBytesTests.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Only for the attributes of the linked test class. -->
+        <PackageReference Include="MSTest.TestFramework" Version="4.5.1"/>
+        <ProjectReference Include="../../../src/Nino.Core/Nino.Core.csproj"/>
+        <ProjectReference Include="../../../src/Nino.Generator.Roslyn4.12/Nino.Generator.Roslyn4.12.csproj"
+                          OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <Import Project="../../../src/Nino.Generator/build/Nino.Generator.props"/>
+
+</Project>
