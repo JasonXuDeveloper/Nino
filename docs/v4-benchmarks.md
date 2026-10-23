@@ -5,7 +5,7 @@ v3 (3.3.13, the last release of the v3 API) and with [MemoryPack](https://github
 
 The build-time numbers were measured on one machine, an Intel Xeon 2.10 GHz (4 cores, AVX-512, .NET SDK 10.0.402);
 generated code sizes do not depend on the machine. The runtime tables are those of the newest release: its CI run
-(`report.yml`) benchmarks v4 against MemoryPack, each case's Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest` runner),
+(`report.yml`) benchmarks v4 against MemoryPack, each case's Nino and MemoryPack runs on one runner (v3 3.3.13 on the `SimpleTest` runners),
 puts the report in the release notes,
 and writes these tables from it (`benchmarks/readme.py`), as it does for the README and the documentation site.
 Absolute times vary between machines; the ratios are what to look at.
@@ -50,9 +50,10 @@ about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 ## Runtime
 
 `src/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
-GC), all ten benchmark classes, v4 and MemoryPack 1.21.4 side by side: the release run spreads the classes over five
+GC), all eleven benchmark classes, v4 and MemoryPack 1.21.4 side by side: the release run spreads the classes over eight
 runners per architecture and keeps each case's Nino and MemoryPack runs on one. v3 is Nino 3.3.13 from nuget.org, running a port of
-the same `SimpleTest` (same data, same attributes) on the same runner directly before the v4 session; it has no
+the same `SimpleTest` (same data, same attributes), each half (serialize, deserialize) on the runner of the same v4 cases
+directly before them; it has no
 polymorphic, pooling, reference, version-tolerant or fixed-size benchmarks. These tables come from
 <!--bench:doc.source-->the performance report of [v4.0.0-rc.7](https://github.com/JasonXuDeveloper/Nino/releases/tag/v4.0.0-rc.7): BenchmarkDotNet 0.15.8, .NET 10.0.13, INTEL XEON PLATINUM 8573C 3.50 GHz; v3 3.3.13 from NuGet ran directly before v4 on the same machine<!--/bench-->.
 

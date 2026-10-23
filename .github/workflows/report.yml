@@ -30,7 +30,7 @@ env:
   # Same settings for every run (docs/v4-benchmarks.md): ShortRun's 3 iterations are too few, and one process a
   # case leaves its layout to chance (a 12 ns case moved by 13% between processes); the mean of three does not.
   BDN_ARGS: --launchCount 3 --warmupCount 5 --iterationCount 15
-  # The second section of the release body: Nino v3 3.3.13 against this release, on the SimpleTest runner.
+  # The second section of the release body: Nino v3 3.3.13 against this release, on the SimpleTest runners.
   # The docs site (nino.docs scripts/sync-benchmarks.ts) looks for this heading.
   V3_HEADING: "## 📊 v3 3.3.13 vs v4 (same machine)"
   # The third section: the same benchmarks on an Arm64 runner. The docs site (sync-benchmarks.ts) looks for this
@@ -94,10 +94,11 @@ jobs:
           fi
 
   # The benchmark classes run in parallel, two or more per runner (so each joined report has a Type column), each case's
-  # Nino and MemoryPack runs always on one runner. Seven shards of 28 to 36 cases (about a minute each with three
+  # Nino and MemoryPack runs always on one runner. Eight shards of 28 to 36 cases (about a minute each with three
   # launches); BclTypesTest and CollectionsTest are split by type. MessagePack runs only locally: nothing published
-  # reads its rows. v3 runs on the SimpleTest runner, directly before its v4 run, as benchmarks/run.sh does, which
-  # makes that shard the longest (about 45 minutes). The publish job merges the reports into one table
+  # reads its rows. SimpleTest is split into its serialize (a) and deserialize (h) cases, and on x64 each half of v3
+  # runs directly before the same half of v4, on its runner, as benchmarks/run.sh does (v3 takes about 10 minutes a
+  # half, so these shards take about as long as the others). The publish job merges the reports into one table
   # (benchmarks/merge_reports.py). The same shards run on Arm64 runners too, for the Arm64 section of the release
   # (AdvSimd and TBL paths that x64 never takes); an Arm64 failure leaves that section out and never blocks the x64 report.
   bench:
@@ -111,24 +112,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { arch: x64, shard: a, filters: "'*.SimpleTest.Nino*' '*.SimpleTest.MemoryPack*' '*.PooledTest.*'", v3: true }
+          - { arch: x64, shard: a, filters: "'*.SimpleTest.NinoSerialize*' '*.SimpleTest.MemoryPackSerialize*' '*.PooledTest.*' '*.ReferenceTest.*'", v3: "'*SimpleTest.NinoSerialize*' '*SimpleTest.MemoryPackSerialize*'" }
+          - { arch: x64, shard: h, filters: "'*.SimpleTest.NinoDeserialize*' '*.SimpleTest.MemoryPackDeserialize*' '*.VersionTolerantTest.*'", v3: "'*SimpleTest.NinoDeserialize*' '*SimpleTest.MemoryPackDeserialize*'" }
           - { arch: x64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
-          - { arch: x64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.VersionTolerantTest.*'" }
+          - { arch: x64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.PooledGraphTest.*'" }
           - { arch: x64, shard: d, filters: "'*.BclTypesTest.*Immutable*' '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*'" }
-          - { arch: x64, shard: e, filters: "'*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray' '*.BclTypesTest.*BlockingCollection' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*Lazy' '*.BclTypesTest.*Lookup' '*.BclTypesTest.*Memory' '*.PooledGraphTest.*'" }
-          - { arch: x64, shard: f, filters: "'*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*ReadOnlySequence' '*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*TimeZoneInfo' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.CollectionsTest.*ConcurrentDictionary' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*KeyValuePairs'" }
-          - { arch: x64, shard: g, filters: "'*.CollectionsTest.*LinkedList' '*.CollectionsTest.*Queue' '*.CollectionsTest.*SortedDictionary' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*TupleList' '*.ReferenceTest.*'" }
-          - { arch: arm64, shard: a, filters: "'*.SimpleTest.Nino*' '*.SimpleTest.MemoryPack*' '*.PooledTest.*'" }
+          - { arch: x64, shard: e, filters: "'*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray' '*.BclTypesTest.*BlockingCollection' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*Lazy' '*.CollectionsTest.*ConcurrentDictionary' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*KeyValuePairs'" }
+          - { arch: x64, shard: f, filters: "'*.BclTypesTest.*Lookup' '*.BclTypesTest.*Memory' '*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*ReadOnlySequence' '*.CollectionsTest.*LinkedList' '*.CollectionsTest.*Queue' '*.CollectionsTest.*SortedDictionary'" }
+          - { arch: x64, shard: g, filters: "'*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*TimeZoneInfo' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*TupleList'" }
+          - { arch: arm64, shard: a, filters: "'*.SimpleTest.NinoSerialize*' '*.SimpleTest.MemoryPackSerialize*' '*.PooledTest.*' '*.ReferenceTest.*'" }
+          - { arch: arm64, shard: h, filters: "'*.SimpleTest.NinoDeserialize*' '*.SimpleTest.MemoryPackDeserialize*' '*.VersionTolerantTest.*'" }
           - { arch: arm64, shard: b, filters: "'*.CommonTypesTest.*' '*.FixedSizeTest.*'" }
-          - { arch: arm64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.VersionTolerantTest.*'" }
+          - { arch: arm64, shard: c, filters: "'*.GenericPolymorphicTest.*' '*.PooledGraphTest.*'" }
           - { arch: arm64, shard: d, filters: "'*.BclTypesTest.*Immutable*' '*.PolymorphicTest.Nino*' '*.PolymorphicTest.MemoryPack*'" }
-          - { arch: arm64, shard: e, filters: "'*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray' '*.BclTypesTest.*BlockingCollection' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*Lazy' '*.BclTypesTest.*Lookup' '*.BclTypesTest.*Memory' '*.PooledGraphTest.*'" }
-          - { arch: arm64, shard: f, filters: "'*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*ReadOnlySequence' '*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*TimeZoneInfo' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.CollectionsTest.*ConcurrentDictionary' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*KeyValuePairs'" }
-          - { arch: arm64, shard: g, filters: "'*.CollectionsTest.*LinkedList' '*.CollectionsTest.*Queue' '*.CollectionsTest.*SortedDictionary' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*TupleList' '*.ReferenceTest.*'" }
+          - { arch: arm64, shard: e, filters: "'*.BclTypesTest.*BigInteger' '*.BclTypesTest.*BitArray' '*.BclTypesTest.*BlockingCollection' '*.BclTypesTest.*CultureInfo' '*.BclTypesTest.*Lazy' '*.CollectionsTest.*ConcurrentDictionary' '*.CollectionsTest.*HashSet' '*.CollectionsTest.*KeyValuePairs'" }
+          - { arch: arm64, shard: f, filters: "'*.BclTypesTest.*Lookup' '*.BclTypesTest.*Memory' '*.BclTypesTest.*ReadOnlyCollection' '*.BclTypesTest.*ReadOnlySequence' '*.CollectionsTest.*LinkedList' '*.CollectionsTest.*Queue' '*.CollectionsTest.*SortedDictionary'" }
+          - { arch: arm64, shard: g, filters: "'*.BclTypesTest.*StringBuilder' '*.BclTypesTest.*TimeZoneInfo' '*.BclTypesTest.*Uri' '*.BclTypesTest.*Version' '*.CollectionsTest.*SortedList' '*.CollectionsTest.*SortedSet' '*.CollectionsTest.*TupleList'" }
     env:
       V3_OUT: ${{ github.workspace }}/v3-results
       OUT: ${{ github.workspace }}/report
       FILTERS: ${{ matrix.filters }}
+      V3_FILTERS: ${{ matrix.v3 }}
 
     steps:
       - name: Checkout repository
@@ -175,10 +179,12 @@ jobs:
           echo "nice limit: $(ulimit -e)"
           # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
           # Nino and MemoryPack only: nothing reads v3's MessagePack rows, and they were a third of this step.
-          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter '*SimpleTest.Nino*' '*SimpleTest.MemoryPack*' $BDN_ARGS \
+          # This shard's half of SimpleTest (the matrix's v3 globs).
+          eval "V3_PATTERNS=($V3_FILTERS)"
+          dotnet bin/Release/net10.0/Nino.Benchmark.dll --filter "${V3_PATTERNS[@]}" $BDN_ARGS \
             --artifacts "$V3_OUT"
           mkdir -p "$OUT"
-          cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3.md"
+          cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}.md"
 
       - name: Run benchmarks
         working-directory: ./src/Nino.Benchmark
@@ -247,7 +253,9 @@ jobs:
       # Every benchmark class of src/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
       # The shards of the bench job's matrix, per architecture.
-      SHARDS: 7
+      SHARDS: 8
+      # The x64 shards that run half of v3 each (matrix.v3): the v3 section needs both halves.
+      V3_SHARDS: 2
       BENCH_CLASSES: SimpleTest PolymorphicTest GenericPolymorphicTest PooledTest PooledGraphTest ReferenceTest VersionTolerantTest FixedSizeTest CommonTypesTest CollectionsTest BclTypesTest
 
     steps:
@@ -291,8 +299,12 @@ jobs:
           else
             echo "::warning::${#ARM64[@]} of the $SHARDS Arm64 reports: the Arm64 section is left out"
           fi
-          if [[ -f "$DIR/v3.md" ]]; then
-            echo "V3_REPORT=$DIR/v3.md" >> "$GITHUB_ENV"
+          V3=("$DIR"/v3-*.md)
+          if (( ${#V3[@]} == V3_SHARDS )); then
+            python3 benchmarks/merge_reports.py "${V3[@]}" > "$RUNNER_TEMP/v3-report.md"
+            echo "V3_REPORT=$RUNNER_TEMP/v3-report.md" >> "$GITHUB_ENV"
+          elif (( ${#V3[@]} )); then
+            echo "::warning::${#V3[@]} of the $V3_SHARDS v3 reports: the v3 comparison is left out"
           fi
           # A case that no shard's filters select (a new one, say) is left out of the report: name it. MessagePack and
           # the probes are not run on purpose.
@@ -357,11 +369,12 @@ jobs:
               echo "$V3_HEADING"
               echo ""
               echo "<details>"
-              echo "<summary>Nino v3 3.3.13 (NuGet) against ${TAG_NAME}, back to back on the same runner</summary>"
+              echo "<summary>Nino v3 3.3.13 (NuGet) against ${TAG_NAME}, back to back on the same runners</summary>"
               echo ""
               # Never write the words "Performance Report" here: parsers find the v4 report by them.
               echo "\`benchmarks/v3\` (the Nino and MemoryPack cases of the same \`SimpleTest\`, built against Nino 3.3.13 from nuget.org) ran directly before the v4"
-              echo "SimpleTest run below, on the same runner, with the same BenchmarkDotNet settings"
+              echo "SimpleTest run below, its serialize and its deserialize cases each on the runner of the same v4 cases, with"
+              echo "the same BenchmarkDotNet settings"
               echo "(\`${BDN_ARGS}\`). MemoryPack runs in both, so its two columns show how much the runner moved."
               echo ""
               echo "### v4 vs v3"
@@ -369,10 +382,13 @@ jobs:
               python3 "$GITHUB_WORKSPACE/benchmarks/v3/compare.py" "$V3_REPORT" "$BENCHMARK_FILE" \
                 || echo "compare.py could not read the reports."
               echo ""
-              # The v3 run's environment block (the docs site names its machine from it); the report is attached.
-              echo "### v3 3.3.13 runner"
+              # The environment block of the first half (the docs site names its machine from it), then the
+              # runner of each half; the report is attached.
+              echo "### v3 3.3.13 runners"
               echo ""
               awk '/^\|/{exit} {print}' "$V3_REPORT"
+              awk 'seen && !/^\|/ {print} /^\|/ {seen=1}' "$V3_REPORT" | sed '1{/^$/d}'
+              echo ""
               echo "The v3 report: [${FULL_V3_ASSET}](https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${FULL_V3_ASSET})."
               echo ""
               echo "</details>"
