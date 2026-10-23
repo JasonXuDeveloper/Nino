@@ -8,6 +8,8 @@
         <PackageId>Nino.Immutable</PackageId>
         <Description>Nino formatters for System.Collections.Immutable (ImmutableArray, ImmutableList, ImmutableHashSet, ImmutableSortedSet, ImmutableQueue, ImmutableStack, ImmutableDictionary, ImmutableSortedDictionary).</Description>
         <PackageTags>Nino;Serialization;Binary;Immutable</PackageTags>
+        <!-- [module: SkipLocalsInit] (Properties.cs) needs it. -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <!-- Trim and NativeAOT safe, like Nino.Core: the analyzers check the net8.0 build (netstandard has no
