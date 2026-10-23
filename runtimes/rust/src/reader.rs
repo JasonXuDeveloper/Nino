@@ -424,6 +424,11 @@ impl<'d> Reader<'d> {
             let (members, section) = body
                 .split_at_checked(offset as usize)
                 .ok_or_else(|| Error::new(ErrorKind::InvalidSection, offset as i32))?;
+            // Only the outermost region holds a section, and a writer flags one only when it holds a body.
+            if self.regions != 0 {
+                return Err(Error::new(ErrorKind::InvalidSection, length as i32));
+            }
+            check_section(section, members.len())?;
             (members, section, after)
         };
         let region = Region {
@@ -487,6 +492,27 @@ impl<'d> Region<'d> {
     pub(crate) fn section(&self) -> (&'d [u8], usize, usize) {
         (self.section, self.section_at, self.members_at)
     }
+}
+
+/// Checks that a section is one or more entries `{key, len, body}` filling it exactly, each keyed by a position
+/// up to the entry itself (right after its object's header, in the members or an earlier entry). The checks
+/// catch a section offset that points into the members or at the section's end.
+fn check_section(mut section: &[u8], members: usize) -> Result<()> {
+    if section.is_empty() {
+        return Err(Error::of(ErrorKind::InvalidSection));
+    }
+    let mut at = members;
+    while !section.is_empty() {
+        let key = take_i32(&mut section)?;
+        let length = take_i32(&mut section)?;
+        let size = usize::try_from(length).map_err(|_| Error::length(length))?;
+        if usize::try_from(key).map_or(true, |k| k > at) {
+            return Err(Error::new(ErrorKind::InvalidSection, key));
+        }
+        section = section.get(size..).ok_or_else(|| Error::length(length))?;
+        at = at.saturating_add(8).saturating_add(size);
+    }
+    Ok(())
 }
 
 /// Takes an `i32` from the front of `bytes`.
