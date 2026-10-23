@@ -7,7 +7,7 @@ namespace Nino.Generator.Analysis;
 
 /// <summary>
 /// Every diagnostic Nino reports, shared by the analyzer, the model builder and the code fixes. Ids are grouped:
-/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023), features (014-017, 024, 026), pooling
+/// the type (001-003), how it is constructed (004-006, 021, 025), its members (007-013, 022-023), features (014-017, 024, 026-027), pooling
 /// (018-019), formatter registrations (020).
 /// </summary>
 internal static class NinoDiagnostics
@@ -97,6 +97,10 @@ internal static class NinoDiagnostics
     public static readonly DiagnosticDescriptor MultipleTypeFormerNames = Error("NINO026",
         "A type takes one [NinoFormerName]",
         "'{0}' has more than one [NinoFormerName]: a type keeps only one earlier name, which its type id is computed from; remove all but one");
+
+    public static readonly DiagnosticDescriptor GenericTypeFormerName = Warning("NINO027",
+        "[NinoFormerName] on a generic type used polymorphically",
+        "'{0}' is generic, so every instantiation of it takes its type id from [NinoFormerName] '{1}': two of them written with a type id (through a base type, an interface or object) collide; remove the former name, or put it on non-generic types only");
 
     public static readonly DiagnosticDescriptor TrackReferencesOnStruct = Warning("NINO015",
         "trackReferences on a struct", "'{0}' is a struct; trackReferences only applies to classes and is ignored");

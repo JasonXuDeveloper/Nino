@@ -91,15 +91,29 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                     string.Join(" and ", missing.Select(name => name + "()")));
         }
 
-        // Its type id comes from one former name: the generator would take the first, NinoTypeId.Of would throw.
-        var formerNames = type.GetAttributes()
-            .Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, facts.Symbols.FormerName)).ToList();
-        if (formerNames.Count > 1 && formerNames[1].ApplicationSyntaxReference is { } second)
-            context.ReportDiagnostic(Diagnostic.Create(NinoDiagnostics.MultipleTypeFormerNames,
-                Location.Create(second.SyntaxTree, second.Span), type.ToDisplayString()));
+        ReportFormerNames(sink, type, facts.Symbols);
 
         foreach (var finding in findings)
             Report(sink, type, finding);
+    }
+
+    /// <summary>
+    /// The type's <c>[NinoFormerName]</c>s. Its type id comes from one: the generator would take the first,
+    /// <c>NinoTypeId.Of</c> would throw. And one name gives every instantiation of a generic type the same id, which
+    /// collides once two of them are written with their id (<c>NinoPolymorphic</c> registers each by it): a type with
+    /// a <c>[NinoType]</c> base or interface, or one that has subtypes (an interface, an abstract or unsealed class).
+    /// </summary>
+    private static void ReportFormerNames(DiagnosticSink sink, INamedTypeSymbol type, NinoSymbols known)
+    {
+        var formerNames = type.GetAttributes()
+            .Where(a => SymbolEqualityComparer.Default.Equals(a.AttributeClass, known.FormerName)).ToList();
+        if (formerNames.Count > 1)
+            sink.Report(NinoDiagnostics.MultipleTypeFormerNames, formerNames[1], type, type.ToDisplayString());
+        if (formerNames.Count != 0 && TypeNames.AllTypeParameters(type).Count != 0 &&
+            (type.TypeKind == TypeKind.Interface || type.IsAbstract || type.TypeKind == TypeKind.Class && !type.IsSealed ||
+             type.NinoAncestors().Any()))
+            sink.Report(NinoDiagnostics.GenericTypeFormerName, formerNames[0], type, type.ToDisplayString(),
+                formerNames[0].ConstructorArguments.FirstOrDefault().Value as string ?? "");
     }
 
     /// <summary>Reports what <see cref="MemberCollector"/> found about a member <paramref name="type"/> declares.</summary>

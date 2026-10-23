@@ -18,4 +18,14 @@ internal sealed class DiagnosticSink
     /// <summary>Reports <paramref name="descriptor"/> at the first location of <paramref name="at"/>.</summary>
     public void Report(DiagnosticDescriptor descriptor, ISymbol at, params object[] args) =>
         _report(Diagnostic.Create(descriptor, at.Locations.FirstOrDefault(), args));
+
+    /// <summary>
+    /// Reports <paramref name="descriptor"/> at <paramref name="attribute"/> as written, or at <paramref name="owner"/>
+    /// when it has no syntax (metadata).
+    /// </summary>
+    public void Report(DiagnosticDescriptor descriptor, AttributeData attribute, ISymbol owner, params object[] args) =>
+        _report(Diagnostic.Create(descriptor,
+            attribute.ApplicationSyntaxReference is { } syntax
+                ? Location.Create(syntax.SyntaxTree, syntax.Span)
+                : owner.Locations.FirstOrDefault(), args));
 }

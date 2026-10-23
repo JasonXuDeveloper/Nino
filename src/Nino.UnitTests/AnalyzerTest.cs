@@ -1660,6 +1660,49 @@ public class Single
     }
 
     [TestMethod]
+    public async Task NINO027_GenericTypeFormerName()
+    {
+        // Every instantiation of a generic type takes its id from the one former name: Box<int> and Box<string>
+        // collide once both are written with their type id.
+        var code = @"
+using Nino.Core;
+
+[NinoType] public interface IShape { }
+
+[NinoType, {|#0:NinoFormerName(""Old.Box"")|}]
+public class Box<T> { public T Value; }
+
+[NinoType, {|#1:NinoFormerName(""Old.Leaf"")|}]
+public sealed class Leaf<T> : IShape { public T Value; }
+
+[NinoType, {|#2:NinoFormerName(""Old.Shape"")|}]
+public interface IGenericShape<T> { }
+
+public class Outer<T>
+{
+    [NinoType, {|#3:NinoFormerName(""Old.Inner"")|}]
+    public abstract class Inner { public int A; }
+}
+
+// Never written with a type id: no collision.
+[NinoType, NinoFormerName(""Old.Sealed"")]
+public sealed class SealedBox<T> { public T Value; }
+
+[NinoType, NinoFormerName(""Old.Pair"")]
+public struct Pair<T> { public T Value; }
+
+[NinoType, NinoFormerName(""Old.Plain"")]
+public class Plain { public int A; }
+";
+
+        await SetUpAnalyzerTest(code,
+            Verify.Diagnostic("NINO027").WithLocation(0).WithArguments("Box<T>", "Old.Box"),
+            Verify.Diagnostic("NINO027").WithLocation(1).WithArguments("Leaf<T>", "Old.Leaf"),
+            Verify.Diagnostic("NINO027").WithLocation(2).WithArguments("IGenericShape<T>", "Old.Shape"),
+            Verify.Diagnostic("NINO027").WithLocation(3).WithArguments("Outer<T>.Inner", "Old.Inner")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO015_TrackReferencesOnStruct()
     {
         var code = @"
