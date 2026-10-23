@@ -1,0 +1,37 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/Nino.AspNetCore/Nino.AspNetCore.csproj" />
+    <Project Path="src/Nino.Core/Nino.Core.csproj" />
+    <Project Path="src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj" />
+    <Project Path="src/Nino.Generator.Roslyn4.12/Nino.Generator.Roslyn4.12.csproj" />
+    <Project Path="src/Nino.Generator.Roslyn4.8/Nino.Generator.Roslyn4.8.csproj" />
+    <Project Path="src/Nino.Generator/Nino.Generator.csproj" />
+    <Project Path="src/Nino.Immutable/Nino.Immutable.csproj" />
+    <Project Path="src/Nino.TypeScript/Nino.TypeScript.csproj" />
+    <Project Path="src/Nino.UnityTypes/Nino.UnityTypes.csproj" />
+    <Project Path="src/Nino.UnityTypes/UnityEngineStub/UnityEngine.CoreModule.csproj" />
+    <Project Path="src/Nino/Nino.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Nino.AotTests/Nino.AotTests.csproj" />
+    <Project Path="tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj" />
+    <Project Path="tests/Nino.Fuzz/Golden/Nino.Fuzz.Golden.csproj" />
+    <Project Path="tests/Nino.Fuzz/Nino.Fuzz.csproj" />
+    <Project Path="tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj" />
+    <Project Path="tests/Nino.TypeScript.Tests/Nino.TypeScript.Tests.csproj" />
+    <Project Path="tests/Nino.UnitTests.Subset/Nino.UnitTests.Subset.csproj" />
+    <Project Path="tests/Nino.UnitTests/Nino.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Nino.Benchmark/Nino.Benchmark.csproj" />
+    <Project Path="benchmarks/Nino.GeneratorBenchmark/Nino.GeneratorBenchmark.csproj" />
+  </Folder>
+  <Folder Name="/conformance/">
+    <Project Path="conformance/Nino.Conformance/Nino.Conformance.csproj" />
+  </Folder>
+</Solution>

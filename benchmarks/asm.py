@@ -5,7 +5,7 @@ usage: asm.py dump [--ref REF] [--filter TEXT] [--runs N] [--asm FILE] OUT.json
        asm.py diff BASE.json HEAD.json
        asm.py compare [--filter TEXT] REF          (dump REF and the working tree, then diff them)
 
-`dump` builds src/Nino.Benchmark (of the working tree, or of REF in a temporary git worktree) and runs it with the
+`dump` builds benchmarks/Nino.Benchmark (of the working tree, or of REF in a temporary git worktree) and runs it with the
 startup hook in jitwarm/: every Nino case (or those whose name contains TEXT) is called until it is compiled at Tier1,
 a few seconds per class, then the process exits. DOTNET_JitDisasm prints the Tier1 code of the cases and of the
 generated formatters and Nino methods they call; `dump` writes, per method, its size, its stack accesses and the
@@ -79,7 +79,9 @@ def dump(ref, text, keep, runs=3):
         subprocess.run(["git", "-C", ROOT, "worktree", "add", "-q", "--detach", worktree, ref], check=True)
         tree = worktree
     try:
-        project = os.path.join(tree, "src", "Nino.Benchmark")
+        # benchmarks/Nino.Benchmark; a commit from before the test and benchmark projects left src/ has it there
+        project = next(p for p in (os.path.join(tree, d, "Nino.Benchmark") for d in ("benchmarks", "src"))
+                       if os.path.isdir(p))
         build = subprocess.run(["dotnet", "build", "-c", "Release", project], capture_output=True, text=True)
         if build.returncode != 0:
             sys.exit(f"build of {ref or 'the working tree'} failed:\n{build.stdout[-4000:]}")

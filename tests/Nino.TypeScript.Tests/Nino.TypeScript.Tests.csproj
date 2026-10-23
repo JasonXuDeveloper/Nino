@@ -14,9 +14,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Nino.Core\Nino.Core.csproj"/>
-        <ProjectReference Include="..\Nino.TypeScript\Nino.TypeScript.csproj"/>
-        <ProjectReference Include="..\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
+        <ProjectReference Include="..\..\src\Nino.Core\Nino.Core.csproj"/>
+        <ProjectReference Include="..\..\src\Nino.TypeScript\Nino.TypeScript.csproj"/>
+        <ProjectReference Include="..\..\src\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
     </ItemGroup>
 
@@ -24,5 +24,5 @@
         <None Include="harness.ts" CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 
-    <Import Project="..\Nino.Generator\build\Nino.Generator.props"/>
+    <Import Project="..\..\src\Nino.Generator\build\Nino.Generator.props"/>
 </Project>

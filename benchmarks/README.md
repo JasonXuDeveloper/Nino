@@ -1,9 +1,9 @@
 # Benchmarks
 
-`src/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack and MessagePack).
+`benchmarks/Nino.Benchmark` is the runtime benchmark of this repository (Nino v4 against MemoryPack and MessagePack).
 `v3/` is the same `SimpleTest` (same data, same attributes) built against **Nino 3.3.13 from nuget.org**, the last v3
 release, so v4 can be compared with v3 on the same machine; it compiles v4's `NinoJobAttribute.cs` and
-`SimpleBenchmarkData.cs`, so the job and the data cannot drift apart. It is not part of `src/Nino.slnx`.
+`SimpleBenchmarkData.cs`, so the job and the data cannot drift apart. It is not part of `Nino.slnx`.
 
 ```sh
 benchmarks/run.sh                          # v3, then the full v4 suite; about three and a half hours
@@ -21,7 +21,7 @@ and the release notes use the full protocol, which is what supports "x× faster"
 Requires the .NET 10 SDK and Python 3. The script prints `v4 vs v3` per case; the BenchmarkDotNet
 reports are in `<out>/v3` and `<out>/v4`. `dotnet benchmarks/v3/bin/Release/net10.0/Nino.Benchmark.dll
 --verify` checks that v3 round-trips the benchmark data and prints the payload sizes; `--verify` on v4's
-`Nino.Benchmark.dll` (`src/Nino.Benchmark/Verify.cs`, run by `run.sh`, `report.yml` and the PR benchmark job) checks
+`Nino.Benchmark.dll` (`benchmarks/Nino.Benchmark/Verify.cs`, run by `run.sh`, `report.yml` and the PR benchmark job) checks
 every case: each serialize case writes its payload's bytes, and every case of a deserialize category reads back the
 same value, deep-compared. The data is seeded (`BenchmarkRandom`), so every run serializes the same values. Nino
 serializes to its `NinoArrayBufferWriter`, MemoryPack and MessagePack to `ArrayBufferWriter<byte>`: each to the
@@ -66,7 +66,7 @@ The scripts that read reports (`readme.py`, `ab.py`, `merge_reports.py`, `compac
 
 ## Benchmark Classes
 
-`src/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
+`benchmarks/Nino.Benchmark` runs these classes (BenchmarkDotNet categories in parentheses). Every one compares Nino with
 MemoryPack; `SimpleTest` and `PolymorphicTest` add MessagePack. All of them land in one joined table, which is the
 Performance Report of each release.
 
@@ -87,7 +87,7 @@ Method names are unique across classes (`<Serializer><Serialize|Deserialize><Cas
 `MemoryPackDeserializeGraph`): the documentation site and the `Payload` column key rows by method name alone.
 
 ```sh
-cd src/Nino.Benchmark
+cd benchmarks/Nino.Benchmark
 dotnet run -c Release -- --filter '*' --launchCount 3 --warmupCount 5 --iterationCount 15   # the published settings
 dotnet run -c Release -- --filter '*FixedSizeTest*' --launchCount 1 --warmupCount 1 --iterationCount 3   # a quick look
 ```

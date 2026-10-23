@@ -135,8 +135,8 @@ jobs:
             N=$((N + 1))
             D=$(printf 'bisect/%03d-%s' $N $C)
             git -C head worktree add --detach "../$D" "$C"
-            rm -rf "$D/src/Nino.Benchmark"
-            cp -r head/src/Nino.Benchmark "$D/src/Nino.Benchmark"
+            rm -rf "$D/benchmarks/Nino.Benchmark"
+            cp -r head/benchmarks/Nino.Benchmark "$D/benchmarks/Nino.Benchmark"
           done
 
       - name: Setup .NET
@@ -153,20 +153,20 @@ jobs:
           set -euo pipefail
           if [[ -d bisect ]]; then
             for D in bisect/*/; do
-              dotnet build -c Release "$D/src/Nino.Benchmark" -v q -nologo || echo "::warning::$D did not build"
+              dotnet build -c Release "$D/benchmarks/Nino.Benchmark" -v q -nologo || echo "::warning::$D did not build"
             done
           fi
           if [[ -d base ]]; then
-            rm -rf base/src/Nino.Benchmark
-            cp -r head/src/Nino.Benchmark base/src/Nino.Benchmark
+            rm -rf base/benchmarks/Nino.Benchmark
+            cp -r head/benchmarks/Nino.Benchmark base/benchmarks/Nino.Benchmark
             # A release older than a benchmark's types (one whose generator could not compile them) cannot run them:
             # base is built without them (NinoBenchLegacy, #if !NINO_BENCH_LEGACY), so they are measured on head alone;
             # if it still does not build, head alone is measured, and against main compares the code this ref changes.
             # The first build's output goes to a file: its compiler errors would otherwise show as the run's annotations,
             # although the build without those benchmarks is the expected outcome for an older release.
-            if dotnet build -c Release base/src/Nino.Benchmark > base-build.log 2>&1; then
+            if dotnet build -c Release base/benchmarks/Nino.Benchmark > base-build.log 2>&1; then
               echo "base builds every benchmark of head"
-            elif dotnet build -c Release base/src/Nino.Benchmark -p:NinoBenchLegacy=true; then
+            elif dotnet build -c Release base/benchmarks/Nino.Benchmark -p:NinoBenchLegacy=true; then
               touch base/.bench-legacy
               echo "::notice::base does not build all of head's benchmarks (its generator predates them); the ones marked NINO_BENCH_LEGACY are measured on head alone"
             else
@@ -175,7 +175,7 @@ jobs:
               rm -rf base
             fi
           fi
-          dotnet build -c Release head/src/Nino.Benchmark
+          dotnet build -c Release head/benchmarks/Nino.Benchmark
           lscpu | grep -E 'Model name|Flags' || true
 
       - name: Run
@@ -192,14 +192,14 @@ jobs:
           read -ra FILTERS <<< "$FILTER"
           for SIDE in $SIDES; do
             [[ -d $SIDE ]] || continue
-            [[ -f $SIDE/src/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue
+            [[ -f $SIDE/benchmarks/Nino.Benchmark/bin/Release/net10.0/Nino.Benchmark.dll ]] || continue
             echo "== $SIDE $(git -C $SIDE rev-parse --short HEAD)"
             # BenchmarkDotNet builds the project again for its runs: a side built with NinoBenchLegacy (above) gets it
             # through the environment, which MSBuild reads as properties.
             LEGACY=""
             [[ -f $SIDE/.bench-legacy ]] && LEGACY=true
             # shellcheck disable=SC2086 # BDN_ARGS is a list of arguments
-            (cd $SIDE/src/Nino.Benchmark && NinoBenchLegacy=$LEGACY dotnet bin/Release/net10.0/Nino.Benchmark.dll \
+            (cd $SIDE/benchmarks/Nino.Benchmark && NinoBenchLegacy=$LEGACY dotnet bin/Release/net10.0/Nino.Benchmark.dll \
               --filter "${FILTERS[@]}" $BDN_ARGS --artifacts "$GITHUB_WORKSPACE/results/$SIDE")
           done
 

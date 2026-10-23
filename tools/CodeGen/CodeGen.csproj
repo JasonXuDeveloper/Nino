@@ -2,7 +2,7 @@
 
     <!--
       Writes the template-generated sources of Nino.Core (see Program.cs for how to run it).
-      Deliberately not part of src/Nino.slnx: nothing at build time depends on it, and Nino.UnitTests compiles the
+      Deliberately not part of Nino.slnx: nothing at build time depends on it, and Nino.UnitTests compiles the
       templates as source to check that the checked-in output is current.
     -->
     <PropertyGroup>

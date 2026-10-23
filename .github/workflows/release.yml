@@ -1,7 +1,7 @@
 name: Release
 
 # Run manually: Actions -> Release -> Run workflow (on main), enter the version (e.g. 4.0.0 or 4.1.0-beta.1).
-#   tag:     bump the version (src/Directory.Build.props, the Unity package.json), build, test,
+#   tag:     bump the version (Directory.Build.props, the Unity package.json), build, test,
 #            copy the Unity DLLs, commit "Bump to vX.Y.Z", tag vX.Y.Z (and the OpenUPM tag of a pre-release), push.
 #   publish: from the tag, pack and push to NuGet (Trusted Publishing: a short-lived key from this workflow's OIDC
 #            token, no stored secret), create the GitHub release with the notes of .github/scripts/release_notes.py
@@ -79,9 +79,9 @@ jobs:
         env:
           UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
         run: |
-          sed -i "s|<Version>[^<]*</Version>|<Version>$VERSION</Version>|" src/Directory.Build.props
+          sed -i "s|<Version>[^<]*</Version>|<Version>$VERSION</Version>|" Directory.Build.props
           sed -i "s|\"version\": \"[^\"]*\"|\"version\": \"$UNITY_VERSION\"|" "$UNITY_PACKAGE/package.json"
-          grep -q "<Version>$VERSION</Version>" src/Directory.Build.props
+          grep -q "<Version>$VERSION</Version>" Directory.Build.props
           grep -q "\"version\": \"$UNITY_VERSION\"" "$UNITY_PACKAGE/package.json"
 
       - uses: actions/setup-dotnet@v6
@@ -92,10 +92,10 @@ jobs:
 
       - name: Build and test the bumped version
         if: steps.version.outputs.exists != 'true'
-        working-directory: src
+        working-directory: .
         run: |
           dotnet build --configuration Release
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build --configuration Release
+          dotnet test tests/Nino.UnitTests/Nino.UnitTests.csproj --no-build --configuration Release
 
       - name: Copy the Unity DLLs
         if: steps.version.outputs.exists != 'true'
@@ -116,7 +116,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/Directory.Build.props "$UNITY_PACKAGE/package.json" "$UNITY_PACKAGE/Runtime/"*.dll
+          git add Directory.Build.props "$UNITY_PACKAGE/package.json" "$UNITY_PACKAGE/Runtime/"*.dll
           if ! git diff --cached --quiet; then
             git commit -m "Bump to v$VERSION"
           fi
@@ -152,16 +152,16 @@ jobs:
             8.0.x
 
       - name: Pack
-        working-directory: src
+        working-directory: .
         run: |
           dotnet build --configuration Release
           for proj in Nino.Core Nino.Generator Nino.Immutable Nino.AspNetCore Nino.TypeScript Nino; do
-            dotnet pack "$proj/$proj.csproj" --no-build --configuration Release --output ../artifacts
+            dotnet pack "src/$proj/$proj.csproj" --no-build --configuration Release --output artifacts
           done
-          ls ../artifacts
+          ls artifacts
           # shellcheck disable=SC2086 # PACKAGE_IDS is a list of ids
           for id in $PACKAGE_IDS; do
-            test -f "../artifacts/$id.$VERSION.nupkg"
+            test -f "artifacts/$id.$VERSION.nupkg"
           done
 
       - name: NuGet login (Trusted Publishing)

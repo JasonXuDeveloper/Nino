@@ -49,7 +49,7 @@ about linearly, at about 4 KB of source and 2 to 3 ms of compile time per type.
 
 ## Runtime
 
-`src/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
+`benchmarks/Nino.Benchmark` (`ShortRun` job with 5 warm-up and 15 measured iterations, each case in 3 processes, server
 GC), all eleven benchmark classes, v4 and MemoryPack 1.21.4 side by side: the release run spreads the classes over eight
 runners per architecture and keeps each case's Nino and MemoryPack runs on one. v3 is Nino 3.3.13 from nuget.org, running a port of
 the same `SimpleTest` (same data, same attributes), each half (serialize, deserialize) on the runner of the same v4 cases
@@ -66,7 +66,7 @@ in a "vs" column means the case was not measured there, or v4 is not ahead.
 Each library serializes to its own buffer writer: Nino to `NinoArrayBufferWriter`, MemoryPack and MessagePack to
 `ArrayBufferWriter<byte>`. Nino writes in place only into its own; into any other `IBufferWriter<byte>` it writes a
 pooled buffer and then copies it over, one copy more than these tables measure.
-Before the benchmarks run, `--verify` (`src/Nino.Benchmark/Verify.cs`) checks every case: each serialize case writes
+Before the benchmarks run, `--verify` (`benchmarks/Nino.Benchmark/Verify.cs`) checks every case: each serialize case writes
 its payload's bytes, and every deserialize case of a category reads back the same value, deep-compared. The data is
 seeded, so every run serializes the same values.
 
@@ -141,7 +141,7 @@ Each against the closest MemoryPack mode: `ReferenceTest` (a graph of 200 nodes 
 `NinoFormat.VersionTolerant`, one length per object, against `GenerateType.VersionTolerant`, a length per member)
 and `FixedSizeTest` (a 40-byte struct, the same members in a sealed class and 100 of the classes, through the
 `byte[]` APIs of both, so allocating the result is part of every call). `CommonTypesTest` adds data shaped like
-that of common applications (`src/Nino.Benchmark/CommonTypes.cs`): players with a struct list, a string dictionary,
+that of common applications (`benchmarks/Nino.Benchmark/CommonTypes.cs`): players with a struct list, a string dictionary,
 bytes and strings; orders with `Guid`, `DateTimeOffset`, `decimal` and a list of classes; shapes through an abstract
 base; a tree; a padded struct array; and a string dictionary. `CollectionsTest` covers collections of the base
 class library: a list of tuples, an array of key-value pairs, and hashed, queued, linked, sorted and concurrent
@@ -296,23 +296,23 @@ the result objects.
 
 ## Reproducing
 
-Build time and generated code (`src/Nino.GeneratorBenchmark`):
+Build time and generated code (`benchmarks/Nino.GeneratorBenchmark`):
 
 ```sh
-dotnet run -c Release --project src/Nino.GeneratorBenchmark -- 30 8          # this repository's generator
+dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8          # this repository's generator
 # another version: build its Nino.Generator and Nino.Core, then
-dotnet run -c Release --project src/Nino.GeneratorBenchmark -- 30 8 \
+dotnet run -c Release --project benchmarks/Nino.GeneratorBenchmark -- 30 8 \
     --generator <path>/Nino.Generator.dll --core <path>/Nino.Core.dll
 ```
 
 Arguments are the number of root classes and the depth of each hierarchy; `--dump <dir>` writes the
 generated files. Each line reports one of five runs.
 
-Runtime (`src/Nino.Benchmark`, BenchmarkDotNet):
+Runtime (`benchmarks/Nino.Benchmark`, BenchmarkDotNet):
 
 ```sh
-dotnet run -c Release --project src/Nino.Benchmark -- --filter '*' --launchCount 3 --warmupCount 5 --iterationCount 15
-dotnet run -c Release --project src/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*' \
+dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*' --launchCount 3 --warmupCount 5 --iterationCount 15
+dotnet run -c Release --project benchmarks/Nino.Benchmark -- --filter '*ReferenceTest*' '*VersionTolerantTest*' '*FixedSizeTest*' \
     --launchCount 3 --warmupCount 5 --iterationCount 15                                  # some classes only
 ```
 

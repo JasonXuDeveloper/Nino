@@ -3,7 +3,7 @@
   "profiles": {
     "DebugRoslynSourceGenerator": {
       "commandName": "DebugRoslynComponent",
-      "targetProject": "../Nino.UnitTests/Nino.UnitTests.csproj"
+      "targetProject": "../../tests/Nino.UnitTests/Nino.UnitTests.csproj"
     }
   }
 }

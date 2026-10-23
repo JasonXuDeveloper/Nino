@@ -88,7 +88,7 @@ dotnet run -c Release --project tests/Nino.Fuzz -- repro Colls tests/Nino.Fuzz/f
 process as it did in the worker. Options: `--placement end|start|heap`, `--reuse` (read into a fresh sample),
 `--prime prime.bin` (read into the value of that input), `--minimize` (writes the smallest input with the same
 finding next to the file, as `<file>.min`: for libFuzzer's crash files). To keep a finding fixed, copy the hex from `info.txt` into a
-unit test in `src/Nino.UnitTests/UntrustedInputTests.cs`.
+unit test in `tests/Nino.UnitTests/UntrustedInputTests.cs`.
 
 ## Known open bugs
 
@@ -120,7 +120,7 @@ bug coming back. Every other probe (nesting through a list, a struct array, a di
 A problem that needs a precise input instead of mutations (thousands of nesting levels, crafted hashes) is a probe:
 add it to `Probes.All` in `Probes.cs`.
 
-The golden-bytes target reads the pinned bytes of `src/Nino.UnitTests/GoldenBytesTests.cs`, compiled into
+The golden-bytes target reads the pinned bytes of `tests/Nino.UnitTests/GoldenBytesTests.cs`, compiled into
 `Golden/Nino.Fuzz.Golden.csproj` with `WEAK_VERSION_TOLERANCE` as in the unit tests (an assembly of its own, since
 that symbol makes every type of an assembly version tolerant).
 

@@ -8,7 +8,7 @@ One set of inputs, written by .NET Nino, that every Nino runtime (.NET, TypeScri
   or using memory out of proportion to the input.
 
 `Nino.Conformance/` is the .NET program that writes the corpus (its sample types are in `Types.cs`, the cases in
-`ValidCases.cs` and `MaliciousCases.cs`) and checks it. It is not part of `src/Nino.sln`; build it by path.
+`ValidCases.cs` and `MaliciousCases.cs`) and checks it. It is part of `Nino.slnx`, so the solution build compiles it; run it by path.
 
 ## Layout
 

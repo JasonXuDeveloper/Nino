@@ -5,12 +5,32 @@ on:
     branches: [ "main", "develop" ]
     paths:
       - 'src/**'
+      - '.editorconfig'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - 'Nino.slnx'
+      - 'benchmarks/Nino.Benchmark/**'
+      - 'benchmarks/Nino.GeneratorBenchmark/**'
+      - 'global.json'
+      - 'nuget.config'
+      - 'tests/**'
       - 'runtimes/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [ "main", "develop" ]
     paths:
       - 'src/**'
+      - '.editorconfig'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+      - 'Nino.slnx'
+      - 'benchmarks/Nino.Benchmark/**'
+      - 'benchmarks/Nino.GeneratorBenchmark/**'
+      - 'global.json'
+      - 'nuget.config'
+      - 'tests/**'
       - 'runtimes/**'
       - '.github/workflows/ci.yml'
   workflow_call:
@@ -30,7 +50,7 @@ concurrency:
 # Set global defaults
 defaults:
   run:
-    working-directory: ./src
+    working-directory: .
 
 jobs:
   # The test configurations run side by side, each on its own runner: building is ~20 s, so each job builds what
@@ -55,46 +75,46 @@ jobs:
             framework: net8.0
             properties: -p:NinoCoreTfm=netstandard2.1 -p:NinoRegularCalls=true
             coverage: false
-            project: Nino.UnitTests/Nino.UnitTests.csproj
+            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
           # The .NET 8 SDK's preview interceptor attribute: Nino.Core netstandard2.0, the Roslyn 4.8 generator.
           # Each Nino.Core build is checked against the pinned bytes of GoldenBytesTests.
           - name: netstandard2.0 with Roslyn 4.8
             framework: net8.0
             properties: -p:NinoCoreTfm=netstandard2.0 -p:NinoGeneratorBuild=4.8
             coverage: false
-            project: Nino.UnitTests/Nino.UnitTests.csproj
+            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
           # Arm64: its byte shuffle (tbl), 16-byte vectors only, and the net8.0 build's own shuffle path.
           - name: net10.0 on Arm64
             runner: ubuntu-24.04-arm
             framework: net10.0
             properties: ''
             coverage: false
-            project: Nino.UnitTests/Nino.UnitTests.csproj
+            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
           - name: net8.0 on Arm64
             runner: ubuntu-24.04-arm
             framework: net8.0
             properties: ''
             coverage: false
-            project: Nino.UnitTests/Nino.UnitTests.csproj
+            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
           # x64 CPUs without AVX-512 (most desktops: 32-byte vectors, no byte permute), and without any SIMD.
           - name: net10.0 without AVX-512
             framework: net10.0
             properties: ''
             coverage: false
-            project: Nino.UnitTests/Nino.UnitTests.csproj
+            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
             avx512: '0'
           # Older x64 CPUs (SSSE3, no AVX2): 16-byte vectors, two shuffles a vector where Arm64 has one table lookup.
           - name: net10.0 without AVX2
             framework: net10.0
             properties: ''
             coverage: false
-            project: Nino.UnitTests/Nino.UnitTests.csproj
+            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
             avx2: '0'
           - name: net10.0 without SIMD
             framework: net10.0
             properties: ''
             coverage: false
-            project: Nino.UnitTests/Nino.UnitTests.csproj
+            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
             simd: '0'
           # Windows: its paths, file system and line endings. A contributor's analyzer test failed there (PR #203)
           # while every Linux job passed.
@@ -103,7 +123,7 @@ jobs:
             framework: net10.0
             properties: ''
             coverage: false
-            project: Nino.UnitTests/Nino.UnitTests.csproj
+            project: tests/Nino.UnitTests/Nino.UnitTests.csproj
 
     steps:
       - name: Checkout code
@@ -136,7 +156,7 @@ jobs:
           DOTNET_EnableAVX2: ${{ matrix.avx2 || '1' }}
           DOTNET_EnableHWIntrinsic: ${{ matrix.simd || '1' }}
         run: >
-          dotnet test Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f ${{ matrix.framework }}
+          dotnet test tests/Nino.UnitTests/Nino.UnitTests.csproj --no-build -c Debug -f ${{ matrix.framework }}
           ${{ matrix.properties }} --logger trx --results-directory ./TestResults
           ${{ matrix.coverage && '--collect:"XPlat Code Coverage"' || '' }}
 
@@ -144,7 +164,7 @@ jobs:
       - name: Test integrations
         if: ${{ matrix.project == '' }}
         run: >
-          dotnet test Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
+          dotnet test tests/Nino.AspNetCore.Tests/Nino.AspNetCore.Tests.csproj --no-build -c Debug
           --logger trx --results-directory ./TestResults
 
       # The TypeScript generator: Node runs the generated code (type stripping, Node 22.18+), tsc checks it.
@@ -157,7 +177,7 @@ jobs:
         if: ${{ matrix.project == '' }}
         run: |
           npm install -g typescript@5
-          dotnet test Nino.TypeScript.Tests/Nino.TypeScript.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
+          dotnet test tests/Nino.TypeScript.Tests/Nino.TypeScript.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
 
       # The TypeScript runtime on its own (runtimes/typescript/test): type checks, then node:test.
       - name: Test the TypeScript runtime
@@ -174,7 +194,7 @@ jobs:
         continue-on-error: true
         with:
           name: test-results-${{ strategy.job-index }}
-          path: ./src/TestResults
+          path: ./TestResults
           retention-days: 30
 
   # Nino.Core and generated code must stay trim and NativeAOT safe: Nino.AotTests is published both ways with every
@@ -206,8 +226,8 @@ jobs:
 
       - name: Publish trimmed and NativeAOT
         run: |
-          dotnet publish Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=trim -o ./aot-tests/trim
-          dotnet publish Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=aot -o ./aot-tests/aot
+          dotnet publish tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=trim -o ./aot-tests/trim
+          dotnet publish tests/Nino.AotTests/Nino.AotTests.csproj -c Release -r linux-x64 -p:NinoPublish=aot -o ./aot-tests/aot
 
       - name: Run
         run: |
@@ -238,12 +258,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mono-complete
 
       - name: Build
-        run: dotnet build Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
+        run: dotnet build tests/Nino.RuntimeTests/Nino.RuntimeTests.csproj -c Release
 
       - name: Run on .NET and Mono
         run: |
-          dotnet Nino.RuntimeTests/bin/Release/net10.0/Nino.RuntimeTests.dll | tee dotnet.txt
-          mono Nino.RuntimeTests/bin/Release/net472/Nino.RuntimeTests.exe | tee mono.txt
+          dotnet tests/Nino.RuntimeTests/bin/Release/net10.0/Nino.RuntimeTests.dll | tee dotnet.txt
+          mono tests/Nino.RuntimeTests/bin/Release/net472/Nino.RuntimeTests.exe | tee mono.txt
           diff <(grep -v '^#' dotnet.txt) <(grep -v '^#' mono.txt)
           grep -qx 'ALL OK' mono.txt
 
@@ -275,16 +295,16 @@ jobs:
 
       - name: Build the DLLs Unity loads
         run: |
-          dotnet build Nino.Core/Nino.Core.csproj -c Debug -f netstandard2.1
-          dotnet build Nino.Generator/Nino.Generator.csproj -c Debug
-          dotnet build Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c Debug
-          dotnet build Nino.UnityTypes/Nino.UnityTypes.csproj -c Debug
-          cp ./Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
+          dotnet build src/Nino.Core/Nino.Core.csproj -c Debug -f netstandard2.1
+          dotnet build src/Nino.Generator/Nino.Generator.csproj -c Debug
+          dotnet build src/Nino.Generator.CodeFixes/Nino.Generator.CodeFixes.csproj -c Debug
+          dotnet build src/Nino.UnityTypes/Nino.UnityTypes.csproj -c Debug
+          cp ./src/Nino.Core/bin/Debug/netstandard2.1/Nino.Core.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Core.dll
           # The Roslyn 4.3 build: Unity's compiler cannot load the 4.12 one.
-          cp ./Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
+          cp ./src/Nino.Generator/bin/Debug/netstandard2.0/Nino.Generator.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.dll
           # Code fixes, for Rider and Visual Studio: Unity lists RoslynAnalyzer DLLs in the projects it generates.
-          cp ./Nino.Generator.CodeFixes/bin/Debug/netstandard2.0/Nino.Generator.CodeFixes.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
-          cp ./Nino.UnityTypes/bin/Debug/netstandard2.1/Nino.UnityTypes.dll ./Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
+          cp ./src/Nino.Generator.CodeFixes/bin/Debug/netstandard2.0/Nino.Generator.CodeFixes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.Generator.CodeFixes.dll
+          cp ./src/Nino.UnityTypes/bin/Debug/netstandard2.1/Nino.UnityTypes.dll ./src/Nino.Unity/Packages/com.jasonxudeveloper.nino/Runtime/Nino.UnityTypes.dll
 
       - name: Cache Unity Library
         uses: actions/cache@v6
@@ -369,7 +389,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./src
+        working-directory: .
 
     steps:
       - name: Checkout code
@@ -396,14 +416,14 @@ jobs:
 
       - name: Build benchmark project
         run: |
-          cd Nino.Benchmark
+          cd benchmarks/Nino.Benchmark
           dotnet build -c Release
           # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
           dotnet run -c Release --no-build -- --verify
 
       - name: Run benchmarks
         run: |
-          cd Nino.Benchmark
+          cd benchmarks/Nino.Benchmark
           echo "Running benchmarks for PR #${{ github.event.pull_request.number }}..."
           FILTERS=()
           for CLASS in ${{ matrix.classes }}; do FILTERS+=("*.$CLASS.Nino*" "*.$CLASS.MemoryPack*"); done
@@ -426,5 +446,5 @@ jobs:
         if: always()
         with:
           name: benchmark-results-pr-${{ github.event.pull_request.number }}-${{ strategy.job-index }}
-          path: src/Nino.Benchmark/**/BenchmarkDotNet.Artifacts/results
+          path: benchmarks/Nino.Benchmark/**/BenchmarkDotNet.Artifacts/results
           retention-days: 30

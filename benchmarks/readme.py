@@ -5,7 +5,7 @@ docs/v4-benchmarks.md from BenchmarkDotNet reports.
 usage: python3 benchmarks/readme.py --v4 <joined report-github.md> [--v3 <v3 report-github.md>]... [--tag <tag>]
                                     [--png-html <file>]
 
-  --v4        the joined report of src/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
+  --v4        the joined report of benchmarks/Nino.Benchmark (every class in one table), as benchmarks/run.sh and
               report.yml produce it
   --v3        a report of benchmarks/v3 (Nino 3.3.13, SimpleTest); repeat it for several runs,
               v3 is then the mean of them. Without it the README's v3 runtime numbers are left as they are.

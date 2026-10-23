@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- The golden-bytes corpus of the unit tests (src/Nino.UnitTests/GoldenBytesTests.cs), compiled as it is there:
+    <!-- The golden-bytes corpus of the unit tests (tests/Nino.UnitTests/GoldenBytesTests.cs), compiled as it is there:
          with WEAK_VERSION_TOLERANCE, which makes every type of this assembly version tolerant. That is why it is an
          assembly of its own: the fuzzer's own types keep their positional, keyed and raw formats. -->
     <PropertyGroup>
@@ -14,12 +14,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="../../../src/Nino.UnitTests/GoldenBytesTests.cs" Link="GoldenBytesTests.cs"/>
+        <Compile Include="../../Nino.UnitTests/GoldenBytesTests.cs" Link="GoldenBytesTests.cs"/>
     </ItemGroup>
 
     <ItemGroup>
         <!-- Only for the attributes of the linked test class. -->
-        <PackageReference Include="MSTest.TestFramework" Version="4.5.1"/>
+        <PackageReference Include="MSTest.TestFramework"/>
         <ProjectReference Include="../../../src/Nino.Core/Nino.Core.csproj"/>
         <ProjectReference Include="../../../src/Nino.Generator.Roslyn4.12/Nino.Generator.Roslyn4.12.csproj"
                           OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>

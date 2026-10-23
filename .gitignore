@@ -7,14 +7,14 @@ Thumbs.db
 *.DotSettings.user
 **/.config
 
-# Build output (.NET projects under src/, tools/ and benchmarks/; the Unity project has its own .gitignore)
+# Build output (.NET projects under src/, tests/, tools/ and benchmarks/; the Unity project has its own .gitignore)
 bin/
 obj/
 /artifacts/
 TestResults/
 *.binlog
 src/Nino.Core/.AssemblyAttributes
-src/Nino.UnitTests/*.rsp
+tests/Nino.UnitTests/*.rsp
 **/BenchmarkDotNet.Artifacts
 
 # Python bytecode (the scripts under benchmarks/ and .github/scripts/)

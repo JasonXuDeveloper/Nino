@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- Mirrors src/Nino.Benchmark/Nino.Benchmark.csproj, but takes Nino from nuget.org (3.3.13). -->
+    <!-- Mirrors benchmarks/Nino.Benchmark/Nino.Benchmark.csproj, but takes Nino from nuget.org (3.3.13). -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <TargetFramework>net10.0</TargetFramework>
@@ -25,8 +25,8 @@
 
     <ItemGroup>
         <!-- v4's job and data, compiled from its files: the two runs differ only in the library they call. -->
-        <Compile Include="..\..\src\Nino.Benchmark\NinoJobAttribute.cs" Link="NinoJobAttribute.cs"/>
-        <Compile Include="..\..\src\Nino.Benchmark\SimpleBenchmarkData.cs" Link="SimpleBenchmarkData.cs"/>
+        <Compile Include="..\Nino.Benchmark\NinoJobAttribute.cs" Link="NinoJobAttribute.cs"/>
+        <Compile Include="..\Nino.Benchmark\SimpleBenchmarkData.cs" Link="SimpleBenchmarkData.cs"/>
     </ItemGroup>
 
     <ItemGroup>

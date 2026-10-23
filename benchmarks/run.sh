@@ -4,14 +4,14 @@
 #
 # usage: benchmarks/run.sh [output directory]   (default: benchmarks/results)
 #   QUICK=1     development run: shorter iterations that stop at 2% error (NINO_BENCH_QUICK, see
-#               src/Nino.Benchmark/NinoJobAttribute.cs). For trends and regressions, not for publishing.
+#               benchmarks/Nino.Benchmark/NinoJobAttribute.cs). For trends and regressions, not for publishing.
 #   FILTER=...  the v4 benchmarks to run, as BenchmarkDotNet's --filter patterns, separated by spaces (default '*',
 #               e.g. '*PooledTest*' or '*Vectors* *FixedStruct*').
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/benchmarks/results}
 V3=$ROOT/benchmarks/v3
-V4=$ROOT/src/Nino.Benchmark
+V4=$ROOT/benchmarks/Nino.Benchmark
 FILTER=${FILTER:-*}
 read -r -a FILTERS <<< "$FILTER"
 if [[ "${QUICK:-0}" == 1 ]]; then

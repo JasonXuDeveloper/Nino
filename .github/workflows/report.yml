@@ -150,7 +150,7 @@ jobs:
             8.0.x
 
       - name: Build benchmark project
-        working-directory: ./src/Nino.Benchmark
+        working-directory: ./benchmarks/Nino.Benchmark
         run: |
           dotnet build -c Release
           # Every case reads back what the others read and writes its payload's bytes (Verify.cs).
@@ -187,7 +187,7 @@ jobs:
           cp "$(find "$V3_OUT/results" -name '*-report-github.md' | head -n1)" "$OUT/v3-${{ matrix.shard }}.md"
 
       - name: Run benchmarks
-        working-directory: ./src/Nino.Benchmark
+        working-directory: ./benchmarks/Nino.Benchmark
         run: |
           # BenchmarkDotNet runs each benchmark at high priority, which a user may not set ("Failed to set up high
           # priority (Permission denied)"): raise this shell's nice limit (RLIMIT_NICE 40, down to nice -20), which
@@ -231,7 +231,7 @@ jobs:
         with:
           name: benchmark-results-${{ needs.target.outputs.tag }}-${{ matrix.arch }}-${{ matrix.shard }}
           path: |
-            src/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
+            benchmarks/Nino.Benchmark/BenchmarkDotNet.Artifacts/results
             v3-results/results
           retention-days: 90
 
@@ -250,7 +250,7 @@ jobs:
       FULL_X64_ASSET: benchmark-x64-full.md
       FULL_ARM64_ASSET: benchmark-arm64-full.md
       FULL_V3_ASSET: benchmark-v3-full.md
-      # Every benchmark class of src/Nino.Benchmark: one table in the Performance Report, its Type column naming the
+      # Every benchmark class of benchmarks/Nino.Benchmark: one table in the Performance Report, its Type column naming the
       # class. A class missing from the table is reported as a warning.
       # The shards of the bench job's matrix, per architecture.
       SHARDS: 8

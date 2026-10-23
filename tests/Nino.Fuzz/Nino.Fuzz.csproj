@@ -22,7 +22,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="SharpFuzz" Version="2.3.0"/>
+        <PackageReference Include="SharpFuzz"/>
         <ProjectReference Include="../../src/Nino.Core/Nino.Core.csproj"/>
         <ProjectReference Include="../../src/Nino.Immutable/Nino.Immutable.csproj"/>
         <ProjectReference Include="Golden/Nino.Fuzz.Golden.csproj"/>

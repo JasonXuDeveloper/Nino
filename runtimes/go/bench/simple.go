@@ -1,5 +1,5 @@
 // Package bench compares the Go runtime with encoding/json, encoding/gob and msgpack on the data of Nino's .NET
-// benchmark (SimpleClass, src/Nino.Benchmark/SimpleBenchmarkData.cs). It is a module of its own, so the runtime's
+// benchmark (SimpleClass, benchmarks/Nino.Benchmark/SimpleBenchmarkData.cs). It is a module of its own, so the runtime's
 // module has no dependencies.
 package bench
 
