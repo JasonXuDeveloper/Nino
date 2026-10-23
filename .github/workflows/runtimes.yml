@@ -1,6 +1,7 @@
 name: Runtimes
 
-# The runtimes outside .NET, and the conformance corpus they are all tested against (conformance/README.md).
+# The runtimes of Nino's wire format outside .NET, each tested on its own and against the conformance corpus that
+# .NET writes (conformance/README.md), and the check that the committed corpus is what .NET writes today.
 on:
   push:
     branches: [ "main", "develop" ]
@@ -8,6 +9,7 @@ on:
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
       - 'src/Nino.Generator.Roslyn4.12/**'
+      - 'runtimes/**'
       - 'conformance/**'
       - '.github/workflows/runtimes.yml'
   pull_request:
@@ -16,6 +18,7 @@ on:
       - 'src/Nino.Core/**'
       - 'src/Nino.Generator/**'
       - 'src/Nino.Generator.Roslyn4.12/**'
+      - 'runtimes/**'
       - 'conformance/**'
       - '.github/workflows/runtimes.yml'
   workflow_dispatch:
@@ -57,3 +60,63 @@ jobs:
               "'dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus' and commit it."
             exit 1
           fi
+
+  go:
+    name: Go
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: runtimes/go
+    env:
+      # The corpus test fails instead of skipping when CI is set and the corpus is missing.
+      NINO_CONFORMANCE_CORPUS: ${{ github.workspace }}/conformance/corpus
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest version go.mod allows, and the newest.
+        go: ['1.22', 'stable']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ matrix.go }}
+          cache-dependency-path: runtimes/go/bench/go.sum
+
+      - name: Vet
+        run: |
+          go vet ./...
+          (cd bench && go vet ./...)
+
+      - name: Staticcheck
+        if: matrix.go == 'stable'
+        run: |
+          if go install honnef.co/go/tools/cmd/staticcheck@2025.1.1; then
+            "$(go env GOPATH)/bin/staticcheck" ./...
+            (cd bench && "$(go env GOPATH)/bin/staticcheck" ./...)
+          else
+            echo "::warning::staticcheck could not be installed; skipped"
+          fi
+
+      - name: Test (race detector)
+        run: go test -race -count=1 ./...
+
+      - name: Test the benchmark module
+        run: (cd bench && go test -count=1 ./...)
+
+      - name: Fuzz (short)
+        if: matrix.go == 'stable'
+        run: |
+          go test -run='^$' -fuzz=FuzzReader -fuzztime=45s .
+          go test -run='^$' -fuzz=FuzzDecode -fuzztime=60s ./internal/sample
+
+      - name: Keep failing fuzz inputs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-fuzz-failures-${{ matrix.go }}
+          path: runtimes/go/**/testdata/fuzz
+          if-no-files-found: ignore
