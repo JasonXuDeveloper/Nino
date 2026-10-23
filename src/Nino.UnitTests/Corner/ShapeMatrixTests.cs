@@ -33,7 +33,9 @@ namespace Nino.UnitTests.Corner
 
         private static readonly string[] Formats = { "Positional", "VersionTolerant", "Keyed" };
 
-        // Rows 0 to 3: each kind of base, its subtypes in its assembly; rows 4 to 7: in another assembly.
+        // Rows 0 to 3 and 8 to 11: each kind of base, its subtypes in its assembly; rows 4 to 7 and 12 to 15: in another
+        // assembly. Rows 0 to 7 declare the shapes in a namespace or the global namespace, rows 8 to 15 nested in a class
+        // or a generic class: a row compiles some 70 shapes at once, where every place at once took gigabytes.
         [TestMethod]
         [DataRow(0)]
         [DataRow(1)]
@@ -43,17 +45,26 @@ namespace Nino.UnitTests.Corner
         [DataRow(5)]
         [DataRow(6)]
         [DataRow(7)]
+        [DataRow(8)]
+        [DataRow(9)]
+        [DataRow(10)]
+        [DataRow(11)]
+        [DataRow(12)]
+        [DataRow(13)]
+        [DataRow(14)]
+        [DataRow(15)]
         public void EveryShapeCompilesAndRoundTrips(int row)
         {
             int kind = row % 4;
-            bool otherAssembly = row >= 4;
+            bool otherAssembly = row % 8 >= 4;
+            var places = row < 8 ? new[] { Place.Namespace, Place.Global } : new[] { Place.Nested, Place.GenericNested };
             // otherAssembly: the bases in one assembly, the subtypes in another that references it as metadata (a
             // package or a project reference on the command line), both loaded into one context.
             var bases = new StringBuilder("using Nino.Core;\n");
             var source = new StringBuilder(Prelude);
             var probes = new List<string>();
             foreach (int arity in new[] { 0, 1, 2 })
-            foreach (Place place in Enum.GetValues(typeof(Place)))
+            foreach (Place place in places)
             foreach (string format in Formats)
             foreach (bool track in new[] { false, true })
             foreach (bool middle in new[] { false, true })
