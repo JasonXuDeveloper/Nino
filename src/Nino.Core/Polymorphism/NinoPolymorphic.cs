@@ -590,6 +590,11 @@ namespace Nino.Core
             if (typeof(TBase) != typeof(object))
                 return Adopt(NinoPolymorphic<object>.Find(id));
 
+            // An id searched for in vain before, with nothing registered or loaded since, is not searched again.
+            var before = NinoUnknownIds.Now();
+            if (NinoUnknownIds.Contains(id, before))
+                return null;
+
             // Registries already loaded first; scanning every loaded assembly is the expensive last resort.
             NinoRegistry.RegisterId(id);
             var handler = FindById(Volatile.Read(ref _byId), id);
@@ -603,7 +608,10 @@ namespace Nino.Core
             // A closed generic [NinoType] that no generated registry names, but whose formatter this process has
             // resolved (it was read or written as itself, or as a member or element).
             NinoPolymorphic.RegisterResolvedGeneric(id);
-            return FindById(Volatile.Read(ref _byId), id);
+            handler = FindById(Volatile.Read(ref _byId), id);
+            if (handler == null)
+                NinoUnknownIds.Add(id, before);
+            return handler;
         }
 
         /// <summary>Copies a handler from the global registry into this one if its type derives from TBase.</summary>

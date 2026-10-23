@@ -105,6 +105,50 @@ namespace Unloadable
             }
         }
 
+        /// <summary>
+        /// A type id no loaded assembly declares is not searched for again while nothing changes (bad or stale data
+        /// read repeatedly), and is found once an assembly declaring it loads.
+        /// </summary>
+        [TestMethod]
+        [DoNotParallelize]
+        public void UnknownIdIsFoundOnceItsAssemblyLoads()
+        {
+            var compiled = CornerCompiler.Compile(Source.Replace("Unloadable", "LoadedLater"), load: false);
+            Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
+
+            int id = NinoTypeId.Compute("LoadedLater.Move");
+            var bytes = new byte[12];
+            BitConverter.TryWriteBytes(bytes.AsSpan(0), id);
+            BitConverter.TryWriteBytes(bytes.AsSpan(4), 3f);
+
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
+            Assert.IsTrue(NinoUnknownIds.Contains(id, NinoUnknownIds.Now()), "the miss is remembered");
+
+            var context = new AssemblyLoadContext("nino-later", isCollectible: true);
+            try
+            {
+                var assembly = context.LoadFromStream(new MemoryStream(compiled.Image));
+                Assert.IsFalse(NinoUnknownIds.Contains(id, NinoUnknownIds.Now()), "a load forgets the misses");
+                var value = NinoDeserializer.Deserialize<object>(bytes);
+                Assert.AreEqual("LoadedLater.Move", value.GetType().FullName);
+                Assert.AreSame(assembly, value.GetType().Assembly);
+                NinoRegistry.Remove(assembly);
+            }
+            finally
+            {
+                context.Unload();
+            }
+
+            // A registration forgets them too.
+            int other = NinoTypeId.Compute("LoadedLater.Nowhere");
+            BitConverter.TryWriteBytes(bytes.AsSpan(0), other);
+            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
+            Assert.IsTrue(NinoUnknownIds.Contains(other, NinoUnknownIds.Now()));
+            NinoRegistry.Changed();
+            Assert.IsFalse(NinoUnknownIds.Contains(other, NinoUnknownIds.Now()));
+        }
+
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static WeakReference DefineAndScan(bool scan)
         {

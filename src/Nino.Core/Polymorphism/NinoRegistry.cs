@@ -62,8 +62,29 @@ namespace Nino.Core
         /// <summary>Assemblies loaded since <see cref="EnsureAllInitialized"/> first ran (AppDomain.AssemblyLoad).</summary>
         private static int _loads;
 
+        /// <summary>Bumped when what a read by type id can find may have grown or shrunk (<see cref="Changed"/>).</summary>
+        private static int _epoch;
+
+        /// <summary>See <see cref="Changed"/>.</summary>
+        internal static int Epoch => Volatile.Read(ref _epoch);
+
+        /// <summary>Assemblies loaded since the first <see cref="EnsureAllInitialized"/> (0 where AssemblyLoad is not raised).</summary>
+        internal static int Loads => Volatile.Read(ref _loads);
+
+        /// <summary>
+        /// Called when a registry is added or removed, or a formatter published: an unknown type id may now be
+        /// found (<see cref="NinoUnknownIds"/>).
+        /// </summary>
+        internal static void Changed() => Interlocked.Increment(ref _epoch);
+
         /// <summary>1 once <see cref="HookLoads"/> has subscribed.</summary>
         private static int _loadHooked;
+
+        /// <summary>Whether <see cref="Loads"/> counts every load (the subscription succeeded).</summary>
+        private static bool _loadsCounted;
+
+        /// <summary>See <see cref="_loadsCounted"/>.</summary>
+        internal static bool LoadsCounted => Volatile.Read(ref _loadsCounted);
 
         private static INinoRegistry[] _registries = Array.Empty<INinoRegistry>();
 
@@ -86,6 +107,7 @@ namespace Nino.Core
                 current.CopyTo(next, 0);
                 next[current.Length] = registry;
                 Volatile.Write(ref _registries, next);
+                Changed();
             }
         }
 
@@ -117,6 +139,7 @@ namespace Nino.Core
                 if (kept.Length != current.Length)
                     Volatile.Write(ref _registries, kept);
                 Volatile.Write(ref _scannedAssemblyCount, -1);
+                Changed();
             }
 
             NinoFormatterResolver.RemoveAssembly(assembly);
@@ -273,6 +296,7 @@ namespace Nino.Core
             try
             {
                 AppDomain.CurrentDomain.AssemblyLoad += (_, _) => Interlocked.Increment(ref _loads);
+                Volatile.Write(ref _loadsCounted, true);
             }
             catch
             {

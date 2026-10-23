@@ -150,7 +150,12 @@ namespace Nino.Core
             new ConcurrentDictionary<Type, NinoFormatter>();
 
         /// <summary>Called after the formatter of <paramref name="type"/> has been stored.</summary>
-        public static void MarkRegistered(Type type, NinoFormatter formatter) => Registered.TryAdd(type, formatter);
+        public static void MarkRegistered(Type type, NinoFormatter formatter)
+        {
+            // A new formatter type is one more closed generic a read by type id may find (NinoUnknownIds).
+            if (Registered.TryAdd(type, formatter))
+                NinoRegistry.Changed();
+        }
 
         /// <summary>Same as <see cref="NinoFormatterCache{T}.IsRegistered"/>.</summary>
         public static bool IsRegistered(Type type) => Registered.ContainsKey(type);
