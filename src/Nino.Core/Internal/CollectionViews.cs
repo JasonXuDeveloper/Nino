@@ -240,6 +240,137 @@ namespace Nino.Core.Internal
         }
 #pragma warning restore CS0649, CS0169
 
+#if NET9_0_OR_GREATER
+        /// <summary>
+        /// The fields themselves, by name (UnsafeAccessor), in the net10.0 build of Nino.Core: the first candidate of
+        /// the layouts whose fields all have types Nino can name, which holds however a later .NET orders or adds
+        /// fields; a field renamed throws (MissingFieldException) and the mirror classes above are tried next. The
+        /// offsets go through the same checks. Not in the net8.0 build: .NET 8 has accessors for closed generic types
+        /// only (List&lt;int&gt;), and .NET 9 and later, which run that build too, match a field typed by the class's
+        /// type parameter only through an open one, so those would throw on every start there. Not for
+        /// <see cref="SortedSet{T}"/>, <see cref="SortedDictionary{TKey,TValue}"/>, <see cref="HashSet{T}"/> and
+        /// <see cref="Dictionary{TKey,TValue}"/>, whose root, set or entries are of a private type. Every other
+        /// runtime (the netstandard builds: .NET Framework, Mono, Unity, IL2CPP) uses the mirrors alone.
+        /// </summary>
+        private static class Fields<T>
+        {
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_items")]
+            public static extern ref T[] Items(List<T> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_size")]
+            public static extern ref int Size(List<T> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_version")]
+            public static extern ref int Version(List<T> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_array")]
+            public static extern ref T[] Array(Stack<T> stack);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_size")]
+            public static extern ref int Size(Stack<T> stack);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_version")]
+            public static extern ref int Version(Stack<T> stack);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_array")]
+            public static extern ref T[] Array(Queue<T> queue);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_head")]
+            public static extern ref int Head(Queue<T> queue);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_tail")]
+            public static extern ref int Tail(Queue<T> queue);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_size")]
+            public static extern ref int Size(Queue<T> queue);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_version")]
+            public static extern ref int Version(Queue<T> queue);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "head")]
+            public static extern ref LinkedListNode<T> Head(LinkedList<T> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "count")]
+            public static extern ref int Count(LinkedList<T> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "version")]
+            public static extern ref int Version(LinkedList<T> list);
+        }
+
+        /// <summary><see cref="Fields{T}"/> of <see cref="SortedList{TKey,TValue}"/>.</summary>
+        private static class Fields<TKey, TValue>
+        {
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "keys")]
+            public static extern ref TKey[] Keys(SortedList<TKey, TValue> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "values")]
+            public static extern ref TValue[] Values(SortedList<TKey, TValue> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "_size")]
+            public static extern ref int Size(SortedList<TKey, TValue> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "version")]
+            public static extern ref int Version(SortedList<TKey, TValue> list);
+
+            [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "comparer")]
+            public static extern ref IComparer<TKey> Comparer(SortedList<TKey, TValue> list);
+        }
+
+        /// <summary>The layouts <see cref="Fields{T}"/> gives, the first candidates (net10.0 build).</summary>
+        private static class ByName
+        {
+            public static readonly Func<ListOffsets> List = () =>
+            {
+                var l = new List<int>();
+                return new ListOffsets(At(l, ref Fields<int>.Items(l)), At(l, ref Fields<int>.Size(l)),
+                    At(l, ref Fields<int>.Version(l)));
+            };
+
+            public static readonly Func<ListOffsets> Stack = () =>
+            {
+                var s = new Stack<int>();
+                return new ListOffsets(At(s, ref Fields<int>.Array(s)), At(s, ref Fields<int>.Size(s)),
+                    At(s, ref Fields<int>.Version(s)));
+            };
+
+            public static readonly Func<QueueOffsets> Queue = () =>
+            {
+                var q = new Queue<int>();
+                return new QueueOffsets(At(q, ref Fields<int>.Array(q)), At(q, ref Fields<int>.Head(q)),
+                    At(q, ref Fields<int>.Tail(q)), At(q, ref Fields<int>.Size(q)), At(q, ref Fields<int>.Version(q)));
+            };
+
+            public static readonly Func<SortedListOffsets> SortedList = () =>
+            {
+                var l = new SortedList<int, int>();
+                return new SortedListOffsets(At(l, ref Fields<int, int>.Keys(l)), At(l, ref Fields<int, int>.Values(l)),
+                    At(l, ref Fields<int, int>.Size(l)), At(l, ref Fields<int, int>.Version(l)),
+                    At(l, ref Fields<int, int>.Comparer(l)));
+            };
+
+            public static readonly Func<LinkedListOffsets> LinkedList = () =>
+            {
+                var l = new LinkedList<int>();
+                return new LinkedListOffsets(At(l, ref Fields<int>.Head(l)), At(l, ref Fields<int>.Count(l)),
+                    At(l, ref Fields<int>.Version(l)));
+            };
+        }
+
+        /// <summary>
+        /// For the tests: whether every layout <see cref="ByName"/> gives passes its check and equals the one the
+        /// mirrors give, so the read and write paths are the same with either.
+        /// </summary>
+        internal static bool ByNameMatchesMirrors() =>
+            Same(CheckList, ListMirrors, ByName.List) && Same(CheckStack, ListMirrors, ByName.Stack) &&
+            Same(CheckQueue, QueueMirrors, ByName.Queue) &&
+            Same(CheckSortedList, SortedListMirrors, ByName.SortedList) &&
+            Same(CheckLinkedList, LinkedListMirrors, ByName.LinkedList);
+
+        private static bool Same<TOffsets>(Func<TOffsets, bool> check, Func<TOffsets>[] mirrors, Func<TOffsets> byName)
+            where TOffsets : struct =>
+            Try(check, byName) is { } named && Find(check, mirrors) is { } mirrored && named.Equals(mirrored);
+#endif
+
         /// <summary>Where <see cref="List{T}"/>'s and <see cref="Stack{T}"/>'s fields are (the same three).</summary>
         internal readonly struct ListOffsets
         {
@@ -343,8 +474,8 @@ namespace Nino.Core.Internal
             }
         }
 
-        // The candidate layouts of List<T> and Stack<T>, which have the same fields: items, size, version.
-        private static readonly Func<ListOffsets>[] ListLayouts =
+        // The mirror layouts of List<T> and Stack<T>, which have the same fields: items, size, version.
+        private static readonly Func<ListOffsets>[] ListMirrors =
         {
             () =>
             {
@@ -358,21 +489,30 @@ namespace Nino.Core.Internal
             }
         };
 
-        private static readonly ListOffsets? ListLayout = Find(CheckList, ListLayouts);
+        private static readonly ListOffsets? ListLayout = Find(CheckList, ListMirrors
+#if NET9_0_OR_GREATER
+            , ByName.List
+#endif
+        );
 
         public static readonly bool List = ListLayout.HasValue;
         public static readonly int ListItems = ListLayout?.Items ?? 0;
         public static readonly int ListSize = ListLayout?.Size ?? 0;
 
         // Stack<T>: array, size, version.
-        private static readonly ListOffsets? StackLayout = Find(CheckStack, ListLayouts);
+        private static readonly ListOffsets? StackLayout = Find(CheckStack, ListMirrors
+#if NET9_0_OR_GREATER
+            , ByName.Stack
+#endif
+        );
 
         public static readonly bool Stack = StackLayout.HasValue;
         public static readonly int StackArray = StackLayout?.Items ?? 0;
         public static readonly int StackSize = StackLayout?.Size ?? 0;
         public static readonly int StackVersion = StackLayout?.Version ?? 0;
 
-        private static readonly QueueOffsets? QueueLayout = Find(CheckQueue,
+        private static readonly Func<QueueOffsets>[] QueueMirrors =
+        {
             () =>
             {
                 var m = new QueueCore();
@@ -384,7 +524,14 @@ namespace Nino.Core.Internal
                 var m = new QueueFramework();
                 return new QueueOffsets(At(m, ref m._array), At(m, ref m._head), At(m, ref m._tail), At(m, ref m._size),
                     At(m, ref m._version));
-            });
+            }
+        };
+
+        private static readonly QueueOffsets? QueueLayout = Find(CheckQueue, QueueMirrors
+#if NET9_0_OR_GREATER
+            , ByName.Queue
+#endif
+        );
 
         public static readonly bool Queue = QueueLayout.HasValue;
         public static readonly int QueueArray = QueueLayout?.Array ?? 0;
@@ -393,7 +540,8 @@ namespace Nino.Core.Internal
         public static readonly int QueueSize = QueueLayout?.Size ?? 0;
         public static readonly int QueueVersion = QueueLayout?.Version ?? 0;
 
-        private static readonly SortedListOffsets? SortedListLayout = Find(CheckSortedList,
+        private static readonly Func<SortedListOffsets>[] SortedListMirrors =
+        {
             () =>
             {
                 var m = new SortedListCore();
@@ -405,7 +553,14 @@ namespace Nino.Core.Internal
                 var m = new SortedListFramework();
                 return new SortedListOffsets(At(m, ref m.keys), At(m, ref m.values), At(m, ref m._size),
                     At(m, ref m.version), At(m, ref m.comparer));
-            });
+            }
+        };
+
+        private static readonly SortedListOffsets? SortedListLayout = Find(CheckSortedList, SortedListMirrors
+#if NET9_0_OR_GREATER
+            , ByName.SortedList
+#endif
+        );
 
         public static readonly bool SortedList = SortedListLayout.HasValue;
         public static readonly int SortedListKeys = SortedListLayout?.Keys ?? 0;
@@ -414,7 +569,8 @@ namespace Nino.Core.Internal
         public static readonly int SortedListVersion = SortedListLayout?.Version ?? 0;
         public static readonly int SortedListComparer = SortedListLayout?.Comparer ?? 0;
 
-        private static readonly SortedSetOffsets? SortedSetLayout = Find(CheckSortedSet,
+        private static readonly SortedSetOffsets? SortedSetLayout = Find(CheckSortedSet, new Func<SortedSetOffsets>[]
+        {
             () =>
             {
                 var m = new SortedSetCore();
@@ -426,7 +582,8 @@ namespace Nino.Core.Internal
                 var m = new SortedSetFramework();
                 return new SortedSetOffsets(At(m, ref m.root), At(m, ref m.count), At(m, ref m.version),
                     At(m, ref m.comparer));
-            });
+            }
+        });
 
         public static readonly bool SortedSet = SortedSetLayout.HasValue;
         public static readonly int SortedSetRoot = SortedSetLayout?.Root ?? 0;
@@ -435,10 +592,13 @@ namespace Nino.Core.Internal
 
         // SortedDictionary<TKey, TValue>: the set of its pairs (every field a reference: no int to compare first).
         private static readonly SortedDictionaryOffsets? SortedDictionaryLayout = SortedSet
-            ? Find(CheckSortedDictionary, () =>
+            ? Find(CheckSortedDictionary, new Func<SortedDictionaryOffsets>[]
             {
-                var m = new SortedDictionaryAny();
-                return new SortedDictionaryOffsets(At(m, ref m._set), At(m, ref m._keys), At(m, ref m._values));
+                () =>
+                {
+                    var m = new SortedDictionaryAny();
+                    return new SortedDictionaryOffsets(At(m, ref m._set), At(m, ref m._keys), At(m, ref m._values));
+                }
             })
             : null;
 
@@ -446,7 +606,8 @@ namespace Nino.Core.Internal
         public static readonly int SortedDictionarySet = SortedDictionaryLayout?.Set ?? 0;
 
         // LinkedList<T>; its nodes: LinkedNode<T> (list, next, prev, item, the same everywhere).
-        private static readonly LinkedListOffsets? LinkedListLayout = Find(CheckLinkedList,
+        private static readonly Func<LinkedListOffsets>[] LinkedListMirrors =
+        {
             () =>
             {
                 var m = new LinkedListCore();
@@ -456,14 +617,22 @@ namespace Nino.Core.Internal
             {
                 var m = new LinkedListFramework();
                 return new LinkedListOffsets(At(m, ref m.head), At(m, ref m.count), At(m, ref m.version));
-            });
+            }
+        };
+
+        private static readonly LinkedListOffsets? LinkedListLayout = Find(CheckLinkedList, LinkedListMirrors
+#if NET9_0_OR_GREATER
+            , ByName.LinkedList
+#endif
+        );
 
         public static readonly bool LinkedList = LinkedListLayout.HasValue;
         public static readonly int LinkedListHead = LinkedListLayout?.Head ?? 0;
         public static readonly int LinkedListCount = LinkedListLayout?.Count ?? 0;
         public static readonly int LinkedListVersion = LinkedListLayout?.Version ?? 0;
 
-        private static readonly HashOffsets? HashSetLayout = Find(CheckHashSet,
+        private static readonly HashOffsets? HashSetLayout = Find(CheckHashSet, new Func<HashOffsets>[]
+        {
             () =>
             {
                 var m = new HashSetCore64();
@@ -481,7 +650,8 @@ namespace Nino.Core.Internal
                 var m = new HashSetOld();
                 return new HashOffsets(At(m, ref m.m_slots), At(m, ref m.m_lastIndex), At(m, ref m.m_version),
                     At(m, ref m.m_buckets), -1, At(m, ref m.m_count));
-            });
+            }
+        });
 
         public static readonly bool HashSet = HashSetLayout.HasValue;
         public static readonly int HashSetEntries = HashSetLayout?.Entries ?? 0;
@@ -491,7 +661,8 @@ namespace Nino.Core.Internal
         internal static HashOffsets? HashSetOffsets => HashSetLayout;
 
         // Dictionary<TKey, TValue>: as HashSet<T>'s.
-        private static readonly HashOffsets? DictionaryLayout = Find(CheckDictionary,
+        private static readonly HashOffsets? DictionaryLayout = Find(CheckDictionary, new Func<HashOffsets>[]
+        {
             () =>
             {
                 var m = new DictionaryCore64();
@@ -509,7 +680,8 @@ namespace Nino.Core.Internal
                 var m = new DictionaryOld();
                 return new HashOffsets(At(m, ref m.entries), At(m, ref m.count), At(m, ref m.version),
                     At(m, ref m.buckets), -1, At(m, ref m.count));
-            });
+            }
+        });
 
         public static readonly bool Dictionary = DictionaryLayout.HasValue;
         public static readonly int DictionaryEntries = DictionaryLayout?.Entries ?? 0;
@@ -519,21 +691,34 @@ namespace Nino.Core.Internal
         private static int At<TField>(object instance, ref TField field) => ObjectFields.OffsetOf(instance, ref field);
 
         /// <summary>The offsets of the first candidate layout that <paramref name="check"/> accepts, or null.</summary>
-        private static TOffsets? Find<TOffsets>(Func<TOffsets, bool> check, params Func<TOffsets>[] candidates)
+        /// <remarks><paramref name="byName"/> (<see cref="ByName"/>), when given, is tried first.</remarks>
+        private static TOffsets? Find<TOffsets>(Func<TOffsets, bool> check, Func<TOffsets>[] mirrors,
+            Func<TOffsets> byName = null)
             where TOffsets : struct
         {
-            foreach (var candidate in candidates)
+            if (byName != null && Try(check, byName) is { } named)
+                return named;
+            foreach (var mirror in mirrors)
             {
-                try
-                {
-                    var offsets = candidate();
-                    if (check(offsets))
-                        return offsets;
-                }
-                catch
-                {
-                    // Not this layout.
-                }
+                if (Try(check, mirror) is { } offsets)
+                    return offsets;
+            }
+
+            return null;
+        }
+
+        private static TOffsets? Try<TOffsets>(Func<TOffsets, bool> check, Func<TOffsets> candidate)
+            where TOffsets : struct
+        {
+            try
+            {
+                var offsets = candidate();
+                if (check(offsets))
+                    return offsets;
+            }
+            catch
+            {
+                // Not this layout.
             }
 
             return null;

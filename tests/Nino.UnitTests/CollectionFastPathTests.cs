@@ -639,6 +639,17 @@ public class CollectionFastPathTests
         Assert.IsTrue(Nino.Core.Internal.CollectionViews.Dictionary, "Dictionary<TKey, TValue>");
     }
 
+#if NET9_0_OR_GREATER && !NINO_CORE_NETSTANDARD
+    [TestMethod]
+    public void LayoutsByNameMatchTheMirrors()
+    {
+        // The net10.0 build finds List<T>, Stack<T>, Queue<T>, SortedList<TKey, TValue> and LinkedList<T> by their
+        // fields' names (UnsafeAccessor) first; every other build by the mirror classes. Both must give the same
+        // offsets, so both read and write the same bytes (the netstandard test runs take the mirrors alone).
+        Assert.IsTrue(Nino.Core.Internal.CollectionViews.ByNameMatchesMirrors());
+    }
+#endif
+
     [TestMethod]
     public void SetsAndDictionariesWriteTheirEntriesInOrder()
     {
