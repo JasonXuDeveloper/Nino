@@ -2,45 +2,12 @@
 
     <!-- The generator built against Roslyn 4.12 (.NET 9 SDK and later): the same sources as Nino.Generator, plus
          interceptors for the top-level NinoSerializer/NinoDeserializer calls (ROSLYN4_8 and ROSLYN4_12: the stable
-         [InterceptsLocation(version, data)] form). Packed by Nino.Generator
-         into analyzers/dotnet/roslyn4.12/cs, which NuGet prefers on compilers that can load it; Roslyn 4.8-4.11 load
-         the Roslyn 4.8 build, older compilers (and Unity) the Roslyn 4.3 one. -->
+         [InterceptsLocation(version, data)] form). Packed by Nino.Generator into analyzers/dotnet/roslyn4.12/cs, which
+         NuGet prefers on compilers that can load it; Roslyn 4.8-4.11 load the Roslyn 4.8 build, older compilers (and
+         Unity) the Roslyn 4.3 one. -->
     <PropertyGroup>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
-        <TargetFramework>netstandard2.0</TargetFramework>
-        <IsPackable>false</IsPackable>
-        <Nullable>enable</Nullable>
-        <LangVersion>preview</LangVersion>
-        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <EnableNETAnalyzers>true</EnableNETAnalyzers>
-        <IsRoslynComponent>true</IsRoslynComponent>
-        <AssemblyName>Nino.Generator</AssemblyName>
-        <RootNamespace>Nino.Generator</RootNamespace>
-        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <DefineConstants>$(DefineConstants);NINO_GENERATOR;ROSLYN4_8;ROSLYN4_12</DefineConstants>
-        <!-- GetInterceptableLocation is marked experimental in Roslyn 4.12; it is the stable interceptor API. -->
-        <NoWarn>$(NoWarn);RSEXPERIMENTAL002</NoWarn>
+        <NinoRoslynVersion>4.12</NinoRoslynVersion>
     </PropertyGroup>
-
-    <ItemGroup>
-        <Compile Include="..\Nino.Generator\**\*.cs" Exclude="..\Nino.Generator\bin\**;..\Nino.Generator\obj\**"
-                 Link="%(RecursiveDir)%(Filename)%(Extension)"/>
-        <Compile Include="..\Version.cs"/>
-        <Compile Include="..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
-        <Compile Include="..\Nino.Core\Internal\NinoLayoutCore.cs" Link="Shared\NinoLayoutCore.cs"/>
-        <Compile Include="..\Nino.Core\IO\NinoWire.cs" Link="Shared\NinoWire.cs"/>
-        <Compile Include="..\Nino.Core\Internal\NinoFormatterBinding.cs" Link="Shared\NinoFormatterBinding.cs"/>
-        <AdditionalFiles Include="..\Nino.Generator\AnalyzerReleases.Shipped.md"/>
-        <AdditionalFiles Include="..\Nino.Generator\AnalyzerReleases.Unshipped.md"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="4.12.0" PrivateAssets="all"/>
-    </ItemGroup>
+    <Import Project="..\Nino.Generator\Generator.Build.props"/>
 
 </Project>

@@ -1,76 +1,54 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+    <!-- The generator built against Roslyn 4.3 (the oldest Unity supports), and the Nino.Generator package: this
+         build, the Roslyn 4.8 and 4.12 builds and the code fixes, each in the versioned analyzer folder NuGet picks
+         by compiler version (older compilers skip an analyzer they cannot run). -->
     <PropertyGroup>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
-        <TargetFramework>netstandard2.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <LangVersion>preview</LangVersion>
-        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <EnableNETAnalyzers>true</EnableNETAnalyzers>
-        <IsRoslynComponent>true</IsRoslynComponent>
-        <RootNamespace>Nino.Generator</RootNamespace>
+        <NinoRoslynVersion>4.3</NinoRoslynVersion>
+    </PropertyGroup>
+    <Import Project="Generator.Build.props"/>
+
+    <PropertyGroup>
         <PackageId>Nino.Generator</PackageId>
-        <!-- An analyzer package: nothing goes to lib/, so consumers never compile against Roslyn. -->
-        <IncludeBuildOutput>false</IncludeBuildOutput>
         <Description>Source generator, analyzers and code fixes of Nino, a high-performance binary serializer for .NET.</Description>
         <PackageTags>Nino;Serialization;Binary;Generator</PackageTags>
+        <!-- An analyzer package: nothing goes to lib/, so consumers never compile against Roslyn. -->
+        <IncludeBuildOutput>false</IncludeBuildOutput>
         <AnalyzerLanguage>cs</AnalyzerLanguage>
         <NoPackageAnalysis>true</NoPackageAnalysis>
         <DevelopmentDependency>true</DevelopmentDependency>
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <!-- Selects the namespace of the sources shared with Nino.Core. -->
-        <DefineConstants>$(DefineConstants);NINO_GENERATOR</DefineConstants>
     </PropertyGroup>
 
-    <ItemGroup>
-        <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
-        <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
-    </ItemGroup>
-    <ItemGroup>
-        <Compile Include="..\Version.cs"/>
-        <!-- Shared with Nino.Core so compile-time and run-time rules (ids, wire constants, layouts, formatter binding)
-             cannot drift apart. -->
-        <Compile Include="..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
-        <Compile Include="..\Nino.Core\Internal\NinoLayoutCore.cs" Link="Shared\NinoLayoutCore.cs"/>
-        <Compile Include="..\Nino.Core\IO\NinoWire.cs" Link="Shared\NinoWire.cs"/>
-        <Compile Include="..\Nino.Core\Internal\NinoFormatterBinding.cs" Link="Shared\NinoFormatterBinding.cs"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all"/>
-    </ItemGroup>
-
-    <!-- Built against Roslyn 4.3 (the oldest Unity supports): the versioned folder makes NuGet skip compilers
-         older than that instead of loading an analyzer they cannot run. Code fixes ship next to it. -->
+    <!-- Built first; NinoPackagePath is where each one's DLL goes in the package. -->
     <ItemGroup>
         <ProjectReference Include="..\Nino.Generator.CodeFixes\Nino.Generator.CodeFixes.csproj"
-                          ReferenceOutputAssembly="false" PrivateAssets="all"/>
-        <!-- The same sources built against Roslyn 4.8 and 4.12, with interceptors; NuGet loads the newest build the
-             compiler can run. -->
+                          ReferenceOutputAssembly="false" PrivateAssets="all"
+                          NinoPackagePath="analyzers/dotnet/roslyn4.3/cs;analyzers/dotnet/roslyn4.8/cs;analyzers/dotnet/roslyn4.12/cs"/>
         <ProjectReference Include="..\Nino.Generator.Roslyn4.8\Nino.Generator.Roslyn4.8.csproj"
-                          ReferenceOutputAssembly="false" PrivateAssets="all"/>
+                          ReferenceOutputAssembly="false" PrivateAssets="all"
+                          NinoPackagePath="analyzers/dotnet/roslyn4.8/cs"/>
         <ProjectReference Include="..\Nino.Generator.Roslyn4.12\Nino.Generator.Roslyn4.12.csproj"
-                          ReferenceOutputAssembly="false" PrivateAssets="all"/>
+                          ReferenceOutputAssembly="false" PrivateAssets="all"
+                          NinoPackagePath="analyzers/dotnet/roslyn4.12/cs"/>
     </ItemGroup>
     <ItemGroup>
-        <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/roslyn4.3/cs" Visible="false"/>
-        <None Include="..\Nino.Generator.Roslyn4.8\bin\$(Configuration)\netstandard2.0\Nino.Generator.dll"
-              Pack="true" PackagePath="analyzers/dotnet/roslyn4.8/cs" Visible="false"/>
-        <None Include="..\Nino.Generator.CodeFixes\bin\$(Configuration)\netstandard2.0\Nino.Generator.CodeFixes.dll"
-              Pack="true" PackagePath="analyzers/dotnet/roslyn4.8/cs" Visible="false"/>
-        <None Include="..\Nino.Generator.Roslyn4.12\bin\$(Configuration)\netstandard2.0\Nino.Generator.dll"
-              Pack="true" PackagePath="analyzers/dotnet/roslyn4.12/cs" Visible="false"/>
-        <None Include="..\Nino.Generator.CodeFixes\bin\$(Configuration)\netstandard2.0\Nino.Generator.CodeFixes.dll"
-              Pack="true" PackagePath="analyzers/dotnet/roslyn4.12/cs" Visible="false"/>
+        <None Include="$(TargetPath)" Pack="true" PackagePath="analyzers/dotnet/roslyn4.3/cs" Visible="false"/>
         <None Include="build\Nino.Generator.props" Pack="true" PackagePath="build;buildTransitive"/>
-        <None Include="..\Nino.Generator.CodeFixes\bin\$(Configuration)\netstandard2.0\Nino.Generator.CodeFixes.dll"
-              Pack="true" PackagePath="analyzers/dotnet/roslyn4.3/cs" Visible="false"/>
     </ItemGroup>
+
+    <!-- The other builds' DLLs, wherever their projects put them (GetTargetPath builds nothing, so pack -no-build
+         works). Batched per project (Outputs) to keep each DLL with its NinoPackagePath. -->
+    <Target Name="NinoPackAnalyzers" BeforeTargets="_GetPackageFiles" Outputs="%(ProjectReference.Identity)">
+        <MSBuild Projects="@(ProjectReference)" Targets="GetTargetPath"
+                 Condition="'%(ProjectReference.NinoPackagePath)' != ''">
+            <Output TaskParameter="TargetOutputs" ItemName="_NinoAnalyzerDll"/>
+        </MSBuild>
+        <ItemGroup>
+            <None Include="@(_NinoAnalyzerDll)" Pack="true" PackagePath="%(ProjectReference.NinoPackagePath)" Visible="false"
+                  Condition="'%(ProjectReference.NinoPackagePath)' != ''"/>
+            <_NinoAnalyzerDll Remove="@(_NinoAnalyzerDll)"/>
+        </ItemGroup>
+    </Target>
 
 </Project>

@@ -1,0 +1,40 @@
+<Project>
+    <!-- The generator, built against one Roslyn version: set NinoRoslynVersion (4.3, 4.8 or 4.12) before importing.
+         Nino.Generator is the 4.3 build (the oldest Roslyn Unity has); Nino.Generator.Roslyn4.8 and
+         Nino.Generator.Roslyn4.12 compile its sources against 4.8 and 4.12, with interceptors (ROSLYN4_8: the preview
+         [InterceptsLocation(path, line, column)]; ROSLYN4_12: the stable [InterceptsLocation(version, data)]).
+         Nino.Generator packs all three; NuGet loads the newest one the compiler can run. -->
+    <Import Project="Roslyn.Build.props"/>
+
+    <PropertyGroup>
+        <AssemblyName>Nino.Generator</AssemblyName>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <!-- NINO_GENERATOR selects the namespace of the sources shared with Nino.Core. -->
+        <DefineConstants>$(DefineConstants);NINO_GENERATOR</DefineConstants>
+        <DefineConstants Condition="'$(NinoRoslynVersion)' != '4.3'">$(DefineConstants);ROSLYN4_8</DefineConstants>
+        <DefineConstants Condition="'$(NinoRoslynVersion)' == '4.12'">$(DefineConstants);ROSLYN4_12</DefineConstants>
+        <!-- GetInterceptableLocation is marked experimental in Roslyn 4.12; it is the stable interceptor API. -->
+        <NoWarn Condition="'$(NinoRoslynVersion)' == '4.12'">$(NoWarn);RSEXPERIMENTAL002</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- The Roslyn 4.8 and 4.12 builds compile Nino.Generator's sources. -->
+        <Compile Include="$(MSBuildThisFileDirectory)**\*.cs"
+                 Exclude="$(MSBuildThisFileDirectory)bin\**;$(MSBuildThisFileDirectory)obj\**"
+                 Link="%(RecursiveDir)%(Filename)%(Extension)"
+                 Condition="'$(NinoRoslynVersion)' != '4.3'"/>
+        <!-- Shared with Nino.Core so compile-time and run-time rules (ids, wire constants, layouts, formatter binding)
+             cannot drift apart. -->
+        <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\Internal\NinoHash.cs" Link="Shared\NinoHash.cs"/>
+        <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\Internal\NinoLayoutCore.cs" Link="Shared\NinoLayoutCore.cs"/>
+        <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\IO\NinoWire.cs" Link="Shared\NinoWire.cs"/>
+        <Compile Include="$(MSBuildThisFileDirectory)..\Nino.Core\Internal\NinoFormatterBinding.cs" Link="Shared\NinoFormatterBinding.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all"
+                          Condition="'$(NinoRoslynVersion)' == '4.3'"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="$(NinoRoslynVersion).0" PrivateAssets="all"
+                          Condition="'$(NinoRoslynVersion)' != '4.3'"/>
+    </ItemGroup>
+</Project>

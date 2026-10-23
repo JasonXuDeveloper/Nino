@@ -1,5 +1,0 @@
-# Analyzer code runs inside the compiler and the IDE: no culture-sensitive string operations.
-[*.cs]
-dotnet_diagnostic.CA1309.severity = error
-dotnet_diagnostic.CA1310.severity = error
-dotnet_diagnostic.CA1311.severity = error

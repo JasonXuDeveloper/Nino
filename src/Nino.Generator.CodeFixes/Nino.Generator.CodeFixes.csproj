@@ -5,34 +5,16 @@
     The compiler (and Unity) load Nino.Generator alone, so they never resolve Workspaces types (RS1038).
     Shipped inside the Nino.Generator package.
     -->
-    <PropertyGroup>
-        <AnalysisLevel>latest-recommended</AnalysisLevel>
-        <TargetFramework>netstandard2.0</TargetFramework>
-        <LangVersion>preview</LangVersion>
-        <Nullable>enable</Nullable>
-        <IsPackable>false</IsPackable>
-        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
-        <EnableNETAnalyzers>true</EnableNETAnalyzers>
-        <IsRoslynComponent>true</IsRoslynComponent>
-        <RootNamespace>Nino.Generator</RootNamespace>
-        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    </PropertyGroup>
+    <Import Project="..\Nino.Generator\Roslyn.Build.props"/>
 
     <ItemGroup>
-        <Compile Include="..\Version.cs"/>
         <!-- Shared with the analyzer: the diagnostics being fixed, the pool hooks NINO019 asks for, Nino.Core names. -->
         <Compile Include="..\Nino.Generator\Analysis\NinoDiagnostics.cs" Link="Shared\NinoDiagnostics.cs"/>
         <Compile Include="..\Nino.Generator\Common\NinoNames.cs" Link="Shared\NinoNames.cs"/>
         <Compile Include="..\Nino.Generator\Common\PoolHooks.cs" Link="Shared\PoolHooks.cs"/>
-        <AdditionalFiles Include="..\Nino.Generator\AnalyzerReleases.Shipped.md" Link="Shared\AnalyzerReleases.Shipped.md"/>
-        <AdditionalFiles Include="..\Nino.Generator\AnalyzerReleases.Unshipped.md" Link="Shared\AnalyzerReleases.Unshipped.md"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all"/>
     </ItemGroup>
 

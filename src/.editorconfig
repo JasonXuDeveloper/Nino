@@ -7,3 +7,10 @@ dotnet_diagnostic.CA1000.severity = none
 # ArgumentNullException.ThrowIfNull and friends do not exist on netstandard2.0/2.1, which share the source.
 dotnet_diagnostic.CA1510.severity = none
 dotnet_diagnostic.CA1512.severity = none
+
+# Analyzer code (the generator and the code fixes) runs inside the compiler and the IDE: no culture-sensitive string
+# operations.
+[{Nino.Generator,Nino.Generator.CodeFixes}/**.cs]
+dotnet_diagnostic.CA1309.severity = error
+dotnet_diagnostic.CA1310.severity = error
+dotnet_diagnostic.CA1311.severity = error
