@@ -36,13 +36,19 @@ namespace Nino.AspNetCore.Tests
             public Task CompleteAsync() => Task.CompletedTask;
         }
 
-        private static long Allocated(Func<ValueTask> action)
+        /// <summary>
+        /// Bytes this thread allocates over 100 calls of <paramref name="action"/>, after 100 to warm it up (static
+        /// constructors, caches, the pipes' first segments). The calls are synchronous lambdas: an async one would
+        /// allocate its own state machine on every call in a build without optimizations (Debug), where the compiler
+        /// makes state machines classes.
+        /// </summary>
+        private static long Allocated(Action action)
         {
-            for (int i = 0; i < 10; i++)
-                action().GetAwaiter().GetResult();
+            for (int i = 0; i < 100; i++)
+                action();
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 100; i++)
-                action().GetAwaiter().GetResult();
+                action();
             return GC.GetAllocatedBytesForCurrentThread() - before;
         }
 
@@ -56,17 +62,20 @@ namespace Nino.AspNetCore.Tests
             context.Request.ContentType = "application/x-nino; charset=binary";
             context.Request.ContentLength = bytes.Length;
             var sequence = new ReadOnlySequence<byte>(bytes);
-            var readers = new PipeReader[110];
+            var readers = new PipeReader[200];
             for (int i = 0; i < readers.Length; i++)
                 readers[i] = PipeReader.Create(sequence);
             int next = 0;
+            int y = 0;
 
-            Assert.AreEqual(0, Allocated(async () =>
+            // The body is already in the pipe, so the read completes at once: that is the path measured.
+            Assert.AreEqual(0, Allocated(() =>
             {
                 body.Reader = readers[next++];
-                var point = await context.Request.ReadFromNinoAsync<Point>();
-                Assert.AreEqual(2, point.Y);
+                var read = context.Request.ReadFromNinoAsync<Point>();
+                y = read.IsCompletedSuccessfully ? read.Result.Y : -1;
             }));
+            Assert.AreEqual(2, y);
         }
 
         [TestMethod]
@@ -75,13 +84,21 @@ namespace Nino.AspNetCore.Tests
             var pipe = new Pipe(new PipeOptions(pauseWriterThreshold: 0));
             var context = new DefaultHttpContext();
             context.Features.Set<IHttpResponseBodyFeature>(new ResponseFeature(pipe.Writer));
+            long expected = NinoSerializer.Serialize(new Point { X = 1, Y = 2 }).Length;
+            long written = -1;
 
-            Assert.AreEqual(0, Allocated(async () =>
+            // The pipe never pauses the writer, so the flush completes at once: that is the path measured.
+            Assert.AreEqual(0, Allocated(() =>
             {
-                await context.Response.WriteAsNinoAsync(new Point { X = 1, Y = 2 });
-                var result = await pipe.Reader.ReadAsync();
-                pipe.Reader.AdvanceTo(result.Buffer.End);
+                written = -1;
+                if (context.Response.WriteAsNinoAsync(new Point { X = 1, Y = 2 }).IsCompletedSuccessfully &&
+                    pipe.Reader.TryRead(out var result))
+                {
+                    written = result.Buffer.Length;
+                    pipe.Reader.AdvanceTo(result.Buffer.End);
+                }
             }));
+            Assert.AreEqual(expected, written);
             Assert.AreEqual(NinoMediaTypes.Application, context.Response.ContentType);
         }
 
