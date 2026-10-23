@@ -15,10 +15,12 @@ namespace Nino.UnitTests.Corner
     /// Every combination of the ways a type hierarchy can be declared, generated, compiled with the generator and
     /// round-tripped: the kind of the base (abstract class, class, interface, abstract record), its type parameters
     /// (none, one, two) and, for a generic base, more closed instances with subtypes of their own (tuple and class
-    /// type arguments), where it is declared (namespace, nested in a class, nested in a generic class), the format,
+    /// type arguments), where it is declared (namespace, the global namespace, nested in a class, nested in a generic
+    /// class), the format,
     /// reference tracking, a non-generic abstract type between the base and the subtypes, and whether the subtypes are in
     /// the base's assembly or in another one; with every kind of
-    /// subtype (plain, generic, with a private member, built by a constructor, a struct for interfaces), each read
+    /// subtype (plain, generic, with a private member, built by a constructor, [NinoPooled], a struct and a record struct
+    /// for interfaces), each read
     /// through the base, the type between, itself and object, by the boxed API, alone and as a list element, plus null and data of another
     /// type. A combination nobody thought of is still in the matrix: add a dimension here when a feature adds one.
     /// </summary>
@@ -27,7 +29,7 @@ namespace Nino.UnitTests.Corner
     {
         private enum Kind { Abstract, Class, Interface, Record }
 
-        private enum Place { Namespace, Nested, GenericNested }
+        private enum Place { Namespace, Global, Nested, GenericNested }
 
         private static readonly string[] Formats = { "Positional", "VersionTolerant", "Keyed" };
 
@@ -154,6 +156,7 @@ namespace Other
             private readonly string _format;
             private readonly bool _track;
             private readonly bool _middle;
+            private string _ns = "";
 
             public Shape(Kind kind, int arity, Place place, string format, bool track, bool middle)
             {
@@ -169,16 +172,25 @@ namespace Other
             private string Keyword => _kind == Kind.Record ? "record" : "class";
             private string Prefix => _place switch { Place.Nested => "Holder.", Place.GenericNested => "Holder<long>.", _ => "" };
 
+            /// <summary>Whether the types are declared in a class (Holder) rather than in a namespace.</summary>
+            private bool InHolder => _place is Place.Nested or Place.GenericNested;
+
+            /// <summary>
+            /// The name of a declared type: in the global namespace (<see cref="Place.Global"/>) every shape's types
+            /// are there, so each is prefixed with its shape's namespace name.
+            /// </summary>
+            private string N(string name) => _place == Place.Global ? _ns + "_" + name : name;
+
             private static string Parameters(int n) => n == 0 ? "" : "<" + string.Join(", ", new[] { "T1", "T2" }.Take(n)) + ">";
             private static string Arguments(int n) => n == 0 ? "" : "<" + string.Join(", ", new[] { "int", "string" }.Take(n)) + ">";
 
             // More closed instances of a generic base, each with subtypes of its own (a dispatch per instance): type
             // arguments that are tuples, a class with subtypes and a sealed class.
-            private static string[] OtherArguments(int n) => n switch
+            private string[] OtherArguments(int n) => n switch
             {
                 0 => new string[0],
-                1 => new[] { "<(int, long)>", "<OpenArg>" },
-                _ => new[] { "<(int, string), OpenArg>", "<SealedArg, (int, long)>" },
+                1 => new[] { "<(int, long)>", $"<{N("OpenArg")}>" },
+                _ => new[] { $"<(int, string), {N("OpenArg")}>", $"<{N("SealedArg")}, (int, long)>" },
             };
 
             private string Attribute(bool nonPublic = false) =>
@@ -212,14 +224,17 @@ namespace Other
             /// </summary>
             public string Emit(string ns, StringBuilder bases, bool split)
             {
+                _ns = ns;
+                bool global = _place == Place.Global;
                 var s = new StringBuilder();
-                bases.Append($"namespace {ns}\n{{\n");
+                if (!global)
+                    bases.Append($"namespace {ns}\n{{\n");
                 // Type arguments of the other closed instances, in each namespace: a type loaded twice is an id collision.
                 if (_arity > 0)
-                    bases.Append($"{Attribute()} public sealed class SealedArg {{ public int A; }}\n" +
-                                 $"{Attribute()} public class OpenArg {{ public int A; }}\n" +
-                                 $"{Attribute()} public sealed class OpenArgChild : OpenArg {{ }}\n");
-                if (_place != Place.Namespace)
+                    bases.Append($"{Attribute()} public sealed class {N("SealedArg")} {{ public int A; }}\n" +
+                                 $"{Attribute()} public class {N("OpenArg")} {{ public int A; }}\n" +
+                                 $"{Attribute()} public sealed class {N("OpenArgChild")} : {N("OpenArg")} {{ }}\n");
+                if (InHolder)
                     bases.Append(_place == Place.Nested ? "public partial class Holder\n{\n" : "public partial class Holder<X>\n{\n");
 
                 string baseFields = !Fields ? ""
@@ -229,73 +244,87 @@ namespace Other
                 {
                     Kind.Abstract => "abstract class", Kind.Class => "class", Kind.Interface => "interface", _ => "abstract record"
                 };
-                bases.Append($"{Attribute()} public {baseKeyword} Base{Parameters(_arity)} {{ {baseFields}}}\n");
-                string closedBase = "Base" + Arguments(_arity);
+                bases.Append($"{Attribute()} public {baseKeyword} {N("Base")}{Parameters(_arity)} {{ {baseFields}}}\n");
+                string closedBase = N("Base") + Arguments(_arity);
                 if (_middle)
                     bases.Append(_kind == Kind.Interface
-                        ? $"{Attribute()} public interface Mid : {closedBase} {{ }}\n"
-                        : $"{Attribute()} public abstract {Keyword} Mid : {closedBase} {{ public int M; }}\n");
+                        ? $"{Attribute()} public interface {N("Mid")} : {closedBase} {{ }}\n"
+                        : $"{Attribute()} public abstract {Keyword} {N("Mid")} : {closedBase} {{ public int M; }}\n");
 
                 // Where the subtypes are declared: in the container, or (split) in the namespace, naming it.
                 var leaves = split ? s : bases;
                 string near = split ? Prefix : "";
                 string leafPrefix = split ? "" : Prefix;
                 string outer = split ? "long" : "X";
+                // The probes are in the shape's namespace; with the global namespace, after the subtypes.
+                bool probesOpen = false;
                 if (split)
                 {
-                    if (_place != Place.Namespace)
+                    if (InHolder)
                         bases.Append("}\n");
-                    bases.Append("}\n");
-                    s.Append($"namespace {ns}\n{{\n");
+                    if (!global)
+                    {
+                        bases.Append("}\n");
+                        s.Append($"namespace {ns}\n{{\n");
+                        probesOpen = true;
+                    }
                 }
 
-                string parent = near + (_middle ? "Mid" : closedBase);
-                leaves.Append($"{Attribute()} public sealed {Keyword} PLeaf : {parent} {{ public int W; }}\n");
+                string parent = near + (_middle ? N("Mid") : closedBase);
+                leaves.Append($"{Attribute()} public sealed {Keyword} {N("PLeaf")} : {parent} {{ public int W; }}\n");
                 if (!_middle && _arity > 0)
-                    leaves.Append($"{Attribute()} public sealed {Keyword} GLeaf{Parameters(_arity)} : {near}Base{Parameters(_arity)} {{ public int W; }}\n");
+                    leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}{Parameters(_arity)} : {near}{N("Base")}{Parameters(_arity)} {{ public int W; }}\n");
                 else
-                    leaves.Append($"{Attribute()} public sealed {Keyword} GLeaf<TL> : {parent} {{ public TL W; }}\n");
+                    leaves.Append($"{Attribute()} public sealed {Keyword} {N("GLeaf")}<TL> : {parent} {{ public TL W; }}\n");
                 string[] others = OtherArguments(_arity);
                 for (int i = 0; i < others.Length; i++)
-                    leaves.Append($"{Attribute()} public sealed {Keyword} XLeaf{i} : {near}Base{others[i]} {{ public int W; }}\n");
-                leaves.Append($"{Attribute(nonPublic: true)} public sealed partial {Keyword} QLeaf : {parent} " +
+                    leaves.Append($"{Attribute()} public sealed {Keyword} {N("XLeaf" + i)} : {near}{N("Base")}{others[i]} {{ public int W; }}\n");
+                leaves.Append($"{Attribute(nonPublic: true)} public sealed partial {Keyword} {N("QLeaf")} : {parent} " +
                               "{ private int _w; public int GetW() => _w; public void SetW(int w) => _w = w; }\n");
+                // Pooled: read into instances its pool hands out, through the hooks of its generated partial.
+                leaves.Append($"{Attribute()} [NinoPooled] public sealed partial {Keyword} {N("PoolLeaf")} : {parent} {{ public int W; " +
+                              $"private static partial IEnumerable<{N("PoolLeaf")}> OnNinoPoolWarmup() => null; " +
+                              "private partial void OnNinoPoolReturn() { } }\n");
                 var all = Inherited().Select(m => m.Type == "X" ? (m.Name, outer, m.Value) : m)
                     .Concat(new[] { ("W", "int", "7") }).ToList();
                 if (!_track)
                 {
-                    leaves.Append($"{Attribute()} public sealed {Keyword} CLeaf : {parent} {{ public readonly int W; " +
+                    leaves.Append($"{Attribute()} public sealed {Keyword} {N("CLeaf")} : {parent} {{ public readonly int W; " +
                                   $"[NinoConstructor({string.Join(", ", all.Select(m => $"\"{m.Item1}\""))})] " +
-                                  $"public CLeaf({string.Join(", ", all.Select(m => $"{m.Item2} {m.Item1.ToLowerInvariant()}"))}) " +
+                                  $"public {N("CLeaf")}({string.Join(", ", all.Select(m => $"{m.Item2} {m.Item1.ToLowerInvariant()}"))}) " +
                                   $"{{ {string.Join(" ", all.Select(m => $"this.{m.Item1} = {m.Item1.ToLowerInvariant()};"))} }} }}\n");
                     if (_kind == Kind.Interface)
-                        leaves.Append($"{Attribute()} public struct SLeaf : {parent} {{ public int W; }}\n");
+                        leaves.Append($"{Attribute()} public struct {N("SLeaf")} : {parent} {{ public int W; }}\n" +
+                                      $"{Attribute()} public record struct {N("RLeaf")} : {parent} {{ public int W; }}\n");
                 }
 
-                if (!split && _place != Place.Namespace)
+                if (!split && InHolder)
                     bases.Append("}\n");
-                if (!split)
-                {
+                if (!split && !global)
                     bases.Append("}\n");
+                if (!probesOpen)
                     s.Append($"namespace {ns}\n{{\n");
-                }
 
                 // The checks: every subtype through the base, the type between and itself.
                 s.Append("public static class Probe\n{\n    public static void Run(List<string> e)\n    {\n");
                 string inits = string.Join(", ", Inherited().Select(m => $"{m.Name} = {m.Value}"));
                 string checks = string.Concat(Inherited().Select(m => $" && q.{m.Name} == {m.Value}"));
-                string gleaf = !_middle && _arity > 0 ? "GLeaf" + Arguments(_arity) : "GLeaf<int>";
+                string gleaf = N("GLeaf") + (!_middle && _arity > 0 ? Arguments(_arity) : "<int>");
                 var types = new List<(string Type, string Create, string Check)>
                 {
-                    ("PLeaf", $"new {leafPrefix}PLeaf {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
+                    (N("PLeaf"), $"new {leafPrefix}{N("PLeaf")} {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
                     (gleaf, $"new {leafPrefix}{gleaf} {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
-                    ("QLeaf", $"P.Init(new {leafPrefix}QLeaf {{ {inits} }}, q => q.SetW(7))", $"q.GetW() == 7{checks}"),
+                    (N("QLeaf"), $"P.Init(new {leafPrefix}{N("QLeaf")} {{ {inits} }}, q => q.SetW(7))", $"q.GetW() == 7{checks}"),
+                    (N("PoolLeaf"), $"new {leafPrefix}{N("PoolLeaf")} {{ {Join(inits, "W = 7")} }}", $"q.W == 7{checks}"),
                 };
                 if (!_track)
                 {
-                    types.Add(("CLeaf", $"new {leafPrefix}CLeaf({string.Join(", ", all.Select(m => m.Item3))})", $"q.W == 7{checks}"));
+                    types.Add((N("CLeaf"), $"new {leafPrefix}{N("CLeaf")}({string.Join(", ", all.Select(m => m.Item3))})", $"q.W == 7{checks}"));
                     if (_kind == Kind.Interface)
-                        types.Add(("SLeaf", $"new {leafPrefix}SLeaf {{ W = 7 }}", "q.W == 7"));
+                    {
+                        types.Add((N("SLeaf"), $"new {leafPrefix}{N("SLeaf")} {{ W = 7 }}", "q.W == 7"));
+                        types.Add((N("RLeaf"), $"new {leafPrefix}{N("RLeaf")} {{ W = 7 }}", "q.W == 7"));
+                    }
                 }
 
                 if (_kind == Kind.Class)
@@ -310,7 +339,7 @@ namespace Other
                 {
                     var through = new List<string> { Prefix + closedBase, leafPrefix + leaf.Type };
                     if (_middle)
-                        through.Insert(1, Prefix + "Mid");
+                        through.Insert(1, Prefix + N("Mid"));
                     foreach (string type in through)
                         Check(s, ns, type, leafPrefix + leaf.Type, leaf.Create, leaf.Check);
                     // By runtime type: as object, and through the boxed API naming the base.
@@ -324,13 +353,13 @@ namespace Other
                 // The subtypes of the other closed instances: through their own base, and rejected through the first one.
                 for (int i = 0; i < others.Length; i++)
                 {
-                    string leaf = "XLeaf" + i, create = $"new {leafPrefix}{leaf} {{ W = 7 }}";
-                    foreach (string type in new[] { Prefix + "Base" + others[i], leafPrefix + leaf, "object" })
+                    string leaf = N("XLeaf" + i), create = $"new {leafPrefix}{leaf} {{ W = 7 }}";
+                    foreach (string type in new[] { Prefix + N("Base") + others[i], leafPrefix + leaf, "object" })
                         Check(s, ns, type, leafPrefix + leaf, create, "q.W == 7");
-                    Check(s, ns, "object", leafPrefix + leaf, create, "q.W == 7", boxedAs: Prefix + "Base" + others[i]);
+                    Check(s, ns, "object", leafPrefix + leaf, create, "q.W == 7", boxedAs: Prefix + N("Base") + others[i]);
                     if (!_track)
                         s.Append($"        P.Rejects(e, \"{ns} {leaf} read as {closedBase}\", () => " +
-                                 $"NinoDeserializer.Deserialize<{Prefix}{closedBase}>(NinoSerializer.Serialize<{Prefix}Base{others[i]}>({create})));\n");
+                                 $"NinoDeserializer.Deserialize<{Prefix}{closedBase}>(NinoSerializer.Serialize<{Prefix}{N("Base")}{others[i]}>({create})));\n");
                 }
 
                 s.Append("    }\n}\n}\n");
