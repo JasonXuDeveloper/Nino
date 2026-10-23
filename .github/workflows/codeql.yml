@@ -1,0 +1,68 @@
+name: CodeQL
+
+# Code scanning for every language in the repository, configured here instead of GitHub's default setup: the default
+# setup's C/C++ autobuild finds no build system (the only C++ is the libFuzzer driver in tests/Nino.Fuzz/libfuzzer)
+# and fails. The default setup must be off for these results to be accepted (Settings → Code security → CodeQL
+# analysis → Disable CodeQL, or "Switch to advanced").
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: csharp
+            build-mode: none
+          - language: go
+            build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+          - language: rust
+            build-mode: none
+          # The libFuzzer driver, compiled on its own (linking needs libFuzzer, analysis does not).
+          - language: c-cpp
+            build-mode: manual
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build the libFuzzer driver
+        if: matrix.build-mode == 'manual'
+        run: clang++ -std=c++17 -O1 -c tests/Nino.Fuzz/libfuzzer/driver.cc -o "$RUNNER_TEMP/driver.o"
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
