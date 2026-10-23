@@ -50,6 +50,10 @@ pub use types::{
 };
 pub use writer::Writer;
 
+/// `#[derive(NinoRead, NinoWrite)]` (feature `derive`): see the README for the attributes.
+#[cfg(feature = "derive")]
+pub use nino_derive::{NinoRead, NinoWrite};
+
 /// Serializes `value` under its declared type (what `NinoSerializer.Serialize<T>` writes in .NET).
 pub fn serialize<T: NinoWrite + ?Sized>(value: &T) -> Result<Vec<u8>> {
     let mut out = Vec::new();

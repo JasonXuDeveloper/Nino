@@ -277,11 +277,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nino-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "nino-runtime"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "indexmap",
+ "nino-derive",
  "num-bigint",
  "rust_decimal",
  "serde",

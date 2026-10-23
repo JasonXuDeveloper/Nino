@@ -1,0 +1,17 @@
+[package]
+name = "nino-derive"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+license = "MIT"
+description = "#[derive(NinoRead, NinoWrite)] for nino-runtime: the codecs Nino's generator writes, from attributes."
+repository = "https://github.com/JasonXuDeveloper/Nino"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", default-features = false, features = ["derive", "parsing", "printing", "proc-macro", "clone-impls"] }

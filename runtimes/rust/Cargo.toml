@@ -20,10 +20,13 @@ rust_decimal = { version = "1", optional = true, default-features = false }
 chrono = { version = "0.4", optional = true, default-features = false }
 num-bigint = { version = "0.4", optional = true, default-features = false, features = ["std"] }
 indexmap = { version = "2", optional = true, default-features = false, features = ["std"] }
+nino-derive = { path = "nino-derive", optional = true }
 serde = { version = "1", optional = true, default-features = false, features = ["std", "derive"] }
 
 [features]
 default = []
+# #[derive(NinoRead, NinoWrite)].
+derive = ["dep:nino-derive"]
 # serde for Nino's value types, so types with Nino codecs can derive serde too.
 serde = ["dep:serde", "indexmap?/serde", "uuid?/serde"]
 
@@ -39,7 +42,7 @@ name = "conformance"
 required-features = ["indexmap"]
 
 [workspace]
-members = [".", "bench"]
+members = [".", "bench", "nino-derive"]
 
 [profile.bench]
 debug = false
