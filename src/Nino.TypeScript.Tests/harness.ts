@@ -56,4 +56,7 @@ saved.health = 77;
 player.saved = saved;
 results.push({ hex: hex(serialize(types.PlayerCodec, player)), json: "", error: "" });
 
+// Reading keys like "__proto__" must not have touched any prototype.
+if (Object.keys(Object.prototype).length !== 0 || ({} as { polluted?: unknown }).polluted !== undefined)
+  throw new Error("Object.prototype was changed.");
 console.log(JSON.stringify(results));

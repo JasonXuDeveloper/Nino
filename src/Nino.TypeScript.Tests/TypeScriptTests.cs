@@ -158,6 +158,13 @@ namespace Nino.TypeScript.Tests
                 ("TagCodec", NinoSerializer.Serialize(new Tag { Name = "\ufeff中文" })),
                 ("ExtrasCodec", NinoSerializer.Serialize(FullExtras())),
                 ("ExtrasCodec", NinoSerializer.Serialize(new Extras())),
+                // Keys that name prototype members stay Map entries.
+                ("PlayerCodec", NinoSerializer.Serialize(new Player
+                {
+                    Joined = new DateTime(0, DateTimeKind.Utc),
+                    Inventory = new Dictionary<string, int[]>
+                        { ["__proto__"] = new[] { 1 }, ["constructor"] = new[] { 2 }, ["prototype"] = new[] { 3 } },
+                })),
             };
 
             var results = RunNode(cases);
@@ -179,7 +186,10 @@ namespace Nino.TypeScript.Tests
                      })
                 StringAssert.Contains(full, expected);
 
-            string extras = results[^3].Json;
+            StringAssert.Contains(results[^2].Json, "\"inventory\":{\"__proto__\":[1],\"constructor\":[2],\"prototype\":[3]}");
+            Assert.AreEqual("", results[^2].Error);
+
+            string extras = results[^4].Json;
             foreach (string expected in new[]
                      {
                          "\"padded\":{\"a\":7,\"b\":-8}", "\"rawPair\":[9,\"9223372036854775807\"]", "\"maybes\":[1,null,-3]",
