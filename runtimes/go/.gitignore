@@ -1,0 +1,3 @@
+# Test binaries and profiles from go test -c / -cpuprofile.
+*.test
+*.out
