@@ -74,6 +74,12 @@ namespace Nino.TypeScript
             /// <summary>Whether <see cref="WriteAt"/> needs zeroed bytes: it skips padding, or absent values.</summary>
             public bool Zeroed { get; init; }
 
+            /// <summary>Whether the value may hold a class body (a class, <c>object</c> or an interface) itself.</summary>
+            public bool Opens { get; init; }
+
+            /// <summary>The non-raw structs the value holds directly: their bodies may open more (see <see cref="Opens"/>).</summary>
+            public IReadOnlyList<Type> Reaches { get; init; } = Type.EmptyTypes;
+
             public bool Fixed => Size >= 0;
         }
 
@@ -217,7 +223,13 @@ namespace Nino.TypeScript
         private static Shape Nullable(Shape inner) =>
             new($"{inner.Ts} | null", r => $"({r}.notNull() ? {inner.Read(r)} : null)",
                 (w, v) => $"if ({v} === null || {v} === undefined) {w}.u8(0); else {{ {w}.u8(1); " +
-                          $"{Statement(inner.Write(w, v))} }}", "null");
+                          $"{Statement(inner.Write(w, v))} }}", "null") { Opens = inner.Opens, Reaches = inner.Reaches };
+
+        /// <summary>What a value made of <paramref name="parts"/> holds (<see cref="Shape.Opens"/>, <see cref="Shape.Reaches"/>).</summary>
+        private static Shape Holding(Shape shape, params Shape[] parts) => shape with
+        {
+            Opens = parts.Any(p => p.Opens), Reaches = parts.SelectMany(p => p.Reaches).Distinct().ToList(),
+        };
 
         private Shape ShapeOf(WireEncoding e, Type clr)
         {
@@ -233,7 +245,7 @@ namespace Nino.TypeScript
                     return new Shape("string | null", r => $"{r}.utf8()", (w, v) => $"{w}.utf8({v})", "null");
                 case "object":
                     return new Shape("unknown", r => $"types.read({r}, null)", (w, v) => $"types.write({w}, {v}, null)",
-                        "null");
+                        "null") { Opens = true, Reaches = BodyStructs(_ => true) };
                 case "type":
                     return TypeShape(clr);
                 case "nullable":
@@ -259,7 +271,7 @@ namespace Nino.TypeScript
                     if (clr.IsArray && elementType.FullName == "System.Byte")
                         return new Shape("Uint8Array | null", r => $"{r}.bytes()", (w, v) => $"{w}.bytes({v})",
                             "null");
-                    return Sequence(element, Implements(clr, "System.Collections.Generic.ISet`1") != null);
+                    return Holding(Sequence(element, Implements(clr, "System.Collections.Generic.ISet`1") != null), element);
                 }
                 case "map":
                 {
@@ -267,7 +279,8 @@ namespace Nino.TypeScript
                                 Implements(clr, "System.Collections.Generic.IReadOnlyDictionary`2"))
                                ?.GetGenericArguments() ??
                                throw new UnsupportedException($"{clr.FullName} has no TypeScript form");
-                    return Map(ShapeOf(e.Arguments[0], pair[0]), ShapeOf(e.Arguments[1], pair[1]));
+                    var (key, value) = (ShapeOf(e.Arguments[0], pair[0]), ShapeOf(e.Arguments[1], pair[1]));
+                    return Holding(Map(key, value), key, value);
                 }
                 case "pair":
                 case "tuple":
@@ -285,7 +298,8 @@ namespace Nino.TypeScript
                         size += item.Size;
                     }
 
-                    return Tuple(items, offsets, items.All(i => i.Fixed) ? size : -1, items.Any(i => i.Zeroed));
+                    return Holding(Tuple(items, offsets, items.All(i => i.Fixed) ? size : -1, items.Any(i => i.Zeroed)),
+                        items.ToArray());
                 }
                 default:
                     throw new UnsupportedException($"{clr.FullName} ({e.Kind}) has no TypeScript form");
@@ -421,15 +435,19 @@ namespace Nino.TypeScript
             if (layout.Raw)
                 return RawShape(layout.RawEncoding!, clr);
             string name = Name(clr);
+            bool body = !clr.IsValueType;
             return layout.Header switch
             {
                 TypeLayout.NoHeader => new Shape(name, r => $"read{name}({r})", (w, v) => $"write{name}({w}, {v})",
-                    $"new {name}()"),
+                    $"new {name}()") { Opens = body, Reaches = body ? Type.EmptyTypes : new[] { clr } },
                 TypeLayout.NullFlag => Nullable(new Shape(name, r => $"read{name}({r})",
-                    (w, v) => $"write{name}({w}, {v})", "null")),
+                    (w, v) => $"write{name}({w}, {v})", "null") { Opens = body, Reaches = body ? Type.EmptyTypes : new[] { clr } }),
                 // Any type assignable to it, by the type id in front of its body.
                 _ => new Shape($"{name} | null", r => $"{name}Codec.read({r})",
-                    (w, v) => $"{name}Codec.write({w}, {v})", "null"),
+                    (w, v) => $"{name}Codec.write({w}, {v})", "null")
+                {
+                    Opens = true, Reaches = BodyStructs(clr.IsAssignableFrom),
+                },
             };
         }
 
@@ -542,6 +560,139 @@ namespace Nino.TypeScript
                 "System.DateTime" => Of("Date", "dateTime", $"new Date({Long(MinDateMilliseconds)})", 8,
                     "{0}.dateTimeAt({1})", "{0}.dateTimeAt({1}, {2})"),
                 "System.TimeSpan" => View("bigint", "timeSpan", "0n", 8, "BigInt64"),
+                _ => null,
+            };
+        }
+
+        // ---------------------------------------------------------------- nesting
+
+        /// <summary>
+        /// The non-raw structs written behind a type id (for <c>object</c> or an interface) that
+        /// <paramref name="assignable"/> accepts.
+        /// </summary>
+        private List<Type> BodyStructs(Func<Type, bool> assignable) =>
+            _layouts.Values.Where(l => l.Type.IsValueType && !l.Raw && l.Id != 0 && assignable(l.Type))
+                .Select(l => l.Type).ToList();
+
+        private readonly Dictionary<Type, bool> _structOpens = new();
+
+        /// <summary>Whether a value of <paramref name="shape"/> may hold a class body, directly or in its structs.</summary>
+        private bool Opens(Shape shape) => shape.Opens || shape.Reaches.Any(StructOpens);
+
+        private bool StructOpens(Type type)
+        {
+            if (_structOpens.TryGetValue(type, out bool opens))
+                return opens;
+            // A struct that holds itself opens what its other members open.
+            _structOpens[type] = false;
+            opens = _supported.Contains(type) && Members(_layouts[type]).Any(m => Opens(m.Shape));
+            _structOpens[type] = opens;
+            return opens;
+        }
+
+        /// <summary>
+        /// Whether a class body may hold other class bodies (<c>NinoBody.Nests</c>): it counts the depth for them, and
+        /// at depth 0, ends with the bodies deferred below it. Saying so of one that does not changes no byte.
+        /// </summary>
+        private bool Nests(List<(MemberLayout Member, string Name, Shape Shape)> members) =>
+            members.Any(m => Opens(m.Shape));
+
+        /// <summary>
+        /// Whether a struct can hold itself without a class body between (through collections, nullables,
+        /// <c>object</c> or interfaces): its nesting is counted (<c>Reader.EnterStruct</c> in .NET), so deep data throws
+        /// instead of overflowing the stack.
+        /// </summary>
+        private bool HoldsItself(Type type)
+        {
+            var seen = new HashSet<Type>();
+            var pending = new Stack<Type>();
+            pending.Push(type);
+            while (pending.Count != 0)
+            {
+                var next = pending.Pop();
+                if (!_supported.Contains(next))
+                    continue;
+                foreach (var reached in Members(_layouts[next]).SelectMany(m => m.Shape.Reaches))
+                {
+                    if (reached == type)
+                        return true;
+                    if (seen.Add(reached))
+                        pending.Push(reached);
+                }
+            }
+
+            return false;
+        }
+
+        private Dictionary<Type, bool>? _deferrable;
+
+        /// <summary>
+        /// Whether .NET defers the body of the class <paramref name="type"/> past 128 open bodies (else it reads and
+        /// writes it in place, up to 512): <c>NinoBody.Deferrable</c> in the <c>Traits</c> of its generated formatter.
+        /// A class built by its constructor, or compared by value, is not deferred.
+        /// </summary>
+        private bool Deferrable(Type type)
+        {
+            if (_deferrable == null)
+            {
+                _deferrable = new Dictionary<Type, bool>();
+                foreach (var assembly in _layouts.Keys.Select(t => t.Assembly).Distinct())
+                {
+                    Type?[] types;
+                    try
+                    {
+                        types = assembly.GetTypes();
+                    }
+                    catch (ReflectionTypeLoadException e)
+                    {
+                        types = e.Types;
+                    }
+
+                    foreach (var formatter in types)
+                    {
+                        if (formatter == null || !formatter.IsValueType || formatter.IsNested)
+                            continue;
+                        var body = formatter.GetInterfaces().FirstOrDefault(i => i.IsGenericType &&
+                            i.GetGenericTypeDefinition().FullName == "Nino.Core.INinoBodyFormatter`1");
+                        if (body != null && Traits(formatter) is { } traits)
+                            _deferrable[body.GetGenericArguments()[0]] = (traits & 2) != 0;
+                    }
+                }
+            }
+
+            if (_deferrable.TryGetValue(type, out bool deferrable))
+                return deferrable;
+            Warnings.Add($"{type.FullName}: the traits of its formatter were not found; its bodies are taken to be " +
+                         "deferred past 128 nested bodies, as most classes are.");
+            return _deferrable[type] = true;
+        }
+
+        /// <summary>The constant the formatter's <c>Traits</c> getter returns (<c>=&gt; 3;</c>), from its IL.</summary>
+        private static int? Traits(Type formatter)
+        {
+            byte[]? il;
+            try
+            {
+                il = formatter.GetProperty("Traits", BindingFlags.Public | BindingFlags.Instance)?.GetGetMethod()
+                    ?.GetMethodBody()?.GetILAsByteArray();
+            }
+            catch (Exception e) when (e is NotSupportedException or InvalidOperationException or BadImageFormatException)
+            {
+                return null;
+            }
+
+            if (il == null)
+                return null;
+            int i = 0;
+            while (i < il.Length && il[i] == 0x00) // nop
+                i++;
+            if (i >= il.Length)
+                return null;
+            return il[i] switch
+            {
+                >= 0x15 and <= 0x1e => il[i] - 0x16, // ldc.i4.m1 .. ldc.i4.8
+                0x1f when i + 1 < il.Length => (sbyte)il[i + 1], // ldc.i4.s
+                0x20 when i + 4 < il.Length => BitConverter.ToInt32(il, i + 1), // ldc.i4
                 _ => null,
             };
         }
@@ -782,11 +933,49 @@ namespace Nino.TypeScript
         /// <c>readX</c> and <c>writeX</c>: the body of a type, without its header (positional members, or a version
         /// tolerant or keyed region).
         /// </summary>
-        private static void EmitBody(StringBuilder sb, TypeLayout layout, string name,
+        private void EmitBody(StringBuilder sb, TypeLayout layout, string name,
             List<(MemberLayout Member, string Name, Shape Shape)> members)
         {
-            sb.Append("function read").Append(name).Append("(r: NinoReader): ").Append(name).Append(" {\n")
-                .Append("  const v = new ").Append(name).Append("();\n");
+            // A class body counts the depth and is deferred past 128 open bodies (see "Deep nesting" in
+            // docs/v4-design.md), as in .NET: its members are read and written by readBody$X and writeBody$X, which
+            // the deferred bodies are read and written with later. A struct that can hold itself counts its own nesting.
+            bool body = !layout.Type.IsValueType;
+            bool counted = !body && HoldsItself(layout.Type);
+            if (body)
+            {
+                bool nests = Nests(members);
+                string later = Deferrable(layout.Type) ? "defer" : "deep";
+                sb.Append("function read").Append(name).Append("(r: NinoReader): ").Append(name).Append(" {\n")
+                    .Append("  const v = new ").Append(name).Append("()").Append(nests ? ", depth = r.depth" : "")
+                    .Append(";\n  if (").Append(nests ? "depth" : "r.depth").Append(" >= 128) return r.").Append(later)
+                    .Append("(v, readBody$").Append(name).Append(");\n");
+                if (nests)
+                    sb.Append("  r.depth = depth + 1;\n  readBody$").Append(name).Append("(r, v);\n  r.exit(depth);\n");
+                else
+                    sb.Append("  readBody$").Append(name).Append("(r, v);\n");
+                sb.Append("  return v;\n}\n\n");
+
+                sb.Append("function write").Append(name).Append("(w: NinoWriter, v: ").Append(name).Append("): void {\n");
+                if (nests)
+                    sb.Append("  const depth = w.depth;\n  if (depth >= 128) {\n    w.").Append(later)
+                        .Append("(v, writeBody$").Append(name).Append(");\n    return;\n  }\n")
+                        .Append("  w.depth = depth + 1;\n  writeBody$").Append(name).Append("(w, v);\n  w.exit(depth);\n");
+                else
+                    sb.Append("  if (w.depth >= 128) w.").Append(later).Append("(v, writeBody$").Append(name)
+                        .Append(");\n  else writeBody$").Append(name).Append("(w, v);\n");
+                sb.Append("}\n\n");
+
+                sb.Append("function readBody$").Append(name).Append("(r: NinoReader, v: ").Append(name)
+                    .Append("): void {\n");
+            }
+            else
+            {
+                sb.Append("function read").Append(name).Append("(r: NinoReader): ").Append(name).Append(" {\n");
+                if (counted)
+                    sb.Append("  r.enterStruct();\n");
+                sb.Append("  const v = new ").Append(name).Append("();\n");
+            }
+
             switch (layout.Format)
             {
                 case TypeLayout.Keyed:
@@ -841,9 +1030,14 @@ namespace Nino.TypeScript
                 }
             }
 
-            sb.Append("  return v;\n}\n\n");
+            if (counted)
+                sb.Append("  r.exitStruct();\n");
+            sb.Append(body ? "}\n\n" : "  return v;\n}\n\n");
 
-            sb.Append("function write").Append(name).Append("(w: NinoWriter, v: ").Append(name).Append("): void {\n");
+            sb.Append(body ? "function writeBody$" : "function write").Append(name).Append("(w: NinoWriter, v: ")
+                .Append(name).Append("): void {\n");
+            if (counted)
+                sb.Append("  w.enterStruct();\n");
             if (layout.Format != TypeLayout.Positional)
                 sb.Append("  const start = w.region();\n");
             if (layout.Format == TypeLayout.Keyed)
@@ -881,6 +1075,8 @@ namespace Nino.TypeScript
 
             if (layout.Format != TypeLayout.Positional)
                 sb.Append("  w.endRegion(start);\n");
+            if (counted)
+                sb.Append("  w.exitStruct();\n");
             sb.Append("}\n\n");
         }
 

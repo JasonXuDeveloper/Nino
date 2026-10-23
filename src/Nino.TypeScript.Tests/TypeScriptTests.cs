@@ -105,7 +105,7 @@ namespace Nino.TypeScript.Tests
 
         private static string Hex(byte[] bytes) => Convert.ToHexString(bytes).ToLowerInvariant();
 
-        private static List<(string Hex, string Json)> RunNode(List<(string Codec, byte[] Bytes)> cases)
+        private static List<(string Hex, string Json, string Error)> RunNode(List<(string Codec, byte[] Bytes)> cases)
         {
             string input = Path.Combine(_directory, "cases.json");
             File.WriteAllText(input, JsonSerializer.Serialize(cases.Select(c => new { codec = c.Codec, hex = Hex(c.Bytes) })));
@@ -121,7 +121,8 @@ namespace Nino.TypeScript.Tests
             node.WaitForExit();
             Assert.AreEqual(0, node.ExitCode, stderr);
             return JsonDocument.Parse(stdout).RootElement.EnumerateArray()
-                .Select(e => (e.GetProperty("hex").GetString(), e.GetProperty("json").GetString())).ToList();
+                .Select(e => (e.GetProperty("hex").GetString(), e.GetProperty("json").GetString(),
+                    e.GetProperty("error").GetString())).ToList();
         }
 
         [TestMethod]
@@ -211,6 +212,187 @@ namespace Nino.TypeScript.Tests
             Assert.AreEqual(77, player.Saved.Health);
             Assert.IsNull(player.Motto);
             Assert.IsNull(player.Zoo);
+        }
+
+        private static Chain MakeChain(int depth)
+        {
+            Chain head = null;
+            for (int i = depth; i > 0; i--)
+                head = new Chain { Value = i, Next = head };
+            return head;
+        }
+
+        private static Link MakeLink(int depth)
+        {
+            Link head = null;
+            for (int i = depth; i > 0; i--)
+                head = i % 3 == 0 ? new BigLink { Name = "big" + i, Extra = -i, Next = head } : new Link { Name = "l" + i, Next = head };
+            return head;
+        }
+
+        private static TolerantChain MakeTolerant(int depth)
+        {
+            TolerantChain head = null;
+            for (int i = depth; i > 0; i--)
+                head = new TolerantChain { Value = i, Next = head };
+            return head;
+        }
+
+        /// <summary>A keyed chain whose every 50th link also holds a short chain in a list.</summary>
+        private static KeyedChain MakeKeyed(int depth)
+        {
+            KeyedChain head = null;
+            for (int i = depth; i > 0; i--)
+                head = new KeyedChain
+                {
+                    Value = i, Next = head,
+                    More = i % 50 == 0 ? new List<KeyedChain> { new() { Value = -i, Next = new KeyedChain { Value = -i - 1 } } } : null,
+                };
+            return head;
+        }
+
+        /// <summary>A comb: each node holds a leaf and the next node.</summary>
+        private static Tree MakeTree(int depth)
+        {
+            Tree head = null;
+            for (int i = depth; i > 0; i--)
+                head = new Tree { Name = "t" + i, Children = head == null ? null : new List<Tree> { new() { Name = "leaf" + i }, head } };
+            return head;
+        }
+
+        private static RecordChain MakeRecord(int depth)
+        {
+            RecordChain head = null;
+            for (int i = depth; i > 0; i--)
+                head = new RecordChain(i, head);
+            return head;
+        }
+
+        private static Nest MakeNest(int depth)
+        {
+            var nest = new Nest { Value = depth };
+            for (int i = depth - 1; i > 0; i--)
+                nest = new Nest { Value = i, Inner = new List<Nest> { nest } };
+            return nest;
+        }
+
+        /// <summary>
+        /// Data nested deeper than 128 class bodies, as .NET writes it (bodies deferred after the top-level object, or in
+        /// a section of the outermost region): TypeScript reads it and writes the same bytes back.
+        /// </summary>
+        [TestMethod]
+        public void DefersDeepBodiesAsDotNetDoes()
+        {
+            var cases = new List<(string, byte[])>();
+            foreach (int depth in new[] { 1, 127, 128, 129, 130, 255, 256, 300, 2000 })
+            {
+                cases.Add(("ChainCodec", NinoSerializer.Serialize(MakeChain(depth))));
+                cases.Add(("LinkCodec", NinoSerializer.Serialize(MakeLink(depth))));
+                cases.Add(("TolerantChainCodec", NinoSerializer.Serialize(MakeTolerant(depth))));
+                cases.Add(("KeyedChainCodec", NinoSerializer.Serialize(MakeKeyed(depth))));
+                cases.Add(("TreeCodec", NinoSerializer.Serialize(MakeTree(depth))));
+            }
+
+            foreach (int depth in new[] { 1, 129, 300, 500 })
+            {
+                cases.Add(("RecordChainCodec", NinoSerializer.Serialize(MakeRecord(depth))));
+                cases.Add(("NestCodec", NinoSerializer.Serialize(MakeNest(depth))));
+            }
+
+            cases.Add(("DeepCodec", NinoSerializer.Serialize(new Deep
+            {
+                Chain = MakeChain(300), Link = MakeLink(300), Tolerant = MakeTolerant(300), Keyed = MakeKeyed(300),
+                Tree = MakeTree(300), Record = MakeRecord(300), Nest = MakeNest(150),
+            })));
+
+            var results = RunNode(cases);
+            for (int i = 0; i < cases.Count; i++)
+            {
+                Assert.AreEqual("", results[i].Error, $"case {i} ({cases[i].Item1})");
+                Assert.AreEqual(Hex(cases[i].Item2), results[i].Hex, $"case {i} ({cases[i].Item1})");
+            }
+        }
+
+        private static bool DotNetThrows<T>(byte[] bytes)
+        {
+            try
+            {
+                NinoDeserializer.Deserialize<T>(bytes);
+                return false;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// Data no writer produces: bodies nested in place far deeper than 128, and truncated deep data. TypeScript reads
+        /// what .NET reads (with a bounded stack), and throws a NinoError where .NET throws, never a RangeError.
+        /// </summary>
+        [TestMethod]
+        public void ReadsOrRejectsForgedDeepDataAsDotNetDoes()
+        {
+            const int depth = 10000;
+            // Chain and RecordChain in place: a presence byte, then the value and the next one.
+            var inline = new List<byte> { 1 };
+            for (int i = 1; i <= depth; i++)
+            {
+                inline.AddRange(BitConverter.GetBytes(i));
+                inline.Add(i < depth ? (byte)1 : (byte)0);
+            }
+
+            byte[] chain = inline.ToArray();
+            // TolerantChain in place: each body a region holding the value and the next one.
+            byte[] tolerant = { 0 };
+            for (int i = 1000; i > 0; i--)
+            {
+                var body = new List<byte>();
+                body.AddRange(BitConverter.GetBytes(i));
+                body.AddRange(tolerant);
+                tolerant = BitConverter.GetBytes(body.Count).Concat(body).Prepend((byte)1).ToArray();
+            }
+
+            // Nest in place: the value, then a list of one Nest.
+            var nest = new List<byte>();
+            for (int i = 1; i < depth; i++)
+            {
+                nest.AddRange(BitConverter.GetBytes(i));
+                nest.AddRange(BitConverter.GetBytes(1));
+            }
+
+            nest.AddRange(BitConverter.GetBytes(depth));
+            nest.AddRange(BitConverter.GetBytes(-1));
+            byte[] deferred = NinoSerializer.Serialize(MakeChain(2000));
+
+            var cases = new List<(string Codec, byte[] Bytes, bool Throws)>
+            {
+                ("ChainCodec", chain, false),
+                ("RecordChainCodec", chain, true),
+                ("TolerantChainCodec", tolerant, true),
+                ("NestCodec", nest.ToArray(), true),
+            };
+            for (int cut = 1; cut < deferred.Length; cut += 997)
+                cases.Add(("ChainCodec", deferred.Take(cut).ToArray(), true));
+
+            var results = RunNode(cases.Select(c => (c.Codec, c.Bytes)).ToList());
+            for (int i = 0; i < cases.Count; i++)
+            {
+                var (codec, bytes, throws) = cases[i];
+                bool dotNetThrows = codec switch
+                {
+                    "ChainCodec" => DotNetThrows<Chain>(bytes),
+                    "RecordChainCodec" => DotNetThrows<RecordChain>(bytes),
+                    "TolerantChainCodec" => DotNetThrows<TolerantChain>(bytes),
+                    _ => DotNetThrows<Nest>(bytes),
+                };
+                Assert.AreEqual(throws, dotNetThrows, $"case {i} ({codec}) in .NET");
+                if (throws)
+                    StringAssert.StartsWith(results[i].Error, "NinoError: ", $"case {i} ({codec})");
+                else
+                    Assert.AreEqual(Hex(NinoSerializer.Serialize(NinoDeserializer.Deserialize<Chain>(bytes))),
+                        results[i].Hex, $"case {i} ({codec}): {results[i].Error}");
+            }
         }
 
         /// <summary>The generated code compiles under <c>tsc --strict</c> (with <c>tsc</c> on the PATH).</summary>

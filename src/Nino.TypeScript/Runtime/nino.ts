@@ -87,6 +87,50 @@ const textWindow = 4096;
 /** The char codes of a text being read, passed to `String.fromCharCode` at once. */
 const codes: number[] = [];
 
+/**
+ * Open class bodies after which the next one is deferred, as `NinoDepth.Inline` in .NET: its slot gets the instance
+ * now and its body is written and read later, from a shallow point (see "Deep nesting" in docs/v4-design.md), so a
+ * long list or deep tree, or data forged to nest deeply, costs a bounded stack.
+ */
+const inlineDepth = 128;
+/** Open bodies after which a body that cannot be deferred fails, as `NinoDepth.Max` in .NET. */
+const maxDepth = 512;
+/** Set in the length of a region followed by a section of the bodies deferred inside it. */
+const sectionFlag = -0x80000000;
+
+/** A body deferred until the stack is shallow again. */
+interface NinoDeferred<S> {
+  value: unknown;
+  body: (state: S, value: never) => void;
+  /** Where it was deferred: keys its entry when it is in a region's section. */
+  position: number;
+  // Writer only, to find cycles (see NinoWriter.defer).
+  anchor: unknown;
+  generation: number;
+}
+
+/** The deferred bodies of one call: outside any region, and inside the outermost region open. */
+class NinoDeferrals<S> {
+  top: NinoDeferred<S>[] = [];
+  topHead = 0;
+  region: NinoDeferred<S>[] = [];
+  regionHead = 0;
+  /** Whether `top` is being written or read. */
+  topActive = false;
+  // Writer only: the deferred object whose body is being written, for cycle detection.
+  current: unknown = null;
+  currentAnchor: unknown = null;
+  currentGeneration = 0;
+
+  add(item: NinoDeferred<S>, regions: number): void {
+    (regions === 0 ? this.top : this.region).push(item);
+  }
+}
+
+function tooDeep(): NinoError {
+  return new NinoError(`data nested deeper than ${maxDepth} bodies.`);
+}
+
 /** The native Latin-1 and UTF-16 text methods of Node's `Buffer` (Bun's and Deno's too), called on a Uint8Array. */
 interface NodeText {
   latin1Slice(this: Uint8Array, start: number, end: number): string;
@@ -202,8 +246,8 @@ export class NinoReader {
   readonly view: DataView;
   /** The offset of the next byte. */
   pos = 0;
-  // data.length, as a field: a typed array's length costs more to read.
-  private readonly end: number;
+  // data.length, as a field: a typed array's length costs more to read. A section's entry is read up to its end.
+  private end: number;
   // With Node's methods: the data from textStart to textEnd as Latin-1 text, decoded in one native call. Short
   // strings are sliced from it, which costs less than a call each (as msgpackr slices its strings from one decode).
   // It grows to textWindow bytes, so a payload with few strings decodes little.
@@ -211,6 +255,14 @@ export class NinoReader {
   private textStart = 0;
   private textEnd = 0;
   private textSize = 256;
+  /** Open class bodies, counted by generated code (see `defer`). */
+  depth = 0;
+  // Open regions, open struct bodies that can hold themselves, and the deferred bodies (made on the first one).
+  private regions = 0;
+  private structs = 0;
+  private deferrals: NinoDeferrals<NinoReader> | null = null;
+  // The regions read with a section of deferred bodies after their members: (open regions, where the region ends).
+  private sections: number[] | null = null;
 
   constructor(data: Uint8Array) {
     this.data = data;
@@ -382,17 +434,130 @@ export class NinoReader {
     return flag === 1;
   }
 
-  /** A version tolerant or keyed body (or a keyed member): its byte length. Returns the offset where it ends. */
+  /**
+   * A version tolerant or keyed body (or a keyed member): its byte length. Returns the offset where its members end
+   * (a section of deferred bodies may follow them).
+   */
   region(): number {
     const length = this.i32();
-    if (length < 0 || length > this.end - this.pos) throw new NinoError(`invalid length ${length}.`);
-    return this.pos + length;
+    this.regions++;
+    if (length >= 0 && length <= this.end - this.pos) return this.pos + length;
+    return this.sectionedRegion(length);
   }
 
-  /** Moves to the end of a region, checking that its members stayed inside it. */
+  /** A region whose length has `sectionFlag` set: where its members end, before the section and its offset. */
+  private sectionedRegion(length: number): number {
+    const total = length & 0x7fffffff, at = this.pos;
+    if (length >= 0 || total < 4 || total > this.end - at) throw new NinoError(`invalid length ${length}.`);
+    const members = this.view.getInt32(at + total - 4, true);
+    if (members < 0 || members > total - 4) throw new NinoError("invalid offset of deferred bodies.");
+    (this.sections ??= []).push(this.regions, at + total);
+    return at + members;
+  }
+
+  /**
+   * Moves to the end of a region, checking that its members stayed inside it. At the end of the outermost region,
+   * reads the bodies deferred inside it from its section.
+   */
   endRegion(end: number): void {
     if (this.pos > end) throw new NinoError("a member runs past the end of its object.");
-    this.pos = end;
+    const sections = this.sections;
+    if (sections !== null && sections.length !== 0 && sections[sections.length - 2] === this.regions) {
+      this.pos = sections.pop()!;
+      sections.pop();
+    } else {
+      this.pos = end;
+    }
+    if (--this.regions === 0 && this.deferrals !== null) this.readSection(end);
+  }
+
+  /**
+   * Generated code, for a class body opened when `depth` bodies are open already (128, `NinoDepth.Inline`): queues
+   * `value`, whose body `body` reads later. Returns `value`.
+   */
+  defer<T>(value: T, body: (reader: NinoReader, value: T) => void): T {
+    (this.deferrals ??= new NinoDeferrals()).add(
+      { value, body: body as (reader: NinoReader, value: never) => void, position: this.pos, anchor: null, generation: 0 },
+      this.regions);
+    return value;
+  }
+
+  /** Generated code: the body of a class that cannot be deferred (built by its constructor in .NET), read in place. */
+  deep<T>(value: T, body: (reader: NinoReader, value: T) => void): T {
+    const depth = this.depth;
+    if (depth + this.structs >= maxDepth) throw tooDeep();
+    this.depth = depth + 1;
+    body(this, value);
+    this.depth = depth;
+    return value;
+  }
+
+  /** Generated code: closes a class body opened when `depth` bodies were open; at 0, reads the deferred bodies. */
+  exit(depth: number): void {
+    this.depth = depth;
+    if (depth === 0 && this.deferrals !== null) this.readTop();
+  }
+
+  /** Generated code: opens the body of a struct that can hold itself, which no class body counts. */
+  enterStruct(): void {
+    if (++this.structs + this.depth > maxDepth) throw tooDeep();
+  }
+
+  /** Generated code: closes a body opened by `enterStruct`. */
+  exitStruct(): void { this.structs--; }
+
+  /** Every body is closed: reads the bodies deferred outside regions, in order, each from depth 1. */
+  private readTop(): void {
+    const d = this.deferrals!;
+    if (d.topActive || d.topHead === d.top.length) return;
+    d.topActive = true;
+    while (d.topHead < d.top.length) {
+      const item = d.top[d.topHead++];
+      this.depth = 1;
+      item.body(this, item.value as never);
+    }
+    this.depth = 0;
+    d.top.length = d.topHead = 0;
+    d.topActive = false;
+  }
+
+  /**
+   * After the outermost region (its members end at `regionEnd`; the reader is past its section and the section's
+   * offset): reads each body deferred inside it from its entry, `(int32 key, int32 length, body)`, matched in order by
+   * the key (where it was deferred, relative to the region's start). Entries of objects this reader skipped (members
+   * it does not know) are skipped. Bodies deferred while reading them are appended.
+   */
+  private readSection(regionEnd: number): void {
+    const d = this.deferrals!, queue = d.region;
+    if (d.regionHead === queue.length) return;
+    const after = this.pos, sectionEnd = after - 4;
+    if (sectionEnd <= regionEnd) throw new NinoError("missing deferred bodies.");
+    const view = this.view, start = regionEnd - view.getInt32(sectionEnd, true);
+    const end = this.end, depth = this.depth, entryDepth = Math.min(depth, inlineDepth - 1) + 1;
+    let at = regionEnd;
+    this.regions = 1;
+    while (d.regionHead < queue.length) {
+      const item = queue[d.regionHead++];
+      for (;;) {
+        if (sectionEnd - at < 8) throw new NinoError("unexpected end of data.");
+        const key = view.getInt32(at, true), length = view.getInt32(at + 4, true);
+        at += 8;
+        if (length < 0 || length > sectionEnd - at) throw new NinoError(`invalid length ${length}.`);
+        const entry = at;
+        at += length;
+        if (start + key !== item.position) continue;
+        this.pos = entry;
+        this.end = entry + length;
+        this.depth = entryDepth;
+        item.body(this, item.value as never);
+        break;
+      }
+    }
+    this.regions = 0;
+    this.end = end;
+    this.depth = depth;
+    this.pos = after;
+    queue.length = d.regionHead = 0;
   }
 }
 
@@ -410,6 +575,12 @@ export class NinoWriter {
   private end = 256;
   // Where the value being written starts: 0, unless `serialize` uses the writer (see `next`).
   private start = 0;
+  /** Open class bodies, counted by generated code (see `defer`). */
+  depth = 0;
+  // Open regions, open struct bodies that can hold themselves, and the deferred bodies (made on the first one).
+  private regions = 0;
+  private structs = 0;
+  private deferrals: NinoDeferrals<NinoWriter> | null = null;
 
   /** Moves past `size` bytes, growing the buffer if needed: returns where they start. */
   reserve(size: number): number {
@@ -442,6 +613,9 @@ export class NinoWriter {
       at = 0;
     }
     this.start = this.pos = at;
+    // A value that failed may have left bodies open.
+    this.depth = this.regions = this.structs = 0;
+    this.deferrals = null;
   }
 
   /** The value started by `next`, as a view of the buffer, which the writer does not write to again. */
@@ -647,10 +821,111 @@ export class NinoWriter {
   }
 
   /** Starts a version tolerant or keyed body (or a keyed member): returns where its length goes. */
-  region(): number { return this.reserve(4); }
+  region(): number {
+    this.regions++;
+    return this.reserve(4);
+  }
 
-  /** Ends the region started at `start`: writes its byte length. */
-  endRegion(start: number): void { this.view.setInt32(start, this.pos - start - 4, true); }
+  /**
+   * Ends the region started at `start`: writes its byte length. The outermost region is followed by the bodies
+   * deferred inside it, if any.
+   */
+  endRegion(start: number): void {
+    if (--this.regions === 0 && this.deferrals !== null && this.deferrals.regionHead !== this.deferrals.region.length) {
+      this.writeSection(start);
+      return;
+    }
+    this.view.setInt32(start, this.pos - start - 4, true);
+  }
+
+  /**
+   * Generated code, for a class body opened when `depth` bodies are open already (128, `NinoDepth.Inline`): queues
+   * `value`, whose body `body` writes later. Throws on a cycle: the deferred objects form chains (each deferred while
+   * writing the one before), and an object that comes back in its own chain would be written forever. It is compared
+   * with the chain's object at the last power-of-two length (Brent), as in .NET.
+   */
+  defer<T>(value: T, body: (writer: NinoWriter, value: T) => void): void {
+    const d = this.deferrals ??= new NinoDeferrals();
+    const generation = d.currentGeneration;
+    const anchor = generation !== 0 && (generation & (generation - 1)) === 0 ? d.current : d.currentAnchor;
+    if (value === d.current || value === anchor)
+      throw new NinoError(`${(value as object).constructor.name} is part of a cycle, which cannot be written.`);
+    d.add({ value, body: body as (writer: NinoWriter, value: never) => void, position: this.pos, anchor,
+      generation: generation + 1 }, this.regions);
+  }
+
+  /** Generated code: the body of a class that cannot be deferred (built by its constructor in .NET), in place. */
+  deep<T>(value: T, body: (writer: NinoWriter, value: T) => void): void {
+    const depth = this.depth;
+    if (depth >= maxDepth) throw tooDeep();
+    this.depth = depth + 1;
+    body(this, value);
+    this.depth = depth;
+  }
+
+  /** Generated code: closes a class body opened when `depth` bodies were open; at 0, writes the deferred bodies. */
+  exit(depth: number): void {
+    this.depth = depth;
+    if (depth === 0 && this.deferrals !== null) this.writeTop();
+  }
+
+  /**
+   * Generated code: opens the body of a struct that can hold itself, which no class body counts (a value .NET could
+   * not read, or a cycle, throws).
+   */
+  enterStruct(): void {
+    if (++this.structs + this.depth > maxDepth) throw tooDeep();
+  }
+
+  /** Generated code: closes a body opened by `enterStruct`. */
+  exitStruct(): void { this.structs--; }
+
+  /** Every body is closed and no region is open: writes the bodies deferred outside regions, in order. */
+  private writeTop(): void {
+    const d = this.deferrals!;
+    if (d.topActive || d.topHead === d.top.length) return;
+    d.topActive = true;
+    while (d.topHead < d.top.length) this.writeDeferred(d, d.top[d.topHead++], 1);
+    this.depth = 0;
+    d.top.length = d.topHead = 0;
+    d.topActive = false;
+    d.current = d.currentAnchor = null;
+    d.currentGeneration = 0;
+  }
+
+  private writeDeferred(d: NinoDeferrals<NinoWriter>, item: NinoDeferred<NinoWriter>, depth: number): void {
+    d.current = item.value;
+    d.currentAnchor = item.anchor;
+    d.currentGeneration = item.generation;
+    this.depth = depth;
+    item.body(this, item.value as never);
+  }
+
+  /**
+   * Ends the outermost region (its length at `lengthAt`): writes the bodies deferred inside it as a section of
+   * `(int32 key, int32 length, body)` entries, then the section's offset, and sets `sectionFlag` in its length.
+   */
+  private writeSection(lengthAt: number): void {
+    const d = this.deferrals!, queue = d.region, start = lengthAt + 4, section = this.pos, depth = this.depth;
+    const current = d.current, anchor = d.currentAnchor, generation = d.currentGeneration;
+    const entryDepth = Math.min(depth, inlineDepth - 1) + 1;
+    this.regions = 1;
+    while (d.regionHead < queue.length) {
+      const item = queue[d.regionHead++], at = this.reserve(8);
+      this.view.setInt32(at, item.position - start, true);
+      this.writeDeferred(d, item, entryDepth);
+      this.view.setInt32(at + 4, this.pos - at - 8, true);
+    }
+    this.regions = 0;
+    this.depth = depth;
+    d.current = current;
+    d.currentAnchor = anchor;
+    d.currentGeneration = generation;
+    queue.length = d.regionHead = 0;
+    const at = this.reserve(4);
+    this.view.setInt32(at, section - start, true);
+    this.view.setInt32(lengthAt, (this.pos - start) | sectionFlag, true);
+  }
 }
 
 interface NinoEntry {

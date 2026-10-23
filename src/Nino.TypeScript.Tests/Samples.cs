@@ -142,6 +142,79 @@ namespace Samples
         public decimal[] Decimals;
     }
 
+    // Deep nesting: past 128 open class bodies, a body is deferred (see "Deep nesting" in docs/v4-design.md).
+
+    /// <summary>Deferred bodies follow the top-level object.</summary>
+    [NinoType]
+    public sealed class Chain
+    {
+        public int Value;
+        public Chain Next;
+    }
+
+    /// <summary>Deferred behind a type id: the id is written in place, the body later.</summary>
+    [NinoType]
+    public class Link
+    {
+        public string Name;
+        public Link Next;
+    }
+
+    [NinoType]
+    public sealed class BigLink : Link
+    {
+        public long Extra;
+    }
+
+    /// <summary>Deferred inside a region: in a section at the end of the outermost one.</summary>
+    [NinoType(format: NinoFormat.VersionTolerant)]
+    public sealed class TolerantChain
+    {
+        public int Value;
+        public TolerantChain Next;
+    }
+
+    [NinoType(format: NinoFormat.Keyed)]
+    public sealed class KeyedChain
+    {
+        public int Value;
+        public KeyedChain Next;
+        public List<KeyedChain> More;
+    }
+
+    /// <summary>A tree: deferred bodies in lists.</summary>
+    [NinoType]
+    public sealed class Tree
+    {
+        public string Name;
+        public List<Tree> Children;
+    }
+
+    /// <summary>Built by its constructor: never deferred, nested in place up to 512 bodies.</summary>
+    [NinoType]
+    public sealed record RecordChain(int Value, RecordChain Next);
+
+    /// <summary>A struct that holds itself: no class body counts its nesting.</summary>
+    [NinoType]
+    public struct Nest
+    {
+        public int Value;
+        public List<Nest> Inner;
+    }
+
+    /// <summary>All of them, in a struct.</summary>
+    [NinoType]
+    public struct Deep
+    {
+        public Chain Chain;
+        public Link Link;
+        public TolerantChain Tolerant;
+        public KeyedChain Keyed;
+        public Tree Tree;
+        public RecordChain Record;
+        public Nest Nest;
+    }
+
     /// <summary>Left out of TypeScript (reference tracking), with a warning.</summary>
     [NinoType(trackReferences: true)]
     public sealed class Node

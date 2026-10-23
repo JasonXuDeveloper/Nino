@@ -15,9 +15,21 @@ const json = (value: unknown) =>
 
 const cases = JSON.parse(readFileSync(process.argv[2], "utf8")) as { codec: string; hex: string }[];
 const codecs = types as unknown as Record<string, NinoCodec<unknown>>;
+// A case that throws gives its error (bad data must throw a NinoError); a value too deep for JSON.stringify, no JSON.
 const results = cases.map(({ codec, hex: input }) => {
-  const value = deserialize(codecs[codec], Buffer.from(input, "hex"));
-  return { hex: hex(serialize(codecs[codec], value)), json: json(value) };
+  let value: unknown;
+  try {
+    value = deserialize(codecs[codec], Buffer.from(input, "hex"));
+  } catch (e) {
+    return { hex: "", json: "", error: `${(e as Error).name}: ${(e as Error).message}` };
+  }
+  let text = "";
+  try {
+    text = json(value);
+  } catch {
+    // Too deep to print.
+  }
+  return { hex: hex(serialize(codecs[codec], value)), json: text, error: "" };
 });
 
 // A value made in TypeScript, for .NET to read.
@@ -42,6 +54,6 @@ player.shape = square;
 const saved = new types.Saved();
 saved.health = 77;
 player.saved = saved;
-results.push({ hex: hex(serialize(types.PlayerCodec, player)), json: "" });
+results.push({ hex: hex(serialize(types.PlayerCodec, player)), json: "", error: "" });
 
 console.log(JSON.stringify(results));
