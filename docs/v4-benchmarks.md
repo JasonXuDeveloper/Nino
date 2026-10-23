@@ -190,19 +190,17 @@ the result objects.
   inline, as overlapping loads and stores of the widest vector that fits; up to 32 KB (64-byte vectors) or 16 KB
   (32-byte vectors, from 256 bytes) as vectors with aligned stores; on Arm64 up to 64 KB as pairs of 16-byte loads
   and stores (`ldp`/`stp`), 64 bytes a step from an aligned source address, which beats the C library's `memcpy`
-  there (with only 16-byte vectors on x64 with SSE and WebAssembly, `memmove` from 65 bytes); beyond, with `memmove`, which is far slower on some
-  CPUs (8,000 bytes in 236 ns on GitHub's EPYC 9V74 runners and 2.8 µs on their EPYC 7763 ones, against 83 to 85 ns for
-  the vector loop). Reads of 6 KB or more into a new array use
+  there (with only 16-byte vectors on x64 with SSE and WebAssembly, `memmove` from 65 bytes); beyond, with `memmove`, which is several times slower than
+  the vector loop at these sizes on some CPUs (GitHub's EPYC 7763 runners). Reads of 6 KB or more into a new array use
   `memmove`, whose `rep movsb` writes fresh cache lines without reading them first, except on AMD CPUs, where it is
   slower than vector stores there too (1,000 `KeyValuePair<int, int>` read in 418 ns instead of 465 ns on GitHub's
   EPYC 7763 runners); a list of up to 64 bytes read in place calls `memmove` directly, cheaper than the out-of-line
   copy for so few bytes.
 * **Zeroing only where it pays.** A new array that one block copy fills is allocated uninitialized from 6 KB: below,
-  the runtime's uninitialized allocation costs more than zeroing (on GitHub's runners, 1.1x the time at 4 KB, 1.4x to
-  2.2x at 2 KB).
+  the runtime's uninitialized allocation costs more than zeroing on GitHub's x64 and Arm64 runners.
   One filled by vector shuffles or value by value (padded tuples, `DateTimeOffset`s) is allocated zeroed: the
   clearing brings its lines into the cache, where each store into an uninitialized line first reads it from
-  memory (1,000 `(int, long)` into a new list in 1.5 µs instead of 2.7 µs). Slots a read overwrites are not cleared
+  memory. Slots a read overwrites are not cleared
   first, in new or existing lists and arrays.
 * **Padded tuples as vector shuffles.** Arrays and lists of value tuples, `KeyValuePair`s and other padded values are
   written and read a group of values at a time: with AVX-512, by permutes across a vector; elsewhere, each 16-byte
@@ -223,8 +221,7 @@ the result objects.
   loaded and only the group's bytes stored, and the permute's indices stay in registers (a `Vector512` is a struct of
   four there, which as a parameter was copied through the stack every group). Where the stores are aligned, the
   unaligned head and tail of the output are covered by whole groups that overlap the body, so the time does not depend
-  on where the buffer starts (1,000 `(int, long)` in 122 to 130 ns at any alignment instead of 123 to 149, AVX-512
-  Xeon).
+  on where the buffer starts.
 * **Layout flags folded by the JIT.** Whether a type's memory layout equals the wire layout, and whether it
   has padding, are `static readonly` values, which tiered compilation turns into constants: on 64-bit
   runtimes a raw struct costs a plain copy. Other runtimes (32-bit, old Mono) convert field by field into
@@ -235,8 +232,7 @@ the result objects.
   the vector width (the block usually follows a 4-byte length, so unaligned stores would split cache lines
   every other store), the loop is unrolled 4×, and the unaligned head and tail vectors overlap the body.
   On 100 padded `SimpleStruct`s (16 bytes each without `Pack`, 1.6 KB) this costs about 5 ns over a plain `memcpy`.
-  The loop indexes with native-sized offsets (1,000 8-byte structs with a padding byte in 66 ns instead of 74 with
-  64-byte vectors), and on Arm64 loads and stores pairs of 16-byte vectors (`ldp`/`stp`), as the C library's `memcpy`
+  The loop indexes with native-sized offsets, and on Arm64 loads and stores pairs of 16-byte vectors (`ldp`/`stp`), as the C library's `memcpy`
   does. A struct without padding, or one
   declared with `[StructLayout(LayoutKind.Sequential, Pack = 4)]`, skips the mask and is a plain block copy;
   `LayoutKind.Auto` structs are not raw at all and are written field by field.
