@@ -1,4 +1,3 @@
-#nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -59,10 +58,10 @@ namespace Nino.Core
             public int Align;
 
             /// <summary>Canonical byte mask: 0xFF for field bytes, 0 for padding. Null without padding.</summary>
-            public byte[]? Mask;
+            public byte[] Mask;
 
             /// <summary>When not canonical: (memory offset, wire offset, size) runs.</summary>
-            public int[]? Map;
+            public int[] Map;
         }
 
         /// <summary>Layout info for <paramref name="type"/>; <paramref name="runtimeSize"/> validates the model.</summary>
@@ -143,7 +142,7 @@ namespace Nino.Core
         /// <summary>Copies a value between its memory layout and its wire layout using <see cref="Info.Map"/>.</summary>
         internal static void Convert(Info info, ref byte memory, ref byte wire, bool toWire)
         {
-            var map = info.Map!;
+            var map = info.Map;
             if (toWire)
                 Unsafe.InitBlockUnaligned(ref wire, 0, (uint)info.Size);
             for (int i = 0; i < map.Length; i += 3)
@@ -230,11 +229,11 @@ namespace Nino.Core
         private readonly ulong[] _words; // the mask repeated over lcm(length, 8) bytes
         // The mask repeated over lcm(length, vector width) bytes plus one vector more, so the mask of any offset
         // is a single unaligned load.
-        private readonly byte[]? _vectorMask;
+        private readonly byte[] _vectorMask;
         private readonly int _vectorPeriod;
 #if NET8_0_OR_GREATER
         // The same for 64-byte vectors, where they are accelerated (see CopyVectors512).
-        private readonly byte[]? _mask512;
+        private readonly byte[] _mask512;
         private readonly int _period512;
 #endif
         private readonly int[] _gaps; // (offset, length) of each run of cleared bytes in one element
@@ -243,7 +242,7 @@ namespace Nino.Core
         public int[] Gaps => _gaps;
 
         /// <summary>Returns a mask, or null when <paramref name="mask"/> keeps every byte.</summary>
-        public static NinoMask? Create(byte[] mask) =>
+        public static NinoMask Create(byte[] mask) =>
             Array.IndexOf(mask, (byte)0) < 0 ? null : new NinoMask(mask);
 
         private NinoMask(byte[] mask)
@@ -340,7 +339,7 @@ namespace Nino.Core
         {
             nuint width = (nuint)Vector<byte>.Count;
             nuint period = (nuint)_vectorPeriod;
-            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_vectorMask!);
+            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_vectorMask);
             Unsafe.WriteUnaligned(ref destination,
                 Unsafe.ReadUnaligned<Vector<byte>>(ref source) & Unsafe.ReadUnaligned<Vector<byte>>(ref mask));
 
@@ -445,7 +444,7 @@ namespace Nino.Core
         {
             nuint width = (nuint)Vector512<byte>.Count;
             nuint period = (nuint)_period512;
-            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_mask512!);
+            ref byte mask = ref NinoUnsafe.GetArrayDataReference(_mask512);
             (Vector512.LoadUnsafe(ref source) & Vector512.LoadUnsafe(ref mask)).StoreUnsafe(ref destination);
 
             nuint i = width - ((nuint)Unsafe.AsPointer(ref destination) & (width - 1));
@@ -563,7 +562,7 @@ namespace Nino.Core
         /// <summary>Whether values can be copied as raw memory on this runtime.</summary>
         public static readonly bool IsCanonical = Info.Canonical;
 
-        private static readonly NinoMask? Mask = Info.Mask == null ? null : NinoMask.Create(Info.Mask);
+        private static readonly NinoMask Mask = Info.Mask == null ? null : NinoMask.Create(Info.Mask);
 
         /// <summary>Whether the canonical layout has padding bytes (cleared on write).</summary>
         public static readonly bool HasPadding = Mask != null;
@@ -593,15 +592,15 @@ namespace Nino.Core
                 return;
             }
 
-            Mask!.Clear(ref destination, count);
+            Mask.Clear(ref destination, count);
         }
 
         // The first two padding runs, as JIT-time constants for single values.
         private static readonly int GapCount = Mask == null ? 0 : Mask.Gaps.Length / 2;
-        private static readonly int Gap0Offset = GapCount > 0 ? Mask!.Gaps[0] : 0;
-        private static readonly int Gap0Length = GapCount > 0 ? Mask!.Gaps[1] : 0;
-        private static readonly int Gap1Offset = GapCount > 1 ? Mask!.Gaps[2] : 0;
-        private static readonly int Gap1Length = GapCount > 1 ? Mask!.Gaps[3] : 0;
+        private static readonly int Gap0Offset = GapCount > 0 ? Mask.Gaps[0] : 0;
+        private static readonly int Gap0Length = GapCount > 0 ? Mask.Gaps[1] : 0;
+        private static readonly int Gap1Offset = GapCount > 1 ? Mask.Gaps[2] : 0;
+        private static readonly int Gap1Length = GapCount > 1 ? Mask.Gaps[3] : 0;
 
         /// <summary>
         /// Copies <paramref name="count"/> canonical values to the wire, padding cleared in the same pass (masking
@@ -612,7 +611,7 @@ namespace Nino.Core
         public static void CopyToWire(ref byte destination, ref byte source, int count)
         {
             if (HasPadding)
-                Mask!.Copy(ref destination, ref source, count);
+                Mask.Copy(ref destination, ref source, count);
             else
                 NinoUnsafe.Copy(ref destination, ref source, (uint)count * (uint)Unsafe.SizeOf<T>());
         }
@@ -653,7 +652,7 @@ namespace Nino.Core
         {
             if (IsCanonical)
                 return NinoUnsafe.Read<T>(ref source);
-            T value = default!;
+            T value = default;
             NinoLayout.Convert(Info, ref Unsafe.As<T, byte>(ref value), ref source, false);
             return value;
         }

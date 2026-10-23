@@ -198,7 +198,7 @@ namespace Nino.Core.Internal
 
         private static bool CheckSet(int mask, int bias)
         {
-#if NET5_0_OR_GREATER || NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET8_0_OR_GREATER
             try
             {
                 var values = CheckValues();

@@ -248,7 +248,7 @@ namespace Nino.Core
             }
         }
 
-#if NET6_0_OR_GREATER
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Discards the (element, priority) pairs of a priority queue that is about to be cleared and refilled: each
         /// element and priority is recycled once. The caller clears the queue.

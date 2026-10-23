@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.Arm;
 #endif
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
 using System.Runtime.Intrinsics.X86;
 #endif
 
@@ -22,7 +22,7 @@ namespace Nino.Core
         /// <summary>The most elements an array (of bytes, or a dimension of any array) can have.</summary>
         internal const int MaxArrayLength = 0x7FFFFFC7;
 
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
         /// <summary>
         /// Smallest array (in bytes) allocated uninitialized. GC.AllocateUninitializedArray zeroes below 2 KB anyway,
         /// and from there takes a slower allocation path than new T[], which only zeroing a larger array pays for.
@@ -163,7 +163,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static ref T GetArrayDataReference<T>(T[] array)
         {
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             return ref MemoryMarshal.GetArrayDataReference(array);
 #else
             return ref MemoryMarshal.GetReference(array.AsSpan());
@@ -292,7 +292,7 @@ namespace Nino.Core
             Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
         }
 
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
         /// <summary>
         /// An AMD x64 CPU, whose rep movsb (Memmove's copy of a large block) is slower than vector stores also into a
         /// new array, where Intel's writes whole lines without reading them first. Measured on GitHub's EPYC 7763
@@ -324,7 +324,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         public static void CopyToNew(ref byte destination, ref byte source, uint size)
         {
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             if (size >= MinUninitializedArrayBytes && !AmdCopy)
             {
                 Unsafe.CopyBlockUnaligned(ref destination, ref source, size);
@@ -479,7 +479,7 @@ namespace Nino.Core
                 return new T[length];
             if (length == 0)
                 return Array.Empty<T>();
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             // At least MinUninitializedArrayBytes (MaxZeroedLength): no size test of its own.
             if (uninitialized)
                 return GC.AllocateUninitializedArray<T>(length);
@@ -494,7 +494,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int MaxZeroedLength<T>(bool uninitialized)
         {
-#if NET5_0_OR_GREATER
+#if NET8_0_OR_GREATER
             // length * size < MinUninitializedArrayBytes.
             if (uninitialized)
                 return (MinUninitializedArrayBytes - 1) / Unsafe.SizeOf<T>();

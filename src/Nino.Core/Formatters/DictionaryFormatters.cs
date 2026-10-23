@@ -196,7 +196,7 @@ namespace Nino.Core
         {
             NinoRecycler.DiscardPairs<TKey, TValue>(dictionary);
             dictionary.Clear();
-#if NET8_0_OR_GREATER || NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET8_0_OR_GREATER
             dictionary.EnsureCapacity(Capacity(length, remaining));
 #endif
         }

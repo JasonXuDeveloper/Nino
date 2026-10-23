@@ -160,7 +160,7 @@ namespace Nino.Core
             if (NinoRecycler.DiscardAll(set, set.Count))
                 set.Clear();
 
-#if NET8_0_OR_GREATER || NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET8_0_OR_GREATER
             // Sized for the elements, unless its entries would take far more memory than the data (large elements):
             // then it grows as they are added.
             if (length != 0)
