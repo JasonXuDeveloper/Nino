@@ -5,7 +5,10 @@ namespace Nino.Core
     /// <summary>
     /// A former name of the type or member this is applied to.
     /// <para>On a type: its former name in runtime form (e.g. <c>Old.Namespace.Outer+Type</c>). The type id is computed
-    /// from this name, so data written before the type was renamed or moved can still be read. Give it once (a second one is error NINO026).</para>
+    /// from this name, so data written before the type was renamed or moved can still be read. Give it once (a second one is error NINO026).
+    /// On a generic type the name replaces the whole name, type arguments included, so every instantiation gets the
+    /// same type id: two of them written with their type id (through a base type, an interface or <c>object</c>)
+    /// cannot be told apart (warning NINO027).</para>
     /// <para>On a field or property of a keyed type (<c>[NinoType(format: NinoFormat.Keyed)]</c>): a name the member was written
     /// under before it was renamed, once per earlier name. Reading accepts the current name and every former name;
     /// writing always uses the current name. Positional and version-tolerant types write no member names, so there
