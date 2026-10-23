@@ -234,47 +234,35 @@ func latin1String(b []byte) string {
 	return unsafe.String(unsafe.SliceData(out), len(out))
 }
 
-// utf16String returns the text of UTF-16 code units (2 bytes each, little-endian) as UTF-8, each unpaired
-// surrogate as U+FFFD.
+// utf16String returns the text of UTF-16 code units (2 bytes each, little-endian) as WTF-8: UTF-8, with each
+// unpaired surrogate in the 3-byte form UTF-8 reserves for it (so the text keeps every code unit; see [Reader.String]).
 func utf16String(b []byte) string {
-	n := len(b) / 2
+	b = b[:len(b)&^1]
 	// The UTF-8 length first, then one allocation.
 	size := 0
-	ascii := true
-	for i := 0; i < n; i++ {
-		u := binary.LittleEndian.Uint16(b[2*i:])
+	for p := b; len(p) >= 2; p = p[2:] {
+		u := binary.LittleEndian.Uint16(p)
 		switch {
 		case u < 0x80:
 			size++
 		case u < 0x800:
 			size += 2
-			ascii = false
-		case u >= 0xD800 && u < 0xDC00 && i+1 < n && isLow(binary.LittleEndian.Uint16(b[2*i+2:])):
+		case u >= 0xD800 && u < 0xDC00 && len(p) >= 4 && isLow(binary.LittleEndian.Uint16(p[2:])):
 			size += 4
-			i++
-			ascii = false
+			p = p[2:]
 		default:
 			// Any other char, or an unpaired surrogate (in WTF-8): 3 bytes.
 			size += 3
-			ascii = false
 		}
 	}
 	out := make([]byte, size)
-	if ascii {
-		for i := range out {
-			out[i] = b[2*i]
-		}
-		return unsafe.String(unsafe.SliceData(out), len(out))
-	}
 	j := 0
-	for i := 0; i < n; i++ {
-		u := rune(binary.LittleEndian.Uint16(b[2*i:]))
-		if u >= 0xD800 && u < 0xE000 {
-			if u < 0xDC00 && i+1 < n {
-				if lo := rune(binary.LittleEndian.Uint16(b[2*i+2:])); isLow(uint16(lo)) {
-					u = 0x10000 + (u-0xD800)<<10 + (lo - 0xDC00)
-					i++
-				}
+	for p := b; len(p) >= 2; p = p[2:] {
+		u := rune(binary.LittleEndian.Uint16(p))
+		if u >= 0xD800 && u < 0xDC00 && len(p) >= 4 {
+			if lo := rune(binary.LittleEndian.Uint16(p[2:])); isLow(uint16(lo)) {
+				u = 0x10000 + (u-0xD800)<<10 + (lo - 0xDC00)
+				p = p[2:]
 			}
 		}
 		if u >= 0xD800 && u < 0xE000 {
@@ -311,7 +299,11 @@ func isLow(u uint16) bool { return u >= 0xDC00 && u < 0xE000 }
 func decodeUnits(b []byte) []uint16 {
 	units := make([]uint16, len(b)/2)
 	for i := range units {
-		units[i] = binary.LittleEndian.Uint16(b[2*i:])
+		if len(b) < 2 {
+			break
+		}
+		units[i] = binary.LittleEndian.Uint16(b)
+		b = b[2:]
 	}
 	return units
 }
