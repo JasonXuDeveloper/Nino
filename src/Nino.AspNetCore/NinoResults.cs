@@ -13,7 +13,11 @@ namespace Nino.AspNetCore
         /// <summary>A 200 response with <paramref name="value"/> as its Nino body.</summary>
         public static NinoResult<T> Ok<T>(T value) => new NinoResult<T>(value, null);
 
-        /// <summary>A response with status <paramref name="statusCode"/> and <paramref name="value"/> as its Nino body.</summary>
+        /// <summary>
+        /// A response with status <paramref name="statusCode"/> and <paramref name="value"/> as its Nino body. OpenAPI
+        /// still sees a 200 (the status is chosen at run time, the metadata from the handler's return type): declare
+        /// another status on the endpoint, e.g. <c>.Produces&lt;T&gt;(201, NinoMediaTypes.Application)</c>.
+        /// </summary>
         public static NinoResult<T> Status<T>(int statusCode, T value) => new NinoResult<T>(value, statusCode);
     }
 
@@ -50,6 +54,7 @@ namespace Nino.AspNetCore
             return httpContext.Response.WriteAsNinoAsync(Value, httpContext.RequestAborted);
         }
 
+        // Static, from the return type alone: a status given to NinoResults.Status is not known here.
         static void IEndpointMetadataProvider.PopulateMetadata(MethodInfo method, EndpointBuilder builder)
         {
             ArgumentNullException.ThrowIfNull(builder);
