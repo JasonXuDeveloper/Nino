@@ -175,7 +175,9 @@ namespace Nino.Core
 
         private static bool Compute()
         {
-            if (NinoUnsafe.IsReferenceOrContainsReferences<T>())
+            // A big-endian host takes the formatter, whose writer or reader rejects it (BitConverter.IsLittleEndian
+            // is a JIT-time constant: this field stays one).
+            if (NinoUnsafe.IsReferenceOrContainsReferences<T>() || !BitConverter.IsLittleEndian)
                 return false;
             var formatter = NinoTopFormatter<T>.Formatter;
             return formatter != null && formatter.IsRaw;

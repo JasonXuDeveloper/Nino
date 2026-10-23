@@ -35,6 +35,9 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static byte[] WriteFixed<T, TFormatter>(in T value) where TFormatter : struct, INinoFixedSizeFormatter<T>
         {
+            // Bytes are written little-endian, as Writer does (which rejects other hosts); a JIT-time constant.
+            if (!BitConverter.IsLittleEndian)
+                NinoThrow.BigEndianHost();
             // A null sealed class: its null flag (0), which a new array holds.
             if (value == null)
                 return new byte[1];

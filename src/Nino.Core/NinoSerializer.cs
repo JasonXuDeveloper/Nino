@@ -149,7 +149,8 @@ namespace Nino.Core
 
             private static INinoRawArrayFormatter Create()
             {
-                if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1)
+                // A big-endian host takes the formatter, whose writer or reader rejects it.
+                if (!typeof(T).IsArray || typeof(T).GetArrayRank() != 1 || !BitConverter.IsLittleEndian)
                     return null;
                 // Through the snapshot (a use of T's formatter); null without a formatter: the regular path reports it.
                 return NinoTopFormatter<T>.Formatter?.RawArray;
