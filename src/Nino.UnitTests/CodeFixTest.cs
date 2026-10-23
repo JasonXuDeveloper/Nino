@@ -1352,6 +1352,56 @@ public class TestClass
     }
 
     [TestMethod]
+    public async Task NINO013_ChangeDuplicateIndex_EachReportedDuplicateTakesItsOwnFreeIndex()
+    {
+        // The analyzer ranks the duplicates it reports (Diagnostic.Properties): fixed together, each sees the
+        // original document and still takes a different free index.
+        var code = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false)]
+public class TestClass
+{
+    [NinoMember(0)]
+    public int A { get; set; }
+
+    [NinoMember(0)]
+    public int B { get; set; }
+
+    [NinoMember(1)]
+    public int C { get; set; }
+
+    [NinoMember(1)]
+    public int D { get; set; }
+}";
+
+        var fixedCode = @"
+using Nino.Core;
+
+[NinoType(autoCollect: false)]
+public class TestClass
+{
+    [NinoMember(0)]
+    public int A { get; set; }
+
+    [NinoMember(2)]
+    public int B { get; set; }
+
+    [NinoMember(1)]
+    public int C { get; set; }
+
+    [NinoMember(3)]
+    public int D { get; set; }
+}";
+
+        await SetUpCodeFixTest(code, fixedCode,
+            new DiagnosticResult("NINO013", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+                .WithSpan(11, 16, 11, 17).WithArguments("TestClass", "B", "TestClass", "A"),
+            new DiagnosticResult("NINO013", Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+                .WithSpan(17, 16, 17, 17).WithArguments("TestClass", "D", "TestClass", "C")).RunAsync();
+    }
+
+    [TestMethod]
     public async Task NINO013_ChangeDuplicateIndex_Property()
     {
         var code = @"

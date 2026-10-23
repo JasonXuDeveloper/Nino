@@ -93,8 +93,9 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
 
         ReportFormerNames(sink, type, facts.Symbols);
 
+        int duplicates = 0;
         foreach (var finding in findings)
-            Report(sink, type, finding);
+            Report(sink, type, finding, ref duplicates);
     }
 
     /// <summary>
@@ -117,7 +118,7 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
     }
 
     /// <summary>Reports what <see cref="MemberCollector"/> found about a member <paramref name="type"/> declares.</summary>
-    private static void Report(DiagnosticSink sink, INamedTypeSymbol type, MemberFinding finding)
+    private static void Report(DiagnosticSink sink, INamedTypeSymbol type, MemberFinding finding, ref int duplicates)
     {
         var member = finding.Member;
         switch (finding.Kind)
@@ -140,8 +141,10 @@ public sealed class NinoAnalyzer : DiagnosticAnalyzer
                 break;
             case MemberFindingKind.DuplicateIndex:
                 var other = finding.Other!;
-                sink.Report(NinoDiagnostics.DuplicateIndex, member, type.Name, member.Name, other.ContainingType.Name,
-                    other.Name);
+                sink.ReportWith(NinoDiagnostics.DuplicateIndex, member,
+                    ImmutableDictionary<string, string?>.Empty.Add(NinoDiagnostics.DuplicateRank,
+                        (duplicates++).ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                    type.Name, member.Name, other.ContainingType.Name, other.Name);
                 break;
         }
     }

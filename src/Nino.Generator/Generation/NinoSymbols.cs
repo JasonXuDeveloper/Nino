@@ -26,8 +26,8 @@ internal sealed class NinoSymbols
     public NinoSymbols(Compilation compilation)
     {
         INamedTypeSymbol? Core(string name) => compilation.GetTypeByMetadataName(NinoNames.Core(name));
-        Member = Core("NinoMemberAttribute");
-        Ignore = Core("NinoIgnoreAttribute");
+        Member = Core(NinoNames.NinoMember + "Attribute");
+        Ignore = Core(NinoNames.NinoIgnore + "Attribute");
         CustomFormatter = Core("NinoCustomFormatterAttribute");
         IFormatter = Core("INinoFormatter`1");
         FormatterAttribute = Core("NinoFormatterAttribute");

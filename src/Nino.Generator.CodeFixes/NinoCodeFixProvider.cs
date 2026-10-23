@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Composition;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,16 +31,23 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
 
     private sealed class Fix
     {
-        public Fix(string title, string key, Edit apply, Func<SyntaxNode, bool>? applies = null) =>
+        public Fix(string title, string key, Edit apply, Func<SyntaxNode, bool>? applies = null)
+            : this(title, key, _ => apply, applies)
+        {
+        }
+
+        /// <summary>A fix whose edit depends on the diagnostic (its properties).</summary>
+        public Fix(string title, string key, Func<Diagnostic, Edit> apply, Func<SyntaxNode, bool>? applies = null) =>
             (Title, Key, Apply, Applies) = (title, key, apply, applies);
 
         public string Title { get; }
         public string Key { get; }
-        public Edit Apply { get; }
+        public Func<Diagnostic, Edit> Apply { get; }
         public Func<SyntaxNode, bool>? Applies { get; }
     }
 
-    private const string NinoMember = "NinoMember", NinoIgnore = "NinoIgnore", NinoType = NinoNames.NinoType;
+    private const string NinoMember = NinoNames.NinoMember, NinoIgnore = NinoNames.NinoIgnore,
+        NinoType = NinoNames.NinoType;
 
     private static readonly Dictionary<string, Fix[]> Fixes = new()
     {
@@ -70,7 +78,7 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 RemoveAttribute(e, n, NinoIgnore);
             }),
         },
-        [NinoDiagnostics.DuplicateIndex.Id] = new[] { new Fix("Use the next free index", "NextIndex", UseNextFreeIndex) },
+        [NinoDiagnostics.DuplicateIndex.Id] = new[] { new Fix("Use the next free index", "NextIndex", NextFreeIndex) },
         [NinoDiagnostics.TrackReferencesOnStruct.Id] = new[]
         {
             new Fix("Remove trackReferences", "RemoveTrackReferences",
@@ -108,15 +116,16 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                 if (fix.Applies != null && !fix.Applies(node))
                     continue;
                 context.RegisterCodeFix(CodeAction.Create(fix.Title,
-                    ct => ApplyAsync(context.Document, span, fix, ct), diagnostic.Id + fix.Key), diagnostic);
+                    ct => ApplyAsync(context.Document, span, fix.Apply(diagnostic), ct), diagnostic.Id + fix.Key),
+                    diagnostic);
             }
         }
     }
 
-    private static async Task<Document> ApplyAsync(Document document, TextSpan span, Fix fix, CancellationToken ct)
+    private static async Task<Document> ApplyAsync(Document document, TextSpan span, Edit apply, CancellationToken ct)
     {
         var editor = await DocumentEditor.CreateAsync(document, ct).ConfigureAwait(false);
-        fix.Apply(editor, editor.OriginalRoot.FindNode(span, getInnermostNodeForTie: true));
+        apply(editor, editor.OriginalRoot.FindNode(span, getInnermostNodeForTie: true));
         return await FormatAsync(editor.GetChangedDocument(), await document.GetTextAsync(ct).ConfigureAwait(false), ct)
             .ConfigureAwait(false);
     }
@@ -311,23 +320,28 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
     }
 
     /// <summary>
-    /// Gives the member a free index. The analyzer reports the first repeat of each index; the n-th reported member
-    /// takes the n-th free index, so fixing them all at once (each fix sees the original document) assigns
-    /// distinct indices.
+    /// Gives the member a free index: the n-th free one for the n-th duplicate the analyzer reported in its type
+    /// (<see cref="NinoDiagnostics.DuplicateRank"/>), so fixing them all at once (each fix sees the original document)
+    /// assigns distinct indices.
     /// </summary>
-    private static void UseNextFreeIndex(DocumentEditor editor, SyntaxNode node)
+    private static Edit NextFreeIndex(Diagnostic diagnostic)
+    {
+        int rank = diagnostic.Properties.TryGetValue(NinoDiagnostics.DuplicateRank, out var value) &&
+                   int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int r)
+            ? r
+            : 0;
+        return (editor, node) => UseFreeIndex(editor, node, rank);
+    }
+
+    private static void UseFreeIndex(DocumentEditor editor, SyntaxNode node, int rank)
     {
         var member = Member(node);
         if (FindAttribute(editor, member, NinoMember) is not { ArgumentList.Arguments.Count: > 0 } attribute ||
-            editor.SemanticModel.GetDeclaredSymbol(Type(member)) is not { } type ||
-            editor.SemanticModel.GetDeclaredSymbol(member is FieldDeclarationSyntax f ? f.Declaration.Variables[0] : member)
-                is not { } symbol)
+            editor.SemanticModel.GetDeclaredSymbol(Type(member)) is not { } type)
             return;
 
         var ninoMember = AttributeType(editor.SemanticModel, NinoMember);
         var used = new HashSet<ushort>();
-        var reported = new HashSet<ushort>();
-        int rank = -1, seenDuplicates = 0;
         foreach (var m in type.GetMembers())
         {
             var index = m.GetAttributes()
@@ -335,18 +349,10 @@ public sealed class NinoCodeFixProvider : CodeFixProvider
                             a.ConstructorArguments.Length > 0)
                 .Select(a => a.ConstructorArguments[0].Value as ushort?)
                 .FirstOrDefault();
-            if (index is not { } i)
-                continue;
-            if (!used.Add(i) && reported.Add(i))
-            {
-                if (SymbolEqualityComparer.Default.Equals(m, symbol))
-                    rank = seenDuplicates;
-                seenDuplicates++;
-            }
+            if (index is { } i)
+                used.Add(i);
         }
 
-        if (rank < 0)
-            rank = 0;
         ushort next = 0;
         for (int free = -1; ; next++)
         {

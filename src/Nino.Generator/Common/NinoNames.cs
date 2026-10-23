@@ -15,6 +15,9 @@ internal static class NinoNames
     /// <summary><c>[NinoType]</c> as written in source, and its type name.</summary>
     public const string NinoType = "NinoType", NinoTypeAttribute = NinoType + "Attribute";
 
+    /// <summary><c>[NinoMember]</c> and <c>[NinoIgnore]</c> as written in source.</summary>
+    public const string NinoMember = "NinoMember", NinoIgnore = "NinoIgnore";
+
     /// <summary>Metadata name of <c>[NinoType]</c>.</summary>
     public const string NinoTypeAttributeMetadataName = CoreNamespace + "." + NinoTypeAttribute;
 

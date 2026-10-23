@@ -76,6 +76,13 @@ internal static class NinoDiagnostics
     public static readonly DiagnosticDescriptor AmbiguousMember = Error("NINO012", "Ambiguous member",
         "Member '{0}' of NinoType '{1}' is annotated with both NinoMemberAttribute and NinoIgnoreAttribute, it is ambiguous");
 
+    /// <summary>
+    /// The property of a <see cref="DuplicateIndex"/> diagnostic holding its rank among the type's duplicates (0 for
+    /// the first reported): the code fix gives the n-th the n-th free index, so fixing all of them at once (each fix
+    /// sees the original document) assigns distinct indices.
+    /// </summary>
+    public const string DuplicateRank = "Rank";
+
     public static readonly DiagnosticDescriptor DuplicateIndex = Error("NINO013", "Duplicate member index",
         "Member '{0}.{1}' has the same index as another member '{2}.{3}'");
 

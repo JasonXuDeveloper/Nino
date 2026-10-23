@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 
@@ -18,6 +19,14 @@ internal sealed class DiagnosticSink
     /// <summary>Reports <paramref name="descriptor"/> at the first location of <paramref name="at"/>.</summary>
     public void Report(DiagnosticDescriptor descriptor, ISymbol at, params object[] args) =>
         _report(Diagnostic.Create(descriptor, at.Locations.FirstOrDefault(), args));
+
+    /// <summary>
+    /// Reports <paramref name="descriptor"/> at the first location of <paramref name="at"/>, with
+    /// <paramref name="properties"/> for its code fix.
+    /// </summary>
+    public void ReportWith(DiagnosticDescriptor descriptor, ISymbol at, ImmutableDictionary<string, string?> properties,
+        params object[] args) =>
+        _report(Diagnostic.Create(descriptor, at.Locations.FirstOrDefault(), properties, args));
 
     /// <summary>
     /// Reports <paramref name="descriptor"/> at <paramref name="attribute"/> as written, or at <paramref name="owner"/>
