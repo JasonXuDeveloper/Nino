@@ -2,5 +2,41 @@
     <PropertyGroup>
         <!-- The version of every Nino package; the Release workflow bumps it (with Version.cs and the Unity package). -->
         <Version>4.0.0-rc.7</Version>
+        <!-- Paths in PDBs and package metadata independent of the machine that built them. -->
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     </PropertyGroup>
+
+    <!-- The NuGet packages, the same ids the Release workflow packs and pushes. Everything else (tests, benchmarks,
+         the generator's Roslyn 4.8/4.12 builds and code fixes, which Nino.Generator packs) is not packable. Set here,
+         not in the projects, because the properties below depend on it and must be set before the SDK's targets read
+         them (DebugType in particular). -->
+    <PropertyGroup>
+        <IsPackable Condition="'$(MSBuildProjectName)' == 'Nino.Core' Or '$(MSBuildProjectName)' == 'Nino.Generator'
+                               Or '$(MSBuildProjectName)' == 'Nino.Immutable' Or '$(MSBuildProjectName)' == 'Nino.AspNetCore'
+                               Or '$(MSBuildProjectName)' == 'Nino.TypeScript' Or '$(MSBuildProjectName)' == 'Nino'">true</IsPackable>
+        <IsPackable Condition="'$(IsPackable)' != 'true'">false</IsPackable>
+    </PropertyGroup>
+
+    <!-- What every package shares; each project sets only PackageId, Description and PackageTags (Title is the
+         PackageId, see Directory.Build.targets). -->
+    <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+        <Authors>JasonXuDeveloper</Authors>
+        <Copyright>JasonXuDeveloper</Copyright>
+        <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+        <!-- Source Link (built into the SDK): the repository URL and commit in the package and in the PDB, which is
+             embedded in the DLL, with the sources the build generates (assembly info). -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <DebugType>embedded</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(IsPackable)' == 'true'">
+        <None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="true" PackagePath="\" Visible="false"/>
+        <None Include="$(MSBuildThisFileDirectory)..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
+    </ItemGroup>
 </Project>

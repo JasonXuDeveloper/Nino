@@ -7,29 +7,9 @@
         <LangVersion>latest</LangVersion>
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <PackageId>Nino.Serialization</PackageId>
-        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Title>Nino.Serialization</Title>
-        <Authors>JasonXuDeveloper</Authors>
         <Description>The fastest binary serializer for C#. General-purpose, source-generated, zero-allocation and thread-safe: for services, RPC, messaging, caching and storage on .NET, with Unity, Godot and HybridCLR support.</Description>
-        <Copyright>JasonXuDeveloper</Copyright>
-        <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageIcon>icon.png</PackageIcon>
-        <BranchName>refs/heads/main</BranchName>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <!-- Enable embedding repository URL in the PDB -->
-        <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <!-- Embed source files for files not tracked in source control -->
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
-        <!-- Include source files in the symbol package -->
-        <IncludeSource>true</IncludeSource>
-        <!-- For SDK-style projects, set DebugType to embed the source link info -->
-        <DebugType>embedded</DebugType>
-        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     </PropertyGroup>
 
     <!-- Trim and NativeAOT safe: the analyzers check every build of the .NET targets (netstandard has no
@@ -51,19 +31,6 @@
     </PropertyGroup>
     <ItemGroup>
         <EmbeddedFiles Include="$(GeneratedAssemblyInfoFile)"/>
-    </ItemGroup>
-
-    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
-        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
-    </PropertyGroup>
-
-    <ItemGroup>
-        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
-        <None Include="..\..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.402" PrivateAssets="All"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0' Or '$(TargetFramework)' == 'netstandard2.1'">

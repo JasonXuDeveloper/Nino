@@ -9,45 +9,12 @@
         <LangVersion>latest</LangVersion>
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <PackageId>Nino.AspNetCore</PackageId>
-        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Title>Nino.AspNetCore</Title>
-        <Authors>JasonXuDeveloper</Authors>
         <Description>Nino for ASP.NET Core: MVC input and output formatters, and Minimal API results and request bodies, read and written straight from the request and response pipes.</Description>
-        <Copyright>JasonXuDeveloper</Copyright>
-        <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary;AspNetCore;Mvc;MinimalApi</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
-        <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageIcon>icon.png</PackageIcon>
-        <BranchName>refs/heads/main</BranchName>
-        <!-- Enable embedding repository URL in the PDB -->
-        <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <!-- Embed source files for files not tracked in source control -->
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
-        <!-- Include source files in the symbol package -->
-        <IncludeSource>true</IncludeSource>
-        <!-- For SDK-style projects, set DebugType to embed the source link info -->
-        <DebugType>embedded</DebugType>
-        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
-        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <ItemGroup>
         <InternalsVisibleTo Include="Nino.AspNetCore.Tests"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
-        <None Include="..\..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.402" PrivateAssets="All"/>
     </ItemGroup>
 
     <ItemGroup>

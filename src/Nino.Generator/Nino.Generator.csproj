@@ -3,7 +3,6 @@
     <PropertyGroup>
         <AnalysisLevel>latest-recommended</AnalysisLevel>
         <TargetFramework>netstandard2.0</TargetFramework>
-        <IsPackable>true</IsPackable>
         <Nullable>enable</Nullable>
         <LangVersion>preview</LangVersion>
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
@@ -13,33 +12,16 @@
         <PackageId>Nino.Generator</PackageId>
         <!-- An analyzer package: nothing goes to lib/, so consumers never compile against Roslyn. -->
         <IncludeBuildOutput>false</IncludeBuildOutput>
-        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Title>Nino.Generator</Title>
-        <Authors>JasonXuDeveloper</Authors>
         <Description>Source generator, analyzers and code fixes of Nino, a high-performance binary serializer for .NET.</Description>
-        <Copyright>JasonXuDeveloper</Copyright>
-        <RepositoryUrl>https://github.com/JasonXuDeveloper/Nino</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
         <PackageTags>Nino;Serialization;Binary;Generator</PackageTags>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <AnalyzerLanguage>cs</AnalyzerLanguage>
         <NoPackageAnalysis>true</NoPackageAnalysis>
         <DevelopmentDependency>true</DevelopmentDependency>
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
-        <PackageProjectUrl>https://nino.xgamedev.net/</PackageProjectUrl>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageIcon>icon.png</PackageIcon>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-        <BranchName>refs/heads/main</BranchName>
-        <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <!-- Selects the namespace of the sources shared with Nino.Core. -->
         <DefineConstants>$(DefineConstants);NINO_GENERATOR</DefineConstants>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
-        <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <ItemGroup>
@@ -54,8 +36,6 @@
         <Compile Include="..\Nino.Core\Internal\NinoLayoutCore.cs" Link="Shared\NinoLayoutCore.cs"/>
         <Compile Include="..\Nino.Core\IO\NinoWire.cs" Link="Shared\NinoWire.cs"/>
         <Compile Include="..\Nino.Core\Internal\NinoFormatterBinding.cs" Link="Shared\NinoFormatterBinding.cs"/>
-        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
-        <None Include="..\..\docs\assets\logo.png" Pack="true" PackagePath="icon.png" Visible="false"/>
     </ItemGroup>
 
     <ItemGroup>

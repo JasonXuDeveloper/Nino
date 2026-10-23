@@ -1,0 +1,6 @@
+<Project>
+    <!-- After the project: Title is the package id each project sets. -->
+    <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+        <Title Condition="'$(Title)' == ''">$(PackageId)</Title>
+    </PropertyGroup>
+</Project>
