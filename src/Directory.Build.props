@@ -8,6 +8,10 @@
         <LangVersion>latest</LangVersion>
         <!-- Paths in PDBs and package metadata independent of the machine that built them. -->
         <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+        <!-- CI builds are warning-free: a new warning fails them. Except NuGet's audit of published advisories,
+             which would fail every build the day one appears for a dependency, not when a change brings it in. -->
+        <TreatWarningsAsErrors Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</TreatWarningsAsErrors>
+        <WarningsNotAsErrors Condition="'$(ContinuousIntegrationBuild)' == 'true'">$(WarningsNotAsErrors);NU1900;NU1901;NU1902;NU1903;NU1904</WarningsNotAsErrors>
     </PropertyGroup>
 
     <!-- The NuGet packages, the same ids the Release workflow packs and pushes. Everything else (tests, benchmarks,
@@ -37,6 +41,9 @@
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <DebugType>embedded</DebugType>
+        <!-- Pack checks that the assemblies of each target framework are API compatible with those a consumer of a
+             compatible framework compiles against. -->
+        <EnablePackageValidation>true</EnablePackageValidation>
     </PropertyGroup>
 
     <ItemGroup Condition="'$(IsPackable)' == 'true'">
