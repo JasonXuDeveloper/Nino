@@ -999,7 +999,6 @@ namespace Nino.Core
                 }
             }
 
-
             // The bytes loaded, from the group's first value; loads from before it: groups start where they stay
             // inside the source.
             int low = 0, high = 0;

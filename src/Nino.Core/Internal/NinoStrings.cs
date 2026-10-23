@@ -68,7 +68,6 @@ namespace Nino.Core
             return NinoWire.LengthSize + length * sizeof(char);
         }
 
-
         /// <summary>
         /// Reads the string at <paramref name="source"/> (<paramref name="available"/> bytes), setting
         /// <paramref name="size"/> to the bytes it takes. Returns <paramref name="current"/> when it holds the same

@@ -87,15 +87,16 @@ namespace Nino.Core
         /// </summary>
         public string Members { get; }
 
+        /// <summary>Used by generated code, which passes every property in order.</summary>
         public NinoTypeLayoutAttribute(Type type, NinoFormat format, NinoHeader header, bool trackReferences,
-            bool raw, int typeId, string members)
+            bool raw, int id, string members)
         {
             Type = type;
             Format = format;
             Header = header;
             TrackReferences = trackReferences;
             Raw = raw;
-            Id = typeId;
+            Id = id;
             Members = members;
         }
 

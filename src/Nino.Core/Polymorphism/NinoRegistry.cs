@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -47,7 +48,8 @@ namespace Nino.Core
         private static readonly object Lock = new object();
 
         /// <summary>Assemblies whose registration has completed (not merely started).</summary>
-        private static readonly HashSet<Assembly> Initialized = new HashSet<Assembly>();
+        private static readonly ConcurrentDictionary<Assembly, bool> Initialized =
+            new ConcurrentDictionary<Assembly, bool>();
 
         /// <summary>
         /// Assemblies passed to <see cref="Remove"/> (weakly held): never registered again, although an unloading
@@ -131,7 +133,7 @@ namespace Nino.Core
                 throw new ArgumentNullException(nameof(assembly));
             lock (Lock)
             {
-                Initialized.Remove(assembly);
+                Initialized.TryRemove(assembly, out _);
                 if (!IsRemoved(assembly))
                     Removed.Add(assembly, Lock);
                 var current = _registries;
@@ -186,19 +188,19 @@ namespace Nino.Core
         internal static void RegisterType(Type type)
         {
             EnsureInitializedFor(type);
-            // Keyed by the plain name hash (generated registries also list [NinoFormerName] types under it), which
-            // needs no attribute reflection.
             if (type.ContainsGenericParameters)
                 return;
             // A registry can register the type by calling back into NinoPolymorphic.Register(Type) (a closed generic
             // whose formatter is in another assembly), which lands here again for the same type: that inner call
             // returns, and the outer one goes on to close the formatter itself.
-            var registering = _registering ??= new List<Type>();
+            var registering = t_registering ??= new List<Type>();
             if (registering.Contains(type))
                 return;
             registering.Add(type);
             try
             {
+                // Keyed by the plain name hash (generated registries also list [NinoFormerName] types under it), which
+                // needs no attribute reflection.
                 RegisterId(NinoTypeId.Compute(NinoTypeId.GetName(type)));
             }
             finally
@@ -208,7 +210,7 @@ namespace Nino.Core
         }
 
         /// <summary>The types this thread is registering (<see cref="RegisterType"/>).</summary>
-        [ThreadStatic] private static List<Type> _registering;
+        [ThreadStatic] private static List<Type> t_registering;
 
         /// <summary>
         /// Runs the generated registration of <paramref name="assembly"/> once, and returns when it has completed,
@@ -223,12 +225,10 @@ namespace Nino.Core
             // The core library and Nino.Core never contain generated code.
             if (assembly == typeof(object).Assembly || assembly == typeof(NinoRegistry).Assembly)
                 return;
-            lock (Lock)
-            {
-                // A removed assembly is still listed while it unloads: registering it again would pin it.
-                if (Initialized.Contains(assembly) || IsRemoved(assembly))
-                    return;
-            }
+            // No lock: both are safe to read from any thread. A removed assembly is still listed while it unloads:
+            // registering it again would pin it.
+            if (Initialized.ContainsKey(assembly) || IsRemoved(assembly))
+                return;
 
             // Threads that get here at the same time all run the steps below, which are idempotent: the assembly is
             // only published as initialized once its registries' static constructors have finished, so no thread
@@ -241,8 +241,7 @@ namespace Nino.Core
             }
             catch
             {
-                lock (Lock)
-                    Initialized.Add(assembly);
+                Initialized.TryAdd(assembly, true);
                 return;
             }
 
@@ -262,7 +261,10 @@ namespace Nino.Core
             }
 
             lock (Lock)
-                Initialized.Add(assembly);
+            {
+                if (!IsRemoved(assembly))
+                    Initialized.TryAdd(assembly, true);
+            }
         }
 
         /// <summary>Runs the generated registration of every loaded assembly.</summary>

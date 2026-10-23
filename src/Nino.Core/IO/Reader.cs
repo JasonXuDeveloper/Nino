@@ -906,7 +906,6 @@ namespace Nino.Core
             return ReadUtf8();
         }
 
-
         /// <summary>
         /// The char count of a UTF-8 string in the last 0 to 7 bytes, where only a null or empty one (a count alone)
         /// fits; anything else is data that ends early.

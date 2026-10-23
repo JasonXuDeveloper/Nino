@@ -67,7 +67,14 @@ namespace Nino.Core
 
         /// <summary>Layout info for <paramref name="type"/>; <paramref name="runtimeSize"/> validates the model.</summary>
         public static Info Get(Type type, int runtimeSize) =>
-            runtimeSize < 0 ? Create(type, runtimeSize) : Cache.GetOrAdd(type, t => Create(t, runtimeSize));
+            runtimeSize < 0 ? Create(type, runtimeSize) : GetCached(type, runtimeSize);
+
+        // The size as the factory's argument where the runtime has that overload: no closure per call.
+#if NETSTANDARD2_0
+        private static Info GetCached(Type type, int runtimeSize) => Cache.GetOrAdd(type, t => Create(t, runtimeSize));
+#else
+        private static Info GetCached(Type type, int runtimeSize) => Cache.GetOrAdd(type, Create, runtimeSize);
+#endif
 
         /// <summary>Forgets the layouts of types of <paramref name="assembly"/> (<see cref="NinoRegistry.Remove"/>).</summary>
         internal static void Remove(Assembly assembly) => NinoUnload.RemoveFrom(Cache, assembly);

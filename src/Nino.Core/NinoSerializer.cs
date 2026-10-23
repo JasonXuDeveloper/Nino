@@ -8,7 +8,7 @@ namespace Nino.Core
     /// <summary>Serializes values to Nino binary data. All methods are thread safe.</summary>
     public static class NinoSerializer
     {
-        [ThreadStatic] private static NinoArrayBufferWriter _scratch;
+        [ThreadStatic] private static NinoArrayBufferWriter t_scratch;
 
         /// <summary>Largest scratch buffer kept per thread between calls.</summary>
         private const int MaxRetainedScratch = 1024 * 1024;
@@ -20,7 +20,7 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static NinoArrayBufferWriter RentScratch()
         {
-            var buffer = _scratch;
+            var buffer = t_scratch;
             if (buffer == null || buffer.ScratchState != NinoArrayBufferWriter.ScratchIdle)
                 return RentOther();
             buffer.ScratchState = NinoArrayBufferWriter.ScratchInUse;
@@ -32,10 +32,10 @@ namespace Nino.Core
         private static NinoArrayBufferWriter RentOther()
         {
             var buffer = new NinoArrayBufferWriter();
-            if (_scratch == null)
+            if (t_scratch == null)
             {
                 buffer.ScratchState = NinoArrayBufferWriter.ScratchInUse;
-                _scratch = buffer;
+                t_scratch = buffer;
             }
 
             return buffer;
@@ -54,8 +54,8 @@ namespace Nino.Core
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static void ReleaseScratch(NinoArrayBufferWriter buffer)
         {
-            if (ReferenceEquals(_scratch, buffer))
-                _scratch = null;
+            if (ReferenceEquals(t_scratch, buffer))
+                t_scratch = null;
             buffer.ScratchState = 0;
             buffer.Dispose();
         }
