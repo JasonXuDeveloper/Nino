@@ -150,11 +150,19 @@ namespace Nino.Core
         /// <summary>The types whose formatter this thread is building (<see cref="Build"/>).</summary>
         [ThreadStatic] private static HashSet<Type> t_building;
 
-        /// <summary>Whether values of <paramref name="type"/> are written as their raw bytes.</summary>
+        /// <summary>
+        /// Whether values of <paramref name="type"/> are written as their raw bytes, as the generator decides it
+        /// (RawRules.IsRawUnmanaged): a formatter parameter marked <see cref="NinoRawAttribute"/> binds the same types
+        /// here as in generated code, so both write the same bytes (a <c>T?[]</c> of a raw <c>[NinoType]</c> struct at
+        /// its fixed stride, for one).
+        /// </summary>
         internal static bool IsRawUnmanaged(Type type)
         {
-            if (type.IsPointer || type.IsGenericParameter || !NinoUnsafe.IsUnmanaged(type) || IsNinoType(type) ||
-                type == typeof(IntPtr) || type == typeof(UIntPtr) || type == typeof(DateTimeOffset))
+            if (type.IsPointer || type.IsGenericParameter || !NinoUnsafe.IsUnmanaged(type))
+                return false;
+            if (IsNinoType(type))
+                return IsRawStruct(type);
+            if (type == typeof(IntPtr) || type == typeof(UIntPtr) || type == typeof(DateTimeOffset))
                 return false;
             if (type.IsGenericType)
             {
@@ -165,6 +173,19 @@ namespace Nino.Core
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Whether a <c>[NinoType]</c> struct is written as its raw memory: its generated formatter says so
+        /// (<see cref="INinoRawFormatter"/>, which the generator declares for the structs it copies as one block).
+        /// </summary>
+        private static bool IsRawStruct(Type type)
+        {
+            if (!type.IsValueType)
+                return false;
+            NinoRegistry.RegisterType(type);
+            var formatter = NinoFormatterCache.Get(type)?.StructType;
+            return formatter != null && typeof(INinoRawFormatter).IsAssignableFrom(formatter);
         }
 
         [RequiresDynamicCode(DynamicCodeMessage)]
@@ -211,10 +232,10 @@ namespace Nino.Core
             if (registered != null)
                 return registered;
 
-            if (IsRawUnmanaged(type))
-                return typeof(UnmanagedFormatter<>).MakeGenericType(type);
             if (IsNinoType(type))
                 return null; // use the registered formatter through CachedFormatter<T>
+            if (IsRawUnmanaged(type))
+                return typeof(UnmanagedFormatter<>).MakeGenericType(type);
             return FirstMatch(rules.Open, type);
         }
 
