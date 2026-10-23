@@ -1,0 +1,181 @@
+package nino
+
+import (
+	"encoding/binary"
+	"unsafe"
+)
+
+// Primitive is the element types whose arrays and lists are written as one block of their little-endian bytes
+// (bool excepted: any byte but 0 reads as true, so its blocks are read byte by byte).
+type Primitive interface {
+	~int8 | ~uint8 | ~int16 | ~uint16 | ~int32 | ~uint32 | ~int64 | ~uint64 | ~float32 | ~float64
+}
+
+// ReadPrimitives reads an array or list of primitives: length, then one block (nil for null). On little-endian
+// hosts the block is copied as memory, with one bounds check.
+func ReadPrimitives[T Primitive](r *Reader) []T {
+	var zero T
+	size := int(unsafe.Sizeof(zero))
+	n := r.Length(size)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n * size)
+	if len(b) != n*size {
+		return nil
+	}
+	v := make([]T, n)
+	decodePrimitives(v, b)
+	return v
+}
+
+// ReadPrimitivesInto reads len(dst) primitives (a block without a length) into dst.
+func ReadPrimitivesInto[T Primitive](r *Reader, dst []T) {
+	var zero T
+	size := int(unsafe.Sizeof(zero))
+	b := r.Take(len(dst) * size)
+	if len(b) != len(dst)*size {
+		return
+	}
+	decodePrimitives(dst, b)
+}
+
+// WritePrimitives writes an array or list of primitives: length, then one block (nil is null).
+func WritePrimitives[T Primitive](w *Writer, v []T) {
+	if v == nil {
+		w.Null()
+		return
+	}
+	w.Length(len(v))
+	WritePrimitivesRaw(w, v)
+}
+
+// WritePrimitivesRaw writes primitives as one block, without a length.
+func WritePrimitivesRaw[T Primitive](w *Writer, v []T) {
+	var zero T
+	size := int(unsafe.Sizeof(zero))
+	b := w.Extend(len(v) * size)
+	if len(b) != len(v)*size {
+		return
+	}
+	encodePrimitives(b, v)
+}
+
+// decodePrimitives fills v from b (len(v) * size bytes).
+func decodePrimitives[T Primitive](v []T, b []byte) {
+	if len(v) == 0 {
+		return
+	}
+	var zero T
+	size := int(unsafe.Sizeof(zero))
+	if littleEndian || size == 1 {
+		copy(unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*size), b)
+		return
+	}
+	decodeEach(v, b)
+}
+
+// decodeEach is decodePrimitives element by element, whatever the host's byte order.
+func decodeEach[T Primitive](v []T, b []byte) {
+	var zero T
+	switch size := int(unsafe.Sizeof(zero)); size {
+	case 1:
+		for i := range v {
+			x := b[i]
+			v[i] = *(*T)(unsafe.Pointer(&x))
+		}
+	case 2:
+		for i := range v {
+			x := binary.LittleEndian.Uint16(b[2*i:])
+			v[i] = *(*T)(unsafe.Pointer(&x))
+		}
+	case 4:
+		for i := range v {
+			x := binary.LittleEndian.Uint32(b[4*i:])
+			v[i] = *(*T)(unsafe.Pointer(&x))
+		}
+	case 8:
+		for i := range v {
+			x := binary.LittleEndian.Uint64(b[8*i:])
+			v[i] = *(*T)(unsafe.Pointer(&x))
+		}
+	}
+}
+
+// encodePrimitives writes v into b (len(v) * size bytes).
+func encodePrimitives[T Primitive](b []byte, v []T) {
+	if len(v) == 0 {
+		return
+	}
+	var zero T
+	size := int(unsafe.Sizeof(zero))
+	if littleEndian || size == 1 {
+		copy(b, unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*size))
+		return
+	}
+	encodeEach(b, v)
+}
+
+// encodeEach is encodePrimitives element by element, whatever the host's byte order.
+func encodeEach[T Primitive](b []byte, v []T) {
+	var zero T
+	switch size := int(unsafe.Sizeof(zero)); size {
+	case 1:
+		for i := range v {
+			b[i] = *(*uint8)(unsafe.Pointer(&v[i]))
+		}
+	case 2:
+		for i := range v {
+			binary.LittleEndian.PutUint16(b[2*i:], *(*uint16)(unsafe.Pointer(&v[i])))
+		}
+	case 4:
+		for i := range v {
+			binary.LittleEndian.PutUint32(b[4*i:], *(*uint32)(unsafe.Pointer(&v[i])))
+		}
+	case 8:
+		for i := range v {
+			binary.LittleEndian.PutUint64(b[8*i:], *(*uint64)(unsafe.Pointer(&v[i])))
+		}
+	}
+}
+
+// ReadBools reads a bool[] or List<bool>: length, then a byte each (nil for null). A byte other than 0 or 1 fails
+// with CodeInvalidData, as [Reader.Bool].
+func ReadBools(r *Reader) []bool {
+	n := r.Length(1)
+	if n < 0 {
+		return nil
+	}
+	b := r.Take(n)
+	if len(b) != n {
+		return nil
+	}
+	v := make([]bool, n)
+	for i, c := range b {
+		if c > 1 {
+			r.Fail(CodeInvalidData, "invalid bool")
+			return nil
+		}
+		v[i] = c != 0
+	}
+	return v
+}
+
+// WriteBools writes a bool[] or List<bool> (nil is null).
+func WriteBools(w *Writer, v []bool) {
+	if v == nil {
+		w.Null()
+		return
+	}
+	w.Length(len(v))
+	b := w.Extend(len(v))
+	for i, x := range v {
+		if i < len(b) {
+			if x {
+				b[i] = 1
+			} else {
+				b[i] = 0
+			}
+		}
+	}
+}
