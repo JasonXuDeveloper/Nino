@@ -24,6 +24,17 @@ indexmap = { version = "2", optional = true, default-features = false, features 
 [features]
 default = []
 
+# Test-only: the conformance test and its JSON comparison. The crate itself has no required dependencies.
+[dev-dependencies]
+serde = "1"
+serde_json = { version = "1", features = ["unbounded_depth"] }
+indexmap = "2"
+
+# Reads the corpus's maps and sets in wire order (IndexMap), so they are written back byte for byte.
+[[test]]
+name = "conformance"
+required-features = ["indexmap"]
+
 [workspace]
 members = [".", "bench"]
 

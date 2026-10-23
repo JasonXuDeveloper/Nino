@@ -282,6 +282,8 @@ dependencies = [
  "indexmap",
  "num-bigint",
  "rust_decimal",
+ "serde",
+ "serde_json",
  "uuid",
 ]
 
