@@ -10,14 +10,12 @@
         <EnableNETAnalyzers>true</EnableNETAnalyzers>
         <IsRoslynComponent>true</IsRoslynComponent>
         <RootNamespace>Nino.Generator</RootNamespace>
-        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <!-- Their DLLs ship in the Nino.Generator package (and the Unity package): the PDB with Source Link inside. -->
         <DebugType>embedded</DebugType>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="$(MSBuildThisFileDirectory)..\Version.cs" Link="Version.cs"/>
         <AdditionalFiles Include="$(MSBuildThisFileDirectory)AnalyzerReleases.Shipped.md" Link="AnalyzerReleases.Shipped.md"/>
         <AdditionalFiles Include="$(MSBuildThisFileDirectory)AnalyzerReleases.Unshipped.md" Link="AnalyzerReleases.Unshipped.md"/>
     </ItemGroup>

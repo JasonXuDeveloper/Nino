@@ -1,7 +1,7 @@
 name: Release
 
 # Run manually: Actions -> Release -> Run workflow (on main), enter the version (e.g. 4.0.0 or 4.1.0-beta.1).
-#   tag:     bump the version (src/Directory.Build.props, src/Version.cs, the Unity package.json), build, test,
+#   tag:     bump the version (src/Directory.Build.props, the Unity package.json), build, test,
 #            copy the Unity DLLs, commit "Bump to vX.Y.Z", tag vX.Y.Z (and the OpenUPM tag of a pre-release), push.
 #   publish: from the tag, pack and push to NuGet (Trusted Publishing: a short-lived key from this workflow's OIDC
 #            token, no stored secret), create the GitHub release with the notes of .github/scripts/release_notes.py
@@ -66,7 +66,6 @@ jobs:
             case "$LABEL" in alpha) OFFSET=0 ;; beta) OFFSET=100 ;; rc) OFFSET=200 ;; esac
             UNITY_VERSION="$BASE-preview.$((OFFSET + NUM))"
           fi
-          echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "unity_version=$UNITY_VERSION" >> "$GITHUB_OUTPUT"
           # An existing tag: only publish what is still missing (NuGet skips versions it has, the release is
           # created once), so a release whose publish job failed can be run again with corrected inputs.
@@ -78,14 +77,11 @@ jobs:
       - name: Bump version
         if: steps.version.outputs.exists != 'true'
         env:
-          BASE: ${{ steps.version.outputs.base }}
           UNITY_VERSION: ${{ steps.version.outputs.unity_version }}
         run: |
           sed -i "s|<Version>[^<]*</Version>|<Version>$VERSION</Version>|" src/Directory.Build.props
-          sed -i "s|Version(\"[^\"]*\")|Version(\"$BASE\")|g" src/Version.cs
           sed -i "s|\"version\": \"[^\"]*\"|\"version\": \"$UNITY_VERSION\"|" "$UNITY_PACKAGE/package.json"
           grep -q "<Version>$VERSION</Version>" src/Directory.Build.props
-          grep -q "AssemblyVersion(\"$BASE\")" src/Version.cs
           grep -q "\"version\": \"$UNITY_VERSION\"" "$UNITY_PACKAGE/package.json"
 
       - uses: actions/setup-dotnet@v6
@@ -120,7 +116,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/Directory.Build.props src/Version.cs "$UNITY_PACKAGE/package.json" "$UNITY_PACKAGE/Runtime/"*.dll
+          git add src/Directory.Build.props "$UNITY_PACKAGE/package.json" "$UNITY_PACKAGE/Runtime/"*.dll
           if ! git diff --cached --quiet; then
             git commit -m "Bump to v$VERSION"
           fi
