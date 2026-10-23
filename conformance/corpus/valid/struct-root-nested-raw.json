@@ -1,0 +1,30 @@
+{
+  "case": "struct-root-nested-raw",
+  "description": "A raw struct holding raw structs at the top level.",
+  "type": "Conformance.Nested",
+  "features": [
+    "raw-struct"
+  ],
+  "size": 32,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Nested": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x062D377B; members=raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)}",
+    "Conformance.Padded": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x2ACAE976; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}",
+    "Conformance.Vec2": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x53124224; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}"
+  },
+  "value": {
+    "$type": "Conformance.Nested",
+    "Inner": {
+      "$type": "Conformance.Padded",
+      "A": 3,
+      "B": 4
+    },
+    "Position": {
+      "$type": "Conformance.Vec2",
+      "X": "0xbf800000",
+      "Y": "0x3f000000"
+    },
+    "Kind": 255,
+    "Flag": true
+  }
+}

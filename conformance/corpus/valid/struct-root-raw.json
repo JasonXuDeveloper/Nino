@@ -1,0 +1,18 @@
+{
+  "case": "struct-root-raw",
+  "description": "A raw struct at the top level: its bytes alone, no header.",
+  "type": "Conformance.Padded",
+  "features": [
+    "raw-struct"
+  ],
+  "size": 16,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.Padded": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x2ACAE976; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}"
+  },
+  "value": {
+    "$type": "Conformance.Padded",
+    "A": 1,
+    "B": -2
+  }
+}

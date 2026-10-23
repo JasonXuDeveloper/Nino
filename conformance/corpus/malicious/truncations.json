@@ -1,7 +1,7 @@
 {
   "rule": "For each case, every strict prefix of valid/<case>.bin (lengths 0 to size - 1) read as <type> must be an error.",
   "expected": "error",
-  "prefixCount": 10349,
+  "prefixCount": 10441,
   "cases": [
     {
       "case": "integers-mixed",
@@ -198,6 +198,50 @@
         "outcome": "error",
         "exceptions": {
           "InvalidOperationException": 17
+        }
+      }
+    },
+    {
+      "case": "struct-root-raw",
+      "type": "Conformance.Padded",
+      "prefixes": 16,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 16
+        }
+      }
+    },
+    {
+      "case": "struct-root-nested-raw",
+      "type": "Conformance.Nested",
+      "prefixes": 32,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 32
+        }
+      }
+    },
+    {
+      "case": "struct-root",
+      "type": "Conformance.Label",
+      "prefixes": 12,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 12
+        }
+      }
+    },
+    {
+      "case": "struct-root-keyed",
+      "type": "Conformance.KeyedStruct",
+      "prefixes": 32,
+      "dotnet": {
+        "outcome": "error",
+        "exceptions": {
+          "InvalidOperationException": 32
         }
       }
     },

@@ -258,6 +258,9 @@ namespace Conformance
                 "A record chain (built by its constructor, never deferred) nested inline 10,000 deep, past the limit " +
                 "of 512 open bodies.",
                 d => Repeat(d, i => Concat(NotNull, I32(i)), new byte[] { 0 }));
+            Add<RecordChain>("depth", "record-inline-513",
+                "A record chain nested inline 513 deep, one past the limit of 512 open bodies (deep-records-512 is " +
+                "valid).", Repeat(513, i => Concat(NotNull, I32(i)), new byte[] { 0 }));
             Nest<TolerantChain>("tolerant-inline-10k",
                 "A version-tolerant chain nested inline 10,000 deep, region in region (a writer defers into the " +
                 "outermost region's section past 128).",
@@ -533,7 +536,8 @@ namespace Conformance
                 "integers-mixed", "integers-null", "floats-values", "scalars-values", "dates-kinds", "enums-min",
                 "big-values", "big-values-edges", "string-ascii", "string-latin1", "string-bmp", "string-astral",
                 "string-lone-surrogates", "string-collections", "bytes-values", "structs-values", "nested-objects",
-                "empties", "collections-values", "nullables-values", "tolerant", "tolerant-new-to-old", "keyed",
+                "empties", "struct-root-raw", "struct-root-nested-raw", "struct-root", "struct-root-keyed",
+                "collections-values", "nullables-values", "tolerant", "tolerant-new-to-old", "keyed",
                 "keyed-v1-to-v2", "polymorphism", "polymorphism-generic-root", "deep-chain-130",
                 "deep-tolerant-chain-129", "deep-keyed-chain-129", "deep-links-129", "deep-in-region",
                 "references-shared", "tree-collections",

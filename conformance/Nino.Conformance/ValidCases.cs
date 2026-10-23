@@ -287,6 +287,19 @@ namespace Conformance
                 Labels = Array.Empty<Label>(),
             }, "raw-struct", "struct", "seq");
 
+            Add("struct-root-raw", "A raw struct at the top level: its bytes alone, no header.",
+                new Padded { A = 1, B = -2 }, "raw-struct");
+            Add("struct-root-nested-raw", "A raw struct holding raw structs at the top level.", new Nested
+            {
+                Inner = new Padded { A = 3, B = 4 }, Position = new Vec2 { X = -1, Y = 0.5f }, Kind = EU8.Max,
+                Flag = true,
+            }, "raw-struct");
+            Add("struct-root", "A non-raw struct at the top level: its members, no header.",
+                new Label { Name = "root", Weight = 9 }, "struct");
+            Add("struct-root-keyed", "A keyed struct at the top level.", new KeyedStruct { A = -1, B = 0.25 },
+                "keyed", "struct");
+            Add("struct-root-empty", "A struct without members at the top level: no bytes at all.", new EmptyStruct(),
+                "raw-struct");
             Add("nested-objects", "Sealed classes three levels deep.", new Outer
             {
                 Name = "outer", Point = new Point { X = 1, Y = 2 },
@@ -516,8 +529,9 @@ namespace Conformance
             Add("deep-in-region", "A positional chain inside a version-tolerant body: deferred into its section.",
                 new TolerantRoot { Name = "root", Chain = MakeChain(200), After = 7 },
                 "deferral", "deferral-section", "version-tolerant");
-            foreach (int depth in new[] { 128, 500, 511 })
-                Add($"deep-records-{depth}", $"A record chain {depth} deep: never deferred, nested inline.",
+            foreach (int depth in new[] { 128, 500, 512 })
+                Add($"deep-records-{depth}", $"A record chain {depth} deep: never deferred, nested inline" +
+                                                (depth == 512 ? ", at the limit of 512 open bodies." : "."),
                     MakeRecords(depth), "constructor-type", "depth-limit");
 
             // ---------------------------------------------------------- reference tracking (optional)

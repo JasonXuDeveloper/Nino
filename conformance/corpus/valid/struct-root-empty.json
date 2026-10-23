@@ -1,0 +1,16 @@
+{
+  "case": "struct-root-empty",
+  "description": "A struct without members at the top level: no bytes at all.",
+  "type": "Conformance.EmptyStruct",
+  "features": [
+    "raw-struct"
+  ],
+  "size": 1,
+  "roundTrip": true,
+  "layouts": {
+    "Conformance.EmptyStruct": "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; members=raw"
+  },
+  "value": {
+    "$type": "Conformance.EmptyStruct"
+  }
+}
