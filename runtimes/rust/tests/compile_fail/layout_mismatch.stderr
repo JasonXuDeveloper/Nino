@@ -1,0 +1,5 @@
+error: layout: member 1 is `Y`; this field is `Z` (#[nino(name = ...)] or index)
+ --> tests/compile_fail/layout_mismatch.rs:5:5
+  |
+5 |     z: i32,
+  |     ^

@@ -1,0 +1,5 @@
+error: field `id`: key and former apply to format = "keyed"
+ --> tests/compile_fail/key_on_plain.rs:4:18
+  |
+4 |     #[nino(key = "Id")]
+  |                  ^^^^

@@ -1,0 +1,5 @@
+error: field `count`: usize and isize have no fixed size on the wire; use u64/i64 (or u32/i32)
+ --> tests/compile_fail/usize_field.rs:3:12
+  |
+3 |     count: usize,
+  |            ^^^^^

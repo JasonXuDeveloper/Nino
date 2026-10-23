@@ -1,0 +1,5 @@
+error: field `letter`: a Rust char is not a .NET char: use u16 for a UTF-16 code unit (C# char) or nino::Rune
+ --> tests/compile_fail/char_field.rs:3:24
+  |
+3 |     letter: Option<Vec<char>>,
+  |                        ^^^^

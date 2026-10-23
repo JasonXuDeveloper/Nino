@@ -1,0 +1,5 @@
+error: field `b`: key "Name" (0x3085B3E2) is already the key of "Name"
+ --> tests/compile_fail/duplicate_key.rs:6:18
+  |
+6 |     #[nino(key = "Name")]
+  |                  ^^^^^^

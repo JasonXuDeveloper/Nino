@@ -35,11 +35,21 @@ serde = ["dep:serde", "indexmap?/serde", "uuid?/serde"]
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["unbounded_depth"] }
 indexmap = "2"
+trybuild = "1"
 
 # Reads the corpus's maps and sets in wire order (IndexMap), so they are written back byte for byte.
 [[test]]
 name = "conformance"
 required-features = ["indexmap"]
+
+# The derive against the corpus's types.
+[[test]]
+name = "derive"
+required-features = ["derive", "indexmap"]
+
+[[test]]
+name = "compile_fail"
+required-features = ["derive"]
 
 [workspace]
 members = [".", "bench", "nino-derive"]

@@ -1,0 +1,5 @@
+error: field `b`: index used twice
+ --> tests/compile_fail/duplicate_index.rs:5:20
+  |
+5 |     #[nino(index = 0)]
+  |                    ^

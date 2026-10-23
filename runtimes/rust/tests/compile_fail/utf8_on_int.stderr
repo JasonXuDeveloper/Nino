@@ -1,0 +1,5 @@
+error: field `id`: utf8 applies to String or Option<String>
+ --> tests/compile_fail/utf8_on_int.rs:3:12
+  |
+3 |     #[nino(utf8)]
+  |            ^^^^

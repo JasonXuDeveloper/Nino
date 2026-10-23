@@ -1,0 +1,5 @@
+error: tuple structs have no member names: use named fields
+ --> tests/compile_fail/tuple_struct.rs:2:9
+  |
+2 | struct S(i32);
+  |         ^^^^^

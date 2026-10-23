@@ -1,0 +1,11 @@
+error[E0080]: evaluation panicked: variant `A`: its type has no type id (#[nino(id = ...)] on the type or the variant)
+ --> tests/compile_fail/variant_without_id.rs:5:10
+  |
+5 | #[derive(nino::NinoRead, nino::NinoWrite)]
+  |          ^^^^^^^^^^^^^^ evaluation of `_` failed here
+
+error[E0080]: evaluation panicked: variant `A`: its type has no type id (#[nino(id = ...)] on the type or the variant)
+ --> tests/compile_fail/variant_without_id.rs:5:26
+  |
+5 | #[derive(nino::NinoRead, nino::NinoWrite)]
+  |                          ^^^^^^^^^^^^^^^ evaluation of `_` failed here
