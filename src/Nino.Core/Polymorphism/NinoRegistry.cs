@@ -48,7 +48,23 @@ namespace Nino.Core
 
         /// <summary>Assemblies whose registration has completed (not merely started).</summary>
         private static readonly HashSet<Assembly> Initialized = new HashSet<Assembly>();
-        private static int _scannedAssemblyCount;
+
+        /// <summary>
+        /// Assemblies passed to <see cref="Remove"/> (weakly held): never registered again, although an unloading
+        /// assembly stays in <c>AppDomain.GetAssemblies</c> until it is collected.
+        /// </summary>
+        private static readonly ConditionalWeakTable<Assembly, object> Removed =
+            new ConditionalWeakTable<Assembly, object>();
+
+        /// <summary>The assembly count and load count <see cref="EnsureAllInitialized"/> last scanned (-1: never).</summary>
+        private static int _scannedAssemblyCount = -1, _scannedLoads = -1;
+
+        /// <summary>Assemblies loaded since <see cref="EnsureAllInitialized"/> first ran (AppDomain.AssemblyLoad).</summary>
+        private static int _loads;
+
+        /// <summary>1 once <see cref="HookLoads"/> has subscribed.</summary>
+        private static int _loadHooked;
+
         private static INinoRegistry[] _registries = Array.Empty<INinoRegistry>();
 
         /// <summary>Adds an assembly's generated registry. Called by its static constructor.</summary>
@@ -59,6 +75,8 @@ namespace Nino.Core
             {
                 // Not marked initialized: its static constructor is still running (EnsureInitialized waits for it).
                 var assembly = registry.GetType().Assembly;
+                if (IsRemoved(assembly))
+                    return;
                 NinoFormatterResolver.AddAssembly(assembly);
                 RemoveOnUnload(assembly);
                 var current = _registries;
@@ -92,11 +110,13 @@ namespace Nino.Core
             lock (Lock)
             {
                 Initialized.Remove(assembly);
+                if (!IsRemoved(assembly))
+                    Removed.Add(assembly, Lock);
                 var current = _registries;
                 var kept = Array.FindAll(current, registry => registry.GetType().Assembly != assembly);
                 if (kept.Length != current.Length)
                     Volatile.Write(ref _registries, kept);
-                Volatile.Write(ref _scannedAssemblyCount, 0);
+                Volatile.Write(ref _scannedAssemblyCount, -1);
             }
 
             NinoFormatterResolver.RemoveAssembly(assembly);
@@ -106,6 +126,9 @@ namespace Nino.Core
             NinoTypeId.Remove(assembly);
             NinoLayout.Remove(assembly);
         }
+
+        /// <summary>Whether <see cref="Remove"/> has been called for <paramref name="assembly"/>. Called under <see cref="Lock"/>.</summary>
+        private static bool IsRemoved(Assembly assembly) => Removed.TryGetValue(assembly, out _);
 
         /// <summary>Removes a collectible assembly when its load context unloads (.NET 8 and later).</summary>
         private static void RemoveOnUnload(Assembly assembly)
@@ -179,7 +202,8 @@ namespace Nino.Core
                 return;
             lock (Lock)
             {
-                if (Initialized.Contains(assembly))
+                // A removed assembly is still listed while it unloads: registering it again would pin it.
+                if (Initialized.Contains(assembly) || IsRemoved(assembly))
                     return;
             }
 
@@ -199,9 +223,15 @@ namespace Nino.Core
                 return;
             }
 
-            NinoFormatterResolver.AddAssembly(assembly);
             lock (Lock)
+            {
+                // Remove may have run meanwhile (on another thread).
+                if (IsRemoved(assembly))
+                    return;
+                NinoFormatterResolver.AddAssembly(assembly);
                 RemoveOnUnload(assembly);
+            }
+
             foreach (var attribute in attributes)
             {
                 if (attribute.Registry != null)
@@ -215,8 +245,13 @@ namespace Nino.Core
         /// <summary>Runs the generated registration of every loaded assembly.</summary>
         public static void EnsureAllInitialized()
         {
+            HookLoads();
+            // The load count catches an unload followed by a load, which leaves the assembly count unchanged; the
+            // assembly count catches loads on runtimes that do not raise AssemblyLoad.
+            int loads = Volatile.Read(ref _loads);
             var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-            if (Volatile.Read(ref _scannedAssemblyCount) == assemblies.Length)
+            if (Volatile.Read(ref _scannedAssemblyCount) == assemblies.Length &&
+                Volatile.Read(ref _scannedLoads) == loads)
                 return;
 
             // Every caller scans until one has finished: one that returned early could miss a registry still running.
@@ -226,7 +261,23 @@ namespace Nino.Core
                     EnsureInitialized(assembly);
             }
 
+            Volatile.Write(ref _scannedLoads, loads);
             Volatile.Write(ref _scannedAssemblyCount, assemblies.Length);
+        }
+
+        /// <summary>Counts assembly loads from now on (once).</summary>
+        private static void HookLoads()
+        {
+            if (Volatile.Read(ref _loadHooked) != 0 || Interlocked.Exchange(ref _loadHooked, 1) != 0)
+                return;
+            try
+            {
+                AppDomain.CurrentDomain.AssemblyLoad += (_, _) => Interlocked.Increment(ref _loads);
+            }
+            catch
+            {
+                // Not supported (some AOT runtimes): the assembly count alone decides.
+            }
         }
 
         internal static void EnsureInitializedFor(Type type)

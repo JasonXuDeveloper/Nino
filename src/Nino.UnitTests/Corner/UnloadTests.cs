@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -57,23 +59,85 @@ namespace Unloadable
         [TestMethod]
         public void CollectibleContextUnloadsAfterRemove() => AssertUnloads(removeFirst: true);
 
-        private static void AssertUnloads(bool removeFirst)
+        /// <summary>
+        /// A removed assembly stays in AppDomain.GetAssemblies until it is collected: a scan of every assembly in
+        /// between (a read of an unknown type id) must not register it again, which would pin it.
+        /// </summary>
+        [TestMethod]
+        public void RemovedAssemblyIsNotRegisteredAgain() => AssertUnloads(removeFirst: true, scanAfterRemove: true);
+
+        /// <summary>
+        /// An unload followed by a load leaves the number of assemblies unchanged: the scan of every assembly must
+        /// still see the new one (here, to read a type id only its registry knows).
+        /// </summary>
+        [TestMethod]
+        [DoNotParallelize]
+        public void ScanSeesAssemblyLoadedAfterAnUnload()
         {
             var compiled = CornerCompiler.Compile(Source, load: false);
             Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
 
-            var context = LoadUseAndUnload(compiled.Image, removeFirst);
+            // A Move written through object: its type id, then X and Y.
+            var bytes = new byte[12];
+            BitConverter.TryWriteBytes(bytes.AsSpan(0), NinoTypeId.Compute("Unloadable.Move"));
+            BitConverter.TryWriteBytes(bytes.AsSpan(4), 3f);
+
+            // Scan with a collectible dynamic assembly loaded (which the scan skips, so nothing holds or watches
+            // it), let it be collected, then load the reading assembly: the count is the same as at the scan.
+            Collect(DefineAndScan(scan: false)); // first loads what defining and collecting need
+            var filler = DefineAndScan(scan: true);
+            Collect(filler);
+            Assert.IsFalse(filler.IsAlive, "the dynamic assembly was not collected");
+
+            var context = new AssemblyLoadContext("nino-reload", isCollectible: true);
+            try
+            {
+                var assembly = context.LoadFromStream(new MemoryStream(compiled.Image));
+                var value = NinoDeserializer.Deserialize<object>(bytes);
+                Assert.AreEqual("Unloadable.Move", value.GetType().FullName);
+                Assert.AreEqual(3f, value.GetType().GetField("X")!.GetValue(value));
+                Assert.AreSame(assembly, value.GetType().Assembly);
+                NinoRegistry.Remove(assembly);
+            }
+            finally
+            {
+                context.Unload();
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static WeakReference DefineAndScan(bool scan)
+        {
+            var dynamic = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("NinoFiller" + Guid.NewGuid().ToString("N")),
+                AssemblyBuilderAccess.RunAndCollect);
+            dynamic.DefineDynamicModule("Filler").DefineType("Filler.Nothing").CreateType();
+            if (scan)
+                NinoRegistry.EnsureAllInitialized();
+            return new WeakReference(dynamic);
+        }
+
+        private static void Collect(WeakReference context)
+        {
             for (int i = 0; i < 20 && context.IsAlive; i++)
             {
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
             }
+        }
+
+        private static void AssertUnloads(bool removeFirst, bool scanAfterRemove = false)
+        {
+            var compiled = CornerCompiler.Compile(Source, load: false);
+            Assert.AreEqual(0, compiled.Errors.Length, compiled.ErrorText);
+
+            var context = LoadUseAndUnload(compiled.Image, removeFirst, scanAfterRemove);
+            Collect(context);
 
             Assert.IsFalse(context.IsAlive, "the collectible context was not collected");
         }
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static WeakReference LoadUseAndUnload(byte[] image, bool removeFirst)
+        private static WeakReference LoadUseAndUnload(byte[] image, bool removeFirst, bool scanAfterRemove)
         {
             var context = new AssemblyLoadContext("nino-unload", isCollectible: true);
             var assembly = context.LoadFromStream(new MemoryStream(image));
@@ -90,6 +154,14 @@ namespace Unloadable
             if (removeFirst)
                 NinoRegistry.Remove(assembly);
             context.Unload();
+            if (scanAfterRemove)
+            {
+                // A miss that scans every loaded assembly, the unloading one included.
+                Assert.ThrowsExactly<InvalidOperationException>(() =>
+                    NinoDeserializer.Deserialize<object>(new byte[] { 1, 2, 3, 4 }));
+                NinoRegistry.EnsureAllInitialized();
+            }
+
             return new WeakReference(context);
         }
     }
