@@ -1,0 +1,136 @@
+# Nino 重构 / 安全 / 性能 跟踪
+
+起点：origin/main 7dd8186（2026-10-23）。所有工作在独立 worktree 分支上，完成后由主会话审查、合并、全量验证，再快进推送到 main 和 claude/zen-goldberg-5qqqcu。
+
+状态：⏳ 进行中 · ✅ 完成 · ⬜ 未开始 · ❓ 待决定
+
+表中的 /workspace/wt-* 工作区和 scratchpad/ 路径属于当时的会话容器，容器回收后不再存在；分支内容都已合进 main。
+
+## 第一阶段：并行分支
+
+| 分支 / worktree | 范围 | 状态 |
+|---|---|---|
+| refactor/build · /workspace/wt-build | csproj/props/sln/global.json、集中包版本、生成器共享 props 与按目标路径打包、LangVersion、包校验、CI 警告即错误、单一版本来源、UnitTests.csproj 修正、AspNetCore.Tests 入 sln、Immutable 的 IsTrimmable/IsAotCompatible + AotTests | ✅ 9 个提交（556dee1…ac39d4c：元数据集中、中央包版本、生成器共享 props + GetTargetPath 打包、LangVersion latest + global.json、单一版本来源、测试工程 defines/NoWarn、包校验 + CI 警告即错误、Immutable 可裁剪/AOT、Nino.slnx）。nupkg 文件列表不变（只少了从未发布的 .symbols.nupkg）。合并时处理：CONTRIBUTING.md:51 仍提 Version.cs；global.json rollForward 改 latestMajor 以便 vars.DOTNET_VERSION 测新 SDK；AspNetCore 两个零分配测试本机失败但 main 的 CI 通过（容器环境问题） |
+| refactor/gen · /workspace/wt-gen | 生成器 bug A–G（缓存漏 assembly NinoFormatter、别名/using static 接收者、SourceName、TypeFacts 缓存、LatestState 增长、泛型 FormerName 类型 id 冲突诊断、ShapeMatrix 维度）；规则统一、增量缓存、GeneratedFile、FormatterRef、TypeModel/BodyEmitter 拆分、CodeFix、原始字符串；输出变化：4.12 拦截器位置注释、每文件类型别名 | ✅ 17 个提交已合并（修复 A、B、E、H、I、K，D 编译性能，F NINO027，G ShapeMatrix，Q3 部分、Q6、Q8、Q9、Q10）；未做 Q1、Q2、Q4、Q5、Q7、Q11（见下“生成器分支交回的后续项”） |
+| refactor/core · /workspace/wt-core | Core bug B1–B6（卸载程序集重注册、Boxed null、raw 快路径大端、raw 规则两份、未知类型 id 负缓存、NinoSubtypeHandler 可见性）；NinoScratch、卸载钩子、NinoReflection、目录整理、NinoBlock 拆分 + 单一字节映射、具名布局结构、多维数组代码生成、#if 统一、杂项 | ✅ 10 个提交已合并（B1–B8 全部修复，Q9、Q10、Q11）；未做 Q1–Q8（草稿在 scratchpad/core/draft/）；合并时改回 NinoTypeLayoutAttribute 构造参数名 typeId（公开 API） |
+| refactor/sat · /workspace/wt-sat | Immutable（ref writer、内联、DuplicateKey、ArrayPool 清空）、AspNetCore（泛型缓存、OpenAPI 状态码）、TypeScript 常量契约测试、测试辅助去重（RoundTrip、编译设置）、UnityTypes | ✅ 6 个提交（4f6c6c0 TS 布局契约测试；4db3936 UnityTypes 用 NinoUnsafe；5aaaa89 AspNetCore Status 的 OpenAPI 说明；1cce82e 共用 RoundTrip；3b83db3 共用 TestCompilation；585c1f3 Immutable 按值传 writer）。合并时：Immutable.csproj 加 AllowUnsafeBlocks + SkipLocalsInit，链接 NinoThrow.cs 并删掉 DuplicateKey 副本；IncrementalGeneratorTests 和 CornerCompiler 改用 TestCompilation（需加 nullable/预处理符号选项）；AspNetCore 的类型缓存接入 Core 的卸载钩子；Gradient 读到 -1 抛 OverflowException 而不是 Nino 异常（归入安全：只抛 Nino 异常） |
+| refactor/bench · /workspace/wt-bench | Benchmark 工程与 benchmarks/ 脚本清理；类名/方法名/参数不变，payload 字节不变，被测方法机器码不变 | ✅ 4 个提交（163bd66 删已结束的 probe，保留 CopyGapProbe/CopyProbe 等；74e0859；79831e5；2ed2c76 报表脚本共用 bdn.span）。遗留：GenericPolymorphicTest 未登记 payload 大小（补上会给报告加数据，待定）；单类报告标题“### -”合并时核对 |
+| refactor/ts-perf · /workspace/wt-ts | TS 运行时与生成代码性能（Node + Chromium 实测）；安全（边界检查、先校验长度再分配、深度限制、类型 id 白名单、保持 class + Map 设计、`__proto__` 键测试）；深度延迟写入缺口（>128 层）验证并修复；node:test 单元测试套件；TS 目录整理 | ✅ 已合并 |
+
+## 子代理分工（并行，每个独立 worktree 和分支，不推送）
+
+| 方向 | 分支 · worktree | 内容 | 状态 |
+|---|---|---|---|
+| 代码优化 | refactor/build、refactor/gen、refactor/core、refactor/sat、refactor/bench | 见上表 | ✅ 全部合并 |
+| 运行时：TS | refactor/ts-perf · wt-ts | 性能、安全、单元测试、移到 runtimes/typescript | ✅ 6 个提交（856f50a 数组写入改索引循环；7ee4828 深度延迟写入，Fixed；004d9a4 移到 runtimes/typescript；ebaaf06 非法 UTF-8 抛 NinoError，Fixed；7fe6a58 node:test 81 项；e9979be __proto__ 键测试）。合并后待办：生成器在布局里发布 deferrable（gen J）后，TS 生成器改用它，不再从 IL 读 Traits；CLAUDE.md 写上 npm test；DateTime Unspecified 在 TS 里读成 UTC（既有行为，待定）；bool 字节 2–255 读成 true（与 .NET 一致，归入第二阶段严格度统一） |
+| 运行时：Go | runtime/go · wt-go | runtimes/go：读写、校验、深度延迟、零依赖、基准对比 json/msgpack、原生 fuzz、CI job | ✅ 9 个提交；一致性语料全过（引用追踪除外），fuzz 约 560 万次无 panic。合并前必须：bf8894d 误提交 5.6 MB 测试二进制，本地分支未推送，合并前改写该分支历史去掉它；runtimes.yml 与 conformance job 合并成一个文件。规范待修：§3.3/§3.4 示例日期标签错、§7.6 keyed 剩余字节应为非法、§7.10.3 补三条区段规则、§9.10 补 decimal/DateOnly/TimeOnly 范围、空结构体 1 字节、corpus README 补 sbyte[] |
+| 运行时：Rust | runtime/rust · wt-rust | runtimes/rust：默认 forbid(unsafe)、不 panic、criterion 对比 serde_json/bincode/rmp/postcard、miri、CI job | ✅ 15 个提交（含 nino-derive 过程宏、serde feature、trybuild 编译失败测试、MSRV 1.88）；语料 252 例 + 10,344 个截断前缀全过（引用追踪除外），derive 47 个类型过语料，变异 fuzz 75.6 万次无 panic。合并前必须：提交 10–15 缺 Co-Authored-By，本地改写补上；runtimes.yml 合成一个文件（conformance + go + rust + ts）。待改进：字符串解码比 bincode/postcard 慢（约 71 vs 50 µs/1000 个）；单条记录序列化慢于 bincode。规范待定：keyed 链示例顺序与语料不符（以 .NET 实际输出为准）；结构体嵌套是否计入 512 层；SortedDictionary<string> 默认比较器与文化相关，其他语言用序数排序会写出不同字节（写进规范：读取保持线上顺序） |
+| 线格式规范 | docs/wire-spec · wt-spec | docs/spec/wire-format.md | ✅ b870f7c（规范 4.0 草案；§10 列出 12 处不一致或未定义） |
+| 一致性语料 | test/conformance · wt-conf | conformance/：.NET 写出的 valid + malicious 语料、.NET 自测、runtimes.yml 的 conformance job | ✅ 3 个提交（66286fa、8507669、ee400b3）：109 个有效用例、149 个恶意用例 + 截断规则（37 个用例的每个前缀，共 10,441 个）。.NET 现有缺口 26 个（自嵌套栈溢出 2、bool/presence 字节 12、延迟区段偏移/标志 4、keyed 成员剩余字节 1、尾随字节 1、越界 raw 值 3…），修复后需重新生成语料。合并时：slnx 加入 Nino.Conformance；runtimes.yml 触发路径补全；TS job 接入语料；规范补“空 raw 结构体写 1 个零字节” |
+| 安全：模糊测试 | test/fuzz · wt-fuzz | tests/Nino.Fuzz（保护页变异模糊器 + SharpFuzz）、fuzz.yml（SIMD 开/关矩阵 + nightly） | ✅ 4 个提交（20b3a15、6e641fe、62cbfe2、e1c4386）；各 SIMD 模式各 300 s + libFuzzer 每个目标，无新 bug。已知 tree/dtree/hash/hash-set 默认非严格，修复后设仓库变量 NINO_FUZZ_STRICT_KNOWN=1 并删 Probes.cs 的 Known。注意：哈希修复要过探针的 1 s / 50 倍限制（只做到和 BCL 一样不够）；Golden 链接路径随目录重组改；三个新工程加进 slnx。发现生成器 bug K（类型名只差大小写 → hintName 冲突 → 整个项目没有生成代码）→ 已交 gen |
+| 安全：修复 | core 分支（B7 自嵌套、B5 负缓存）；第二阶段（哈希链上限、Untrusted、NinoDataException、限制） | | ✅ B7、B5 已合并 / ⬜ 第二阶段 |
+| 目录结构 | chore/layout · wt-layout | 可重跑的重组脚本（tests/、benchmarks/、根目录 slnx 和 Directory.*.props），先在当前 main 上跑通验证，合并后再跑一次 | ✅ 175c21a tools/restructure.py（--check、--dry-run，幂等）+ 159362f 在 7dd8186 上的结果（合并后改为重跑脚本，不合并此提交）。验证：slnx 构建零警告、三种单测、AOT、Mono RuntimeTests、基准构建、6 个包文件列表不变、Unity 包不变。注意：report.yml 手动跑旧标签会失败；dependabot directories 通配需确认；nino.docs CLAUDE.md 的路径要改 |
+| AspNetCore 零分配测试 | fix/aspnetcore-alloc · wt-asp | 测试工程从未进 sln，CI 的这一步其实什么都没跑；两个零分配测试真实失败，查根因并修 | ✅ 根因：Debug 构建里 async 状态机是 class，每次调用都分配；Release 发布包本来就零分配（无用户可见 bug）。46232f0 已在管道里的请求体同步读完、不走 async 方法（本机 Release 约 225→165 ns，非完整模式数字，无尾注）；b28ac83 测试改为同步调用测量，仍是严格零分配。合并时：nino.docs aspnetcore 页（中英）第 113 行附近改说法 |
+| 文档 | docs/scan · wt-docs + nino.docs | 文档对照当前 main 全面核对（含 pitfalls 的 NinoTuple），列出进行中工作将来需要的页面 | ✅ Nino 1b65faa（未合并）；nino.docs 41cf216 已推送（NINO017 补“非泛型”）。待查：AnalyzerReleases.Shipped.md 里 NINO003/006/009 标题与 NinoDiagnostics.cs 不一致 |
+
+## 调研 / 审计
+
+| 项 | 状态 | 结论 / 下一步 |
+|---|---|---|
+| FFI / 导出到其他语言 | ✅ 调研完成 | 不做 NativeAOT C ABI（跨边界 ~10 ns，句柄 50+ ns，小结构体得不偿失）、不做 .NET wasm。推荐：正式线格式规范 → 布局中间表示 + 各语言生成器（先 TS 移植，再 Rust、Go）→ 共享一致性语料（含恶意输入）；schema 导出附带。每种语言：一份手写运行时（读写基础类型、字符串、BCL 类型、校验，一次写好，与类型无关）+ 每个类型的编解码由生成器产出。生成器用 Scriban（.sbn）模板：逻辑全在 C# 的布局中间表示里，模板只拼文本；模板作为嵌入资源，Scriban 只是工具的依赖，不进运行时。❓ 是否启动、何时启动由维护者决定 |
+| 安全审计（反序列化不可信输入） | ✅ 审计完成（约 420 万个变异输入，保护页，无越界、无运行时集合损坏） | ① 严重：自嵌套集合类型（`Tree : List<Tree>`、`DTree : Dictionary<string, DTree>`）无深度计数 → 栈溢出杀进程 —— 已交给 refactor/core（B7）。② 中：哈希碰撞键（long/double/结构体）使 Dictionary/HashSet/ImmutableDictionary 读取变成平方级（1 MB ≈ 1 分钟 CPU）—— ✅ 已批准两层都做（第二阶段）：默认 `Fill` 链长计数超限抛错（正常数据零成本）+ 可选 `NinoSettings.Untrusted`（随机化比较器 + ③ 的语义校验）。③ 低：raw 结构体里 bool/enum/DateTime/decimal 不做语义校验（值错误，非内存问题）—— 放进 Untrusted 模式。④ 低：未知类型 id 每次重扫 —— 已在 core B5。⑤ 低：TS 无深度限制 → RangeError —— 已在 ts-perf。设计：公开 `NinoDataException : InvalidOperationException`；`NinoSettings.MaxDepth/MaxCollectionLength`（static readonly）；CI 模糊测试（SharpFuzz + PR 级变异模糊器，SIMD 开/关、复用模式）。PoC 与模糊器：scratchpad/sec/poc/ |
+
+## 多语言（TS、Go、Rust 先行）
+
+- ✅ docs/spec/wire-format.md：正式线格式规范（docs/wire-spec · b870f7c）。由此发现的 bug：H 生成器从引用程序集读 BCL 结构布局（_dummyPrimitive），Complex/TimeOnly/Half/Int128/Rune/int? 发布的布局错误 → gen；I 8 项及以上的 ValueTuple 成员被静默跳过（数据丢失）→ gen；J 布局里没有 deferrable 标记 → gen；B8 RawPoint?[] 生成代码与运行时解析器写出不同字节 → core（以定长 stride 为准，Wire-Format 尾注）；宽松读取（bool/presence >1、keyed 重复键、尾随字节、DateTime kind 3、ImmutableArray null 抛 BCL 异常等）→ 第二阶段统一严格度并写进规范。✅ 维护者已同意，第二阶段执行：默认就报错 —— 延迟区段偏移/标志不符、keyed 成员剩余字节、bool/presence 字节 >1；仅 Untrusted 模式报错 —— 尾随字节（Span 切片场景兼容）、越界的 decimal/DateTime/DateOnly 等 raw 值
+- ✅ TS 运行时移到 runtimes/typescript
+- ⬜ 布局中间表示 + nino-gen 命令行 + Scriban 模板（src/Nino.Codegen，取代 Nino.TypeScript 里的语言相关部分）
+- ⬜ conformance/：.NET 写出的有效语料 + 恶意语料，所有语言共用
+- ⬜ runtimes/go、runtimes/rust：运行时 + 模板 + 测试 + 基准
+- ⬜ 每个运行时的性能维护：各自基准对比本生态的主流库（TS：JSON、msgpackr；Go：encoding/json、vmihailenco/msgpack；Rust：serde_json、bincode、rmp-serde、postcard），report.yml 发布各语言结果，CLAUDE.md 写各语言的性能和安全规则
+- ✅ Go 结构体标签（runtime/go 6 个提交 fd2bd02…3693254；语料经标签结构体 103/140/35 通过；反射计划缓存，比手写编解码慢 2–5 倍，仍远快于 encoding/json）。合并时：Go 自造的 `deferrable=false` 与生成器 23abe40 发布的标记对齐成同一语法。待定：普通 string 字段把 null 读成 ""（要保留 null 用 *string）；map 按键排序写出（[]nino.Entry 保留线上顺序）。原计划：`nino:"0"` / `nino:"Name"`（keyed）/ `nino:"-"` 等，用户自己的结构体走反射 + 按类型缓存的编解码计划（同等的安全保证、fuzz）；生成的 Go 结构体带 nino 标签和可配置的 json/yaml 标签（默认 camelCase）
+- ✅ Rust 对应（runtime/rust）：`#[derive(NinoRead, NinoWrite)]` 过程宏 + `#[nino(index/key/skip/utf8)]` 属性（编译期生成，零运行时成本），可选 serde 派生（serde feature，rename_all 可配置）
+- ⬜ 包名确认：npm、crates.io、Go 模块路径 github.com/JasonXuDeveloper/Nino/runtimes/go（标签 runtimes/go/vX.Y.Z）
+
+### 目标目录结构（第一阶段合并后执行，Unity 包路径不动）
+
+```
+Nino/
+├─ Nino.slnx                （slnx 格式，从 src/ 移到根目录）
+├─ src/                     .NET 包（路径不变）+ Nino.Codegen（中间表示、nino-gen、Templates/{typescript,go,rust}/*.sbn）
+├─ tests/                   .NET 测试工程：UnitTests、UnitTests.Subset、RuntimeTests、AotTests、AspNetCore.Tests、Codegen.Tests
+├─ runtimes/
+│  ├─ typescript/           package.json、src/、test/、bench/
+│  ├─ go/                   go.mod、*.go、*_test.go、bench/
+│  └─ rust/                 Cargo.toml、src/、tests/、benches/
+├─ conformance/             Nino.Conformance（.NET 语料生成）、corpus/{valid,malicious}/
+├─ benchmarks/              .NET 基准（Nino.Benchmark、GeneratorBenchmark 移入）、脚本、v3
+├─ docs/                    spec/、design、pitfalls、diagnostics、benchmarks
+├─ tools/                   CodeGen
+└─ .github/workflows/       ci.yml（.NET）、runtimes.yml（ts/go/rust + 一致性语料）、release、report
+```
+
+## 第二阶段（合并第一阶段之后）
+
+- ⬜ 读取严格度（已批准）：默认报错 —— 延迟区段偏移/标志不符、keyed 成员剩余字节、bool/presence >1；Untrusted 模式报错 —— 尾随字节、越界 decimal/DateTime/DateOnly 等；写进规范；重新生成一致性语料；asm.py 确认热路径。
+- ⬜ 安全（已批准）：哈希链长上限（默认）；`NinoSettings.Untrusted`（随机化比较器、bool/enum/DateTime/decimal 等语义校验）；公开 `NinoDataException : InvalidOperationException`；`NinoSettings.MaxDepth` / `MaxCollectionLength`（static readonly，只在已有长度校验和深度路径上多一次比较）；CI 模糊测试（SharpFuzz + PR 级变异模糊器，SIMD 开/关、复用模式）；回归用例（自嵌套集合、碰撞 long 键）。热路径用 asm.py 和基准确认不变慢。
+- ✅ sln → slnx（refactor/build ac39d4c，先在 src/，目录重组时移到根目录）
+
+- ⬜ 合并 6 个分支，解决冲突，全量验证：net10 / net8+ns2.1 / net8+ns2.0+Roslyn4.8；AVX512=0、AVX2=0、HWIntrinsic=0；Mono net472；qemu Arm64/Arm32；AspNetCore、TypeScript 测试；asm.py compare；pack 内容对比
+- ⬜ 只给生成代码用的公共成员挪到新命名空间（建议 `Nino.Core.Generated`），Core 与生成器同步
+- ⬜ UnsafeAccessor（.NET 8/9+，#if 区分，保留探测 / 公共 API 回退）、`allows ref struct`（.NET 9+，#if）；各平台结果一致的测试
+- ⬜ 热路径项：Permute64x2 合并、Shuffles 循环改 ref 游标、Writer 上下文检查、ReadConverted、内联标记补齐、NinoMask 复制去重 —— asm.py + 三种 ISA + Arm64 qemu
+- ⬜ 安全审计发现的修复
+- ⬜ 定长非原始 `[NinoType]` 结构体（含 ValueTuple/KVP/Nullable 字段）生成 INinoBlockFormatter，数组走 SIMD 置换（需要接口公开到新命名空间）；ShapeMatrix 补维度；x64/Arm64 基准确认
+- ⬜ 单元测试工程整体整理（按领域分目录、去重、命名统一；测试数量不减）
+- ⬜ CLAUDE.md：优先共用方案；平台专用快路径需记录并测试各平台结果一致；UnsafeAccessor / allows ref struct 约定；安全要求
+- ⬜ docs/pitfalls.md：删掉过时的 `NinoTuple` 说法（v3 类型，v4 已删除）
+- ⬜ 快进推送；nino.docs changelog 中英文更新（用户可见的修复和变化）
+
+### Core 分支交回的后续项
+- 未做 Q1–Q8（草稿：scratchpad/core/draft/ 下的 q2.py、NinoReflection.cs、split_block.py、bytemap.py、nits_block.py；NinoReflection.cs 和 q2.py 要先按新的 IsRawShape 改）。
+- 验证缺口：B1/B2 的 ISA 跑法当时没真跑（`env` 是空壳，改用 /usr/bin/env）；Mono/net472 和 qemu Arm 未跑 —— 集成分支上已补跑 net10 三种 ISA，Mono/Arm 待跑。
+- 写入一个百万层自嵌套集合仍会无限递归（只发生在调用方自己的对象上），未修。
+- 生成器的 IsRawStruct 要与运行时的判断保持一致（原始结构体的生成格式化器是 INinoRawFormatter）。
+
+### 集成时我修的
+- netstandard2.1 测试构建：Convert.FromHexString → Rt.FromHex。
+- 3 个提交的 trailer 与 Co-Authored-By 之间多了空行（release_notes.py 读不到），只改提交信息。
+- 一致性语料重新生成（布局字符串 + 两条自嵌套结果），Go layouts.go / Rust derive.rs 同步；Go 的 RecordChain 保留 `deferrable=false`（J 项）。
+- 目录重组后模糊测试工程受集中包版本管理约束：SharpFuzz 版本移进 Directory.Packages.props。
+- asm.py compare：23 个"变差"都已解释（Immutable 按值传 writer 是有意的；多态/Pooled/HashSet 单独重跑无变差；拦截器 SerializeNNN 编号因删除 TupleProbe 错位）。
+
+### 生成器分支交回的后续项（合并后处理）
+- J：Core 的 `NinoTypeLayoutAttribute` 加 `public bool Deferrable { get; set; }`（保留 7 参构造），ToString 在 members 前加 `; deferrable=true|false`（仅设置时）；规范 §8.1/§7.10.1/§10 第 5 条同步；TS LayoutReader 读 NamedArguments["Deferrable"]；Go 对齐。
+- Core 的 NinoLayout 未建模 Int128/UInt128 在 .NET 8+ 的 16 字节对齐（生成器已把含 Int128 的结构视为不可移植）。
+- 可选：Core 加 ValueTuple`8（TRest）格式化器，之后生成器可去掉 LongTupleFormatter。
+- docs/diagnostics.md 加 NINO027；NinoFormerNameAttribute 注释提到 NINO027；nino.docs 诊断页同步。
+- Q11：在已有类型前插入类型会让之后的格式化器全部重新输出（Combine 展平所致），输出正确，只是增量缓存失效；未修。
+- 未做：Q1、Q2、Q4、Q5、Q7，Q3 余下部分。
+- Immutable：链接 Core 的 NinoThrow 不可行（Immutable 也对 UnitTests 开放内部成员，且 NinoThrow 依赖 NinoDepth）；SkipLocalsInit 留到第二阶段和 asm 对比一起做。
+
+## 文档规则（每项用户可见的改动都要做）
+
+- Nino 提交：Conventional Commits，用户可见的改动在最后一段加 `Fixed:` / `Added:` / `Performance:`（实测、仅完整模式数字）/ `Wire-Format:` 尾注，`Closes #N` 放在尾注上方；重构、测试、CI、文档不加。
+- Nino 文档：README（中英）、docs/（design、pitfalls、spec、diagnostics）随代码更新。
+- nino.docs：changelog 中英文按尾注写下一版本的条目，每条对照源码并链接文档页；新功能（安全设置、限制 API、多语言运行时）写对应的 v4 页面（中英文同结构，中文标题带英文 id），`bun run check && bun run build` 通过后推送。
+
+## 进行中工作需要的文档页（nino.docs，中英文）
+
+- 安全：新增 v4/security（设置、限制、Untrusted 模式）；更新 basic#invalid-data、vs-memorypack#untrusted-input、faq、README“适合不可信数据”段、docs/v4-design.md
+- NinoDataException：所有“抛 InvalidOperationException（Nino: 前缀）”的说法（README 中英、basic、vs-memorypack、types、diagnostics NINO021/026）、不可变集合重复键说明、migration、whats-new、changelog
+- 多语言：新增 v4/wire-format（或移动 platforms#binary-format）；advanced/go、advanced/rust（与 typescript 并列）；advanced 索引卡片和 meta；平台表、README“Built for”表和安装段
+- 一致性语料：wire-format 页一节 + CONTRIBUTING
+- slnx / 目录重组：CONTRIBUTING、benchmarks/README、CLAUDE.md、docs/*.md 的 src/ 路径；nino.docs 的 GitHub 链接（perf、typescript、analyzers、changelog）、sync-benchmarks.ts、nino.docs CLAUDE.md 的源码路径
+- 命名空间迁移：v4-design、custom-formatters、polymorphism、advanced/unity、platforms、migration 里提到 NinoFormatterCache 等的行
+
+## 待用户操作
+
+- ⬜ report.yml 8 分片拆分后的耗时，需下次发布或手动运行确认（`gh workflow run report.yml`）
+
+## 记录
+
+- 2026-10-23：维护者确认审计五项全部修复（①④ core 分支，⑤ ts-perf 分支，②③ 第二阶段）。
+- 2026-10-23：启动第一阶段四个分支；追加 bench、ts-perf、FFI 调研、安全审计；FFI 报告完成；TS 追加单元测试和目录整理。
+- 2026-10-23：集成分支 integrate 摘入 11 个分支 + gen 分支 17 个提交；补 slnx/global.json、Gradient -1、AspNetCore 可回收类型缓存、CLAUDE.md（共用优先、TS 一节）。单测整套在容器里因 OOM 中断（多代理同时跑），需分段跑。
+- 2026-10-23：gen、core 分支合入 integrate；全量验证（三种配置、三种 ISA、AspNetCore、TS、Go、Rust、一致性语料）通过；跑完目录重组脚本；nino.docs 写好 rc.8 更新日志。
