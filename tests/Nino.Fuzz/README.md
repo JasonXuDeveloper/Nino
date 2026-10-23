@@ -39,7 +39,8 @@ For each input, the fuzzer:
     not a finding.
 
 Each finding is minimized (chunks removed, then bytes zeroed, while the same signature still shows) and saved once per
-signature in `findings/<target>/<kind>-<hash>/`:
+signature in `findings/<target>/<kind>-<hash>/` (a crash whose signature is already saved is only counted in
+`seen.txt`, not minimized again, so a crash that recurs does not use up the run):
 
 - `input.bin`: the input as the fuzzer generated it, `min.bin` the minimized one, `prime.bin` the input whose value
   a reuse read went into;

@@ -122,7 +122,12 @@ namespace Nino.Fuzz
 
             byte[] min = null;
             string note = "(not minimized: timeouts take too long to minimize)";
-            if (!r.TimedOut)
+            if (Findings.Saved(o.FindingsDir, c, "crash", signature))
+            {
+                // Seen before: minimizing it again would spend the run's time on restarts of a known crash.
+                note = "(not minimized: already saved)";
+            }
+            else if (!r.TimedOut)
             {
                 if (Same(c.Data)) min = Findings.Minimize(c.Data, Same, TimeSpan.FromSeconds(o.MinimizeSeconds * 3), 150, out note);
                 else note = "(not minimized: the input alone does not crash a fresh process; see input.bin)";

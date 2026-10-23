@@ -59,7 +59,7 @@ namespace Nino.Fuzz
             if (Directory.Exists(dir)) Directory.Delete(dir, true);
             var o = new Options
             {
-                Seconds = 30, Targets = { Target.Name }, FindingsDir = dir, Probes = false, HangSeconds = 3, MinimizeSeconds = 2,
+                Seconds = 45, Targets = { Target.Name }, FindingsDir = dir, Probes = false, HangSeconds = 1, MinimizeSeconds = 2,
             };
             Supervisor.Fuzz(o);
             var found = Directory.Exists(Path.Combine(dir, Target.Name))

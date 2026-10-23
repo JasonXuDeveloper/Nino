@@ -76,11 +76,15 @@ namespace Nino.Fuzz
     /// <summary>The findings folder: one folder per target and signature, with the input, a minimized one and info.txt.</summary>
     public static class Findings
     {
+        /// <summary>Whether a finding with this signature was already saved for the case's target.</summary>
+        public static bool Saved(string root, Case c, string kind, string signature) =>
+            File.Exists(Path.Combine(root, c.Target, kind + "-" + Hash(signature), "info.txt"));
+
         /// <summary>Saves a finding; returns its folder, or null when this signature was already saved.</summary>
         public static string Save(string root, Case c, string kind, string signature, string details, byte[] minimized, string minimizeNote)
         {
             string dir = Path.Combine(root, c.Target, kind + "-" + Hash(signature));
-            if (Directory.Exists(dir) && File.Exists(Path.Combine(dir, "info.txt")))
+            if (Saved(root, c, kind, signature))
             {
                 File.AppendAllText(Path.Combine(dir, "seen.txt"), $"seed {c.Seed} iteration {c.Iteration} ({c.Data.Length} bytes)\n");
                 return null;
