@@ -92,6 +92,16 @@ dotnet run -c Release -- --filter '*' --launchCount 3 --warmupCount 5 --iteratio
 dotnet run -c Release -- --filter '*FixedSizeTest*' --launchCount 1 --warmupCount 1 --iterationCount 3   # a quick look
 ```
 
+`CpuProbe.cs` holds probes, classes named `*Probe` that only a filter naming them runs (never `'*'`, and
+`report.yml` leaves them out): `NinoUnsafe`'s block copies against Memmove by size, alignment and distance, on jobs
+of their own (AVX-512 on, off and with 256-bit vectors preferred; one job on Arm64). Nino.Core picks its copy by CPU
+from what they measured; run them again on a CPU those choices were not measured on:
+
+```sh
+dotnet run -c Release -- --filter '*CopyProbe*' '*NewArrayCopyProbe*'   # x64
+dotnet run -c Release -- --filter '*Copy128Probe*'                      # Arm64
+```
+
 ## Member by Member
 
 `members/` takes `SimpleClass` apart: each member type (`int`/`Guid`/`DateTime` header, UTF-16 and UTF-8 strings,

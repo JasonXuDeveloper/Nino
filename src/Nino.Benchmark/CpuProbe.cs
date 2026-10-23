@@ -1,7 +1,4 @@
 using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
@@ -9,14 +6,18 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Environments;
 using BenchmarkDotNet.Jobs;
-using MemoryPack;
 using Nino.Core;
 using Perfolizer.Horology;
 
 namespace Nino.Benchmark;
 
+// Probes of NinoUnsafe's block copies against Memmove, on their own jobs: the sizes, alignments and CPUs at which
+// Nino.Core chooses a vector loop, a copy into a new array or Arm64's paired loads (see NinoUnsafe.Copy, CopyToNew and
+// CopyPairs). Run them again on a CPU those choices were not measured on. Only a filter that names a probe runs it
+// (Program.cs), never the suite's '*'.
+
 /// <summary>
-/// Experiment: the same cases with AVX-512 on, off (DOTNET_EnableAVX512=0: .NET 10 ignores DOTNET_EnableAVX512F) and
+/// The jobs of the x64 probes: AVX-512 on, off (DOTNET_EnableAVX512=0: .NET 10 ignores DOTNET_EnableAVX512F) and
 /// with 64-byte vectors not preferred (Avx512F still supported, Vector512 not accelerated).
 /// </summary>
 public class ProbeConfig : ManualConfig
@@ -30,26 +31,6 @@ public class ProbeConfig : ManualConfig
         AddJob(job.WithEnvironmentVariables(new EnvironmentVariable("DOTNET_EnableAVX512", "0")).WithId("Avx2"));
         AddJob(job.WithEnvironmentVariables(new EnvironmentVariable("DOTNET_PreferredVectorBitWidth", "256")).WithId("Prefer256"));
     }
-}
-
-[Config(typeof(ProbeConfig))]
-public class SerializeProbe
-{
-    private static readonly List<(int, long)> Tuples = Enumerable.Range(0, 1000).Select(i => (i, (long)i * 31)).ToList();
-    private static readonly KeyValuePair<int, int>[] Pairs =
-        Enumerable.Range(0, 1000).Select(i => new KeyValuePair<int, int>(i, i * 7)).ToArray();
-    private static readonly InventoryItem[] Items = Enumerable.Range(0, 1000)
-        .Select(i => new InventoryItem { ItemId = i, Count = (short)(i % 100), Bound = i % 3 == 0 }).ToArray();
-
-    private readonly NinoArrayBufferWriter _nino = new(1 << 16);
-    private readonly ArrayBufferWriter<byte> _mp = new(1 << 16);
-
-    [Benchmark] public int NinoTuples() { _nino.ResetWrittenCount(); NinoSerializer.Serialize(Tuples, _nino); return _nino.WrittenCount; }
-    [Benchmark] public int MemoryPackTuples() { _mp.ResetWrittenCount(); MemoryPackSerializer.Serialize(_mp, Tuples); return _mp.WrittenCount; }
-    [Benchmark] public int NinoPairs() { _nino.ResetWrittenCount(); NinoSerializer.Serialize(Pairs, _nino); return _nino.WrittenCount; }
-    [Benchmark] public int MemoryPackPairs() { _mp.ResetWrittenCount(); MemoryPackSerializer.Serialize(_mp, Pairs); return _mp.WrittenCount; }
-    [Benchmark] public int NinoItems() { _nino.ResetWrittenCount(); NinoSerializer.Serialize(Items, _nino); return _nino.WrittenCount; }
-    [Benchmark] public int MemoryPackItems() { _mp.ResetWrittenCount(); MemoryPackSerializer.Serialize(_mp, Items); return _mp.WrittenCount; }
 }
 
 /// <summary>Experiment: NinoUnsafe.Copy against Memmove (Span.CopyTo), into a buffer at offset 4.</summary>
@@ -123,136 +104,6 @@ public class NewArrayCopyProbe
         var array = GC.AllocateUninitializedArray<byte>(Bytes);
         NinoUnsafe.Copy(ref MemoryMarshal.GetArrayDataReference(array), ref _source[4], (uint)Bytes);
         return array;
-    }
-}
-
-/// <summary>Experiment: `--time [name...]` times SerializeProbe's methods outside BenchmarkDotNet (best of 15 rounds).</summary>
-public static class ProbeTimer
-{
-    public static int Run(string[] args)
-    {
-        if (args.Contains("--check"))
-            TupleProbe.Verify();
-        var probe = new SerializeProbe();
-        var tuples = new TupleProbe();
-        var cases = new (string Name, Func<int> Run)[]
-        {
-            ("NinoTuples", probe.NinoTuples), ("MemoryPackTuples", probe.MemoryPackTuples),
-            ("NinoPairs", probe.NinoPairs), ("MemoryPackPairs", probe.MemoryPackPairs),
-            ("NinoItems", probe.NinoItems), ("MemoryPackItems", probe.MemoryPackItems),
-            ("Tuple.NinoWrite", tuples.NinoWrite), ("Tuple.MemoryPackWrite", tuples.MemoryPackWrite),
-            ("Tuple.NinoRead", tuples.NinoRead), ("Tuple.MemoryPackRead", tuples.MemoryPackRead),
-            ("Tuple.Memcpy", tuples.Memcpy), ("Tuple.WriteScalar", tuples.WriteScalar),
-            ("Tuple.WritePermute", tuples.WritePermute), ("Tuple.WritePermuteFull", tuples.WritePermuteFull),
-            ("Tuple.WriteLanes", tuples.WriteLanes), ("Tuple.WriteZip", tuples.WriteZip),
-            ("Tuple.ReadScalar", tuples.ReadScalar), ("Tuple.ReadPermute", tuples.ReadPermute),
-            ("Tuple.ReadZip", tuples.ReadZip), ("Tuple.WriteTbl", tuples.WriteTbl), ("Tuple.ReadTbl", tuples.ReadTbl),
-            ("Tuple.ReadTbl1", tuples.ReadTbl1),
-            ("Tuple.AllocList", tuples.AllocList), ("Tuple.ReadNewZeroed", tuples.ReadNewZeroed),
-            ("Tuple.ReadNewUninitialized", tuples.ReadNewUninitialized), ("Tuple.AllocUninitialized", tuples.AllocUninitialized),
-        };
-        var names = args.Where(a => !a.StartsWith("--")).ToArray();
-        foreach (var (name, run) in cases)
-        {
-            if (names.Length > 0 && !names.Any(n => name.Contains(n)) || run() < 0)
-                continue;
-            // Long enough for tiered compilation to reach Tier1 (call counting starts after 100 ms of quiet).
-            var warm = System.Diagnostics.Stopwatch.StartNew();
-            while (warm.ElapsedMilliseconds < 2000)
-                run();
-            double best = double.MaxValue;
-            for (int round = 0; round < 15; round++)
-            {
-                const int n = 20_000;
-                var watch = System.Diagnostics.Stopwatch.StartNew();
-                for (int i = 0; i < n; i++)
-                    run();
-                best = Math.Min(best, watch.Elapsed.TotalNanoseconds / n);
-            }
-            Console.WriteLine($"{name,-24} {best,7:F1} ns");
-        }
-        return 0;
-    }
-}
-
-/// <summary>
-/// Experiment: 8,000 bytes copied into a buffer 4 bytes past a 64-byte boundary (a list after its length), from every
-/// 8-byte offset of the source to one: NinoUnsafe.Copy (stores aligned), the same loop with its loads aligned instead,
-/// and Memmove. Inventory (1,000 8-byte structs, copied whole) took 37 or 57 ns on an EPYC 9V45 by the process.
-/// </summary>
-[Config(typeof(ProbeConfig))]
-public unsafe class CopyAlignProbe
-{
-    [Params(0, 8, 16, 24, 32, 40, 48, 56)]
-    public int SourceShift;
-
-    private const int Bytes = 8000;
-    private static readonly byte* SourceBase = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
-    private static readonly byte* DestinationBase = (byte*)NativeMemory.AlignedAlloc(1 << 16, 64);
-
-    private byte* Source => SourceBase + SourceShift;
-    private static byte* Destination => DestinationBase + 4;
-
-    [Benchmark(Baseline = true)]
-    public int NinoCopy()
-    {
-        NinoUnsafe.Copy(ref *Destination, ref *Source, Bytes);
-        return Bytes;
-    }
-
-    [Benchmark]
-    public int LoadsAligned()
-    {
-        byte* s = Source, d = Destination;
-        if (Vector512.IsHardwareAccelerated)
-        {
-            Vector512.Load(s).Store(d);
-            nuint i = 64 - ((nuint)s & 63), end = Bytes - 64;
-            for (; i + 192 <= end; i += 256)
-            {
-                var a = Vector512.Load(s + i);
-                var b = Vector512.Load(s + i + 64);
-                var c = Vector512.Load(s + i + 128);
-                var e = Vector512.Load(s + i + 192);
-                a.Store(d + i);
-                b.Store(d + i + 64);
-                c.Store(d + i + 128);
-                e.Store(d + i + 192);
-            }
-
-            for (; i <= end; i += 64)
-                Vector512.Load(s + i).Store(d + i);
-            Vector512.Load(s + end).Store(d + end);
-        }
-        else
-        {
-            Vector256.Load(s).Store(d);
-            nuint i = 32 - ((nuint)s & 31), end = Bytes - 32;
-            for (; i + 96 <= end; i += 128)
-            {
-                var a = Vector256.Load(s + i);
-                var b = Vector256.Load(s + i + 32);
-                var c = Vector256.Load(s + i + 64);
-                var e = Vector256.Load(s + i + 96);
-                a.Store(d + i);
-                b.Store(d + i + 32);
-                c.Store(d + i + 64);
-                e.Store(d + i + 96);
-            }
-
-            for (; i <= end; i += 32)
-                Vector256.Load(s + i).Store(d + i);
-            Vector256.Load(s + end).Store(d + end);
-        }
-
-        return Bytes;
-    }
-
-    [Benchmark]
-    public int Memmove()
-    {
-        Buffer.MemoryCopy(Source, Destination, Bytes, Bytes);
-        return Bytes;
     }
 }
 

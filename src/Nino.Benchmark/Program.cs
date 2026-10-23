@@ -18,10 +18,8 @@ namespace Nino.Benchmark
         {
             if (args.Contains("--verify"))
                 return Verify.Run();
-            if (args.Contains("--time"))
-                return ProbeTimer.Run(args);
 
-            // The probes (classes named *Probe, CpuProbe.cs and TupleProbe.cs) time kernels on their own jobs: only
+            // The probes (classes named *Probe, CpuProbe.cs) time kernels on their own jobs: only
             // a filter that names one runs them, never the suite's '*'.
             bool probes = args.Any(arg => arg.Contains("Probe"));
             BenchmarkSwitcher.FromTypes(typeof(Program).Assembly.GetTypes()
