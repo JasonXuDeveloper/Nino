@@ -70,7 +70,19 @@ internal static class ModelCache
     private static readonly object Lock = new();
     private static readonly ConditionalWeakTable<Compilation, ProjectState> States = new();
     private static readonly ConditionalWeakTable<ParseOptions, string> SymbolKeys = new();
-    private static readonly Dictionary<string, ProjectState> LatestState = new();
+    /// <summary>The latest state of each project (by <see cref="ProjectState.ProjectKey"/>), weakly. Guarded by <see cref="Lock"/>.</summary>
+    private static readonly Dictionary<string, System.WeakReference<ProjectState>> LatestState = new();
+
+    /// <summary>The states used most recently, kept alive (<see cref="Touch"/>). Guarded by <see cref="Lock"/>.</summary>
+    private static readonly LinkedList<ProjectState> RecentStates = new();
+
+    /// <summary>How many states <see cref="RecentStates"/> keeps: more than the projects one solution builds at once.</summary>
+    private const int Recent = 32;
+
+    private const int MinPrune = 64;
+
+    /// <summary>Size of <see cref="LatestState"/> at which its dead entries are removed. Guarded by <see cref="Lock"/>.</summary>
+    private static int PruneAt = MinPrune;
 
     public static TypeModel? GetOrBuild(INamedTypeSymbol type, Compilation compilation, ParseOptions? options,
         System.Func<TypeModel?> build)
@@ -169,13 +181,36 @@ internal static class ModelCache
                 return known;
             // Reuse the previous state object while nothing project-wide changed, so its entries stay valid;
             // otherwise the new state starts empty and every model of this project is rebuilt once.
-            if (LatestState.TryGetValue(state.ProjectKey, out var latest) && latest.SameAs(state))
+            if (Latest(state.ProjectKey) is { } latest && latest.SameAs(state))
                 state = latest;
             else
-                LatestState[state.ProjectKey] = state;
+                LatestState[state.ProjectKey] = new System.WeakReference<ProjectState>(state);
+            Touch(state);
             States.Add(compilation, state);
             return state;
         }
+    }
+
+    /// <summary>The latest state of the project <paramref name="key"/>, if it is still alive. Guarded by <see cref="Lock"/>.</summary>
+    private static ProjectState? Latest(string key) =>
+        LatestState.TryGetValue(key, out var weak) && weak.TryGetTarget(out var state) ? state : null;
+
+    /// <summary>
+    /// Keeps <paramref name="state"/> among the <see cref="Recent"/> ones, which stay alive between compilations (the
+    /// IDE may drop one compilation before it creates the next); any other state lives only as long as a compilation
+    /// of its project, so closed projects (and their syntax trees) are not kept. Guarded by <see cref="Lock"/>.
+    /// </summary>
+    private static void Touch(ProjectState state)
+    {
+        RecentStates.Remove(state);
+        RecentStates.AddFirst(state);
+        if (RecentStates.Count > Recent)
+            RecentStates.RemoveLast();
+        if (LatestState.Count < PruneAt)
+            return;
+        foreach (var key in LatestState.Where(static p => !p.Value.TryGetTarget(out _)).Select(static p => p.Key).ToList())
+            LatestState.Remove(key);
+        PruneAt = System.Math.Max(MinPrune, LatestState.Count * 2);
     }
 
     /// <summary>Direct dependencies of one source type definition, memoized per compilation.</summary>

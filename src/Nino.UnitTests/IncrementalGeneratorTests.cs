@@ -157,6 +157,52 @@ public static class Other { public static T Deserialize<T>(byte[] b) => default;
     }
 
     [TestMethod]
+    public void ClosedProjectsAreNotKept()
+    {
+        // ModelCache keeps the latest state of each project (its models and the syntax trees they depend on) only
+        // while a compilation of the project is alive, or among the few used last.
+        string prefix = "IncClosed" + Guid.NewGuid().ToString("N");
+        RunProjects(prefix, 50);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        // Another project prunes the states collected since.
+        RunProjects(prefix + "Last", 1);
+        var cache = typeof(Generator.Generation.NinoGenerator).Assembly
+            .GetType("Nino.Generator.Generation.ModelCache", true)!;
+        object Field(string name) => cache
+            .GetField(name, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .GetValue(null)!;
+        var latest = (System.Collections.IDictionary)Field("LatestState");
+        int alive = 0;
+        lock (Field("Lock"))
+        {
+            foreach (System.Collections.DictionaryEntry entry in latest)
+            {
+                var type = entry.Value!.GetType();
+                bool weak = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(WeakReference<>);
+                if (((string)entry.Key).StartsWith(prefix, StringComparison.Ordinal) && (!weak || IsAlive(entry.Value)))
+                    alive++;
+            }
+        }
+
+        Assert.IsTrue(alive <= 33, $"{alive} states of closed projects are kept");
+    }
+
+    private static bool IsAlive(object weak) =>
+        (bool)weak.GetType().GetMethod("TryGetTarget")!.Invoke(weak, new object[] { null })!;
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void RunProjects(string prefix, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            var compilation = CreateNamed(prefix + i, ("A.cs", Usings + "[NinoType] public class A { public int X; }\n}"));
+            CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator()).RunGenerators(compilation);
+        }
+    }
+
+    [TestMethod]
     public void SubtypesOfAliasedNinoTypesAreGenerated()
     {
         var compilation = Create(
