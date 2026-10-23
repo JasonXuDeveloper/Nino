@@ -61,6 +61,8 @@ The test-suite runs against each `Nino.Core` build and checks golden payloads.
 
 ## Binary format
 
+The normative, byte-exact specification of this format, for implementations in other languages, is [spec/wire-format.md](spec/wire-format.md).
+
 All multi-byte values are **little-endian** and written unaligned (`Unsafe.WriteUnaligned`). Big-endian
 hosts are not supported: `Writer`/`Reader` throw `PlatformNotSupportedException`.
 
