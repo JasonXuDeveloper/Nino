@@ -582,7 +582,7 @@ func TestSliceCapBoundsMemory(t *testing.T) {
 	}
 	// Big elements that the data claims but does not hold: the read grows the slice and fails at the end of data
 	// without allocating for every claimed element.
-	type big struct{ a [64]int64 }
+	type big [64]int64
 	data := encode(t, func(w *Writer) { w.I32(1 << 20) })
 	data = append(data, make([]byte, 1<<20-1)...)
 	r = NewReader(data)

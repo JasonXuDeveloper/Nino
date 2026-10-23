@@ -71,11 +71,11 @@ func ReadMap[K comparable, V any](r *Reader, minSize int, readKey func(*Reader) 
 		if r.err != nil {
 			return nil
 		}
-		if _, dup := m[key]; dup {
+		// One hash operation: a repeated key leaves the size unchanged.
+		if m[key] = value; len(m) != i+1 {
 			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}
-		m[key] = value
 	}
 	return m
 }
@@ -136,11 +136,10 @@ func ReadSet[T comparable](r *Reader, minSize int, read func(*Reader) T) map[T]s
 		if r.err != nil {
 			return nil
 		}
-		if _, dup := m[v]; dup {
+		if m[v] = struct{}{}; len(m) != i+1 {
 			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}
-		m[v] = struct{}{}
 	}
 	return m
 }
@@ -280,11 +279,10 @@ func ReadUnique[T comparable](r *Reader, minSize int, read func(*Reader) T) []T 
 		if r.err != nil {
 			return nil
 		}
-		if _, dup := seen[e]; dup {
+		if seen[e] = struct{}{}; len(seen) != i+1 {
 			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}
-		seen[e] = struct{}{}
 		v[i] = e
 	}
 	return v
@@ -310,11 +308,10 @@ func ReadUniqueEntries[K comparable, V any](r *Reader, minSize int, readKey func
 		if r.err != nil {
 			return nil
 		}
-		if _, dup := seen[key]; dup {
+		if seen[key] = struct{}{}; len(seen) != i+1 {
 			r.Fail(CodeDuplicateKey, "")
 			return nil
 		}
-		seen[key] = struct{}{}
 		v[i] = Entry[K, V]{key, value}
 	}
 	return v
