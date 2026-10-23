@@ -9,11 +9,12 @@ import (
 // Layout strings: what a type's NinoLayout method returns, in the grammar of the [NinoTypeLayout] metadata .NET
 // publishes for every [NinoType] (wire-format spec §8):
 //
-//	format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; members=Health:int:raw(4):key=0x99A16761;...
+//	format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;...
 //
 // The parser takes the parts in any order and any subset of them ("format=VersionTolerant" alone declares the
-// format and leaves the rest to the defaults), plus one part .NET does not publish yet (spec §10, item 5):
-// "deferrable=false" for types whose bodies .NET never defers (records, types built through a constructor).
+// format and leaves the rest to the defaults). "deferrable=true|false" (spec §7.10.1, §8.1) says whether .NET
+// defers the type's bodies; false for records and types built through a constructor. Layouts from an older .NET
+// generator leave it out, and the type is then taken to be deferrable.
 
 // Formats and headers, as the layout names them.
 const (

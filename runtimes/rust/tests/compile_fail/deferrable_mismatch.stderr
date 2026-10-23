@@ -1,0 +1,5 @@
+error: the layout says deferrable=false
+ --> tests/compile_fail/deferrable_mismatch.rs:2:161
+  |
+2 | ...0000001; deferrable=false; members=X:int:raw(4)", deferrable = true)]
+  |                                                                   ^^^^

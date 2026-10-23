@@ -8,7 +8,8 @@
 //!   type id), a struct (no header) or an unmanaged struct written as raw memory in the canonical layout
 //!   (`pack = n`, `size = n` as `[StructLayout]`).
 //! - `id = "Namespace.Type"` or `id = 0x...`: the type id, for subtypes read behind one (polymorphic enums).
-//! - `deferrable = false`: a type .NET builds through a constructor taking its members (a record).
+//! - `deferrable = false`: a type .NET never defers (a record, a type built through a constructor taking its members);
+//!   taken from the layout's `deferrable=` when not given.
 //! - `layout = "..."`: the type's published `[NinoTypeLayout]`, checked against the struct at compile time.
 //! - `crate = "path"`: where the runtime is, when it is not `nino`.
 //!
@@ -71,7 +72,7 @@ struct TypeOpts {
     format: Option<(Format, Span)>,
     kind: Option<(Kind, Span)>,
     id: Option<Id>,
-    deferrable: bool,
+    deferrable: Option<(bool, Span)>,
     layout: Option<LitStr>,
     krate: Option<syn::Path>,
     pack: Option<usize>,
@@ -101,7 +102,7 @@ fn type_opts(attrs: &[syn::Attribute]) -> syn::Result<TypeOpts> {
         format: None,
         kind: None,
         id: None,
-        deferrable: true,
+        deferrable: None,
         layout: None,
         krate: None,
         pack: None,
@@ -132,7 +133,7 @@ fn type_opts(attrs: &[syn::Attribute]) -> syn::Result<TypeOpts> {
                 o.id = Some(parse_id(&meta)?);
             } else if meta.path.is_ident("deferrable") {
                 let b: syn::LitBool = meta.value()?.parse()?;
-                o.deferrable = b.value;
+                o.deferrable = Some((b.value, b.span()));
             } else if meta.path.is_ident("layout") {
                 o.layout = Some(meta.value()?.parse()?);
             } else if meta.path.is_ident("crate") {
@@ -290,6 +291,8 @@ struct Layout {
     header: String,
     raw: bool,
     track: bool,
+    /// `deferrable=`, which older generators leave out.
+    deferrable: Option<bool>,
     type_id: i32,
     /// name, encoding, key, former keys.
     members: Vec<(String, String, Option<i32>, Vec<i32>)>,
@@ -368,6 +371,12 @@ fn parse_layout(lit: &LitStr) -> syn::Result<Layout> {
         header: field("header")?,
         raw,
         track: field("trackReferences")? == "true",
+        deferrable: match get.get("deferrable").map(String::as_str) {
+            None => None,
+            Some("true") => Some(true),
+            Some("false") => Some(false),
+            Some(d) => return Err(err(&format!("deferrable={d} is not true or false"))),
+        },
         type_id: parse_hex(&field("typeId")?).ok_or_else(|| err("bad typeId"))?,
         members,
         raw_body: body,
@@ -424,6 +433,15 @@ fn expand_struct(
         (Some((k, _)), _) => k,
         (None, Some(lk)) => lk,
         (None, None) => Kind::Class,
+    };
+    // Deferrable: from the attribute, else from the layout, else deferred (most classes are).
+    let deferrable = match (opts.deferrable, layout.as_ref().and_then(|l| l.deferrable)) {
+        (Some((d, span)), Some(ld)) if d != ld => {
+            return Err(Error::new(span, format!("the layout says deferrable={ld}")));
+        }
+        (Some((d, _)), _) => d,
+        (None, Some(ld)) => ld,
+        (None, None) => true,
     };
     if kind == Kind::Raw && format != Format::Plain {
         return Err(Error::new(Span::call_site(), "a raw struct has no format: it is its memory"));
@@ -561,7 +579,6 @@ fn expand_struct(
         }
     }
     let where_clause = quote!(where #(#preds,)*);
-    let deferrable = opts.deferrable;
     let body = match side {
         Side::Read => read_body(&members, &keys, format, krate),
         Side::Write => write_body(&members, &keys, format, krate),

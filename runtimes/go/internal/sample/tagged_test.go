@@ -266,3 +266,53 @@ func marshalAs(typ reflect.Type, v reflect.Value) ([]byte, error) {
 	}
 	return nino.Marshal(v.Interface())
 }
+
+// TestSampleLayoutsAreTheCorpus: each type's NinoLayout is the layout the corpus publishes for it, unchanged
+// (deferrable part included), so the plans are checked against what .NET writes now.
+func TestSampleLayoutsAreTheCorpus(t *testing.T) {
+	dir := corpusDir(t)
+	ix := loadIndex(t, dir)
+	published := map[string]string{}
+	for group, names := range map[string][]string{"valid": ix.Valid, "malicious": ix.Malicious} {
+		for _, name := range names {
+			var c struct {
+				Layouts map[string]string `json:"layouts"`
+			}
+			readJSON(t, filepath.Join(dir, group, name+".json"), &c)
+			for k, v := range c.Layouts {
+				published[k] = v
+			}
+		}
+	}
+	types := []reflect.Type{}
+	for _, typ := range tagRoots {
+		if typ != nil {
+			types = append(types, typ)
+		}
+	}
+	for _, p := range polymorphic {
+		types = append(types, reflect.TypeOf(p))
+	}
+	checked := 0
+	for _, typ := range types {
+		if typ.Kind() != reflect.Pointer {
+			continue // an interface: its implementations are checked
+		}
+		v, ok := reflect.New(typ.Elem()).Interface().(interface{ NinoLayout() string })
+		if !ok {
+			continue
+		}
+		want, ok := published["Conformance."+typ.Elem().Name()]
+		if !ok {
+			continue
+		}
+		checked++
+		if got := v.NinoLayout(); got != want {
+			t.Errorf("%s: NinoLayout()\n%s\nthe corpus publishes\n%s", typ.Elem().Name(), got, want)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no layout checked")
+	}
+	t.Logf("%d layouts checked", checked)
+}

@@ -24,7 +24,7 @@ macro_rules! nino_types {
 nino_types! {
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x14BD31D3; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)};U128:System.UInt128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x14BD31D3; deferrable=true; members=I8:sbyte:raw(1);U8:byte:raw(1);I16:short:raw(2);U16:ushort:raw(2);I32:int:raw(4);U32:uint:raw(4);I64:long:raw(8);U64:ulong:raw(8);I128:System.Int128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)};U128:System.UInt128:raw(16){_lower:ulong@0:raw(8),_upper:ulong@8:raw(8)}")]
 pub struct Integers {
     pub i8: i8,
     pub u8: u8,
@@ -39,7 +39,7 @@ pub struct Integers {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3504C24D; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3504C24D; deferrable=true; members=F16:System.Half:raw(2);F32:float:raw(4);F64:double:raw(8)")]
 pub struct Floats {
     pub f16: Half,
     pub f32: f32,
@@ -47,7 +47,7 @@ pub struct Floats {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD2727283; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4);Time:System.TimeOnly:raw(8)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD2727283; deferrable=true; members=Flag:bool:raw(1);Char:char:raw(2);Decimal:decimal:raw(16);Guid:System.Guid:raw(16);Span:System.TimeSpan:raw(8);Date:System.DateOnly:raw(4);Time:System.TimeOnly:raw(8)")]
 pub struct Scalars {
     pub flag: bool,
     /// A C# char: one UTF-16 code unit.
@@ -60,7 +60,7 @@ pub struct Scalars {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x004F73C1; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x004F73C1; deferrable=true; members=Utc:System.DateTime:raw(8);Local:System.DateTime:raw(8);Unspecified:System.DateTime:raw(8);Offset:System.DateTimeOffset:datetimeoffset")]
 pub struct Dates {
     pub utc: DateTime,
     pub local: DateTime,
@@ -69,7 +69,7 @@ pub struct Dates {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x47EFBBD6; members=A:Conformance.E8:raw(1);B:Conformance.EU8:raw(1);C:Conformance.E16:raw(2);D:Conformance.EU16:raw(2);E:Conformance.E32:raw(4);F:Conformance.EU32:raw(4);G:Conformance.E64:raw(8);H:Conformance.EU64:raw(8);Flags:Conformance.Permissions:raw(1);Wide:Conformance.WideFlags:raw(8);Array:Conformance.E32[]:seq(raw(4))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x47EFBBD6; deferrable=true; members=A:Conformance.E8:raw(1);B:Conformance.EU8:raw(1);C:Conformance.E16:raw(2);D:Conformance.EU16:raw(2);E:Conformance.E32:raw(4);F:Conformance.EU32:raw(4);G:Conformance.E64:raw(8);H:Conformance.EU64:raw(8);Flags:Conformance.Permissions:raw(1);Wide:Conformance.WideFlags:raw(8);Array:Conformance.E32[]:seq(raw(4))")]
 pub struct Enums {
     pub a: i8,
     pub b: u8,
@@ -85,14 +85,14 @@ pub struct Enums {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD56E77DA; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD56E77DA; deferrable=true; members=Big:System.Numerics.BigInteger:bigint;Version:System.Version:version")]
 pub struct BigValues {
     pub big: BigInteger,
     pub version: Option<Version>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; members=Text:string:string;Utf8:string:utf8")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCDBD0018; deferrable=true; members=Text:string:string;Utf8:string:utf8")]
 pub struct Strings {
     /// Lone surrogates kept.
     pub text: Option<WideString>,
@@ -101,7 +101,7 @@ pub struct Strings {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x744CD3F6; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x744CD3F6; deferrable=true; members=Array:string[]:seq(string);List:System.Collections.Generic.List<string>:seq(string);Utf8A:string:utf8;Plain:string:string;Utf8B:string:utf8")]
 pub struct StringCollections {
     pub array: Option<Vec<Option<WideString>>>,
     pub list: Option<Vec<Option<String>>>,
@@ -113,7 +113,7 @@ pub struct StringCollections {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x40CE351F; members=Array:byte[]:seq(raw(1));List:System.Collections.Generic.List<byte>:seq(raw(1));Signed:sbyte[]:seq(raw(1))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x40CE351F; deferrable=true; members=Array:byte[]:seq(raw(1));List:System.Collections.Generic.List<byte>:seq(raw(1));Signed:sbyte[]:seq(raw(1))")]
 pub struct Bytes {
     pub array: Option<Vec<u8>>,
     pub list: Option<Vec<u8>>,
@@ -121,14 +121,14 @@ pub struct Bytes {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x964B64BA; members=X:int:raw(4);Y:int:raw(4)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x964B64BA; deferrable=true; members=X:int:raw(4);Y:int:raw(4)")]
 pub struct Point {
     pub x: i32,
     pub y: i32,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8EDDB9E8; members=Value:long:raw(8);Text:string:string;Point:Conformance.Point:type(Conformance.Point)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8EDDB9E8; deferrable=true; members=Value:long:raw(8);Text:string:string;Point:Conformance.Point:type(Conformance.Point)")]
 pub struct Inner {
     pub value: i64,
     pub text: Option<String>,
@@ -136,7 +136,7 @@ pub struct Inner {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD25B7AB3; members=First:Conformance.Point:type(Conformance.Point);Second:Conformance.Point:type(Conformance.Point);Inner:Conformance.Inner:type(Conformance.Inner)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD25B7AB3; deferrable=true; members=First:Conformance.Point:type(Conformance.Point);Second:Conformance.Point:type(Conformance.Point);Inner:Conformance.Inner:type(Conformance.Inner)")]
 pub struct Middle {
     pub first: Option<Box<Point>>,
     pub second: Option<Box<Point>>,
@@ -144,7 +144,7 @@ pub struct Middle {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F58E13F; members=Name:string:string;Point:Conformance.Point:type(Conformance.Point);Middle:Conformance.Middle:type(Conformance.Middle)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F58E13F; deferrable=true; members=Name:string:string;Point:Conformance.Point:type(Conformance.Point);Middle:Conformance.Middle:type(Conformance.Middle)")]
 pub struct Outer {
     pub name: Option<String>,
     pub point: Option<Box<Point>>,
@@ -152,21 +152,21 @@ pub struct Outer {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x53124224; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}")]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x53124224; deferrable=false; members=raw(8){X:float@0:raw(4),Y:float@4:raw(4)}")]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x2ACAE976; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}")]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x2ACAE976; deferrable=false; members=raw(16){A:byte@0:raw(1),B:long@8:raw(8)}")]
 pub struct Padded {
     pub a: u8,
     pub b: i64,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x0E07F8DB; members=raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)}")]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x0E07F8DB; deferrable=false; members=raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)}")]
 pub struct Mixed {
     pub a: u8,
     pub b: i16,
@@ -175,7 +175,7 @@ pub struct Mixed {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xEF24AAA6; members=raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)}", pack = 1)]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xEF24AAA6; deferrable=false; members=raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)}", pack = 1)]
 pub struct Packed {
     pub a: u8,
     pub b: i64,
@@ -183,13 +183,13 @@ pub struct Packed {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xB3C0D1F7; members=raw(16){A:int@0:raw(4)}", size = 16)]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0xB3C0D1F7; deferrable=false; members=raw(16){A:int@0:raw(4)}", size = 16)]
 pub struct Sized {
     pub a: i32,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x062D377B; members=raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)}")]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x062D377B; deferrable=false; members=raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)}")]
 pub struct Nested {
     pub inner: Padded,
     pub position: Vec2,
@@ -198,18 +198,18 @@ pub struct Nested {
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; members=raw")]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=true; typeId=0x18A30154; deferrable=false; members=raw")]
 pub struct EmptyStruct {}
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x344F08B8; members=Name:string:string;Weight:int:raw(4)")]
+#[nino(layout = "format=Positional; header=None; trackReferences=false; raw=false; typeId=0x344F08B8; deferrable=false; members=Name:string:string;Weight:int:raw(4)")]
 pub struct Label {
     pub name: Option<String>,
     pub weight: i32,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x24768402; members=Vec:Conformance.Vec2:raw(8){X:float@0:raw(4),Y:float@4:raw(4)};Padded:Conformance.Padded:raw(16){A:byte@0:raw(1),B:long@8:raw(8)};Mixed:Conformance.Mixed:raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)};Packed:Conformance.Packed:raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)};Sized:Conformance.Sized:raw(16){A:int@0:raw(4)};Nested:Conformance.Nested:raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)};Label:Conformance.Label:type(Conformance.Label);VecArray:Conformance.Vec2[]:seq(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});PaddedList:System.Collections.Generic.List<Conformance.Padded>:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});MixedArray:Conformance.Mixed[]:seq(raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)});Labels:Conformance.Label[]:seq(type(Conformance.Label));RawTuple:System.ValueTuple<byte, long>:tuple(raw(1),raw(8));Tuple:System.ValueTuple<int, string>:tuple(raw(4),string);Pair:System.Collections.Generic.KeyValuePair<string, Conformance.Vec2>:pair(string,raw(8){X:float@0:raw(4),Y:float@4:raw(4)})")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x24768402; deferrable=true; members=Vec:Conformance.Vec2:raw(8){X:float@0:raw(4),Y:float@4:raw(4)};Padded:Conformance.Padded:raw(16){A:byte@0:raw(1),B:long@8:raw(8)};Mixed:Conformance.Mixed:raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)};Packed:Conformance.Packed:raw(11){A:byte@0:raw(1),B:long@1:raw(8),C:short@9:raw(2)};Sized:Conformance.Sized:raw(16){A:int@0:raw(4)};Nested:Conformance.Nested:raw(32){Inner:Conformance.Padded@0:raw(16){A:byte@0:raw(1),B:long@8:raw(8)},Position:Conformance.Vec2@16:raw(8){X:float@0:raw(4),Y:float@4:raw(4)},Kind:Conformance.EU8@24:raw(1),Flag:bool@25:raw(1)};Label:Conformance.Label:type(Conformance.Label);VecArray:Conformance.Vec2[]:seq(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});PaddedList:System.Collections.Generic.List<Conformance.Padded>:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});MixedArray:Conformance.Mixed[]:seq(raw(12){A:byte@0:raw(1),B:short@2:raw(2),C:int@4:raw(4),D:byte@8:raw(1)});Labels:Conformance.Label[]:seq(type(Conformance.Label));RawTuple:System.ValueTuple<byte, long>:tuple(raw(1),raw(8));Tuple:System.ValueTuple<int, string>:tuple(raw(4),string);Pair:System.Collections.Generic.KeyValuePair<string, Conformance.Vec2>:pair(string,raw(8){X:float@0:raw(4),Y:float@4:raw(4)})")]
 pub struct Structs {
     pub vec: Vec2,
     pub padded: Padded,
@@ -228,7 +228,7 @@ pub struct Structs {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3920173C; members=Int:System.Nullable<int>:nullable(raw(4));Long:System.Nullable<long>:nullable(raw(8));Double:System.Nullable<double>:nullable(raw(8));Bool:System.Nullable<bool>:nullable(raw(1));Guid:System.Nullable<System.Guid>:nullable(raw(16));Enum:System.Nullable<Conformance.E16>:nullable(raw(2));Vec:System.Nullable<Conformance.Vec2>:nullable(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});Padded:System.Nullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});Label:System.Nullable<Conformance.Label>:nullable(type(Conformance.Label));IntArray:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongList:System.Collections.Generic.List<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});PaddedArray:System.Nullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Map:System.Collections.Generic.Dictionary<int, System.Nullable<int>>:map(raw(4),nullable(raw(4)))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3920173C; deferrable=true; members=Int:System.Nullable<int>:nullable(raw(4));Long:System.Nullable<long>:nullable(raw(8));Double:System.Nullable<double>:nullable(raw(8));Bool:System.Nullable<bool>:nullable(raw(1));Guid:System.Nullable<System.Guid>:nullable(raw(16));Enum:System.Nullable<Conformance.E16>:nullable(raw(2));Vec:System.Nullable<Conformance.Vec2>:nullable(raw(8){X:float@0:raw(4),Y:float@4:raw(4)});Padded:System.Nullable<Conformance.Padded>:nullable(raw(16){A:byte@0:raw(1),B:long@8:raw(8)});Label:System.Nullable<Conformance.Label>:nullable(type(Conformance.Label));IntArray:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)});LongList:System.Collections.Generic.List<System.Nullable<long>>:seq(raw(16){hasValue:bool@0:raw(1),value:long@8:raw(8)});PaddedArray:System.Nullable<Conformance.Padded>[]:seq(raw(24){hasValue:bool@0:raw(1),value:Conformance.Padded@8:raw(16){A:byte@0:raw(1),B:long@8:raw(8)}});Map:System.Collections.Generic.Dictionary<int, System.Nullable<int>>:map(raw(4),nullable(raw(4)))")]
 pub struct Nullables {
     pub int: Option<i32>,
     pub long: Option<i64>,
@@ -246,7 +246,7 @@ pub struct Nullables {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFECE6DDB; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xFECE6DDB; deferrable=true; members=Ints:int[]:seq(raw(4));IntList:System.Collections.Generic.List<int>:seq(raw(4));IntSet:System.Collections.Generic.HashSet<int>:seq(raw(4));Longs:long[]:seq(raw(8));Doubles:double[]:seq(raw(8));Bools:bool[]:seq(raw(1));Chars:char[]:seq(raw(2));Strings:System.Collections.Generic.List<string>:seq(string);StringSet:System.Collections.Generic.HashSet<string>:seq(string);Points:Conformance.Point[]:seq(type(Conformance.Point));PointList:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point));IntMap:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4));StringMap:System.Collections.Generic.Dictionary<string, string>:map(string,string);PointMap:System.Collections.Generic.Dictionary<string, Conformance.Point>:map(string,type(Conformance.Point));ListMap:System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string>>:map(raw(4),seq(string));SortedInts:System.Collections.Generic.SortedDictionary<int, string>:map(raw(4),string);SortedStrings:System.Collections.Generic.SortedDictionary<string, int>:map(string,raw(4));Nested:System.Collections.Generic.List<System.Collections.Generic.List<int>>:seq(seq(raw(4)));Jagged:int[][]:seq(seq(raw(4)));Grid:int[,]:grid(2,raw(4));StringGrid:string[,]:grid(2,string)")]
 pub struct Collections {
     pub ints: Option<Vec<i32>>,
     pub int_list: Option<Vec<i32>>,
@@ -272,11 +272,11 @@ pub struct Collections {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x0C95741B; members=")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x0C95741B; deferrable=true; members=")]
 pub struct Empty {}
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF6777155; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF6777155; deferrable=true; members=Class:Conformance.Empty:type(Conformance.Empty);Struct:Conformance.EmptyStruct:raw;Structs:Conformance.EmptyStruct[]:seq(raw);Classes:System.Collections.Generic.List<Conformance.Empty>:seq(type(Conformance.Empty))")]
 pub struct Empties {
     pub class: Option<Box<Empty>>,
     pub r#struct: EmptyStruct,
@@ -287,14 +287,14 @@ pub struct Empties {
 // ------------------------------------------------------------------ version tolerance
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x1DBD9212; members=A:int:raw(4);B:string:string")]
+#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x1DBD9212; deferrable=true; members=A:int:raw(4);B:string:string")]
 pub struct TolerantV1 {
     pub a: i32,
     pub b: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7BB17A9; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))")]
+#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7BB17A9; deferrable=true; members=A:int:raw(4);B:string:string;C:long:raw(8);D:System.Collections.Generic.List<int>:seq(raw(4))")]
 pub struct TolerantV2 {
     pub a: i32,
     pub b: Option<String>,
@@ -303,18 +303,18 @@ pub struct TolerantV2 {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x85A223A0; members=")]
+#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x85A223A0; deferrable=true; members=")]
 pub struct TolerantEmpty {}
 
 /// Not sealed: written behind its type id even as itself.
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; typeId=0x9536FE88; members=A:int:raw(4)")]
+#[nino(layout = "format=VersionTolerant; header=TypeId; trackReferences=false; raw=false; typeId=0x9536FE88; deferrable=true; members=A:int:raw(4)")]
 pub struct TolerantBase {
     pub a: i32,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x6B83150B; members=A:int:raw(4);B:int:raw(4)")]
+#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x6B83150B; deferrable=true; members=A:int:raw(4);B:int:raw(4)")]
 pub struct TolerantLeaf {
     pub a: i32,
     pub b: i32,
@@ -328,7 +328,7 @@ pub enum TolerantBaseRef {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2DA994ED; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2DA994ED; deferrable=true; members=First:Conformance.TolerantV1:type(Conformance.TolerantV1);Polymorphic:Conformance.TolerantBase:type(Conformance.TolerantBase);Empty:Conformance.TolerantEmpty:type(Conformance.TolerantEmpty);After:int:raw(4)")]
 pub struct TolerantHolder {
     pub first: Option<Box<TolerantV1>>,
     pub polymorphic: Option<TolerantBaseRef>,
@@ -339,7 +339,7 @@ pub struct TolerantHolder {
 // ------------------------------------------------------------------ keyed
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D")]
+#[nino(layout = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x8F865207; deferrable=true; members=Health:int:raw(4):key=0x99A16761;Name:string:string:key=0x3085B3E2;Items:System.Collections.Generic.List<int>:seq(raw(4)):key=0xDCA8A053;Score:long:raw(8):key=0x044AB14D")]
 pub struct KeyedV1 {
     pub health: i32,
     pub name: Option<String>,
@@ -349,7 +349,7 @@ pub struct KeyedV1 {
 
 /// KeyedV1 reordered, Health renamed to Hp (its old key read too), Items removed, Level added.
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x1D7EE2CC; members=Score:long:raw(8):key=0x044AB14D;Name:string:string:key=0x3085B3E2;Hp:int:raw(4):key=0xA17135AD:former=0x99A16761;Level:int:raw(4):key=0xEAA8149B")]
+#[nino(layout = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0x1D7EE2CC; deferrable=true; members=Score:long:raw(8):key=0x044AB14D;Name:string:string:key=0x3085B3E2;Hp:int:raw(4):key=0xA17135AD:former=0x99A16761;Level:int:raw(4):key=0xEAA8149B")]
 pub struct KeyedV2 {
     pub score: i64,
     pub name: Option<String>,
@@ -359,14 +359,14 @@ pub struct KeyedV2 {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Keyed; header=None; trackReferences=false; raw=false; typeId=0x64822AB7; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F")]
+#[nino(layout = "format=Keyed; header=None; trackReferences=false; raw=false; typeId=0x64822AB7; deferrable=false; members=A:int:raw(4):key=0x6AD58324;B:double:raw(8):key=0xDCDCF25F")]
 pub struct KeyedStruct {
     pub a: i32,
     pub b: f64,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7FBDA208; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x7FBDA208; deferrable=true; members=Keyed:Conformance.KeyedV1:type(Conformance.KeyedV1);Struct:Conformance.KeyedStruct:type(Conformance.KeyedStruct);Array:Conformance.KeyedV1[]:seq(type(Conformance.KeyedV1))")]
 pub struct KeyedHolder {
     pub keyed: Option<Box<KeyedV1>>,
     pub r#struct: KeyedStruct,
@@ -376,21 +376,21 @@ pub struct KeyedHolder {
 // ------------------------------------------------------------------ deep nesting
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8147BA33; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x8147BA33; deferrable=true; members=Value:int:raw(4);Next:Conformance.Chain:type(Conformance.Chain)")]
 pub struct Chain {
     pub value: i32,
     pub next: Option<Box<Chain>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x18DAD008; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)")]
+#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0x18DAD008; deferrable=true; members=Value:int:raw(4);Next:Conformance.TolerantChain:type(Conformance.TolerantChain)")]
 pub struct TolerantChain {
     pub value: i32,
     pub next: Option<Box<TolerantChain>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xCBFD8A55; members=Value:int:raw(4):key=0xC373233E;Next:Conformance.KeyedChain:type(Conformance.KeyedChain):key=0xC9A6113A")]
+#[nino(layout = "format=Keyed; header=NullFlag; trackReferences=false; raw=false; typeId=0xCBFD8A55; deferrable=true; members=Value:int:raw(4):key=0xC373233E;Next:Conformance.KeyedChain:type(Conformance.KeyedChain):key=0xC9A6113A")]
 pub struct KeyedChain {
     pub value: i32,
     pub next: Option<Box<KeyedChain>>,
@@ -398,14 +398,14 @@ pub struct KeyedChain {
 
 /// A record: built by its constructor in .NET, so never deferred.
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x20F10406; members=Value:int:raw(4);Next:Conformance.RecordChain:type(Conformance.RecordChain)", deferrable = false)]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x20F10406; deferrable=false; members=Value:int:raw(4);Next:Conformance.RecordChain:type(Conformance.RecordChain)")]
 pub struct RecordChain {
     pub value: i32,
     pub next: Option<Box<RecordChain>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7F6B6D3; members=Name:string:string;Chain:Conformance.Chain:type(Conformance.Chain);After:int:raw(4)")]
+#[nino(layout = "format=VersionTolerant; header=NullFlag; trackReferences=false; raw=false; typeId=0xF7F6B6D3; deferrable=true; members=Name:string:string;Chain:Conformance.Chain:type(Conformance.Chain);After:int:raw(4)")]
 pub struct TolerantRoot {
     pub name: Option<String>,
     pub chain: Option<Box<Chain>>,
@@ -413,7 +413,7 @@ pub struct TolerantRoot {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x760566C0; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x760566C0; deferrable=true; members=Value:int:raw(4);Children:System.Collections.Generic.List<Conformance.TreeNode>:seq(type(Conformance.TreeNode))")]
 pub struct TreeNode {
     pub value: i32,
     pub children: Option<Vec<Option<Box<TreeNode>>>>,
@@ -427,14 +427,14 @@ pub enum LinkRef {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9F90173D; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9F90173D; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link)")]
 pub struct RedLink {
     pub value: i32,
     pub next: Option<LinkRef>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA9C583C8; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link);Note:string:string")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA9C583C8; deferrable=true; members=Value:int:raw(4);Next:Conformance.Link:type(Conformance.Link);Note:string:string")]
 pub struct BlueLink {
     pub value: i32,
     pub next: Option<LinkRef>,
@@ -444,122 +444,122 @@ pub struct BlueLink {
 // ------------------------------------------------------------------ the malicious cases' roots
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x694D6EF8; members=Values:int[]:seq(raw(4))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x694D6EF8; deferrable=true; members=Values:int[]:seq(raw(4))")]
 pub struct IntArray {
     pub values: Option<Vec<i32>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCECF34D2; members=Values:System.Collections.Generic.List<long>:seq(raw(8))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xCECF34D2; deferrable=true; members=Values:System.Collections.Generic.List<long>:seq(raw(8))")]
 pub struct LongList {
     pub values: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x1805EDC3; members=Values:Conformance.Padded[]:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)})")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x1805EDC3; deferrable=true; members=Values:Conformance.Padded[]:seq(raw(16){A:byte@0:raw(1),B:long@8:raw(8)})")]
 pub struct PaddedArray {
     pub values: Option<Vec<Padded>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x30796D4D; members=Values:System.Collections.Generic.List<string>:seq(string)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x30796D4D; deferrable=true; members=Values:System.Collections.Generic.List<string>:seq(string)")]
 pub struct StringList {
     pub values: Option<Vec<Option<String>>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2EA152CC; members=Values:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2EA152CC; deferrable=true; members=Values:System.Collections.Generic.List<Conformance.Point>:seq(type(Conformance.Point))")]
 pub struct PointList {
     pub values: Option<Vec<Option<Box<Point>>>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xEE43CD01; members=Values:byte[]:seq(raw(1))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xEE43CD01; deferrable=true; members=Values:byte[]:seq(raw(1))")]
 pub struct ByteArray {
     pub values: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD32CFD85; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xD32CFD85; deferrable=true; members=Values:System.Collections.Generic.Dictionary<int, int>:map(raw(4),raw(4))")]
 pub struct IntMap {
     pub values: Option<IndexMap<i32, i32>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x4B1A1F3B; members=Values:System.Collections.Generic.Dictionary<string, int>:map(string,raw(4))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x4B1A1F3B; deferrable=true; members=Values:System.Collections.Generic.Dictionary<string, int>:map(string,raw(4))")]
 pub struct StringMap {
     pub values: Option<IndexMap<String, i32>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAA98C54B; members=Values:System.Collections.Generic.HashSet<int>:seq(raw(4))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xAA98C54B; deferrable=true; members=Values:System.Collections.Generic.HashSet<int>:seq(raw(4))")]
 pub struct IntSet {
     pub values: Option<IndexSet<i32>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73FC2C95; members=Values:System.Collections.Generic.HashSet<string>:seq(string)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x73FC2C95; deferrable=true; members=Values:System.Collections.Generic.HashSet<string>:seq(string)")]
 pub struct StringSet {
     pub values: Option<IndexSet<Option<String>>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F694A3D; members=Values:System.Collections.Generic.SortedDictionary<int, int>:map(raw(4),raw(4))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3F694A3D; deferrable=true; members=Values:System.Collections.Generic.SortedDictionary<int, int>:map(raw(4),raw(4))")]
 pub struct SortedMap {
     pub values: Option<IndexMap<i32, i32>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; members=Values:int[,]:grid(2,raw(4))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xF8F3033A; deferrable=true; members=Values:int[,]:grid(2,raw(4))")]
 pub struct GridValue {
     pub values: Option<Grid<i32, 2>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; members=Value:string:string")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x825A7C6C; deferrable=true; members=Value:string:string")]
 pub struct TextValue {
     pub value: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; members=Value:string:utf8")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x49EFED16; deferrable=true; members=Value:string:utf8")]
 pub struct Utf8Value {
     #[nino(utf8)]
     pub value: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x65FCB927; members=Value:bool:raw(1)")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x65FCB927; deferrable=true; members=Value:bool:raw(1)")]
 pub struct BoolValue {
     pub value: bool,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2C38911D; members=Values:bool[]:seq(raw(1))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x2C38911D; deferrable=true; members=Values:bool[]:seq(raw(1))")]
 pub struct BoolArray {
     pub values: Option<Vec<bool>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3E8CF8A3; members=Value:System.Nullable<int>:nullable(raw(4))")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x3E8CF8A3; deferrable=true; members=Value:System.Nullable<int>:nullable(raw(4))")]
 pub struct MaybeInt {
     pub value: Option<i32>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x436A69B2; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x436A69B2; deferrable=true; members=Values:System.Nullable<int>[]:seq(raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)})")]
 pub struct MaybeIntArray {
     pub values: Option<RawNullables<i32>>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA6B6AFE2; members=Value:System.Numerics.BigInteger:bigint")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA6B6AFE2; deferrable=true; members=Value:System.Numerics.BigInteger:bigint")]
 pub struct BigSlot {
     pub value: BigInteger,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, nino::NinoRead, nino::NinoWrite)]
-#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9D692494; members=Value:System.Version:version")]
+#[nino(layout = "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0x9D692494; deferrable=true; members=Value:System.Version:version")]
 pub struct VersionSlot {
     pub value: Option<Version>,
 }

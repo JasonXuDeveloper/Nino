@@ -149,8 +149,8 @@ Type attributes:
 | `format = "plain" \| "tolerant" \| "keyed"` | `NinoFormat.Positional`, `VersionTolerant` or `Keyed`. The default is plain. |
 | `kind = "class" \| "open" \| "struct" \| "raw"` | The type's header (defaults to `class`): <ul><li>`class`: a sealed class, written behind a presence byte.</li><li>`open`: a class that is not sealed, written behind its type id.</li><li>`struct`: no header.</li><li>`raw`: an unmanaged struct written as its memory. It takes `pack = n` and `size = n`, as `[StructLayout]` does.</li></ul> |
 | `id = "Full.Name"` or `id = 0x…` | The type id: a .NET full name, hashed at compile time, or the number itself. 0 is rejected. |
-| `deferrable = false` | Marks a type .NET builds through a constructor taking its members (a record), which is never deferred. |
-| `layout = "…"` | The type's published `[NinoTypeLayout]` string, checked at compile time. Format, kind and type id come from it when not given. It checks member names and order, keys and former keys, `[NinoUtf8]`, and raw sizes and offsets (through const asserts). |
+| `deferrable = false` | Marks a type .NET never defers (a record, a type built through a constructor taking its members). Taken from the layout's `deferrable=` when not given. |
+| `layout = "…"` | The type's published `[NinoTypeLayout]` string, checked at compile time. Format, kind, type id and deferrability come from it when not given. It checks member names and order, keys and former keys, `[NinoUtf8]`, and raw sizes and offsets (through const asserts). |
 | `crate = "path"` | Where the runtime is, when it is not `nino`. |
 
 Field attributes:

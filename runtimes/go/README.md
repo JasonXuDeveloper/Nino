@@ -165,8 +165,9 @@ string .NET publishes for it (spec §8), or any subset of its `key=value` parts:
   (all for positional, a prefix for version-tolerant, any subset for keyed), each field's encoding against the
   member's, and the keys and former keys (the published ones are used, as the spec requires).
 - `trackReferences=true` is an error (reference tracking is not implemented).
-- `deferrable=false` (not published by .NET yet, spec §10 item 5): a type .NET never defers (a record, a type built
-  through its constructor), so it nests in place past 128 bodies and fails past 512.
+- `deferrable=false` (spec §7.10.1): a type .NET never defers (a record, a type built through its constructor), so it
+  nests in place past 128 bodies and fails past 512. Without the part (layouts from an older .NET generator) a type
+  is deferrable.
 
 ### Go types and their encodings
 
@@ -229,8 +230,8 @@ either's data. A generator (the Scriban templates) emits, for every `[NinoType]`
     `URLPath` → `url_path`, `I128` → `i128`, `Utf8A` → `utf8_a`;
   - `original`: the C# name as is.
   Tag order: `nino`, then the extra tags in the configured order: ``Health int32 `nino:"Health" json:"health" yaml:"health"` ``.
-- **`NinoLayout()`** returning the layout string .NET publishes for the type, unchanged, with `; deferrable=false`
-  inserted before `members=` for a type that is never deferred. A closed generic type (layout `typeId=0`) gets
+- **`NinoLayout()`** returning the layout string .NET publishes for the type, unchanged (its `deferrable=` part
+  included). A closed generic type (layout `typeId=0`) gets
   `NinoTypeID()` returning `TypeID` of its .NET name.
 - **`NinoTypeID()`** on the pointer type of every class that can sit behind a type id.
 
