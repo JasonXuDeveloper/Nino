@@ -61,7 +61,7 @@ Lossless: every value is encoded so that no JSON parser rounds or rewrites it.
 | `BigInteger` | a decimal string |
 | `Version` | `[major, minor, build, revision]` (unset parts are -1) |
 | `string` | a JSON string, or `{"utf16": [code units]}` when it holds any surrogate (paired or not) |
-| `byte[]` | lowercase hex (`"00ff"`) |
+| `byte[]`, `sbyte[]` | lowercase hex of the bytes (`"00ff"`; `sbyte[] {-128, -1}` is `"80ff"`). Other byte collections (`List<byte>`) are JSON arrays |
 | arrays, lists, sets | a JSON array, in wire order |
 | dictionaries | an array of `[key, value]` pairs, in wire order |
 | tuples, `KeyValuePair` | an array of the items |

@@ -177,7 +177,7 @@ One `u64`. Bits 0–61 are the ticks (100 ns since 0001-01-01T00:00:00). Bits 62
 `1` Utc, `2` Local.
 
 ```
-2024-05-06 07:08:09 Unspecified  80 C0 BF 7A 3F 0B DC 08
+2024-01-02 03:04:05 Unspecified  80 C0 BF 7A 3F 0B DC 08
                     Utc          80 C0 BF 7A 3F 0B DC 48
                     Local        80 C0 BF 7A 3F 0B DC 88
 ```
@@ -191,8 +191,8 @@ Ten bytes: `i64` **UTC** ticks, then `i16` offset in minutes. This is not the in
 every element takes exactly 10 bytes, with no padding.
 
 ```
-2024-05-06 07:08:09 +02:00   80 F0 36 B7 2E 0B DC 08 | 78 00
-2024-05-06 07:08:09 -05:30   80 FC 77 94 6D 0B DC 08 | B6 FE
+2024-01-02 03:04:05 +02:00   80 F0 36 B7 2E 0B DC 08 | 78 00      (UTC 01:04:05)
+2024-01-02 03:04:05 -05:30   80 FC 77 94 6D 0B DC 08 | B6 FE      (UTC 08:34:05)
 ```
 
 Readers MUST reject an offset outside ±14 hours (±840 minutes), and MUST reject UTC ticks that put the UTC or the
@@ -322,7 +322,11 @@ follows (`NinoLayoutCore.Measure`, also given in [Appendix B.2](#b2-canonical-la
   - The struct's alignment is the largest effective alignment of its fields. Its size is the end of its furthest
     field rounded up to that alignment, then raised to `[StructLayout(Size = n)]` if that is larger.
   - Structs nest: a struct field is laid out the same way, then placed as one field.
-- `LayoutKind.Auto` with more than one field, and empty structs, have no canonical layout (§10, item 3).
+- `LayoutKind.Auto` with more than one field has no canonical layout (§10, item 3).
+- An empty struct (no instance fields) is raw with a size of 1, as in CoreCLR: it is written as one `00` byte, at
+  the top level, as a member and as each element of a collection. Its layout is the bare `raw` encoding
+  (`raw=true; ... members=raw` for a `[NinoType]`). Readers MUST read and skip that byte (verified: corpus cases
+  `struct-root-empty` and `empties`).
 - Every byte not covered by a leaf is padding. Writers MUST write it as `00`.
 
 | Struct | Canonical bytes |
@@ -436,6 +440,18 @@ This covers `Dictionary`, `SortedDictionary`, `SortedList`, `ConcurrentDictionar
 `IReadOnlyDictionary`, `ImmutableDictionary` and `ImmutableSortedDictionary`, and their user subclasses. Sorted maps
 are written in key order. Hash maps are written in enumeration order, which is unspecified.
 
+"Key order" is the order of the collection's comparer, and the default comparer of a .NET sorted collection
+(`Comparer<T>.Default`) is culture-sensitive for `string` keys (`string.CompareTo`, the current culture's
+collation): `"a"` sorts before `"B"`, unlike ordinal order (`"B" < "a"`), and the order can differ between
+cultures, ICU versions and invariant-globalization mode. Other keys (integers, enums, `Guid`, ...) sort as their values. Therefore:
+
+- A reader in another language MUST keep the entries in wire order (or accept any order) and MUST NOT reject or
+  re-sort a sorted map or set whose string keys are not in ordinal order. The same applies to `SortedSet<string>`,
+  `ImmutableSortedSet<string>`, `SortedList<string, ...>` and `ImmutableSortedDictionary<string, ...>`.
+- A writer in another language cannot reproduce .NET's string order in general. It SHOULD write the entries in the
+  order it was given them (as read), or in ordinal order when it builds the map itself. .NET reads either: it
+  checks the order with its own comparer and inserts the entries one at a time when they are not in that order. The bytes then differ from what .NET would write for the same map.
+
 ```
 Dictionary<int,string> {1:"a"}             01 00 00 00 | 01 00 00 00 FE FF FF FF 61
 SortedDictionary<string,int> {b:2, a:1}    02 00 00 00 | FE FF FF FF 61 01 00 00 00 | FE FF FF FF 62 02 00 00 00
@@ -471,9 +487,9 @@ Tuple<int,string> (1,"a")   01 | 01 00 00 00 | FE FF FF FF 61
 ### 6.6 `ValueTuple` and `KeyValuePair`
 
 The items are written in order, each under its own type, with **no padding and no header**. This holds even when
-every item is raw: `(byte, int)` takes 5 bytes, alone and inside a `List`. A `ValueTuple` of 8 or more items is
-not supported: the generator skips such a member (verified with 9 items: nothing is written for it, and it is
-missing from the layout).
+every item is raw: `(byte, int)` takes 5 bytes, alone and inside a `List`. A `ValueTuple` of 8 or more items (a
+`ValueTuple` whose eighth argument holds the rest) is written the same way, every item in order, and published as one
+`tuple(...)` of all its items.
 
 ```
 (byte, int) (1, 2)                01 02 00 00 00
@@ -805,8 +821,16 @@ VersionTolerant sealed LinkTol { int V; LinkTol Next; }, 130 nodes, V = 1..130 (
      7C 04 00 00                   M = 0x47C: the section starts at member offset 1148
 ```
 
-The keyed format works the same way. A keyed chain of 130 nodes starts `01 | BA 0C 00 80 | 3A 11 A6 C9 68 0C 00 00 01 ...`
-and ends with the section `... | 7C 0C 00 00`.
+The keyed format works the same way, each member as its key, its length and its value, in declaration order. The
+corpus case `deep-keyed-chain-129` (`Keyed sealed KeyedChain { int Value; KeyedChain Next; }`, 129 nodes, 3238
+bytes) starts with the region of node 1 and its `Value` entry, then the `Next` entry holding node 2:
+
+```
+01 | A1 0C 00 80 | 3E 23 73 C3 04 00 00 00 01 00 00 00 | 3A 11 A6 C9 68 0C 00 00 01 | 63 0C 00 00 ...
+     T, flag set   key(Value), len 4, Value = 1          key(Next), len, present    node 2's region
+```
+
+and ends with the section of the outermost region: `... | 7C 0C 00 00` (`M` = 0xC7C).
 
 #### 7.10.4 Cycles
 
@@ -1012,6 +1036,16 @@ is not what writers produce:
 Non-deferrable bodies MUST NOT exceed depth 512. **.NET:** done. It also fails early when its thread is low on
 stack.
 
+Struct bodies do not count toward `D` (§7.10.1) and are never deferred, but they do count toward the limit of 512
+when reading: a struct that can hold itself (through a collection, a nullable, a `Lazy` or an interface) would
+otherwise nest without bound. **.NET** counts, while reading, each open body of such a struct (`Reader.EnterStruct`,
+emitted for structs whose nesting no bound covers; collections that hold themselves count their levels the same way)
+and fails when that count plus `D` exceeds 512, or when a non-deferrable class body opens with `D` plus that count
+at 512 or more. Structs that cannot reach themselves are not counted (their nesting is bounded by their types).
+The .NET writer counts only class bodies, so it can write struct nesting its reader then rejects. Readers in other
+languages MUST count the same struct bodies the same way (Rust: `enter_struct`), so that they accept exactly what
+.NET reads.
+
 ### 9.10 Value ranges
 
 `DateTimeOffset` MUST be validated (§3.4). `DateTime` SHOULD be rejected when its kind bits are `3` or its ticks
@@ -1059,18 +1093,16 @@ null (`-1`) into an `ImmutableArray<T>` surfaces an `InvalidOperationException` 
 
 ## 10. Open points and known irregularities
 
-These were found while writing this specification. None of them has been changed in the code. Implementers should
-know about them, and the next format revision should resolve them.
+These were found while writing this specification. Implementers should know about them, and the next format
+revision should resolve them. Items marked **(resolved)** have been fixed in the code since; they stay listed for
+readers of layouts or data from earlier builds.
 
-1. **Published layouts of some BCL structs are wrong.** The generator reads BCL structs from reference assemblies,
-   where their private fields are replaced by a placeholder (`_dummyPrimitive`). As a result:
-   - `Complex` is published as `raw(4){_dummyPrimitive...}`, but 16 bytes are written. The same mismatch affects
-     `TimeOnly` (8 bytes written), `Half` (2), `Int128`/`UInt128` (16), `DateOnly` (4, correct by coincidence) and
-     `Rune`.
-   - `Nullable<T>` elements (§6.2) are published as `raw(8){value:int@0,_dummyPrimitive:int@4}` for `int?`. That
-     gets the order wrong: the flag is at offset 0 and the value at offset `A`.
-   - Implementations MUST use §3 and §6.2 for these types, not the published `raw(n){...}` of the member.
-   - The generator's portability checks (`IsPortable`) use the same information. **(not fixed; a separate change.)**
+1. **Published layouts of some BCL structs were wrong (resolved).** The generator read BCL structs from reference
+   assemblies, where their private fields are replaced by a placeholder (`_dummyPrimitive`), so `Complex`,
+   `TimeOnly`, `Half`, `Int128`/`UInt128`, `DateOnly`, `Rune` and `Nullable<T>` elements (§6.2) were published with
+   wrong fields or sizes. They are now published with their real fields (`raw(16){_lower:ulong@0:raw(8),...}`,
+   `raw(8){hasValue:bool@0:raw(1),value:int@4:raw(4)}`). Layouts from earlier builds can still carry
+   `_dummyPrimitive`: implementations MUST use §3 and §6.2 for these types.
 2. **`T?[]` of a raw `[NinoType]` struct depends on who binds the formatter.** For the same value of
    `RawPoint?[]` / `List<RawPoint?>`, the generated formatter uses the fixed stride (§6.2), while the runtime
    resolver (`NinoFormatterResolver.IsRawUnmanaged` is false for every `[NinoType]`) writes each element as a single
@@ -1103,8 +1135,8 @@ know about them, and the next format revision should resolve them.
 16. **Hash collisions between type ids** of different types are not detected across assemblies. Within one
     compilation, keyed member collisions are an error (NINO014).
 
-17. **`ValueTuple`s of 8 or more items** are silently skipped as members (§6.6): no bytes, and no entry in the
-    layout.
+17. **`ValueTuple`s of 8 or more items** were silently skipped as members (resolved): they are now written as
+    their items in order, like any `ValueTuple` (§6.6), and published as `tuple(...)` with every item.
 
 Unverified overall: behavior on 32-bit hosts, big-endian hosts, Mono, IL2CPP and Arm; the exact set of BCL
 exceptions that can escape a reader (§9.14). Everything else in
