@@ -21,20 +21,13 @@ internal static class ModelBuilder
         type = type.OriginalDefinition;
         if (!Visibility.IsEligible(type))
             return null;
-        var attr = type.GetNinoTypeOptions();
-        if (attr == null)
+        if (facts.Shape(type) is not { } shape)
             return null;
+        var attr = shape.Options;
 
         var known = facts.Symbols;
-        bool rawStruct = facts.Raw.IsRawStruct(type);
-
-        var kind = type.TypeKind == TypeKind.Interface || type.IsAbstract
-            ? FormatterKind.Polymorphic
-            : type.IsValueType
-                ? FormatterKind.Struct
-                : type.IsSealed
-                    ? FormatterKind.SealedClass
-                    : FormatterKind.Class;
+        bool rawStruct = shape.RawStruct;
+        var kind = shape.Kind;
 
         var typeParameters = AllTypeParameters(type);
         bool generic = typeParameters.Count != 0;
@@ -46,7 +39,7 @@ internal static class ModelBuilder
         var factories = new List<FactoryRegistration>();
         bool needsPartialAccessor = false;
 
-        bool tolerant = facts.IsTolerant(attr);
+        bool tolerant = shape.Tolerant;
         // Abstract classes have no body of their own, but emit WriteMembers/ReadMembers for their subtypes.
         // Keyed bodies are self-describing per member: no delegation to or from them.
         bool emitMembers = facts.IsDelegatable(type);
@@ -116,7 +109,7 @@ internal static class ModelBuilder
             : ConstructionPlanner.Plan(type, members, facts, diagnostics);
 
         var collection = kind is FormatterKind.Class or FormatterKind.SealedClass && !construction.Recreate
-            ? facts.Resolver.ResolveCollection(type)
+            ? shape.Collection
             : null;
         string collectionFormatter = collection?.Code ?? "";
         if (collection is { } c)
@@ -140,8 +133,8 @@ internal static class ModelBuilder
 
         // Tracking is inherited: a tracked base's reference header is resolved by the subtype's body as soon as
         // the instance exists, so every subtype of a tracked type must record itself.
-        bool tracked = IsTracked(type);
-        bool trackReferences = tracked && kind != FormatterKind.Struct;
+        bool tracked = shape.Tracked;
+        bool trackReferences = shape.TrackReferences;
         if (tracked && kind == FormatterKind.Struct)
             diagnostics?.Report(NinoDiagnostics.TrackReferencesOnStruct, type, type.ToDisplayString());
         else if (trackReferences && construction.Recreate)
@@ -189,7 +182,7 @@ internal static class ModelBuilder
 
         var ancestors = type.NinoAncestors().ToList();
         var dispatchRoot = type.TypeKind == TypeKind.Class && !generic && !trackReferences
-            ? DispatchRoot(type, ancestors)
+            ? DispatchRoot(type, ancestors, facts)
             : null;
 
         bool instantiable = kind is FormatterKind.Class or FormatterKind.SealedClass;
@@ -238,7 +231,7 @@ internal static class ModelBuilder
                         (construction.Factory.Length != 0 || construction.Creator.Length != 0) &&
                         !ComparesByValue(type),
             PublishesDeferrable: facts.Symbols.LayoutDeferrable,
-            Nests: !instantiable || collection is { OpensBodies: true } || members.Any(m => m.OpensBodies),
+            Nests: shape.Nests,
             FixedSize: !rawStruct && facts.IsFixedSize(type),
             DepthBound: bound,
             Shallow: shallow,
@@ -352,14 +345,15 @@ internal static class ModelBuilder
     /// nearest first), or null: this type's subtypes are dispatched there, so each subtype is listed once per
     /// hierarchy rather than once per ancestor.
     /// </summary>
-    private static INamedTypeSymbol? DispatchRoot(INamedTypeSymbol type, List<INamedTypeSymbol> ancestors)
+    private static INamedTypeSymbol? DispatchRoot(INamedTypeSymbol type, List<INamedTypeSymbol> ancestors,
+        TypeFacts facts)
     {
         INamedTypeSymbol? root = null;
         foreach (var b in ancestors)
         {
-            if (b.TypeKind == TypeKind.Class && !b.IsSealed && !b.IsGenericType && Visibility.IsEligible(b) &&
+            if (b.TypeKind == TypeKind.Class && !b.IsGenericType && Visibility.IsEligible(b) &&
                 SymbolEqualityComparer.Default.Equals(b.ContainingAssembly, type.ContainingAssembly) &&
-                !IsTracked(b))
+                facts.Shape(b) is { } shape && TypeRules.DispatchesSubtypes(shape.Kind, shape.TrackReferences))
                 root = b;
         }
 
@@ -393,15 +387,6 @@ internal static class ModelBuilder
 
         return false;
     }
-
-    /// <summary>Whether the type, a base class or an interface asks for reference tracking.</summary>
-    internal static bool IsTracked(INamedTypeSymbol type) =>
-        type.GetNinoTypeOptions() is { TrackReferences: true } || InheritsTracking(type);
-
-    /// <summary>Whether a base class or interface asks for reference tracking.</summary>
-    private static bool InheritsTracking(INamedTypeSymbol type) =>
-        type.NinoAncestors().Any(static a =>
-            a.GetDirectNinoTypeAttribute() is { } attribute && NinoTypeOptions.From(attribute).TrackReferences);
 
     private static string Declaration(INamedTypeSymbol type)
     {
@@ -447,7 +432,6 @@ internal static class ModelBuilder
         string encoding = "";
         string? shallowFormatter = null;
         bool registered = false;
-        bool opensBodies = true;
         bool readsLoop = false;
         FormatterTraits traits;
         var custom = NinoSymbols.Get(symbol, known.CustomFormatter);
@@ -470,7 +454,6 @@ internal static class ModelBuilder
             {
                 encoding = r.Encoding;
                 factories.AddRange(r.Factories);
-                opensBodies = r.OpensBodies;
                 shallowFormatter = facts.ShallowFormatter(r.Code, r, utf8);
                 readsLoop = r.Elements is { IsDefault: false, Length: > 0 } && (r.Traits & FormatterTraits.Flat) == 0;
             }
@@ -534,7 +517,7 @@ internal static class ModelBuilder
         return new MemberModel(name, symbol.Name, key, formerKeys, Global(memberType), formatter, traits,
             raw?.Layout ?? encoding, raw,
             symbol is IPropertySymbol, access, Global(declaring), declaring.IsValueType,
-            Visibility.IsConstructionOnly(symbol), false, typeId, opensBodies, shallowFormatter ?? formatter,
+            Visibility.IsConstructionOnly(symbol), false, typeId, shallowFormatter ?? formatter,
             custom == null && memberType.IsReferenceType && (traits & FormatterTraits.Core) != 0 &&
             (traits & replaces) == 0 && StartsDefault(symbol, ct),
             raw == null && readsLoop);

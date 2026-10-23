@@ -85,8 +85,6 @@ internal sealed record MemberModel(
     bool Unassignable,
     // Runtime type id of the member type when its built-in formatter is registered for top-level use, else 0.
     int TypeId,
-    // Whether the member's formatter may write or read a class body (see ResolvedFormatter.OpensBodies).
-    bool OpensBodies,
     // The formatter with the generated formatters it is composed of replaced by their shallow twins (see
     // TypeFacts.ShallowTwin), for shallow bodies; the formatter itself when none has one.
     string ShallowFormatter,
@@ -208,8 +206,7 @@ internal sealed record TypeModel(
     /// Whether the formatter dispatches its subtypes through generated code (<c>__WriteSubtype</c> and
     /// <c>__ReadSubtype</c>, emitted with the registry) before falling back to <c>NinoPolymorphic</c>.
     /// </summary>
-    public bool DispatchesSubtypes =>
-        !TrackReferences && Kind is FormatterKind.Polymorphic or FormatterKind.Class;
+    public bool DispatchesSubtypes => TypeRules.DispatchesSubtypes(Kind, TrackReferences);
 
     /// <summary>
     /// <paramref name="value"/>, one of the names the model leaves empty where it does not apply (a base, collection or
@@ -258,7 +255,7 @@ internal sealed record TypeModel(
     /// depth, so the twin skips the depth check and calls the body directly (inlined if <see cref="TopInline"/>,
     /// else the out-of-line body), also for each element of a built-in collection of it.
     /// </summary>
-    public bool HasTop => !IsGeneric && !TrackReferences && !RawStruct && !Nests && Kind == FormatterKind.SealedClass;
+    public bool HasTop => TypeRules.HasTop(Kind, IsGeneric, TrackReferences, RawStruct, Nests);
 
     /// <summary>
     /// Whether the <c>__Shallow</c> twin has bodies of its own: a member (or the elements of a collection) is

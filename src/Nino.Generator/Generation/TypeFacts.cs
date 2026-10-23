@@ -26,6 +26,8 @@ internal sealed class TypeFacts
     private readonly ConcurrentDictionary<ISymbol, bool> _fixedSize = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ITypeSymbol, int> _typeIds = new(SymbolEqualityComparer.Default);
     private readonly ConcurrentDictionary<ISymbol, int> _bounds = new(SymbolEqualityComparer.Default);
+    private readonly ConcurrentDictionary<ISymbol, TypeShape?> _shapes = new(SymbolEqualityComparer.Default);
+    private readonly Func<ISymbol, TypeShape?> _computeShape;
     [ThreadStatic] private static HashSet<ISymbol>? t_bounding;
     private readonly Func<ISymbol, bool> _computeDelegatable;
     private readonly Func<ISymbol, bool> _computeFixedSize;
@@ -54,6 +56,9 @@ internal sealed class TypeFacts
         _options = options;
         _computeDelegatable = s => ComputeIsDelegatable((INamedTypeSymbol)s);
         _computeFixedSize = s => ComputeIsFixedSize((INamedTypeSymbol)s);
+        _computeShape = s => ((INamedTypeSymbol)s).GetNinoTypeOptions() is { } attr
+            ? new TypeShape((INamedTypeSymbol)s, attr, this)
+            : null;
         _symbols = SymbolsOf(options).ToArray();
         WeakTolerance = _symbols.Contains("WEAK_VERSION_TOLERANCE");
         Net8 = _symbols.Contains("NET8_0_OR_GREATER");
@@ -84,6 +89,12 @@ internal sealed class TypeFacts
 
     /// <summary>Whether a type with <paramref name="attr"/> is version tolerant: so marked, or <see cref="WeakTolerance"/>.</summary>
     public bool IsTolerant(NinoTypeOptions attr) => attr.VersionTolerant || WeakTolerance;
+
+    /// <summary>
+    /// What the <c>[NinoType]</c> <paramref name="type"/> is, as the rules read it (memoized); null for a type that is
+    /// not one.
+    /// </summary>
+    public TypeShape? Shape(INamedTypeSymbol type) => _shapes.GetOrAdd(type, _computeShape);
 
     /// <summary><c>[UnsafeAccessor]</c> is available.</summary>
     public bool Net8 { get; }
@@ -153,15 +164,12 @@ internal sealed class TypeFacts
 
     private bool ComputeIsFixedSize(INamedTypeSymbol type)
     {
-        if (!Visibility.IsGeneratedHere(type))
+        if (Shape(type) is not { GeneratedHere: true, Keyed: false, Tolerant: false } shape)
             return false;
-        var attr = type.GetNinoTypeOptions();
-        if (attr == null || attr.Keyed || IsTolerant(attr))
+        bool isStruct = shape.Kind == FormatterKind.Struct;
+        if (isStruct ? shape.RawStruct : shape.Tracked || shape.Collection != null)
             return false;
-        bool isStruct = type.TypeKind == TypeKind.Struct;
-        if (isStruct ? Raw.IsRawStruct(type) : ModelBuilder.IsTracked(type) || Resolver.ResolveCollection(type) != null)
-            return false;
-        var members = Members.Of(type, attr);
+        var members = Members.Of(type, shape.Options);
         // A struct without members writes nothing.
         if (isStruct && members.Count == 0)
             return false;
@@ -255,17 +263,16 @@ internal sealed class TypeFacts
 
     private int ComputeTypeBound(INamedTypeSymbol type)
     {
-        if (!Visibility.IsGeneratedHere(type) || TypeNames.AllTypeArguments(type).Count != 0 ||
-            type.GetNinoTypeOptions() is not { } attr)
+        if (Shape(type) is not { GeneratedHere: true, Generic: false } shape)
             return Unbounded;
-        bool isStruct = type.TypeKind == TypeKind.Struct;
-        if (!isStruct && (type.TypeKind != TypeKind.Class || !type.IsSealed || type.IsAbstract))
+        bool isStruct = shape.Kind == FormatterKind.Struct;
+        if (!isStruct && shape.Kind != FormatterKind.SealedClass)
             return Unbounded;
-        if (isStruct && Raw.IsRawStruct(type))
+        if (isStruct && shape.RawStruct)
             return -1;
 
         int inner = -1;
-        if (!isStruct && Resolver.ResolveCollection(type) is { } collection)
+        if (shape.Collection is { } collection)
         {
             if (!collection.OpensBodies)
                 inner = -1;
@@ -278,7 +285,7 @@ internal sealed class TypeFacts
             }
         }
 
-        foreach (var member in Members.Of(type, attr))
+        foreach (var member in Members.Of(type, shape.Options))
         {
             if (NinoSymbols.Has(member, Symbols.CustomFormatter))
                 return Unbounded;
@@ -300,46 +307,26 @@ internal sealed class TypeFacts
     /// to stay below <see cref="InlineDepth"/>: the same bytes, counting and checking no depth, its members through
     /// the twins of theirs. Sealed classes and structs that open a class body (a sealed class opens its own), not
     /// tracked (their own formatter is used there, which is correct anywhere); null for any other type.
-    /// <see cref="TypeNames.Top"/> for a sealed class whose members and elements open no class body: its
-    /// <c>__Top</c> twin (<c>TypeModel.HasTop</c>, which ModelBuilder decides from the same resolutions) already
-    /// counts and checks no depth, and is correct wherever no body inside it is deferred, which none is. Otherwise
-    /// <see cref="TypeNames.Shallow"/>.
+    /// <see cref="TypeNames.Top"/> for a sealed class that has a <c>__Top</c> twin (<see cref="TypeRules.HasTop"/>,
+    /// whose body nests nothing): that twin already counts and checks no depth, and is correct wherever no body inside
+    /// it is deferred, which none is. Otherwise <see cref="TypeNames.Shallow"/>.
     /// </summary>
     public string? ShallowTwin(INamedTypeSymbol type)
     {
         int bound = TypeBound(type);
         if (bound == Unbounded || bound < 0)
             return null;
-        if (type.TypeKind != TypeKind.Class)
+        // A bound is known only for a non-generic sealed class or struct generated here.
+        var shape = Shape(type)!;
+        if (shape.Kind != FormatterKind.SealedClass)
             return TypeNames.Shallow;
-        if (ModelBuilder.IsTracked(type))
+        if (shape.TrackReferences)
             return null;
-        return OpensNoBody(type) ? TypeNames.Top : TypeNames.Shallow;
+        return TypeRules.HasTop(shape) ? TypeNames.Top : TypeNames.Shallow;
     }
 
     /// <summary>Whether the formatter of <paramref name="type"/> has a <c>__Shallow</c> twin (<see cref="ShallowTwin"/>).</summary>
     public bool HasShallow(INamedTypeSymbol type) => ShallowTwin(type) == TypeNames.Shallow;
-
-    /// <summary>
-    /// Whether no member of a sealed class, nor its elements, is written by a formatter that may open a class body
-    /// (<see cref="ResolvedFormatter.OpensBodies"/>; a custom formatter may): the body nests nothing
-    /// (<c>TypeModel.Nests</c> false).
-    /// </summary>
-    private bool OpensNoBody(INamedTypeSymbol type)
-    {
-        if (type.GetNinoTypeOptions() is not { } attr || Resolver.ResolveCollection(type) is { OpensBodies: true })
-            return false;
-        foreach (var member in Members.Of(type, attr))
-        {
-            if (NinoSymbols.Has(member, Symbols.CustomFormatter))
-                return false;
-            if (MemberCollector.MemberType(member) is { } memberType &&
-                Resolver.Resolve(memberType, NinoSymbols.Has(member, Symbols.Utf8)) is { OpensBodies: true })
-                return false;
-        }
-
-        return true;
-    }
 
     /// <summary>
     /// <paramref name="formatter"/> (resolved as <paramref name="resolved"/>) with the generated formatters it is
