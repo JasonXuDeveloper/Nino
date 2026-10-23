@@ -15,6 +15,8 @@ use crate::traits::{NinoBody, NinoRead};
 pub const DEPTH_INLINE: u32 = 128;
 /// Open bodies after which reading or writing fails, for types that cannot be deferred (`NinoDepth.Max`).
 pub const DEPTH_MAX: u32 = 512;
+/// Bytes of memory collections may allocate up front per byte of input.
+const PREALLOCATION: usize = 16;
 /// Set in the length of a region followed by a section of deferred bodies.
 pub(crate) const SECTION_FLAG: u32 = 0x8000_0000;
 
@@ -35,6 +37,8 @@ pub struct Reader<'d> {
     structs: u32,
     /// Deferred bodies, created on the first deferral.
     pub(crate) defer: Option<Box<ReadDeferrals>>,
+    /// Bytes of memory collections may still allocate before reading their elements ([`Reader::capacity`]).
+    budget: usize,
 }
 
 /// A region opened by [`Reader::begin_region`]; pass it back to [`Reader::end_region`].
@@ -57,7 +61,20 @@ pub struct Region<'d> {
 impl<'d> Reader<'d> {
     /// A reader over `data`, at its start.
     pub fn new(data: &'d [u8]) -> Self {
-        Self { rest: data, end: data.len(), depth: 0, regions: 0, structs: 0, defer: None }
+        let budget = data.len().saturating_mul(PREALLOCATION).saturating_add(4096);
+        Self { rest: data, end: data.len(), depth: 0, regions: 0, structs: 0, defer: None, budget }
+    }
+
+    /// How many of `count` elements of `T` (the length was checked against the bytes left) a collection allocates
+    /// before reading them; it grows as it reads the rest. Up front allocation is limited to 16 bytes of memory per
+    /// byte of input for the whole read, so collections nested in collections that claim more elements than they
+    /// hold cannot multiply it by their depth.
+    #[inline]
+    pub fn capacity<T>(&mut self, count: usize) -> usize {
+        let size = core::mem::size_of::<T>().max(1);
+        let n = count.min(self.budget.checked_div(size).unwrap_or(0));
+        self.budget = self.budget.saturating_sub(n.saturating_mul(size));
+        n
     }
 
     /// The position: bytes from the start of the data.

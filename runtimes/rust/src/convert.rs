@@ -292,7 +292,7 @@ mod indexmap_impl {
 
     use crate::defer::Step;
     use crate::error::{Error, ErrorKind, Result};
-    use crate::impls::{capacity, read_key};
+    use crate::impls::read_key;
     use crate::reader::Reader;
     use crate::traits::{NinoRead, NinoWrite};
     use crate::writer::Writer;
@@ -318,7 +318,7 @@ mod indexmap_impl {
 
         fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
             let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
-            let mut map = IndexMap::with_capacity_and_hasher(capacity::<(K, V)>(count, r.remaining()), S::default());
+            let mut map = IndexMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
             for i in 0..count {
                 let key = read_key::<K>(r)?;
                 let value = if V::MAY_DEFER {
@@ -372,7 +372,7 @@ mod indexmap_impl {
 
         fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
             let Some(count) = r.length(T::MIN_SIZE)? else { return Ok(None) };
-            let mut set = IndexSet::with_capacity_and_hasher(capacity::<T>(count, r.remaining()), S::default());
+            let mut set = IndexSet::with_capacity_and_hasher(r.capacity::<T>(count), S::default());
             for _ in 0..count {
                 if !set.insert(read_key::<T>(r)?) {
                     return Err(Error::of(ErrorKind::DuplicateKey));

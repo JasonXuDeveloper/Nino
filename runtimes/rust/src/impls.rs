@@ -10,16 +10,6 @@ use crate::reader::Reader;
 use crate::traits::{NinoRead, NinoWrite};
 use crate::writer::Writer;
 
-/// How many elements to allocate for `count` read from `remaining` bytes: all of them, unless an element takes far
-/// more memory than its smallest encoding, where the collection grows as it is read instead (at most 16 bytes of
-/// memory per byte of data up front, as .NET does).
-#[inline]
-pub(crate) fn capacity<T>(count: usize, remaining: usize) -> usize {
-    let size = core::mem::size_of::<T>().max(1);
-    let budget = remaining.saturating_mul(16).checked_div(size).unwrap_or(0).max(16);
-    count.min(budget)
-}
-
 fn vec_item<T: 'static>(v: &mut dyn Any, i: usize) -> Option<&mut dyn Any> {
     v.downcast_mut::<Vec<T>>()?.get_mut(i).map(|x| x as &mut dyn Any)
 }
@@ -35,7 +25,7 @@ fn read_into_vec<T: NinoRead>(
     count: usize,
     index: fn(&mut dyn Any, usize) -> Option<&mut dyn Any>,
 ) -> Result<Vec<T>> {
-    let mut values = Vec::with_capacity(capacity::<T>(count, r.remaining()));
+    let mut values = Vec::with_capacity(r.capacity::<T>(count));
     for i in 0..count {
         if T::MAY_DEFER {
             let mark = r.mark();
@@ -443,7 +433,7 @@ macro_rules! set {
 
             fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
                 let Some(count) = r.length(T::MIN_SIZE)? else { return Ok(None) };
-                let mut set = set!(@new $set, capacity::<T>(count, r.remaining()));
+                let mut set = set!(@new $set, r.capacity::<T>(count));
                 for _ in 0..count {
                     if !set.insert(read_key::<T>(r)?) {
                         return Err(Error::of(ErrorKind::DuplicateKey));
@@ -496,7 +486,7 @@ where
 
     fn read_option(r: &mut Reader<'_>) -> Result<Option<Self>> {
         let Some(count) = r.length(K::MIN_SIZE.saturating_add(V::MIN_SIZE))? else { return Ok(None) };
-        let mut map = HashMap::with_capacity_and_hasher(capacity::<(K, V)>(count, r.remaining()), S::default());
+        let mut map = HashMap::with_capacity_and_hasher(r.capacity::<(K, V)>(count), S::default());
         for _ in 0..count {
             let key = read_key::<K>(r)?;
             let value = if V::MAY_DEFER {
