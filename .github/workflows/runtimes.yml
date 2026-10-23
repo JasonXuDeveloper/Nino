@@ -1,0 +1,59 @@
+name: Runtimes
+
+# The runtimes outside .NET, and the conformance corpus they are all tested against (conformance/README.md).
+on:
+  push:
+    branches: [ "main", "develop" ]
+    paths:
+      - 'src/Nino.Core/**'
+      - 'src/Nino.Generator/**'
+      - 'src/Nino.Generator.Roslyn4.12/**'
+      - 'conformance/**'
+      - '.github/workflows/runtimes.yml'
+  pull_request:
+    branches: [ "main", "develop" ]
+    paths:
+      - 'src/Nino.Core/**'
+      - 'src/Nino.Generator/**'
+      - 'src/Nino.Generator.Roslyn4.12/**'
+      - 'conformance/**'
+      - '.github/workflows/runtimes.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtimes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # .NET still reads the committed corpus as recorded, and regenerating it changes nothing.
+  conformance:
+    name: Conformance corpus
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build conformance/Nino.Conformance -c Release
+
+      - name: Check the committed corpus with .NET
+        run: dotnet run --project conformance/Nino.Conformance -c Release --no-build -- --verify conformance/corpus
+
+      - name: Check the committed corpus is up to date
+        run: |
+          dotnet run --project conformance/Nino.Conformance -c Release --no-build -- --out "$RUNNER_TEMP/corpus"
+          if ! diff -r conformance/corpus "$RUNNER_TEMP/corpus" > "$RUNNER_TEMP/corpus.diff"; then
+            head -c 20000 "$RUNNER_TEMP/corpus.diff"
+            echo "::error::conformance/corpus is out of date: run" \
+              "'dotnet run --project conformance/Nino.Conformance -c Release -- --out conformance/corpus' and commit it."
+            exit 1
+          fi
