@@ -1,6 +1,6 @@
 """Reads BenchmarkDotNet's GitHub Markdown reports (*-report-github.md) for the scripts that compare them: readme.py,
-ab.py, merge_reports.py, compact_report.py, v3/compare.py and members/table.py. One parser, one unit table and one floor, so the
-scripts cannot drift apart in how they read a report or which times they call too fast to measure."""
+ab.py, merge_reports.py, compact_report.py, v3/compare.py and members/table.py. One parser, one unit table and one
+floor, so the scripts cannot drift apart in how they read a report or which times they call too fast to measure."""
 import re
 
 UNITS_NS = {"ns": 1.0, "μs": 1e3, "µs": 1e3, "us": 1e3, "ms": 1e6, "s": 1e9}
@@ -13,6 +13,14 @@ FLOOR_NS = 1
 def cells(line):
     """The cells of a Markdown table line, stripped."""
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def span(lines):
+    """-> (first, end): the lines of the first table (lines that start with "|"), or None without one."""
+    first = next((i for i, line in enumerate(lines) if line.startswith("|")), None)
+    if first is None:
+        return None
+    return first, next((i for i in range(first, len(lines)) if not lines[i].startswith("|")), len(lines))
 
 
 def rows(path):

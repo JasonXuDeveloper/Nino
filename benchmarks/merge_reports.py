@@ -14,16 +14,16 @@ SimpleTest, run in halves), by its first and last case.
 import re
 import sys
 
-from bdn import cells
+from bdn import cells, span
 
 
 def read(path):
     """-> (text before the table, header cells, alignment cells, rows of cells, CPU line)."""
     lines = open(path, encoding="utf-8").read().splitlines()
-    first = next((i for i, line in enumerate(lines) if line.startswith("|")), None)
-    if first is None:
+    table = span(lines)
+    if table is None:
         sys.exit(f"{path}: no table")
-    end = next((i for i in range(first, len(lines)) if not lines[i].startswith("|")), len(lines))
+    first, end = table
 
     header, align = cells(lines[first]), cells(lines[first + 1])
     cpu = next((line.strip() for line in lines[:first] if re.search(r"\bCPU\b|cores", line)), "unknown CPU")

@@ -83,12 +83,13 @@ def dump(ref, text, keep, runs=3):
         build = subprocess.run(["dotnet", "build", "-c", "Release", project], capture_output=True, text=True)
         if build.returncode != 0:
             sys.exit(f"build of {ref or 'the working tree'} failed:\n{build.stdout[-4000:]}")
+        startup_hook = hook()
         methods = {}
         for run in range(runs):
             with tempfile.TemporaryDirectory() as tmp:
                 out = os.path.join(tmp, "jit.asm")
                 env = dict(dotnet_env, DOTNET_JitStdOutFile=out, DOTNET_JitDisasm=METHODS,
-                           DOTNET_STARTUP_HOOKS=hook(), NINO_JIT_FILTER=text or "")
+                           DOTNET_STARTUP_HOOKS=startup_hook, NINO_JIT_FILTER=text or "")
                 subprocess.run(["dotnet", os.path.join(project, "bin", "Release", "net10.0", "Nino.Benchmark.dll")],
                                env=env, cwd=project, check=True)
                 with open(out, encoding="utf-8") as f:

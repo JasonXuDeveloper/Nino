@@ -12,17 +12,17 @@ Max, GC counts) is attached to the release.
 """
 import sys
 
-from bdn import cells, mean_ns, show
+from bdn import cells, mean_ns, show, span
 
 COLUMNS = ("Method", "Mean", "Ratio", "Payload", "Allocated")
 
 
 def compact(text):
     lines = text.splitlines()
-    first = next((i for i, line in enumerate(lines) if line.startswith("|")), None)
-    if first is None:
+    table = span(lines)
+    if table is None:
         sys.exit("no table")
-    end = next((i for i in range(first, len(lines)) if not lines[i].startswith("|")), len(lines))
+    first, end = table
     header = cells(lines[first])
     if "Type" not in header or "Method" not in header or "Mean" not in header:
         sys.exit("the table needs Type, Method and Mean columns (merge_reports.py's output)")
