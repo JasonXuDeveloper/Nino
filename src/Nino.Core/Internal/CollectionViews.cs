@@ -240,201 +240,287 @@ namespace Nino.Core.Internal
         }
 #pragma warning restore CS0649, CS0169
 
-        // The candidate layouts of List<T> and Stack<T>, which have the same fields: items, size, version.
-        private static readonly Func<int[]>[] ListLayouts =
+        /// <summary>Where <see cref="List{T}"/>'s and <see cref="Stack{T}"/>'s fields are (the same three).</summary>
+        internal readonly struct ListOffsets
         {
-            () => { var m = new ListCore(); return Offsets(m, ref m._items, ref m._size, ref m._version); },
-            () => { var m = new ListFramework(); return Offsets(m, ref m._items, ref m._size, ref m._version); }
+            public readonly int Items, Size, Version;
+
+            public ListOffsets(int items, int size, int version)
+            {
+                Items = items;
+                Size = size;
+                Version = version;
+            }
+        }
+
+        /// <summary>Where <see cref="Queue{T}"/>'s fields are.</summary>
+        internal readonly struct QueueOffsets
+        {
+            public readonly int Array, Head, Tail, Size, Version;
+
+            public QueueOffsets(int array, int head, int tail, int size, int version)
+            {
+                Array = array;
+                Head = head;
+                Tail = tail;
+                Size = size;
+                Version = version;
+            }
+        }
+
+        /// <summary>Where <see cref="SortedList{TKey,TValue}"/>'s fields are.</summary>
+        internal readonly struct SortedListOffsets
+        {
+            public readonly int Keys, Values, Size, Version, Comparer;
+
+            public SortedListOffsets(int keys, int values, int size, int version, int comparer)
+            {
+                Keys = keys;
+                Values = values;
+                Size = size;
+                Version = version;
+                Comparer = comparer;
+            }
+        }
+
+        /// <summary>Where <see cref="SortedSet{T}"/>'s fields are.</summary>
+        internal readonly struct SortedSetOffsets
+        {
+            public readonly int Root, Count, Version, Comparer;
+
+            public SortedSetOffsets(int root, int count, int version, int comparer)
+            {
+                Root = root;
+                Count = count;
+                Version = version;
+                Comparer = comparer;
+            }
+        }
+
+        /// <summary>Where <see cref="SortedDictionary{TKey,TValue}"/>'s fields are (every one a reference).</summary>
+        internal readonly struct SortedDictionaryOffsets
+        {
+            public readonly int Set, Keys, Values;
+
+            public SortedDictionaryOffsets(int set, int keys, int values)
+            {
+                Set = set;
+                Keys = keys;
+                Values = values;
+            }
+        }
+
+        /// <summary>Where <see cref="LinkedList{T}"/>'s fields are.</summary>
+        internal readonly struct LinkedListOffsets
+        {
+            public readonly int Head, Count, Version;
+
+            public LinkedListOffsets(int head, int count, int version)
+            {
+                Head = head;
+                Count = count;
+                Version = version;
+            }
+        }
+
+        /// <summary>
+        /// Where the fields of <see cref="HashSet{T}"/> and <see cref="Dictionary{TKey,TValue}"/> are: the entries, the
+        /// bound (the entries in use, live or free) and the version; for <see cref="HashTables"/>, the buckets, the
+        /// fast-mod multiplier (-1: none, the bucket is the hash modulo the bucket count) and the live count.
+        /// </summary>
+        internal readonly struct HashOffsets
+        {
+            public readonly int Entries, Bound, Version, Buckets, FastMod, Count;
+
+            public HashOffsets(int entries, int bound, int version, int buckets, int fastMod, int count)
+            {
+                Entries = entries;
+                Bound = bound;
+                Version = version;
+                Buckets = buckets;
+                FastMod = fastMod;
+                Count = count;
+            }
+        }
+
+        // The candidate layouts of List<T> and Stack<T>, which have the same fields: items, size, version.
+        private static readonly Func<ListOffsets>[] ListLayouts =
+        {
+            () =>
+            {
+                var m = new ListCore();
+                return new ListOffsets(At(m, ref m._items), At(m, ref m._size), At(m, ref m._version));
+            },
+            () =>
+            {
+                var m = new ListFramework();
+                return new ListOffsets(At(m, ref m._items), At(m, ref m._size), At(m, ref m._version));
+            }
         };
 
-        // List<T>: items, size, version.
-        private static readonly int[] ListLayout = Find(CheckList, ListLayouts);
+        private static readonly ListOffsets? ListLayout = Find(CheckList, ListLayouts);
 
-        public static readonly bool List = ListLayout != null;
-        public static readonly int ListItems = List ? ListLayout[0] : 0;
-        public static readonly int ListSize = List ? ListLayout[1] : 0;
+        public static readonly bool List = ListLayout.HasValue;
+        public static readonly int ListItems = ListLayout?.Items ?? 0;
+        public static readonly int ListSize = ListLayout?.Size ?? 0;
 
         // Stack<T>: array, size, version.
-        private static readonly int[] StackLayout = Find(CheckStack, ListLayouts);
+        private static readonly ListOffsets? StackLayout = Find(CheckStack, ListLayouts);
 
-        public static readonly bool Stack = StackLayout != null;
-        public static readonly int StackArray = Stack ? StackLayout[0] : 0;
-        public static readonly int StackSize = Stack ? StackLayout[1] : 0;
-        public static readonly int StackVersion = Stack ? StackLayout[2] : 0;
+        public static readonly bool Stack = StackLayout.HasValue;
+        public static readonly int StackArray = StackLayout?.Items ?? 0;
+        public static readonly int StackSize = StackLayout?.Size ?? 0;
+        public static readonly int StackVersion = StackLayout?.Version ?? 0;
 
-        // Queue<T>: array, head, tail, size, version.
-        private static readonly int[] QueueLayout = Find(CheckQueue,
+        private static readonly QueueOffsets? QueueLayout = Find(CheckQueue,
             () =>
             {
                 var m = new QueueCore();
-                return Offsets(m, ref m._array, ref m._head, ref m._tail, ref m._size, ref m._version);
+                return new QueueOffsets(At(m, ref m._array), At(m, ref m._head), At(m, ref m._tail), At(m, ref m._size),
+                    At(m, ref m._version));
             },
             () =>
             {
                 var m = new QueueFramework();
-                return Offsets(m, ref m._array, ref m._head, ref m._tail, ref m._size, ref m._version);
+                return new QueueOffsets(At(m, ref m._array), At(m, ref m._head), At(m, ref m._tail), At(m, ref m._size),
+                    At(m, ref m._version));
             });
 
-        public static readonly bool Queue = QueueLayout != null;
-        public static readonly int QueueArray = Queue ? QueueLayout[0] : 0;
-        public static readonly int QueueHead = Queue ? QueueLayout[1] : 0;
-        public static readonly int QueueTail = Queue ? QueueLayout[2] : 0;
-        public static readonly int QueueSize = Queue ? QueueLayout[3] : 0;
-        public static readonly int QueueVersion = Queue ? QueueLayout[4] : 0;
+        public static readonly bool Queue = QueueLayout.HasValue;
+        public static readonly int QueueArray = QueueLayout?.Array ?? 0;
+        public static readonly int QueueHead = QueueLayout?.Head ?? 0;
+        public static readonly int QueueTail = QueueLayout?.Tail ?? 0;
+        public static readonly int QueueSize = QueueLayout?.Size ?? 0;
+        public static readonly int QueueVersion = QueueLayout?.Version ?? 0;
 
-        // SortedList<TKey, TValue>: keys, values, size, version, comparer.
-        private static readonly int[] SortedListLayout = Find(CheckSortedList,
+        private static readonly SortedListOffsets? SortedListLayout = Find(CheckSortedList,
             () =>
             {
                 var m = new SortedListCore();
-                return Offsets(m, ref m.keys, ref m.values, ref m._size, ref m.version, ref m.comparer);
+                return new SortedListOffsets(At(m, ref m.keys), At(m, ref m.values), At(m, ref m._size),
+                    At(m, ref m.version), At(m, ref m.comparer));
             },
             () =>
             {
                 var m = new SortedListFramework();
-                return Offsets(m, ref m.keys, ref m.values, ref m._size, ref m.version, ref m.comparer);
+                return new SortedListOffsets(At(m, ref m.keys), At(m, ref m.values), At(m, ref m._size),
+                    At(m, ref m.version), At(m, ref m.comparer));
             });
 
-        public static readonly bool SortedList = SortedListLayout != null;
-        public static readonly int SortedListKeys = SortedList ? SortedListLayout[0] : 0;
-        public static readonly int SortedListValues = SortedList ? SortedListLayout[1] : 0;
-        public static readonly int SortedListSize = SortedList ? SortedListLayout[2] : 0;
-        public static readonly int SortedListVersion = SortedList ? SortedListLayout[3] : 0;
-        public static readonly int SortedListComparer = SortedList ? SortedListLayout[4] : 0;
+        public static readonly bool SortedList = SortedListLayout.HasValue;
+        public static readonly int SortedListKeys = SortedListLayout?.Keys ?? 0;
+        public static readonly int SortedListValues = SortedListLayout?.Values ?? 0;
+        public static readonly int SortedListSize = SortedListLayout?.Size ?? 0;
+        public static readonly int SortedListVersion = SortedListLayout?.Version ?? 0;
+        public static readonly int SortedListComparer = SortedListLayout?.Comparer ?? 0;
 
-        // SortedSet<T>: root, count, version, comparer.
-        private static readonly int[] SortedSetLayout = Find(CheckSortedSet,
+        private static readonly SortedSetOffsets? SortedSetLayout = Find(CheckSortedSet,
             () =>
             {
                 var m = new SortedSetCore();
-                return Offsets(m, ref m.root, ref m.count, ref m.version, ref m.comparer);
+                return new SortedSetOffsets(At(m, ref m.root), At(m, ref m.count), At(m, ref m.version),
+                    At(m, ref m.comparer));
             },
             () =>
             {
                 var m = new SortedSetFramework();
-                return Offsets(m, ref m.root, ref m.count, ref m.version, ref m.comparer);
+                return new SortedSetOffsets(At(m, ref m.root), At(m, ref m.count), At(m, ref m.version),
+                    At(m, ref m.comparer));
             });
 
-        public static readonly bool SortedSet = SortedSetLayout != null;
-        public static readonly int SortedSetRoot = SortedSet ? SortedSetLayout[0] : 0;
-        public static readonly int SortedSetCount = SortedSet ? SortedSetLayout[1] : 0;
-        public static readonly int SortedSetVersion = SortedSet ? SortedSetLayout[2] : 0;
+        public static readonly bool SortedSet = SortedSetLayout.HasValue;
+        public static readonly int SortedSetRoot = SortedSetLayout?.Root ?? 0;
+        public static readonly int SortedSetCount = SortedSetLayout?.Count ?? 0;
+        public static readonly int SortedSetVersion = SortedSetLayout?.Version ?? 0;
 
         // SortedDictionary<TKey, TValue>: the set of its pairs (every field a reference: no int to compare first).
-        private static readonly int[] SortedDictionaryLayout = SortedSet
+        private static readonly SortedDictionaryOffsets? SortedDictionaryLayout = SortedSet
             ? Find(CheckSortedDictionary, () =>
             {
                 var m = new SortedDictionaryAny();
-                return Offsets(m, ref m._set, ref m._keys, ref m._values);
+                return new SortedDictionaryOffsets(At(m, ref m._set), At(m, ref m._keys), At(m, ref m._values));
             })
             : null;
 
-        public static readonly bool SortedDictionary = SortedDictionaryLayout != null;
-        public static readonly int SortedDictionarySet = SortedDictionary ? SortedDictionaryLayout[0] : 0;
+        public static readonly bool SortedDictionary = SortedDictionaryLayout.HasValue;
+        public static readonly int SortedDictionarySet = SortedDictionaryLayout?.Set ?? 0;
 
-        // LinkedList<T>: head, count, version; its nodes: LinkedNode<T> (list, next, prev, item, the same everywhere).
-        private static readonly int[] LinkedListLayout = Find(CheckLinkedList,
+        // LinkedList<T>; its nodes: LinkedNode<T> (list, next, prev, item, the same everywhere).
+        private static readonly LinkedListOffsets? LinkedListLayout = Find(CheckLinkedList,
             () =>
             {
                 var m = new LinkedListCore();
-                return Offsets(m, ref m.head, ref m.count, ref m.version);
+                return new LinkedListOffsets(At(m, ref m.head), At(m, ref m.count), At(m, ref m.version));
             },
             () =>
             {
                 var m = new LinkedListFramework();
-                return Offsets(m, ref m.head, ref m.count, ref m.version);
+                return new LinkedListOffsets(At(m, ref m.head), At(m, ref m.count), At(m, ref m.version));
             });
 
-        public static readonly bool LinkedList = LinkedListLayout != null;
-        public static readonly int LinkedListHead = LinkedList ? LinkedListLayout[0] : 0;
-        public static readonly int LinkedListCount = LinkedList ? LinkedListLayout[1] : 0;
-        public static readonly int LinkedListVersion = LinkedList ? LinkedListLayout[2] : 0;
+        public static readonly bool LinkedList = LinkedListLayout.HasValue;
+        public static readonly int LinkedListHead = LinkedListLayout?.Head ?? 0;
+        public static readonly int LinkedListCount = LinkedListLayout?.Count ?? 0;
+        public static readonly int LinkedListVersion = LinkedListLayout?.Version ?? 0;
 
-        // HashSet<T>: entries, bound (the entries in use, live or free), version; then, for HashTables, the buckets,
-        // the fast-mod multiplier (-1: none, the bucket is the hash modulo the bucket count) and the live count.
-        private static readonly int[] HashSetLayout = Find(CheckHashSet,
+        private static readonly HashOffsets? HashSetLayout = Find(CheckHashSet,
             () =>
             {
                 var m = new HashSetCore64();
-                return With(Offsets(m, ref m._entries, ref m._count, ref m._version, ref m._buckets,
-                    ref m._fastModMultiplier), ObjectFields.OffsetOf(m, ref m._count));
+                return new HashOffsets(At(m, ref m._entries), At(m, ref m._count), At(m, ref m._version),
+                    At(m, ref m._buckets), At(m, ref m._fastModMultiplier), At(m, ref m._count));
             },
             () =>
             {
                 var m = new HashSetCore32();
-                return With(Offsets(m, ref m._entries, ref m._count, ref m._version, ref m._buckets), -1,
-                    ObjectFields.OffsetOf(m, ref m._count));
+                return new HashOffsets(At(m, ref m._entries), At(m, ref m._count), At(m, ref m._version),
+                    At(m, ref m._buckets), -1, At(m, ref m._count));
             },
             () =>
             {
                 var m = new HashSetOld();
-                return With(Offsets(m, ref m.m_slots, ref m.m_lastIndex, ref m.m_version, ref m.m_buckets), -1,
-                    ObjectFields.OffsetOf(m, ref m.m_count));
+                return new HashOffsets(At(m, ref m.m_slots), At(m, ref m.m_lastIndex), At(m, ref m.m_version),
+                    At(m, ref m.m_buckets), -1, At(m, ref m.m_count));
             });
 
-        public static readonly bool HashSet = HashSetLayout != null;
-        public static readonly int HashSetEntries = HashSet ? HashSetLayout[0] : 0;
-        public static readonly int HashSetBound = HashSet ? HashSetLayout[1] : 0;
+        public static readonly bool HashSet = HashSetLayout.HasValue;
+        public static readonly int HashSetEntries = HashSetLayout?.Entries ?? 0;
+        public static readonly int HashSetBound = HashSetLayout?.Bound ?? 0;
+
         /// <summary>The offsets above, or null: read once by <see cref="HashTables"/>.</summary>
-        internal static int[] HashSetOffsets => HashSetLayout;
+        internal static HashOffsets? HashSetOffsets => HashSetLayout;
 
         // Dictionary<TKey, TValue>: as HashSet<T>'s.
-        private static readonly int[] DictionaryLayout = Find(CheckDictionary,
+        private static readonly HashOffsets? DictionaryLayout = Find(CheckDictionary,
             () =>
             {
                 var m = new DictionaryCore64();
-                return With(Offsets(m, ref m._entries, ref m._count, ref m._version, ref m._buckets,
-                    ref m._fastModMultiplier), ObjectFields.OffsetOf(m, ref m._count));
+                return new HashOffsets(At(m, ref m._entries), At(m, ref m._count), At(m, ref m._version),
+                    At(m, ref m._buckets), At(m, ref m._fastModMultiplier), At(m, ref m._count));
             },
             () =>
             {
                 var m = new DictionaryCore32();
-                return With(Offsets(m, ref m._entries, ref m._count, ref m._version, ref m._buckets), -1,
-                    ObjectFields.OffsetOf(m, ref m._count));
+                return new HashOffsets(At(m, ref m._entries), At(m, ref m._count), At(m, ref m._version),
+                    At(m, ref m._buckets), -1, At(m, ref m._count));
             },
             () =>
             {
                 var m = new DictionaryOld();
-                return With(Offsets(m, ref m.entries, ref m.count, ref m.version, ref m.buckets), -1,
-                    ObjectFields.OffsetOf(m, ref m.count));
+                return new HashOffsets(At(m, ref m.entries), At(m, ref m.count), At(m, ref m.version),
+                    At(m, ref m.buckets), -1, At(m, ref m.count));
             });
 
-        public static readonly bool Dictionary = DictionaryLayout != null;
-        public static readonly int DictionaryEntries = Dictionary ? DictionaryLayout[0] : 0;
-        public static readonly int DictionaryBound = Dictionary ? DictionaryLayout[1] : 0;
-        internal static int[] DictionaryOffsets => DictionaryLayout;
+        public static readonly bool Dictionary = DictionaryLayout.HasValue;
+        public static readonly int DictionaryEntries = DictionaryLayout?.Entries ?? 0;
+        public static readonly int DictionaryBound = DictionaryLayout?.Bound ?? 0;
+        internal static HashOffsets? DictionaryOffsets => DictionaryLayout;
 
-        private static int[] With(int[] offsets, params int[] more)
-        {
-            var all = new int[offsets.Length + more.Length];
-            offsets.CopyTo(all, 0);
-            more.CopyTo(all, offsets.Length);
-            return all;
-        }
-
-        private static int[] Offsets<T0, T1, T2>(object mirror, ref T0 f0, ref T1 f1, ref T2 f2) => new[]
-        {
-            ObjectFields.OffsetOf(mirror, ref f0), ObjectFields.OffsetOf(mirror, ref f1),
-            ObjectFields.OffsetOf(mirror, ref f2)
-        };
-
-        private static int[] Offsets<T0, T1, T2, T3>(object mirror, ref T0 f0, ref T1 f1, ref T2 f2, ref T3 f3) =>
-            new[]
-            {
-                ObjectFields.OffsetOf(mirror, ref f0), ObjectFields.OffsetOf(mirror, ref f1),
-                ObjectFields.OffsetOf(mirror, ref f2), ObjectFields.OffsetOf(mirror, ref f3)
-            };
-
-        private static int[] Offsets<T0, T1, T2, T3, T4>(object mirror, ref T0 f0, ref T1 f1, ref T2 f2, ref T3 f3,
-            ref T4 f4) => new[]
-        {
-            ObjectFields.OffsetOf(mirror, ref f0), ObjectFields.OffsetOf(mirror, ref f1),
-            ObjectFields.OffsetOf(mirror, ref f2), ObjectFields.OffsetOf(mirror, ref f3),
-            ObjectFields.OffsetOf(mirror, ref f4)
-        };
+        private static int At<TField>(object instance, ref TField field) => ObjectFields.OffsetOf(instance, ref field);
 
         /// <summary>The offsets of the first candidate layout that <paramref name="check"/> accepts, or null.</summary>
-        private static int[] Find(Func<int[], bool> check, params Func<int[]>[] candidates)
+        private static TOffsets? Find<TOffsets>(Func<TOffsets, bool> check, params Func<TOffsets>[] candidates)
+            where TOffsets : struct
         {
             foreach (var candidate in candidates)
             {
@@ -489,35 +575,35 @@ namespace Nino.Core.Internal
         // Each check reads int fields first (a reference may sit where another layout has an int, never read as
         // one), then compares references as addresses, and only then reads through the layout.
 
-        private static bool CheckList(int[] at)
+        private static bool CheckList(ListOffsets at)
         {
             var source = new Source(37);
             var list = new List<int>(source);
             for (int i = 0; i < 5; i++)
                 list[i] = 100 + i; // version 5
-            if (ObjectFields.At<int>(list, at[1]) != 37 || ObjectFields.At<int>(list, at[2]) != 5 ||
-                !ObjectFields.Holds(list, at[0], source.Target))
+            if (ObjectFields.At<int>(list, at.Size) != 37 || ObjectFields.At<int>(list, at.Version) != 5 ||
+                !ObjectFields.Holds(list, at.Items, source.Target))
                 return false;
-            var items = ObjectFields.At<int[]>(list, at[0]);
-            ObjectFields.At<int>(list, at[1]) = 30;
+            var items = ObjectFields.At<int[]>(list, at.Items);
+            ObjectFields.At<int>(list, at.Size) = 30;
             return items[4] == 104 && items[36] == 36 && list.Count == 30 && list[29] == 29;
         }
 
-        private static bool CheckStack(int[] at)
+        private static bool CheckStack(ListOffsets at)
         {
             var source = new Source(37);
             var stack = new Stack<int>(source);
             stack.Pop();
             stack.Push(99); // version 2 on .NET, 2 on .NET Framework and Mono
-            if (ObjectFields.At<int>(stack, at[1]) != 37 || ObjectFields.At<int>(stack, at[2]) != 2 ||
-                !ObjectFields.Holds(stack, at[0], source.Target))
+            if (ObjectFields.At<int>(stack, at.Size) != 37 || ObjectFields.At<int>(stack, at.Version) != 2 ||
+                !ObjectFields.Holds(stack, at.Items, source.Target))
                 return false;
-            var array = ObjectFields.At<int[]>(stack, at[0]);
-            ObjectFields.At<int>(stack, at[1]) = 30;
+            var array = ObjectFields.At<int[]>(stack, at.Items);
+            ObjectFields.At<int>(stack, at.Size) = 30;
             return array[36] == 99 && array[0] == 0 && stack.Count == 30 && stack.Peek() == 29;
         }
 
-        private static bool CheckQueue(int[] at)
+        private static bool CheckQueue(QueueOffsets at)
         {
             // Head 3, tail 6, size 3, version 9 (each Enqueue and Dequeue bumps it), in an array of 8.
             var queue = new Queue<int>(8);
@@ -525,57 +611,57 @@ namespace Nino.Core.Internal
                 queue.Enqueue(10 + i);
             for (int i = 0; i < 3; i++)
                 queue.Dequeue();
-            if (ObjectFields.At<int>(queue, at[1]) != 3 || ObjectFields.At<int>(queue, at[2]) != 6 ||
-                ObjectFields.At<int>(queue, at[3]) != 3 || ObjectFields.At<int>(queue, at[4]) != 9)
+            if (ObjectFields.At<int>(queue, at.Head) != 3 || ObjectFields.At<int>(queue, at.Tail) != 6 ||
+                ObjectFields.At<int>(queue, at.Size) != 3 || ObjectFields.At<int>(queue, at.Version) != 9)
                 return false;
-            var array = ObjectFields.At<int[]>(queue, at[0]);
+            var array = ObjectFields.At<int[]>(queue, at.Array);
             if (array is not { Length: 8 } || array[3] != 13 || array[5] != 15)
                 return false;
-            ObjectFields.At<int>(queue, at[3]) = 2;
+            ObjectFields.At<int>(queue, at.Size) = 2;
             return queue.Count == 2 && queue.Peek() == 13;
         }
 
-        private static bool CheckSortedList(int[] at)
+        private static bool CheckSortedList(SortedListOffsets at)
         {
             var comparer = Comparer<int>.Create((a, b) => a.CompareTo(b));
             var list = new SortedList<int, int>(4, comparer) { { 9, 90 }, { 7, 70 } }; // version 2
-            if (ObjectFields.At<int>(list, at[2]) != 2 || ObjectFields.At<int>(list, at[3]) != 2 ||
-                !ObjectFields.Holds(list, at[4], comparer))
+            if (ObjectFields.At<int>(list, at.Size) != 2 || ObjectFields.At<int>(list, at.Version) != 2 ||
+                !ObjectFields.Holds(list, at.Comparer, comparer))
                 return false;
-            var keys = ObjectFields.At<int[]>(list, at[0]);
-            var values = ObjectFields.At<int[]>(list, at[1]);
+            var keys = ObjectFields.At<int[]>(list, at.Keys);
+            var values = ObjectFields.At<int[]>(list, at.Values);
             if (keys is not { Length: 4 } || keys[0] != 7 || keys[1] != 9 || values is not { Length: 4 } ||
                 values[0] != 70 || values[1] != 90)
                 return false;
-            ObjectFields.At<int>(list, at[2]) = 1;
+            ObjectFields.At<int>(list, at.Size) = 1;
             return list.Count == 1 && list.Keys[0] == 7 && list.Values[0] == 70;
         }
 
-        private static bool CheckSortedSet(int[] at)
+        private static bool CheckSortedSet(SortedSetOffsets at)
         {
             var comparer = Comparer<int>.Create((a, b) => a.CompareTo(b));
             var source = new SortedSet<int>(comparer) { 5, 1, 3 }; // version 3
-            if (ObjectFields.At<int>(source, at[1]) != 3 || ObjectFields.At<int>(source, at[2]) != 3 ||
-                !ObjectFields.Holds(source, at[3], comparer))
+            if (ObjectFields.At<int>(source, at.Count) != 3 || ObjectFields.At<int>(source, at.Version) != 3 ||
+                !ObjectFields.Holds(source, at.Comparer, comparer))
                 return false;
             // A tree moved into an empty set is that set's: its nodes do not point back to the set.
             var target = new SortedSet<int>(comparer);
-            ObjectFields.At<object>(target, at[0]) = ObjectFields.At<object>(source, at[0]);
-            ObjectFields.At<int>(target, at[1]) = 3;
-            ObjectFields.At<int>(target, at[2])++;
+            ObjectFields.At<object>(target, at.Root) = ObjectFields.At<object>(source, at.Root);
+            ObjectFields.At<int>(target, at.Count) = 3;
+            ObjectFields.At<int>(target, at.Version)++;
             using var e = target.GetEnumerator();
             return e.MoveNext() && e.Current == 1 && e.MoveNext() && e.Current == 3 && e.MoveNext() &&
                    e.Current == 5 && !e.MoveNext() && target.Contains(3) && !target.Contains(2) && target.Max == 5 &&
                    target.Count == 3;
         }
 
-        private static bool CheckLinkedList(int[] at)
+        private static bool CheckLinkedList(LinkedListOffsets at)
         {
             var list = new LinkedList<int>();
             for (int i = 0; i < 4; i++)
                 list.AddLast(i); // version 4
-            if (ObjectFields.At<int>(list, at[1]) != 4 || ObjectFields.At<int>(list, at[2]) != 4 ||
-                !ObjectFields.Holds(list, at[0], list.First) || !CheckLinkedNode(list.First, list, 0) ||
+            if (ObjectFields.At<int>(list, at.Count) != 4 || ObjectFields.At<int>(list, at.Version) != 4 ||
+                !ObjectFields.Holds(list, at.Head, list.First) || !CheckLinkedNode(list.First, list, 0) ||
                 !CheckLinkedNode(list.Last, list, 3))
                 return false;
             var strings = new LinkedList<string>();
@@ -594,9 +680,9 @@ namespace Nino.Core.Internal
                 first ??= node;
                 last = node;
             }
-            ObjectFields.At<LinkedListNode<string>>(built, at[0]) = first;
-            ObjectFields.At<int>(built, at[1]) = 40;
-            ObjectFields.At<int>(built, at[2])++;
+            ObjectFields.At<LinkedListNode<string>>(built, at.Head) = first;
+            ObjectFields.At<int>(built, at.Count) = 40;
+            ObjectFields.At<int>(built, at.Version)++;
             CollectionFields.Close(first, last);
             int seen = 0;
             foreach (var item in built)
@@ -623,49 +709,49 @@ namespace Nino.Core.Internal
                 item);
         }
 
-        private static bool CheckHashSet(int[] at)
+        private static bool CheckHashSet(HashOffsets at)
         {
             // Four entries in use, one of them free: bound 4, count 3, version 4 or 5 (Remove bumps it on some).
             var set = new HashSet<long> { 10, 11, 12, 13 };
             set.Remove(11);
-            int version = ObjectFields.At<int>(set, at[2]);
-            if (ObjectFields.At<int>(set, at[1]) != 4 || version != 4 && version != 5)
+            int version = ObjectFields.At<int>(set, at.Version);
+            if (ObjectFields.At<int>(set, at.Bound) != 4 || version != 4 && version != 5)
                 return false;
-            if (ObjectFields.At<object>(set, at[0]) is not Array { Length: >= 4 } array ||
+            if (ObjectFields.At<object>(set, at.Entries) is not Array { Length: >= 4 } array ||
                 array.GetType().GetElementType() is not { IsValueType: true, IsGenericType: true } ||
                 Unsafe.As<CollectionFields.SetEntry<long>[]>(array) is not { } entries ||
                 entries[0].Value != 10 || entries[2].Value != 12 || entries[3].Value != 13)
                 return false;
             set.Add(14); // into the free entry: bound 4, count 4
-            return ObjectFields.At<int>(set, at[1]) == 4 && entries[1].Value == 14 && set.Count == 4;
+            return ObjectFields.At<int>(set, at.Bound) == 4 && entries[1].Value == 14 && set.Count == 4;
         }
 
-        private static bool CheckDictionary(int[] at)
+        private static bool CheckDictionary(HashOffsets at)
         {
             // As CheckHashSet's.
             var dictionary = new Dictionary<long, short> { { 10, 1 }, { 11, 2 }, { 12, 3 }, { 13, 4 } };
             dictionary.Remove(11);
-            int version = ObjectFields.At<int>(dictionary, at[2]);
-            if (ObjectFields.At<int>(dictionary, at[1]) != 4 || version != 4 && version != 5)
+            int version = ObjectFields.At<int>(dictionary, at.Version);
+            if (ObjectFields.At<int>(dictionary, at.Bound) != 4 || version != 4 && version != 5)
                 return false;
-            if (ObjectFields.At<object>(dictionary, at[0]) is not Array { Length: >= 4 } array ||
+            if (ObjectFields.At<object>(dictionary, at.Entries) is not Array { Length: >= 4 } array ||
                 array.GetType().GetElementType() is not { IsValueType: true, IsGenericType: true } ||
                 Unsafe.As<CollectionFields.MapEntry<long, short>[]>(array) is not { } entries ||
                 entries[0].Key != 10 || entries[2].Value != 3 || entries[3].Key != 13 || entries[3].Value != 4)
                 return false;
             dictionary.Add(14, 5); // into the free entry: bound 4, count 4
-            return ObjectFields.At<int>(dictionary, at[1]) == 4 && entries[1].Key == 14 && entries[1].Value == 5 &&
+            return ObjectFields.At<int>(dictionary, at.Bound) == 4 && entries[1].Key == 14 && entries[1].Value == 5 &&
                    dictionary.Count == 4;
         }
 
-        private static bool CheckSortedDictionary(int[] at)
+        private static bool CheckSortedDictionary(SortedDictionaryOffsets at)
         {
             var dictionary = new SortedDictionary<int, int> { { 9, 90 }, { 7, 70 } };
             // Every field a reference: a wrong guess reads null (keys and values are created on first use) or
             // another of its objects.
-            return ObjectFields.At<object>(dictionary, at[1]) == null &&
-                   ObjectFields.At<object>(dictionary, at[2]) == null &&
-                   ObjectFields.At<object>(dictionary, at[0]) is SortedSet<KeyValuePair<int, int>> { Count: 2 } set &&
+            return ObjectFields.At<object>(dictionary, at.Keys) == null &&
+                   ObjectFields.At<object>(dictionary, at.Values) == null &&
+                   ObjectFields.At<object>(dictionary, at.Set) is SortedSet<KeyValuePair<int, int>> { Count: 2 } set &&
                    set.Min.Key == 7 && set.Max.Value == 90;
         }
     }

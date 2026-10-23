@@ -19,20 +19,19 @@ namespace Nino.Core.Internal
     /// </summary>
     internal static class HashTables
     {
-        // At[3..5] of CollectionViews' layouts: buckets, fast-mod multiplier (-1: none), live count.
-        private static readonly int[] SetAt = CollectionViews.HashSetOffsets;
-        private static readonly int SetEntries = SetAt?[0] ?? 0;
-        private static readonly int SetBound = SetAt?[1] ?? 0;
-        private static readonly int SetBuckets = SetAt?[3] ?? 0;
-        private static readonly int SetFastMod = SetAt?[4] ?? -1;
-        private static readonly int SetCount = SetAt?[5] ?? 0;
+        private static readonly CollectionViews.HashOffsets? SetAt = CollectionViews.HashSetOffsets;
+        private static readonly int SetEntries = SetAt?.Entries ?? 0;
+        private static readonly int SetBound = SetAt?.Bound ?? 0;
+        private static readonly int SetBuckets = SetAt?.Buckets ?? 0;
+        private static readonly int SetFastMod = SetAt?.FastMod ?? -1;
+        private static readonly int SetCount = SetAt?.Count ?? 0;
 
-        private static readonly int[] MapAt = CollectionViews.DictionaryOffsets;
-        private static readonly int MapEntries = MapAt?[0] ?? 0;
-        private static readonly int MapBound = MapAt?[1] ?? 0;
-        private static readonly int MapBuckets = MapAt?[3] ?? 0;
-        private static readonly int MapFastMod = MapAt?[4] ?? -1;
-        private static readonly int MapCount = MapAt?[5] ?? 0;
+        private static readonly CollectionViews.HashOffsets? MapAt = CollectionViews.DictionaryOffsets;
+        private static readonly int MapEntries = MapAt?.Entries ?? 0;
+        private static readonly int MapBound = MapAt?.Bound ?? 0;
+        private static readonly int MapBuckets = MapAt?.Buckets ?? 0;
+        private static readonly int MapFastMod = MapAt?.FastMod ?? -1;
+        private static readonly int MapCount = MapAt?.Count ?? 0;
 
         // The hashing (mask and bias) each passed its check with, -1 for none.
         private static readonly int SetHashing = SetAt == null ? -1 : FindHashing(CheckSet);

@@ -545,27 +545,36 @@ namespace Nino.Core
         /// <summary>1 for <see cref="NodeCore{T}"/>, 2 for <see cref="NodeFramework{T}"/>, 0 for neither.</summary>
         public static readonly int Layout = ObjectTypes.Usable && CollectionViews.SortedSet ? Find() : 0;
 
-        /// <summary>The offsets of the item, left, right and color (red: 1) of <typeparamref name="T"/>'s node in a layout.</summary>
-        public static int[] Offsets<T>(int layout)
+        /// <summary>
+        /// Where the fields of a node are: its item, left and right children, and color (red: 1). A class, not a
+        /// struct: <see cref="Make{T}"/> passes it down its recursion as one reference.
+        /// </summary>
+        internal sealed class NodeOffsets
         {
-            if (layout == 0)
-                return null;
+            public readonly int Item, Left, Right, Color;
+
+            public NodeOffsets(int item, int left, int right, int color)
+            {
+                Item = item;
+                Left = left;
+                Right = right;
+                Color = color;
+            }
+        }
+
+        /// <summary>The offsets of <typeparamref name="T"/>'s node in a layout (1 or 2).</summary>
+        public static NodeOffsets Offsets<T>(int layout)
+        {
             if (layout == 1)
             {
                 var m = new NodeCore<T>();
-                return new[]
-                {
-                    ObjectFields.OffsetOf(m, ref m.Item), ObjectFields.OffsetOf(m, ref m.Left),
-                    ObjectFields.OffsetOf(m, ref m.Right), ObjectFields.OffsetOf(m, ref m.Color)
-                };
+                return new NodeOffsets(ObjectFields.OffsetOf(m, ref m.Item), ObjectFields.OffsetOf(m, ref m.Left),
+                    ObjectFields.OffsetOf(m, ref m.Right), ObjectFields.OffsetOf(m, ref m.Color));
             }
 
             var f = new NodeFramework<T>();
-            return new[]
-            {
-                ObjectFields.OffsetOf(f, ref f.Item), ObjectFields.OffsetOf(f, ref f.Left),
-                ObjectFields.OffsetOf(f, ref f.Right), ObjectFields.OffsetOf(f, ref f.IsRed)
-            };
+            return new NodeOffsets(ObjectFields.OffsetOf(f, ref f.Item), ObjectFields.OffsetOf(f, ref f.Left),
+                ObjectFields.OffsetOf(f, ref f.Right), ObjectFields.OffsetOf(f, ref f.IsRed));
         }
 
         private static int Find()
@@ -592,18 +601,18 @@ namespace Nino.Core
             // (a reference may sit where another layout has an int, never read as one).
             var at = Offsets<int>(layout);
             var root = CollectionFields.Root(new SortedSet<int> { 1, 2, 3 });
-            if (ObjectFields.At<int>(root, at[0]) != 2 || ObjectFields.At<byte>(root, at[3]) != 0)
+            if (ObjectFields.At<int>(root, at.Item) != 2 || ObjectFields.At<byte>(root, at.Color) != 0)
                 return false;
-            object left = ObjectFields.At<object>(root, at[1]), right = ObjectFields.At<object>(root, at[2]);
-            if (left == null || right == null || ObjectFields.At<int>(left, at[0]) != 1 ||
-                ObjectFields.At<byte>(left, at[3]) != 1 || ObjectFields.At<int>(right, at[0]) != 3 ||
-                ObjectFields.At<byte>(right, at[3]) != 1 || ObjectFields.At<object>(left, at[1]) != null)
+            object left = ObjectFields.At<object>(root, at.Left), right = ObjectFields.At<object>(root, at.Right);
+            if (left == null || right == null || ObjectFields.At<int>(left, at.Item) != 1 ||
+                ObjectFields.At<byte>(left, at.Color) != 1 || ObjectFields.At<int>(right, at.Item) != 3 ||
+                ObjectFields.At<byte>(right, at.Color) != 1 || ObjectFields.At<object>(left, at.Left) != null)
                 return false;
             var strings = Offsets<string>(layout);
             var stringRoot = CollectionFields.Root(new SortedSet<string>(StringComparer.Ordinal) { "a", "b", "c" });
-            if (ObjectFields.At<byte>(stringRoot, strings[3]) != 0 ||
-                ObjectFields.At<byte>(ObjectFields.At<object>(stringRoot, strings[1]), strings[3]) != 1 ||
-                ObjectFields.At<string>(stringRoot, strings[0]) != "b")
+            if (ObjectFields.At<byte>(stringRoot, strings.Color) != 0 ||
+                ObjectFields.At<byte>(ObjectFields.At<object>(stringRoot, strings.Left), strings.Color) != 1 ||
+                ObjectFields.At<string>(stringRoot, strings.Item) != "b")
                 return false;
             return CheckBuilt(layout);
         }
@@ -621,7 +630,7 @@ namespace Nino.Core
         /// <paramref name="layout"/> at the offsets <paramref name="at"/> (<see cref="Offsets{T}"/>), of the type
         /// <paramref name="type"/> (<see cref="TypeOfNodes{T}"/>).
         /// </summary>
-        public static object Build<T>(T[] items, int count, int layout, int[] at, IntPtr type)
+        public static object Build<T>(T[] items, int count, int layout, NodeOffsets at, IntPtr type)
         {
             // Halves that differ by at most one item: every leaf is on the last level or the one above it. The last
             // level is red, the others black: every path from the root to a missing child passes as many black nodes,
@@ -632,18 +641,19 @@ namespace Nino.Core
             return Make(items, 0, count - 1, 0, last == 0 ? -1 : last, layout, at, type);
         }
 
-        private static object Make<T>(T[] items, int low, int high, int depth, int red, int layout, int[] at, IntPtr type)
+        private static object Make<T>(T[] items, int low, int high, int depth, int red, int layout, NodeOffsets at,
+            IntPtr type)
         {
             if (low > high)
                 return null;
             int middle = (low + high) >> 1;
             object node = layout == 1 ? new NodeCore<T>() : new NodeFramework<T>();
             ObjectTypes.Retype(node, type);
-            ObjectFields.At<T>(node, at[0]) = items[middle];
-            ObjectFields.At<object>(node, at[1]) = Make(items, low, middle - 1, depth + 1, red, layout, at, type);
-            ObjectFields.At<object>(node, at[2]) = Make(items, middle + 1, high, depth + 1, red, layout, at, type);
+            ObjectFields.At<T>(node, at.Item) = items[middle];
+            ObjectFields.At<object>(node, at.Left) = Make(items, low, middle - 1, depth + 1, red, layout, at, type);
+            ObjectFields.At<object>(node, at.Right) = Make(items, middle + 1, high, depth + 1, red, layout, at, type);
             if (depth == red)
-                ObjectFields.At<byte>(node, at[3]) = 1;
+                ObjectFields.At<byte>(node, at.Color) = 1;
             return node;
         }
 
@@ -691,7 +701,8 @@ namespace Nino.Core
     /// </summary>
     internal static class SortedSetNodes<T>
     {
-        private static readonly int[] At = SortedSetNodes.Offsets<T>(SortedSetNodes.Layout);
+        private static readonly SortedSetNodes.NodeOffsets At =
+            SortedSetNodes.Layout != 0 ? SortedSetNodes.Offsets<T>(SortedSetNodes.Layout) : null;
         private static readonly IntPtr Type = SortedSetNodes.Layout != 0 ? SortedSetNodes.TypeOfNodes<T>() : IntPtr.Zero;
 
         /// <summary>The root of the red-black tree of <c>items[0..count)</c> (in order, none twice, count not 0).</summary>
@@ -702,7 +713,7 @@ namespace Nino.Core
         public static void CopyTo(object root, T[] array)
         {
             int at = 0;
-            CopyTo(root, array, ref at, At[0], At[1], At[2]);
+            CopyTo(root, array, ref at, At.Item, At.Left, At.Right);
         }
 
         private static void CopyTo(object node, T[] array, ref int at, int item, int left, int right)
