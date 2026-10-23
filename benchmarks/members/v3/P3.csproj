@@ -1,4 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Optimize>true</Optimize><DefineConstants>$(DefineConstants);V3</DefineConstants><Nullable>disable</Nullable><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><Optimize>true</Optimize><DefineConstants>$(DefineConstants);V3</DefineConstants><Nullable>disable</Nullable><AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- v3 from nuget.org, not the repository's central package versions. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally></PropertyGroup>
   <ItemGroup><Compile Include="../shared/Parts.cs" /><PackageReference Include="Nino" Version="3.3.13" /><PackageReference Include="BenchmarkDotNet" Version="0.15.8" /></ItemGroup>
 </Project>

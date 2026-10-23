@@ -11,6 +11,8 @@
         <AssemblyName>Nino.Benchmark</AssemblyName>
         <RootNamespace>Nino.Benchmark</RootNamespace>
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+        <!-- Its own package versions: v3 from nuget.org, not the repository's central ones (Directory.Packages.props). -->
+        <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Nino" Version="3.3.13" />
