@@ -9,7 +9,7 @@
     "Conformance.TreeHolder": "format=Positional; header=NullFlag; trackReferences=false; raw=false; typeId=0xA20A5480; members=Tree:Conformance.Tree:seq(type(Conformance.Tree));DictTree:Conformance.DictTree:map(string,type(Conformance.DictTree))"
   },
   "dotnet": {
-    "outcome": "crashed",
-    "reason": "stack overflow"
+    "outcome": "error",
+    "exception": "InvalidOperationException"
   }
 }

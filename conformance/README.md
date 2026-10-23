@@ -135,9 +135,6 @@ Cases are added freely; a case is renamed or removed only with a reason in the c
 Recorded in each case's `dotnet` field (`returned` or `crashed` where `expected` is `error`); summarized here:
 
 - `presence-*`: bool bytes, null flags and nullable flags other than 0 and 1 are read as true / present.
-- `depth-self-list-10k`, `depth-self-dictionary-10k`: a collection type that contains itself
-  (`class Tree : List<Tree>`) has no class body between levels, so nothing counts its depth: 10,000 levels overflow
-  the stack and kill the process.
 - `deferred-offset-zero`, `deferred-offset-into-members`, `deferred-flag-without-section`, `keyed-body-section-flag`:
   a deferred-section offset or flag that does not match the deferred bodies is not always detected.
 - `keyed-member-string-long`: bytes left over at the end of a keyed member are skipped.
