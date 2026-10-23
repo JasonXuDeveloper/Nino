@@ -23,6 +23,10 @@ namespace Nino.Core
                 "Nino: big-endian hosts are not supported. Nino writes little-endian data, and every platform .NET and Unity run on today (x86, x64, ARM, WebAssembly) is little-endian.");
 
         [MethodImpl(Cold)]
+        public static void NullBoxedValue(Type type, string paramName) =>
+            throw new ArgumentNullException(paramName, $"Nino: {type.FullName} is a value type and cannot be null.");
+
+        [MethodImpl(Cold)]
         public static void EndOfData() =>
             throw new InvalidOperationException("Nino: unexpected end of data.");
 

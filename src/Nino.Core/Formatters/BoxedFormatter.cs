@@ -59,13 +59,24 @@ namespace Nino.Core
     {
         public override bool HasFormatter => NinoTopFormatter<T>.Formatter != null;
 
-        public override byte[] Serialize(object value) => NinoSerializer.Serialize((T)value);
+        public override byte[] Serialize(object value) => NinoSerializer.Serialize(Unbox(value));
 
         public override void Serialize(object value, IBufferWriter<byte> bufferWriter) =>
-            NinoSerializer.Serialize((T)value, bufferWriter);
+            NinoSerializer.Serialize(Unbox(value), bufferWriter);
 
         public override void Serialize(object value, ref Writer writer) =>
-            NinoTopFormatter<T>.Get.Serialize((T)value, ref writer);
+            NinoTopFormatter<T>.Get.Serialize(Unbox(value), ref writer);
+
+        /// <summary>
+        /// <paramref name="value"/> as a <typeparamref name="T"/>; null only for a type that can be null (a cast
+        /// would unbox it to a value type with a NullReferenceException).
+        /// </summary>
+        private static T Unbox(object value)
+        {
+            if (value == null && default(T) != null)
+                NinoThrow.NullBoxedValue(typeof(T), nameof(value));
+            return (T)value;
+        }
 
         public override void Deserialize(ref object value, ref Reader reader)
         {

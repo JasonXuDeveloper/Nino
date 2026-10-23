@@ -209,4 +209,25 @@ public class EdgeCaseAndFailureTests
         Assert.IsTrue(threw, "a negative size is rejected");
         Assert.AreEqual(0, writer.Position);
     }
+
+    /// <summary>
+    /// A null boxed value for a value type is rejected with ArgumentNullException (it used to unbox to a
+    /// NullReferenceException); a nullable value type and a class take null.
+    /// </summary>
+    [TestMethod]
+    public void SerializeBoxedNullValueType()
+    {
+        Assert.ThrowsExactly<ArgumentNullException>(() => NinoSerializer.SerializeBoxed(null, typeof(int)));
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+            NinoSerializer.SerializeBoxed(null, new System.Buffers.ArrayBufferWriter<byte>(), typeof(Guid)));
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
+        {
+            var writer = new Writer(new NinoArrayBufferWriter());
+            NinoSerializer.SerializeBoxed(null, ref writer, typeof(KeyValuePair<int, int>));
+        });
+
+        CollectionAssert.AreEqual(NinoSerializer.Serialize<int?>(null), NinoSerializer.SerializeBoxed(null, typeof(int?)));
+        CollectionAssert.AreEqual(NinoSerializer.Serialize<string>(null), NinoSerializer.SerializeBoxed(null, typeof(string)));
+        Assert.IsNull(NinoDeserializer.DeserializeBoxed(NinoSerializer.SerializeBoxed(null, typeof(int?)), typeof(int?)));
+    }
 }

@@ -272,6 +272,8 @@ namespace Nino.Core
         /// <c>T</c> = <paramref name="type"/> would (null included, for a type that can be null). Read it back with
         /// <see cref="NinoDeserializer.DeserializeBoxed(ReadOnlySpan{byte}, Type)"/> and the same type.
         /// </summary>
+        /// <exception cref="ArgumentNullException"><paramref name="type"/> is null, or <paramref name="value"/> is
+        /// null and <paramref name="type"/> is a value type other than <see cref="Nullable{T}"/>.</exception>
         /// <remarks>
         /// <para>
         /// Use the boxed API only when the type is known only at runtime, as a <see cref="Type"/>, and the types
