@@ -77,7 +77,7 @@ namespace Nino.Core
             foreach (var pair in value)
             {
                 if (++written > count)
-                    NinoThrow.InvalidData("collection was modified during serialization");
+                    NinoThrow.ModifiedDuringWrite();
                 string s = pair.Value;
                 // Room for the longest form of the string; only what it takes is kept.
                 nuint size = (nuint)(uint)(keySize + NinoStrings.MaxSize(s));
@@ -132,7 +132,7 @@ namespace Nino.Core
             foreach (var pair in value)
             {
                 if (++written > count)
-                    NinoThrow.InvalidData("collection was modified during serialization");
+                    NinoThrow.ModifiedDuringWrite();
                 NinoUnsafe.Write(ref pairs, 0, pair.Key);
                 NinoUnsafe.Write(ref pairs, keySize, pair.Value);
                 NinoLayout<TKey>.ClearPadding(ref pairs);

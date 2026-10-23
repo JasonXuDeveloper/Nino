@@ -383,14 +383,14 @@ namespace Nino.UnitTests.GenericPolymorphism
         public void DataOfAnotherClosedInstanceIsRejected()
         {
             byte[] sealedArg = NinoSerializer.Serialize<ArgBox<SealedArg>>(new SealedArgA { A = 1 });
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<OpenArg>>(sealedArg));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<int>>(sealedArg));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ArgBox<OpenArg>>(sealedArg));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ArgBox<int>>(sealedArg));
             byte[] tuple = NinoSerializer.Serialize<ArgBox<(int, long)>>(new UnmanagedTupleArg { A = 1 });
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<(int, string)>>(tuple));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<(OpenArg, int)>>(tuple));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ArgBox<(int, string)>>(tuple));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ArgBox<(OpenArg, int)>>(tuple));
             byte[] intNode = NinoSerializer.Serialize<Node<int>>(new IntNode { N = 1 });
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<Node<OpenArg>>(intNode));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ArgBox<int>>(intNode));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Node<OpenArg>>(intNode));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ArgBox<int>>(intNode));
         }
 
         [TestMethod]
@@ -398,11 +398,11 @@ namespace Nino.UnitTests.GenericPolymorphism
         {
             // The id names a registered type that is not a subtype of the type being read.
             byte[] square = NinoSerializer.Serialize<IShape>(new Square { S = 1 });
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<IGenericA<int>>(square));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<IGenericA<int>>(square));
             byte[] leaf = NinoSerializer.Serialize<GenericPolyBase>(new GenericPolyIntBox { Id = 1, Value = 2 });
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<PureBox<int>>(leaf));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<PureBox<int>>(leaf));
             byte[] keyed = NinoSerializer.Serialize<Chain1<int>>(new ChainLeaf { A = 1, B = "b", C = 2 });
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<Wrap<List<int>>>(keyed));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Wrap<List<int>>>(keyed));
         }
     }
 }

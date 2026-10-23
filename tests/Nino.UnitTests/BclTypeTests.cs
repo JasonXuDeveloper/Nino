@@ -240,7 +240,7 @@ public class BclTypeTests
         var groupings = new[] { new[] { 1 }.GroupBy(i => 0).Single(), new[] { 2 }.GroupBy(i => 0).Single() };
         var twice = NinoSerializer.Serialize(groupings.Length).Concat(groupings.SelectMany(g =>
             NinoSerializer.Serialize(g).AsEnumerable())).ToArray();
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ILookup<int, int>>(twice));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ILookup<int, int>>(twice));
 
         Assert.IsNull(RoundTrip((ILookup<int, int>)null));
         Assert.IsNull(RoundTrip((IGrouping<int, int>)null));
@@ -312,11 +312,11 @@ public class BclTypeTests
     public void TruncatedDataThrows()
     {
         var bytes = NinoSerializer.Serialize(BigInteger.Pow(2, 100));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<BigInteger>(bytes.AsSpan(0, bytes.Length - 1)));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<BigInteger>(bytes.AsSpan(0, bytes.Length - 1)));
         var bits = NinoSerializer.Serialize(new BitArray(100));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<BitArray>(bits.AsSpan(0, bits.Length - 1)));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<BitArray>(bits.AsSpan(0, bits.Length - 1)));
         var text = NinoSerializer.Serialize(new StringBuilder("abc"));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<StringBuilder>(text.AsSpan(0, text.Length - 1)));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<StringBuilder>(text.AsSpan(0, text.Length - 1)));
     }
 
     [TestMethod]
@@ -366,8 +366,8 @@ public class BclTypeTests
     public void ImmutableDuplicatesAreAClearError()
     {
         var twice = NinoSerializer.Serialize(new List<int> { 1, 1 });
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ImmutableHashSet<int>>(twice));
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ImmutableSortedSet<int>>(twice));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ImmutableHashSet<int>>(twice));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ImmutableSortedSet<int>>(twice));
 
         foreach (var pairs in new[]
                  {
@@ -376,9 +376,9 @@ public class BclTypeTests
                  })
         {
             var bytes = NinoSerializer.Serialize(pairs);
-            Assert.ThrowsExactly<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<NinoDataException>(() =>
                 NinoDeserializer.Deserialize<ImmutableDictionary<int, int>>(bytes));
-            Assert.ThrowsExactly<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<NinoDataException>(() =>
                 NinoDeserializer.Deserialize<ImmutableSortedDictionary<int, int>>(bytes));
         }
     }

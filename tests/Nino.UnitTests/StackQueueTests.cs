@@ -71,7 +71,7 @@ public class StackQueueTests
         CollectionAssert.AreEqual(points, NinoDeserializer.Deserialize<IList<Vector3>>(expected).ToList());
         CollectionAssert.AreEqual(points, NinoDeserializer.Deserialize<IEnumerable<Vector3>>(expected).ToList());
         CollectionAssert.AreEqual(points, NinoDeserializer.Deserialize<Vector3[]>(expected));
-        Assert.ThrowsExactly<System.InvalidOperationException>(() =>
+        Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<IList<Vector3>>(expected.Take(expected.Length - 1).ToArray()));
     }
 

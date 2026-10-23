@@ -91,11 +91,22 @@ public class UntrustedInputTests
 {
     private static void Invalid<T>(byte[] data)
     {
-        var e = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<T>(data));
+        var e = Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<T>(data));
         StringAssert.StartsWith(e.Message, "Nino:");
     }
 
     private static byte[] Ints(params int[] values) => values.SelectMany(BitConverter.GetBytes).ToArray();
+
+    [TestMethod]
+    public void InvalidDataThrowsNinoDataException()
+    {
+        // One exception type for every rejected input, still an InvalidOperationException for code written before it.
+        var e = Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<List<int>>(new byte[] { 5, 0, 0, 0, 1 }));
+        Assert.IsInstanceOfType(e, typeof(InvalidOperationException));
+        StringAssert.StartsWith(e.Message, "Nino: ");
+        // The caller's own mistakes are not invalid data.
+        Assert.ThrowsExactly<ArgumentNullException>(() => NinoDeserializer.DeserializeBoxed(new byte[] { 0 }, null));
+    }
 
     [TestMethod]
     public void DeepStructsThrowInsteadOfOverflowingTheStack()
@@ -148,10 +159,10 @@ public class UntrustedInputTests
         // the array is made, so the existing value keeps no stale heap memory.
         var data = Ints(2000).Concat(new byte[2000]).ToArray();
         var list = new List<(int, int)>();
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize(data, ref list));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(data, ref list));
         Assert.IsTrue(list.All(x => x == default));
         var array = Array.Empty<(int, int)>();
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize(data, ref array));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(data, ref array));
         Assert.IsTrue(array.All(x => x == default));
         Invalid<Memory<long>>(data);
     }
@@ -313,7 +324,7 @@ public class UntrustedInputTests
 #if NETCOREAPP
         var existing = new Dictionary<UntrustedBigStruct, int> { [default] = 1 };
         long before = GC.GetAllocatedBytesForCurrentThread();
-        Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize(pairs, ref existing));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(pairs, ref existing));
         Assert.IsTrue(GC.GetAllocatedBytesForCurrentThread() - before <= (long)MaxBytesPerByte * data.Length);
 #endif
     }

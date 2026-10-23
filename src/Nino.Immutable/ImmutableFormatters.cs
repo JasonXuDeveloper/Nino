@@ -475,7 +475,7 @@ namespace Nino.Immutable
             }
             catch (ArgumentNullException)
             {
-                throw new InvalidOperationException(
+                throw new Nino.Core.NinoDataException(
                     $"Nino: the data holds a null key for {type.FullName}, which takes none.");
             }
             catch (ArgumentException)
@@ -485,7 +485,7 @@ namespace Nino.Immutable
         }
 
         public static void DuplicateKey(Type type) =>
-            throw new InvalidOperationException(
+            throw new Nino.Core.NinoDataException(
                 $"Nino: the data holds the same key (or set element) twice for {type.FullName}, under its comparer.");
     }
 }

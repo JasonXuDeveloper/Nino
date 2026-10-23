@@ -403,12 +403,12 @@ namespace Nino.UnitTests.Corner
         {
             var bytes = NinoSerializer.Serialize<AbstractShape>(new SquareShape { Side = 1 });
             BitConverter.GetBytes(NinoTypeId.Compute("No.Such.Type")).CopyTo(bytes, 0);
-            var ex = Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
+            var ex = Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
             StringAssert.Contains(ex.Message, "type id");
 
             // An id of a real but unrelated type.
             BitConverter.GetBytes(NinoTypeId.Of(typeof(PlayerEntity))).CopyTo(bytes, 0);
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
         }
 
         [TestMethod]
@@ -417,12 +417,12 @@ namespace Nino.UnitTests.Corner
             // Crafted data naming the abstract base or the interface itself: nothing can be created.
             var bytes = NinoSerializer.Serialize<AbstractShape>(new SquareShape { Side = 1 });
             BitConverter.GetBytes(NinoTypeId.Of(typeof(AbstractShape))).CopyTo(bytes, 0);
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<AbstractShape>(bytes));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<object>(bytes));
 
             var entity = NinoSerializer.Serialize<IEntity>(new PlayerEntity { Uid = 1 });
             BitConverter.GetBytes(NinoTypeId.Of(typeof(IEntity))).CopyTo(entity, 0);
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<IEntity>(entity));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<IEntity>(entity));
         }
 
         [TestMethod]

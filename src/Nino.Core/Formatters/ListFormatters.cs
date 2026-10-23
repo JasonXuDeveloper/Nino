@@ -234,7 +234,7 @@ namespace Nino.Core
             }
 
             if (count >= 0 && count != written)
-                NinoThrow.InvalidData("collection was modified during serialization");
+                NinoThrow.ModifiedDuringWrite();
             writer.PatchInt32(countPos, written);
         }
     }

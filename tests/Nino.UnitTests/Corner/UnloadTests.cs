@@ -121,8 +121,8 @@ namespace Unloadable
             BitConverter.TryWriteBytes(bytes.AsSpan(0), id);
             BitConverter.TryWriteBytes(bytes.AsSpan(4), 3f);
 
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<object>(bytes));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<object>(bytes));
             Assert.IsTrue(NinoUnknownIds.Contains(id, NinoUnknownIds.Now()), "the miss is remembered");
 
             var context = new AssemblyLoadContext("nino-later", isCollectible: true);
@@ -143,7 +143,7 @@ namespace Unloadable
             // A registration forgets them too.
             int other = NinoTypeId.Compute("LoadedLater.Nowhere");
             BitConverter.TryWriteBytes(bytes.AsSpan(0), other);
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<object>(bytes));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<object>(bytes));
             Assert.IsTrue(NinoUnknownIds.Contains(other, NinoUnknownIds.Now()));
             NinoRegistry.Changed();
             Assert.IsFalse(NinoUnknownIds.Contains(other, NinoUnknownIds.Now()));
@@ -201,7 +201,7 @@ namespace Unloadable
             if (scanAfterRemove)
             {
                 // A miss that scans every loaded assembly, the unloading one included.
-                Assert.ThrowsExactly<InvalidOperationException>(() =>
+                Assert.ThrowsExactly<NinoDataException>(() =>
                     NinoDeserializer.Deserialize<object>(new byte[] { 1, 2, 3, 4 }));
                 NinoRegistry.EnsureAllInitialized();
             }

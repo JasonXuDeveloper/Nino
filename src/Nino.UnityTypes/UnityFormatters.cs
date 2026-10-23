@@ -149,7 +149,7 @@ namespace Nino.UnityTypes
             // Only the color keys can be null (the whole gradient); a null alpha key count is invalid data.
             int alphaCount = reader.ReadLength(AlphaKeySize);
             if (alphaCount < 0)
-                throw new System.InvalidOperationException($"Nino: invalid length {alphaCount}.");
+                throw new NinoDataException($"Nino: invalid length {alphaCount}.");
             var alphaKeys = new GradientAlphaKey[alphaCount];
             next = ref reader.ReadBlock(alphaKeys.Length * AlphaKeySize + sizeof(int));
             for (int i = 0; i < alphaKeys.Length; i++)

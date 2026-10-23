@@ -587,15 +587,15 @@ public class DeepNestingTests
             for (var node = NinoDeserializer.Deserialize<PlainLink>(plain); node != null; node = node.Next)
                 length++;
             Assert.AreEqual(1_000_000, length);
-            Assert.ThrowsExactly<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<NinoDataException>(() =>
                 NinoDeserializer.Deserialize<PlainLink>(plain.AsSpan(0, plain.Length - 1)));
             // Types that cannot be deferred stop at NinoDepth.Max.
-            Assert.ThrowsExactly<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<NinoDataException>(() =>
                 NinoDeserializer.Deserialize<PlainRecordLike>(plain));
 
             // Inside a region, bodies deeper than NinoDepth.Inline are read from the region's section, which data
             // nested inline does not have: it fails cleanly, and data shallower than that still reads.
-            Assert.ThrowsExactly<InvalidOperationException>(() =>
+            Assert.ThrowsExactly<NinoDataException>(() =>
                 NinoDeserializer.Deserialize<DeepLink>(HostileTolerantChain(1_000_000)));
             Assert.AreEqual(NinoDepthInline, Length(NinoDeserializer.Deserialize<DeepLink>(
                 HostileTolerantChain(NinoDepthInline))));

@@ -122,7 +122,7 @@ public class StringEncodingTests
             for (int length = 0; length < bytes.Length; length++)
             {
                 var cut = bytes.Take(length).ToArray();
-                Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<string>(cut));
+                Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<string>(cut));
             }
         }
     }

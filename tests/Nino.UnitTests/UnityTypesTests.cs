@@ -123,7 +123,7 @@ public class UnityTypesTests
     public void TruncatedDataThrows()
     {
         var bytes = NinoSerializer.Serialize(new AnimationCurve(new Keyframe(0, 1)));
-        Assert.ThrowsExactly<System.InvalidOperationException>(() =>
+        Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<AnimationCurve>(bytes.AsSpan(0, bytes.Length - 1)));
     }
 
@@ -132,6 +132,6 @@ public class UnityTypesTests
     {
         // No color keys, then -1 (null) where the alpha key count goes, then the mode.
         var bytes = new byte[] { 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0 };
-        Assert.ThrowsExactly<System.InvalidOperationException>(() => NinoDeserializer.Deserialize<Gradient>(bytes));
+        Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<Gradient>(bytes));
     }
 }

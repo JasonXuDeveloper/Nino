@@ -116,7 +116,7 @@ namespace Nino.Core
             foreach (var item in value)
             {
                 if (++written > count)
-                    NinoThrow.InvalidData("collection was modified during serialization");
+                    NinoThrow.ModifiedDuringWrite();
                 NinoUnsafe.Write(ref next, item);
                 next = ref Unsafe.Add(ref next, size);
             }

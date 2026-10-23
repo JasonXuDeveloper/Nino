@@ -95,11 +95,11 @@ public class DateTimeOffsetTests
 
             // What the constructor rejects is invalid data, reported as Nino's (not the constructor's) exception.
             Assert.IsNotNull(expected, $"{utc} {minutes}");
-            var error = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            var error = Assert.ThrowsExactly<NinoDataException>(() =>
                 NinoDeserializer.Deserialize<DateTimeOffset>(Wire(utc, minutes)));
             StringAssert.StartsWith(error.Message, "Nino:");
             var arrayBytes = new byte[] { 1, 0, 0, 0 }.Concat(Wire(utc, minutes)).ToArray();
-            error = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            error = Assert.ThrowsExactly<NinoDataException>(() =>
                 NinoDeserializer.Deserialize<DateTimeOffset[]>(arrayBytes));
             StringAssert.StartsWith(error.Message, "Nino:");
         }

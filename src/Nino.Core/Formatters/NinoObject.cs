@@ -270,7 +270,7 @@ namespace Nino.Core
         {
             int depth = writer.Depth;
             if (depth >= NinoDepth.Max || !NinoDepth.StackLeft())
-                NinoThrow.TooDeep(typeof(T));
+                NinoThrow.WriteTooDeep(typeof(T));
             writer.Depth = depth + 1;
             default(TFormatter).WriteBody(value, ref writer);
             writer.ExitBody(depth);

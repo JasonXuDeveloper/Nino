@@ -28,7 +28,7 @@ namespace Nino.Core
 
         [MethodImpl(Cold)]
         public static void EndOfData() =>
-            throw new InvalidOperationException("Nino: unexpected end of data.");
+            throw new NinoDataException("Nino: unexpected end of data.");
 
         /// <summary>A payload larger than an array can hold (what a checked size computation throws).</summary>
         [MethodImpl(Cold)]
@@ -36,29 +36,34 @@ namespace Nino.Core
 
         [MethodImpl(Cold)]
         public static void InvalidLength(int length) =>
-            throw new InvalidOperationException($"Nino: invalid length {length}.");
+            throw new NinoDataException($"Nino: invalid length {length}.");
 
         [MethodImpl(Cold)]
         public static void InvalidData(string message) =>
-            throw new InvalidOperationException("Nino: " + message);
+            throw new NinoDataException("Nino: " + message);
+
+        /// <summary>A collection that changed while it was being written (not invalid data: the caller's object).</summary>
+        [MethodImpl(Cold)]
+        public static void ModifiedDuringWrite() =>
+            throw new InvalidOperationException("Nino: collection was modified during serialization");
 
         /// <summary>A value the data holds that its type's own constructor or parser rejected (<paramref name="inner"/>).</summary>
         [MethodImpl(Cold)]
         public static void InvalidValue(Type type, Exception inner) =>
-            throw new InvalidOperationException($"Nino: the data holds an invalid {type.FullName}: {inner.Message}", inner);
+            throw new NinoDataException($"Nino: the data holds an invalid {type.FullName}: {inner.Message}", inner);
 
         [MethodImpl(Cold)]
         public static void NullKey(object collection) =>
-            throw new InvalidOperationException(
+            throw new NinoDataException(
                 $"Nino: the data holds a null key for {collection.GetType().FullName}, which takes none.");
 
         [MethodImpl(Cold)]
         public static void NullKey(Type type) =>
-            throw new InvalidOperationException($"Nino: the data holds a null key for {type.FullName}, which takes none.");
+            throw new NinoDataException($"Nino: the data holds a null key for {type.FullName}, which takes none.");
 
         [MethodImpl(Cold)]
         public static void UnknownTypeId(Type declaredType, int id) =>
-            throw new InvalidOperationException(
+            throw new NinoDataException(
                 $"Nino: type id {id} is not a registered subtype of {declaredType.FullName}.");
 
         [MethodImpl(Cold)]
@@ -96,27 +101,27 @@ namespace Nino.Core
 
         [MethodImpl(Cold)]
         public static void DuplicateKey(Type type) =>
-            throw new InvalidOperationException(
+            throw new NinoDataException(
                 $"Nino: the data holds the same key (or set element) twice for {type.FullName}, under its comparer.");
 
         [MethodImpl(Cold)]
         public static void InvalidReference(int index) =>
-            throw new InvalidOperationException($"Nino: invalid object reference {index}.");
+            throw new NinoDataException($"Nino: invalid object reference {index}.");
 
         [MethodImpl(Cold)]
         public static void IncompleteReference(int index) =>
-            throw new InvalidOperationException(
+            throw new NinoDataException(
                 $"Nino: object reference {index} points at an object that is still being created. Cycles must " +
                 "go through types marked [NinoType(trackReferences: true)].");
 
         [MethodImpl(Cold)]
         public static void NotASubtype(Type declaredType, Type actualType) =>
-            throw new InvalidOperationException(
+            throw new NinoDataException(
                 $"Nino: the data holds a {actualType.FullName} where a {declaredType.FullName} is expected.");
 
         [MethodImpl(Cold)]
         public static void ReferenceTypeMismatch(Type expected, Type actual) =>
-            throw new InvalidOperationException(
+            throw new NinoDataException(
                 $"Nino: object reference to a {actual?.FullName} where a {expected.FullName} is expected.");
 
         [MethodImpl(Cold)]
@@ -127,12 +132,19 @@ namespace Nino.Core
 
         [MethodImpl(Cold)]
         public static void TooDeep(Type type) =>
-            throw new InvalidOperationException(
-                $"Nino: {type.FullName} is nested more than {NinoDepth.Max} objects deep, or deeper than the stack has " +
-                $"room for. Objects deeper than " +
-                $"{NinoDepth.Inline} are written later, from a shallow point, except those built by their constructor " +
-                "or compared by value (records, types overriding GetHashCode or implementing IComparable), which " +
-                "must be complete when their slot gets them. If the graph has a cycle, mark its types " +
-                "[NinoType(trackReferences: true)].");
+            throw new NinoDataException(DeepMessage(type));
+
+        /// <summary><see cref="TooDeep"/> while writing: the caller's object graph, not invalid data.</summary>
+        [MethodImpl(Cold)]
+        public static void WriteTooDeep(Type type) =>
+            throw new InvalidOperationException(DeepMessage(type));
+
+        private static string DeepMessage(Type type) =>
+            $"Nino: {type.FullName} is nested more than {NinoDepth.Max} objects deep, or deeper than the stack has " +
+            $"room for. Objects deeper than " +
+            $"{NinoDepth.Inline} are written later, from a shallow point, except those built by their constructor " +
+            "or compared by value (records, types overriding GetHashCode or implementing IComparable), and " +
+            "collections that hold themselves, which must be complete when their slot gets them. If the graph has a " +
+            "cycle, mark its types [NinoType(trackReferences: true)].";
     }
 }

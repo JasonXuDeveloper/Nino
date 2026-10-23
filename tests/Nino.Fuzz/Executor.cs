@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Nino.Core;
 
 namespace Nino.Fuzz
 {
@@ -9,7 +10,7 @@ namespace Nino.Fuzz
     {
         /// <summary>Read, passed every check.</summary>
         Ok,
-        /// <summary>Nino rejected the data the way it documents (InvalidOperationException "Nino: ...").</summary>
+        /// <summary>Nino rejected the data the way it documents (NinoDataException "Nino: ...").</summary>
         Rejected,
         /// <summary>Anything else: a finding.</summary>
         Finding,
@@ -145,12 +146,11 @@ namespace Nino.Fuzz
         }
 
         /// <summary>
-        /// What Nino documents for bad data: InvalidOperationException with a "Nino: " message, or OverflowException
-        /// from NinoThrow.TooLarge (a payload larger than an array can hold).
+        /// What Nino documents for bad data: a NinoDataException with a "Nino: " message. Anything else, an
+        /// InvalidOperationException included, is a finding.
         /// </summary>
         public static bool IsRejection(Exception e) =>
-            e is InvalidOperationException && e.Message.StartsWith("Nino: ", StringComparison.Ordinal) ||
-            e is OverflowException && (e.StackTrace ?? "").Contains("NinoThrow.TooLarge");
+            e is NinoDataException && e.Message.StartsWith("Nino: ", StringComparison.Ordinal);
 
         static Outcome Finding(string signature, Exception e) => new Outcome
         {

@@ -31,14 +31,12 @@ namespace Nino.Fuzz
             new Probe
             {
                 Name = "tree", What = "a class deriving from List of itself, 200,000 levels deep",
-                Known = "self-nesting collections recurse without Nino's depth limit and overflow the stack",
                 Run = () => ExpectRejectOrValue(() => NinoDeserializer.Deserialize<TreeHolder>(
                     Cat(new byte[] { 1 }, Rep(Ints(1), 200_000), Ints(0), Ints(-1)))),
             },
             new Probe
             {
                 Name = "dtree", What = "a class deriving from Dictionary<string, itself>, 200,000 levels deep",
-                Known = "self-nesting collections recurse without Nino's depth limit and overflow the stack",
                 Run = () => ExpectRejectOrValue(() => NinoDeserializer.Deserialize<TreeHolder>(
                     Cat(new byte[] { 1 }, Ints(-1), Rep(Ints(1, 0), 200_000), Ints(0)))),
             },

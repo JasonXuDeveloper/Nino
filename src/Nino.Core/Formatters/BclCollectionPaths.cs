@@ -92,7 +92,7 @@ namespace Nino.Core
                 for (var node = linked.First; node != null; node = node.Next)
                 {
                     if (--count < 0)
-                        NinoThrow.InvalidData("collection was modified during serialization");
+                        NinoThrow.ModifiedDuringWrite();
 #if NET8_0_OR_GREATER
                     // The value in place, not a copy of it.
                     Unsafe.WriteUnaligned(ref next, node.ValueRef);
@@ -284,7 +284,7 @@ namespace Nino.Core
             TKey[] keys = CollectionFields.Keys(list);
             TValue[] values = CollectionFields.Values(list);
             if ((uint)count > (uint)keys.Length || (uint)count > (uint)values.Length)
-                NinoThrow.InvalidData("collection was modified during serialization");
+                NinoThrow.ModifiedDuringWrite();
             Writer local = default;
             writer.CopyTo(ref local);
             local.WriteLength(count);

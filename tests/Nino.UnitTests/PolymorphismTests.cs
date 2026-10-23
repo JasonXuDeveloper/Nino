@@ -31,7 +31,7 @@ public class PolymorphismTests
         Assert.IsInstanceOfType(result[2], typeof(TestClass3));
         Assert.IsNull(result[3]);
         //should throw error due to type mismatch in polymorphism
-        Assert.ThrowsExactly<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<NinoDataException>(() =>
         {
             var _ = NinoDeserializer.Deserialize<List<TestClass3>>(bytes);
         });

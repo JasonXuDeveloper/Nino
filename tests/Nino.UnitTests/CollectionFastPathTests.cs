@@ -179,21 +179,21 @@ public class CollectionFastPathTests
     {
         // Distinct under the writer's comparer, the same under the reader's.
         var bytes = NinoSerializer.Serialize(new Dictionary<string, int> { ["a"] = 1, ["A"] = 2 });
-        var e = Assert.ThrowsExactly<InvalidOperationException>(() =>
+        var e = Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<CaseInsensitiveSortedDictionary>(bytes));
         StringAssert.Contains(e.Message, "twice");
-        Assert.ThrowsExactly<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<CaseInsensitiveSortedList>(bytes));
-        Assert.ThrowsExactly<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<CaseInsensitiveConcurrentDictionary>(bytes));
 
         // A ConcurrentDictionary itself is built by its constructor from the pairs read.
         var pairs = NinoSerializer.Serialize(new[] { new KeyValuePair<int, int>(1, 1), new KeyValuePair<int, int>(1, 2) });
-        e = Assert.ThrowsExactly<InvalidOperationException>(() =>
+        e = Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<ConcurrentDictionary<int, int>>(pairs));
         StringAssert.Contains(e.Message, "twice");
         var nullKey = NinoSerializer.Serialize(new[] { new KeyValuePair<string, int>(null, 1) });
-        e = Assert.ThrowsExactly<InvalidOperationException>(() =>
+        e = Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<ConcurrentDictionary<string, int>>(nullKey));
         StringAssert.Contains(e.Message, "null key");
 
@@ -575,11 +575,11 @@ public class CollectionFastPathTests
 
         // A null key is invalid data, as for every dictionary that takes none.
         var nullKey = NinoSerializer.Serialize(new List<KeyValuePair<string, int>> { new("a", 1), new(null, 2) });
-        StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() =>
+        StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<SortedList<string, int>>(nullKey)).Message, "null key");
-        StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() =>
+        StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<SortedDictionary<string, int>>(nullKey)).Message, "null key");
-        StringAssert.Contains(Assert.ThrowsExactly<InvalidOperationException>(() =>
+        StringAssert.Contains(Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<Dictionary<string, int>>(nullKey)).Message, "null key");
     }
 
@@ -795,7 +795,7 @@ public class HashTableFillTests
         Assert.AreEqual(source.Count, back.Count);
 
         var repeated = items.Concat(new[] { items[items.Length / 2] }).ToArray();
-        Assert.ThrowsExactly<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<HashSet<T>>(NinoSerializer.Serialize(repeated)));
     }
 
@@ -812,7 +812,7 @@ public class HashTableFillTests
         Assert.AreEqual(source.Count, back.Count);
 
         var repeated = source.Concat(new[] { source.First() }).ToArray();
-        Assert.ThrowsExactly<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<NinoDataException>(() =>
             NinoDeserializer.Deserialize<Dictionary<TKey, TValue>>(NinoSerializer.Serialize(repeated)));
     }
 

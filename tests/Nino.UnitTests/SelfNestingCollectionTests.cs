@@ -117,8 +117,8 @@ public class SelfNestingCollectionTests
             hostile[4 * i] = 1;
         OnSmallStack(() =>
         {
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<SelfTree>(hostile));
-            Assert.ThrowsExactly<InvalidOperationException>(
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<SelfTree>(hostile));
+            Assert.ThrowsExactly<NinoDataException>(
                 () => NinoDeserializer.DeserializeBoxed(hostile, typeof(SelfRuntimeOnly)));
         });
 
@@ -194,7 +194,7 @@ public class SelfNestingCollectionTests
         var bytes = Nested(hostile);
         OnSmallStack(() =>
         {
-            var error = Assert.ThrowsExactly<InvalidOperationException>(
+            var error = Assert.ThrowsExactly<NinoDataException>(
                 () => NinoDeserializer.Deserialize<THolder>(bytes), name);
             StringAssert.Contains(error.Message, "deep", name);
         });

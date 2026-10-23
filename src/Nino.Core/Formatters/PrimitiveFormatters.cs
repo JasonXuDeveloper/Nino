@@ -115,7 +115,7 @@ namespace Nino.Core
             // The constructor's checks, as two unsigned compares: the UTC time is a valid date at least 14 hours
             // from either end (so the local time is one too), the offset is at most 14 hours. The ends of the range
             // and anything invalid take the constructor, out of line, after the same checks made exactly (what it
-            // rejects is invalid data, InvalidOperationException rather than its ArgumentOutOfRangeException).
+            // rejects is invalid data, NinoDataException rather than its ArgumentOutOfRangeException).
             int ticksAt = ValueViews.DateTimeOffsetTicks;
             if (ticksAt >= 0 && (ulong)(utc - MaxOffsetTicks) <= MaxTicks - 2 * MaxOffsetTicks &&
                 (uint)(minutes + MaxOffsetMinutes) <= 2 * MaxOffsetMinutes)

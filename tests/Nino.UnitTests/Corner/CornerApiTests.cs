@@ -305,16 +305,16 @@ namespace Nino.UnitTests.Corner
         [TestMethod]
         public void EmptyBufferThrows()
         {
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<int>(Array.Empty<byte>()));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<RawPadded>(Array.Empty<byte>()));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<string>(Array.Empty<byte>()));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<ApiPayload>(Array.Empty<byte>()));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<VerOuterV1>(Array.Empty<byte>()));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<List<int>>(Array.Empty<byte>()));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize<int[]>(Array.Empty<byte>()));
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.DeserializeBoxed(Array.Empty<byte>(), typeof(ApiPayload)));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<int>(Array.Empty<byte>()));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<RawPadded>(Array.Empty<byte>()));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<string>(Array.Empty<byte>()));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<ApiPayload>(Array.Empty<byte>()));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<VerOuterV1>(Array.Empty<byte>()));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<List<int>>(Array.Empty<byte>()));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize<int[]>(Array.Empty<byte>()));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.DeserializeBoxed(Array.Empty<byte>(), typeof(ApiPayload)));
             var target = Payload();
-            Assert.ThrowsExactly<InvalidOperationException>(() => NinoDeserializer.Deserialize(Array.Empty<byte>(), ref target));
+            Assert.ThrowsExactly<NinoDataException>(() => NinoDeserializer.Deserialize(Array.Empty<byte>(), ref target));
         }
 
         private static void ExpectFailure<T>(byte[] data, string what)
