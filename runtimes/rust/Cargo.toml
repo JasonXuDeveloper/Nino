@@ -53,6 +53,8 @@ required-features = ["derive"]
 
 [workspace]
 members = [".", "bench", "nino-derive"]
+# Resolve dependencies to versions that build on the MSRV (rust-version) where one exists.
+resolver = "3"
 
 [profile.bench]
 debug = false
