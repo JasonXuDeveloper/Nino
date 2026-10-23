@@ -3,7 +3,12 @@
 the corpus's cases, in the shape the shared templates are to generate (one struct per [NinoType], NinoReadBody/NinoWriteBody for class
 bodies, an enum per polymorphic declared type restricted to its subtypes), plus their JSON form for the test.
 
-    python3 tests/conformance/gen.py <corpus dir> > tests/conformance/types.rs
+    python3 tests/conformance/gen.py <corpus dir> [--serde-rename camelCase|none|<serde rename_all rule>] \
+        > tests/conformance/types.rs
+
+Every type also derives serde behind the crate's `serde` feature (`#[cfg_attr(feature = "serde", ...)]`), with its
+fields renamed by `--serde-rename` (serde's `rename_all` rules: camelCase by default, as .NET's JSON names; `none`
+keeps the Rust names).
 
 What the layouts do not say is a table below, from conformance/Nino.Conformance/Types.cs: subtypes, enums'
 underlying types, raw structs' alignment, deferrability (the specification, 10.5) and which string members keep
@@ -748,8 +753,27 @@ class Gen:
         o.append("")
 
 
+SERDE_RULES = {"lowercase", "UPPERCASE", "PascalCase", "camelCase", "snake_case", "SCREAMING_SNAKE_CASE",
+               "kebab-case", "SCREAMING-KEBAB-CASE", "none"}
+
+
+def serde_attr(rule):
+    """The attribute put after each type's derive: serde behind the `serde` feature, named by `rule`."""
+    if rule not in SERDE_RULES:
+        raise SystemExit(f"--serde-rename: {rule!r} is not one of {sorted(SERDE_RULES)}")
+    rename = "" if rule == "none" else f', serde(rename_all = "{rule}")'
+    return f'#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize){rename})]'
+
+
 def main():
-    corpus = sys.argv[1]
+    args = sys.argv[1:]
+    rule = "camelCase"
+    if "--serde-rename" in args:
+        i = args.index("--serde-rename")
+        rule = args[i + 1] if i + 1 < len(args) else ""
+        del args[i:i + 2]
+    attr = serde_attr(rule)
+    corpus = args[0]
     layouts, type_ids, tops = {}, {}, set()
     for f in sorted(glob.glob(f"{corpus}/valid/*.json") + glob.glob(f"{corpus}/malicious/*.json")):
         if f.endswith("truncations.json"):
@@ -774,7 +798,12 @@ def main():
     print()
     print("use super::json::{hex, Visit, J};")
     print()
-    print("\n".join(g.out))
+    out = []
+    for line in g.out:
+        out.append(line)
+        if line.startswith("#[derive("):
+            out.append(attr)
+    print("\n".join(out))
 
 
 main()
