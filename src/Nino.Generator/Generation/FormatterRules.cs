@@ -117,6 +117,43 @@ internal sealed class FormatterRules
     }
 
     /// <summary>
+    /// What the compilation's own <c>[assembly: NinoFormatter]</c> registrations contribute to its rules, as a string
+    /// that differs whenever a model could: each registration's formatter, pattern, targets, priority, type parameter
+    /// constraints and accessibility, or why it is invalid. Models do not depend on the files declaring them
+    /// (<c>ModelCache</c>), so this is one of the project-wide inputs a cached model is valid under.
+    /// </summary>
+    public static string OwnSignature(Compilation compilation, NinoSymbols symbols)
+    {
+        if (symbols.FormatterAttribute == null || symbols.IFormatter == null)
+            return "";
+        var sb = new System.Text.StringBuilder();
+        foreach (var attribute in compilation.Assembly.GetAttributes())
+        {
+            if (!SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, symbols.FormatterAttribute))
+                continue;
+            var rule = Read(attribute, symbols, out var error);
+            sb.Append(attribute.ConstructorArguments.FirstOrDefault().Value is INamedTypeSymbol type
+                ? TypeNames.OpenName(type.OriginalDefinition)
+                : "?");
+            if (rule == null)
+            {
+                sb.Append('!').Append(error).Append('\n');
+                continue;
+            }
+
+            sb.Append('|').Append(TypeNames.Global(rule.Pattern))
+                .Append('|').Append(string.Join(",", rule.Targets.Select(TypeNames.OpenName)))
+                .Append('|').Append(rule.Priority)
+                .Append('|').Append(TypeNames.Constraints(rule.Formatter.TypeParameters))
+                .Append('|').Append(compilation.IsSymbolAccessibleWithin(rule.Formatter, compilation.Assembly))
+                .Append('|').Append(IsGeneratedNinoTypeFormatter(rule))
+                .Append('\n');
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// For each referenced assembly (other than Nino.Core) that registers formatters this compilation can use, the
     /// open name of one of its formatters (<c>global::Lib.ImmutableArrayFormatter&lt;,&gt;</c>). The generated registry
     /// names them so the runtime resolver sees their registrations even before anything else loads the assembly

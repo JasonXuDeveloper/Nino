@@ -12,7 +12,8 @@ namespace Nino.Generator.Generation;
 /// semantics may have changed anywhere; building all models again dominated edit latency in large projects.
 /// A model only depends on the source of its type and of the types it reaches (bases, interfaces, containing
 /// types, member types and their fields, attribute arguments), plus project-wide inputs (references,
-/// preprocessor symbols, the set of files). Edited files get new <see cref="SyntaxTree"/> instances, so a
+/// preprocessor symbols, the set of files, the compilation's own <c>[assembly: NinoFormatter]</c> registrations,
+/// <see cref="FormatterRules.OwnSignature"/>). Edited files get new <see cref="SyntaxTree"/> instances, so a
 /// model stays valid while every tree it depends on is still part of the compilation.
 /// </para>
 /// </summary>
@@ -34,6 +35,7 @@ internal static class ModelCache
         public string ProjectKey = "";
         public MetadataReference[] References = null!;
         public string[] Paths = null!;
+        public string Rules = "";
 
         /// <summary>Models by type name. Guarded by <see cref="Lock"/>.</summary>
         public readonly Dictionary<string, Entry> Entries = new();
@@ -43,8 +45,8 @@ internal static class ModelCache
 
         public bool SameAs(ProjectState other)
         {
-            if (ProjectKey != other.ProjectKey || References.Length != other.References.Length ||
-                Paths.Length != other.Paths.Length)
+            if (ProjectKey != other.ProjectKey || Rules != other.Rules ||
+                References.Length != other.References.Length || Paths.Length != other.Paths.Length)
                 return false;
             for (int i = 0; i < References.Length; i++)
             {
@@ -74,9 +76,7 @@ internal static class ModelCache
         System.Func<TypeModel?> build)
     {
         var state = GetState(compilation);
-        string symbols = options == null
-            ? ""
-            : SymbolKeys.GetValue(options, static o => string.Join(";", o.PreprocessorSymbolNames));
+        string symbols = SymbolKey(options);
         var key = TypeNames.Global(type.OriginalDefinition);
 
         lock (Lock)
@@ -99,6 +99,10 @@ internal static class ModelCache
 
         return model;
     }
+
+    /// <summary>The preprocessor symbols of <paramref name="options"/>, as one string (memoized per instance).</summary>
+    public static string SymbolKey(ParseOptions? options) =>
+        options == null ? "" : SymbolKeys.GetValue(options, static o => string.Join(";", o.PreprocessorSymbolNames));
 
     private static bool ContainsAll(Compilation compilation, SyntaxTree[] trees)
     {
@@ -140,30 +144,35 @@ internal static class ModelCache
         {
             if (States.TryGetValue(compilation, out var known))
                 return known;
+        }
 
-            var paths = new List<string>();
-            foreach (var tree in compilation.SyntaxTrees)
-                paths.Add(tree.FilePath);
-            paths.Sort(System.StringComparer.Ordinal);
-            var state = new ProjectState
-            {
-                // With the preprocessor symbols: the target frameworks of a multi-targeted project are separate
-                // compilations of one assembly, which the IDE keeps alternating between.
-                ProjectKey = (compilation.AssemblyName ?? "") + "|" +
-                               (compilation.SyntaxTrees.FirstOrDefault()?.Options is { } options
-                                   ? SymbolKeys.GetValue(options, static o => string.Join(";", o.PreprocessorSymbolNames))
-                                   : ""),
-                References = compilation.References.ToArray(),
-                Paths = paths.ToArray(),
-            };
+        var paths = new List<string>();
+        foreach (var tree in compilation.SyntaxTrees)
+            paths.Add(tree.FilePath);
+        paths.Sort(System.StringComparer.Ordinal);
+        var options = compilation.SyntaxTrees.FirstOrDefault()?.Options;
+        var state = new ProjectState
+        {
+            // With the preprocessor symbols: the target frameworks of a multi-targeted project are separate
+            // compilations of one assembly, which the IDE keeps alternating between.
+            ProjectKey = (compilation.AssemblyName ?? "") + "|" + SymbolKey(options),
+            References = compilation.References.ToArray(),
+            Paths = paths.ToArray(),
+            // The compilation's own formatter registrations: one edited in a file no model depends on still changes
+            // the formatters models resolve.
+            Rules = FormatterRules.OwnSignature(compilation, TypeFacts.For(compilation, options).Symbols),
+        };
 
+        lock (Lock)
+        {
+            if (States.TryGetValue(compilation, out var known))
+                return known;
             // Reuse the previous state object while nothing project-wide changed, so its entries stay valid;
             // otherwise the new state starts empty and every model of this project is rebuilt once.
             if (LatestState.TryGetValue(state.ProjectKey, out var latest) && latest.SameAs(state))
                 state = latest;
             else
                 LatestState[state.ProjectKey] = state;
-
             States.Add(compilation, state);
             return state;
         }

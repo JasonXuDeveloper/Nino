@@ -16,14 +16,17 @@ public class IncrementalGeneratorTests
 {
     private const string Usings = "using Nino.Core;\nnamespace Inc {\n";
 
-    private static CSharpCompilation Create(params (string Path, string Text)[] files)
+    private static CSharpCompilation Create(params (string Path, string Text)[] files) =>
+        CreateNamed("Inc" + Guid.NewGuid().ToString("N"), files);
+
+    private static CSharpCompilation CreateNamed(string name, params (string Path, string Text)[] files)
     {
         var parse = new CSharpParseOptions(LanguageVersion.Latest);
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)).ToList();
         refs.Add(MetadataReference.CreateFromFile(typeof(NinoTypeAttribute).Assembly.Location));
         // A unique assembly name per test keeps the generator's cache entries apart.
-        return CSharpCompilation.Create("Inc" + Guid.NewGuid().ToString("N"),
+        return CSharpCompilation.Create(name,
             files.Select(f => CSharpSyntaxTree.ParseText(f.Text, parse, f.Path)), refs,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
     }
@@ -71,6 +74,31 @@ public class IncrementalGeneratorTests
         compilation = Edit(compilation, "Inner.cs", "public int A;", "public int A; public string S;");
         driver = driver.RunGenerators(compilation);
         Assert.IsFalse(Output(driver, "Holder").Contains("WriteValue<global::Inc.Inner>"));
+    }
+
+    [TestMethod]
+    public void EditedFormatterRegistrationsReachCachedModels()
+    {
+        // The registration is in a file no model depends on: models must still see it change.
+        var compilation = Create(
+            ("Rules.cs", "using Nino.Core;\n[assembly: NinoFormatter(typeof(Inc.MoneyFormatter))]\nnamespace Inc {\n" +
+                         "public struct MoneyFormatter : INinoFormatter<Money> {\n" +
+                         "public void Serialize(Money value, ref Writer writer) => writer.Write(value.Cents);\n" +
+                         "public void Deserialize(ref Money value, ref Reader reader) { value ??= new Money(); reader.Read(out value.Cents); }\n}\n}"),
+            ("Money.cs", "namespace Inc { public class Money { public long Cents; } }"),
+            ("Holder.cs", Usings + "[NinoType] public class Holder { public Money M; public int X; }\n}"));
+        GeneratorDriver driver = CSharpGeneratorDriver.Create(new Generator.Generation.NinoGenerator());
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(Output(driver, "Holder"), "MoneyFormatter");
+
+        compilation = Edit(compilation, "Rules.cs", "[assembly: NinoFormatter(typeof(Inc.MoneyFormatter))]", "");
+        driver = driver.RunGenerators(compilation);
+        Assert.IsFalse(Output(driver, "Holder").Contains("MoneyFormatter"), Output(driver, "Holder"));
+
+        compilation = Edit(compilation, "Rules.cs", "using Nino.Core;\n",
+            "using Nino.Core;\n[assembly: NinoFormatter(typeof(Inc.MoneyFormatter))]\n");
+        driver = driver.RunGenerators(compilation);
+        StringAssert.Contains(Output(driver, "Holder"), "MoneyFormatter");
     }
 
     [TestMethod]
