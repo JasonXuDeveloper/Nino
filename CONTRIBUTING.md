@@ -48,7 +48,7 @@ Branch from `main`, keep a pull request to one change, add tests for behavior ch
 ## Releasing (maintainers)
 
 Actions → **Release** → Run workflow on `main`, and enter the version (`4.0.0`, or `4.1.0-beta.1` with
-`alpha`/`beta`/`rc`). The workflow bumps the version (`src/Directory.Build.props`, `src/Version.cs`, the Unity
+`alpha`/`beta`/`rc`). The workflow bumps the version (`src/Directory.Build.props`, the Unity
 `package.json`), builds and tests it, commits the Unity DLLs with the bump, tags it, publishes the NuGet packages
 (Trusted Publishing, no API key) and creates the GitHub release with generated notes. Pre-releases also get the
 `vX.Y.Z-preview.N` tag OpenUPM reads. If a step fails after tagging, fix the cause and re-run the failed job.
