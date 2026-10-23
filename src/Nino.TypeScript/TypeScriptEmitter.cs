@@ -347,15 +347,18 @@ namespace Nino.TypeScript
                         .Append("  if (values === null || values === undefined) {\n    w.i32(-1);\n    return;\n  }\n");
                     string length = set ? "values.size" : "values.length";
                     sb.Append("  w.i32(").Append(length).Append(");\n");
+                    // Arrays by index: V8 runs an index loop faster than an array iterator (Chromium most).
+                    string loop = set ? "  for (const value of values) {\n"
+                        : "  for (let i = 0; i < values.length; i++) {\n    const value = values[i];\n";
                     if (element.Fixed)
                     {
                         sb.Append("  let at = ").Append(Reserve("w", $"{length} * {Int(element.Size)}", element.Zeroed))
-                            .Append(";\n  for (const value of values) {\n    ")
+                            .Append(";\n").Append(loop).Append("    ")
                             .Append(Statement(element.WriteAt!("w", "at", "value"))).Append("\n    at += ")
                             .Append(Int(element.Size)).Append(";\n  }\n");
                     }
                     else
-                        sb.Append("  for (const value of values) {\n    ")
+                        sb.Append(loop).Append("    ")
                             .Append(Statement(element.Write("w", "value"))).Append("\n  }\n");
                     return sb.Append("}\n").ToString();
                 }) + $"({w}, {v})", "null");

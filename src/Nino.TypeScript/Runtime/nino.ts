@@ -621,7 +621,7 @@ export class NinoWriter {
   array<T>(values: readonly T[] | null, write: (writer: NinoWriter, value: T) => void): void {
     if (values === null || values === undefined) { this.i32(-1); return; }
     this.i32(values.length);
-    for (const value of values) write(this, value);
+    for (let i = 0; i < values.length; i++) write(this, values[i]);
   }
 
   set<T>(values: ReadonlySet<T> | null, write: (writer: NinoWriter, value: T) => void): void {
