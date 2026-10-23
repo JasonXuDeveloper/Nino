@@ -67,9 +67,11 @@ fn measured<R>(f: impl FnOnce() -> R) -> (R, usize) {
     (r, PEAK.load(Ordering::Relaxed).saturating_sub(base))
 }
 
-/// What a decoder may allocate for `size` bytes of input: 64 bytes per input byte, plus 64 KiB.
+/// What a decoder may allocate for `size` bytes of input: 256 bytes per input byte, plus 64 KiB. Collections stay
+/// within 16 bytes per input byte up front; the most per byte is a chain of deferred bodies, where each presence byte
+/// becomes an object, a queue record and a log entry (about 100 bytes, three times that while a queue grows).
 fn allowance(size: usize) -> usize {
-    64 * size + (64 << 10)
+    256 * size + (64 << 10)
 }
 
 // ---------------------------------------------------------------------------------------------- visitors
@@ -261,9 +263,146 @@ fn run() {
     assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));
 }
 
+/// The tests measure memory through one global counter: one at a time.
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn on_large_stack(f: fn()) {
+    let _guard = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+    // Deep cases nest their JSON (and the values read) about 1,000 levels deep: compare and drop them on a large
+    // stack. The reader itself never recurses more than 128 class bodies deep for deferrable types.
+    std::thread::Builder::new().stack_size(512 << 20).spawn(f).unwrap().join().unwrap();
+}
+
 #[test]
 fn conformance_corpus() {
-    // Deep cases nest their JSON (and the reference values) about 1,000 levels deep: compare and drop them on a
-    // large stack. The reader itself never recurses more than 128 class bodies deep for deferrable types.
-    std::thread::Builder::new().stack_size(512 << 20).spawn(run).unwrap().join().unwrap();
+    on_large_stack(run);
+}
+
+// ---------------------------------------------------------------------------------------------- mutational fuzzing
+
+/// xorshift64*: deterministic, so a failure reproduces from its seed and iteration.
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> u64 {
+        self.0 ^= self.0 >> 12;
+        self.0 ^= self.0 << 25;
+        self.0 ^= self.0 >> 27;
+        self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+
+    fn below(&mut self, n: usize) -> usize {
+        (self.next() % n.max(1) as u64) as usize
+    }
+}
+
+const INTERESTING: [i32; 14] =
+    [0, 1, -1, -2, 2, 127, 128, 255, 256, i32::MAX, i32::MIN, 0x4000_0000, 0x8000_0004u32 as i32, 0x7FFF_FFF0];
+
+/// One mutation of `data`: a bit flip, an interesting byte or i32 (a length, a header, a type id), a cut, an
+/// insertion, a deletion or a copied chunk.
+fn mutate(rng: &mut Rng, data: &mut Vec<u8>) {
+    let len = data.len();
+    match rng.below(8) {
+        0 if len > 0 => {
+            let i = rng.below(len);
+            data[i] ^= 1 << rng.below(8);
+        }
+        1 if len > 0 => {
+            let i = rng.below(len);
+            data[i] = [0u8, 1, 2, 0x7F, 0x80, 0xFE, 0xFF][rng.below(7)];
+        }
+        2 if len >= 4 => {
+            let i = rng.below(len - 3);
+            let v = INTERESTING[rng.below(INTERESTING.len())];
+            data[i..i + 4].copy_from_slice(&v.to_le_bytes());
+        }
+        3 if len >= 4 => {
+            // Nudge an i32 (a length or an offset) by a little.
+            let i = rng.below(len - 3);
+            let v = i32::from_le_bytes(data[i..i + 4].try_into().unwrap());
+            let d = rng.below(17) as i32 - 8;
+            data[i..i + 4].copy_from_slice(&v.wrapping_add(d).to_le_bytes());
+        }
+        4 if len > 0 => data.truncate(rng.below(len)),
+        5 => {
+            let i = rng.below(len + 1);
+            let n = 1 + rng.below(8);
+            for _ in 0..n {
+                data.insert(i, rng.next() as u8);
+            }
+        }
+        6 if len > 0 => {
+            let i = rng.below(len);
+            let n = 1 + rng.below((len - i).min(16));
+            data.drain(i..i + n);
+        }
+        _ if len > 0 => {
+            let from = rng.below(len);
+            let n = 1 + rng.below((len - from).min(64));
+            let chunk = data[from..from + n].to_vec();
+            let at = rng.below(len);
+            data.splice(at..at, chunk);
+        }
+        _ => data.push(rng.next() as u8),
+    }
+}
+
+/// Mutates every valid corpus case `NINO_FUZZ_ITERATIONS` times (default 300) and reads each result as the case's
+/// type: an error or a value, but never a panic, and never memory out of proportion to the input.
+fn fuzz() {
+    let Some(dir) = corpus() else {
+        eprintln!("fuzz: no corpus (set NINO_CORPUS); skipped");
+        return;
+    };
+    let iterations: usize = std::env::var("NINO_FUZZ_ITERATIONS").ok().and_then(|v| v.parse().ok()).unwrap_or(300);
+    let index = read_json(&dir.join("index.json"));
+    let mut cases: Vec<(String, String, Vec<u8>)> = Vec::new();
+    for group in ["valid", "malicious"] {
+        for name in index[group].as_array().unwrap() {
+            let name = name.as_str().unwrap();
+            let case = read_json(&dir.join(format!("{group}/{name}.json")));
+            if case.get("optional").is_some_and(|o| !o.is_null()) {
+                continue;
+            }
+            let bytes = std::fs::read(dir.join(format!("{group}/{name}.bin"))).unwrap();
+            cases.push((name.to_string(), case["type"].as_str().unwrap().to_string(), bytes));
+        }
+    }
+    let mut failures = Vec::new();
+    let (mut accepted, mut rejected) = (0usize, 0usize);
+    for (k, (name, ty, seed)) in cases.iter().enumerate() {
+        let mut rng = Rng(0x9E37_79B9_7F4A_7C15 ^ (k as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03));
+        for iteration in 0..iterations {
+            let mut data = seed.clone();
+            for _ in 0..1 + rng.below(4) {
+                mutate(&mut rng, &mut data);
+            }
+            let outcome = std::panic::catch_unwind(|| measured(|| types::with_type(ty, Decode(&data))));
+            match outcome {
+                Err(_) => {
+                    failures.push(format!("{name} iteration {iteration}: panicked on {}", hex(&data)));
+                }
+                Ok((_, peak)) if peak > allowance(data.len()) => {
+                    failures.push(format!("{name} iteration {iteration}: allocated {peak} bytes for {}", data.len()));
+                }
+                Ok((Some(Ok(())), _)) => accepted += 1,
+                Ok(_) => rejected += 1,
+            }
+            if failures.len() > 20 {
+                break;
+            }
+        }
+    }
+    eprintln!("fuzz: {} inputs from {} seeds: {accepted} read, {rejected} rejected", accepted + rejected, cases.len());
+    assert!(failures.is_empty(), "{} failures:\n{}", failures.len(), failures.join("\n"));
+}
+
+fn hex(data: &[u8]) -> String {
+    data.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+#[test]
+fn mutational_fuzz() {
+    on_large_stack(fuzz);
 }
