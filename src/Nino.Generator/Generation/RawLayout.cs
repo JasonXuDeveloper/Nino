@@ -18,6 +18,11 @@ namespace Nino.Generator.Generation;
 /// when its field offsets and size come out the same under both models, and it has no pointer-sized fields. The
 /// layout rules are the runtime's own (<see cref="NinoLayoutCore"/>, shared source), and so is the canonical layout
 /// <see cref="Describe"/> publishes.
+/// <para>
+/// Projects compile against reference assemblies, where a struct's private fields are replaced by placeholders
+/// (<c>int _dummyPrimitive</c>, <c>object _dummy</c>): the BCL structs whose fields are private take their layout from
+/// <see cref="Leaf"/> and <see cref="Known"/> instead, and any other struct with a placeholder has no known layout.
+/// </para>
 /// </summary>
 internal static class RawLayout
 {
@@ -25,10 +30,9 @@ internal static class RawLayout
     {
         var wide = new List<NinoLayoutCore.Leaf>();
         var narrow = new List<NinoLayoutCore.Leaf>();
-        return NinoLayoutCore.Measure<ITypeSymbol, SymbolView>(default, type, 8, 8, 8, 0, wide, out int wideSize,
-                   out _) &&
-               NinoLayoutCore.Measure<ITypeSymbol, SymbolView>(default, type, 4, 4, 4, 0, narrow,
-                   out int narrowSize, out _) &&
+        var view = new SymbolView(type);
+        return NinoLayoutCore.Measure(view, type, 8, 8, 8, 0, wide, out int wideSize, out _) &&
+               NinoLayoutCore.Measure(view, type, 4, 4, 4, 0, narrow, out int narrowSize, out _) &&
                wideSize == narrowSize && wide.Select(l => l.Offset).SequenceEqual(narrow.Select(l => l.Offset));
     }
 
@@ -49,21 +53,21 @@ internal static class RawLayout
     private static bool Describe(ITypeSymbol type, StringBuilder sb)
     {
         var offsets = new List<int>();
-        if (!NinoLayoutCore.Measure<ITypeSymbol, SymbolView>(default, type, 8, 8, 8, 0,
-                new List<NinoLayoutCore.Leaf>(), out int size, out _, offsets))
+        if (!NinoLayoutCore.Measure(new SymbolView(type), type, 8, 8, 8, 0, new List<NinoLayoutCore.Leaf>(),
+                out int size, out _, offsets))
             return false;
         sb.Append("raw(").Append(size.ToString(CultureInfo.InvariantCulture)).Append(')');
         if (Leaf(type) != NinoLeaf.None)
             return true;
 
-        var fields = Fields(type);
+        var fields = Fields(type)!;
         sb.Append('{');
         for (int i = 0; i < fields.Count; i++)
         {
             if (i != 0)
                 sb.Append(',');
             var field = fields[i];
-            sb.Append((field.AssociatedMember() ?? field).Name).Append(':')
+            sb.Append(field.Name).Append(':')
                 .Append(TypeNames.Plain(TypeNames.Global(field.Type))).Append('@')
                 .Append(offsets[i].ToString(CultureInfo.InvariantCulture)).Append(':');
             if (!Describe(field.Type, sb))
@@ -76,9 +80,10 @@ internal static class RawLayout
 
     /// <summary>
     /// How a raw value of <paramref name="type"/> is laid out when it is not a struct of its own fields: primitives,
-    /// enums (as their underlying type), <c>decimal</c>, <c>DateTime</c>, <c>TimeSpan</c> and <c>Guid</c> are leaves,
-    /// pointer-sized and reference types are not supported. The one table of the primitive sizes the generator uses
-    /// (<see cref="SizeOf"/>, <c>LayoutTypes</c>), as <c>NinoLayout</c>'s is the runtime's.
+    /// enums (as their underlying type), <c>decimal</c>, <c>DateTime</c>, <c>TimeSpan</c>, <c>Guid</c> and the BCL
+    /// structs of one private primitive field (<c>Half</c>, <c>Rune</c>, <c>DateOnly</c>, <c>TimeOnly</c>,
+    /// <c>Index</c>) are leaves, pointer-sized and reference types are not supported. The one table of the primitive
+    /// sizes the generator uses (<see cref="SizeOf"/>, <c>LayoutTypes</c>), as <c>NinoLayout</c>'s is the runtime's.
     /// </summary>
     public static NinoLeaf Leaf(ITypeSymbol type)
     {
@@ -113,11 +118,20 @@ internal static class RawLayout
         if (type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } named)
             return NinoLeaf.Unsupported;
         var definition = named.OriginalDefinition;
-        if (TypeNames.HasMetadataName(definition, "System.TimeSpan"))
-            return NinoLeaf.Size8;
-        if (TypeNames.HasMetadataName(definition, "System.Guid"))
-            return NinoLeaf.Guid;
-        return NinoLeaf.None;
+        if (definition.Arity != 0)
+            return NinoLeaf.None;
+        // Their one field is private: reference assemblies show a placeholder in its place.
+        return definition.MetadataName switch
+        {
+            "Half" when TypeNames.HasMetadataName(definition, "System.Half") => NinoLeaf.Size2, // ushort _value
+            "DateOnly" when TypeNames.HasMetadataName(definition, "System.DateOnly") => NinoLeaf.Size4, // uint
+            "Index" when TypeNames.HasMetadataName(definition, "System.Index") => NinoLeaf.Size4, // int _value
+            "Rune" when TypeNames.HasMetadataName(definition, "System.Text.Rune") => NinoLeaf.Size4, // uint _value
+            "TimeOnly" when TypeNames.HasMetadataName(definition, "System.TimeOnly") => NinoLeaf.Size8, // ulong
+            "TimeSpan" when TypeNames.HasMetadataName(definition, "System.TimeSpan") => NinoLeaf.Size8,
+            "Guid" when TypeNames.HasMetadataName(definition, "System.Guid") => NinoLeaf.Guid,
+            _ => NinoLeaf.None,
+        };
     }
 
     /// <summary>
@@ -141,9 +155,70 @@ internal static class RawLayout
             : new RawSize(0, $"{TypeNames.Core}NinoUnsafe.SizeOf<{TypeNames.Global(type)}>()");
     }
 
-    /// <summary>The instance fields of a struct, in declaration (metadata) order.</summary>
-    private static List<IFieldSymbol> Fields(ITypeSymbol type) =>
-        type.GetMembers().OfType<IFieldSymbol>().Where(static f => !f.IsStatic && !f.IsConst).ToList();
+    /// <summary>A struct's field as laid out: its name (its property's for a backing field), type and symbol.</summary>
+    private readonly record struct Field(string Name, ITypeSymbol Type, IFieldSymbol? Symbol);
+
+    /// <summary>
+    /// The instance fields of a struct, in declaration (metadata) order, or null when they are not known: a struct
+    /// read from a reference assembly, whose private fields are placeholders, unless <see cref="Known"/> lists them.
+    /// </summary>
+    private static List<Field>? Fields(ITypeSymbol type)
+    {
+        if (Known(type) is { } known)
+            return known;
+        var fields = new List<Field>();
+        foreach (var member in type.GetMembers())
+        {
+            if (member is not IFieldSymbol { IsStatic: false, IsConst: false } field)
+                continue;
+            if (field.Name is "_dummyPrimitive" or "_dummy" && field.DeclaredAccessibility == Accessibility.Private &&
+                !field.Locations.Any(static l => l.IsInSource))
+                return null;
+            fields.Add(new Field((field.AssociatedMember() ?? field).Name, field.Type, field));
+        }
+
+        return fields;
+    }
+
+    /// <summary>
+    /// The fields of the BCL structs of several private fields, as the runtimes declare them (reference assemblies
+    /// show placeholders): <c>Nullable&lt;T&gt;</c>, <c>Complex</c>, <c>Range</c>, <c>Int128</c> and <c>UInt128</c>
+    /// (little endian). Null for any other type.
+    /// </summary>
+    private static List<Field>? Known(ITypeSymbol type)
+    {
+        if (type is not INamedTypeSymbol { TypeKind: TypeKind.Struct } named)
+            return null;
+        var definition = named.OriginalDefinition;
+        if (definition.SpecialType == SpecialType.System_Nullable_T)
+            return Pair(PropertyType(named, "HasValue"), "hasValue", named.TypeArguments[0], "value");
+        if (TypeNames.HasMetadataName(definition, "System.Numerics.Complex") &&
+            PropertyType(named, "Real") is { } real)
+            return Pair(real, "m_real", real, "m_imaginary");
+        if (TypeNames.HasMetadataName(definition, "System.Range") && PropertyType(named, "Start") is { } index)
+            return Pair(index, "Start", index, "End");
+        if ((TypeNames.HasMetadataName(definition, "System.Int128") ||
+             TypeNames.HasMetadataName(definition, "System.UInt128")) &&
+            definition.BaseType?.ContainingAssembly.GetTypeByMetadataName("System.UInt64") is { } ulongType)
+            return Pair(ulongType, "_lower", ulongType, "_upper");
+        return null;
+
+        static List<Field>? Pair(ITypeSymbol? first, string firstName, ITypeSymbol second, string secondName) =>
+            first == null
+                ? null
+                : new List<Field> { new(firstName, first, null), new(secondName, second, null) };
+    }
+
+    private static ITypeSymbol? PropertyType(INamedTypeSymbol type, string name) =>
+        type.GetMembers(name).OfType<IPropertySymbol>().FirstOrDefault()?.Type;
+
+    /// <summary>
+    /// <c>Int128</c> and <c>UInt128</c>: 16-byte aligned on .NET 8 and later (64-bit), 8-byte aligned before, so their
+    /// offset in another struct differs by runtime; on their own they are 16 bytes everywhere.
+    /// </summary>
+    private static bool IsWide(ITypeSymbol type) =>
+        type is INamedTypeSymbol { TypeKind: TypeKind.Struct, Arity: 0 } named &&
+        (TypeNames.HasMetadataName(named, "System.Int128") || TypeNames.HasMetadataName(named, "System.UInt128"));
 
     /// <summary>
     /// The definition of a type or field in the metadata it was read from, or null for source. <c>[StructLayout]</c>
@@ -220,39 +295,57 @@ internal static class RawLayout
         return null;
     }
 
-    /// <summary>The generator's view of a type: pointer-sized fields are never portable.</summary>
-    private struct SymbolView : INinoLayoutView<ITypeSymbol>
+    /// <summary>
+    /// The generator's view of a type: pointer-sized fields are never portable, and neither is a struct with fields of
+    /// unknown layout (<see cref="Fields"/>) or with an <c>Int128</c> in it (<see cref="IsWide"/>; one on its own,
+    /// <paramref name="top"/>, is).
+    /// </summary>
+    private readonly struct SymbolView(ITypeSymbol top) : INinoLayoutView<ITypeSymbol>
     {
         public NinoLeaf Leaf(ITypeSymbol type) => RawLayout.Leaf(type);
 
         public bool Struct(ITypeSymbol type, List<KeyValuePair<ITypeSymbol, int>> fields, out LayoutKind kind,
             out int pack, out int minSize)
         {
+            // A known layout is sequential, without Pack or Size.
             var metadata = ReadLayout(type, out kind, out pack, out minSize);
-            foreach (var field in Fields(type))
+            if (Known(type) != null)
             {
-                int offset = -1;
-                if (metadata != null)
-                {
-                    offset = metadata.GetFieldDefinition(
-                        MetadataTokens.FieldDefinitionHandle(field.OriginalDefinition.MetadataToken)).GetOffset();
-                }
-                else
-                {
-                    foreach (var attribute in field.GetAttributes())
-                    {
-                        if (attribute.AttributeClass is { } cls &&
-                            TypeNames.HasMetadataName(cls, "System.Runtime.InteropServices.FieldOffsetAttribute") &&
-                            attribute.ConstructorArguments.Length == 1 &&
-                            attribute.ConstructorArguments[0].Value is int o)
-                            offset = o;
-                    }
-                }
+                metadata = null;
+                kind = LayoutKind.Sequential;
+                pack = minSize = 0;
+            }
 
-                fields.Add(new KeyValuePair<ITypeSymbol, int>(field.Type, offset));
+            if ((IsWide(type) && !SymbolEqualityComparer.Default.Equals(type, top)) || Fields(type) is not { } own)
+                return false;
+            foreach (var field in own)
+            {
+                fields.Add(new KeyValuePair<ITypeSymbol, int>(field.Type,
+                    field.Symbol == null ? -1 : Offset(field.Symbol, metadata)));
             }
 
             return true;
+        }
+
+        /// <summary>A field's explicit offset (<c>[FieldOffset]</c>, or the field layout table), or -1.</summary>
+        private static int Offset(IFieldSymbol field, MetadataReader? metadata)
+        {
+            if (metadata != null)
+            {
+                return metadata.GetFieldDefinition(
+                    MetadataTokens.FieldDefinitionHandle(field.OriginalDefinition.MetadataToken)).GetOffset();
+            }
+
+            int offset = -1;
+            foreach (var attribute in field.GetAttributes())
+            {
+                if (attribute.AttributeClass is { } cls &&
+                    TypeNames.HasMetadataName(cls, "System.Runtime.InteropServices.FieldOffsetAttribute") &&
+                    attribute.ConstructorArguments.Length == 1 && attribute.ConstructorArguments[0].Value is int o)
+                    offset = o;
+            }
+
+            return offset;
         }
     }
 }
