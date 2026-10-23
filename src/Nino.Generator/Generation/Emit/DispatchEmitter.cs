@@ -88,11 +88,11 @@ internal static class DispatchEmitter
             w.Line();
         }
 
-        var sb = new StringBuilder(FormatterEmitter.Header);
+        var sb = new StringBuilder(GeneratedCode.Header);
         sb.Append("namespace " + GenNamespace + "\n{\n");
         // Aliases for the names every line repeats: this file has a few lines per (base, subtype) pair.
-        sb.Append("    using __NinoInline = " + CompilerServices + "MethodImplAttribute;\n");
-        sb.Append("    using __NinoInlineOptions = " + CompilerServices + "MethodImplOptions;\n");
+        foreach (var alias in GeneratedCode.InlineAliases)
+            sb.Append("    ").Append(alias).Append('\n');
         sb.Append("    using __NinoObject = " + Core + "NinoObject;\n");
         sb.Append("    using __NinoWriter = " + Core + "Writer;\n");
         sb.Append("    using __NinoReader = " + Core + "Reader;\n\n");
@@ -163,7 +163,7 @@ internal static class DispatchEmitter
         for (int i = 0; i < subtypes.Count; i++)
         {
             var s = subtypes[i];
-            w.Line($"[__NinoInline(__NinoInlineOptions.NoInlining)] static void __ReadExact{i}(ref {t} value, ref __NinoReader reader) => __NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref value, ref reader);");
+            w.Line($"{GeneratedCode.NoInline} static void __ReadExact{i}(ref {t} value, ref __NinoReader reader) => __NinoObject.ReadExact<{t}, {s.TypeName}, {s.FormatterName}>(ref value, ref reader);");
         }
     }
 }

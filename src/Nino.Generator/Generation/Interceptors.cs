@@ -165,7 +165,7 @@ internal static class Interceptors
         var shallow = new HashSet<string>(shallowTwins.Select(n => TypeNames.Gen + n));
         string scope = fileLocal ? "file" : "internal";
         var w = new CodeWriter(calls.Length * 384);
-        w.Raw(FormatterEmitter.Header);
+        w.Raw(GeneratedCode.Header);
         w.Open("namespace System.Runtime.CompilerServices");
         w.Line("[global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]");
         w.Open($"{scope} sealed class InterceptsLocationAttribute : global::System.Attribute");
@@ -180,8 +180,8 @@ internal static class Interceptors
         w.Open($"namespace {TypeNames.GenNamespace}");
         // Aliases: each interceptor names them, more than a thousand times in a large project.
         w.Line($"using __NinoIntercepts = {TypeNames.CompilerServices}InterceptsLocationAttribute;");
-        w.Line($"using __NinoInline = {TypeNames.CompilerServices}MethodImplAttribute;");
-        w.Line($"using __NinoInlineOptions = {TypeNames.CompilerServices}MethodImplOptions;");
+        foreach (var alias in GeneratedCode.InlineAliases)
+            w.Line(alias);
         w.Line($"using __NinoDirect = {TypeNames.Core}NinoDirect;");
         w.Line();
         w.Open($"{scope} static class NinoInterceptors");
@@ -192,7 +192,7 @@ internal static class Interceptors
                 w.Line();
             foreach (var call in group)
                 w.Line($"[__NinoIntercepts({call.Location})]");
-            w.Line("[__NinoInline(__NinoInlineOptions.AggressiveInlining)]");
+            w.Line(GeneratedCode.Inline);
             // "R Name(params)" becomes "public static R NameN(params) => call;"
             var signature = group.Key.Signature;
             int paren = signature.IndexOf('(');

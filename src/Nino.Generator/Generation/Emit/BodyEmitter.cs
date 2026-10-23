@@ -216,7 +216,7 @@ internal sealed class BodyEmitter
     private void EmitRawBody()
     {
         var block = new RawBlock(_m.Members.ToList());
-        string self = _m.FormatterName + _m.TypeParameterList;
+        string self = _m.Self;
         _w.Line($"public int BodySize => {block.Total};");
         _w.Line();
         _w.Line(_names.Inline);

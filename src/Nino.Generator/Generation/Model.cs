@@ -332,6 +332,9 @@ internal sealed record TypeModel(
 
     /// <summary>"&lt;T1, T2&gt;", or "" for non-generic types.</summary>
     public string TypeParameterList => IsGeneric ? "<" + string.Join(", ", TypeParameters) + ">" : "";
+
+    /// <summary>The formatter as its own code names it: its name with the type's parameters.</summary>
+    public string Self => FormatterName + TypeParameterList;
 }
 
 // Id: runtime type id of the closed type (NinoTypeId), the key of lazy registration.

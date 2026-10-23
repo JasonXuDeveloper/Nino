@@ -30,7 +30,7 @@ internal static class RegistryEmitter
         string name = "NinoGenRegistry_" + new string(options.AssemblyName
             .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
         var w = new CodeWriter();
-        w.Raw(FormatterEmitter.Header);
+        w.Raw(GeneratedCode.Header);
         w.Line($"[assembly: {Core}NinoGenerated(typeof({Gen}{name}))]");
         var list = entries.ToList();
         // Generic [NinoType]s are closed at runtime: their formatter definitions are ordinary formatter
@@ -89,7 +89,7 @@ internal static class RegistryEmitter
         IEnumerable<TypeRegistration> generics, IEnumerable<string> layoutTypes)
     {
         var w = new CodeWriter();
-        w.Raw(FormatterEmitter.Header);
+        w.Raw(GeneratedCode.Header);
         w.Open($"namespace {GenNamespace}");
         var kept = layoutTypes.ToList();
         if (kept.Count != 0)

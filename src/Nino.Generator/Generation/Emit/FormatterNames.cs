@@ -37,7 +37,7 @@ internal sealed class FormatterNames
         get
         {
             _inline = true;
-            return "[__NinoInline(__NinoInlineOptions.AggressiveInlining)]";
+            return GeneratedCode.Inline;
         }
     }
 
@@ -47,7 +47,7 @@ internal sealed class FormatterNames
         get
         {
             _inline = true;
-            return "[__NinoInline(__NinoInlineOptions.NoInlining)]";
+            return GeneratedCode.NoInline;
         }
     }
 
@@ -65,8 +65,8 @@ internal sealed class FormatterNames
     {
         if (_inline)
         {
-            sb.Append("    using __NinoInline = " + TypeNames.CompilerServices + "MethodImplAttribute;\n");
-            sb.Append("    using __NinoInlineOptions = " + TypeNames.CompilerServices + "MethodImplOptions;\n");
+            foreach (var alias in GeneratedCode.InlineAliases)
+                sb.Append("    ").Append(alias).Append('\n');
         }
 
         foreach (var pair in _aliases.Where(p => _used.Contains(p.Key)).OrderBy(p => p.Value.Length).ThenBy(p => p.Value))
