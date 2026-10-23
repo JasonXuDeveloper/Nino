@@ -108,17 +108,20 @@ namespace Nino.Immutable
 
             // Element by element with its own (struct) enumerator: through IEnumerable<T>, each step is an
             // interface call.
-            writer.WriteLength(count);
-            if (count != 0)
-                WriteItems(value, ref writer);
+            writer = WriteItems(value, count, writer);
         }
 
-        // Out of line: inlined into the caller, the large enumerator is kept in memory instead of registers.
+        // Out of line, the count too: inlined into the caller, the large enumerator is kept in memory instead of
+        // registers, and this path (empty sets, runtimes whose trees HashTrees cannot read) takes the inlining
+        // budget of the common one. The writer by value and returned: one passed by reference would keep the
+        // caller's in memory.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WriteItems(ImmutableHashSet<T> value, ref Writer writer)
+        private static Writer WriteItems(ImmutableHashSet<T> value, int count, Writer writer)
         {
+            writer.WriteLength(count);
             foreach (var item in value)
                 default(TFormatter).Serialize(item, ref writer);
+            return writer;
         }
 
         public void Deserialize(ref ImmutableHashSet<T> value, ref Reader reader)
@@ -306,20 +309,21 @@ namespace Nino.Immutable
                 return;
             }
 
-            writer.WriteLength(count);
-            if (count != 0)
-                WritePairs(value, ref writer);
+            writer = WritePairs(value, count, writer);
         }
 
-        // Out of line, as ImmutableHashSet<T>'s.
+        // Out of line with the count, the writer by value, as ImmutableHashSet<T>'s.
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void WritePairs(ImmutableDictionary<TKey, TValue> value, ref Writer writer)
+        private static Writer WritePairs(ImmutableDictionary<TKey, TValue> value, int count, Writer writer)
         {
+            writer.WriteLength(count);
             foreach (var pair in value)
             {
                 default(TKeyFormatter).Serialize(pair.Key, ref writer);
                 default(TValueFormatter).Serialize(pair.Value, ref writer);
             }
+
+            return writer;
         }
 
         public void Deserialize(ref ImmutableDictionary<TKey, TValue> value, ref Reader reader)
@@ -418,6 +422,7 @@ namespace Nino.Immutable
     internal static class ImmutableCollections
     {
         /// <summary>Writes the first <paramref name="count"/> elements of a rented array as a <c>T[]</c>, then returns it.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void WriteRented<T, TFormatter>(T[] array, int count, ref Writer writer)
             where TFormatter : struct, INinoFormatter<T>
         {
@@ -425,17 +430,13 @@ namespace Nino.Immutable
             Return(array);
         }
 
-        /// <summary>Returns a rented array, cleared if it may hold references.</summary>
-        public static void Return<T>(T[] array)
-        {
-#if NETSTANDARD2_0
-            ArrayPool<T>.Shared.Return(array, clearArray: true);
-#else
-            ArrayPool<T>.Shared.Return(array, RuntimeHelpers.IsReferenceOrContainsReferences<T>());
-#endif
-        }
+        /// <summary>Returns a rented array, cleared if it may hold references (as Nino.Core returns its own).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Return<T>(T[] array) =>
+            ArrayPool<T>.Shared.Return(array, NinoUnsafe.IsReferenceOrContainsReferences<T>());
 
         /// <summary>Reads a new <c>T[]</c> (null for a null length).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static T[] Read<T, TFormatter>(ref Reader reader) where TFormatter : struct, INinoFormatter<T>
         {
             T[] array = null;
