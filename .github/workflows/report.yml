@@ -385,6 +385,12 @@ jobs:
           v3 = open("v3_section.md", encoding="utf-8").read().strip("\n")
           arm64 = open("arm64_section.md", encoding="utf-8").read().strip("\n")
           perf = open("perf_section.md", encoding="utf-8").read().strip("\n")
+          # BenchmarkDotNet pads every cell to its column's width, which doubles the tables (rc.7's body went past
+          # GitHub's limit): one space each side is the same Markdown, and every parser trims the cells anyway.
+          def compact(text):
+              return re.sub(r"(?m)^\|.*\|[ \t]*$", lambda m: "|" + "|".join(
+                  f" {c.strip()} " if c.strip() else " " for c in m.group(0).strip().strip("|").split("|")) + "|", text)
+          v3, arm64, perf = compact(v3), compact(arm64), compact(perf)
           match = re.search(r"^.*Performance Report", body, re.MULTILINE)
           if match:  # the report is already there: put the v3 section in front of its heading
               head, tail = body[:match.start()].rstrip("\n"), body[match.start():]
