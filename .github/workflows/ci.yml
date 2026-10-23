@@ -159,6 +159,14 @@ jobs:
           npm install -g typescript@5
           dotnet test Nino.TypeScript.Tests/Nino.TypeScript.Tests.csproj --no-build -c Debug --logger trx --results-directory ./TestResults
 
+      # The TypeScript runtime on its own (runtimes/typescript/test): type checks, then node:test.
+      - name: Test the TypeScript runtime
+        if: ${{ matrix.project == '' }}
+        working-directory: ./runtimes/typescript
+        run: |
+          npm ci
+          npm test
+
       - name: Upload test results
         uses: actions/upload-artifact@v7
         if: always()

@@ -50,3 +50,6 @@ hive-mind-prompt-*.txt
 # TypeScript benchmark output
 runtimes/typescript/bench/out/
 runtimes/typescript/bench/gen/
+
+# The TypeScript runtime's dev dependencies
+runtimes/typescript/node_modules/
