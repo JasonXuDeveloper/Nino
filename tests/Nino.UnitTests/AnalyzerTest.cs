@@ -2329,4 +2329,35 @@ public struct AnyListFormatter<TList, T, TF> : INinoFormatter<TList>
     }
 
     #endregion
+
+    /// <summary>
+    /// The release tracking files (AnalyzerReleases.*.md) list every rule with its severity and its title, as the
+    /// descriptors declare them.
+    /// </summary>
+    [TestMethod]
+    public void ReleaseTrackingMatchesTheDescriptors()
+    {
+        string dir = System.IO.Path.Combine(SourceDirectory(), "..", "..", "src", "Nino.Generator");
+        var listed = new System.Collections.Generic.Dictionary<string, (string Severity, string Title)>();
+        foreach (string file in new[] { "AnalyzerReleases.Shipped.md", "AnalyzerReleases.Unshipped.md" })
+        {
+            foreach (string line in System.IO.File.ReadAllLines(System.IO.Path.Combine(dir, file)))
+            {
+                var cells = line.Split('|');
+                if (cells.Length == 4 && cells[0].Trim().StartsWith("NINO", System.StringComparison.Ordinal))
+                    listed.Add(cells[0].Trim(), (cells[2].Trim(), cells[3].Trim()));
+            }
+        }
+
+        var descriptors = new Generator.Analysis.NinoAnalyzer().SupportedDiagnostics;
+        foreach (var d in descriptors)
+        {
+            Assert.IsTrue(listed.TryGetValue(d.Id, out var entry), $"{d.Id} is not listed");
+            Assert.AreEqual(d.DefaultSeverity.ToString(), entry.Severity, d.Id);
+            Assert.AreEqual(d.Title.ToString(), entry.Title, d.Id);
+        }
+    }
+
+    private static string SourceDirectory([System.Runtime.CompilerServices.CallerFilePath] string here = "") =>
+        System.IO.Path.GetDirectoryName(here)!;
 }

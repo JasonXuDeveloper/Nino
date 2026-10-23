@@ -10,13 +10,13 @@ Rule ID | Category | Severity | Notes
 --------|----------|----------|-------
 NINO001 | Nino | Error | NinoType must be accessible
 NINO002 | Nino | Error | Type must be partial
-NINO003 | Nino | Warning | Sub-type of a NinoType without the attribute
+NINO003 | Nino | Warning | Sub-type of a NinoType should also have the NinoTypeAttribute applied
 NINO004 | Nino | Error | No usable constructor
 NINO005 | Nino | Error | Constructor parameter matches no member
-NINO006 | Nino | Warning | Read-only member cannot be deserialized
+NINO006 | Nino | Warning | Member cannot be deserialized
 NINO007 | Nino | Warning | Member type cannot be serialized
 NINO008 | Nino | Error | Invalid custom formatter type
-NINO009 | Nino | Error | Private member without containNonPublicMembers
+NINO009 | Nino | Error | Non-public member is not serialized
 NINO010 | Nino | Warning | Redundant NinoMemberAttribute
 NINO011 | Nino | Warning | Redundant NinoIgnoreAttribute
 NINO012 | Nino | Error | Ambiguous member
