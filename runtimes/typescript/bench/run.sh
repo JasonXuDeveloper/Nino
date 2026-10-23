@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Nino's generated TypeScript against JSON, in Node and in headless Chromium, on data written by Nino in .NET.
 #
-# usage: benchmarks/typescript/run.sh [scenario]   (e.g. lookup; default: all)
+# usage: runtimes/typescript/bench/run.sh [scenario]   (e.g. lookup; default: all)
 # Requires the .NET 10 SDK, Node 22.18+ (it runs TypeScript directly), tsc 5.7+ and Playwright with Chromium.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
-ROOT=$(cd "$HERE/../.." && pwd)
+ROOT=$(cd "$HERE/../../.." && pwd)
 OUT=$HERE/out
 
 rm -rf "$OUT" "$HERE/gen"

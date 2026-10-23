@@ -5,11 +5,13 @@ on:
     branches: [ "main", "develop" ]
     paths:
       - 'src/**'
+      - 'runtimes/**'
       - '.github/workflows/ci.yml'
   pull_request:
     branches: [ "main", "develop" ]
     paths:
       - 'src/**'
+      - 'runtimes/**'
       - '.github/workflows/ci.yml'
   workflow_call:
 

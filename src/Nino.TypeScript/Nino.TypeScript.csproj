@@ -22,7 +22,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Nino.TypeScript.Tests"/>
-        <EmbeddedResource Include="Runtime\nino.ts" LogicalName="nino.ts"/>
+        <EmbeddedResource Include="..\..\runtimes\typescript\src\nino.ts" LogicalName="nino.ts" Link="Runtime\nino.ts"/>
         <None Include="build\Nino.TypeScript.targets" Pack="true" PackagePath="build\"/>
     </ItemGroup>
 
